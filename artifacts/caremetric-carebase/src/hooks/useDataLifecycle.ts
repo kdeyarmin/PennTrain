@@ -171,19 +171,11 @@ export function usePlanAuditArchive() {
   });
 }
 
-export function useRunDataLifecyclePolicy() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: { policyKey: string; limit?: number }) => {
-      const { data, error } = await supabase.rpc("run_data_lifecycle_policy", {
-        p_policy_key: input.policyKey,
-        p_limit: input.limit ?? 100,
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["data_lifecycle_status"] });
-    },
-  });
-}
+// There is deliberately no useRunDataLifecyclePolicy.
+//
+// `run_data_lifecycle_policy` is revoked from `authenticated` and granted to service_role alone, so
+// calling it from the browser answered "permission denied" for every caller including a platform
+// admin. The lifecycle sweep is run through the `data-lifecycle` system job (useRunSystemJob in
+// useSystemJobs.ts), which posts to the run-system-job edge function; that function holds the
+// service role and invokes run-data-lifecycle, which runs run_data_lifecycle_policy for every
+// active policy. There is no server-side entry point for running a single policy from a session.

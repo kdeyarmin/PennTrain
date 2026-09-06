@@ -25,6 +25,22 @@ describe("sitemap generation", () => {
     expect(xml).not.toContain("/who-its-for");
   });
 
+  it("never advertises a route whose own head says noindex", () => {
+    // Credential-bearing routes (/report-safety's poster token, the guest portal, password
+    // reset) carry noindex in MARKETING_ROUTE_META. A sitemap <loc> for a page that tells
+    // crawlers not to index it is a contradiction, so the two lists have to stay in step.
+    const paths = sitemapPaths(routeKeys);
+    for (const [route, meta] of Object.entries(MARKETING_ROUTE_META)) {
+      if (meta.noindex) expect(paths).not.toContain(route);
+    }
+  });
+
+  it("advertises the published signup legal agreements, which are meant to be indexable", () => {
+    const xml = buildSitemapXml(SITE_URL, sitemapPaths(routeKeys));
+    expect(xml).toContain(`<loc>${SITE_URL}/legal/facility-signup</loc>`);
+    expect(MARKETING_ROUTE_META["/legal/facility-signup"].noindex).toBeUndefined();
+  });
+
   it("includes the flagship SEO content pages that were previously missing", () => {
     const xml = buildSitemapXml(SITE_URL, sitemapPaths(routeKeys));
     for (const path of [

@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -9,7 +9,7 @@ import {
   RefreshCw,
   XCircle,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +28,8 @@ import {
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
+import { useListEmployeesByIds, type Employee } from "@/hooks/useEmployees";
+import { EmployeeSearchSelect } from "@/components/employees/EmployeeSearchSelect";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
   useApplyEmployeeLifecycleCase,
@@ -46,6 +47,9 @@ import {
   canRefreshLifecycleCase,
   lifecycleCaseStatusLabel,
   lifecycleCasesToCsv,
+  lifecyclePreviewReasons,
+  lifecycleTransitionAdmitsStatus,
+  lifecycleTransitionEligibleStatuses,
   lifecycleTransitionLabel,
   summarizeLifecyclePreview,
   transitionRequiresTargetFacility,
@@ -67,6 +71,8 @@ export default function EmployeeLifecycleCases() {
   const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
+  const locationSearch = useSearch();
+  const [, navigate] = useLocation();
   const [status, setStatus] = useState("all");
   const [transitionFilter, setTransitionFilter] = useState("all");
   const [page, setPage] = useState(0);
@@ -77,6 +83,10 @@ export default function EmployeeLifecycleCases() {
   const [lockedPreviewKey, setLockedPreviewKey] = useState<string | null>(null);
 
   const [employeeId, setEmployeeId] = useState("");
+  // Kept so the wizard can tell whether a change of transition has left the chosen person
+  // ineligible (rehire wants terminated, return wants on_leave) instead of sending a request the
+  // server will refuse.
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [transition, setTransition] = useState<EmployeeLifecycleTransition>("leave");
   const [effectiveOn, setEffectiveOn] = useState(() => facilityToday());
   const [targetFacilityId, setTargetFacilityId] = useState("");
@@ -87,20 +97,13 @@ export default function EmployeeLifecycleCases() {
     [status, transitionFilter, page],
   );
   const cases = useEmployeeLifecycleCases(filters);
-  // Two lists, because the two consumers want different things and neither is a subset the other
-  // can be filtered out of safely.
-  //
-  // The picker offers people who can still be transitioned, so it stays server-filtered to active.
-  // Widening this one fetch to cover BOTH needs was the wrong trade -- `useListEmployees` is a
-  // single unpaginated read, silently capped at PostgREST's 1000 rows, so in an organization whose
-  // total roster (active plus every terminated record ever) exceeds the cap, inactive rows consume
-  // the alphabetical window and active staff drop out of the picker even though the active roster
-  // alone would have fitted. That is a worse failure than the one it was fixing.
-  const activeEmployeesQuery = useListEmployees(
-    { organizationId: user?.organizationId ?? undefined, status: "active" },
-    { enabled: Boolean(user?.organizationId) || user?.role === "platform_admin" },
-  );
-  const activeEmployees = activeEmployeesQuery.data ?? [];
+  // The picker is scoped to the statuses the SELECTED transition admits, not to "active".
+  // `preview_employee_lifecycle_transition` requires `terminated` for rehire and `on_leave` for
+  // return, so an active-only roster made both unreachable from any screen -- the transition
+  // dropdown listed them and no pickable person could ever satisfy them. It is a search-and-page
+  // picker rather than a single unpaginated read so widening the status set cannot reintroduce the
+  // PostgREST 1000-row cap that scoping to active was working around.
+  const eligibleStatuses = lifecycleTransitionEligibleStatuses(transition);
 
   // Labels for the cases actually on screen, fetched by id. A termination case is by definition a
   // case whose employee is no longer active, so the active list cannot name them -- and this page
@@ -114,11 +117,11 @@ export default function EmployeeLifecycleCases() {
   const caseEmployees = useListEmployeesByIds(caseEmployeeIds);
   const employeeNameById = useMemo(() => {
     const byId = new Map<string, string>();
-    for (const employee of [...activeEmployees, ...(caseEmployees.data ?? [])]) {
+    for (const employee of caseEmployees.data ?? []) {
       byId.set(employee.id, `${employee.first_name} ${employee.last_name}`);
     }
     return byId;
-  }, [activeEmployees, caseEmployees.data]);
+  }, [caseEmployees.data]);
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const createCase = useCreateEmployeeLifecycleCase();
   const refreshCase = useRefreshEmployeeLifecycleCase();
@@ -137,15 +140,50 @@ export default function EmployeeLifecycleCases() {
     reason: reason.trim(),
   });
 
-  const openWizard = () => {
+  const openWizard = (prefill?: { employeeId?: string; transition?: EmployeeLifecycleTransition }) => {
     setWizardOpen(true);
-    setEmployeeId("");
-    setTransition("leave");
+    setEmployeeId(prefill?.employeeId ?? "");
+    setSelectedEmployee(null);
+    setTransition(prefill?.transition ?? "leave");
     setEffectiveOn(facilityToday());
     setTargetFacilityId("");
     setReason("");
     setLockedPreviewKey(null);
   };
+
+  // "Start lifecycle case" on an employee record opens this wizard with that person already
+  // chosen. Without it the employee page had no lifecycle entry point at all, and the roster edit
+  // dialog's Status field -- the only other way anyone tried to move someone between states -- is
+  // refused by a trigger.
+  const changeTransition = (next: EmployeeLifecycleTransition) => {
+    setTransition(next);
+    // A person eligible for one transition is usually ineligible for the next; clear rather than
+    // carry a selection the preview would only reject.
+    if (selectedEmployee && !lifecycleTransitionAdmitsStatus(next, selectedEmployee.status)) {
+      setEmployeeId("");
+      setSelectedEmployee(null);
+    }
+  };
+
+  // EmployeeDetail's "Start lifecycle case" links here with ?employee=<id>. Consumed immediately so
+  // the URL stops asserting a dialog that may no longer be open, and so following the same link a
+  // second time (which would otherwise set an identical query string, and so not re-run this
+  // effect) opens the wizard again rather than looking broken.
+  useEffect(() => {
+    const params = new URLSearchParams(locationSearch);
+    const prefillEmployeeId = params.get("employee");
+    if (!prefillEmployeeId) return;
+    const requested = params.get("transition");
+    const prefillTransition = EMPLOYEE_LIFECYCLE_TRANSITIONS.find((value) => value === requested);
+    openWizard({ employeeId: prefillEmployeeId, transition: prefillTransition });
+    params.delete("employee");
+    params.delete("transition");
+    const query = params.toString();
+    navigate(`/app/employee-lifecycle${query ? `?${query}` : ""}`, { replace: true });
+    // openWizard is a stable-enough local closure over setState only; re-running on every render
+    // is prevented by the guard above, which returns as soon as the parameter is consumed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationSearch]);
 
   const onCreate = async () => {
     if (!employeeId || reason.trim().length < 3) {
@@ -258,15 +296,17 @@ export default function EmployeeLifecycleCases() {
           <p className="text-sm font-medium text-primary">Workforce transitions</p>
           <h1 className="text-2xl font-bold tracking-tight">Employee lifecycle cases</h1>
           <p className="max-w-3xl text-muted-foreground">
-            Guided transfer, leave, return, termination, rehire, and access cases preserve the dependency preview
-            a manager reviewed, then re-lock and re-preview before apply so stale decisions cannot write.
+            Guided transfer, leave, return, termination, rehire, and access cases. Each case records the
+            transition's eligibility check -- the employee's current status, employment episode, facility, and
+            linked account -- and re-runs it under lock at apply time, so a decision cannot be applied on a
+            stale check. It does not enumerate the employee's shifts, courses, or classes.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={exportReport} disabled={!cases.data?.rows.length}>
             <Download className="mr-2 h-4 w-4" /> Export report
           </Button>
-          <Button onClick={openWizard}>
+          <Button onClick={() => openWizard()}>
             <Plus className="mr-2 h-4 w-4" /> New lifecycle case
           </Button>
         </div>
@@ -342,6 +382,15 @@ export default function EmployeeLifecycleCases() {
                     </Badge>
                   </div>
                   <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{caseRow.reason}</p>
+                  {/* A blocked case in the queue said only "blocked" -- the reason the server gave
+                      is what tells a manager whether to fix something or pick a different
+                      transition, so the first one is shown here and all of them in the detail
+                      panel. */}
+                  {caseRow.status === "blocked" && lifecyclePreviewReasons(caseRow.preview).length > 0 && (
+                    <p className="mt-1 line-clamp-2 text-xs text-destructive">
+                      {lifecyclePreviewReasons(caseRow.preview)[0]}
+                    </p>
+                  )}
                 </button>
               ))
             )}
@@ -372,7 +421,7 @@ export default function EmployeeLifecycleCases() {
               <FileText className="h-5 w-5" /> Case detail
             </CardTitle>
             <CardDescription>
-              Dependency preview is re-run under lock at apply time. Refresh deliberately before applying.
+              The eligibility check is re-run under lock at apply time. Refresh deliberately before applying.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -395,7 +444,7 @@ export default function EmployeeLifecycleCases() {
                 </div>
                 <div className="rounded-lg border p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">Dependency preview</p>
+                    <p className="text-sm font-medium">Eligibility check</p>
                     {selected.previewed_at && (
                       <p className="text-xs text-muted-foreground">
                         Previewed {new Date(selected.previewed_at).toLocaleString()}
@@ -462,22 +511,27 @@ export default function EmployeeLifecycleCases() {
           </DialogHeader>
           <div className="grid gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor={`${__fieldIds}-employee`}>Employee</Label>
-              <Select value={employeeId} onValueChange={setEmployeeId}>
-                <SelectTrigger id={`${__fieldIds}-employee`}><SelectValue placeholder="Select employee" /></SelectTrigger>
-                <SelectContent>
-                  {activeEmployees.map((employee) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.last_name}, {employee.first_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EmployeeSearchSelect
+                required
+                value={employeeId}
+                onValueChange={setEmployeeId}
+                onEmployeeChange={setSelectedEmployee}
+                organizationId={user?.organizationId ?? undefined}
+                statuses={eligibleStatuses}
+                placeholder="Select employee"
+                selectedLabel={
+                  selectedEmployee ? `${selectedEmployee.last_name}, ${selectedEmployee.first_name}` : undefined
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Shows the employees {lifecycleTransitionLabel(transition)} accepts
+                ({eligibleStatuses.map((value) => value.replaceAll("_", " ")).join(" or ")}).
+              </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor={`${__fieldIds}-transition`}>Transition</Label>
-                <Select value={transition} onValueChange={(value) => setTransition(value as EmployeeLifecycleTransition)}>
+                <Select value={transition} onValueChange={(value) => changeTransition(value as EmployeeLifecycleTransition)}>
                   <SelectTrigger id={`${__fieldIds}-transition`}><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {EMPLOYEE_LIFECYCLE_TRANSITIONS.map((value) => (

@@ -1,5 +1,5 @@
 begin;
-select plan(43);
+select plan(45);
 
 select has_table('public', 'push_subscriptions', 'web-push subscriptions are first-class records');
 select has_table('public', 'regulatory_rule_pack_templates', 'regulatory templates are governed data');
@@ -65,10 +65,23 @@ select ok(
     like '%delete from public.benchmark_snapshots%',
   'benchmark refreshes remove stale cohorts that no longer meet k-anonymity'
 );
+-- The signature gained p_email_opt_out in 20260906110000: the pipeline honoured
+-- profiles.email_opt_out while the SendGrid consent webhook was the only thing that could set it,
+-- so nobody could ask the product to stop emailing them. BACKLOG J79.
 select ok(
-  pg_get_functiondef('public.update_profile_contact_preferences(uuid,text,text,text,boolean,text)'::regprocedure)
+  pg_get_functiondef('public.update_profile_contact_preferences(uuid,text,text,text,boolean,text,boolean)'::regprocedure)
     like '%preferred_notification_channel is distinct from ''web_push''%',
   'existing web-push preferences survive unrelated cross-browser profile edits'
+);
+select ok(
+  pg_get_functiondef('public.update_profile_contact_preferences(uuid,text,text,text,boolean,text,boolean)'::regprocedure)
+    like '%email_opt_out = v_email_opt_out%',
+  'the preferences RPC is a writer of profiles.email_opt_out'
+);
+select ok(
+  pg_get_functiondef('public.update_profile_contact_preferences(uuid,text,text,text,boolean,text,boolean)'::regprocedure)
+    like '%Only the recipient can turn product email back on%',
+  'turning email back on takes the recipient, the same asymmetry the SMS consent rule applies'
 );
 
 select ok(

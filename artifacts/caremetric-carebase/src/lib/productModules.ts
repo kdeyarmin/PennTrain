@@ -110,9 +110,15 @@ export const TRAIN_PATHS = [
   "/app/my-trainings",
   "/trainer",
   "/trainer/gaps",
+  // The document library reads and writes `training_documents`, which the database classifies as
+  // modules.train, and the Train-only /app/pending-approvals route depends on those same rows. A
+  // fall-through to CareBase here left a Train customer unable to open the library that holds the
+  // evidence their own approvals queue is about.
+  "/app/documents",
   "/me/courses",
   "/me/trainings",
   "/me/certificates",
+  "/me/documents",
 ] as const;
 
 // Staff credentialing, competency, screening, scheduling, and practicum operations.
@@ -134,16 +140,29 @@ export const WORKFORCE_PATHS = [
   "/me/shift",
 ] as const;
 
-// Regulatory readiness: inspections, survey day, violations, complaints, forms, evidence, QAPI,
-// policies, and the regulatory copilot.
+// Regulatory readiness: inspections, survey day and rehearsals, violations, complaints, incident
+// reporting, forms, evidence (including guest access), QAPI, policies, and the regulatory copilot.
+// Each entry matches how the database classifies that route's primary table -- see
+// app_private.product_module_resources.
 export const COMPLIANCE_PATHS = [
   "/app/compliance-command-center",
   "/app/inspections",
   "/app/inspection-readiness",
   "/app/survey-day",
+  "/app/survey-rehearsals",
   "/app/violations",
   "/app/complaints",
   "/app/report-event",
+  // The DHS-reportable incident register (and its detail route, covered by the prefix match) is what
+  // the Compliance pillar is sold as: `incidents` and `incident_notifications` are modules.compliance
+  // in the database, and "Report an event" -- already a Compliance path -- links straight into it.
+  // Falling through to CareBase bounced a Compliance-without-CareBase tenant off their own register
+  // while the database would have accepted every write. Confidential incidents deliberately stay
+  // CareBase, matching their table classification.
+  "/app/incidents",
+  // Guest access grants are the evidence room's external-reviewer surface
+  // (`evidence_guest_grants` is modules.compliance).
+  "/app/guest-access",
   "/app/state-forms",
   "/app/dhs-forms",
   "/app/evidence",

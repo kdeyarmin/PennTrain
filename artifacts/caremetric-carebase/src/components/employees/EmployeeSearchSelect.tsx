@@ -12,6 +12,12 @@ interface EmployeeSearchSelectProps {
   facilityId?: string;
   organizationId?: string;
   status?: string;
+  /**
+   * Several acceptable statuses instead of one. Takes precedence over `status` when non-empty, for
+   * pickers whose eligible set depends on the operation (e.g. a lifecycle transition that only the
+   * server's rules can define). Omit for the "active staff" default every other caller wants.
+   */
+  statuses?: readonly string[];
   label?: string;
   placeholder?: string;
   required?: boolean;
@@ -41,6 +47,7 @@ export function EmployeeSearchSelect({
   facilityId,
   organizationId,
   status = "active",
+  statuses,
   label = "Employee",
   placeholder = "Select employee",
   required,
@@ -64,7 +71,8 @@ export function EmployeeSearchSelect({
   const query = useListEmployeesPaginated({
     facilityId,
     organizationId,
-    status,
+    status: statuses?.length ? undefined : status,
+    statuses: statuses?.length ? statuses : undefined,
     search: debounced || undefined,
     page: 1,
     pageSize,

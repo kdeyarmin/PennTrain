@@ -9,7 +9,7 @@ import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
-import { extname, join, normalize, resolve, sep } from "node:path";
+import { extname, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -110,11 +110,14 @@ try {
 const PRERENDER_DIR = join(DIST_DIR, "__prerendered");
 const PRERENDERED_ROUTES = new Map();
 try {
-  for (const entry of await readdir(PRERENDER_DIR, { withFileTypes: true })) {
+  for (const entry of await readdir(PRERENDER_DIR, { withFileTypes: true, recursive: true })) {
     // Exactly ".html" -- skips the ".html.br"/".html.gz" siblings precompress emits.
     if (!entry.isFile() || !entry.name.endsWith(".html")) continue;
-    const slug = entry.name.slice(0, -".html".length);
-    PRERENDERED_ROUTES.set(slug === "root" ? "/" : `/${slug}`, join(PRERENDER_DIR, entry.name));
+    // Nested routes (/legal/facility-signup) land in a matching subdirectory, so the route is
+    // the path relative to PRERENDER_DIR, not the bare filename.
+    const filePath = join(entry.parentPath ?? entry.path, entry.name);
+    const slug = relative(PRERENDER_DIR, filePath).slice(0, -".html".length).split(sep).join("/");
+    PRERENDERED_ROUTES.set(slug === "root" ? "/" : `/${slug}`, filePath);
   }
 } catch (error) {
   if (error?.code !== "ENOENT") throw error;

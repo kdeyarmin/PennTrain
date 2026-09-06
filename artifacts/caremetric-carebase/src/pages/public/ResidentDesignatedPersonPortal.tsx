@@ -16,6 +16,8 @@ import {
   postResidentPortalMessage, postResidentPortalRequest, respondResidentPortalSchedule,
 } from "@/hooks/useResidentPortal";
 import { formatDateForDisplay } from "@/lib/dateUtils";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const SESSION_TOKEN_KEY = "carebase-resident-portal-token";
 /** Real grants issue 64-char hex tokens; anything shorter never hits the RPC. */
@@ -44,6 +46,7 @@ function money(value: number) {
 }
 
 export default function ResidentDesignatedPersonPortal() {
+  usePageMeta({ ...MARKETING_ROUTE_META["/resident-portal"], path: "/resident-portal" });
   const [token] = useState(loadAccessToken);
   const tokenUsable = token.length >= MIN_PORTAL_TOKEN_LENGTH;
   const [termsAccepted, setTermsAccepted] = useState(false);

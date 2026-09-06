@@ -37,15 +37,30 @@ export function useListCourseAssignments(filters: ListCourseAssignmentsFilters =
   return useQuery({
     queryKey: ["course_assignments", filters],
     queryFn: async () => {
-      let query = supabase.from("course_assignments").select("*").order("assigned_at");
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-      if (filters.courseId) query = query.eq("course_id", filters.courseId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.trainingPlanId) query = query.eq("training_plan_id", filters.trainingPlanId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // PostgREST caps a single response. Page until exhausted so an org-wide assignment list does
+      // not stop at the cap and under-report outstanding training. A bulk assignment stamps one
+      // `assigned_at` across a whole roster, so the `id` tie-break is what makes the order total --
+      // without it rows repeat on one page and are dropped from another.
+      const pageSize = 1000;
+      const rows: CourseAssignment[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("course_assignments")
+          .select("*")
+          .order("assigned_at")
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+        if (filters.courseId) query = query.eq("course_id", filters.courseId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.trainingPlanId) query = query.eq("training_plan_id", filters.trainingPlanId);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     enabled: options.enabled,
   });

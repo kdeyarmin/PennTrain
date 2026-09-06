@@ -591,7 +591,13 @@ export function useTransitionResidentCensus() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => invalidateAdmissions(queryClient),
+    onSuccess: (_data, variables) => {
+      invalidateAdmissions(queryClient);
+      // The resident record's header reads the status through get_resident_care_header, which is its
+      // own cache -- without this the resident page a discharge was recorded from keeps showing the
+      // previous state until something else happens to refetch it.
+      queryClient.invalidateQueries({ queryKey: ["resident-care-header", variables.residentId] });
+    },
   });
 }
 

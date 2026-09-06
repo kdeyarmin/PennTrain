@@ -17,6 +17,7 @@ interface ContactFormData {
   lastName: string;
   phone: string;
   smsOptIn: boolean;
+  emailOptOut: boolean;
   preferredNotificationChannel: "email" | "sms" | "web_push";
 }
 
@@ -35,6 +36,7 @@ export default function NotificationSettings() {
     lastName: "",
     phone: "",
     smsOptIn: false,
+    emailOptOut: false,
     preferredNotificationChannel: "email",
   });
   // Hydrate once per profile row rather than on every refetch, so a background
@@ -47,6 +49,7 @@ export default function NotificationSettings() {
       lastName: profile.last_name ?? "",
       phone: profile.phone ?? "",
       smsOptIn: profile.sms_opt_in,
+      emailOptOut: profile.email_opt_out ?? false,
       preferredNotificationChannel: ["sms", "web_push"].includes(profile.preferred_notification_channel)
         ? profile.preferred_notification_channel as "sms" | "web_push"
         : "email",
@@ -100,6 +103,10 @@ export default function NotificationSettings() {
       toast({ title: "SMS can be preferred only after phone consent is enabled", variant: "destructive" });
       return;
     }
+    if (form.preferredNotificationChannel === "email" && form.emailOptOut) {
+      toast({ title: "Turn email back on, or choose another channel, before saving", variant: "destructive" });
+      return;
+    }
     if (
       form.preferredNotificationChannel === "web_push"
       && !pushActive
@@ -115,6 +122,7 @@ export default function NotificationSettings() {
         last_name: form.lastName.trim(),
         phone: form.phone.trim() || null,
         sms_opt_in: form.smsOptIn,
+        email_opt_out: form.emailOptOut,
         preferred_notification_channel: form.preferredNotificationChannel,
       },
       {
@@ -237,6 +245,39 @@ export default function NotificationSettings() {
                     {profile?.sms_consent_at && form.smsOptIn && (
                       <> Consent recorded {formatDateForDisplay(profile.sms_consent_at)}.</>
                     )}
+                  </p>
+                </label>
+              </div>
+              {/*
+                BACKLOG J79. profiles.email_opt_out has been honoured by the whole delivery
+                pipeline since it was added, and written by exactly one thing: the SendGrid consent
+                webhook. Nothing in the product could set it, so somebody who wanted CareBase to
+                stop emailing them had no way to say so. Framed as opting IN, because that is the
+                state most people are in and a checkbox that reads "stop emailing me" inverts the
+                meaning of every other control on this page.
+              */}
+              <div className="flex items-start gap-2 rounded-md border p-3">
+                <input
+                  type="checkbox"
+                  id="email-opt-in"
+                  checked={!form.emailOptOut}
+                  onChange={e => setForm(f => ({
+                    ...f,
+                    emailOptOut: !e.target.checked,
+                    preferredNotificationChannel: e.target.checked
+                      ? f.preferredNotificationChannel
+                      : (f.preferredNotificationChannel === "email" ? "web_push" : f.preferredNotificationChannel),
+                  }))}
+                  className="h-4 w-4 mt-0.5"
+                />
+                <label htmlFor="email-opt-in" className="text-[13px] cursor-pointer">
+                  <span className="font-medium flex items-center gap-1.5">
+                    <Bell className="h-3.5 w-3.5" /> Email me training and compliance reminders
+                  </span>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Turning this off stops every product email to this address, including reminders about
+                    training and credentials that are coming due. Reminders still appear in the app, and your
+                    organization can still reach you about anything urgent by phone.
                   </p>
                 </label>
               </div>

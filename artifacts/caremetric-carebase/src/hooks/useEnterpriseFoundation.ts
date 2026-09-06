@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { BillingSessionError } from "@/lib/billingErrors";
+import { privilegedFailureMessage } from "@/lib/edgeFunctionErrors";
 
 export type EnterpriseJson =
   | null
@@ -135,7 +136,13 @@ export function useEnterpriseRpcCommand() {
   return useMutation({
     mutationFn: async ({ rpc, args }: EnterpriseRpcCommand) => {
       const { data, error } = await enterpriseClient.rpc(rpc, args);
-      if (error) throw new Error(error.message);
+      // Nearly every command routed through here -- domain registration and revocation, SCIM
+      // connection creation, session revocation, rule approval and activation, entitlement and
+      // billing overrides -- is guarded by assert_identity_assurance, so this is the single place
+      // most likely to meet the expired privileged window. Untranslated it read as
+      // "A fresh AAL2 session is required for operation session_revocation", which sounds like a
+      // step-up and is not one. See privilegedSessionExpired.
+      if (error) throw new Error(privilegedFailureMessage(error));
       return data;
     },
     onSuccess: async () => {

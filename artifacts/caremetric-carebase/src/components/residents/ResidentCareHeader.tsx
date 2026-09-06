@@ -18,6 +18,7 @@ import {
 import { useResidentCareHeader } from "@/hooks/useResidentCareHeader";
 import type { ResidentDocument } from "@/hooks/useResidentDocuments";
 import { EditResidentCareProfileDialog } from "@/components/residents/EditResidentCareProfileDialog";
+import { ResidentStatusPill } from "@/components/residents/ResidentStatusPill";
 
 const TONE_CLASS: Record<CareHeaderTone, string> = {
   neutral: "border-border",
@@ -129,9 +130,11 @@ export function ResidentCareHeaderPanel({
                 </span>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <Badge variant={data.resident.status === "active" ? "secondary" : "outline"}>
-                  {data.resident.status === "active" ? "Active" : "Discharged"}
-                </Badge>
+                {/* residents.status has seven values. Reading it as "Active or Discharged" labelled
+                    a resident on hospital leave -- a state the product's own transfer RPC sets --
+                    and every pre-admission resident in a move-in workspace as Discharged, on their
+                    own record. Same pill the roster uses, so the two cannot disagree. */}
+                <ResidentStatusPill status={data.resident.status} />
                 <Badge
                   variant="outline"
                   className={hospitalStateTone(data.hospital.state) === "critical"

@@ -7,15 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
-} from "@/components/ui/alert-dialog";
-import { ArrowLeft, Building2, MapPin, Phone, Users, BedDouble, BookOpen, BarChart3, Clock, XCircle, Pencil, Trash2, AlertTriangle, Flame, ChevronRight, QrCode, Copy, RefreshCw } from "lucide-react";
+import { ArrowLeft, Building2, MapPin, Phone, Users, BedDouble, BookOpen, BarChart3, Clock, XCircle, Pencil, AlertTriangle, Flame, ChevronRight, QrCode, Copy, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QrCodeImage } from "@/components/QrCodeImage";
 import { QueryError } from "@/components/QueryState";
-import { useGetFacility, useUpdateFacility, useDeleteFacility } from "@/hooks/useFacilities";
+import { useGetFacility, useUpdateFacility } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListResidents } from "@/hooks/useResidents";
 import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
@@ -196,10 +192,8 @@ export default function FacilityDetail() {
   }), [units, residents, schedulePreferences, trainingRecords, trainingTypes]);
 
   const { mutate: updateFacility, isPending: updating } = useUpdateFacility();
-  const { mutate: deleteFacility, isPending: deleting } = useDeleteFacility();
 
   const [showEdit, setShowEdit] = useState(false);
-  const [showDelete, setShowDelete] = useState(false);
   const [form, setForm] = useState<FacilityFormData>(EMPTY_FORM);
 
   const openEdit = () => {
@@ -255,17 +249,6 @@ export default function FacilityDetail() {
     );
   };
 
-  const handleDelete = () => {
-    if (!facility) return;
-    deleteFacility(facility.id, {
-      onSuccess: () => {
-        toast({ title: "Facility deleted" });
-        navigate(basePath);
-      },
-      onError: (e: Error) => toast({ title: "Failed to delete facility", description: e.message, variant: "destructive" }),
-    });
-  };
-
   if (facLoading) {
     return (
       <div className="space-y-6">
@@ -317,13 +300,14 @@ export default function FacilityDetail() {
             </div>
           </div>
         </div>
+        {/* "Delete" was here. employment_episodes.facility_id references facilities `on delete
+            restrict`, so the request was refused by a foreign key for any facility that has ever
+            employed anybody -- which is every real facility -- while the dialog promised to remove
+            "all associated data". Retiring a facility is Edit -> Status -> Inactive. */}
         {canManage && (
           <div className="flex items-center gap-2 shrink-0">
             <Button variant="outline" size="sm" onClick={openEdit}>
               <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-            </Button>
-            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setShowDelete(true)}>
-              <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
             </Button>
           </div>
         )}
@@ -966,26 +950,6 @@ export default function FacilityDetail() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={showDelete} onOpenChange={setShowDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Facility</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {facility.name}? This action cannot be undone and will remove all associated data.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

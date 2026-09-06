@@ -78,14 +78,26 @@ export function useListShiftReportEntries(facilityId?: string, includeClosed = f
   return useQuery({
     queryKey: ["shift-report-entries", facilityId ?? "all", includeClosed],
     queryFn: async (): Promise<ShiftReportEntry[]> => {
-      let query = asRpc().from("shift_report_entries")
-        .select("*, facilities(name), residents(first_name,last_name), owner:profiles!shift_report_entries_follow_up_owner_profile_id_fkey(first_name,last_name)")
-        .order("review_due_at", { ascending: true });
-      if (facilityId) query = query.eq("facility_id", facilityId);
-      if (!includeClosed) query = query.in("status", ["open", "carried_forward", "reviewed"]);
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data ?? []) as ShiftReportEntry[];
+      // PostgREST caps a single response. Page until exhausted so a portfolio-wide handoff inbox
+      // (facilityId omitted, closed entries included) does not stop at the cap and drop the oldest
+      // follow-ups off the list with no error. `review_due_at` is nullable and shared across a
+      // shift's entries, so the `id` tie-break is what makes the order total.
+      const pageSize = 1000;
+      const rows: ShiftReportEntry[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = asRpc().from("shift_report_entries")
+          .select("*, facilities(name), residents(first_name,last_name), owner:profiles!shift_report_entries_follow_up_owner_profile_id_fkey(first_name,last_name)")
+          .order("review_due_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (facilityId) query = query.eq("facility_id", facilityId);
+        if (!includeClosed) query = query.in("status", ["open", "carried_forward", "reviewed"]);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...((data ?? []) as ShiftReportEntry[]));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     staleTime: 15_000,
   });

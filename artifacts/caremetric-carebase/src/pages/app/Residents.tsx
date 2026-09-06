@@ -4,7 +4,11 @@ import { useCreateResident, type Resident, type ResidentInsert } from "@/hooks/u
 import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
 import { EMPTY_RESIDENT_LIST_SUMMARY, useResidentListSummary } from "@/hooks/useDomainListSummaries";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
+import { facilityScopedErrorText } from "@/lib/rlsErrors";
 import { useUrlState } from "@/hooks/useUrlState";
+// Shared with the resident record, which used to have its own two-state copy of this.
+import { ResidentStatusPill } from "@/components/residents/ResidentStatusPill";
 import { Button } from "@/components/ui/button";
 import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
@@ -27,19 +31,6 @@ type ResidentRosterRow = Resident & {
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-}
-
-function StatusPill({ status }: { status: string }) {
-  const className = status === "active"
-    ? "bg-success text-success-foreground hover:bg-success/80"
-    : status === "reserved"
-      ? "bg-purple-100 text-purple-900"
-      : status === "temporarily_out" || status === "hospital_leave"
-        ? "bg-amber-100 text-amber-900"
-        : status === "deceased"
-          ? "bg-slate-200 text-slate-900"
-          : "bg-muted text-muted-foreground";
-  return <Badge className={className} variant="outline">{humanize(status)}</Badge>;
 }
 
 interface ResidentFormData {
@@ -77,6 +68,10 @@ export default function Residents() {
   const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
 
   const { data: facilities } = useListFacilities();
+  // residents_insert requires is_assigned_to_facility(facility_id), so the admit dialog offers a
+  // facility_manager only the facilities they are assigned to -- the page filter above stays
+  // org-wide, since reading is org-wide.
+  const assignableFacilities = useAssignableFacilities(facilities);
   const residentQuery = usePaginatedDomainList<ResidentRosterRow>("residents", {
     facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
@@ -171,7 +166,7 @@ export default function Residents() {
     const formLabel = getComplianceFormLabel(facility.facility_type);
     createResident(payload, {
       onSuccess: () => { toast({ title: `Resident added — ${formLabel} compliance checklist generated` }); setShowForm(false); },
-      onError: (e: Error) => toast({ title: "Failed to add resident", description: e.message, variant: "destructive" }),
+      onError: (e: Error) => toast({ title: "Failed to add resident", description: facilityScopedErrorText(e), variant: "destructive" }),
     });
   };
 
@@ -306,7 +301,7 @@ export default function Residents() {
                           );
                         })()}
                       </td>
-                      <td><StatusPill status={r.status} /></td>
+                      <td><ResidentStatusPill status={r.status} /></td>
                       <td>
                         <Link href={`/app/residents/${r.id}`} className="text-sm text-primary hover:underline">View</Link>
                       </td>
@@ -346,7 +341,7 @@ export default function Residents() {
                 <Select value={form.facilityId} onValueChange={(v) => setForm((f) => ({ ...f, facilityId: v }))}>
                   <SelectTrigger id="resident-facility" className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
-                    {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                    {assignableFacilities.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

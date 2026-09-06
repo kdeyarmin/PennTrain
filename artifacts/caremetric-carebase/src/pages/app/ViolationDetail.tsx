@@ -3,6 +3,7 @@ import { useParams, Link, useLocation } from "wouter";
 import { useGetViolation, useGeneratePocDocument, useUpdateViolation } from "@/hooks/useViolations";
 import { PocLifecycleActions } from "@/components/violations/PocLifecycleActions";
 import { usePageTitle } from "@/lib/pageTitle";
+import { VerifyCorrectiveActionDialog } from "@/components/incidents/VerifyCorrectiveActionDialog";
 import {
   useListCorrectiveActions, useUpdateCorrectiveAction,
   useDeleteCorrectiveAction, useCreateViolationRetrainingAction, type CorrectiveAction,
@@ -87,6 +88,9 @@ export default function ViolationDetail() {
   } = useListViolationDocuments(id);
 
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
+  // BACKLOG J13: the same one-step complete-and-verify the incident page uses. A plan of
+  // correction whose actions are complete but unverified reads as unfinished everywhere.
+  const [verifyingAction, setVerifyingAction] = useState<CorrectiveAction | null>(null);
   const deleteCorrectiveAction = useDeleteCorrectiveAction();
   const createRetrainingAction = useCreateViolationRetrainingAction();
   const uploadDocument = useUploadViolationDocument();
@@ -373,8 +377,12 @@ export default function ViolationDetail() {
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {canEdit && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: facilityToday() })} aria-label="Complete corrective action">
+                          {canEdit && ca.status !== "cancelled" && (ca.status !== "completed" || !ca.verification_notes?.trim()) && (
+                            <Button
+                              variant="ghost" size="icon" className="h-7 w-7"
+                              onClick={() => setVerifyingAction(ca)}
+                              aria-label={ca.status === "completed" ? "Verify corrective action" : "Complete and verify corrective action"}
+                            >
                               <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}
@@ -577,6 +585,12 @@ export default function ViolationDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <VerifyCorrectiveActionDialog
+        action={verifyingAction}
+        open={verifyingAction !== null}
+        onOpenChange={(open) => { if (!open) setVerifyingAction(null); }}
+      />
     </div>
   );
 }

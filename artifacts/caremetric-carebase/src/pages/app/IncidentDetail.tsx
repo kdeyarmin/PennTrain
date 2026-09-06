@@ -8,7 +8,9 @@ import {
 } from "@/hooks/useIncidents";
 import {
   useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
+  type CorrectiveAction,
 } from "@/hooks/useCorrectiveActions";
+import { VerifyCorrectiveActionDialog } from "@/components/incidents/VerifyCorrectiveActionDialog";
 import {
   useListIncidentDocuments, useUploadIncidentDocument, useIncidentDocumentSignedUrl, useDeleteIncidentDocument,
   type IncidentDocument,
@@ -87,6 +89,9 @@ export default function IncidentDetail() {
   // insert/update -- platform_admin or org_admin only -- so facility_manager must not be shown
   // a delete/remove action that will always fail after confirmation.
   const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
+  // Reopening a closed incident undoes a signed-off closure, so it is an org-admin action; every
+  // other role sees a closed incident as closed.
+  const canReopen = ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
   const { data: incident, isLoading, isError, error, refetch } = useGetIncident(id);
   usePageTitle(incident ? humanize(incident.incident_type) : undefined);
@@ -144,6 +149,9 @@ export default function IncidentDetail() {
   const { mutate: completeNotification, isPending: completingNotification } = useCompleteIncidentNotification();
   const { mutateAsync: createCorrectiveActionAsync } = useCreateCorrectiveAction();
   const { mutate: updateCorrectiveAction } = useUpdateCorrectiveAction();
+  // BACKLOG J13: completing an action and verifying it are one step, because an incident with a
+  // completed-but-unverified action can never be approved and therefore never closed.
+  const [verifyingAction, setVerifyingAction] = useState<CorrectiveAction | null>(null);
   const { mutateAsync: createCourseAssignment } = useCreateCourseAssignment();
   const uploadDocument = useUploadIncidentDocument();
   const getSignedUrl = useIncidentDocumentSignedUrl();
@@ -251,6 +259,27 @@ export default function IncidentDetail() {
     );
   }
 
+  // A closed incident is a closed record: save_incident_investigation_step refuses to edit one, and
+  // the direct-update surfaces on this page (findings/root cause on blur, the final-report date)
+  // have to refuse it too rather than writing behind the RPC's back.
+  const isClosed = incident.status === "closed";
+  const closureBlockers = [
+    incident.final_report_submitted_at ? null : "a final report submission date",
+    incident.administrator_approved_at ? null : "an administrator's approval of the investigation",
+  ].filter((value): value is string => value !== null);
+  const statusOptions = isClosed
+    ? (canReopen ? ["closed", "investigating"] : ["closed"])
+    : closureBlockers.length === 0
+      ? ["reported", "investigating", "closed"]
+      : ["reported", "investigating"];
+  const statusGateExplanation = isClosed
+    ? (canReopen
+      ? "Closed. Reopening returns it to Investigating and is recorded in the incident history."
+      : "Closed. Only an organization administrator can reopen it.")
+    : closureBlockers.length > 0
+      ? `Closing needs ${closureBlockers.join(" and ")}.`
+      : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -274,15 +303,34 @@ export default function IncidentDetail() {
           {canManage && (
             <>
             {hasPchAlr && <IncidentQapiEscalation incident={incident} />}
-            <Select value={incident.status} onValueChange={(v) => updateIncident(
-              { id: incident.id, status: v as typeof incident.status },
-              { onError: (e: Error) => toast({ title: "Failed to update status", description: e.message, variant: "destructive" }) },
-            )}>
-              <SelectTrigger className="w-40 h-9" aria-label="Incident status"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {["reported", "investigating", "closed"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {/*
+              Only the transitions this role can actually make. The Select used to offer all three
+              unconditionally, so a facility manager choosing "Closed" before the final report was
+              recorded and the investigation approved learned the rule from a raw Postgres
+              check_violation, and reopening a closed incident -- an org-admin decision -- was one
+              click away for anyone who could see the page. The gates are
+              enforce_incident_final_report_before_close (final report date AND administrator
+              approval) plus the closed-incident edit refusal in save_incident_investigation_step;
+              they stay server-side, this only stops offering what they will refuse.
+            */}
+            <div className="flex flex-col items-end gap-1">
+              <Select
+                value={incident.status}
+                disabled={statusOptions.length <= 1}
+                onValueChange={(v) => updateIncident(
+                  { id: incident.id, status: v as typeof incident.status },
+                  { onError: (e: Error) => toast({ title: "Failed to update status", description: e.message, variant: "destructive" }) },
+                )}
+              >
+                <SelectTrigger className="w-40 h-9" aria-label="Incident status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {statusGateExplanation && (
+                <p className="max-w-[22rem] text-right text-xs text-muted-foreground">{statusGateExplanation}</p>
+              )}
+            </div>
             </>
           )}
         </div>
@@ -329,6 +377,18 @@ export default function IncidentDetail() {
         <Card>
           <CardHeader><CardTitle>Investigation</CardTitle></CardHeader>
           <CardContent className="space-y-3">
+            {/*
+              These two fields write straight to the table on blur. save_incident_investigation_step
+              -- the RPC the close-loop checklist uses for the same columns -- refuses a closed
+              incident with "A closed incident cannot be edited", and a direct update that quietly
+              succeeded where the RPC refuses is the same edit through a side door. Read-only once
+              closed; reopening (an org-admin decision) is what makes them editable again.
+            */}
+            {isClosed && (
+              <p className="rounded-md border bg-muted/40 p-2 text-xs text-muted-foreground">
+                This incident is closed. Findings and root cause are read-only — reopen it to change them.
+              </p>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-findings`} className="text-[13px]">Findings</Label>
               {/*
@@ -339,7 +399,9 @@ export default function IncidentDetail() {
               <Textarea id={`${__fieldIds}-findings`}
                 key={`findings:${incident.investigation_findings ?? ""}`}
                 defaultValue={incident.investigation_findings ?? ""}
+                readOnly={isClosed}
                 onBlur={(e) => {
+                  if (isClosed) return;
                   if (e.target.value !== (incident.investigation_findings ?? "")) {
                     updateIncident(
                       { id: incident.id, investigation_findings: e.target.value || null },
@@ -355,7 +417,9 @@ export default function IncidentDetail() {
               <Textarea id={`${__fieldIds}-root-cause`}
                 key={`root-cause:${incident.root_cause ?? ""}`}
                 defaultValue={incident.root_cause ?? ""}
+                readOnly={isClosed}
                 onBlur={(e) => {
+                  if (isClosed) return;
                   if (e.target.value !== (incident.root_cause ?? "")) {
                     updateIncident(
                       { id: incident.id, root_cause: e.target.value || null },
@@ -566,8 +630,13 @@ export default function IncidentDetail() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <CorrectiveActionStatusBadge status={ca.status} />
-                      {canManage && ca.status !== "completed" && ca.status !== "cancelled" && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateCorrectiveAction({ id: ca.id, status: "completed", completed_date: facilityToday() })}>
+                      {canManage && ca.status !== "cancelled" && (ca.status !== "completed" || !ca.verification_notes?.trim()) && (
+                        <Button
+                          variant="ghost" size="icon" className="h-7 w-7"
+                          onClick={() => setVerifyingAction(ca)}
+                          aria-label={ca.status === "completed" ? "Verify corrective action" : "Complete and verify corrective action"}
+                          title={ca.status === "completed" ? "Verify this completed action" : "Complete and verify this action"}
+                        >
                           <Check className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -708,7 +777,12 @@ export default function IncidentDetail() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            This incident cannot be closed until a final report submission date is recorded here.
+            {isClosed
+              // 55 Pa. Code measures a reporting deadline against this date, and re-dating it after
+              // closure rewrites that deadline on a record that has been signed off. The RPC path
+              // refuses to touch a closed incident; this direct update now refuses too.
+              ? "This incident is closed. The submission date is part of the closed record — reopen it to change the date."
+              : "This incident cannot be closed until a final report submission date is recorded here."}
           </p>
           <div className="flex items-center gap-2">
             <Input
@@ -716,9 +790,9 @@ export default function IncidentDetail() {
               value={finalReportDate || (incident.final_report_submitted_at ? facilityToday(new Date(incident.final_report_submitted_at)) : "")}
               onChange={(e) => setFinalReportDate(e.target.value)}
               className="h-9 w-48"
-              disabled={!canManage}
+              disabled={!canManage || isClosed}
             />
-            {canManage && (
+            {canManage && !isClosed && (
               <Button
                 size="sm" variant="outline"
                 disabled={!finalReportDate || updatingIncident}
@@ -814,6 +888,12 @@ export default function IncidentDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <VerifyCorrectiveActionDialog
+        action={verifyingAction}
+        open={verifyingAction !== null}
+        onOpenChange={(open) => { if (!open) setVerifyingAction(null); }}
+      />
     </div>
   );
 }

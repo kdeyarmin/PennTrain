@@ -19,7 +19,10 @@ import { useListEntranceConferenceItems, type EntranceConferenceItem } from "@/h
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import { SurveyPrepChecklist } from "@/components/checklists/SurveyPrepChecklist";
 import { SurfacePurpose } from "@/components/SurfacePurpose";
-import { buildInspectionReadinessActions, type ReadinessActionChecklistItem } from "@/lib/inspectionReadiness";
+import {
+  buildInspectionReadinessActions, inspectionReadinessVerdict, trainingReadinessVerdict,
+  type ReadinessActionChecklistItem, type ReadinessLevel,
+} from "@/lib/inspectionReadiness";
 import { useListBinderExports } from "@/hooks/useComplianceBinder";
 import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
 import { buildRemediationPlanDraft, remediationPlanToText } from "@/lib/remediationPlan";
@@ -34,14 +37,11 @@ import { Link } from "wouter";
 import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
 import { buildBestAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
-import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { supabase } from "@/lib/supabase";
 import { downloadBlob } from "@/lib/browserDownload";
 
 const BACKGROUND_CHECK_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
-
-type ReadinessLevel = "ready" | "attention" | "unknown";
 
 function ReadinessChip({ level, detail }: { level: ReadinessLevel; detail?: string }) {
   if (level === "ready") {
@@ -216,13 +216,9 @@ export default function InspectionReadiness() {
       case "training": {
         const blocked = sourceState(trainingRecordsQuery);
         if (blocked) return { level: blocked, detail: trainingRecordsQuery.isError ? "training data unavailable" : "loading training" };
-        // Renewals insert fresh rows and leave prior ones "expired" forever, so
-        // only the current record per (employee, training type) may count here.
-        const rows = selectCurrentTrainingRecords(trainingRecords ?? []);
-        const outstanding = rows.filter((r) => r.status === "expired" || r.status === "due_soon" || r.status === "missing");
-        return outstanding.length === 0
-          ? { level: "ready" }
-          : { level: "attention", detail: `${outstanding.length} outstanding` };
+        // Renewals insert fresh rows and leave prior ones "expired" forever, so only the current
+        // record per (employee, training type) may count here -- see trainingReadinessVerdict.
+        return trainingReadinessVerdict(trainingRecords ?? []);
       }
       case "credentials": {
         const blocked = sourceState(credentialsQuery);
@@ -245,21 +241,9 @@ export default function InspectionReadiness() {
       case "inspections": {
         const blocked = sourceState(inspectionItemsQuery);
         if (blocked) return { level: blocked, detail: inspectionItemsQuery.isError ? "inspection data unavailable" : "loading inspections" };
-        // entrance_conference_items.item_types names which schedules this prompt is asking about.
-        // Without it every 'inspections' row showed the same whole-table verdict, so an overdue
-        // generator made the fire-drill row and the emergency-plan row read "Attention Needed" too
-        // and an administrator prepping for a survey chased the wrong deficiency.
-        const scope = item.item_types ?? [];
-        const rows = scope.length > 0
-          ? (inspectionItems ?? []).filter((i) => scope.includes(i.item_type))
-          : (inspectionItems ?? []);
-        // Nothing on file is not readiness. A facility with no fire drill program at all had zero
-        // outstanding items and read "Ready" -- the one state a surveyor is guaranteed to cite.
-        if (rows.length === 0) return { level: "attention", detail: "nothing on file to check" };
-        const outstanding = rows.filter((i) => i.status === "expired" || i.status === "due_soon" || i.status === "missing");
-        return outstanding.length === 0
-          ? { level: "ready", detail: `${rows.length} on schedule` }
-          : { level: "attention", detail: `${outstanding.length} outstanding` };
+        // Scoped to the schedules this prompt names (entrance_conference_items.item_types), and an
+        // empty scoped set grades Attention rather than Ready -- see inspectionReadinessVerdict.
+        return inspectionReadinessVerdict(inspectionItems ?? [], item.item_types);
       }
       case "incidents": {
         const blocked = sourceState(incidentsQuery) ?? sourceState(correctiveActionsQuery);

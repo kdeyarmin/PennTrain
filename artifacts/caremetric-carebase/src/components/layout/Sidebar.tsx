@@ -7,6 +7,7 @@ import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { useGetOrganizationSettings } from "@/hooks/useOrganizationSettings";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
+import { useOrgFeatureEnabled } from "@/hooks/useFeatureRelease";
 import { useToast } from "@/hooks/use-toast";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -87,7 +88,11 @@ import {
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 type NavSection = { title?: string; items: NavItem[] };
 
-function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): NavSection[] {
+function getNavSections(
+  role: AuthUser["role"],
+  showPchAlrModules: boolean,
+  showSurveyDay: boolean,
+): NavSection[] {
   if (role === "platform_admin") {
     return [
       {
@@ -183,7 +188,9 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(showPchAlrModules
             ? [
                 { href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar },
-                { href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck },
+                ...(showSurveyDay
+                  ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }]
+                  : []),
               ]
             : []),
         ],
@@ -254,7 +261,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(showPchAlrModules ? [{ href: "/app/emergency", label: "Emergency operations", icon: Siren }] : []),
           ...(showPchAlrModules ? [{ href: "/app/maintenance", label: "Maintenance", icon: Wrench }] : []),
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
+          ...(showPchAlrModules && showSurveyDay ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
           { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
           { href: "/app/evidence", label: "Documentation room", icon: FolderLock },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
@@ -355,7 +362,7 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/app/violations", label: "Violations & POCs", icon: Gavel },
           { href: "/app/alerts", label: "Alerts", icon: Bell },
           ...(showPchAlrModules ? [{ href: "/app/inspection-readiness", label: "Inspection readiness", icon: Radar }] : []),
-          ...(showPchAlrModules ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
+          ...(showPchAlrModules && showSurveyDay ? [{ href: "/app/survey-day", label: "Survey Day", icon: ShieldCheck }] : []),
           { href: "/app/compliance-binder", label: "Compliance binder", icon: Files },
           { href: "/app/evidence", label: "Documentation room", icon: FolderLock },
           { href: "/app/reports", label: "Reports", icon: BarChart3 },
@@ -519,6 +526,10 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const organizationSettings = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const navigation = useNavigationWorkspace();
   const moduleAccess = useProductModuleAccess();
+  // Survey Day needs the survey_day_mode entitlement AND a release_flags row on top of the PCH/ALF
+  // facility type. Without them the page renders "Survey Day isn't enabled for your organization
+  // yet" instead of a workspace, so leading the onboarding list with it advertises a dead end.
+  const surveyDayFeature = useOrgFeatureEnabled("survey_day_mode");
   const [filter, setFilter] = useState("");
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     if (!user) return new Set(DEFAULT_COLLAPSED_SECTIONS);
@@ -546,8 +557,13 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   // section flicker out on every fresh page load, and a query error would permanently hide it.
   const showPchAlrModules = facilityTypesLoading || facilityTypesError
     || hasAnyFacilityType(facilityTypes, PCH_ALR_ONLY_FACILITY_TYPES);
+  // Same fail-open rule, for the same reason: the nav must not wait on this query, and a failed
+  // read must not hide a page the organization has actually bought. Only a resolved "false" hides
+  // it. Platform admins bypass the gate server-side and have no Survey Day nav entry either way.
+  const showSurveyDay = surveyDayFeature.isLoading || surveyDayFeature.isError
+    || surveyDayFeature.isEnabled;
   const hiddenSections = new Set(organizationSettings.data?.hidden_navigation_sections ?? []);
-  const navSections = getNavSections(user.role, showPchAlrModules)
+  const navSections = getNavSections(user.role, showPchAlrModules, showSurveyDay)
     .filter((section) => !section.title || !hiddenSections.has(section.title))
     .map((section) => ({
       ...section,

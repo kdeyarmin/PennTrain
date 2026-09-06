@@ -8,6 +8,7 @@ import {
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { clientIp } from "../_shared/clientIp.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { scrubEmails } from "../_shared/aiRedaction.ts";
 
 // Public, unauthenticated newsletter/regulatory-update signup (requires verify_jwt:false for
 // [functions.subscribe-updates] in supabase/config.toml, the same registration as request-demo).
@@ -316,7 +317,18 @@ Deno.serve(async (req: Request) => {
     const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
     const internalDetail = isHttpError ? (error as HttpError).internalDetail : undefined;
     if (!isHttpError || status >= 500 || internalDetail) {
-      console.error(isHttpError ? "Subscribe HttpError:" : "Unexpected subscribe error:", error, internalDetail ?? "");
+      // BACKLOG.md I23, same reasoning as request-demo/index.ts and email-savings-model/index.ts:
+      // `error` used to go into the log as a whole object. This public function handles a visitor's
+      // email address, and an unexpected throw from validation, the database or SendGrid can carry
+      // the submitted payload on it -- so the address landed in a function log with a different
+      // audience and a different retention from the row it belongs to. Log the shape instead:
+      // name, scrubbed message, and the internalDetail the throw site chose to say.
+      console.error(isHttpError ? "Subscribe HttpError" : "Unexpected subscribe error", {
+        name: error instanceof Error ? error.name : typeof error,
+        message: scrubEmails(error instanceof Error ? error.message : String(error)).slice(0, 500),
+        internalDetail: internalDetail ? scrubEmails(internalDetail).slice(0, 500) : undefined,
+        status,
+      });
     }
     return json(req, { ok: false, error: message }, status);
   }

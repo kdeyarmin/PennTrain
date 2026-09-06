@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 type SubmissionResult = {
   intakeNumber?: unknown;
@@ -35,6 +37,7 @@ function looksLikeUuid(value: string): boolean {
 }
 
 export default function SafetyReport() {
+  usePageMeta({ ...MARKETING_ROUTE_META["/report-safety"], path: "/report-safety" });
   const { toast } = useToast();
   const prefilledToken = useMemo(() => tokenFromLocation(), []);
   const [facilityToken, setFacilityToken] = useState(prefilledToken);

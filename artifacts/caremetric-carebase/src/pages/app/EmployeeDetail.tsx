@@ -13,13 +13,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
-  ArrowLeft, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
+  ArrowLeft, ArrowLeftRight, User, BookOpen, CalendarCheck, Clock, Pencil, Trash2, FileText, Activity, Building2,
   Download, ShieldCheck, Plus, KeyRound, ClipboardList, MessageCircle, Mail,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
-import { useGetEmployee, useUpdateEmployee, useDeleteEmployee, useListEmployees } from "@/hooks/useEmployees";
+import { useGetEmployee, useUpdateEmployee, useListEmployees } from "@/hooks/useEmployees";
 import { usePageTitle } from "@/lib/pageTitle";
+import { defaultLifecycleTransition } from "@/lib/employeeLifecycleCases";
 import { useGetFacility, useListFacilities } from "@/hooks/useFacilities";
 import { EmployeeFormFields, EMPTY_EMPLOYEE_FORM, employeeToFormData, type EmpFormData } from "@/components/employees/EmployeeFormFields";
 import {
@@ -107,13 +108,16 @@ export default function EmployeeDetail() {
     : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
-  const canDelete = ["platform_admin", "org_admin"].includes(user?.role ?? "");
+  // There is no "delete employee". Every `employees` insert fires app_private.shadow_new_employee_lifecycle,
+  // which writes workforce_employee_links and employment_lifecycle_events rows that reference the
+  // employee `on delete restrict` -- so the delete is refused by a foreign key, always, for every
+  // employee, with a message about a constraint. Ending someone's employment is a lifecycle
+  // transition ("terminate"), which is what the button below now offers.
   // Matches employee_credentials_select RLS -- trainer is excluded (clearance/license data is
   // more sensitive than the training records shown above), unlike every other card here.
   const canViewCredentials = ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
 
   const [showEditEmp, setShowEditEmp] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [removeFacilityAssignmentTarget, setRemoveFacilityAssignmentTarget] = useState<{ id: string; facilityName: string } | null>(null);
   const [showRecordTraining, setShowRecordTraining] = useState(false);
   const [showSetPin, setShowSetPin] = useState(false);
@@ -142,7 +146,6 @@ export default function EmployeeDetail() {
   );
 
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
-  const { mutate: deleteEmployee, isPending: deleting } = useDeleteEmployee();
   const { mutate: inviteUser, isPending: inviting } = useInviteUser();
   const createTrainingRecord = useCreateTrainingRecord();
   const updateTrainingRecord = useUpdateTrainingRecord();
@@ -311,18 +314,6 @@ export default function EmployeeDetail() {
     else createTrainingRecord.mutate(payload, onDone);
   };
 
-  const handleDelete = () => {
-    if (!employee) return;
-    deleteEmployee(employee.id, {
-      onSuccess: () => {
-        toast({ title: "Employee deleted" });
-        setShowDeleteConfirm(false);
-        navigate(basePath);
-      },
-      onError: (e: Error) => toast({ title: "Failed to delete employee", description: e.message, variant: "destructive" }),
-    });
-  };
-
   const handleAddFacilityAssignment = () => {
     if (!employee || !addFacilityId) return;
     addFacilityAssignment.mutate(
@@ -427,29 +418,30 @@ export default function EmployeeDetail() {
             </div>
           </div>
         </div>
-        {(canManage || canDelete) && (
+        {canManage && (
           <div className="flex items-center gap-2 flex-wrap">
-            {canManage && (
-              <>
-                {!employee.profile_id && (
-                  <Button variant="outline" size="sm" onClick={handlePortalInvite} disabled={inviting}>
-                    <Mail className="mr-2 h-3.5 w-3.5" />
-                    {inviting ? "Sending Invite..." : employee.email ? "Invite to Portal" : "Add Email for Portal"}
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" onClick={openEditEmp}>
-                  <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => { setPinValue(""); setShowSetPin(true); }}>
-                  <KeyRound className="mr-2 h-3.5 w-3.5" /> Set Check-In PIN
-                </Button>
-              </>
-            )}
-            {canDelete && (
-              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setShowDeleteConfirm(true)}>
-                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+            {!employee.profile_id && (
+              <Button variant="outline" size="sm" onClick={handlePortalInvite} disabled={inviting}>
+                <Mail className="mr-2 h-3.5 w-3.5" />
+                {inviting ? "Sending Invite..." : employee.email ? "Invite to Portal" : "Add Email for Portal"}
               </Button>
             )}
+            <Button variant="outline" size="sm" onClick={openEditEmp}>
+              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setPinValue(""); setShowSetPin(true); }}>
+              <KeyRound className="mr-2 h-3.5 w-3.5" /> Set Check-In PIN
+            </Button>
+            {/* The employee record had no lifecycle entry point at all, so transfer, leave, return,
+                rehire, termination and access changes were reachable only by finding the person
+                again in a separate console -- and rehire/return could not be started there either.
+                The Status field in the edit dialog is refused by a trigger, so this is the one
+                supported way to move somebody between employment states. */}
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/app/employee-lifecycle?employee=${employee.id}&transition=${defaultLifecycleTransition(employee.status)}`}>
+                <ArrowLeftRight className="mr-2 h-3.5 w-3.5" /> Start lifecycle case
+              </Link>
+            </Button>
           </div>
         )}
       </div>
@@ -1086,27 +1078,6 @@ export default function EmployeeDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {employee.first_name} {employee.last_name}? This will permanently remove their record. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={!!removeFacilityAssignmentTarget} onOpenChange={(o) => { if (!o) setRemoveFacilityAssignmentTarget(null); }}>
         <AlertDialogContent>

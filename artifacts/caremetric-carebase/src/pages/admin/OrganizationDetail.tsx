@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { useGetOrganization, useGetOrganizationStats, useUpdateOrganization } from "@/hooks/useOrganizations";
+import { useGetOrganization, useGetOrganizationStats, useSetOrganizationSuspension, useUpdateOrganization } from "@/hooks/useOrganizations";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetPackage, useListPackages } from "@/hooks/usePackages";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
@@ -37,7 +37,9 @@ export default function OrganizationDetail() {
   const { data: currentPackage } = useGetPackage(org?.package_id);
   const { data: packages } = useListPackages();
   const { mutate: updateOrganization, isPending: updatingPackage } = useUpdateOrganization();
+  const { mutate: setSuspension, isPending: suspensionPending } = useSetOrganizationSuspension();
   const [confirmSuspend, setConfirmSuspend] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
   const queryClient = useQueryClient();
   const [baaVersionInput, setBaaVersionInput] = useState("");
   const [baaSaving, setBaaSaving] = useState(false);
@@ -88,12 +90,16 @@ export default function OrganizationDetail() {
 
   const isSuspended = org?.subscription_status === "suspended";
 
+  // Both go through set_organization_suspension. Writing `organizations.subscription_status`
+  // directly -- which is what this page used to do -- left `billing_accounts` saying the state came
+  // from Stripe, so the webhook's "a human suspended this" preserve branch was never true and the
+  // tenant's next paid invoice quietly reactivated an organization suspended for cause. BACKLOG J77.
   const handleReactivate = () => {
     if (!id) return;
-    updateOrganization(
-      { id, subscription_status: "active" },
+    setSuspension(
+      { id, suspended: false },
       {
-        onSuccess: () => toast({ title: "Organization reactivated", description: "Access has been restored for every user in this organization." }),
+        onSuccess: () => toast({ title: "Organization reactivated", description: "Access has been restored, and billing is back on the state its subscription implies." }),
         onError: (e: Error) => toast({ title: "Failed to reactivate organization", description: e.message, variant: "destructive" }),
       },
     );
@@ -101,12 +107,13 @@ export default function OrganizationDetail() {
 
   const handleConfirmSuspend = () => {
     if (!id) return;
-    updateOrganization(
-      { id, subscription_status: "suspended" },
+    setSuspension(
+      { id, suspended: true, reason: suspendReason.trim() },
       {
         onSuccess: () => {
-          toast({ title: "Organization suspended", description: "Every non-platform_admin user in this organization is now locked out." });
+          toast({ title: "Organization suspended", description: "Every non-platform_admin user in this organization is now locked out, and the hold survives the next billing event." });
           setConfirmSuspend(false);
+          setSuspendReason("");
         },
         onError: (e: Error) => toast({ title: "Failed to suspend organization", description: e.message, variant: "destructive" }),
       },
@@ -289,11 +296,11 @@ export default function OrganizationDetail() {
             </div>
             <div className="pt-3 border-t">
               {isSuspended ? (
-                <Button variant="outline" className="w-full gap-1.5" onClick={handleReactivate} disabled={updatingPackage}>
+                <Button variant="outline" className="w-full gap-1.5" onClick={handleReactivate} disabled={suspensionPending}>
                   <ShieldCheck className="h-4 w-4" /> Reactivate Organization
                 </Button>
               ) : (
-                <Button variant="destructive" className="w-full gap-1.5" onClick={() => setConfirmSuspend(true)} disabled={updatingPackage}>
+                <Button variant="destructive" className="w-full gap-1.5" onClick={() => setConfirmSuspend(true)} disabled={suspensionPending}>
                   <ShieldOff className="h-4 w-4" /> Suspend Organization
                 </Button>
               )}
@@ -440,15 +447,28 @@ export default function OrganizationDetail() {
             <AlertDialogDescription>
               Every user in this organization will immediately lose access to all of their data -- they can still
               sign in, but every page will show no facilities, employees, or records anywhere in the app. This
-              takes effect instantly and reverses instantly with "Reactivate Organization".
+              takes effect instantly and reverses instantly with "Reactivate Organization". The hold is recorded
+              against the billing account, so the organization's next invoice will not lift it.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="suspend-reason">Reason</label>
+            <Input
+              id="suspend-reason"
+              value={suspendReason}
+              onChange={(e) => setSuspendReason(e.target.value)}
+              placeholder="Why this organization is being suspended"
+            />
+            <p className="text-xs text-muted-foreground">
+              Recorded on the billing account and in the audit log. Required.
+            </p>
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setSuspendReason("")}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleConfirmSuspend}
-              disabled={updatingPackage}
+              disabled={suspensionPending || suspendReason.trim().length === 0}
             >
               Suspend Organization
             </AlertDialogAction>

@@ -34,8 +34,8 @@ const EDUCATION_COSTS = [
 ] as const;
 
 const INCLUDED_FEATURES = [
-  "Course builder with graded quizzes & certificates",
-  "AI course creation from your own policies — human-approved before publishing",
+  "Course library built and maintained for you, with graded quizzes & certificates",
+  "AI-assisted courses written from your own policies by our team — human-approved before publishing",
   "Live classes with QR sign-in — hours log themselves",
   "Resident clinical charting + FHIR med sync (CareBase)",
   "Survey Day Mode, compliance copilot & one-click binders",

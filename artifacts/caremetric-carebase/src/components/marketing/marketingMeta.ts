@@ -16,6 +16,15 @@ export const SITE_URL = "https://cmcarebase.com";
 export type RouteMeta = {
   title: string;
   description: string;
+  /**
+   * Emit `<meta name="robots" content="noindex, nofollow">` for this route, client-side via
+   * usePageMeta and in the build-time prerendered head. Set on the routes a visitor only reaches
+   * by holding a credential in the URL (a facility poster token, a guest link, a password-reset
+   * link): they have nothing to rank for and should never surface in a result page. Every
+   * noindex route must also be listed in SITEMAP_EXCLUDED_ROUTES (src/lib/sitemap.ts) so the
+   * sitemap can't advertise a page whose own head says not to index it.
+   */
+  noindex?: boolean;
 };
 
 export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
@@ -98,5 +107,37 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
     title: "Sign Up — Start Your Free Trial — CareMetric CareBase",
     description:
       "Create your organization and start a free trial of CareMetric CareBase for Pennsylvania personal care homes and assisted living facilities.",
+  },
+  "/legal/facility-signup": {
+    title:
+      "Facility Administrator Platform Agreement & HIPAA BAA — CareMetric CareBase",
+    description:
+      "The full Facility Administrator Platform Agreement and HIPAA Business Associate Agreement with CareMetric AI LLC that an authorized administrator accepts when creating a CareMetric CareBase organization.",
+  },
+  // Credential-bearing routes below: reached only by holding a token or link, never worth ranking.
+  // noindex here, and excluded from the sitemap in src/lib/sitemap.ts.
+  "/report-safety": {
+    title: "Report a Safety Concern — CareMetric CareBase",
+    description:
+      "Submit a safety or quality concern about a Pennsylvania personal care home or assisted living facility using the code from your facility's poster.",
+    noindex: true,
+  },
+  "/resident-portal": {
+    title: "Resident & Designated Person Portal — CareMetric CareBase",
+    description:
+      "Time-limited guest access for residents and their designated people to review the records a facility shared with them.",
+    noindex: true,
+  },
+  "/forgot-password": {
+    title: "Reset Your Password — CareMetric CareBase",
+    description:
+      "Request a password reset link for your CareMetric CareBase account.",
+    noindex: true,
+  },
+  "/reset-password": {
+    title: "Choose a New Password — CareMetric CareBase",
+    description:
+      "Set a new password for your CareMetric CareBase account using the link sent to your work email.",
+    noindex: true,
   },
 };

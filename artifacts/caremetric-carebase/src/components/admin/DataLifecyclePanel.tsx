@@ -6,8 +6,8 @@ import {
   useListAuditLegalHolds,
   usePlanAuditArchive,
   useReleaseAuditLegalHold,
-  useRunDataLifecyclePolicy,
 } from "@/hooks/useDataLifecycle";
+import { useRunSystemJob } from "@/hooks/useSystemJobs";
 import { archivePlanIssues, legalHoldWarning, shortDigest } from "@/lib/auditArchivePlan";
 import { useListOrganizations } from "@/hooks/useOrganizations";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Archive, Scale } from "lucide-react";
+import { Archive, Play, Scale } from "lucide-react";
 import { facilityDateRangeBounds } from "@/lib/dateUtils";
 
 export function DataLifecyclePanel() {
@@ -32,7 +32,13 @@ export function DataLifecyclePanel() {
   const facilitiesQ = useListFacilities();
   const createHold = useCreateAuditLegalHold();
   const releaseHold = useReleaseAuditLegalHold();
-  const runPolicy = useRunDataLifecyclePolicy();
+  // The per-policy "Run now" called run_data_lifecycle_policy directly. That function is revoked
+  // from `authenticated` and granted only to service_role, so from a browser -- platform admin
+  // included -- it could only ever answer "permission denied". The sweep that actually runs these
+  // policies is the `data-lifecycle` system job, invoked through the run-system-job edge function
+  // (which holds the service role), exactly as the System Jobs console does it. It runs every
+  // active policy in one pass; there is no server-side entry point for running a single one.
+  const runSweep = useRunSystemJob();
   const planArchive = usePlanAuditArchive();
 
   const [orgId, setOrgId] = useState("");
@@ -125,13 +131,18 @@ export function DataLifecyclePanel() {
     }
   };
 
-  const handleRun = async (policyKey: string) => {
+  const handleRunSweep = async () => {
+    const runReason = window.prompt(
+      "Run the data lifecycle sweep now. Enter an operator reason (at least 8 characters):",
+      "Manual lifecycle sweep from Security & Governance",
+    )?.trim();
+    if (!runReason || runReason.length < 8) return;
     try {
       setBusy(true);
-      await runPolicy.mutateAsync({ policyKey, limit: 100 });
-      toast({ title: "Lifecycle policy run started", description: policyKey });
+      await runSweep.mutateAsync({ jobKey: "data-lifecycle", reason: runReason });
+      toast({ title: "Lifecycle sweep started", description: "Every active policy runs in this pass." });
     } catch (e) {
-      toast({ title: "Policy run failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      toast({ title: "Sweep did not start", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -303,9 +314,17 @@ export function DataLifecyclePanel() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Lifecycle policies</CardTitle>
-          <CardDescription>Run a policy batch (limit 100) after reviewing holds. Nightly cron also runs these.</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+          <div className="space-y-1.5">
+            <CardTitle>Lifecycle policies</CardTitle>
+            <CardDescription>
+              A nightly sweep runs every active policy. Review holds first, then run the sweep on demand
+              from here; policies are not individually runnable.
+            </CardDescription>
+          </div>
+          <Button size="sm" variant="outline" disabled={busy || runSweep.isPending} onClick={() => void handleRunSweep()}>
+            <Play className="mr-2 h-4 w-4" />Run sweep now
+          </Button>
         </CardHeader>
         <CardContent>
           {statusQ.isLoading ? (
@@ -318,7 +337,6 @@ export function DataLifecyclePanel() {
                   <TableHead>Table</TableHead>
                   <TableHead>Disposition</TableHead>
                   <TableHead>Last run</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -331,11 +349,6 @@ export function DataLifecyclePanel() {
                       {p.lastRun
                         ? `${p.lastRun.status} · archived ${p.lastRun.archived ?? 0} · deleted ${p.lastRun.deleted ?? 0}`
                         : "Never"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => void handleRun(p.policyKey)}>
-                        Run now
-                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

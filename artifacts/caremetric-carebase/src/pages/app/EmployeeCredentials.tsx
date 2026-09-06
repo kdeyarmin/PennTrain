@@ -11,6 +11,8 @@ import {
 import { useListEmployees } from "@/hooks/useEmployees";
 import { EmployeeSearchSelect } from "@/components/employees/EmployeeSearchSelect";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
+import { facilityScopedErrorText } from "@/lib/rlsErrors";
 import { useUrlState } from "@/hooks/useUrlState";
 import { summarizeCredentialAnalytics } from "@/lib/credentialAnalytics";
 import { Button } from "@/components/ui/button";
@@ -227,6 +229,11 @@ export default function EmployeeCredentials() {
   const canDelete = user?.role === "org_admin";
 
   const { data: facilities } = useListFacilities();
+  // The credential dialog scopes its employee picker by this filter, and
+  // save_employee_credential re-stamps facility_id from the chosen employee -- so offering a
+  // facility_manager a facility they hold no assignment for can only produce an empty employee
+  // list or a row-level-security refusal. Narrow it to the facilities they may actually write to.
+  const assignableFacilities = useAssignableFacilities(facilities);
   const { data: employees } = useListEmployees();
   const { data: credentials, isLoading, isError, error, refetch } = useListEmployeeCredentials({
     facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
@@ -332,13 +339,13 @@ export default function EmployeeCredentials() {
         { id: editing.id, ...payload },
         {
           onSuccess: () => { toast({ title: "Credential updated" }); setShowForm(false); },
-          onError: (e: Error) => toast({ title: "Failed to update credential", description: e.message, variant: "destructive" }),
+          onError: (e: Error) => toast({ title: "Failed to update credential", description: facilityScopedErrorText(e), variant: "destructive" }),
         },
       );
     } else {
       createCredential(payload, {
         onSuccess: () => { toast({ title: "Credential added" }); setShowForm(false); setForm(EMPTY_FORM); },
-        onError: (e: Error) => toast({ title: "Failed to add credential", description: e.message, variant: "destructive" }),
+        onError: (e: Error) => toast({ title: "Failed to add credential", description: facilityScopedErrorText(e), variant: "destructive" }),
       });
     }
   };
@@ -418,7 +425,7 @@ export default function EmployeeCredentials() {
             <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
-              {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+              {assignableFacilities.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={employeeFilter} onValueChange={(v) => setFilters({ employeeFilter: v, page: "1" })}>

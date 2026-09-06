@@ -15,10 +15,20 @@
 
 /**
  * Routes present in MARKETING_ROUTE_META but deliberately excluded from the sitemap:
- * pure authentication utility pages with nothing to rank for. Conversion landing
- * pages (/signup, /demo) stay indexable and are intentionally NOT excluded.
+ * pure authentication utility pages with nothing to rank for, plus every route whose
+ * RouteMeta sets `noindex` -- a page reached only by holding a token or emailed link
+ * (facility poster code, guest portal, password reset). A sitemap entry for a page
+ * whose own head says noindex is a contradiction, so the two lists must stay in step.
+ * Conversion landing pages (/signup, /demo) and /legal/facility-signup stay indexable
+ * and are intentionally NOT excluded.
  */
-export const SITEMAP_EXCLUDED_ROUTES: readonly string[] = ["/login"];
+export const SITEMAP_EXCLUDED_ROUTES: readonly string[] = [
+  "/login",
+  "/report-safety",
+  "/resident-portal",
+  "/forgot-password",
+  "/reset-password",
+];
 
 /**
  * Ordered list of sitemap paths derived from the marketing route metadata keys,

@@ -176,7 +176,7 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
   if (obligation.evidenceSource === "training") {
     const records = [...(input.trainingRecords ?? []), ...(input.credentials ?? [])];
     const gaps = records.filter((record) => statusIs(record.status, ["expired", "missing", "overdue", "due_soon"]) || isOverdue(recordDate(record), today));
-    return summarize(records.length, gaps.length, dueDates(records), today);
+    return summarize(records.length, gaps.length, dueDates(records), today, dueDates(gaps));
   }
   if (obligation.evidenceSource === "resident") {
     const records = input.residentItems ?? [];
@@ -189,14 +189,20 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
     const gaps = records.filter((record) =>
       statusIs(record.status, ["missing", "overdue", "due_soon"])
       || (!statusIs(record.status, ["compliant", "not_applicable"]) && isOverdue(record.due_date, today)));
-    return summarize(records.length, gaps.length, dueDates(records), today);
+    return summarize(records.length, gaps.length, dueDates(records), today, dueDates(gaps));
   }
   if (obligation.evidenceSource === "incident") {
     const incidents = input.incidents ?? [];
     const actions = input.correctiveActions ?? [];
     const incidentGaps = incidents.filter((incident) => !statusIs(incident.status, ["closed", "resolved"]) || !incident.final_report_submitted_at);
     const actionGaps = actions.filter((action) => !statusIs(action.status, ["completed", "cancelled"]) && isOverdue(action.due_date, today));
-    return summarize(incidents.length + actions.length, incidentGaps.length + actionGaps.length, dueDates(actions), today);
+    return summarize(
+      incidents.length + actions.length,
+      incidentGaps.length + actionGaps.length,
+      dueDates(actions),
+      today,
+      dueDates(actionGaps),
+    );
   }
   if (obligation.evidenceSource === "physical_site") {
     const records: Array<{ status?: string | null; due_date?: string | null }> = [
@@ -209,7 +215,7 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
     const gaps = records.filter((record) =>
       statusIs(record.status, ["missing", "expired", "due_soon", "open", "draft", "in_progress"])
       || (!statusIs(record.status, ["completed", "cancelled"]) && isOverdue(recordDate(record), today)));
-    return summarize(records.length, gaps.length, dueDates(records), today);
+    return summarize(records.length, gaps.length, dueDates(records), today, dueDates(gaps));
   }
   if (obligation.evidenceSource === "policy") {
     const policies = input.policyDocuments ?? [];
@@ -218,20 +224,32 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
     // due_date -- so without excluding the signed rows, every attestation counted as a gap forever
     // once its date passed, and an obligation whose evidence is fully signed still reported as
     // uncovered. Signing is the action that clears it; it has to actually clear it.
-    const gaps = [
-      ...policies.filter((policy) => !policy.current_version_id),
-      ...attestations.filter((attestation) =>
-        statusIs(attestation.status, ["pending", "overdue"])
-        || (!statusIs(attestation.status, ["attested"]) && isOverdue(attestation.due_date, today))),
-    ];
-    return summarize(policies.length + attestations.length, gaps.length, dueDates(attestations), today);
+    const policyGaps = policies.filter((policy) => !policy.current_version_id);
+    const attestationGaps = attestations.filter((attestation) =>
+      statusIs(attestation.status, ["pending", "overdue"])
+      || (!statusIs(attestation.status, ["attested"]) && isOverdue(attestation.due_date, today)));
+    // Only the attestations carry dates, so only they can make this row overdue -- a policy
+    // document with no published version is a gap without a date.
+    return summarize(
+      policies.length + attestations.length,
+      policyGaps.length + attestationGaps.length,
+      dueDates(attestations),
+      today,
+      dueDates(attestationGaps),
+    );
   }
   const collections = input.evidenceCollections ?? [];
   const gaps = collections.filter((collection) => statusIs(collection.status, ["draft", "expired", "revoked"]) || isOverdue(collection.expires_at, today));
-  return summarize(collections.length, gaps.length, dueDates(collections), today);
+  return summarize(collections.length, gaps.length, dueDates(collections), today, dueDates(gaps));
 }
 
-function summarize(evidenceCount: number, gapCount: number, sortedDates: string[], today: string): Pick<RegulatoryCrosswalkRow, "status" | "nextDueDate" | "evidenceCount" | "gapCount"> {
+function summarize(
+  evidenceCount: number,
+  gapCount: number,
+  sortedDates: string[],
+  today: string,
+  gapDates: string[] = sortedDates,
+): Pick<RegulatoryCrosswalkRow, "status" | "nextDueDate" | "evidenceCount" | "gapCount"> {
   // A past date is only a meaningful "next due date" when something is actually outstanding.
   // The unconditional `?? sortedDates[0]` fallback made sense while any past due_date implied a
   // gap -- but the branches above now exclude SATISFIED records from the gap count (a compliant
@@ -243,7 +261,13 @@ function summarize(evidenceCount: number, gapCount: number, sortedDates: string[
     ?? (gapCount > 0 ? sortedDates[0] ?? null : null);
   let status: CrosswalkStatus = "inspection_ready";
   if (evidenceCount === 0) status = "missing_evidence";
-  else if (gapCount > 0 && sortedDates.some((date) => date < today)) status = "overdue";
+  // Overdue means an OUTSTANDING obligation whose date has passed -- so it is read off the gap
+  // records, not off every record. `sortedDates` carries the dates of satisfied evidence too: one
+  // attested attestation with a due date last month, beside one still pending and due next week,
+  // made this row read "Overdue" on the surveyor-facing card and in the exported CSV. The branches
+  // above already exclude satisfied records from `gapCount` for exactly this reason; the date test
+  // has to be scoped the same way or the two disagree about the same row.
+  else if (gapCount > 0 && gapDates.some((date) => date < today)) status = "overdue";
   else if (gapCount > 0) status = "needs_attention";
   return { status, nextDueDate, evidenceCount, gapCount };
 }
@@ -252,9 +276,78 @@ export function canManageRegulatoryCrosswalk(role: Role | undefined): boolean {
   return role === "org_admin" || role === "facility_manager" || role === "platform_admin";
 }
 
-export function buildRegulatoryCrosswalkRows(input: CrosswalkEvidenceInput, role?: Role, governedRules: ActiveRegulatoryRule[] = []): RegulatoryCrosswalkRow[] {
+/**
+ * Which facility programs a governed rule version claims to cover.
+ *
+ * `applicability.facilityTypes` is how the seeded rule-pack templates express this
+ * (`{"stateCodes":["PA"],"facilityTypes":["PCH"],...}`). A rule that names no facility type is
+ * treated as applying to every program rather than to none -- an omission should not silently
+ * remove a version that independent review approved.
+ */
+function ruleFacilityPrograms(rule: ActiveRegulatoryRule): FacilityProgram[] | null {
+  const declared = rule.applicability.facilityTypes;
+  if (!Array.isArray(declared)) return null;
+  const programs = declared.filter((value): value is FacilityProgram => value === "PCH" || value === "ALR");
+  return programs.length > 0 ? programs : null;
+}
+
+/**
+ * The governed rule version for one obligation at one facility.
+ *
+ * Keyed on the obligation AND the facility's program, not the obligation alone. Pennsylvania ships
+ * a PCH pack and an ALF pack, both active at once and both mapping to the same crosswalk
+ * obligations; matching on obligation alone means `.find` returns whichever pack was ordered first
+ * -- so a personal care home's row would cite the assisted living regulation, or the reverse, with
+ * a "Governed" badge on it and the citation carried into the surveyor-facing CSV export.
+ *
+ * With no facility program in scope (the portfolio view, or a facility whose type is neither PCH
+ * nor ALF) there is no single correct pack to show, so no rule is attached and the row stays a
+ * clearly-marked reference mapping rather than borrowing one program's citation for all of them.
+ */
+export function governedRuleForObligation(
+  governedRules: ActiveRegulatoryRule[],
+  obligationId: string,
+  facilityProgram: FacilityProgram | null | undefined,
+): ActiveRegulatoryRule | null {
+  if (!facilityProgram) return null;
+  return governedRules.find((rule) => {
+    if (rule.applicability.crosswalkObligationId !== obligationId) return false;
+    const programs = ruleFacilityPrograms(rule);
+    return programs === null || programs.includes(facilityProgram);
+  }) ?? null;
+}
+
+/**
+ * The ACTIVE governed rule versions that cover a jurisdiction, newest effective date first.
+ *
+ * Two screens told the user in fixed prose that "Pennsylvania has no installed PA rule pack yet",
+ * which was true when it was written and is not a fact the product can assert from a string: PA
+ * personnel templates are installable from the rule-pack console, and once one is activated the
+ * page went on saying no pack existed while its own rules were live. `useActiveRegulatoryRules`
+ * already reads them; this is the question that read answers.
+ *
+ * `superseded` versions are excluded deliberately -- the hook returns them so a page can resolve a
+ * historical citation, but a superseded version is not installed coverage.
+ */
+export function activeRulePacksForJurisdiction(
+  rules: ActiveRegulatoryRule[] | undefined,
+  stateCode: string,
+): ActiveRegulatoryRule[] {
+  return (rules ?? []).filter((rule) => {
+    if (rule.state !== "active") return false;
+    const codes = rule.applicability.stateCodes;
+    return Array.isArray(codes) && codes.includes(stateCode);
+  });
+}
+
+export function buildRegulatoryCrosswalkRows(
+  input: CrosswalkEvidenceInput,
+  role?: Role,
+  governedRules: ActiveRegulatoryRule[] = [],
+  facilityProgram?: FacilityProgram | null,
+): RegulatoryCrosswalkRow[] {
   return REGULATORY_OBLIGATIONS.map((obligation) => {
-    const governedRule = governedRules.find((rule) => rule.applicability.crosswalkObligationId === obligation.id) ?? null;
+    const governedRule = governedRuleForObligation(governedRules, obligation.id, facilityProgram);
     const parameters = governedRule?.calculation_parameters ?? {};
     const governedObligation: RegulatoryObligation = governedRule ? {
       ...obligation,

@@ -9,6 +9,9 @@
       content="Operations, compliance, training, and survey documentation for Pennsylvania personal care homes and assisted living facilities — 55 Pa. Code Chapters 2600 and 2800."
     />
     <meta name="theme-color" content="#102a43" />
+    <!-- Per-route value: usePageMeta rewrites this at runtime and server/prerender-heads.mjs
+         bakes it per route at build time, so credential-bearing routes ship noindex. -->
+    <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://cmcarebase.com/" />
 
     <meta property="og:type" content="website" />

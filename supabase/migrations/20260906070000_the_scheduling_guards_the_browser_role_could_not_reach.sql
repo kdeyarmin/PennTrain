@@ -216,7 +216,7 @@ comment on function public.generate_schedule_assignments(uuid) is
 create or replace function public.decide_shift_swap(
   p_swap_request_id uuid,
   p_approve boolean,
-  p_reason text default null
+  p_reason text
 )
 returns boolean
 language plpgsql

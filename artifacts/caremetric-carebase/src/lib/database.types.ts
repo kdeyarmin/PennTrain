@@ -4347,6 +4347,8 @@ export type Database = {
           status: string
           updated_at: string
           verification_notes: string | null
+          verified_at: string | null
+          verified_by: string | null
           violation_id: string | null
           work_item_id: string | null
         }
@@ -4366,6 +4368,8 @@ export type Database = {
           status?: string
           updated_at?: string
           verification_notes?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
           violation_id?: string | null
           work_item_id?: string | null
         }
@@ -4385,6 +4389,8 @@ export type Database = {
           status?: string
           updated_at?: string
           verification_notes?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
           violation_id?: string | null
           work_item_id?: string | null
         }
@@ -4434,6 +4440,13 @@ export type Database = {
           {
             foreignKeyName: "corrective_actions_owner_profile_id_fkey"
             columns: ["owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corrective_actions_verified_by_fkey"
+            columns: ["verified_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -20064,6 +20077,8 @@ export type Database = {
       }
       policy_attestation_campaigns: {
         Row: {
+          closed_at: string | null
+          closed_reason: string | null
           created_at: string
           created_by: string | null
           due_date: string | null
@@ -20085,6 +20100,8 @@ export type Database = {
           targets_last_materialized_at: string | null
         }
         Insert: {
+          closed_at?: string | null
+          closed_reason?: string | null
           created_at?: string
           created_by?: string | null
           due_date?: string | null
@@ -20106,6 +20123,8 @@ export type Database = {
           targets_last_materialized_at?: string | null
         }
         Update: {
+          closed_at?: string | null
+          closed_reason?: string | null
           created_at?: string
           created_by?: string | null
           due_date?: string | null
@@ -20191,6 +20210,7 @@ export type Database = {
           policy_document_version_id: string
           reminder_sent_at: string | null
           status: string
+          superseded_at: string | null
           updated_at: string
           user_agent: string | null
         }
@@ -20209,6 +20229,7 @@ export type Database = {
           policy_document_version_id: string
           reminder_sent_at?: string | null
           status?: string
+          superseded_at?: string | null
           updated_at?: string
           user_agent?: string | null
         }
@@ -20227,6 +20248,7 @@ export type Database = {
           policy_document_version_id?: string
           reminder_sent_at?: string | null
           status?: string
+          superseded_at?: string | null
           updated_at?: string
           user_agent?: string | null
         }
@@ -36962,7 +36984,11 @@ export type Database = {
         Returns: undefined
       }
       complete_resident_compliance_item: {
-        Args: { p_document_id: string; p_item_id: string }
+        Args: {
+          p_completed_on?: string
+          p_document_id: string
+          p_item_id: string
+        }
         Returns: {
           citation_topic_id: string | null
           completed_date: string | null
@@ -37579,6 +37605,8 @@ export type Database = {
           status: string
           updated_at: string
           verification_notes: string | null
+          verified_at: string | null
+          verified_by: string | null
           violation_id: string | null
           work_item_id: string | null
         }
@@ -42019,6 +42047,45 @@ export type Database = {
         }
         Returns: string
       }
+      set_organization_suspension: {
+        Args: {
+          p_organization_id: string
+          p_reason?: string
+          p_suspended: boolean
+        }
+        Returns: {
+          address: string | null
+          ai_features_enabled: boolean
+          baa_accepted_at: string | null
+          baa_version: string | null
+          city: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          demo_reset_at: string | null
+          demo_seed_version: number | null
+          id: string
+          is_demo: boolean
+          max_facilities: number | null
+          max_users: number | null
+          name: string
+          package_id: string | null
+          plan_name: string | null
+          slug: string
+          state: string | null
+          subscription_status: string
+          trial_ends_at: string | null
+          updated_at: string
+          zip: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "organizations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_package_entitlement: {
         Args: {
           p_contract_reference?: string
@@ -43061,6 +43128,40 @@ export type Database = {
           provider_credential: string
           training_provider: string
         }[]
+      }
+      verify_corrective_action: {
+        Args: {
+          p_action_id: string
+          p_completed_on?: string
+          p_verification_notes: string
+        }
+        Returns: {
+          completed_date: string | null
+          course_assignment_id: string | null
+          created_at: string
+          description: string
+          due_date: string
+          facility_id: string
+          id: string
+          incident_id: string | null
+          inspection_event_id: string | null
+          organization_id: string
+          owner_name: string | null
+          owner_profile_id: string | null
+          status: string
+          updated_at: string
+          verification_notes: string | null
+          verified_at: string | null
+          verified_by: string | null
+          violation_id: string | null
+          work_item_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "corrective_actions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       verify_food_safety_log: {
         Args: {
