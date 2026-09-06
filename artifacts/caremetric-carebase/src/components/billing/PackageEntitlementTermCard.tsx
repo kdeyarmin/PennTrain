@@ -38,10 +38,15 @@ function useFeatureDefinitions() {
   return useQuery({
     queryKey: ["feature_definitions", "for-terms"],
     queryFn: async () => {
-      // Active definitions only. A retired feature still has its row read by
-      // get_effective_entitlements, so offering one here let an administrator sell a
-      // capability the product no longer has. Narrowing the picker is not enforcement --
-      // set_package_entitlement still accepts any key (SG-9).
+      // Active definitions only, so the picker cannot offer a feature the product no longer
+      // has. This is convenience, not the gate: 20260906050000 made
+      // app_private.validate_entitlement_value() refuse an INSERT naming a retired
+      // definition, on the tables rather than in the RPCs (I33).
+      //
+      // The comment here previously said a retired definition was still read by
+      // get_effective_entitlements. That was wrong -- that function ends with
+      // `where d.is_active`, so a retired feature has never conferred anything. What it
+      // could do was be written into a contract term that then granted nothing.
       const { data, error } = await supabase
         .from("feature_definitions")
         .select("feature_key, description, value_type, default_value")
