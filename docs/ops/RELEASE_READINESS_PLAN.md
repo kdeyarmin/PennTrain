@@ -32,16 +32,29 @@ earlier passes marked `done` were re-checked on this branch; where a row's statu
 
 ## 0. Status of this plan (2026-09-06, evening UTC)
 
-**Every one of the 82 Tier J rows is `done`.** The plan below is unchanged from the morning: it is
-the record of what the review found, in the order it should be fixed, and it is left as written so
-the reasoning behind each block is still readable. This section says where that work actually got
-to.
+**All 80 numbered Tier J rows are `done`. The two aggregate rows are in progress.** The plan below
+is unchanged from the morning: it is the record of what the review found, in the order it should be
+fixed, and it is left as written so the reasoning behind each block is still readable. This section
+says where that work actually got to. An earlier draft of this paragraph said all 82 rows were done
+and was contradicted three sentences later by its own text; the count is 80 of 82, and the two that
+remain are the aggregates.
 
-**What is done, in code, verified here.** All 21 P0/P1 rows and all 59 P2 rows, in eighteen
+**What is done, in code, verified here.** All 21 P0/P1 rows and all 59 P2 rows, in nineteen
 migrations and the frontend, edge functions and tests that go with them. `BACKLOG.md` Tier J
 records which migration or file closed each row; a row carries `done` only where something in the
-product calls the fixed code. The P3 long tail (row J74) and the status corrections to earlier rows
-(J75) are recorded rather than fixed, which is what those two rows are for.
+product calls the fixed code.
+
+**The two aggregate rows.** J74 is the 70-item P3 long tail and J75 the status corrections to
+earlier rows. Both were written to be a register rather than a work item, and the owner then asked
+for all of the findings fixed, so both are being worked rather than left recorded. J75 is settled
+for eleven of its eighteen entries: seven were closed by Tier J fixes, two are corrected in the
+earlier rows themselves (a reader of I7 has to meet the correction where the wrong sentence is, not
+only in a row that points at it), one document claim is fixed, and one turned out to be stale on
+checking. J74 is being worked area by area. Two of its items are deliberately NOT ours to close:
+the privacy and terms copy needs counsel, and `PA_CITATIONS_LAST_VERIFIED` is a human attestation
+that a person read the published regulation sources -- the sources were re-read during SG-2 and the
+stamp was never moved, so moving it is a one-line change, but it is the reader's to make and not
+something a repository may manufacture.
 
 **Blocks 0, 1, 2 and 5 of section 6 are complete.** Block 3's code half is done (J10, J11, J14's
 demo exemption and the operational/identity split, J23, J81); its console half is not, because H10
@@ -50,9 +63,12 @@ work and is untouched: H11, B3, H15, H13, H14 and the marketing and legal decisi
 are the gate run, the canary and the fourteen days, and they begin after this branch merges and
 deploys.
 
-**What the fix pass verified.** On a stack replayed from empty: 666 migrations, 178 pgTAP files,
-`supabase db lint` clean, generated types reproducing byte for byte. Plus 1,863 unit tests, 297
-edge-function tests, typecheck across four projects, and every static gate.
+**What the fix pass verified, as of the commit that closed the last numbered row.** On a stack
+replayed from empty: 666 migrations, 178 pgTAP files, `supabase db lint` clean, generated types
+reproducing byte for byte. Plus 1,863 unit tests, 297 edge-function tests, typecheck across four
+projects, and every static gate. Work landed after that commit -- the P3 pass -- is verified against
+the same loop as it lands, and the counts above move with it; treat them as a record of that run
+rather than as the current totals.
 
 **What it did NOT verify, and this matters.** Nothing here has been observed on production: the
 branch has not merged or deployed. Section 8's go/no-go is unchanged, and the production probes in
