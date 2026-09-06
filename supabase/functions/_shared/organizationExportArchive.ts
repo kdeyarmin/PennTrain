@@ -48,7 +48,7 @@ export function decideDocumentEmbedding(input: {
  * Public tables without an organization_id column that hold platform-operated
  * data rather than shared tenant-adjacent records: marketing/signup intake,
  * release + entitlement configuration, regulatory reference material mirrored
- * from state/federal sources, the federal exclusion-list mirror, cross-tenant
+ * from state/federal sources, cross-tenant
  * k-anonymized benchmarks, and lifecycle bookkeeping. They are listed in
  * exclusions.json under platformInternalTables (when present at run time) so
  * the archive still names them, but they are not customer data to hand over.
@@ -59,10 +59,6 @@ export const PLATFORM_INTERNAL_TABLES: readonly string[] = [
   "data_lifecycle_runs",
   "demo_requests",
   "dhs_citation_topics",
-  "exclusion_list_entries",
-  "exclusion_refresh_runs",
-  "exclusion_source_snapshots",
-  "exclusion_source_state",
   "feature_definitions",
   "help_articles",
   "integration_api_scope_definitions",

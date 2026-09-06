@@ -25,6 +25,13 @@ export interface WorkItemSourceType {
   category: WorkItemCategory;
   description: string;
   sortOrder: number;
+  /**
+   * Mirrors `public.work_item_source_types.active`. A retired type keeps its entry so
+   * `workItemSourceLabel` can still name the work items that already carry it -- they do not
+   * disappear when the feature that produced them does -- but the queue's filter must not offer
+   * a source nothing can produce any more. Absent means active.
+   */
+  active?: false;
 }
 
 export const WORK_ITEM_CATEGORY_LABELS: Record<WorkItemCategory, string> = {
@@ -65,7 +72,10 @@ export const WORK_ITEM_SOURCE_TYPES: WorkItemSourceType[] = [
 
   { key: "credential", label: "Credential", category: "workforce", sortOrder: 300, description: "A staff credential is expiring or expired." },
   { key: "training_gap", label: "Training gap", category: "workforce", sortOrder: 310, description: "Required training is overdue." },
-  { key: "exclusion_match", label: "Exclusion match", category: "workforce", sortOrder: 320, description: "A federal or state exclusion list check needs resolving." },
+  // Retired with the exclusion-screening subsystem (20260906020000). Kept, not deleted: the
+  // canceled work items still carry this source type and need naming, and the seed migration
+  // that lists it is immutable.
+  { key: "exclusion_match", label: "Exclusion match", category: "workforce", sortOrder: 320, description: "A federal or state exclusion list check needs resolving.", active: false },
   { key: "staffing", label: "Staffing", category: "workforce", sortOrder: 330, description: "A shift is unfilled or a staffing rule was breached." },
   { key: "shift_handoff", label: "Shift handoff", category: "workforce", sortOrder: 340, description: "A handoff item needs picking up." },
 

@@ -181,7 +181,6 @@ const DOMAINS: Domain[] = [
       "Live classes · QR check-in",
       "AI-drafted courses, human-approved",
       "Act 34 / 73 / 33 clearances",
-      "Monthly OIG exclusion screening",
       "Pass-meds roster",
       "Shift scheduling & auto-fill",
       "Policy attestations",

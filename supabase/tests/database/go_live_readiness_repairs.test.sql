@@ -1,5 +1,5 @@
 begin;
-select plan(29);
+select plan(25);
 
 -- Pins the repairs made for the go-live readiness review (BACKLOG rows B3, B4, B5, B10, G270,
 -- N2, SG-2). Every assertion here exists because the condition it describes was TRUE on
@@ -7,41 +7,13 @@ select plan(29);
 -- shipped and stayed shipped because nothing failed while it was open.
 
 -- ---------------------------------------------------------------------------------------
--- B5a: the synthetic health check must be able to reach zero on a correct deployment.
+-- B5a: retired with the feature it measured.
 -- ---------------------------------------------------------------------------------------
--- The counter had been reading `active_snapshot_id is null` with no regard for whether the
--- source was ever configured, so a deployment with no SAM_GOV_API_KEY -- where screen-exclusions
--- skips SAM by design -- failed this check every 15 minutes forever. An alarm that has never been
--- silent cannot alarm, which is why the job never caught anything else either.
-
-update public.exclusion_source_state
-set active_snapshot_id = null, last_status = 'not_loaded'
-where source = 'sam_exclusions';
-select is(
-  (public.run_phase1_synthetic_checks() ->> 'exclusionSourcesWithoutActiveSnapshot')::int,
-  0,
-  'a source this deployment never configured is not counted as an integrity violation'
-);
-
--- Every genuine failure mode still lands. These three are the reason the counter exists.
-update public.exclusion_source_state set last_status = 'failed' where source = 'sam_exclusions';
-select is(
-  (public.run_phase1_synthetic_checks() ->> 'exclusionSourcesWithoutActiveSnapshot')::int,
-  1,
-  'a source whose refresh FAILED is still counted'
-);
-update public.exclusion_source_state set last_status = 'staging' where source = 'sam_exclusions';
-select is(
-  (public.run_phase1_synthetic_checks() ->> 'exclusionSourcesWithoutActiveSnapshot')::int,
-  1,
-  'a source stuck mid-refresh is still counted'
-);
-update public.exclusion_source_state set last_status = 'succeeded' where source = 'sam_exclusions';
-select is(
-  (public.run_phase1_synthetic_checks() ->> 'exclusionSourcesWithoutActiveSnapshot')::int,
-  1,
-  'a source that HAD an active snapshot and lost it is still counted -- the dangerous case'
-);
+-- Four assertions here pinned `exclusionSourcesWithoutActiveSnapshot`, the Phase-1 synthetic
+-- counter that read exclusion_source_state. 20260906020000 removed exclusion screening, so the
+-- counter no longer exists to be right or wrong about. The repair it recorded -- that a source
+-- this deployment never configured is not an integrity violation -- is not undone by the
+-- counter's removal; it simply has nothing left to apply to.
 
 -- ---------------------------------------------------------------------------------------
 -- B3: an organization with no settings row can receive nothing, silently.
@@ -100,11 +72,14 @@ select is(
 -- ---------------------------------------------------------------------------------------
 insert into app_private.system_job_runs (job_key, correlation_id, trigger_type, status, started_at, last_heartbeat_at)
 values
-  ('exclusion-screening', 'tap-stranded', 'scheduled', 'running', now() - interval '23 days', now() - interval '23 days'),
-  ('exclusion-screening', 'tap-live',     'scheduled', 'running', now() - interval '2 minutes', now() - interval '2 minutes'),
+  ('binder-export-generation', 'tap-stranded', 'scheduled', 'running', now() - interval '23 days', now() - interval '23 days'),
+  ('binder-export-generation', 'tap-live',     'scheduled', 'running', now() - interval '2 minutes', now() - interval '2 minutes'),
   -- Started long ago but still heartbeating: the sweep must key on the heartbeat, or it would
-  -- kill the one job in this system designed to run long (the resumable SAM sweep).
-  ('exclusion-screening', 'tap-longrun',  'scheduled', 'running', now() - interval '20 hours', now() - interval '5 minutes');
+  -- kill any job that legitimately runs for hours. (This used to borrow 'exclusion-screening'
+  -- for its resumable SAM sweep; that job key was removed with the feature, and system_job_runs
+  -- has an ON DELETE RESTRICT foreign key to the definitions table, so the fixture had to move
+  -- to a surviving key rather than keep a dangling one.)
+  ('binder-export-generation', 'tap-longrun',  'scheduled', 'running', now() - interval '20 hours', now() - interval '5 minutes');
 
 select is(
   app_private.reconcile_abandoned_system_job_runs(),

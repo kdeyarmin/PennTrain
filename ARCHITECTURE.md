@@ -130,8 +130,8 @@ They fall into four shapes:
    `generate-poc-document`, `generate-incident-report-pdf`, `generate-fire-drill-tracker-pdf` and the rest.
    Each writes to a bucket with no client write policy and returns a short-lived signed URL.
 4. **Cron workers** — invoked by `pg_cron` through `net.http_post` with a shared secret, `verify_jwt = false`,
-   and no user session at all: the notification dispatcher, the export and analyzer queues, the exclusion
-   screening sweep, the FHIR drains, the watchdog. These claim a run in `app_private.system_job_runs` before
+   and no user session at all: the notification dispatcher, the export and analyzer queues, the FHIR
+   drains, the watchdog. These claim a run in `app_private.system_job_runs` before
    doing any work, which is what makes a worker that dies mid-sweep visible instead of silent.
 
 The ones worth reading first, because their authorization is the least obvious:

@@ -150,7 +150,6 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           { href: "/admin/governed-learning", label: "Governed Content", icon: BookCheck },
           { href: "/admin/closed-loop-compliance", label: "Closed-Loop Compliance", icon: Gavel },
           ...(showPchAlrModules ? [{ href: "/admin/regulatory-copilot", label: "Regulatory Copilot", icon: Sparkles }] : []),
-          { href: "/admin/exclusion-screening", label: "Exclusion Screening", icon: ShieldAlert },
           { href: "/admin/security", label: "Security & Governance", icon: Eye },
           { href: "/admin/support-tickets", label: "Support Tickets", icon: LifeBuoy },
         ]
@@ -218,7 +217,6 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
         items: [
           { href: "/app/credentials", label: "Credentials & clearances", icon: ShieldCheck },
           { href: "/app/background-checks", label: "Background checks", icon: ShieldQuestion },
-          { href: "/app/exclusion-screening", label: "Exclusion screening", icon: ShieldAlert },
           ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who can pass meds", icon: Pill }] : []),
           { href: "/app/competency-records", label: "Competency records", icon: ClipboardCheck },
           { href: "/app/competency-templates", label: "Competency templates", icon: ClipboardList },
@@ -328,7 +326,6 @@ function getNavSections(role: AuthUser["role"], showPchAlrModules: boolean): Nav
           ...(showPchAlrModules ? [{ href: "/app/med-admin-roster", label: "Who can pass meds", icon: Pill }] : []),
           { href: "/app/credentials", label: "Credentials & clearances", icon: ShieldCheck },
           { href: "/app/background-checks", label: "Background checks", icon: ShieldQuestion },
-          { href: "/app/exclusion-screening", label: "Exclusion screening", icon: ShieldAlert },
           { href: "/me/courses", label: "My training", icon: BookOpen },
         ]
       },

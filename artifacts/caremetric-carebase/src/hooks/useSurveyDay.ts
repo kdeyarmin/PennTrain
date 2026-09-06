@@ -52,7 +52,6 @@ export interface SurveyDayRosterRow {
   trainingState: ReadinessState;
   credentialState: ReadinessState;
   backgroundState: ReadinessState;
-  exclusionState: ReadinessState;
   overallFlag: "ready" | "attention";
   route: string;
 }

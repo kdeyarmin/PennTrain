@@ -6,7 +6,6 @@ const EDGE_JOBS: Record<
   { functionName: string; body: Record<string, unknown> }
 > = {
   "notification-dispatch": { functionName: "dispatch-notifications", body: {} },
-  "exclusion-screening": { functionName: "screen-exclusions", body: {} },
   "heygen-status-polling": {
     functionName: "poll-heygen-video-statuses",
     body: {},
@@ -74,12 +73,6 @@ const EDGE_JOBS: Record<
   "regulatory-update-polling": {
     functionName: "poll-regulatory-updates",
     body: {},
-  },
-  "sam-sweep-continuation": {
-    // Same body as its cron entry, including the runtime budget: a resume that runs without one
-    // is a different job from the one the schedule performs.
-    functionName: "screen-exclusions",
-    body: { resumeOnly: true, maxRuntimeMs: 100000 },
   },
 };
 

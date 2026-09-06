@@ -125,9 +125,9 @@ export const FAQS: MarketingFaq[] = [
   },
   {
     category: "Training & daily operations",
-    question: "Do you screen against background-check and exclusion requirements?",
+    question: "Do you track background-check requirements?",
     answer:
-      "Yes. OAPSA provisional-employment countdowns for new hires, Act 34/73/33 clearance tracking, and automatic monthly screening of every active employee against the OIG exclusion list (and SAM.gov when configured) — fuzzy matches go to a human review queue.",
+      "Yes: OAPSA provisional-employment countdowns for new hires, Act 34/73/33 clearance tracking, and documented suitability determinations. Federal exclusion-list screening (OIG LEIE / SAM.gov) is not part of the product — that check has to happen outside CareBase.",
   },
   {
     category: "Training & daily operations",

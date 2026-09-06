@@ -136,12 +136,6 @@
     ],
     "rationale": "Identity-provider SCIM endpoint. The bearer credential is hashed and compared constant-time against the stored connection credential."
   },
-  "screen-exclusions": {
-    "gates": [
-      "cron-secret"
-    ],
-    "rationale": "Internal cron worker running exclusion-list screening."
-  },
   "send-auth-email": {
     "gates": [
       "webhook-signature"

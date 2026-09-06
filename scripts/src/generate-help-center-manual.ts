@@ -113,16 +113,15 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Credentials, Background Checks & Exclusion Screening",
+    title: "Credentials & Background Checks",
     paragraphs: [
       "Employee Credentials (/app/credentials) tracks licenses, certifications, and clearances that expire and must be renewed -- things like CPR cards, professional licenses, and other credential types -- each with its own expiration date and compliance status, independent of the course/quiz training system.",
-      "Background Checks (/app/background-checks) records the criminal background check status required before or during employment, and Exclusion Screening (/app/exclusion-screening) tracks whether staff have been checked against federal and state exclusion/debarment lists that would prohibit them from working in a healthcare setting. Both are sensitive, restricted views -- available to org_admin, facility_manager, and auditor, but intentionally not to trainer.",
+      "Background Checks (/app/background-checks) records the criminal background check status required before or during employment. It is a sensitive, restricted view -- available to org_admin, facility_manager, and auditor, but intentionally not to trainer. CareBase does not screen staff against federal exclusion or debarment lists; that check is performed outside the product.",
       "For facilities that require one, Administrator Qualification (/app/administrator-qualification) tracks the specific qualification records required for a facility's administrator of record.",
     ],
     bullets: [
       "Log and track expiration dates for licenses and clearances under Credentials",
       "Record background check completion and results",
-      "Run and record exclusion list screening results",
     ],
   },
   {

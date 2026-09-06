@@ -161,7 +161,8 @@ select is(
 );
 
 -- An override must not clear the determination -- and the row cannot even be written, which is
--- where lifecycle_inactive and confirmed_exclusion were already held.
+-- where lifecycle_inactive is already held. (confirmed_exclusion sat in that list too until
+-- 20260906020000 removed exclusion screening and the block code it produced.)
 select throws_ok(
   $$ insert into public.schedule_eligibility_overrides(
        organization_id, facility_id, employee_id, block_code, scope_type, reason,

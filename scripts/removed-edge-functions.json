@@ -1,0 +1,29 @@
+{
+  "_readme": [
+    "Edge functions that were deleted from this repository and must therefore also be deleted from",
+    "the remote Supabase project.",
+    "",
+    "WHY THIS FILE EXISTS. `supabase functions deploy` only ever pushes what is in supabase/functions;",
+    "it has no notion of a function that used to be there. Deleting the directory in a PR therefore",
+    "leaves the function ACTIVE on production, still routable, still holding whatever secrets it was",
+    "deployed with -- and check-edge-function-drift.mjs then fails the deploy with",
+    "`ORPHAN (remote not local)`. That failure lands AFTER `supabase db push`, so the migrations are",
+    "already applied: a half-applied deploy with a live function calling objects the migration just",
+    "dropped. prune-removed-edge-functions.mjs closes that by deleting each slug listed here through",
+    "the Management API before the presence check runs.",
+    "",
+    "AN ENTRY IS A RECORD, NOT A DEBT. Unlike the allowlists in this directory, entries here are not",
+    "meant to be worked off. Once the slug is gone from production the DELETE returns 404 and the",
+    "script treats that as success, so the entry stays true forever and documents what was removed",
+    "and by which migration. Leave it.",
+    "",
+    "SAFETY. A slug listed here must NOT exist under supabase/functions. If it does, the manifest and",
+    "the tree disagree about whether the function is live, and the script fails rather than guessing --",
+    "so a mistyped or stale entry cannot delete a function that is still deployed on purpose."
+  ],
+  "screen-exclusions": {
+    "reason": "Federal exclusion screening (OIG LEIE + SAM) was removed from the product in full: the tables, the on-hire trigger, the cron jobs, the console page and this function. Nothing calls it and the schema it read no longer exists.",
+    "removed_by": "20260906020000_exclusion_screening_is_removed.sql",
+    "backlog": "I32"
+  }
+}

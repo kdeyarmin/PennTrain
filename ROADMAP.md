@@ -287,12 +287,17 @@ Efforts: **S** = days, **M** = 1–2 weeks, **L** = multi-week. Sequence within 
    the notification rail. No DocuSign dependency — ESIGN/UETA needs intent, consent, attribution, and the audit
    row. MedTrainer wins deals on exactly this bundle.
 
-7. **Background-check & clearance workflow + automated exclusion screening.**
+7. **Background-check & clearance workflow.**
    Decision logic on the credential module: the "PA resident for the 2 preceding years?" question auto-flagging
    the FBI requirement; OAPSA provisional-employment countdown with supervision attestation; documented
-   suitability determinations; PATCH/CNA-registry verification logging. Plus a monthly pg_cron job ingesting the
-   free OIG LEIE CSV and calling the free SAM.gov Exclusions API, fuzzy-matched against the roster into a review
-   queue — near-zero marginal cost, high perceived value for Medicaid-waiver exposure.
+   suitability determinations; PATCH/CNA-registry verification logging.
+
+   **The automated exclusion-screening half was built and then removed** (2026-09-06,
+   `20260906020000`, at the owner's direction). It ingested the free OIG LEIE CSV and called the
+   SAM.gov Exclusions API, fuzzy-matched against the roster into a review queue. Nothing in the
+   product now detects that an employee appears on a federal exclusion list, and the
+   non-overridable scheduling block for a confirmed exclusion went with it. If this is ever
+   wanted again it is a rebuild, not a re-enable.
 
 8. **Administrator qualification & CE tracker** *(S)*.
    The administrator's own credential profile: 100-hour course record, competency test, rolling 24-hour annual CE

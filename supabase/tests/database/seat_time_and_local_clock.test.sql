@@ -247,11 +247,10 @@ select is(
      and p.proname in ('recalculate_incident_notifications', 'notify_incident_reported',
                        'recalculate_all_compliance', 'get_resident_timeline',
                        'start_emergency_event', 'sample_survey_rehearsal',
-                       'enqueue_trial_expiry_notices',
-                       'reconcile_stalled_exclusion_refresh_runs')
+                       'enqueue_trial_expiry_notices')
      and p.prosrc not like '%pa_local%'),
   0,
-  'and every one of the eight functions that rendered a timestamptz now goes through it'
+  'and every one of the seven functions that rendered a timestamptz now goes through it'
 );
 
 select * from finish();

@@ -136,10 +136,6 @@ verify_jwt = false
 verify_jwt = false
 
 # Same cron-secret pattern as dispatch-notifications.
-[functions.screen-exclusions]
-verify_jwt = false
-
-# Same cron-secret pattern as dispatch-notifications.
 [functions.poll-heygen-video-statuses]
 verify_jwt = false
 

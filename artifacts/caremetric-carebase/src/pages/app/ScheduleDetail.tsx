@@ -60,7 +60,6 @@ const SHIFT_STATUS_OPTIONS: { value: string; label: string }[] = [
 const ELIGIBILITY_LABELS: Record<string, string> = {
   lifecycle_inactive: "Inactive employment",
   facility_not_assigned: "Not assigned to this facility",
-  confirmed_exclusion: "Confirmed exclusion",
   oapsa_not_suitable: "OAPSA: determined not suitable for employment",
   oapsa_provisional_expired: "OAPSA: provisional period ended without clearances",
   oapsa_provisional_expiring: "OAPSA: provisional period ends within 14 days",
@@ -92,7 +91,6 @@ function eligibilityBadge(candidate: EligibilityCandidate) {
 // whether the button is drawn.
 const NON_OVERRIDABLE_BLOCKS = new Set([
   "lifecycle_inactive",
-  "confirmed_exclusion",
   "facility_not_assigned",
   "schedule_conflict",
   "oapsa_not_suitable",
@@ -1108,7 +1106,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              This override applies only to the selected shift type and expires automatically. Employment inactivity, confirmed exclusions, facility assignment, and overlap blocks cannot be overridden.
+              This override applies only to the selected shift type and expires automatically. Employment inactivity, an OAPSA not-suitable determination, facility assignment, and overlap blocks cannot be overridden.
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${__fieldIds}-reason`}>Reason *</Label>
