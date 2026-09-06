@@ -432,6 +432,24 @@ export function SessionRosterCard({
                 approve_training_session_completion credits each attendee their own recorded seat
                 time, capped by training_classes.duration_hours -- so this preview is per-attendee
                 arithmetic, not one figure times a head count. */}
+            {/* No numeric preview when the evidence did not load. The figures would be the
+                scheduled-hours fallback for every attendee -- which is the exact promise J84 was
+                about, arriving again through the error path -- while approval reads the stored
+                seat_minutes and writes something smaller. A sentence saying the credit cannot be
+                previewed is worth more than a number that is wrong. */}
+            {evidenceQuery.isError ? (
+              <div className="rounded border bg-muted/30 p-2 text-xs">
+                <p className="font-medium text-foreground">
+                  Recorded seat times could not be loaded, so what approval will credit cannot be
+                  shown here.
+                </p>
+                <p className="mt-0.5 text-muted-foreground">
+                  Approval credits each attendee their recorded seat time, capped at the class's
+                  scheduled {credit.scheduledHours} h. Reload before approving if you need to see
+                  the figures first.
+                </p>
+              </div>
+            ) : (
             <div className="rounded border bg-muted/30 p-2 text-xs">
               <p className="font-medium text-foreground">
                 {credit.hoursPerAttendee !== null ? (
@@ -452,13 +470,10 @@ export function SessionRosterCard({
                 scheduled {credit.scheduledHours} h.
               </p>
             </div>
-            {evidenceQuery.isError && (
-              <p className="text-xs text-muted-foreground">
-                Recorded seat times could not be loaded, so this credit could not be checked against
-                them. The hours above are still what approval will write.
-              </p>
             )}
-            {credit.flagged.length > 0 && (
+            {/* Every flagged row is derived from the same evidence, so with none loaded this list
+                would be a full roster of "unrecorded" that says nothing about the attendance. */}
+            {!evidenceQuery.isError && credit.flagged.length > 0 && (
               <div className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <div className="space-y-1">

@@ -109,19 +109,26 @@ begin
     raise exception 'Course assignment not found' using errcode = 'P0002';
   end if;
   perform app_private.assert_content_permission(v_assignment.organization_id, 'training.sessions.manage');
-  -- ...and the FACILITY the assignment belongs to. assert_content_permission is organization-wide,
-  -- and both facility_manager and trainer hold training.sessions.manage across the organization.
-  -- This function is SECURITY DEFINER, so `course_assignments_update` -- which additionally
-  -- requires `is_assigned_to_facility(facility_id)` for exactly those two roles -- never runs.
-  -- Without this line either of them could pass any assignment id in their organization and change
-  -- a learner at a site they have no part in, through an RPC, past the policy written to stop it.
-  -- is_assigned_to_facility is already true for org_admin and platform_admin, so this restates the
-  -- policy rather than narrowing it.
-  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
-     and not public.is_platform_admin()
-     and not public.is_assigned_to_facility(v_assignment.facility_id) then
-    raise exception 'This course assignment belongs to a facility outside your scope'
-      using errcode = '42501';
+  -- ...and then BOTH halves of `course_assignments_update`, which this function stands in for.
+  -- assert_content_permission is organization-wide, and facility_manager and trainer hold
+  -- training.sessions.manage across the whole organization; the policy additionally requires the
+  -- caller to be one of org_admin/facility_manager/trainer AND assigned to the row's facility. This
+  -- function is SECURITY DEFINER, so none of that runs on its own.
+  --
+  -- The facility test alone is NOT the policy, and an earlier version of this comment claimed it
+  -- was. `is_assigned_to_facility` is a READ predicate: it answers true for an auditor at every
+  -- facility in their organization, so a guard built only from it would admit a read-only role the
+  -- policy names nowhere. No builtin role template grants an auditor training.sessions.manage
+  -- today, so this half is defence in depth rather than a live hole -- but the whole value of
+  -- restating a policy is that it keeps holding when the grants around it change.
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' and not public.is_platform_admin() then
+    if not (public.current_role() = any (array['org_admin', 'facility_manager', 'trainer'])) then
+      raise exception 'This role may not change course assignments' using errcode = '42501';
+    end if;
+    if not public.is_assigned_to_facility(v_assignment.facility_id) then
+      raise exception 'This course assignment belongs to a facility outside your scope'
+        using errcode = '42501';
+    end if;
   end if;
   if v_reason is null or length(v_reason) < 10 then
     raise exception 'Say why another attempt is being granted -- at least a sentence'
@@ -188,19 +195,26 @@ begin
     raise exception 'Course assignment not found' using errcode = 'P0002';
   end if;
   perform app_private.assert_content_permission(v_assignment.organization_id, 'training.sessions.manage');
-  -- ...and the FACILITY the assignment belongs to. assert_content_permission is organization-wide,
-  -- and both facility_manager and trainer hold training.sessions.manage across the organization.
-  -- This function is SECURITY DEFINER, so `course_assignments_update` -- which additionally
-  -- requires `is_assigned_to_facility(facility_id)` for exactly those two roles -- never runs.
-  -- Without this line either of them could pass any assignment id in their organization and change
-  -- a learner at a site they have no part in, through an RPC, past the policy written to stop it.
-  -- is_assigned_to_facility is already true for org_admin and platform_admin, so this restates the
-  -- policy rather than narrowing it.
-  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
-     and not public.is_platform_admin()
-     and not public.is_assigned_to_facility(v_assignment.facility_id) then
-    raise exception 'This course assignment belongs to a facility outside your scope'
-      using errcode = '42501';
+  -- ...and then BOTH halves of `course_assignments_update`, which this function stands in for.
+  -- assert_content_permission is organization-wide, and facility_manager and trainer hold
+  -- training.sessions.manage across the whole organization; the policy additionally requires the
+  -- caller to be one of org_admin/facility_manager/trainer AND assigned to the row's facility. This
+  -- function is SECURITY DEFINER, so none of that runs on its own.
+  --
+  -- The facility test alone is NOT the policy, and an earlier version of this comment claimed it
+  -- was. `is_assigned_to_facility` is a READ predicate: it answers true for an auditor at every
+  -- facility in their organization, so a guard built only from it would admit a read-only role the
+  -- policy names nowhere. No builtin role template grants an auditor training.sessions.manage
+  -- today, so this half is defence in depth rather than a live hole -- but the whole value of
+  -- restating a policy is that it keeps holding when the grants around it change.
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role' and not public.is_platform_admin() then
+    if not (public.current_role() = any (array['org_admin', 'facility_manager', 'trainer'])) then
+      raise exception 'This role may not change course assignments' using errcode = '42501';
+    end if;
+    if not public.is_assigned_to_facility(v_assignment.facility_id) then
+      raise exception 'This course assignment belongs to a facility outside your scope'
+        using errcode = '42501';
+    end if;
   end if;
   if v_reason is null or length(v_reason) < 10 then
     raise exception 'Say why this assignment is being cancelled -- at least a sentence'

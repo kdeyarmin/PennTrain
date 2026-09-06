@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(7);
+select plan(9);
 
 ------------------------------------------------------------------------------------------------
 -- Fixture
@@ -131,9 +131,62 @@ select throws_ok($$
     '7c000000-0000-4000-8000-000000000042', 'Cancelling somebody else''s learner.')
 $$, '42501', null, 'the same holds for cancelling an out-of-scope assignment');
 
--- Read as the owner: `course_assignments_select` hides the South row from this manager, which is
--- the same scoping the RPC was bypassing, so checking the row from inside their session would find
--- nothing whether or not the write happened.
+------------------------------------------------------------------------------------------------
+-- A read-only role the policy names nowhere cannot reach these RPCs either
+------------------------------------------------------------------------------------------------
+-- `course_assignments_update` admits org_admin, facility_manager and trainer -- not auditor. The
+-- first version of this guard tested only `is_assigned_to_facility`, which is a READ predicate and
+-- answers true for an auditor at every facility in their organization, so it restated half the
+-- policy while its comment claimed it restated all of it. No builtin template grants an auditor
+-- training.sessions.manage, so this fixture hands one the facility-manager template to reproduce
+-- the case the guard is now written for: the permission present, the role still wrong.
+reset role;
+insert into auth.users(
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+) values (
+  '00000000-0000-0000-0000-000000000000', '7c000000-0000-4000-8000-000000000102', 'authenticated',
+  'authenticated', 'north-auditor@test.local', 'x', now(), '{}', '{}', now(), now(),
+  '', '', '', '', '', '', false, false
+);
+select set_config('app.privileged_write', 'on', true);
+insert into public.profiles(id, organization_id, email, first_name, last_name, role, is_active) values
+  ('7c000000-0000-4000-8000-000000000102', '7c000000-0000-4000-8000-000000000001',
+   'north-auditor@test.local', 'North', 'Auditor', 'auditor', true)
+on conflict (id) do update set
+  organization_id = excluded.organization_id, role = excluded.role, is_active = excluded.is_active;
+select set_config('app.privileged_write', 'off', true);
+
+insert into public.facility_assignments(profile_id, facility_id) values
+  ('7c000000-0000-4000-8000-000000000102', '7c000000-0000-4000-8000-000000000011');
+-- Setting organization_id on the profile already minted a scope membership, so the grant hangs
+-- off that one rather than a second membership the model refuses as a duplicate window.
+insert into public.enterprise_access_grants(id, membership_id, role_template_id, effective_from, source, reason)
+select '7c000000-0000-4000-8000-000000000122', m.id, rt.id,
+       -- The grant has to sit inside its membership's window, and that membership was minted a
+       -- moment ago rather than backdated like the manager's.
+       m.effective_from, 'manual', 'pgTAP fixture'
+from public.enterprise_scope_memberships m
+cross join public.role_templates rt
+where m.profile_id = '7c000000-0000-4000-8000-000000000102'
+  and rt.code = 'builtin.facility_manager'
+limit 1;
+
+select pg_temp.act_as('7c000000-0000-4000-8000-000000000102');
+select throws_ok($$
+  select public.grant_additional_quiz_attempt(
+    '7c000000-0000-4000-8000-000000000041', 'An auditor should not be granting attempts at all.')
+$$, '42501', null, 'an auditor is refused even at a facility they are assigned to');
+select throws_ok($$
+  select public.cancel_course_assignment(
+    '7c000000-0000-4000-8000-000000000041', 'An auditor should not be cancelling assignments.')
+$$, '42501', null, 'and refused from cancelling one');
+
+-- Read as the owner: `course_assignments_select` hides the South row from the facility manager,
+-- which is the same scoping the RPC was bypassing, so checking the row from inside their session
+-- would find nothing whether or not the write happened.
 reset role;
 select is(
   (select coalesce(additional_attempts_granted, 0) from public.course_assignments
