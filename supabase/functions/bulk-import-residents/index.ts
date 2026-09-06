@@ -123,14 +123,36 @@ Deno.serve(async (req: Request) => {
 
   const results: ImportRowResult[] = [];
   const ledgerRows: any[] = [];
-  const { data: existingLedgers } = await callerClient.from("data_import_rows")
+  // A failed receipt load is not an empty ledger. Reading only `data` left ledgerMap empty, and
+  // the loop below skips rows by that map -- so a resume after a transient failure re-applied
+  // every row it had already applied, which is the duplication the per-row receipts exist to
+  // prevent. bulk-import-credentials, -employees and -training-records already refuse here.
+  const { data: existingLedgers, error: ledgerLoadError } = await callerClient.from("data_import_rows")
     .select("row_number, status, target_id, proposed_action").eq("job_id", jobId)
     .gte("row_number", offset + 2).lte("row_number", endIndex + 1);
+  if (ledgerLoadError) return json(req, { error: `Failed to load existing import receipts: ${ledgerLoadError.message}`, job_id: jobId }, 500);
   const ledgerMap = new Map((existingLedgers ?? []).map((r: any) => [r.row_number, r]));
   // The FACILITY day: this becomes admission_date for a row that does not carry one, and after
   // 20:00 ET the UTC day is already tomorrow -- a resident admitted this evening would be
   // recorded as admitted tomorrow, on a date the regulatory timeline is computed from.
   const today = paToday();
+
+  // A lookup that failed leaves this run unable to finish honestly, and returning on the spot
+  // would strand the rows the chunk has already processed: they live in `ledgerRows` until the
+  // receipt at the end, so a bare return would let a resume apply them a second time. Receipt what
+  // is there, THEN refuse. `failed` is a status apply mode is allowed to resume from, it carries
+  // the reason into the job's `last_error` where the imports page shows it, and it releases this
+  // run's claim so the resume is not blocked by the lease of the run that gave up.
+  async function abortRun(message: string) {
+    const { error: receiptError } = await callerClient.rpc("record_data_import_chunk", {
+      p_job_id: jobId,
+      p_rows: ledgerRows,
+      p_job_status: "failed",
+      p_last_error: message.slice(0, 2000),
+    });
+    const alsoFailed = receiptError ? ` The receipt for this chunk also failed: ${receiptError.message}` : "";
+    return json(req, { error: `${message}${alsoFailed}`, job_id: jobId }, 500);
+  }
 
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
@@ -160,9 +182,15 @@ Deno.serve(async (req: Request) => {
       if (externalId) {
         // BACKLOG J39. `residents.external_id` (20260906130000) is where the source system's
         // identifier lives now, with a unique index on (organization_id, facility_id, external_id).
-        const { data } = await callerClient.from("residents").select("*")
+        // A lookup that FAILED is not a resident that is absent, and every branch here decides
+        // create-vs-update: reading only `data` turned an RLS denial or a dropped connection into
+        // a second copy of a resident who is already on the census. Stop the run instead --
+        // abortRun receipts what this chunk has already done before refusing, so re-posting this
+        // job_id resumes rather than repeats.
+        const { data, error: lookupError } = await callerClient.from("residents").select("*")
           .eq("organization_id", effectiveOrgId).eq("facility_id", facilityId)
           .eq("external_id", externalId).limit(1).maybeSingle();
+        if (lookupError) return await abortRun(`Row ${rowNumber}: resident lookup failed: ${lookupError.message}`);
         existing = data;
         if (!existing) {
           // Documented fallback, for rows imported before external_id existed: this importer used
@@ -173,6 +201,7 @@ Deno.serve(async (req: Request) => {
           const legacy = await callerClient.from("residents").select("*")
             .eq("organization_id", effectiveOrgId).eq("facility_id", facilityId)
             .eq("preferred_name", `import:${externalId}`).limit(1).maybeSingle();
+          if (legacy.error) return await abortRun(`Row ${rowNumber}: resident lookup failed: ${legacy.error.message}`);
           existing = legacy.data;
         }
       }
@@ -181,7 +210,8 @@ Deno.serve(async (req: Request) => {
           .eq("organization_id", effectiveOrgId).eq("facility_id", facilityId)
           .ilike("first_name", escapedIlike(first!)).ilike("last_name", escapedIlike(last!));
         if (dob) q = q.eq("date_of_birth", dob);
-        const { data } = await q.limit(1).maybeSingle();
+        const { data, error: nameMatchError } = await q.limit(1).maybeSingle();
+        if (nameMatchError) return await abortRun(`Row ${rowNumber}: resident lookup failed: ${nameMatchError.message}`);
         existing = data;
       }
     }

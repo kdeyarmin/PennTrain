@@ -218,6 +218,23 @@ Deno.serve(async (req: Request) => {
   }
   const existingLedgerByRowNumber = new Map((existingLedgers ?? []).map((r) => [r.row_number, r]));
 
+  // A lookup that failed leaves this run unable to finish honestly, and returning on the spot
+  // would strand the rows the chunk has already processed: they live in `ledgerRows` until the
+  // receipt at the end, so a bare return would let a resume apply them a second time. Receipt what
+  // is there, THEN refuse. `failed` is a status apply mode is allowed to resume from, it carries
+  // the reason into the job's `last_error` where the imports page shows it, and it releases this
+  // run's claim so the resume is not blocked by the lease of the run that gave up.
+  async function abortRun(message: string) {
+    const { error: receiptError } = await callerClient.rpc("record_data_import_chunk", {
+      p_job_id: jobId,
+      p_rows: ledgerRows,
+      p_job_status: "failed",
+      p_last_error: message.slice(0, 2000),
+    });
+    const alsoFailed = receiptError ? ` The receipt for this chunk also failed: ${receiptError.message}` : "";
+    return json(req, { error: `${message}${alsoFailed}`, job_id: jobId }, 500);
+  }
+
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
     const rowNumber = index + 2; // +1 for 0-index, +1 for the header row already stripped
@@ -292,23 +309,30 @@ Deno.serve(async (req: Request) => {
 
     let existingEmployee: Record<string, unknown> | null = null;
     if (!rowErrors.length && normalized.employee_number) {
-      const { data } = await callerClient
+      // A lookup that FAILED is not an employee who is absent, and both branches here decide
+      // create-vs-update: reading only `data` turned an RLS denial or a dropped connection into a
+      // second personnel record for someone already on the roster. Stop the run instead --
+      // abortRun receipts what this chunk has already done before refusing, so re-posting this
+      // job_id resumes rather than repeats.
+      const { data, error: byNumberError } = await callerClient
         .from("employees")
         .select("*")
         .eq("organization_id", effectiveOrgId)
         .eq("employee_number", normalized.employee_number)
         .limit(1)
         .maybeSingle();
+      if (byNumberError) return await abortRun(`Row ${rowNumber}: employee lookup failed: ${byNumberError.message}`);
       existingEmployee = data;
     }
     if (!rowErrors.length && !existingEmployee && normalized.email) {
-      const { data } = await callerClient
+      const { data, error: byEmailError } = await callerClient
         .from("employees")
         .select("*")
         .eq("organization_id", effectiveOrgId)
         .ilike("email", escapedIlike(normalized.email))
         .limit(1)
         .maybeSingle();
+      if (byEmailError) return await abortRun(`Row ${rowNumber}: employee lookup failed: ${byEmailError.message}`);
       existingEmployee = data;
     }
 
