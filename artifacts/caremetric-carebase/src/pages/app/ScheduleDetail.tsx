@@ -1106,7 +1106,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              This override applies only to the selected shift type and expires automatically. Employment inactivity, confirmed exclusions, facility assignment, and overlap blocks cannot be overridden.
+              This override applies only to the selected shift type and expires automatically. Employment inactivity, an OAPSA not-suitable determination, facility assignment, and overlap blocks cannot be overridden.
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${__fieldIds}-reason`}>Reason *</Label>

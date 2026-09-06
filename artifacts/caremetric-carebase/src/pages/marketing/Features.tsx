@@ -132,7 +132,6 @@ const CAPABILITY_GROUPS: readonly CapabilityGroup[] = [
     items: [
       "Credentials & clearances (Act 34 / 73 / 33, licenses, TB, I-9)",
       "OAPSA provisional-employment countdown",
-      "Monthly OIG / SAM exclusion screening",
       "Administrator qualification & CE tracking",
       "Live pass-meds authorization roster",
       "Policy attestation campaigns (ESIGN/UETA documentation)",

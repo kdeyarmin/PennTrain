@@ -823,7 +823,17 @@ alter table public.schedule_eligibility_overrides
 
 drop trigger if exists screen_new_employee_exclusions on public.employees;
 drop function if exists public.screen_new_employee_for_exclusions();
+-- The flag is one of SIX tables keyed by feature_key, and deleting only the flag leaves the
+-- capability sellable: PackageEntitlementTermCard offers every row in feature_definitions, so a
+-- platform admin could still add `screening.on_hire_exclusion` to a commercial package and
+-- get_effective_entitlements would evaluate the grant -- for a feature that no longer exists.
+-- Grants and package rows go first so the definition is not left orphaning them.
+delete from public.organization_entitlement_grants where feature_key = 'screening.on_hire_exclusion';
+delete from public.package_entitlements where feature_key = 'screening.on_hire_exclusion';
+delete from public.feature_kill_switches where feature_key = 'screening.on_hire_exclusion';
+delete from public.organization_release_cohorts where feature_key = 'screening.on_hire_exclusion';
 delete from public.release_flags where feature_key = 'screening.on_hire_exclusion';
+delete from public.feature_definitions where feature_key = 'screening.on_hire_exclusion';
 
 ------------------------------------------------------------------------------------------------
 -- 4. Alerts and work items that pointed at a match

@@ -318,6 +318,15 @@ jobs:
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
         run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
 
+      # `supabase functions deploy` only pushes what is in the tree -- it never removes a function
+      # whose source was deleted in a PR. That orphan then fails the presence check below, AFTER
+      # `db push` has already migrated production: a half-applied deploy whose live function calls
+      # schema the migration just dropped. This deletes exactly the slugs recorded in
+      # scripts/removed-edge-functions.json, and is idempotent once they are gone.
+      - name: Prune edge functions removed from the repository
+        if: steps.gate.outputs.skip != 'true'
+        run: node scripts/prune-removed-edge-functions.mjs ${{ env.DRY_RUN == 'true' && '' || '--apply' }}
+
       - name: Verify edge function presence (no pending/orphan slugs)
         if: steps.gate.outputs.skip != 'true'
         run: node scripts/check-edge-function-drift.mjs
