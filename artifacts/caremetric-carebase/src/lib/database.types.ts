@@ -38285,6 +38285,7 @@ export type Database = {
         }
         Returns: number
       }
+      exclusion_name_probes: { Args: { p_name: string }; Returns: string[] }
       exclusion_source_record_key: {
         Args: {
           p_business_name: string
