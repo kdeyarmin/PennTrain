@@ -13,7 +13,7 @@
 -- through the RPCs (they close then re-insert), and still let an UPDATE switch a live term onto a
 -- retired key.
 begin;
-select plan(9);
+select plan(11);
 
 insert into public.organizations (id, name, slug, subscription_status, trial_ends_at)
 values ('3a000000-0000-4000-8000-0000000000a1', 'SG9 Org', 'sg9-org', 'active', now() + interval '30 days');
@@ -116,6 +116,32 @@ select throws_ok(
   '23503',
   'Unknown feature key sg9.no_such_key',
   'an unknown feature key is reported as unknown, not as a type mismatch'
+);
+
+-- 10 and 11. The SECOND table. The trigger is attached to organization_entitlement_grants too,
+--    and the guard branches on tg_table_name to look up whether the key is already carried -- so
+--    that branch is separate code, and without these two it had no coverage at all.
+select throws_ok(
+  $$ insert into public.organization_entitlement_grants
+       (organization_id, feature_key, decision, entitlement_value, reason, effective_from)
+     values ('3a000000-0000-4000-8000-0000000000a1', 'sg9.retired_probe', 'grant', 'true'::jsonb,
+             'fixture', now()) $$,
+  '22023',
+  'Feature sg9.retired_probe is retired and cannot be added where it is not already carried',
+  'a retired feature cannot be introduced as an organization grant either'
+);
+
+insert into public.organization_entitlement_grants
+  (organization_id, feature_key, decision, entitlement_value, reason, effective_from, effective_to)
+values ('3a000000-0000-4000-8000-0000000000a1', 'sg9.other_live', 'grant', 'true'::jsonb,
+        'fixture', now() - interval '2 days', now() - interval '1 day');
+update public.feature_definitions set is_active = false where feature_key = 'sg9.other_live';
+select lives_ok(
+  $$ insert into public.organization_entitlement_grants
+       (organization_id, feature_key, decision, entitlement_value, reason, effective_from)
+     values ('3a000000-0000-4000-8000-0000000000a1', 'sg9.other_live', 'grant', 'false'::jsonb,
+             'ending it', now()) $$,
+  'an organization that already carries a now-retired feature can still have its grant re-issued'
 );
 
 select * from finish();
