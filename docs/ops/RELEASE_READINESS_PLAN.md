@@ -44,17 +44,43 @@ migrations and the frontend, edge functions and tests that go with them. `BACKLO
 records which migration or file closed each row; a row carries `done` only where something in the
 product calls the fixed code.
 
-**The two aggregate rows.** J74 is the 70-item P3 long tail and J75 the status corrections to
-earlier rows. Both were written to be a register rather than a work item, and the owner then asked
-for all of the findings fixed, so both are being worked rather than left recorded. J75 is settled
-for eleven of its eighteen entries: seven were closed by Tier J fixes, two are corrected in the
-earlier rows themselves (a reader of I7 has to meet the correction where the wrong sentence is, not
-only in a row that points at it), one document claim is fixed, and one turned out to be stale on
-checking. J74 is being worked area by area. Two of its items are deliberately NOT ours to close:
-the privacy and terms copy needs counsel, and `PA_CITATIONS_LAST_VERIFIED` is a human attestation
-that a person read the published regulation sources -- the sources were re-read during SG-2 and the
-stamp was never moved, so moving it is a one-line change, but it is the reader's to make and not
-something a repository may manufacture.
+**The two aggregate rows are closed too.** J74 is the 70-item P3 long tail and J75 the status
+corrections to earlier rows. Both were written to be a register rather than a work item, and the
+owner then asked for all of the findings fixed, so both were worked. Six agents took disjoint areas
+of J74; each area's outcome is in the row, naming what changed and, where a finding did not survive
+being checked, what was read instead. That last part matters more than the count: **eleven of the
+seventy items were already true on this branch**, and each is recorded as stale with the evidence
+rather than closed by a change that would have done nothing. All eighteen of J75's corrections are
+settled, two of them by correcting the earlier row itself -- a reader of I7 has to meet the
+correction where the wrong sentence is, not only in a row that points at it.
+
+**Three things are deliberately not closed, and the row says so.** The privacy and terms copy needs
+counsel. `PA_CITATIONS_LAST_VERIFIED` is a person's attestation that they read the published
+regulation sources; the sources were re-read during SG-2 and the stamp was never moved, so moving it
+is a one-line change that belongs to whoever reads them. And a marketing video's narration still
+speaks a removed feature: its caption and script are corrected, but the audio needs re-rendering
+through a paid vendor account. One further item was narrowed rather than closed -- a compliance
+requirement's label and evidence type now say what Pennsylvania actually requires, while its key is
+left alone, because every tenant's resolved profile references it and renaming it is a data
+migration rather than a copy change.
+
+**The bundle budget, which read as a refusal and was not.** It is closed by the procedure the gate
+itself documents: budgets there are regression tripwires rather than ledgers, and the warning band
+exists so a budget is raised deliberately on main instead of failing feature branches. The work was
+proving this is growth and not a regression -- no modules duplicated across the 424 emitted chunks,
+no inlined data URIs, every per-route budget still passing, the entry chunk under its own line, and
+three build-level levers measured and rejected with their numbers. All three metrics are back under
+the warning line with that evidence recorded inline.
+
+**Two regressions this pass caused, both caught by CI rather than by any local gate.** An `[auth]`
+block added to `supabase/config.toml` disabled email sign-IN, because the CLI maps
+`auth.email.enable_signup` onto the email PROVIDER switch; six browser journeys could not log in.
+And the new stale-deployment notice announced itself on ordinary first visits and swallowed clicks
+while it was up, because a fixed element at the top of the stacking order with no pointer handling
+eats everything in its rectangle. Both are fixed and pinned by tests. The first is worth
+remembering for its near miss: the first attempted fix added a config key that does not exist, which
+would have turned six failing journeys into a stack that will not start, and only restarting the
+stack instead of reasoning about it caught that.
 
 **Blocks 0, 1, 2 and 5 of section 6 are complete.** Block 3's code half is done (J10, J11, J14's
 demo exemption and the operational/identity split, J23, J81); its console half is not, because H10
