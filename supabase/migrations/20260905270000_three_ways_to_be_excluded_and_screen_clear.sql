@@ -74,6 +74,90 @@ create index if not exists exclusion_list_entries_last_name_trgm_idx
 create index if not exists exclusion_list_entries_last_name_key_trgm_idx
   on public.exclusion_list_entries using gin (public.exclusion_name_key(last_name) extensions.gin_trgm_ops);
 
+-- Statistics for the three expressions above, inside this transaction. A brand-new expression
+-- index carries none, and the re-screen at the bottom of this file runs before autovacuum could
+-- ever supply them -- so without this the planner costs the prefilter on defaults and can fall
+-- back to the scan these indexes exist to replace.
+analyze public.exclusion_list_entries;
+
+------------------------------------------------------------------------------------------------
+-- The probe strings a surname offers the index
+------------------------------------------------------------------------------------------------
+-- gin_trgm_ops indexes exactly three operator shapes with the indexed expression on the LEFT:
+-- `=`, `%`, and `%>`. It does NOT index `<%`. That matters, because the score's surname gate has
+-- two word_similarity branches and they are not the same shape:
+--
+--   word_similarity(upper(employee), upper(entry)) > 0.85   -- employee inside entry
+--       = upper(employee) <% upper(entry) = upper(entry) %> upper(employee)   INDEXABLE
+--   word_similarity(upper(entry), upper(employee)) > 0.85   -- entry inside employee
+--       = upper(entry) <% upper(employee)                                     NOT INDEXABLE
+--
+-- One non-indexable branch in an OR costs the whole prefilter: a BitmapOr needs every branch to
+-- be an index qual, so a single `<%` sends the planner back to a full scan of the entry table and
+-- the index build above buys nothing. Measured on 83,513 real LEIE rows: the OR as first written
+-- planned a parallel seq scan at 645ms per employee; the same OR with only indexable branches
+-- planned a BitmapOr over all three indexes at 4.4ms.
+--
+-- The second direction is still needed -- an excluded "SMITH, ANA" must be found against an
+-- employee "Ana Smith-Jones" -- so it is expressed as a wider indexable predicate instead of a
+-- narrower unindexable one. word_similarity(entry, employee) > 0.85 means the entry surname is
+-- close to some continuous extent of the employee surname, and pg_trgm's extents are runs of
+-- whole words; so testing `%` (0.30) against every contiguous run of the employee surname's
+-- components admits every pair that branch admitted, and a good many more. A single-word surname
+-- -- almost all of them -- yields exactly one probe and one lookup.
+create or replace function public.exclusion_name_probes(p_name text)
+returns text[]
+language plpgsql
+immutable
+parallel safe
+set search_path = ''
+as $function$
+declare
+  v_parts text[];
+  v_probes text[];
+  i integer;
+  j integer;
+begin
+  if nullif(pg_catalog.btrim(coalesce(p_name, '')), '') is null then
+    return '{}'::text[];
+  end if;
+
+  v_probes := array[pg_catalog.btrim(p_name)];
+
+  v_parts := pg_catalog.array_remove(
+    pg_catalog.regexp_split_to_array(
+      pg_catalog.translate(
+        pg_catalog.upper(p_name),
+        'ÁÀÂÄÃÅÉÈÊËÍÌÎÏÓÒÔÖÕÚÙÛÜÝÑÇ',
+        'AAAAAAEEEEIIIIOOOOOUUUUYNC'
+      ),
+      '[^A-Z0-9]+'
+    ),
+    ''
+  );
+
+  -- One component means the whole surname is the only extent there is.
+  if coalesce(pg_catalog.array_length(v_parts, 1), 0) < 2 then
+    return v_probes;
+  end if;
+
+  for i in 1 .. pg_catalog.array_length(v_parts, 1) loop
+    for j in i .. pg_catalog.array_length(v_parts, 1) loop
+      v_probes := v_probes || pg_catalog.array_to_string(v_parts[i:j], ' ');
+    end loop;
+  end loop;
+
+  return (select pg_catalog.array_agg(distinct x) from pg_catalog.unnest(v_probes) as x);
+end;
+$function$;
+
+comment on function public.exclusion_name_probes(text) is
+  'The strings a surname offers a trigram index as candidate probes: the surname itself plus '
+  'every contiguous run of its components. One probe for a single-word surname.';
+
+revoke all on function public.exclusion_name_probes(text) from public, anon, authenticated;
+grant execute on function public.exclusion_name_probes(text) to service_role;
+
 ------------------------------------------------------------------------------------------------
 -- One predicate and one score
 ------------------------------------------------------------------------------------------------
@@ -174,47 +258,69 @@ CREATE OR REPLACE FUNCTION public.match_exclusion_list_against_roster_core(p_sou
  SET pg_trgm.similarity_threshold TO '0.30'
  SET pg_trgm.word_similarity_threshold TO '0.60'
 AS $function$
+declare
+  v_snapshot_id uuid;
+  v_employee record;
+  v_probe text;
 begin
-  insert into public.exclusion_screening_matches (
-    organization_id, facility_id, employee_id, exclusion_list_entry_id, source,
-    source_record_key, match_score, matched_name
-  )
-  select e.organization_id, e.facility_id, e.id, l.id, l.source,
-    l.source_record_key,
-    public.exclusion_name_match_score(e.first_name, e.last_name, l.first_name, l.last_name) as score,
-    e.last_name || ', ' || e.first_name
-  from public.employees e
-  join public.exclusion_source_state s
-    on s.source = p_source
-  join public.exclusion_list_entries l
-    on l.snapshot_id = s.active_snapshot_id
-    and l.source = p_source
-    -- A candidate prefilter the planner can answer from an index, ahead of the score. It must be
-    -- strictly WIDER than the surname gate inside exclusion_name_match_score, or it silently
-    -- reintroduces the false negatives that gate exists to remove -- so it mirrors that gate's
-    -- four surviving routes exactly, at looser thresholds:
-    --   score admits: keys equal | similarity > 0.6 | word_similarity > 0.85 either way
-    --   filter keeps: keys equal | % (>= 0.30)     | <% (>= 0.60)        either way
-    -- Both directions of <% are here because word_similarity is not symmetric, and a surname like
-    -- LEE inside ANDERSON-LEE-WASHINGTON scores ~0.15 on similarity while word_similarity is 1.0 --
-    -- exactly the containment case the score was widened to catch. The thresholds are pinned on
-    -- the function (set pg_trgm.*) so a session GUC cannot narrow them underneath the screen.
-    and (
-      public.exclusion_name_key(l.last_name) = public.exclusion_name_key(e.last_name)
-      or pg_catalog.upper(l.last_name) operator(extensions.%) pg_catalog.upper(e.last_name)
-      or pg_catalog.upper(l.last_name) operator(extensions.<%) pg_catalog.upper(e.last_name)
-      or pg_catalog.upper(e.last_name) operator(extensions.<%) pg_catalog.upper(l.last_name)
-      or public.exclusion_name_key(l.last_name) operator(extensions.%)
-         public.exclusion_name_key(e.last_name)
-    )
-    -- One predicate, one score, one function: the two copies of this join had drifted apart in
-    -- their FROM clause already, and a screening rule that lives in two places is a screening rule
-    -- that will differ in two places. See public.exclusion_name_match_score.
-    and public.exclusion_name_match_score(e.first_name, e.last_name, l.first_name, l.last_name)
-        is not null
-  where e.status = 'active'
-    and (p_organization_id is null or e.organization_id = p_organization_id)
-  on conflict do nothing;
+  -- The snapshot is resolved into a variable rather than joined. That is not tidiness: while it
+  -- was a join, the planner resolved (entries JOIN source_state) first and handed the whole
+  -- 83k-row result to a nested loop over the roster, so no predicate on an entry could ever be
+  -- an index qual. Measured that way, this sweep took 57 seconds on 83,513 rows and 19
+  -- employees -- 1.59M pairs through the score -- and on production's 157,192 rows it saturated
+  -- a single-core instance and took the database off the air twice. With the snapshot and the
+  -- employee both constants, each probe below is a BitmapOr costing single-digit milliseconds.
+  select s.active_snapshot_id into v_snapshot_id
+  from public.exclusion_source_state s
+  where s.source = p_source;
+
+  -- Guarded rather than returned from: with no active snapshot the old join simply matched no
+  -- entries and still ran the alert backfill below, and an early return here would quietly stop
+  -- raising alerts for matches that already exist without one.
+  if v_snapshot_id is not null then
+  for v_employee in
+    select e.id, e.organization_id, e.facility_id, e.first_name, e.last_name
+    from public.employees e
+    where e.status = 'active'
+      and (p_organization_id is null or e.organization_id = p_organization_id)
+  loop
+    foreach v_probe in array public.exclusion_name_probes(v_employee.last_name)
+    loop
+      insert into public.exclusion_screening_matches (
+        organization_id, facility_id, employee_id, exclusion_list_entry_id, source,
+        source_record_key, match_score, matched_name
+      )
+      select v_employee.organization_id, v_employee.facility_id, v_employee.id, l.id, l.source,
+        l.source_record_key,
+        public.exclusion_name_match_score(
+          v_employee.first_name, v_employee.last_name, l.first_name, l.last_name) as score,
+        v_employee.last_name || ', ' || v_employee.first_name
+      from public.exclusion_list_entries l
+      where l.snapshot_id = v_snapshot_id
+        and l.source = p_source
+        and (
+          -- Every branch is an index qual on l: `=` on the btree, `%` and `%>` on the two GIN
+          -- trigram indexes. Keep it that way. One branch the opclass cannot answer turns the
+          -- whole BitmapOr back into a scan of the entry table -- see the note above the probes.
+          public.exclusion_name_key(l.last_name) = public.exclusion_name_key(v_probe)
+          or pg_catalog.upper(l.last_name) operator(extensions.%) pg_catalog.upper(v_probe)
+          or public.exclusion_name_key(l.last_name) operator(extensions.%)
+             public.exclusion_name_key(v_probe)
+          -- `%>` reads "v_probe occurs as a word inside l.last_name", which is the direction the
+          -- score spells word_similarity(upper(employee), upper(entry)). The other direction is
+          -- carried by the probe list, not by an operator.
+          or pg_catalog.upper(l.last_name) operator(extensions.%>) pg_catalog.upper(v_probe)
+        )
+        -- One predicate, one score, one function: the two copies of this join had drifted apart
+        -- in their FROM clause already, and a screening rule that lives in two places is a
+        -- screening rule that will differ in two places. The probe is a candidate generator
+        -- only -- the score always sees the employee's whole name, never the probe.
+        and public.exclusion_name_match_score(
+              v_employee.first_name, v_employee.last_name, l.first_name, l.last_name) is not null
+      on conflict do nothing;
+    end loop;
+  end loop;
+  end if;
 
   insert into public.alerts (
     organization_id, facility_id, employee_id, exclusion_screening_match_id,
@@ -244,47 +350,55 @@ CREATE OR REPLACE FUNCTION app_private.screen_employee_against_active_exclusions
  SET pg_trgm.similarity_threshold TO '0.30'
  SET pg_trgm.word_similarity_threshold TO '0.60'
 AS $function$
+declare
+  v_employee record;
+  v_state record;
+  v_probe text;
 begin
-  insert into public.exclusion_screening_matches (
-    organization_id, facility_id, employee_id, exclusion_list_entry_id, source,
-    source_record_key, match_score, matched_name
-  )
-  select e.organization_id, e.facility_id, e.id, l.id, l.source,
-    l.source_record_key,
-    public.exclusion_name_match_score(e.first_name, e.last_name, l.first_name, l.last_name) as score,
-    e.last_name || ', ' || e.first_name
+  -- Same shape as the roster sweep, and for the same reason: the employee and the snapshot are
+  -- both resolved before the entry table is touched, so every predicate on an entry is an index
+  -- qual. Screening one employee against 83,513 entries measured 3.1 seconds as a three-way join.
+  select e.id, e.organization_id, e.facility_id, e.first_name, e.last_name
+  into v_employee
   from public.employees e
-  join public.exclusion_source_state s
-    on s.active_snapshot_id is not null
-  join public.exclusion_list_entries l
-    on l.snapshot_id = s.active_snapshot_id
-    and l.source = s.source
-    -- A candidate prefilter the planner can answer from an index, ahead of the score. It must be
-    -- strictly WIDER than the surname gate inside exclusion_name_match_score, or it silently
-    -- reintroduces the false negatives that gate exists to remove -- so it mirrors that gate's
-    -- four surviving routes exactly, at looser thresholds:
-    --   score admits: keys equal | similarity > 0.6 | word_similarity > 0.85 either way
-    --   filter keeps: keys equal | % (>= 0.30)     | <% (>= 0.60)        either way
-    -- Both directions of <% are here because word_similarity is not symmetric, and a surname like
-    -- LEE inside ANDERSON-LEE-WASHINGTON scores ~0.15 on similarity while word_similarity is 1.0 --
-    -- exactly the containment case the score was widened to catch. The thresholds are pinned on
-    -- the function (set pg_trgm.*) so a session GUC cannot narrow them underneath the screen.
-    and (
-      public.exclusion_name_key(l.last_name) = public.exclusion_name_key(e.last_name)
-      or pg_catalog.upper(l.last_name) operator(extensions.%) pg_catalog.upper(e.last_name)
-      or pg_catalog.upper(l.last_name) operator(extensions.<%) pg_catalog.upper(e.last_name)
-      or pg_catalog.upper(e.last_name) operator(extensions.<%) pg_catalog.upper(l.last_name)
-      or public.exclusion_name_key(l.last_name) operator(extensions.%)
-         public.exclusion_name_key(e.last_name)
-    )
-    -- One predicate, one score, one function: the two copies of this join had drifted apart in
-    -- their FROM clause already, and a screening rule that lives in two places is a screening rule
-    -- that will differ in two places. See public.exclusion_name_match_score.
-    and public.exclusion_name_match_score(e.first_name, e.last_name, l.first_name, l.last_name)
-        is not null
   where e.id = p_employee_id
-    and e.status = 'active'
-  on conflict do nothing;
+    and e.status = 'active';
+
+  -- Guarded, not returned from, for the same reason as the sweep: the old three-way join matched
+  -- no entries for an absent or inactive employee and still ran the alert backfill.
+  if found then
+  for v_state in
+    select s.source, s.active_snapshot_id
+    from public.exclusion_source_state s
+    where s.active_snapshot_id is not null
+  loop
+    foreach v_probe in array public.exclusion_name_probes(v_employee.last_name)
+    loop
+      insert into public.exclusion_screening_matches (
+        organization_id, facility_id, employee_id, exclusion_list_entry_id, source,
+        source_record_key, match_score, matched_name
+      )
+      select v_employee.organization_id, v_employee.facility_id, v_employee.id, l.id, l.source,
+        l.source_record_key,
+        public.exclusion_name_match_score(
+          v_employee.first_name, v_employee.last_name, l.first_name, l.last_name) as score,
+        v_employee.last_name || ', ' || v_employee.first_name
+      from public.exclusion_list_entries l
+      where l.snapshot_id = v_state.active_snapshot_id
+        and l.source = v_state.source
+        and (
+          public.exclusion_name_key(l.last_name) = public.exclusion_name_key(v_probe)
+          or pg_catalog.upper(l.last_name) operator(extensions.%) pg_catalog.upper(v_probe)
+          or public.exclusion_name_key(l.last_name) operator(extensions.%)
+             public.exclusion_name_key(v_probe)
+          or pg_catalog.upper(l.last_name) operator(extensions.%>) pg_catalog.upper(v_probe)
+        )
+        and public.exclusion_name_match_score(
+              v_employee.first_name, v_employee.last_name, l.first_name, l.last_name) is not null
+      on conflict do nothing;
+    end loop;
+  end loop;
+  end if;
 
   insert into public.alerts (
     organization_id, facility_id, employee_id, exclusion_screening_match_id,
