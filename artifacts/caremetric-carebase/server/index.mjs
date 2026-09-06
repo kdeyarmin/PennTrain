@@ -127,6 +127,40 @@ if (PRERENDERED_ROUTES.size > 0) {
   console.log(`Serving ${PRERENDERED_ROUTES.size} head-prerendered routes from ${PRERENDER_DIR}`);
 }
 
+/**
+ * Route stems whose CHILD paths carry a credential: /checkin/<token>, /passport/<slug>,
+ * /verify/<slug>, and the four guest-link rooms. BACKLOG J74 (P3, guest).
+ *
+ * The lookup below is exact, which is right for every other route -- /features/anything is not
+ * /features. But these seven are only ever opened WITH the token in the path, so the exact lookup
+ * never matched the URL anyone actually holds, and the one request that matters served the
+ * homepage head: homepage title, `canonical` pointing at "/", and `robots: index, follow` on a URL
+ * with a live credential in it. Each stem's own prerendered head says noindex, so serving it for
+ * the child is what closes that.
+ *
+ * Deliberately a list rather than a general "walk up until something matches": inheriting a
+ * parent's canonical is only correct where the child IS the parent page with a credential
+ * attached, and that is exactly these.
+ */
+const TOKENIZED_ROUTE_STEMS = [
+  "/checkin",
+  "/evidence-access",
+  "/move-in-access",
+  "/resident-agreement-access",
+  "/survey-packet-access",
+  "/passport",
+  "/verify",
+];
+
+function prerenderedIndexFor(routePath) {
+  const exact = PRERENDERED_ROUTES.get(routePath);
+  if (exact) return exact;
+  for (const stem of TOKENIZED_ROUTE_STEMS) {
+    if (routePath.startsWith(`${stem}/`)) return PRERENDERED_ROUTES.get(stem);
+  }
+  return undefined;
+}
+
 // Sent on every response. Railway terminates TLS, so HSTS is set with a moderate max-age and
 // without includeSubDomains/preload (safe default if a custom apex domain is ever attached).
 // The CSP deliberately contains only directives that cannot break resource loading
@@ -485,7 +519,7 @@ const server = createServer(async (req, res) => {
     // index.html itself. Both go through serveFile with the same no-cache +
     // Accept-Encoding-negotiation behavior.
     const routePath = appPath.length > 1 ? appPath.replace(/\/+$/, "") || "/" : "/";
-    const indexPath = PRERENDERED_ROUTES.get(routePath) ?? join(DIST_DIR, "index.html");
+    const indexPath = prerenderedIndexFor(routePath) ?? join(DIST_DIR, "index.html");
     await serveFile(indexPath, req, res, { cacheControl: "no-cache" });
   } catch (error) {
     console.error("Request handling error:", error);

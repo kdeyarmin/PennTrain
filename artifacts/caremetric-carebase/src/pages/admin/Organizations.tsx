@@ -17,12 +17,18 @@ import { csvEscape } from "@/lib/csv";
 import { downloadCsvText } from "@/lib/browserDownload";
 import { humanize } from "@/lib/utils";
 import { facilityToday } from "@/lib/dateUtils";
+import { NO_PACKAGE_HELP, NO_PACKAGE_LABEL, NO_PACKAGE_SHORT_LABEL } from "@/lib/packageEntitlementCopy";
 
 // Every subscription_status the organizations table's check constraint allows (see
 // 20260706141329_block_canceled_orgs_and_lock_limit_checks.sql) -- kept in one place so the
 // filter below and the CSV export/status badge elsewhere in this file never drift from the real
 // set of values a row can actually have.
-const SUBSCRIPTION_STATUSES = ["trial", "active", "past_due", "suspended", "canceled"] as const;
+// organizations_subscription_status_check, verbatim and complete. `grace` and `comped` were
+// missing, so the two states that most need a platform admin's attention -- a tenant inside its
+// seven-day dunning window, and one being carried for free -- could not be filtered for at all
+// (RELEASE_READINESS_PLAN 4.3, platform L5). process_stripe_billing_event writes `grace`, and
+// set_billing_comp writes `comped`.
+const SUBSCRIPTION_STATUSES = ["trial", "active", "grace", "past_due", "comped", "suspended", "canceled"] as const;
 
 // Filter state only -- the "Add Organization" dialog's form fields intentionally stay in local
 // useState below, since a half-filled create form isn't something worth restoring via Back/Forward
@@ -285,9 +291,9 @@ export default function Organizations() {
             <div className="col-span-full space-y-1.5">
               <Label htmlFor={`${__fieldIds}-package`} className="text-[13px]">Package</Label>
               <Select value={form.packageId || "none"} onValueChange={v => field("packageId", v === "none" ? "" : v)}>
-                <SelectTrigger id={`${__fieldIds}-package`} className="h-9"><SelectValue placeholder="No package" /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-package`} className="h-9"><SelectValue placeholder={NO_PACKAGE_SHORT_LABEL} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No package</SelectItem>
+                  <SelectItem value="none">{NO_PACKAGE_LABEL}</SelectItem>
                   {packages?.map(pkg => (
                     <SelectItem key={pkg.id} value={pkg.id}>
                       {pkg.name}{!pkg.is_active ? " (inactive)" : ""}
@@ -295,6 +301,7 @@ export default function Organizations() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">{NO_PACKAGE_HELP}</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-contact-name`} className="text-[13px]">Contact Name</Label>

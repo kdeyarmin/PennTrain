@@ -710,8 +710,13 @@ function Router() {
       <Route path="/app/data-imports">
         {() => <ProtectedRoute component={DataImportCenter} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
+      {/* BACKLOG J74 (P3, identity). platform_admin was the one role locked out of this route
+          although both backends already admit it: user_invitation_lifecycle_select is
+          `is_platform_admin() OR (org matches AND role in (...))`, and both revoke_user_invitation
+          and the resend-invitation function name platform_admin first. The page's own canManage
+          has always included it. */}
       <Route path="/app/invitations">
-        {() => <ProtectedRoute component={InvitationLifecycle} allowedRoles={["org_admin", "facility_manager", "auditor"]} />}
+        {() => <ProtectedRoute component={InvitationLifecycle} allowedRoles={["platform_admin", "org_admin", "facility_manager", "auditor"]} />}
       </Route>
       <Route path="/app/employee-lifecycle">
         {() => <ProtectedRoute component={EmployeeLifecycleCases} allowedRoles={ORG_MANAGE_ROLES} />}

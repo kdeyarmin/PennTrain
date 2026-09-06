@@ -1,4 +1,4 @@
-import { useId, lazy, Suspense, useState } from "react";
+import { useId, lazy, Suspense, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { BarChart3, ChevronRight, Plus, Target } from "lucide-react";
 import { BarChart } from "@/components/charts";
@@ -15,6 +15,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
 import {
   useCreateQapiProject,
+  useListFacilityAssignedProfileIds,
   useListQapiProjects,
   useQapiSourceMetrics,
 } from "@/hooks/useQapi";
@@ -68,6 +69,22 @@ export default function QapiDashboard() {
     facilityId: fac || undefined,
   });
   const metrics = useQapiSourceMetrics(fac, ago(), today());
+  // BACKLOG J74. create_qapi_project accepts a lead only if they are an active org_admin /
+  // platform_admin in the organization, or a facility_manager assigned to the facility the project
+  // belongs to. The picker below offered every active profile, so choosing an employee, a trainer,
+  // an auditor or a manager assigned to the other building filled in the whole form and then came
+  // back "The QAPI lead must be an active manager with access to this facility". These are the two
+  // halves of that rule, evaluated on the client so the refused names are never offered.
+  const facilityAssignedProfileIds = useListFacilityAssignedProfileIds(fac || undefined);
+  const eligibleLeads = useMemo(() => {
+    const assigned = new Set(facilityAssignedProfileIds.data ?? []);
+    return (profiles.data ?? []).filter(
+      (p) =>
+        p.is_active
+        && (["org_admin", "platform_admin"].includes(p.role ?? "")
+          || (p.role === "facility_manager" && assigned.has(p.id))),
+    );
+  }, [profiles.data, facilityAssignedProfileIds.data]);
   // The facility picker, project list, and source metrics all render from these. Any of them
   // failing would otherwise show as "no facilities" / "no projects" / zeroed metrics.
   const dataQueries = [facilities, profiles, projects, metrics];
@@ -80,7 +97,7 @@ export default function QapiDashboard() {
     [objective, setObjective] = useState(""),
     [target, setTarget] = useState(""),
     [completion, setCompletion] = useState(defaultCompletion),
-    [lead, setLead] = useState(user?.id ?? "");
+    [lead, setLead] = useState("");
   const openCreate = () => {
     setTitle("");
     setProblem("");
@@ -89,7 +106,9 @@ export default function QapiDashboard() {
     setObjective("");
     setTarget("");
     setCompletion(defaultCompletion());
-    setLead(user?.id ?? "");
+    // Only when the RPC would accept it -- the filer is usually the right default, but an
+    // unassigned facility_manager or a trainer opening the form is not an eligible lead.
+    setLead(eligibleLeads.some((p) => p.id === user?.id) ? (user?.id ?? "") : "");
     setOpen(true);
   };
   const submit = () =>
@@ -282,18 +301,19 @@ export default function QapiDashboard() {
               <Label htmlFor={`${__fieldIds}-project-lead`}>Project lead</Label>
               <Select value={lead} onValueChange={setLead}>
                 <SelectTrigger id={`${__fieldIds}-project-lead`}>
-                  <SelectValue />
+                  <SelectValue placeholder="Select a project lead" />
                 </SelectTrigger>
                 <SelectContent>
-                  {profiles.data
-                    ?.filter((p) => p.is_active)
-                    .map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.first_name} {p.last_name}
-                      </SelectItem>
-                    ))}
+                  {eligibleLeads.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.first_name} {p.last_name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Organization administrators, and facility managers assigned to this facility.
+              </p>
             </div>
             <div className="space-y-1 sm:col-span-2">
               <Label htmlFor={`${__fieldIds}-baseline-data`}>Baseline data</Label>
@@ -331,7 +351,7 @@ export default function QapiDashboard() {
             </Button>
             <Button
               disabled={
-                !title || problem.length < 10 || !fac || create.isPending
+                !title || problem.length < 10 || !fac || !lead || create.isPending
               }
               onClick={submit}
             >

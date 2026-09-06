@@ -1,7 +1,10 @@
+import { useMemo } from "react";
 import { useAuth } from "@/lib/auth";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance, facilityYear } from "@/lib/dateUtils";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
+import { summarizeCurrentTrainingCompliance } from "@/lib/complianceScore";
+import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useListCompetencyRecords, useListCompetencyTemplates } from "@/hooks/useCompetencies";
@@ -146,10 +149,19 @@ export default function EmployeeDashboard() {
 
   const isLoading = employeeLoading || recordsLoading;
 
-  const allRecords = records ?? [];
-  const compliant = allRecords.filter(r => r.status === "compliant").length;
-  const expired = allRecords.filter(r => r.status === "expired").length;
-  const dueSoon = allRecords.filter(r => r.status === "due_soon").length;
+  // One current record per (employee, training type). A renewal INSERTS a fresh
+  // employee_training_records row and the nightly recalculation keeps grading the superseded one by
+  // its own completion date, so it stays 'expired' forever (see currentTrainingRecords.ts). Counting
+  // raw rows made this dashboard tell an employee who renewed everything that they had four expired
+  // trainings, and put last cycle's rows in their deadline list with dates already months past.
+  // summarizeCurrentTrainingCompliance is the shared counter the Dashboard and both compliance RPCs
+  // agree with; the deadline list and the preview reduce through the same rule so all three read the
+  // same history.
+  const allRecords = useMemo(() => selectCurrentTrainingRecords(records ?? []), [records]);
+  const trainingCounts = useMemo(() => summarizeCurrentTrainingCompliance(records ?? []), [records]);
+  const compliant = trainingCounts.compliant;
+  const expired = trainingCounts.expired;
+  const dueSoon = trainingCounts.dueSoon;
   // Capped preview, same "cap at 5 + View All" treatment as the Competency Evaluations section
   // above -- this list otherwise renders every record (15-20+ rows) with no pagination.
   const recentRecords = allRecords.slice(0, 5);

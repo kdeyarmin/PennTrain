@@ -14,10 +14,11 @@ import { useGetOrganizationSettings, useUpsertOrganizationSettings } from "@/hoo
 import { useListNotificationDeliveries } from "@/hooks/useNotifications";
 import { useRecalculateOrgCompliance } from "@/hooks/useTrainingRecords";
 import { QueryError, QueryLoading } from "@/components/QueryState";
-import { useOrganizationExports, useRestoreDemoBaseline, useSandboxActions } from "@/hooks/useProductExperience";
+import { exportArchiveHasExpired, exportIsInFlight, useOrganizationExports, useRestoreDemoBaseline, useSandboxActions } from "@/hooks/useProductExperience";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetOrganization, useUpdateOrganization } from "@/hooks/useOrganizations";
 import { useNotificationReach } from "@/hooks/useNotificationReach";
+import { useIdentitySecurityPolicy, useSetPrivilegedSessionWindow } from "@/hooks/useIdentitySecurityPolicy";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const DEFAULT_WARNING_DAYS = 90;
@@ -88,10 +89,22 @@ export default function Settings() {
   const { data: facilities = [] } = useListFacilities({ organizationId: user?.organizationId ?? undefined }, !!user?.organizationId);
   const sandbox = facilities.find((facility) => facility.is_sandbox && facility.is_active);
 
+  // BACKLOG J74 (P3, identity). identity_security_policies had no reader and no writer anywhere in
+  // the product; this card is both. Only an org_admin can write it (the manage RLS policy also
+  // wants a current AAL2 session), so a facility_manager reads the posture and cannot change it.
+  const identityPolicy = useIdentitySecurityPolicy(user?.organizationId ?? undefined);
+  const setPrivilegedWindow = useSetPrivilegedSessionWindow();
+  const canManageIdentityPolicy = user?.role === "org_admin" || user?.role === "platform_admin";
+  const [privilegedWindowInput, setPrivilegedWindowInput] = useState("");
+
   const [form, setForm] = useState<SettingsFormData>(EMPTY_FORM);
   const [logoPath, setLogoPath] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+
+  useEffect(() => {
+    if (identityPolicy.data) setPrivilegedWindowInput(String(identityPolicy.data.maxPrivilegedSessionMinutes));
+  }, [identityPolicy.data]);
 
   useEffect(() => {
     if (settings) {
@@ -566,9 +579,115 @@ export default function Settings() {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5"><Label htmlFor="idle-timeout">Standard idle timeout</Label><div className="flex items-center gap-2"><Input id="idle-timeout" type="number" min={5} max={480} value={form.idleTimeoutMinutes} onChange={(event) => field("idleTimeoutMinutes", event.target.value)} disabled={!canManage} className="w-28" /><span className="text-sm text-muted-foreground">minutes</span></div></div>
               <div className="space-y-1.5"><Label htmlFor="kiosk-idle-timeout">Kiosk idle timeout</Label><div className="flex items-center gap-2"><Input id="kiosk-idle-timeout" type="number" min={1} max={60} value={form.kioskIdleTimeoutMinutes} onChange={(event) => field("kioskIdleTimeoutMinutes", event.target.value)} disabled={!canManage} className="w-28" /><span className="text-sm text-muted-foreground">minutes</span></div></div>
-              <p className="text-xs text-muted-foreground sm:col-span-2">Organization administrators and facility managers must enroll and verify TOTP MFA. Irreversible actions—including deactivation, documentation-grant revocation, and unpublishing—require a fresh AAL2 session.</p>
+              <p className="text-xs text-muted-foreground sm:col-span-2">The idle lock is separate from the multi-factor posture below: it soft-locks an unattended screen, it does not end the session.</p>
             </CardContent>
           </Card>
+
+          {/* BACKLOG J74 (P3, identity). This card used to be one hard-coded sentence describing the
+              DEFAULT posture. It now reads the organization's own identity_security_policies row --
+              the table identity_operation_requires_aal2() and identity_assurance_is_current()
+              actually consult -- and lets an organization administrator set the one field the
+              identity_security_policy_mfa_floor CHECK leaves settable.
+
+              Gated on having an organization at all: a platform admin viewing this page without
+              one has no row to read and would otherwise get a card with an empty body. */}
+          {user?.organizationId && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5" />Multi-factor and privileged access</CardTitle>
+              <CardDescription>
+                {identityPolicy.data?.isExplicit
+                  ? "This organization's saved identity policy, enforced on every privileged action."
+                  : "This organization has not saved an identity policy, so the platform defaults below are in force."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {identityPolicy.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading identity policy…</p>
+              ) : identityPolicy.isError ? (
+                <QueryError what="identity policy" error={identityPolicy.error as Error} onRetry={() => void identityPolicy.refetch()} />
+              ) : identityPolicy.data ? (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Roles that must verify a second factor</p>
+                      <p className="text-sm font-medium">
+                        {identityPolicy.data.privilegedRoles.map((role) => role.replace(/_/g, " ")).join(", ")}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Actions that require a verified session</p>
+                      <p className="text-sm font-medium">
+                        {identityPolicy.data.requireAal2
+                          ? `${identityPolicy.data.sensitiveOperations.length} protected operations`
+                          : "None — second-factor enforcement is off"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="privileged-session-window">Privileged session window</Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        id="privileged-session-window"
+                        type="number"
+                        min={5}
+                        max={480}
+                        className="w-28"
+                        value={privilegedWindowInput}
+                        onChange={(event) => setPrivilegedWindowInput(event.target.value)}
+                        disabled={!canManageIdentityPolicy || setPrivilegedWindow.isPending}
+                      />
+                      <span className="text-sm text-muted-foreground">minutes (5–480)</span>
+                      {canManageIdentityPolicy && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            setPrivilegedWindow.isPending ||
+                            !user?.organizationId ||
+                            Number(privilegedWindowInput) === identityPolicy.data.maxPrivilegedSessionMinutes ||
+                            !Number.isInteger(Number(privilegedWindowInput)) ||
+                            Number(privilegedWindowInput) < 5 ||
+                            Number(privilegedWindowInput) > 480
+                          }
+                          onClick={() => setPrivilegedWindow.mutate(
+                            {
+                              organizationId: user!.organizationId!,
+                              minutes: Number(privilegedWindowInput),
+                              current: identityPolicy.data!,
+                              updatedBy: user?.id ?? null,
+                            },
+                            {
+                              onSuccess: () => toast({ title: "Privileged session window saved" }),
+                              onError: (e: Error) => toast({
+                                title: "Failed to save the identity policy",
+                                description: e.message.includes("row-level security")
+                                  ? "Saving this needs a freshly verified session. Verify a factor on Account security, then try again."
+                                  : e.message,
+                                variant: "destructive",
+                              }),
+                            },
+                          )}
+                        >
+                          {setPrivilegedWindow.isPending ? "Saving…" : "Save"}
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      How long an administrator or manager may work after signing in before privileged actions —
+                      deactivation, documentation-grant revocation, unpublishing — ask them to sign in again. The window
+                      runs from when the session was created, so refreshing the page does not extend it.
+                      {" "}<Link href="/account/security" className="underline">Verify this session</Link>.
+                    </p>
+                    {!canManageIdentityPolicy && (
+                      <p className="text-xs text-muted-foreground">Only an organization administrator can change this.</p>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </CardContent>
+          </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -629,8 +748,26 @@ export default function Settings() {
                 <CardDescription>Request a ZIP containing per-table CSVs and a document manifest with short-lived signed URLs. Completed archives expire after seven days.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button disabled={exports.request.isPending || exports.data?.some((job) => ["pending", "processing"].includes(job.status))} onClick={() => exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) })}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
-                <div className="space-y-2">{exports.data?.map((job) => <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">Requested {new Date(job.requested_at).toLocaleString()}</p><p className="text-xs text-muted-foreground">{job.status === "succeeded" ? `${job.table_count} tables · ${job.row_count} rows · expires ${new Date(job.expires_at!).toLocaleString()}` : job.last_error_message ?? "The background worker is preparing the archive."}</p></div><div className="flex items-center gap-2"><Badge variant={job.status === "failed" ? "destructive" : "outline"}>{job.status}</Badge>{job.status === "succeeded" && <Button size="sm" variant="outline" disabled={exports.download.isPending} onClick={() => exports.download.mutate(job, { onSuccess: (url) => openDocumentUrl(url), onError: (error: Error) => toast({ title: "Download failed", description: error.message, variant: "destructive" }) })}><Download className="mr-2 h-4 w-4" />Download</Button>}</div></div>)}</div>
+                {/*
+                  RELEASE_READINESS_PLAN 4.3 (imports/export D5, D6).
+                  D5: `request_organization_export` refuses a second request while one is
+                  `pending`/`processing`, but a `failed` job with attempts left is still queued --
+                  `claim_organization_export_jobs` claims `status in ('pending','failed') and
+                  attempt_count < max_attempts` -- so requesting again produced a second archive of
+                  the same tenant. The guard now covers the retry window on both sides.
+                  D6: the Download button rendered for any `succeeded` job, including ones whose
+                  seven-day `expires_at` had passed and whose object `purge_expired_organization_exports`
+                  has already deleted; the click ended in a storage error. An expired archive now
+                  says so and offers no download.
+                */}
+                <Button disabled={exports.request.isPending || exports.data?.some(exportIsInFlight)} onClick={() => exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) })}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
+                {exports.data?.some(exportIsInFlight) && (
+                  <p className="text-xs text-muted-foreground">An export is already in progress or waiting to be retried; a new one can be requested once it settles.</p>
+                )}
+                <div className="space-y-2">{exports.data?.map((job) => {
+                  const expired = exportArchiveHasExpired(job);
+                  return <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="text-sm font-medium">Requested {new Date(job.requested_at).toLocaleString()}</p><p className="text-xs text-muted-foreground">{job.status === "succeeded" ? `${job.table_count} tables · ${job.row_count} rows · ${expired ? "expired" : "expires"} ${new Date(job.expires_at!).toLocaleString()}` : job.last_error_message ?? "The background worker is preparing the archive."}</p></div><div className="flex items-center gap-2"><Badge variant={job.status === "failed" ? "destructive" : expired ? "secondary" : "outline"}>{expired ? "expired" : job.status}</Badge>{job.status === "succeeded" && (expired ? <span className="text-xs text-muted-foreground">Archive deleted — request a new export</span> : <Button size="sm" variant="outline" disabled={exports.download.isPending} onClick={() => exports.download.mutate(job, { onSuccess: (url) => openDocumentUrl(url), onError: (error: Error) => toast({ title: "Download failed", description: error.message, variant: "destructive" }) })}><Download className="mr-2 h-4 w-4" />Download</Button>)}</div></div>;
+                })}</div>
               </CardContent>
             </Card>
           )}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { KeyRound, RefreshCw, Webhook } from "lucide-react";
+import { AlertTriangle, KeyRound, RefreshCw, Webhook } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
 import { QueryError } from "@/components/QueryState";
 import {
-  useDeactivateWebhookEndpoint, useIntegrationCredentialRegister, useIntegrationWebhookRegister,
-  useRevokeIntegrationCredential, useRotateIntegrationCredential, useRotateWebhookSecret,
+  useDeactivateWebhookEndpoint, useIntegrationCredentialRegister, useIntegrationDeadLetters,
+  useIntegrationWebhookRegister, useIntegrationWebhookSubscriptions,
+  useReactivateWebhookEndpoint, useReplayWebhookDelivery, useRevokeIntegrationCredential,
+  useRotateIntegrationCredential, useRotateWebhookSecret, useSetWebhookSubscription,
   type RotatedSecret,
 } from "@/hooks/useIntegrationRegister";
 
@@ -28,22 +30,33 @@ const MIN_REASON = 10;
  * Revoking and deactivating both demand a written reason, because both are answers to an incident
  * and the reason is what the incident record needs. Rotation does not: rotating on a schedule is
  * good practice and should not require an excuse.
+ *
+ * The second pass adds the three controls the server had and the product did not: replaying a
+ * dead-lettered delivery (reachable only from a cron-authenticated dispatcher call before this),
+ * switching one event subscription off, and switching an endpoint back on -- which nothing could
+ * do at all, so every deactivation, and now every automatic disable, was permanent.
  */
 export function IntegrationRegisterCard({ organizationId }: { organizationId: string }) {
   const { toast } = useToast();
   const credentials = useIntegrationCredentialRegister(organizationId);
   const webhooks = useIntegrationWebhookRegister(organizationId);
+  const subscriptions = useIntegrationWebhookSubscriptions(organizationId);
+  const deadLetters = useIntegrationDeadLetters(organizationId);
   const revokeCredential = useRevokeIntegrationCredential();
   const rotateCredential = useRotateIntegrationCredential();
   const rotateSecret = useRotateWebhookSecret();
   const deactivateEndpoint = useDeactivateWebhookEndpoint();
+  const reactivateEndpoint = useReactivateWebhookEndpoint();
+  const setSubscription = useSetWebhookSubscription();
+  const replayDelivery = useReplayWebhookDelivery();
 
-  const [reasonFor, setReasonFor] = useState<{ kind: "credential" | "endpoint"; id: string } | null>(null);
+  const [reasonFor, setReasonFor] = useState<{ kind: "credential" | "endpoint" | "replay"; id: string } | null>(null);
   const [reason, setReason] = useState("");
   const [shown, setShown] = useState<RotatedSecret | null>(null);
 
   const busy = revokeCredential.isPending || rotateCredential.isPending
-    || rotateSecret.isPending || deactivateEndpoint.isPending;
+    || rotateSecret.isPending || deactivateEndpoint.isPending
+    || reactivateEndpoint.isPending || setSubscription.isPending || replayDelivery.isPending;
   const reasonTooShort = reason.trim().length < MIN_REASON;
 
   const showSecret = (secret: RotatedSecret) => {
@@ -62,6 +75,11 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
         onSuccess: () => { done(); toast({ title: "Credential revoked", description: "It stops authenticating immediately." }); },
         onError,
       });
+    } else if (reasonFor.kind === "replay") {
+      replayDelivery.mutate({ deliveryId: reasonFor.id, reason: reason.trim() }, {
+        onSuccess: () => { done(); toast({ title: "Delivery re-queued", description: "The event is queued again for the next dispatch run." }); },
+        onError,
+      });
     } else {
       deactivateEndpoint.mutate({ endpointId: reasonFor.id, reason: reason.trim() }, {
         onSuccess: () => { done(); toast({ title: "Endpoint deactivated", description: "No further deliveries are attempted." }); },
@@ -69,6 +87,15 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
       });
     }
   };
+
+  const toggleSubscription = (endpointId: string, eventType: string, isActive: boolean) =>
+    setSubscription.mutate({ endpointId, eventType, isActive: !isActive }, {
+      onSuccess: () => toast({
+        title: isActive ? "Subscription switched off" : "Subscription switched on",
+        description: `${eventType} on this endpoint.`,
+      }),
+      onError: (error: unknown) => toast({ title: "Blocked", description: errorText(error), variant: "destructive" }),
+    });
 
   return (
     <Card>
@@ -96,7 +123,11 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
         {reasonFor && (
           <div className="space-y-2 rounded-md border p-3">
             <Label htmlFor="integration-reason">
-              Why this {reasonFor.kind === "credential" ? "credential is being revoked" : "endpoint is being switched off"}
+              Why this {reasonFor.kind === "credential"
+                ? "credential is being revoked"
+                : reasonFor.kind === "replay"
+                ? "delivery is being replayed"
+                : "endpoint is being switched off"}
             </Label>
             <Input
               id="integration-reason"
@@ -180,6 +211,9 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
           ) : null}
           {!webhooks.isLoading && !webhooks.isError && (webhooks.data ?? []).map((endpoint) => {
             const off = endpoint.status !== "active";
+            const endpointSubscriptions = (subscriptions.data ?? []).filter(
+              (subscription) => subscription.endpoint_id === endpoint.id,
+            );
             return (
               <div key={endpoint.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
                 <div className="min-w-0">
@@ -190,6 +224,26 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
                     {endpoint.consecutive_failures > 0 && ` · ${endpoint.consecutive_failures} consecutive failures`}
                     {off && endpoint.disable_reason && ` · ${endpoint.disable_reason}`}
                   </p>
+                  {endpointSubscriptions.length > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {endpointSubscriptions.map((subscription) => (
+                        <Button
+                          key={subscription.id}
+                          size="sm"
+                          variant={subscription.is_active ? "secondary" : "outline"}
+                          className="h-6 px-2 font-mono text-[11px]"
+                          disabled={busy}
+                          title={subscription.is_active
+                            ? `Stop sending ${subscription.event_type} to this endpoint`
+                            : `Send ${subscription.event_type} to this endpoint again`}
+                          onClick={() => toggleSubscription(endpoint.id, subscription.event_type, subscription.is_active)}
+                        >
+                          {subscription.event_type}
+                          <span className="ml-1 text-muted-foreground">{subscription.is_active ? "on" : "off"}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Badge variant={off ? "outline" : "secondary"}>{endpoint.status}</Badge>
@@ -213,10 +267,60 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
                       </Button>
                     </>
                   )}
+                  {off && (
+                    <Button
+                      size="sm" variant="outline" disabled={busy}
+                      onClick={() => reactivateEndpoint.mutate({ endpointId: endpoint.id }, {
+                        onSuccess: () => toast({ title: "Endpoint switched back on", description: "The failure count is cleared and queued deliveries resume." }),
+                        onError: (error) => toast({ title: "Blocked", description: errorText(error), variant: "destructive" }),
+                      })}
+                    >
+                      Switch back on
+                    </Button>
+                  )}
                 </div>
               </div>
             );
           })}
+        </div>
+
+        <div className="space-y-2">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <AlertTriangle className="h-3.5 w-3.5" />Dead-lettered deliveries
+          </p>
+          {deadLetters.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading dead-lettered deliveries…</p>
+          ) : deadLetters.isError ? (
+            <QueryError what="dead-lettered deliveries" error={deadLetters.error} onRetry={() => void deadLetters.refetch()} />
+          ) : (deadLetters.data ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              None. A delivery lands here after it exhausts its attempts; replaying re-queues the
+              same event rather than editing the record of the failure.
+            </p>
+          ) : null}
+          {!deadLetters.isLoading && !deadLetters.isError && (deadLetters.data ?? []).map((delivery) => (
+            <div key={delivery.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
+              <div className="min-w-0">
+                <p className="font-mono text-sm">{delivery.event_type}</p>
+                <p className="text-xs text-muted-foreground">
+                  {delivery.attempt_count} attempts
+                  {delivery.last_http_status !== null && ` · HTTP ${delivery.last_http_status}`}
+                  {delivery.last_error_code && ` · ${delivery.last_error_code}`}
+                  {delivery.replay_count > 0 && ` · replay ${delivery.replay_count}`}
+                  {delivery.dead_lettered_at && ` · ${new Date(delivery.dead_lettered_at).toLocaleString()}`}
+                </p>
+                {delivery.last_error_message && (
+                  <p className="break-all text-xs text-muted-foreground">{delivery.last_error_message}</p>
+                )}
+              </div>
+              <Button
+                size="sm" variant="outline" disabled={busy}
+                onClick={() => { setReasonFor({ kind: "replay", id: delivery.id }); setReason(""); }}
+              >
+                <RefreshCw className="mr-1 h-3.5 w-3.5" />Replay
+              </Button>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>

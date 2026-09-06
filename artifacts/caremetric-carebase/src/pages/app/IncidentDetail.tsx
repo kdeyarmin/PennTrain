@@ -4,7 +4,8 @@ import {
   useGetIncident, useUpdateIncident,
   useListIncidentStaffInvolved, useAddIncidentStaffInvolved, useRemoveIncidentStaffInvolved,
   useListIncidentNotifications, useAddIncidentNotification, useCompleteIncidentNotification,
-  useGenerateIncidentReportPdf, useGenerateIncidentStateFormPdf, type IncidentStaffInvolved,
+  useGenerateIncidentReportPdf, useGenerateIncidentStateFormPdf, useIncidentWorkItem,
+  type IncidentStaffInvolved,
 } from "@/hooks/useIncidents";
 import {
   useListCorrectiveActions, useCreateCorrectiveAction, useUpdateCorrectiveAction,
@@ -141,6 +142,8 @@ export default function IncidentDetail() {
     refetch: refetchDocuments,
   } = useListIncidentDocuments(id);
   const { data: courses } = useListCourses();
+  // The queue item this incident opened, and the deadline the escalation sweep is running against.
+  const { data: incidentWorkItems } = useIncidentWorkItem(id);
 
   const { mutate: updateIncident, isPending: updatingIncident } = useUpdateIncident();
   const { mutate: addStaff } = useAddIncidentStaffInvolved();
@@ -161,7 +164,10 @@ export default function IncidentDetail() {
 
   const [newStaffEmployee, setNewStaffEmployee] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<"involved_party" | "witness" | "first_responder" | "reporter">("witness");
-  const [newNotificationType, setNewNotificationType] = useState<"state_hotline" | "family_guardian" | "law_enforcement" | "licensing_agency" | "other">("state_hotline");
+  // `written_report` is the 48-hour report that follows the department call (BACKLOG.md I10
+  // residual / J74). The presets create one automatically for every reportable type; it is offered
+  // here too so a manager can add one to an incident whose determination was made outside them.
+  const [newNotificationType, setNewNotificationType] = useState<"state_hotline" | "family_guardian" | "law_enforcement" | "licensing_agency" | "written_report" | "other">("state_hotline");
   const [newNotificationHours, setNewNotificationHours] = useState("24");
   const [newActionDueDate, setNewActionDueDate] = useState("");
   const [assignRetraining, setAssignRetraining] = useState(false);
@@ -272,6 +278,16 @@ export default function IncidentDetail() {
     : closureBlockers.length === 0
       ? ["reported", "investigating", "closed"]
       : ["reported", "investigating"];
+  // BACKLOG J74. app_private.route_operational_work opens an `incident.followup` work item on every
+  // incident -- due in an hour for a critical event and tomorrow for everything else -- and
+  // escalate_overdue_work_items raises its priority once that passes. The queue was therefore saying
+  // "Investigate death - due tomorrow" while this page showed no due date anywhere, so the person
+  // doing the work and the queue chasing them were reading two different records. One clock, shown
+  // where the work is done; the queue item stays the only place it is stored.
+  const openWorkItem = (incidentWorkItems ?? []).find(
+    (workItem) => !["closed", "canceled"].includes(workItem.state ?? "") && workItem.due_at,
+  ) ?? null;
+  const workItemOverdue = openWorkItem ? new Date(openWorkItem.due_at).getTime() < Date.now() : false;
   const statusGateExplanation = isClosed
     ? (canReopen
       ? "Closed. Reopening returns it to Investigating and is recorded in the incident history."
@@ -336,6 +352,25 @@ export default function IncidentDetail() {
         </div>
       </div>
 
+      {openWorkItem && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="font-medium">{openWorkItem.title}</span>
+            <Badge variant="outline" className="text-[11px]">{humanize(openWorkItem.state ?? "open")}</Badge>
+            {openWorkItem.escalated_at && (
+              <Badge variant="outline" className="bg-destructive text-destructive-foreground text-[11px]">Escalated</Badge>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={workItemOverdue ? "font-medium text-destructive" : "text-muted-foreground"}>
+              {workItemOverdue ? "Investigation was due " : "Investigation due "}
+              {new Date(openWorkItem.due_at).toLocaleString()}
+            </span>
+            <Link href={`/app/work/${openWorkItem.id}`} className="text-primary hover:underline">Open in work queue</Link>
+          </div>
+        </div>
+      )}
 
       <div className="sticky top-[68px] z-[5] -mx-1 flex flex-wrap gap-2 border-b bg-background/95 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         {[
@@ -523,7 +558,16 @@ export default function IncidentDetail() {
                     </div>
                     <div className="flex items-center gap-2">
                       <NotificationStatusBadge status={n.status} />
-                      {canManage && n.status !== "completed" && (
+                      {/*
+                        `not_required` is a determination somebody made, with the rationale written
+                        onto the row by determine_incident_reportability -- not an open task. This
+                        used to offer Mark Notified for it and the completion trigger accepted the
+                        write, recording a call to the department that nobody made and overwriting
+                        the only trace of the decision that stood it down. The trigger refuses it
+                        now (20260906270000); the control is gone so nobody is offered the refusal.
+                        Reversing the reportability determination is what brings the duty back.
+                      */}
+                      {canManage && !["completed", "not_required"].includes(n.status) && (
                         <Button
                           variant="ghost" size="icon" className="h-7 w-7"
                           onClick={() => {
@@ -574,7 +618,7 @@ export default function IncidentDetail() {
               <Select value={newNotificationType} onValueChange={(v) => setNewNotificationType(v as typeof newNotificationType)}>
                 <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "other"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
+                  {["state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "written_report", "other"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-1.5 shrink-0">

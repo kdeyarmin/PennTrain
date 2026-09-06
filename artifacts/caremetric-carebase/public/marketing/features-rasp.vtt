@@ -2,13 +2,20 @@ WEBVTT
 
 NOTE Captions for the feature / state-documentation video. Timings are approximate.
 
+NOTE Cue 2 no longer transcribes the audio. The recorded narration says "Clearances and monthly
+exclusion screening"; exclusion screening was removed from the product on 2026-09-06
+(supabase/migrations/20260906020000_exclusion_screening_is_removed.sql) and the caption now says
+what CareBase actually does. The caption is the half that can be corrected without a paid
+re-render, so it was; scripts/heygen/scripts/features-rasp.txt carries the corrected line for the
+next render of features-rasp.mp4, after which this note comes out.
+
 1
 00:00:00.000 --> 00:00:06.500
 Let me give you the tour. CareBase runs your whole facility from one place.
 
 2
 00:00:06.500 --> 00:00:13.000
-Training and credentials. Clearances and monthly exclusion screening.
+Training and credentials. Clearances and background checks.
 Scheduling and staffing.
 
 3

@@ -422,7 +422,21 @@ export default function AdministratorQualification() {
   const __fieldIds = useId();
   const { user } = useAuth();
   const isSelfService = user?.role === "facility_manager";
-  const { data: administrators } = useListProfiles({ organizationId: user?.organizationId ?? undefined, role: "facility_manager" });
+  // The picker used to list `facility_manager` profiles only (BACKLOG J74, P3 tail), so a
+  // single-home personal care home -- where the licensed administrator IS the org_admin, and
+  // usually the only other person with a login -- had no way to record the 100-hour course, the
+  // competency test, the NHA exemption or a single CE hour for the one person 55 Pa. Code
+  // 2600.53-2600.65 actually requires it of. Nothing in the database asked for the narrower set:
+  // administrator_profiles_insert/_update admit an org_admin writing for any profile in the
+  // tenant, or anyone writing their own row. Two role-scoped reads rather than one unfiltered
+  // profile list, so a large tenant's whole directory is not pulled into a two-name dropdown --
+  // the pattern ShiftHandoffInbox already uses.
+  const orgAdmins = useListProfiles({ organizationId: user?.organizationId ?? undefined, role: "org_admin" });
+  const facilityManagers = useListProfiles({ organizationId: user?.organizationId ?? undefined, role: "facility_manager" });
+  const administrators = useMemo(() => {
+    const rows = [...(orgAdmins.data ?? []), ...(facilityManagers.data ?? [])].filter((profile) => profile.is_active !== false);
+    return rows.sort((a, b) => `${a.last_name ?? ""} ${a.first_name ?? ""}`.localeCompare(`${b.last_name ?? ""} ${b.first_name ?? ""}`));
+  }, [orgAdmins.data, facilityManagers.data]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const activeProfileId = isSelfService ? user?.id ?? null : selectedProfileId;
@@ -444,8 +458,8 @@ export default function AdministratorQualification() {
               <Select value={selectedProfileId ?? ""} onValueChange={setSelectedProfileId}>
                 <SelectTrigger id={`${__fieldIds}-administrator`} className="h-9"><SelectValue placeholder="Select an administrator" /></SelectTrigger>
                 <SelectContent>
-                  {(administrators ?? []).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name}</SelectItem>
+                  {administrators.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.first_name} {p.last_name} · {p.role === "org_admin" ? "Organization administrator" : "Facility manager"}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

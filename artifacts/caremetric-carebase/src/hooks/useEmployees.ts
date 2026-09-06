@@ -189,9 +189,17 @@ export function useCreateEmployee() {
     // The training matrix is keyed by employee as well as by record, so hiring, editing
     // (job title, facility, meds/trainer flags), or removing someone changes which rows and
     // columns it returns.
+    //
+    // So do two more surfaces the first version of this list missed (BACKLOG J74, P3 tail): every
+    // shift row embeds `employees(first_name,last_name)` and is filtered by facility, so a rename
+    // or a facility change leaves the schedule grid showing the old value; and
+    // get_org_dashboard_summary counts the active roster behind a 60-second staleTime, so the
+    // headline employee count disagreed with the roster the manager had just edited.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
     },
   });
 }
@@ -207,9 +215,17 @@ export function useUpdateEmployee() {
     // The training matrix is keyed by employee as well as by record, so hiring, editing
     // (job title, facility, meds/trainer flags), or removing someone changes which rows and
     // columns it returns.
+    //
+    // So do two more surfaces the first version of this list missed (BACKLOG J74, P3 tail): every
+    // shift row embeds `employees(first_name,last_name)` and is filtered by facility, so a rename
+    // or a facility change leaves the schedule grid showing the old value; and
+    // get_org_dashboard_summary counts the active roster behind a 60-second staleTime, so the
+    // headline employee count disagreed with the roster the manager had just edited.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
     },
   });
 }

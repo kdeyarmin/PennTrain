@@ -93,14 +93,22 @@ export function useAdminRegulatoryUpdates() {
 }
 
 /**
- * Normalize the publish timestamp so it always tracks status: publishing stamps `published_at`
- * (if not already set), while draft/archived clears it so the row leaves the public feed.
+ * `published_at` is the date this update was first published, and it is not re-writable.
+ *
+ * This used to clear the column for any status other than `published`, on the reasoning that
+ * clearing it removed the row from the public feed. It does not need to: `list_regulatory_updates`
+ * filters on `status = 'published'` first and `published_at is not null` only as a belt-and-braces
+ * second test, so status alone takes an archived row out of the feed. What clearing it did do was
+ * destroy the original date -- so archiving an update and publishing it again stamped today, and
+ * the entry that went out in 2026-03's newsletter came back re-dated. The admin page's own note
+ * beside this call already said the value is "preserved on edits" and that "now" is stamped only
+ * when a row is published for the first time; that is now true (BACKLOG.md J74, Regulatory).
  */
 function withPublishTimestamp(input: RegulatoryUpdateInput): RegulatoryUpdateInput {
   if (input.status === "published") {
     return { ...input, published_at: input.published_at ?? new Date().toISOString() };
   }
-  return { ...input, published_at: null };
+  return { ...input, published_at: input.published_at ?? null };
 }
 
 export function useCreateRegulatoryUpdate() {

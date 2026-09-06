@@ -96,7 +96,16 @@ export function useSyncOfflineProgress() {
         p_client_base_version: checkpoint.baseVersion,
         p_action_type: "progress",
         p_client_occurred_at: checkpoint.occurredAt,
-        p_payload: { percentComplete: checkpoint.percentComplete },
+        // startedAt is when the learner opened this offline copy, not when they reconnected: the
+        // RPC clamps it into [bundle download, now] and uses it for course_progress.started_at, so
+        // the seat clock counts the study rather than the sync (BACKLOG.md J74, Train). lastBlockId
+        // carries the position the offline player actually reached, which the live player would
+        // otherwise have to rediscover from lesson one.
+        p_payload: {
+          percentComplete: checkpoint.percentComplete,
+          startedAt: checkpoint.startedAt ?? checkpoint.occurredAt,
+          lastBlockId: checkpoint.lastBlockId ?? null,
+        },
       });
       if (error) throw error;
       const result = data as { outcome: string; serverVersion: number };

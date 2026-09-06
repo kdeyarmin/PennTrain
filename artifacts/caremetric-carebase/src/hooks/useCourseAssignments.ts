@@ -239,6 +239,10 @@ export function useCompleteCourseAssignment() {
       queryClient.invalidateQueries({ queryKey: ["training_records"] });
       queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      // "Overall compliance" on the Dashboard is get_org_dashboard_summary, which is exactly the
+      // number a completion moves -- and it carries a 60-second staleTime, so the tile disagreed
+      // with the matrix the same completion had just refreshed (BACKLOG J74, P3 tail).
+      queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
     },
   });
 }

@@ -42,7 +42,7 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
 
   const start = (row: HrisImportRow) => {
     setOpenRow(row.id);
-    setDecision("create");
+    setDecision(row.validation_status === "valid" ? "create" : "skip");
     setEmployeeId(row.candidate_employee_ids?.[0] ?? "");
     setReason("");
   };
@@ -59,7 +59,11 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
     return <p className="text-sm text-muted-foreground">This run has no staged rows yet. Validate it first.</p>;
   }
 
-  const undecided = data.filter((row) => row.validation_status === "valid" && !row.merge_decision).length;
+  // A row that failed validation is decidable too, and only by being dropped: skip and reject
+  // write nothing. Before this the server refused every decision on an invalid row and
+  // apply_hris_import_batch refused the whole run while one existed, so a single bad row stranded
+  // the import for good (RELEASE_READINESS_PLAN 4.3, imports D2).
+  const undecided = data.filter((row) => !row.merge_decision).length;
 
   return (
     <div className="space-y-2">
@@ -68,7 +72,8 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
         {undecided > 0 && <> · <span className="font-medium">{undecided} awaiting a decision</span></>}
       </p>
       {data.map((row) => {
-        const decidable = row.validation_status === "valid" && !row.merge_decision;
+        const decidable = !row.merge_decision;
+        const invalidRow = row.validation_status !== "valid";
         const candidates = row.candidate_employee_ids ?? [];
         return (
           <div key={row.id} className="space-y-2 rounded border p-2">
@@ -110,11 +115,16 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
                           value={option.value}
                           // Linking needs something to link to. The server refuses a link whose
                           // employee is not among this row's own candidates, so with none found the
-                          // option can only fail.
-                          disabled={option.value === "link" && candidates.length === 0}
+                          // option can only fail. A row that failed validation may only be dropped:
+                          // the server refuses `create` and `link` for it.
+                          disabled={
+                            (option.value === "link" && candidates.length === 0)
+                            || (invalidRow && option.value !== "skip" && option.value !== "reject")
+                          }
                         >
                           {option.label}
                           {option.value === "link" && candidates.length === 0 ? " (no candidates)" : ""}
+                          {invalidRow && option.value !== "skip" && option.value !== "reject" ? " (row failed validation)" : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>

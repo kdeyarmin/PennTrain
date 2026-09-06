@@ -50,6 +50,14 @@ export default function SurveyRehearsals() {
   const complete = useCompleteSurveyRehearsal();
   const cancel = useCancelSurveyRehearsal();
 
+  // BACKLOG J74. This route admits auditors (REPORTS_VIEW_ROLES in App.tsx) and every write on the
+  // page goes through an RPC guarded by app_private.assert_admission_manager, which admits only
+  // org_admin and facility_manager (and the service role / platform admins). So an auditor was
+  // offered "Create rehearsal", "Draw sample", "Complete", "Cancel" and the three per-item result
+  // buttons, and each one came back "Admission operation is outside caller scope" -- a 42501 with
+  // nothing on the page explaining it. Auditors read a rehearsal; they do not run one.
+  const canRunRehearsals = ["org_admin", "facility_manager", "platform_admin"].includes(user?.role ?? "");
+
   const [name, setName] = useState("Mock survey readiness rehearsal");
   const [sampleSize, setSampleSize] = useState("12");
   const [sampleMethod, setSampleMethod] = useState("random");
@@ -155,6 +163,39 @@ export default function SurveyRehearsals() {
         </p>
       </header>
 
+      {!canRunRehearsals && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FlaskConical className="h-5 w-5" /> Review only
+            </CardTitle>
+            <CardDescription>
+              Rehearsals are created, sampled, scored and completed by facility managers and organization
+              administrators. Every rehearsal and its findings are readable here.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* The facility picker lives in the create card below, which this role does not get. */}
+            <div className="max-w-sm space-y-2">
+              <Label htmlFor={`${__fieldIds}-review-facility`}>Facility</Label>
+              <Select value={activeFacilityId} onValueChange={setFacilityId}>
+                <SelectTrigger id={`${__fieldIds}-review-facility`}>
+                  <SelectValue placeholder="Select facility" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(facilities.data ?? []).map((facility) => (
+                    <SelectItem key={facility.id} value={facility.id}>
+                      {facility.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {canRunRehearsals && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -217,6 +258,7 @@ export default function SurveyRehearsals() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
         <Card>
@@ -267,7 +309,7 @@ export default function SurveyRehearsals() {
                     : "Select a rehearsal to draw and score its sample."}
                 </CardDescription>
               </div>
-              {selected && !["completed", "canceled"].includes(selected.status) && (
+              {canRunRehearsals && selected && !["completed", "canceled"].includes(selected.status) && (
                 <div className="flex flex-wrap gap-2">
                   {["draft", "sampled"].includes(selected.status) && (
                     <Button size="sm" variant="outline" disabled={sample.isPending} onClick={() => void runSample(selected)}>
@@ -310,7 +352,7 @@ export default function SurveyRehearsals() {
                     </div>
                     <Badge variant={item.result === "attention" ? "destructive" : "secondary"}>{label(item.result)}</Badge>
                   </div>
-                  {!["completed", "canceled"].includes(selected.status) && (
+                  {canRunRehearsals && !["completed", "canceled"].includes(selected.status) && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {["pass", "attention", "not_applicable"].map((result) => (
                         <Button

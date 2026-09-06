@@ -2,12 +2,13 @@ import { useId, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useGetInspectionItem, useUpdateInspectionItem } from "@/hooks/useInspectionItems";
 import { useListInspectionEvents, useCreateInspectionEvent } from "@/hooks/useInspectionEvents";
-import { useListCorrectiveActions, useUpdateCorrectiveAction } from "@/hooks/useCorrectiveActions";
+import { useListCorrectiveActions, type CorrectiveAction } from "@/hooks/useCorrectiveActions";
 import type { InspectionEvent } from "@/hooks/useInspectionEvents";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListViolationsBySourceInspectionEvents } from "@/hooks/useViolations";
 import { useListWorkOrders } from "@/hooks/useWorkOrders";
 import { CorrectiveActionForm, CorrectiveActionStatusBadge } from "@/components/CorrectiveActionForm";
+import { VerifyCorrectiveActionDialog } from "@/components/incidents/VerifyCorrectiveActionDialog";
 import { MaintenanceQrCode } from "@/components/maintenance/MaintenanceQrCode";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,15 @@ const errorFieldClass = (hasError: string | undefined) => cn(hasError && "border
 
 function EventCorrectiveActions({ event, canManage }: { event: InspectionEvent; canManage: boolean }) {
   const { data: actions } = useListCorrectiveActions({ inspectionEventId: event.id });
-  const { mutate: updateAction } = useUpdateCorrectiveAction();
+  // BACKLOG J74. This tick used to write `{status: "completed", completed_date}` straight to the
+  // table for every action whose status was not already "completed" -- cancelled included. So an
+  // action somebody had cancelled could be resolved as done from here, and it was the one of the
+  // three corrective-action surfaces that skipped verify_corrective_action, which has refused a
+  // cancelled action since 20260906090000 and is what writes the verification the incident and
+  // violation pages require. It now uses the same dialog and the same RPC as those two, and the
+  // control is not offered for a cancelled action at all (20260906270000 also refuses the
+  // transition on the table, so no other client can take the shortcut either).
+  const [verifyingAction, setVerifyingAction] = useState<CorrectiveAction | null>(null);
 
   return (
     <div className="mt-2 pl-4 border-l-2 space-y-2">
@@ -64,8 +73,13 @@ function EventCorrectiveActions({ event, canManage }: { event: InspectionEvent; 
           <span>{ca.description} — due {ca.due_date}</span>
           <div className="flex items-center gap-1.5">
             <CorrectiveActionStatusBadge status={ca.status} />
-            {canManage && ca.status !== "completed" && (
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateAction({ id: ca.id, status: "completed", completed_date: facilityToday() })}>
+            {canManage && ca.status !== "cancelled" && (ca.status !== "completed" || !ca.verification_notes?.trim()) && (
+              <Button
+                variant="ghost" size="icon" className="h-6 w-6"
+                onClick={() => setVerifyingAction(ca)}
+                aria-label={ca.status === "completed" ? "Verify corrective action" : "Complete and verify corrective action"}
+                title={ca.status === "completed" ? "Verify this completed action" : "Complete and verify this action"}
+              >
                 <Check className="h-3 w-3" />
               </Button>
             )}
@@ -78,6 +92,11 @@ function EventCorrectiveActions({ event, canManage }: { event: InspectionEvent; 
           size="sm"
         />
       )}
+      <VerifyCorrectiveActionDialog
+        action={verifyingAction}
+        open={verifyingAction !== null}
+        onOpenChange={(open) => { if (!open) setVerifyingAction(null); }}
+      />
     </div>
   );
 }

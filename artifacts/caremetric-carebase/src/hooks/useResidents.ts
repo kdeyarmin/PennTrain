@@ -14,16 +14,40 @@ export interface ListResidentsOptions {
   enabled?: boolean;
 }
 
+/**
+ * The full resident roster, paged.
+ *
+ * An unpaginated select is silently cut off at PostgREST's max-rows (1000 by default) and the
+ * truncation is never an error, only a short list -- the same shape as useListResidentNames and
+ * useListAllResidentComplianceItems, both of which were paged for exactly this reason. This one
+ * backs the State Forms Center queue (one row per regulatory deadline, joined against this roster
+ * to resolve the resident and to drop discharged ones), the dashboard census and every resident
+ * picker, so past 1000 residents a deadline could disappear from a compliance queue with nothing on
+ * screen saying the list was incomplete. `id` tie-breaks `last_name`, which is not unique, so a
+ * page boundary inside a run of equal names cannot drop or repeat a row. BACKLOG.md J74.
+ */
 export function useListResidents(filters: ListResidentsFilters = {}, options: ListResidentsOptions = {}) {
   return useQuery({
     queryKey: ["residents", filters],
     queryFn: async () => {
-      let query = supabase.from("residents").select("*").order("last_name");
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status) query = query.eq("status", filters.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const pageSize = 1000;
+      const all: Resident[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("residents")
+          .select("*")
+          .order("last_name")
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.status) query = query.eq("status", filters.status);
+        const { data, error } = await query;
+        if (error) throw error;
+        const batch = (data ?? []) as Resident[];
+        all.push(...batch);
+        if (batch.length < pageSize || all.length >= 50000) break;
+      }
+      return all;
     },
     enabled: options.enabled ?? true,
   });

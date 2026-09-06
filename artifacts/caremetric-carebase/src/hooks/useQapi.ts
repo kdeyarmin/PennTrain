@@ -5,6 +5,21 @@ export type QapiProject=Tables<"qapi_projects">;
 export interface QapiProjectView extends QapiProject{facility:{id:string;name:string}|null;lead:{id:string;first_name:string;last_name:string}|null;actions:{id:string;action_type:string;work_item_id:string}[]}
 const sel="*,facility:facilities(id,name),lead:profiles!qapi_projects_project_lead_profile_id_fkey(id,first_name,last_name),actions:qapi_action_items(id,action_type,work_item_id)";
 const inv=(q:ReturnType<typeof useQueryClient>)=>{q.invalidateQueries({queryKey:["qapi"]});q.invalidateQueries({queryKey:["work-items"]})};
+/**
+ * The profile ids explicitly assigned to one facility.
+ *
+ * `create_qapi_project` refuses a lead who is not an active org_admin/platform_admin in the
+ * organization or a facility_manager assigned to THIS facility (the rule 20260726000400 put on the
+ * RPC), and the lead picker offered every active profile in the org -- so an employee, a trainer,
+ * an auditor or a manager assigned elsewhere could be chosen and the whole form came back with
+ * "The QAPI lead must be an active manager with access to this facility" (BACKLOG.md J74).
+ *
+ * `facility_assignments_select` lets an org_admin read every assignment row in the organization and
+ * a facility_manager read only their own, so the set this returns is exactly the set the caller can
+ * prove -- which is the right set to offer: an option that cannot be verified is an option the RPC
+ * may refuse.
+ */
+export function useListFacilityAssignedProfileIds(facilityId?:string){return useQuery({queryKey:["facility_assignments","facility",facilityId],queryFn:async()=>{const{data,error}=await supabase.from("facility_assignments").select("profile_id").eq("facility_id",facilityId!);if(error)throw error;return (data??[]).map((row)=>row.profile_id)},enabled:!!facilityId})}
 export function useListQapiProjects(f:{organizationId?:string;facilityId?:string;status?:string}={}){return useQuery({queryKey:["qapi","projects",f],queryFn:async()=>{let q=supabase.from("qapi_projects").select(sel).order("target_completion_date");if(f.organizationId)q=q.eq("organization_id",f.organizationId);if(f.facilityId)q=q.eq("facility_id",f.facilityId);if(f.status)q=q.eq("status",f.status);const{data,error}=await q;if(error)throw error;return data as unknown as QapiProjectView[]}})}
 export function useGetQapiProject(id?:string){return useQuery({queryKey:["qapi","project",id],queryFn:async()=>{const{data,error}=await supabase.from("qapi_projects").select(sel).eq("id",id!).single();if(error)throw error;return data as unknown as QapiProjectView},enabled:!!id})}
 export function useQapiProjectActivity(id?:string){return useQuery({queryKey:["qapi","activity",id],queryFn:async()=>{const[m,notes,h,a]=await Promise.all([supabase.from("qapi_measurements").select("*").eq("project_id",id!).order("period_end",{ascending:false}),supabase.from("qapi_meeting_notes").select("*").eq("project_id",id!).order("held_at",{ascending:false}),supabase.from("qapi_project_history").select("*").eq("project_id",id!).order("occurred_at",{ascending:false}),supabase.from("qapi_action_items").select("*,work_item:work_items(*)").eq("project_id",id!)]);const e=[m,notes,h,a].find(x=>x.error)?.error;if(e)throw e;return{measurements:m.data??[],meetings:notes.data??[],history:h.data??[],actions:a.data??[]}},enabled:!!id})}

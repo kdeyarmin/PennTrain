@@ -31,6 +31,7 @@ import { useAuth } from "@/lib/auth";
 import { useListEmployeesByIds, type Employee } from "@/hooks/useEmployees";
 import { EmployeeSearchSelect } from "@/components/employees/EmployeeSearchSelect";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
 import {
   useApplyEmployeeLifecycleCase,
   useCancelEmployeeLifecycleCase,
@@ -123,6 +124,26 @@ export default function EmployeeLifecycleCases() {
     return byId;
   }, [caseEmployees.data]);
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  // Transfer targets, not "every facility the tenant has" (BACKLOG J74, P3 tail).
+  //
+  // Two of the choices this list offered are ones preview_employee_lifecycle_transition then
+  // refuses, and the refusal only arrives after the case has been created and previewed:
+  // `transfer_requires_new_facility` for the facility the employee is already at, and
+  // `target_facility_outside_organization_or_inactive` for a retired one. Both are filtered here.
+  //
+  // useAssignableFacilities on top of that is the app's standing convention for a facility picker
+  // that feeds a write (see its own docstring, and Today.tsx): org_admin, auditor, trainer and
+  // platform_admin are unaffected, and a facility_manager is narrowed to their facility_assignments
+  // rows rather than being offered buildings they do not run. That is a narrower predicate than the
+  // server's own lifecycle check -- which reads enterprise_scope_memberships -- so it is a
+  // convention, not a mirror of the 42501.
+  const assignableFacilities = useAssignableFacilities(facilities.data ?? undefined);
+  const transferTargets = useMemo(
+    () => assignableFacilities.filter(
+      (facility) => facility.is_active && facility.id !== selectedEmployee?.facility_id,
+    ),
+    [assignableFacilities, selectedEmployee?.facility_id],
+  );
   const createCase = useCreateEmployeeLifecycleCase();
   const refreshCase = useRefreshEmployeeLifecycleCase();
   const applyCase = useApplyEmployeeLifecycleCase();
@@ -155,6 +176,12 @@ export default function EmployeeLifecycleCases() {
   // chosen. Without it the employee page had no lifecycle entry point at all, and the roster edit
   // dialog's Status field -- the only other way anyone tried to move someone between states -- is
   // refused by a trigger.
+  useEffect(() => {
+    if (targetFacilityId && !transferTargets.some((facility) => facility.id === targetFacilityId)) {
+      setTargetFacilityId("");
+    }
+  }, [targetFacilityId, transferTargets]);
+
   const changeTransition = (next: EmployeeLifecycleTransition) => {
     setTransition(next);
     // A person eligible for one transition is usually ineligible for the next; clear rather than
@@ -551,7 +578,7 @@ export default function EmployeeLifecycleCases() {
                 <Select value={targetFacilityId} onValueChange={setTargetFacilityId}>
                   <SelectTrigger id={`${__fieldIds}-target-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger>
                   <SelectContent>
-                    {(facilities.data ?? []).map((facility) => (
+                    {transferTargets.map((facility) => (
                       <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
                     ))}
                   </SelectContent>

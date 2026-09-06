@@ -27,6 +27,26 @@ export interface OfflineProgressCheckpoint {
   clientSequence: number;
   idempotencyKey: string;
   occurredAt: string;
+  /**
+   * When the learner started working this offline copy -- set on the FIRST checkpoint and carried
+   * forward unchanged, never re-stamped (BACKLOG.md J74, Train).
+   *
+   * `sync_offline_learning_action` used to create `course_progress` with `started_at = now()`,
+   * which is the moment of SYNC. Somebody who worked a course on the bus and reconnected at the
+   * building had their seat clock started when they walked in the door -- and the comprehensive
+   * gate (`require_comprehensive_self_completion`) then made them wait the course's whole designed
+   * duration all over again. The server clamps this into [bundle download, now], so it can be
+   * earlier than the sync but never earlier than the download that made the study possible.
+   */
+  startedAt?: string;
+  /**
+   * The furthest block the learner reached offline. Sent with the checkpoint so the offline work
+   * carries the same two pieces of evidence the live player records for it -- percentage and
+   * position. Without it, syncing 100% left `last_block_id` null, the live player resumed at lesson
+   * one and immediately wrote the percentage back down, and for a comprehensive version the synced
+   * progress could never be the last missing piece of the completion gate.
+   */
+  lastBlockId?: string;
   lastOutcome?: string;
   lastAttemptedAt?: string;
 }
@@ -159,7 +179,12 @@ export async function getOfflineProgressCheckpoint(assignmentId: string): Promis
   return request(db.transaction(PROGRESS_STORE).objectStore(PROGRESS_STORE).get(assignmentId));
 }
 
-export async function queueOfflineProgress(input: { assignmentId: string; percentComplete: number; baseVersion: number }) {
+export async function queueOfflineProgress(input: {
+  assignmentId: string;
+  percentComplete: number;
+  baseVersion: number;
+  lastBlockId?: string | null;
+}) {
   const db = await openDatabase();
   const existing = await request(db.transaction(PROGRESS_STORE).objectStore(PROGRESS_STORE).get(input.assignmentId)) as OfflineProgressCheckpoint | undefined;
   const percentComplete = Math.min(100, Math.max(0, Math.round(input.percentComplete)));
@@ -172,6 +197,9 @@ export async function queueOfflineProgress(input: { assignmentId: string; percen
     clientSequence: (existing?.clientSequence ?? 0) + 1,
     idempotencyKey: crypto.randomUUID(),
     occurredAt: new Date().toISOString(),
+    // The first checkpoint is the start of study on this device; every later one keeps it.
+    startedAt: existing?.startedAt ?? new Date().toISOString(),
+    lastBlockId: input.lastBlockId ?? existing?.lastBlockId,
   };
   await request(db.transaction(PROGRESS_STORE, "readwrite").objectStore(PROGRESS_STORE).put(checkpoint));
   return checkpoint;

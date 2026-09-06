@@ -25,17 +25,6 @@ function json(req: Request, body: unknown, status = 200, requestId?: string): Re
   });
 }
 
-function jwtAssuranceLevel(token: string): string | null {
-  try {
-    const encoded = token.split(".")[1];
-    if (!encoded) return null;
-    const padded = encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=");
-    return (JSON.parse(atob(padded)) as { aal?: unknown }).aal as string ?? null;
-  } catch {
-    return null;
-  }
-}
-
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return corsPreflightResponse(request, IDENTITY_CORS);
   if (request.method !== "POST") return json(request, { error: "Method not allowed" }, 405);
@@ -67,15 +56,24 @@ Deno.serve(async (request: Request) => {
   });
   const { data: { user }, error: userError } = await caller.auth.getUser(accessToken);
   if (userError || !user) return json(request, { error: "Invalid or expired session" }, 401, requestId);
-  if (jwtAssuranceLevel(accessToken) !== "aal2") {
-    return json(request, { error: "AAL2 verification is required" }, 403, requestId);
-  }
+  // BACKLOG J74 (P3, identity). This used to decode the access token and refuse anything whose
+  // raw `aal` claim was not "aal2", BEFORE the organization's policy was consulted. That is not
+  // what the product promises: identity_operation_requires_aal2() reads
+  // public.identity_security_policies and deliberately exempts demo tenants -- the same exemption
+  // get_my_mfa_policy makes at the login gate -- so a demo org_admin who was told no authenticator
+  // was needed was refused here anyway, by a message naming a factor nobody had asked them to
+  // enrol. identity_assurance_is_current() is the single gate: it still requires an aal2 claim and
+  // a session inside max_privileged_session_minutes wherever the policy asks for one, and it
+  // returns true only where the policy genuinely does not.
   const { data: assuranceCurrent, error: assuranceError } = await caller.rpc(
     "identity_assurance_is_current",
     { p_operation: "identity_admin" },
   );
   if (assuranceError || assuranceCurrent !== true) {
-    return json(request, { error: "A fresh AAL2 administrator session is required" }, 403, requestId);
+    return json(request, {
+      error:
+        "A current administrator session that satisfies your organization's identity policy is required",
+    }, 403, requestId);
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {

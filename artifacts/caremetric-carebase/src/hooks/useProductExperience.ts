@@ -24,12 +24,24 @@ export type ProductChangelog = {
   unreadCount: number;
   entries: ProductChangelogEntry[];
 };
+/**
+ * The passport used to print "CE hours" equal to `courses.estimated_duration_minutes / 60` on a
+ * page badged "Verified transcript" (BACKLOG.md J74, Train). CareMetric accredits nothing, and a
+ * course's estimated length is not a continuing-education credit. What the compliance model does
+ * stand behind is `course_completion_credits.credit_hours` -- the governed, citation-carrying
+ * credit recorded when the assignment completed -- and only for the courses that have one. So the
+ * RPC now returns `creditHours: null` where no credit was recorded, and the page prints nothing
+ * there rather than a number nothing backs.
+ */
 export type PublicTrainingPassport = {
   passportId: string;
   employeeName: string;
   generatedAt: string;
   certificateCount: number;
-  totalCeHours: number;
+  /** Sum of the recorded compliance credit across the certificates that carry one. */
+  totalCreditHours: number;
+  /** How many of `certificates` contributed to `totalCreditHours`. */
+  creditedCertificateCount: number;
   certificates: Array<{
     certificateId: string;
     credentialNumber: string;
@@ -38,7 +50,8 @@ export type PublicTrainingPassport = {
     expiresAt: string | null;
     isValid: boolean;
     verificationPath: string;
-    ceHours: number;
+    /** Recorded compliance credit for this completion, or null when none was recorded. */
+    creditHours: number | null;
   }>;
 };
 export type ManagerDigestItem = { key: string; label: string; count: number; path: string };
@@ -104,12 +117,20 @@ export function useNavigationWorkspace() {
 }
 
 export function useAnnouncements() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
+  const organizationId = user?.organizationId ?? undefined;
   const query = useQuery({
-    queryKey: ["org_announcements"],
+    // `org_announcements_visible` starts with `is_platform_admin() or ...`, so a platform admin
+    // reads every tenant's announcements and this page interleaved them by published_at with no
+    // way to tell whose was whose (BACKLOG.md J74, Policy). Announcements are an organization
+    // surface; scope the read to the caller's own organization, as every other /app list does.
+    queryKey: ["org_announcements", organizationId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("org_announcements").select("*")
+      let query = supabase.from("org_announcements").select("*")
         .order("published_at", { ascending: false }).limit(100);
+      if (organizationId) query = query.eq("organization_id", organizationId);
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -189,6 +210,33 @@ export function usePublicTrainingPassport(slug: string | undefined) {
     },
     enabled: !!slug,
   });
+}
+
+/**
+ * Whether a requested export still owes the tenant an archive (RELEASE_READINESS_PLAN 4.3, D5).
+ *
+ * `claim_organization_export_jobs` claims `status in ('pending','failed') and attempt_count <
+ * max_attempts`, so a failed job with attempts left is not finished -- it is waiting out its
+ * backoff. `request_organization_export` used to refuse only `pending`/`processing`, which let an
+ * admin queue a second full-tenant archive while the first was still going to run.
+ */
+export function exportIsInFlight(job: Pick<OrganizationExportJob, "status" | "attempt_count" | "max_attempts">): boolean {
+  if (job.status === "pending" || job.status === "processing") return true;
+  return job.status === "failed" && job.attempt_count < job.max_attempts;
+}
+
+/**
+ * Whether a succeeded archive is past its seven-day life (RELEASE_READINESS_PLAN 4.3, D6).
+ *
+ * `finish_organization_export_job` stamps `expires_at = now() + interval '7 days'` and
+ * `purge_expired_organization_exports` deletes the stored object after it. The row keeps
+ * `status = 'succeeded'` either way, so status alone cannot decide whether a Download button has
+ * anything behind it.
+ */
+export function exportArchiveHasExpired(job: Pick<OrganizationExportJob, "status" | "expires_at">, now: Date = new Date()): boolean {
+  if (job.status !== "succeeded" || !job.expires_at) return false;
+  const expiresAt = new Date(job.expires_at).getTime();
+  return Number.isFinite(expiresAt) && expiresAt <= now.getTime();
 }
 
 export function useOrganizationExports(organizationId: string | null | undefined) {

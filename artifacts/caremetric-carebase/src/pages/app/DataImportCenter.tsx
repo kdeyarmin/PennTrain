@@ -8,6 +8,8 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  SkipForward,
+  XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,8 +49,28 @@ import {
   suggestColumnMapping,
   type ColumnMapping,
 } from "@/lib/importColumnMapping";
-import { useDataImportJobs, useImportJobAction, useImportJobRows, useRunDomainImport } from "@/hooks/useDataImportCenter";
+import {
+  useCancelImportJob,
+  useDataImportJobs,
+  useImportJobAction,
+  useImportJobRows,
+  useRunDomainImport,
+  useSkipImportRows,
+} from "@/hooks/useDataImportCenter";
 import { useToast } from "@/hooks/use-toast";
+
+const CONFIRM_TITLES = {
+  finalize: "Import finalized",
+  rollback: "Safe rollback complete",
+  skip: "Invalid rows skipped",
+  cancel: "Import canceled",
+} as const;
+const CONFIRM_FAILURE_TITLES = {
+  finalize: "Finalize blocked",
+  rollback: "Rollback blocked",
+  skip: "Rows could not be skipped",
+  cancel: "Cancel blocked",
+} as const;
 
 const label = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
@@ -63,15 +85,20 @@ const DUPLICATE_STRATEGIES: { value: DuplicateStrategy; label: string }[] = [
 const strategyLabel = (value: DuplicateStrategy) =>
   DUPLICATE_STRATEGIES.find((option) => option.value === value)?.label ?? value;
 const PAGE_SIZE = 25;
+// data_import_jobs_status_check, verbatim. The previous list offered "pending" and "validating",
+// which the column has never allowed (so those filters matched nothing), and omitted the four that
+// it does -- including `canceled`, which cancel_data_import_job now writes.
 const JOB_STATUSES = [
-  "pending",
-  "validating",
+  "uploaded",
+  "mapping",
+  "validated",
   "ready",
   "applying",
   "applied",
   "finalized",
   "failed",
   "rolled_back",
+  "canceled",
 ] as const;
 
 export default function DataImportCenter() {
@@ -89,6 +116,8 @@ export default function DataImportCenter() {
   const rows = useImportJobRows(selected);
   const finalize = useImportJobAction("finalize");
   const rollback = useImportJobAction("rollback");
+  const skipRows = useSkipImportRows();
+  const cancelJob = useCancelImportJob();
   const runImport = useRunDomainImport();
   const { toast } = useToast();
   const [uploadDomain, setUploadDomain] = useState<ImportDomain>("employees");
@@ -98,7 +127,9 @@ export default function DataImportCenter() {
   const [strategy, setStrategy] = useState<DuplicateStrategy>("create");
   const [switchingStrategy, setSwitchingStrategy] = useState(false);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof runImport.mutateAsync>> | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ type: "finalize" | "rollback"; jobId: string; summary: string } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    { type: "finalize" | "rollback" | "skip" | "cancel"; jobId: string; domain: string; summary: string } | null
+  >(null);
 
   const total = jobs.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -249,16 +280,21 @@ export default function DataImportCenter() {
   const runConfirmedAction = async () => {
     if (!confirmAction) return;
     try {
+      let description = confirmAction.summary;
       if (confirmAction.type === "finalize") await finalize.mutateAsync(confirmAction.jobId);
-      else await rollback.mutateAsync(confirmAction.jobId);
-      toast({
-        title: confirmAction.type === "finalize" ? "Import finalized" : "Safe rollback complete",
-        description: confirmAction.summary,
-      });
+      else if (confirmAction.type === "rollback") await rollback.mutateAsync(confirmAction.jobId);
+      else if (confirmAction.type === "cancel") {
+        await cancelJob.mutateAsync({ jobId: confirmAction.jobId, reason: "Canceled from the Data Import Center" });
+      } else {
+        const result = await skipRows.mutateAsync({ jobId: confirmAction.jobId });
+        description = `${result.skippedRows} row${result.skippedRows === 1 ? "" : "s"} skipped · ${result.errorRows} still failing.`;
+        if (preview?.job_id === confirmAction.jobId) await execute("validate");
+      }
+      toast({ title: CONFIRM_TITLES[confirmAction.type], description });
       setConfirmAction(null);
     } catch (error) {
       toast({
-        title: confirmAction.type === "finalize" ? "Finalize blocked" : "Rollback blocked",
+        title: CONFIRM_FAILURE_TITLES[confirmAction.type],
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
@@ -399,9 +435,28 @@ export default function DataImportCenter() {
                   </p>
                 </div>
                 {!strategyDiverged && (
-                  <Button disabled={preview.failed > 0 || runImport.isPending} onClick={() => void execute("apply")}>
-                    Apply validated rows
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    {preview.failed > 0 && (
+                      <Button
+                        variant="outline"
+                        disabled={runImport.isPending || skipRows.isPending}
+                        onClick={() =>
+                          setConfirmAction({
+                            type: "skip",
+                            jobId: preview.job_id,
+                            domain: uploadDomain,
+                            summary: `Skip ${preview.failed} invalid row${preview.failed === 1 ? "" : "s"} on receipt ${preview.job_id.slice(0, 8)}`,
+                          })
+                        }
+                      >
+                        <SkipForward className="mr-2 h-4 w-4" />
+                        Skip {preview.failed} invalid row{preview.failed === 1 ? "" : "s"}
+                      </Button>
+                    )}
+                    <Button disabled={preview.failed > 0 || runImport.isPending} onClick={() => void execute("apply")}>
+                      Apply validated rows
+                    </Button>
+                  </div>
                 )}
               </div>
               {strategyDiverged && pinnedStrategy && (
@@ -510,6 +565,13 @@ export default function DataImportCenter() {
               const processed = job.applied_rows + job.error_rows + job.skipped_rows;
               const canFinalize = job.status === "applied" || job.status === "ready";
               const canRollback = canRollbackImportDomain(job.domain) && job.status === "applied" && !job.finalized_at;
+              // The two exits a stranded receipt never had. `skip_data_import_rows` is what
+              // finalize's own message ("Resolve or explicitly skip invalid rows") asks for;
+              // `cancel_data_import_job` releases a receipt nothing was applied from, which is also
+              // what releases the file checksum start_data_import_job keeps reusing.
+              const isOpen = !["finalized", "rolled_back", "canceled"].includes(job.status);
+              const canSkipRows = isOpen && job.error_rows > 0;
+              const canCancel = isOpen && job.applied_rows === 0;
               return (
                 <div key={job.id} className={`rounded-lg border p-4 ${selected === job.id ? "border-primary" : ""}`}>
                   <button className="w-full text-left" onClick={() => setSelected(selected === job.id ? null : job.id)}>
@@ -556,6 +618,7 @@ export default function DataImportCenter() {
                             setConfirmAction({
                               type: "finalize",
                               jobId: job.id,
+                              domain: job.domain,
                               summary: `${label(job.domain)} · ${job.original_file_name} · ${job.applied_rows} applied rows`,
                             })
                           }
@@ -570,11 +633,42 @@ export default function DataImportCenter() {
                             setConfirmAction({
                               type: "rollback",
                               jobId: job.id,
-                              summary: `Rollback eligible creates for ${label(job.domain)} · ${job.original_file_name}`,
+                              domain: job.domain,
+                              summary: `Rollback eligible ${label(job.domain).toLowerCase()} creates for ${job.original_file_name}`,
                             })
                           }
                         >
                           <RotateCcw className="mr-2 h-4 w-4" /> Safe rollback
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!canSkipRows || skipRows.isPending}
+                          onClick={() =>
+                            setConfirmAction({
+                              type: "skip",
+                              jobId: job.id,
+                              domain: job.domain,
+                              summary: `Skip ${job.error_rows} failed row${job.error_rows === 1 ? "" : "s"} on ${job.original_file_name}`,
+                            })
+                          }
+                        >
+                          <SkipForward className="mr-2 h-4 w-4" /> Skip {job.error_rows} failed
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!canCancel || cancelJob.isPending}
+                          onClick={() =>
+                            setConfirmAction({
+                              type: "cancel",
+                              jobId: job.id,
+                              domain: job.domain,
+                              summary: `Cancel ${label(job.domain)} · ${job.original_file_name}`,
+                            })
+                          }
+                        >
+                          <XCircle className="mr-2 h-4 w-4" /> Cancel import
                         </Button>
                         {job.finalized_at && (
                           <span className="flex items-center text-xs text-muted-foreground">
@@ -618,17 +712,37 @@ export default function DataImportCenter() {
       <AlertDialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
+            {/* The rollback title used to say "employee creates" for every domain, including
+                residents, rooms, credentials and incidents (RELEASE_READINESS_PLAN 4.3, D8). The
+                confirmation now names the domain the receipt is actually for. */}
             <AlertDialogTitle>
-              {confirmAction?.type === "finalize" ? "Finalize import job?" : "Roll back eligible employee creates?"}
+              {confirmAction?.type === "finalize"
+                ? "Finalize import job?"
+                : confirmAction?.type === "rollback"
+                  ? `Roll back eligible ${label(confirmAction.domain).toLowerCase()} creates?`
+                  : confirmAction?.type === "skip"
+                    ? "Skip the rows that could not be imported?"
+                    : "Cancel this import receipt?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction?.summary}. This action is recorded in the import event ledger and cannot be silently undone.
+              {confirmAction?.type === "skip"
+                ? " Skipped rows are never written; the rest of the file can then be applied and the receipt finalized."
+                : confirmAction?.type === "cancel"
+                  ? " Nothing has been applied from this receipt, so nothing is undone — canceling closes it and releases the file so a corrected upload starts a fresh receipt."
+                  : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Keep it open</AlertDialogCancel>
             <AlertDialogAction onClick={() => void runConfirmedAction()}>
-              {confirmAction?.type === "finalize" ? "Finalize" : "Confirm rollback"}
+              {confirmAction?.type === "finalize"
+                ? "Finalize"
+                : confirmAction?.type === "rollback"
+                  ? "Confirm rollback"
+                  : confirmAction?.type === "skip"
+                    ? "Skip those rows"
+                    : "Cancel the import"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

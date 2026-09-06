@@ -10,6 +10,12 @@
  *
  * This is the same one-way door closed for survey-packet guest grants in G9, on credentials rather
  * than on a document -- which is why it is worth doing first among the twenty.
+ *
+ * The second pass (RELEASE_READINESS_PLAN.md section 4.3, Integrations) closes the three that were
+ * left: a dead-lettered delivery could only be replayed by a cron-authenticated call to the
+ * dispatcher, so not from the product at all; a single event subscription could not be switched
+ * off; and switching an endpoint off -- by hand, or now automatically after 25 consecutive
+ * failures -- was a one-way door with no way back on.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -65,6 +71,64 @@ export function useIntegrationWebhookRegister(organizationId: string | undefined
         .order("name");
       if (error) throw error;
       return (data ?? []) as IntegrationWebhookRow[];
+    },
+  });
+}
+
+export interface IntegrationSubscriptionRow {
+  id: string;
+  endpoint_id: string;
+  event_type: string;
+  is_active: boolean;
+}
+
+export interface IntegrationDeadLetterRow {
+  id: string;
+  endpoint_id: string;
+  event_type: string;
+  attempt_count: number;
+  last_http_status: number | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  dead_lettered_at: string | null;
+  replay_count: number;
+}
+
+/** Every subscription, including the switched-off ones -- that is the state being edited. */
+export function useIntegrationWebhookSubscriptions(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ["integration-register", "subscriptions", organizationId ?? null],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("integration_webhook_subscriptions")
+        .select("id,endpoint_id,event_type,is_active")
+        .eq("organization_id", organizationId!)
+        .order("event_type");
+      if (error) throw error;
+      return (data ?? []) as IntegrationSubscriptionRow[];
+    },
+  });
+}
+
+/**
+ * Deliveries that exhausted their attempts. `get_integration_control_plane` counts them and the
+ * Enterprise tab prints the count as JSON; nothing let anyone act on one.
+ */
+export function useIntegrationDeadLetters(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ["integration-register", "dead-letters", organizationId ?? null],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("integration_webhook_deliveries")
+        .select("id,endpoint_id,event_type,attempt_count,last_http_status,last_error_code,last_error_message,dead_lettered_at,replay_count")
+        .eq("organization_id", organizationId!)
+        .eq("status", "dead_letter")
+        .order("dead_lettered_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as IntegrationDeadLetterRow[];
     },
   });
 }
@@ -125,7 +189,11 @@ export function useRotateWebhookSecret() {
     return {
       label: `New signing secret (version ${row.secret_version ?? "?"})`,
       value: row.plaintext_signing_secret,
-      note: "Give it to the consumer before the old one stops being accepted, or deliveries will fail signature checks.",
+      // The window is real now: claim_integration_webhook_deliveries returns the previous secret
+      // while previous_valid_until is in the future and the dispatcher signs with both, so the
+      // fifteen minutes this names is the fifteen minutes the server keeps. It used to be copy
+      // over nothing -- the old secret stopped being accepted the instant the new one was minted.
+      note: "The previous secret keeps working for 15 minutes: deliveries are signed with both, so hand this one over inside that window.",
     };
   });
 }
@@ -135,6 +203,46 @@ export function useDeactivateWebhookEndpoint() {
     const { error } = await supabase.rpc("deactivate_integration_webhook_endpoint" as never, {
       p_endpoint_id: input.endpointId,
       p_reason: input.reason,
+    } as never);
+    if (error) throw error;
+    return true;
+  });
+}
+
+/**
+ * Re-queue a dead-lettered delivery. The RPC files the reason in the audit log and inserts a fresh
+ * delivery carrying the same event and payload, so the replay is a new attempt rather than an edit
+ * of the record of the failure.
+ */
+export function useReplayWebhookDelivery() {
+  return useRegisterMutation(async (input: { deliveryId: string; reason: string }) => {
+    const { data, error } = await supabase.rpc("replay_integration_webhook_delivery" as never, {
+      p_delivery_id: input.deliveryId,
+      p_reason: input.reason,
+    } as never);
+    if (error) throw error;
+    return data as string;
+  });
+}
+
+/** Switch one event subscription on or off without touching the endpoint or its other events. */
+export function useSetWebhookSubscription() {
+  return useRegisterMutation(async (input: { endpointId: string; eventType: string; isActive: boolean }) => {
+    const { error } = await supabase.rpc("set_integration_webhook_subscription" as never, {
+      p_endpoint_id: input.endpointId,
+      p_event_type: input.eventType,
+      p_is_active: input.isActive,
+    } as never);
+    if (error) throw error;
+    return true;
+  });
+}
+
+/** The way back from a deactivation, by hand or automatic. Clears the failure counter with it. */
+export function useReactivateWebhookEndpoint() {
+  return useRegisterMutation(async (input: { endpointId: string }) => {
+    const { error } = await supabase.rpc("reactivate_integration_webhook_endpoint" as never, {
+      p_endpoint_id: input.endpointId,
     } as never);
     if (error) throw error;
     return true;

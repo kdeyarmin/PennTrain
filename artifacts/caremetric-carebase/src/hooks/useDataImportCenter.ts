@@ -57,6 +57,62 @@ export function useImportJobRows(jobId: string | null) {
   });
 }
 
+// database.types.ts is regenerated separately from this branch, so the two RPCs added with this fix
+// are not in the generated union yet. Same escape hatch useHrisImportRuns.ts uses; the argument
+// names are still checked against the migration by scripts/check-rpc-call-signatures.mjs.
+interface ImportRpcResult { data: unknown; error: { message: string } | null }
+interface ImportRpcClient { rpc: (name: string, args?: Record<string, unknown>) => PromiseLike<ImportRpcResult> }
+
+/**
+ * Stop stranding an import on one bad row (RELEASE_READINESS_PLAN 4.3, imports D1).
+ *
+ * `finalize_data_import_job` refuses a receipt with `error_rows > 0` -- "Resolve or explicitly skip
+ * invalid rows before finalization" -- and nothing in the product could perform the explicit skip.
+ * `start_data_import_job` reuses any job for the same (organization, domain, checksum, creator) that
+ * is still in `uploaded|mapping|validated|ready|applying|failed`, so the stuck receipt also owned the
+ * file: re-uploading the same bytes came back to the same dead job. `data_import_jobs` has carried a
+ * `canceled` status and a `canceled_at` column since it was created and nothing ever wrote them.
+ *
+ * `skip_data_import_rows` marks the failed/invalid rows skipped and recounts, which unblocks Apply
+ * and Finalize; `cancel_data_import_job` closes a receipt that nothing was applied from, which
+ * releases the checksum so the corrected file can start a clean one.
+ */
+export function useSkipImportRows() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { jobId: string; rowNumbers?: number[] }) => {
+      const { data, error } = await (supabase as unknown as ImportRpcClient).rpc("skip_data_import_rows", {
+        p_job_id: input.jobId,
+        p_row_numbers: input.rowNumbers ?? null,
+      });
+      if (error) throw new Error(error.message);
+      return data as { skippedRows: number; errorRows: number };
+    },
+    onSuccess: (_data, variables) => {
+      client.invalidateQueries({ queryKey: ["data-import-jobs"] });
+      client.invalidateQueries({ queryKey: ["data-import-rows", variables.jobId] });
+    },
+  });
+}
+
+export function useCancelImportJob() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { jobId: string; reason: string }) => {
+      const { data, error } = await (supabase as unknown as ImportRpcClient).rpc("cancel_data_import_job", {
+        p_job_id: input.jobId,
+        p_reason: input.reason,
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      client.invalidateQueries({ queryKey: ["data-import-jobs"] });
+      client.invalidateQueries({ queryKey: ["data-import-rows", variables.jobId] });
+    },
+  });
+}
+
 export function useImportJobAction(action: "finalize" | "rollback") {
   const client = useQueryClient();
   return useMutation({

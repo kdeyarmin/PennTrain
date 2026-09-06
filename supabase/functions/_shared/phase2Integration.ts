@@ -86,6 +86,28 @@ export async function signPhase2IntegrationWebhook(
   return phase2IntegrationHmac(secret, `${webhookId}.${timestamp}.${rawBody}`);
 }
 
+/**
+ * The `Webhook-Signature` header value: one `v1=` signature per live secret, space separated.
+ *
+ * Rotation writes a previous secret with a validity window, and until now nothing ever sent a
+ * signature for it -- so the "grace window" the rotation dialog promises the operator did not
+ * exist and every consumer had to cut over in the same instant the secret was minted. Sending both
+ * is the whole mechanism: a consumer still holding the old secret keeps verifying until the window
+ * closes. Nulls and blanks are dropped, so outside a rotation this is exactly one signature.
+ */
+export async function phase2IntegrationSignatureHeader(
+  secrets: (string | null | undefined)[],
+  webhookId: string,
+  timestamp: number,
+  rawBody: string,
+): Promise<string> {
+  const live = [...new Set(secrets.filter((secret): secret is string => !!secret && secret.length > 0))];
+  const signatures = await Promise.all(
+    live.map((secret) => signPhase2IntegrationWebhook(secret, webhookId, timestamp, rawBody)),
+  );
+  return signatures.map((signature) => `v1=${signature}`).join(" ");
+}
+
 export async function verifyPhase2IntegrationWebhook(input: {
   secret: string;
   webhookId: string;
@@ -102,8 +124,12 @@ export async function verifyPhase2IntegrationWebhook(input: {
     input.timestamp,
     input.rawBody,
   );
-  const supplied = input.signature.startsWith("v1=") ? input.signature.slice(3) : input.signature;
-  return phase2IntegrationConstantTimeEqual(expected, supplied);
+  // A rotating sender sends one signature per live secret, space separated (see
+  // phase2IntegrationSignatureHeader), so a verifier matches against any of them rather than
+  // against the header as a single opaque string.
+  return input.signature.split(/\s+/).filter(Boolean).some((candidate) =>
+    phase2IntegrationConstantTimeEqual(expected, candidate.startsWith("v1=") ? candidate.slice(3) : candidate)
+  );
 }
 
 export function parsePhase2ApiCredential(authorization: string | null): string | null {

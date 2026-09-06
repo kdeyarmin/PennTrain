@@ -4,9 +4,9 @@ import { PDFDocument, PDFName } from "npm:pdf-lib@1.17.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import {
   fetchDhsTemplate,
-  setFirstMatchingTextField,
   stripXfa,
 } from "../_shared/dhsStateFormFill.ts";
+import { toWinAnsi } from "../_shared/pdfText.ts";
 
 // Prefills the official PA DHS PDF for the two upload-only compliance item types (preadmission
 // screening, medical evaluation/DME) with the resident's demographics and stores it as a
@@ -29,7 +29,45 @@ const SIGNED_URL_TTL_SECONDS = 60 * 10;
 // Mirrors artifacts/caremetric-carebase/src/lib/residentCompliance.ts's DHS form URLs -- duplicated
 // here (a Deno edge function can't import from the frontend package) and must stay in sync if
 // that file's URLs ever change.
-type DhsPrefillTemplate = { url: string; sourceLabel: string; fileLabel: string };
+//
+// FIELD PINNING (BACKLOG.md J74, Policy -- the second function with I10's shape).
+//
+// The identity fields used to be found by fuzzy word-set matching over the template's AcroForm
+// names: the first field whose normalized name contained every word of a set. That is how I10
+// describes the incident form's mapping, and it has the same failure here -- the mapping is decided
+// by whatever DHS happens to have named a widget, in template order, with nothing recording what
+// was actually verified. Two concrete traps in these four PDFs:
+//
+//   * The DME forms carry both `Name` (the resident, page 1) and `Medical Professional Name`, and
+//     the third tier of the old resident-name set was the single word `name`. It landed on `Name`
+//     only because `Name` happens to come first in field order.
+//   * The ALR preadmission form's facility field is `ResidenceNameAndAddressTextField[0]`, whose
+//     normalized name contains "resident" -- if the `["resident","name"]` tier had missed, the
+//     resident's name would have been typed into the residence box.
+//
+// So the mapping is pinned to exact field names, per template. `null` means the form genuinely has
+// no such field, which is a fact worth recording rather than a match that silently never happens:
+// no DHS form here has an admission-date field, and the ALR preadmission form has no date of birth.
+//
+// Verified 2026-09-06 by downloading each URL below and enumerating `doc.getForm().getFields()`
+// after the same `stripXfa` this function performs -- 85, 47, 173 and 174 fields respectively.
+// DHS versions these documents in the URL (see dhsTemplateCacheKey), so a new form is a new URL and
+// a new entry here. If DHS re-uploads under the same URL with renamed fields, the prefill fills
+// fewer fields and the response's `fieldsFilled` drops -- it can never fill the wrong one.
+interface DhsPrefillFieldMap {
+  /** Resident name, "Last, First". */
+  residentName: string | null;
+  dateOfBirth: string | null;
+  facilityName: string | null;
+  admissionDate: string | null;
+}
+
+type DhsPrefillTemplate = {
+  url: string;
+  sourceLabel: string;
+  fileLabel: string;
+  fields: DhsPrefillFieldMap;
+};
 
 // Shared by `medical_evaluation` and `annual_medical_evaluation` below -- one form, two cycles.
 const MEDICAL_EVALUATION_TEMPLATES: Record<string, DhsPrefillTemplate> = {
@@ -37,11 +75,26 @@ const MEDICAL_EVALUATION_TEMPLATES: Record<string, DhsPrefillTemplate> = {
     url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-25-personal-care-homes-dme-reupload.pdf",
     sourceLabel: "PA DHS Personal Care Home DME form",
     fileLabel: "DME",
+    // Page-1 identity block. `Name_2` on the continuation page names the same resident and is left
+    // to the person completing the form, exactly as before. No facility or admission-date field
+    // exists on this form.
+    fields: {
+      residentName: "Name",
+      dateOfBirth: "Date of Birth",
+      facilityName: null,
+      admissionDate: null,
+    },
   },
   ALR: {
     url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-24-assisted-living-residences-dme.pdf",
     sourceLabel: "PA DHS Assisted Living Facility (ALF) DME form",
     fileLabel: "DME",
+    fields: {
+      residentName: "Name",
+      dateOfBirth: "Date of Birth",
+      facilityName: null,
+      admissionDate: null,
+    },
   },
 };
 
@@ -51,11 +104,29 @@ const DHS_PREFILL_TEMPLATES: Record<string, Record<string, DhsPrefillTemplate>> 
       url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Preadmission-Screening.pdf",
       sourceLabel: "PA DHS Personal Care Home Preadmission Screening form",
       fileLabel: "Preadmission Screening",
+      // LiveCycle export; the screener block on subform[2] carries the identity fields. There is no
+      // admission-date field -- the form records the SCREENING date, which this function must never
+      // fill because it attests to work the staff member has not done yet.
+      fields: {
+        residentName: "form1[0].#subform[2].ApplicantNameTextfield[0]",
+        dateOfBirth: "form1[0].#subform[2].ApplicantBirthDateField[0]",
+        facilityName: "form1[0].#subform[2].AdmittingPersonalCareHomeNameTextField[0]",
+        admissionDate: null,
+      },
     },
     ALR: {
       url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Assisted_Living-Preadmission_Screening_Form.pdf",
       sourceLabel: "PA DHS Assisted Living Facility (ALF) Preadmission Screening form",
       fileLabel: "Preadmission Screening",
+      // This form has 47 fields and none of them is a date of birth or an admission date; the
+      // resident is identified by name only. `ResidenceNameAndAddressTextField[0]` is the FACILITY
+      // field despite containing the letters "resident".
+      fields: {
+        residentName: "form1[0].#subform[0].ResidentNameTextField[0]",
+        dateOfBirth: null,
+        facilityName: "form1[0].#subform[0].ResidenceNameAndAddressTextField[0]",
+        admissionDate: null,
+      },
     },
   },
   medical_evaluation: MEDICAL_EVALUATION_TEMPLATES,
@@ -66,6 +137,33 @@ const DHS_PREFILL_TEMPLATES: Record<string, Record<string, DhsPrefillTemplate>> 
   // that form" when the form is the one directly above.
   annual_medical_evaluation: MEDICAL_EVALUATION_TEMPLATES,
 };
+
+/**
+ * Fill one named AcroForm text field, or do nothing.
+ *
+ * The counterpart of the shared `setFirstMatchingTextField` for a pinned mapping: no word sets, no
+ * "first field that looks close enough". A name that is not on the template (DHS renamed it, or the
+ * form never had it) fills nothing and is reported through `fieldsFilled`. `lock` is always false
+ * here -- this is a drafting aid the user finishes themselves.
+ */
+// deno-lint-ignore no-explicit-any
+function setTextFieldByExactName(form: any, fieldName: string | null, value: string | null | undefined): boolean {
+  if (!fieldName || !value) return false;
+  for (const field of form.getFields()) {
+    if (field.getName() !== fieldName) continue;
+    if (typeof field.setText !== "function") return false;
+    try {
+      // Same WinAnsi boundary the shared filler applies: appearance regeneration throws on
+      // non-CP1252 characters when the template's appearance font is a standard one, which used to
+      // fail the whole export on a resident whose name carries one.
+      field.setText(toWinAnsi(String(value)));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  return false;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS")
@@ -224,27 +322,18 @@ Deno.serve(async (req: Request) => {
   }
   if (form) {
     const residentName = `${resident.last_name}, ${resident.first_name}`;
-    // Identity fields only, filled without locking (lock=false) so staff can correct them.
-    // Word sets are tiered most-specific-first; a fill counts once. "date form completed" /
-    // "screening completed" style fields are deliberately never touched -- those attest to work
-    // the staff member hasn't done yet.
-    const fills: Array<{ wordSets: string[][]; value: string | null | undefined }> = [
-      // Preadmission (LiveCycle names like ApplicantNameTextfield[0]) then DME ("Name").
-      { wordSets: [["applicant", "name"], ["resident", "name"], ["name"]], value: residentName },
-      { wordSets: [["applicant", "birth"], ["date", "birth"], ["birthdate"]], value: resident.date_of_birth },
-      // PCH preadmission: AdmittingPersonalCareHomeNameTextField[0]; ALR preadmission:
-      // ResidenceNameAndAddressTextField[0] ("residence" never collides with "resident..." names
-      // -- verified against the live DHS PDFs). The DME forms carry no facility-name field.
-      { wordSets: [["admitting", "name"], ["residence", "name"], ["facility", "name"], ["home", "name"]], value: facility?.name ?? null },
-      { wordSets: [["admission", "date"], ["date", "admission"]], value: resident.admission_date },
+    // Identity fields only, filled by their pinned exact names (see DHS_PREFILL_FIELDS above) and
+    // without locking (lock=false) so staff can correct them. "date form completed" / "screening
+    // completed" style fields are deliberately never touched -- those attest to work the staff
+    // member hasn't done yet.
+    const fills: Array<{ fieldName: string | null; value: string | null | undefined }> = [
+      { fieldName: template.fields.residentName, value: residentName },
+      { fieldName: template.fields.dateOfBirth, value: resident.date_of_birth },
+      { fieldName: template.fields.facilityName, value: facility?.name ?? null },
+      { fieldName: template.fields.admissionDate, value: resident.admission_date },
     ];
     for (const fill of fills) {
-      for (const wordSet of fill.wordSets) {
-        if (setFirstMatchingTextField(form, [wordSet], fill.value, false)) {
-          fieldsFilled += 1;
-          break;
-        }
-      }
+      if (setTextFieldByExactName(form, fill.fieldName, fill.value)) fieldsFilled += 1;
     }
     try {
       form.updateFieldAppearances();

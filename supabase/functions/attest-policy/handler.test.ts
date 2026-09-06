@@ -37,7 +37,7 @@ const ATTESTATION_ID = "att-1";
 const CAMPAIGN_ID = "camp-1";
 const PROFILE_ID = "profile-1";
 
-function makeCallerClient(opts: { profileId?: string; status?: string } = {}) {
+function makeCallerClient(opts: { profileId?: string; status?: string; contentHash?: string | null } = {}) {
   return {
     auth: {
       getUser: async () => ({ data: { user: { id: PROFILE_ID } }, error: null }),
@@ -52,7 +52,9 @@ function makeCallerClient(opts: { profileId?: string; status?: string } = {}) {
           campaign_id: CAMPAIGN_ID,
           policy_document_version_id: "ver-1",
           employees: { profile_id: opts.profileId ?? PROFILE_ID },
-          policy_document_versions: { content_hash: "hash-1" },
+          policy_document_versions: opts.contentHash === null
+            ? null
+            : { content_hash: opts.contentHash ?? "hash-1" },
         },
         error: null,
       });
@@ -146,6 +148,30 @@ Deno.test("attest-policy counts questions with the service-role client, not the 
   await handler(makeRequest({ attestationId: ATTESTATION_ID }));
 
   assertEquals(track.questionCountQueriedWithAdminClient, true);
+});
+
+Deno.test("attest-policy refuses to sign when the document hash cannot be read", async () => {
+  // BACKLOG.md J74 (Policy). `document_version_hash` is the only record of WHICH bytes were
+  // attested to. It used to be written as null whenever the embedded version read came back empty
+  // -- an ESIGN/UETA record attesting to nothing -- and the attestation still read as signed.
+  const track: AdminTracking = { updateCalled: false, questionCountQueriedWithAdminClient: false };
+  const callerClient = makeCallerClient({ contentHash: null });
+  let callCount = 0;
+  const createClient = () => {
+    callCount += 1;
+    return callCount === 1
+      ? callerClient
+      : makeAdminClient(track, { questionCount: 0, hasPassedAttempt: false });
+  };
+  const handler = createAttestPolicyHandler({ createClient, getEnv });
+
+  const response = await handler(makeRequest({ attestationId: ATTESTATION_ID }));
+  const body = await response.json();
+
+  assertEquals(response.status, 409);
+  assertEquals(track.updateCalled, false);
+  assertEquals(typeof body.error, "string");
+  assertEquals(body.error.includes("fingerprint"), true);
 });
 
 Deno.test("attest-policy still rejects attesting someone else's assigned policy", async () => {

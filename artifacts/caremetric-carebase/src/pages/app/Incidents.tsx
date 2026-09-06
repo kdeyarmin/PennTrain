@@ -34,7 +34,11 @@ const INCIDENT_TYPE_OPTIONS = [
 ] as const;
 
 const NOTIFICATION_TYPE_OPTIONS = [
-  "state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "other",
+  "state_hotline", "family_guardian", "law_enforcement", "licensing_agency",
+  // The 48-hour written report that follows the department call. The presets create one for every
+  // reportable type (BACKLOG.md I10 residual / J74); offered here so a report filed for an event
+  // the presets did not cover can be dated at the same time it is reported.
+  "written_report", "other",
 ] as const;
 
 function humanize(value: string): string {

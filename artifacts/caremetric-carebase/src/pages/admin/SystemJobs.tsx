@@ -183,8 +183,18 @@ export default function SystemJobs() {
   const setKillSwitch = useSetSystemJobKillSwitch();
   const { toast } = useToast();
   const recoveryByJob = new Map(recoveryRows.map((row) => [row.job_key, row]));
+  // `partial` is not `failed`, and this page was the only place that said it was
+  // (RELEASE_READINESS_PLAN 4.3, platform L9). The pager disagrees: run_system_job_watchdog reads
+  // freshness off the last run with `status = 'succeeded'` and pages only when nothing has
+  // succeeded inside the definition's freshness_sla -- so a job whose newest run is `partial` and
+  // whose last success is still inside the SLA is fresh to the watchdog, while this console counted
+  // it with outright failures and, through deploymentReadinessChecks, turned the whole
+  // "System job freshness" check red for it. A partial run means some units failed and is worth an
+  // operator's eye; it is not the outage that blocks a deploy. It gets its own tile, and only true
+  // failures and staleness -- the two things the watchdog acts on -- feed the readiness check.
   const stale = jobs.filter((job) => job.is_stale).length;
-  const failed = jobs.filter((job) => ["failed", "partial"].includes(job.last_status)).length;
+  const failed = jobs.filter((job) => job.last_status === "failed").length;
+  const degraded = jobs.filter((job) => job.last_status === "partial").length;
   const healthy = jobs.filter((job) => !job.is_stale && job.last_status === "succeeded").length;
   const active = jobs.filter((job) => ["queued", "running"].includes(job.last_status)).length;
   const readinessChecks = deploymentReadinessChecks({
@@ -291,10 +301,17 @@ export default function SystemJobs() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Healthy" value={isError || isLoading ? "—" : healthy} icon={CheckCircle2} tone="success" />
         <StatCard label="Stale" value={isError || isLoading ? "—" : stale} icon={Clock3} tone="danger" />
-        <StatCard label="Failed or partial" value={isError || isLoading ? "—" : failed} icon={AlertTriangle} tone="warning" />
+        <StatCard label="Failed" value={isError || isLoading ? "—" : failed} icon={AlertTriangle} tone="danger" />
+        <StatCard
+          label="Partial"
+          value={isError || isLoading ? "—" : degraded}
+          hint="Some units failed. The watchdog treats these as fresh while a full success stays inside the freshness window."
+          icon={AlertTriangle}
+          tone="warning"
+        />
         <StatCard label="Running" value={isError || isLoading ? "—" : active} icon={Activity} tone="info" />
       </div>
 

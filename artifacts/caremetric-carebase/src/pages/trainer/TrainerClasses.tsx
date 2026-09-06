@@ -433,6 +433,11 @@ export default function TrainerClasses() {
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="draft">Draft</SelectItem>
+            {/* The two live states were missing entirely, so the only way to find the sessions
+                actually taking registrations or running right now was "All Statuses" (BACKLOG.md
+                J74, Train). */}
+            <SelectItem value="scheduled">Open for enrollment</SelectItem>
+            <SelectItem value="in_progress">In progress</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>

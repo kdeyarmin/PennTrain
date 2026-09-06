@@ -9,9 +9,12 @@ import {
 import type { EnterpriseJson, EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
 import { useCreateHrisImportRun, useHrisImportRuns, useHrisSourceSystems } from "@/hooks/useHrisImportRuns";
 import { HrisRowDecisions } from "@/components/admin/HrisRowDecisions";
+import { HrisSourceSystems } from "@/components/admin/HrisSourceSystems";
 import { importRunIssues, importRunStatusLabel, suggestedRequestId } from "@/lib/hrisImportRuns";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
+import { EmployeeSearchSelect } from "@/components/employees/EmployeeSearchSelect";
 import { useDecideOpenShiftClaim, useDecideShiftSwap, useDecideTimeOffRequest, useWorkforceSelfServiceQueues } from "@/hooks/useDailyOperations";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -178,8 +181,13 @@ function StartImportRunCard({ onStarted }: { onStarted: (runId: string) => void 
 function HrisCommands() {
   const [runId, setRunId] = useState("");
   const runs = useHrisImportRuns();
+  const { user } = useAuth();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      {/* Before "Start an import run", because a run cannot exist without a source and nothing in
+          the product could register one -- so this tab opened on an empty picker and a disabled
+          button for every tenant (RELEASE_READINESS_PLAN 4.3, imports D2). */}
+      <HrisSourceSystems organizationId={user?.organizationId ?? null} />
       <StartImportRunCard onStarted={setRunId} />
       <div className="space-y-2 lg:col-span-2">
         <Label htmlFor="phase3-run">Import run</Label>
@@ -232,7 +240,20 @@ function QualificationCommand() {
   );
 }
 
+/**
+ * The explainer asked for a raw employee UUID and a raw facility UUID in two text boxes
+ * (BACKLOG J74, P3 tail). Nothing in the product shows a manager either id, so the one screen that
+ * exists to explain why somebody was blocked could only be used by somebody holding a database
+ * console -- and a mistyped id answers with the RPC's own refusal rather than "no such employee".
+ * Both are now the pickers the rest of the product uses: the bounded server-side employee search,
+ * and the standard assignable-facility list. evaluate_schedule_eligibility itself is org-scoped, so
+ * the narrowing is not a permission mirror -- it is that an eligibility verdict for a building this
+ * manager cannot schedule at is not an answer they can act on.
+ */
 function EligibilityCommand() {
+  const { user } = useAuth();
+  const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const assignableFacilities = useAssignableFacilities(facilities.data ?? undefined);
   const [employeeId, setEmployeeId] = useState("");
   const [facilityId, setFacilityId] = useState("");
   const [startsAt, setStartsAt] = useState("");
@@ -266,8 +287,16 @@ function EligibilityCommand() {
     <Card>
       <CardHeader><CardTitle>Explainable schedule eligibility</CardTitle><CardDescription>Uses the same engine as assignments, open shifts, and swaps. Results include exact blocks, warnings, and documentation checksum.</CardDescription></CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2"><Label htmlFor="phase3-employee">Employee ID</Label><Input id="phase3-employee" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} /></div>
-        <div className="space-y-2"><Label htmlFor="phase3-facility">Facility ID</Label><Input id="phase3-facility" value={facilityId} onChange={(e) => setFacilityId(e.target.value)} /></div>
+        <EmployeeSearchSelect
+          value={employeeId}
+          onValueChange={setEmployeeId}
+          organizationId={user?.organizationId ?? undefined}
+          facilityId={facilityId || undefined}
+          label="Employee"
+          placeholder="Search staff by name"
+          className="space-y-2"
+        />
+        <div className="space-y-2"><Label htmlFor="phase3-facility">Facility</Label><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger id="phase3-facility"><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{assignableFacilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-2"><Label htmlFor="phase3-start">Starts at</Label><Input id="phase3-start" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></div>
         <div className="space-y-2"><Label htmlFor="phase3-end">Ends at</Label><Input id="phase3-end" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></div>
         <div className="space-y-2 md:col-span-2"><Label htmlFor="phase3-required">Required qualification keys</Label><Input id="phase3-required" value={qualificationKeys} onChange={(e) => setQualificationKeys(e.target.value)} placeholder="medication.administration, cpr" /></div>
@@ -314,6 +343,22 @@ function RecentEligibilityDecisions({ decisions }: { decisions: EnterpriseJson[]
 }
 
 type QueueDecision = { kind: "time_off" | "claim" | "swap"; id: string; approve: boolean; title: string };
+
+/**
+ * A swap request past `expires_at` (BACKLOG J74, P3 tail).
+ *
+ * `decide_shift_swap` refuses an APPROVAL after the window closes -- the shifts have to be
+ * re-evaluated against a request nobody answered in time -- but 20260906070000 deliberately kept
+ * REJECTION available afterwards, because otherwise the row stays `pending` in this queue for ever
+ * with no action that can clear it. The queue filters on `status = 'pending'`, not on the window,
+ * so those rows are already here; without this they looked like every other live request and
+ * Approve answered with a bare "Shift swap is not pending".
+ */
+function swapHasExpired(expiresAt: unknown): boolean {
+  if (typeof expiresAt !== "string") return false;
+  const at = new Date(expiresAt).getTime();
+  return Number.isFinite(at) && at <= Date.now();
+}
 
 function personName(value: unknown) {
   if (!value || typeof value !== "object") return "Unknown employee";
@@ -362,7 +407,7 @@ function WorkforceSelfServiceQueue() {
         <div className="grid gap-4 xl:grid-cols-3">
           <Card><CardHeader><CardTitle className="text-base">Time off ({queues.data?.timeOff.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.timeOff ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No pending requests.</p> : (queues.data?.timeOff ?? []).map((request) => <div key={String(request.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(request.employees)}</p><p>{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.reason ?? "No reason provided")}</p><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: true, title: "Approve time off" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: false, title: "Deny time off" })}>Deny</Button></div></div>)}</CardContent></Card>
           <Card><CardHeader><CardTitle className="text-base">Open-shift claims ({queues.data?.openShiftClaims.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.openShiftClaims ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No claims awaiting review.</p> : (queues.data?.openShiftClaims ?? []).map((claim) => { const offer = claim.open_shift_opportunities as Record<string, unknown> | null; return <div key={String(claim.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(claim.employees)}</p><p>{offer?.shift_date ? new Date(`${String(offer.shift_date)}T12:00:00`).toLocaleDateString() : "Open shift"} · {String(offer?.start_time ?? "")}–{String(offer?.end_time ?? "")}</p><Badge variant="outline">{String(claim.claim_status).replace(/_/g, " ")}</Badge><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: true, title: "Approve open-shift claim" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: false, title: "Reject open-shift claim" })}>Reject</Button></div></div>; })}</CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-base">Shift swaps ({queues.data?.shiftSwaps.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.shiftSwaps ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No swaps awaiting review.</p> : (queues.data?.shiftSwaps ?? []).map((swap) => <div key={String(swap.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(swap.requester)} ↔ {personName(swap.target)}</p><p className="text-muted-foreground">{String(swap.reason)}</p><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: true, title: "Approve shift swap" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: false, title: "Reject shift swap" })}>Reject</Button></div></div>)}</CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-base">Shift swaps ({queues.data?.shiftSwaps.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.shiftSwaps ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No swaps awaiting review.</p> : (queues.data?.shiftSwaps ?? []).map((swap) => { const expired = swapHasExpired(swap.expires_at); return <div key={String(swap.id)} className="space-y-2 rounded-lg border p-3 text-sm"><div className="flex flex-wrap items-start justify-between gap-2"><p className="font-medium">{personName(swap.requester)} ↔ {personName(swap.target)}</p>{expired ? <Badge variant="destructive">Expired</Badge> : null}</div><p className="text-muted-foreground">{String(swap.reason)}</p>{expired ? <p className="text-xs text-muted-foreground">The request window closed {new Date(String(swap.expires_at)).toLocaleString()}. It can no longer be approved — reject it to clear the queue.</p> : swap.expires_at ? <p className="text-xs text-muted-foreground">Expires {new Date(String(swap.expires_at)).toLocaleString()}</p> : null}<div className="flex gap-2">{expired ? null : <Button size="sm" onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: true, title: "Approve shift swap" })}>Approve</Button>}<Button size="sm" variant={expired ? "destructive" : "outline"} onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: false, title: expired ? "Reject expired shift swap" : "Reject shift swap" })}>Reject</Button></div></div>; })}</CardContent></Card>
         </div>
       )}
       <Dialog open={Boolean(decision)} onOpenChange={(open) => !open && setDecision(null)}><DialogContent><DialogHeader><DialogTitle>{decision?.title}</DialogTitle><DialogDescription>Record the documentation-backed operational reason. Approvals that change assignments run a fresh eligibility check.</DialogDescription></DialogHeader><div className="space-y-2 py-2"><Label htmlFor="queue-decision-reason">Decision reason</Label><Textarea id="queue-decision-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} /></div><DialogFooter><Button variant="outline" onClick={() => setDecision(null)}>Cancel</Button><Button variant={decision?.approve ? "default" : "destructive"} onClick={() => void submitDecision()} disabled={reason.trim().length < 5 || pending}>Record decision</Button></DialogFooter></DialogContent></Dialog>

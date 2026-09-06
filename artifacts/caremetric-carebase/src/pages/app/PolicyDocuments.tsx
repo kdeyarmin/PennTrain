@@ -6,6 +6,7 @@ import {
 } from "@/hooks/usePolicyDocuments";
 import { usePaginatedDomainList } from "@/hooks/usePaginatedDomainLists";
 import { useUrlState } from "@/hooks/useUrlState";
+import { canWritePolicyDocuments } from "@/lib/policyPermissions";
 import { QueryError } from "@/components/QueryState";
 import type { Tables } from "@/lib/database.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,6 +106,9 @@ export default function PolicyDocuments() {
   const rows = query.data?.rows ?? [];
   const total = query.data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // policy_documents_write admits org_admin/facility_manager (and platform_admin); the select
+  // policy admits the whole organization, auditor included. See policyPermissions.ts.
+  const canWrite = canWritePolicyDocuments(user?.role);
 
   return (
     <div className="space-y-6">
@@ -113,7 +117,7 @@ export default function PolicyDocuments() {
           <h1 className="text-2xl font-bold tracking-tight">Policies & Procedures</h1>
           <p className="text-muted-foreground">Versioned policy documents with ESIGN/UETA-compliant attestation campaigns.</p>
         </div>
-        <NewPolicyDocumentDialog />
+        {canWrite && <NewPolicyDocumentDialog />}
       </div>
 
       <Card>
@@ -140,7 +144,9 @@ export default function PolicyDocuments() {
             <p className="text-muted-foreground text-sm text-center py-8">
               {urlState.search
                 ? "No policy documents match your search."
-                : "No policy documents yet. Create one, upload a PDF version, and publish it to start an attestation campaign."}
+                : canWrite
+                  ? "No policy documents yet. Create one, upload a PDF version, and publish it to start an attestation campaign."
+                  : "No policy documents have been published yet."}
             </p>
           ) : (
             <>

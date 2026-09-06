@@ -49,6 +49,10 @@ export default function StateFormsCenter() {
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   const facilitiesQuery = useListFacilities();
+  // Paged (see useListResidents). This queue renders one row per regulatory deadline across every
+  // resident and resolves each row's resident from this read, and it needs the whole roster row --
+  // the workflow stepper takes the resident's admission date and organization -- so it is the full
+  // list, not the name lookup the compliance report uses.
   const residentsQuery = useListResidents();
   const { data: facilities } = facilitiesQuery;
   const { data: residents } = residentsQuery;

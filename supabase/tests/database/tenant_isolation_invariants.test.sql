@@ -196,9 +196,17 @@ select is(
      and has_function_privilege('anon', p.oid, 'execute')
      and p.proname not in (
        'verify_certificate', 'verify_training_passport', 'list_regulatory_updates')
-     and p.prosrc not like '%guest_request_denial%'),
+     and p.prosrc not like '%guest_request_denial%'
+     -- 20260906230000 (BACKLOG J74, P3) retargets this one line. get_resident_portal_experience no
+     -- longer calls the gate itself: its FIRST statement calls get_resident_portal_snapshot, which
+     -- does, and running the gate in both charged a single portal page load two of the caller's
+     -- sixty requests a minute -- and a single wrong link two of the ten unknown-token strikes.
+     -- This is delegation, not an exemption: the delegate is named here, it is itself in the gated
+     -- set counted below, and any OTHER anon function that stops calling the gate still fails.
+     and not (p.proname = 'get_resident_portal_experience'
+              and p.prosrc like '%public.get_resident_portal_snapshot(p_token%')),
   0,
-  'and every token-bearing one of them passes through that gate before its own body runs'
+  'and every token-bearing one of them passes through that gate before its own body runs, directly or through the one function it delegates to'
 );
 
 -- A SECURITY DEFINER function without a pinned search_path resolves unqualified names against the

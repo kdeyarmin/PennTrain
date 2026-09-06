@@ -18,6 +18,7 @@ import { useGetOrganization, useGetOrganizationStats, useSetOrganizationSuspensi
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useGetPackage, useListPackages } from "@/hooks/usePackages";
 import { BinderExportButton } from "@/components/reports/BinderExportButton";
+import { NO_PACKAGE_HELP, NO_PACKAGE_LABEL, NO_PACKAGE_SHORT_LABEL } from "@/lib/packageEntitlementCopy";
 import { useToast } from "@/hooks/use-toast";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { facilityTypeBadgeClass, facilityTypeLabel } from "@/lib/facilityTypes";
@@ -43,6 +44,9 @@ export default function OrganizationDetail() {
   const queryClient = useQueryClient();
   const [baaVersionInput, setBaaVersionInput] = useState("");
   const [baaSaving, setBaaSaving] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const [restoreReason, setRestoreReason] = useState("");
+  const [restoreSaving, setRestoreSaving] = useState(false);
 
   // Records (or, with p_baa_version omitted, clears) the organization's BAA acceptance.
   // The RPC is platform_admin + fresh-AAL2 only; an AAL1 session surfaces the server's
@@ -89,6 +93,45 @@ export default function OrganizationDetail() {
   };
 
   const isSuspended = org?.subscription_status === "suspended";
+  // BACKLOG J74 (P3, identity). `current_org_id()` excludes BOTH 'suspended' and 'canceled'
+  // (20260716224753), so a canceled tenant's members already sit on the access-unavailable screen
+  // -- but this page recognised only 'suspended'. A canceled organization was therefore offered
+  // "Suspend Organization", a control whose entire promise ("immediately locks every user out")
+  // was already true, and no way back at all. Reactivating a canceled tenant is not
+  // set_organization_suspension's job either: that restores the PROVIDER's state, which for a
+  // canceled subscription is 'canceled' again -- a no-op reported as success. Complimentary
+  // access is the one thing that actually restores a canceled tenant without a new subscription,
+  // and it is what the platform billing override on Enterprise Foundation already does.
+  const isCanceled = org?.subscription_status === "canceled";
+  const accessBlocked = isSuspended || isCanceled;
+
+  const handleRestoreCanceled = async () => {
+    if (!id) return;
+    setRestoreSaving(true);
+    try {
+      const { error } = await supabase.rpc("set_billing_account_override", {
+        p_organization_id: id,
+        p_override_state: "comped",
+        p_reason: restoreReason.trim(),
+      });
+      if (error) throw new Error(error.message);
+      setConfirmRestore(false);
+      setRestoreReason("");
+      toast({
+        title: "Complimentary access granted",
+        description: "This organization is now comped, so its records are readable again. Stripe still reports the subscription as canceled.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    } catch (e) {
+      toast({
+        title: "Failed to restore access",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setRestoreSaving(false);
+    }
+  };
 
   // Both go through set_organization_suspension. Writing `organizations.subscription_status`
   // directly -- which is what this page used to do -- left `billing_accounts` saying the state came
@@ -278,14 +321,14 @@ export default function OrganizationDetail() {
             )}
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Package</span>
-              <span className="font-medium">{currentPackage?.name ?? "None assigned"}</span>
+              <span className="font-medium">{currentPackage?.name ?? NO_PACKAGE_SHORT_LABEL}</span>
             </div>
             <div className="pt-2 space-y-1.5">
               <span className="text-xs text-muted-foreground">Change package</span>
-              <Select value={org.package_id ?? "none"} onValueChange={handlePackageChange} disabled={updatingPackage || isSuspended}>
-                <SelectTrigger className="h-9" aria-label="Change package"><SelectValue placeholder="No package" /></SelectTrigger>
+              <Select value={org.package_id ?? "none"} onValueChange={handlePackageChange} disabled={updatingPackage || accessBlocked}>
+                <SelectTrigger className="h-9" aria-label="Change package"><SelectValue placeholder={NO_PACKAGE_SHORT_LABEL} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No package</SelectItem>
+                  <SelectItem value="none">{NO_PACKAGE_LABEL}</SelectItem>
                   {packages?.map(pkg => (
                     <SelectItem key={pkg.id} value={pkg.id}>
                       {pkg.name}{!pkg.is_active ? " (inactive)" : ""}
@@ -293,11 +336,16 @@ export default function OrganizationDetail() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">{NO_PACKAGE_HELP}</p>
             </div>
             <div className="pt-3 border-t">
               {isSuspended ? (
                 <Button variant="outline" className="w-full gap-1.5" onClick={handleReactivate} disabled={suspensionPending}>
                   <ShieldCheck className="h-4 w-4" /> Reactivate Organization
+                </Button>
+              ) : isCanceled ? (
+                <Button variant="outline" className="w-full gap-1.5" onClick={() => setConfirmRestore(true)} disabled={restoreSaving}>
+                  <ShieldCheck className="h-4 w-4" /> Restore Access (Complimentary)
                 </Button>
               ) : (
                 <Button variant="destructive" className="w-full gap-1.5" onClick={() => setConfirmSuspend(true)} disabled={suspensionPending}>
@@ -307,7 +355,9 @@ export default function OrganizationDetail() {
               <p className="text-xs text-muted-foreground mt-1.5">
                 {isSuspended
                   ? "This organization's users can sign in but see no data anywhere in the app until reactivated."
-                  : "Immediately locks every non-platform_admin user in this organization out of all data, everywhere in the app (they can still sign in, but see nothing)."}
+                  : isCanceled
+                    ? "This subscription is canceled at the payment provider, so this organization's users already see no data anywhere in the app. A new paid subscription restores it; until then, complimentary access is the only way to let them back in."
+                    : "Immediately locks every non-platform_admin user in this organization out of all data, everywhere in the app (they can still sign in, but see nothing)."}
               </p>
             </div>
           </CardContent>
@@ -439,6 +489,39 @@ export default function OrganizationDetail() {
           <BinderExportButton organizationId={id} label="Generate Binder PDF" />
         </CardContent>
       </Card>
+
+      <AlertDialog open={confirmRestore} onOpenChange={(o) => { setConfirmRestore(o); if (!o) setRestoreReason(""); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore access for {org.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This grants complimentary access with no end date, so every user in this organization can read
+              their records again while the subscription stays canceled at the payment provider. The reason is
+              recorded on the billing account and in the audit trail. Undo it from the platform billing override
+              on Enterprise Foundation by restoring the provider state.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <label htmlFor="restore-reason" className="text-sm font-medium">Reason (required, at least 10 characters)</label>
+            <Input
+              id="restore-reason"
+              value={restoreReason}
+              onChange={(e) => setRestoreReason(e.target.value)}
+              placeholder="Renewal signed; invoice pending"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setRestoreReason("")}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); void handleRestoreCanceled(); }}
+              disabled={restoreSaving || restoreReason.trim().length < 10}
+            >
+              {restoreSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Restore Access
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmSuspend} onOpenChange={setConfirmSuspend}>
         <AlertDialogContent>

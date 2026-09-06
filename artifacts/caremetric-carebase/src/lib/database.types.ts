@@ -36718,6 +36718,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cancel_data_import_job: {
+        Args: { p_job_id: string; p_reason?: string }
+        Returns: Json
+      }
       cancel_employee_lifecycle_case: {
         Args: { p_case_id: string; p_reason: string }
         Returns: boolean
@@ -36916,6 +36920,7 @@ export type Database = {
           max_attempts: number
           organization_id: string
           plaintext_signing_secret: string
+          previous_signing_secret: string
           request_body: Json
           timeout_ms: number
         }[]
@@ -38566,6 +38571,19 @@ export type Database = {
         Args: { p_facility_id: string; p_from: string; p_to: string }
         Returns: Json
       }
+      get_integration_command_receipt: {
+        Args: { p_command_id: string; p_credential_id: string }
+        Returns: {
+          command_id: string
+          command_status: string
+          command_type: string
+          correlation_id: string
+          result: Json
+          schema_version: string
+          submitted_at: string
+          updated_at: string
+        }[]
+      }
       get_integration_control_plane: {
         Args: { p_organization_id?: string }
         Returns: Json
@@ -39416,6 +39434,10 @@ export type Database = {
         }
         Returns: string
       }
+      inspection_item_due_soon_lead_days: {
+        Args: { p_interval_days: number; p_item_type: string }
+        Returns: number
+      }
       inspection_item_next_due_date: {
         Args: {
           p_anchor: string
@@ -40239,6 +40261,10 @@ export type Database = {
         Returns: Json
       }
       queue_manager_weekly_digests: { Args: never; Returns: number }
+      reactivate_integration_webhook_endpoint: {
+        Args: { p_endpoint_id: string }
+        Returns: undefined
+      }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
         Args: { p_organization_id?: string }
@@ -42247,6 +42273,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      set_integration_webhook_subscription: {
+        Args: {
+          p_endpoint_id: string
+          p_event_type: string
+          p_is_active: boolean
+        }
+        Returns: undefined
+      }
       set_notification_channel_policy: {
         Args: {
           p_fallback_delay_minutes: number
@@ -42420,6 +42454,10 @@ export type Database = {
       }
       simulate_workflow_automation_rule: {
         Args: { p_context?: Json; p_facility_id: string; p_rule_id: string }
+        Returns: Json
+      }
+      skip_data_import_rows: {
+        Args: { p_job_id: string; p_row_numbers?: number[] }
         Returns: Json
       }
       skip_notification_delivery: {

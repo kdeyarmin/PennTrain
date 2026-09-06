@@ -101,7 +101,24 @@ export function createAttestPolicyHandler({
       return json(req, { error: "This policy has already been attested" }, 409);
     }
 
-    const contentHash = typedAttestation.policy_document_versions?.content_hash ?? null;
+    // An attestation IS the claim "I read this exact document", and `document_version_hash` is the
+    // only thing in the row that says which bytes those were. Recording it as null produced an
+    // ESIGN/UETA record attesting to nothing: the version could be replaced afterwards and the
+    // attestation would still read as signed, with nothing to compare it against (BACKLOG.md J74,
+    // Policy). `policy_document_versions.content_hash` is NOT NULL at the table, so a null here
+    // means the embedded read did not resolve -- an RLS or product-module refusal on the version,
+    // not a version without a hash -- and either way the honest answer is to refuse, not to sign.
+    const contentHash = typedAttestation.policy_document_versions?.content_hash?.trim() || null;
+    if (!contentHash) {
+      console.error(
+        "attest-policy: no document hash for version",
+        typedAttestation.policy_document_version_id,
+      );
+      return json(req, {
+        error:
+          "This policy version's document fingerprint could not be read, so an attestation cannot record what you signed. Ask an administrator to re-publish the version, then try again.",
+      }, 409);
+    }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 

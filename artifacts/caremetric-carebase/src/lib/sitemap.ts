@@ -28,6 +28,16 @@ export const SITEMAP_EXCLUDED_ROUTES: readonly string[] = [
   "/resident-portal",
   "/forgot-password",
   "/reset-password",
+  // The tokenized guest and verification stems, added to MARKETING_ROUTE_META so they get a
+  // noindex head instead of the homepage's. BACKLOG J74 (P3, guest). Nothing here is a page a
+  // visitor can open without a credential, so none of them belongs in a sitemap.
+  "/checkin",
+  "/evidence-access",
+  "/move-in-access",
+  "/resident-agreement-access",
+  "/survey-packet-access",
+  "/passport",
+  "/verify",
 ];
 
 /**

@@ -147,7 +147,15 @@ async function sendWelcomeEmail(params: {
       console.warn("subscribe-updates welcome email failed", resp.status);
     }
   } catch (error) {
-    console.warn("subscribe-updates welcome email error", error instanceof Error ? error.message : error);
+    // BACKLOG J74 (P3, guest). The I23 scrub reached the outer catch of this file and both
+    // siblings, and stopped here: a non-Error throw still went into the log AS THE WHOLE OBJECT,
+    // and even an Error's message went in unscrubbed -- from the one block in this function that
+    // has the subscriber's address in scope (it is the `to` of the request being made). Same shape
+    // as the outer catch: name, scrubbed message, nothing else.
+    console.warn("subscribe-updates welcome email error", {
+      name: error instanceof Error ? error.name : typeof error,
+      message: scrubEmails(error instanceof Error ? error.message : String(error)).slice(0, 500),
+    });
   }
 }
 
@@ -164,7 +172,7 @@ async function welcomeSendCeilingReached(adminClient: QueryClient): Promise<bool
     .select("id", { count: "exact", head: true })
     .gte("updated_at", windowStart);
   if (error) {
-    console.warn("subscribe-updates welcome ceiling check failed; skipping send", error.message);
+    console.warn("subscribe-updates welcome ceiling check failed; skipping send", scrubEmails(error.message).slice(0, 500));
     return true;
   }
   if ((count ?? 0) > globalMaxPerHour) {

@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { PRIVILEGED_SESSION_EXPIRED_MESSAGE } from "@/lib/edgeFunctionErrors";
+import { sanitizePostLoginPath } from "@/lib/loginRedirect";
 
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart", "wheel"] as const;
 
@@ -339,6 +340,19 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
   // policy query is still loading or has failed.
   if (location === "/account/security") return children;
 
+  // BACKLOG J74 (P3, identity). The wall used to hand the user a bare /account/security link, so a
+  // deep link that had already survived the login round-trip (Login.tsx honours ?next=) died here:
+  // the manager enrolled a factor and landed on the dashboard with no idea where the shift-report
+  // link they clicked in their email had gone. Carry the route the gate is standing in front of
+  // through as ?next=, exactly the way loginPathWithNext does, and MfaSettings sends them on.
+  const accountSecurityHref = (() => {
+    const search = typeof window === "undefined" ? "" : window.location.search;
+    const hash = typeof window === "undefined" ? "" : window.location.hash;
+    const next = sanitizePostLoginPath(`${location}${search}${hash}`);
+    if (next === "/") return "/account/security";
+    return `/account/security?next=${encodeURIComponent(next)}`;
+  })();
+
   // Fail closed while loading and after errors. `mustVerify` used to be false whenever data was
   // absent, so privileged workspaces rendered during the initial request and permanently after any
   // RPC/MFA failure.
@@ -365,7 +379,7 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             <Button onClick={() => void policy.refetch()}>Retry</Button>
-            <Button asChild variant="outline"><Link href="/account/security">Open account security</Link></Button>
+            <Button asChild variant="outline"><Link href={accountSecurityHref}>Open account security</Link></Button>
             <Button variant="ghost" onClick={() => void signOut()}>Sign out</Button>
           </CardContent>
         </Card>
@@ -411,7 +425,7 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
       {/* A real heading role: CardTitle renders a div, which left this full-screen gate invisible to
           assistive tech (and to any instrumentation that asks "did a page render") -- a signed-in
           admin's first screen deserves to announce itself. */}
-      <Card className="w-full max-w-lg"><CardHeader className="text-center"><ShieldCheck className="mx-auto mb-2 h-10 w-10 text-primary" /><CardTitle role="heading" aria-level={1}>Multi-factor verification required</CardTitle><CardDescription>Your organization requires administrators and managers to use a second verification step. Enroll or verify a factor -- an authenticator app, or a code texted to your phone -- before opening protected workspaces.</CardDescription></CardHeader><CardContent className="flex flex-col gap-2"><Button asChild><Link href="/account/security">Open account security</Link></Button><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></CardContent></Card>
+      <Card className="w-full max-w-lg"><CardHeader className="text-center"><ShieldCheck className="mx-auto mb-2 h-10 w-10 text-primary" /><CardTitle role="heading" aria-level={1}>Multi-factor verification required</CardTitle><CardDescription>Your organization requires administrators and managers to use a second verification step. Enroll or verify a factor -- an authenticator app, or a code texted to your phone -- before opening protected workspaces.</CardDescription></CardHeader><CardContent className="flex flex-col gap-2"><Button asChild><Link href={accountSecurityHref}>Open account security</Link></Button><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></CardContent></Card>
     </div>
   );
 }
