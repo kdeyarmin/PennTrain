@@ -70,7 +70,14 @@ export default function TakeQuiz() {
   const gradedAttempts = attemptsForQuiz.filter((a) => a.submitted_at !== null);
   const lastGraded = gradedAttempts[0];
   const attemptsUsed = attemptsForQuiz.length;
-  const maxAttempts = quiz?.max_attempts ?? null;
+  // The allowance is the quiz's cap PLUS anything a manager has granted on this assignment.
+  // `enforce_quiz_attempt_cap` adds `course_assignments.additional_attempts_granted` to
+  // `quizzes.max_attempts` before it refuses an insert (20260906130000), so computing the client's
+  // "exhausted" from max_attempts alone would leave the retake button hidden and this page still
+  // reading "you've used all your attempts" after the grant the learner was told about --
+  // the grant would be invisible, which is the J2 dead end again one step further on.
+  const grantedAttempts = assignment?.additional_attempts_granted ?? 0;
+  const maxAttempts = quiz?.max_attempts == null ? null : quiz.max_attempts + grantedAttempts;
   const attemptsExhausted = !inProgressAttempt && maxAttempts != null && attemptsUsed >= maxAttempts;
 
   // The attempt currently being worked on in THIS session: either an
@@ -377,13 +384,29 @@ export default function TakeQuiz() {
             </div>
           )}
 
+          {/* "Contact your trainer about next steps" was the whole message here, and there were no
+              next steps: the attempt cap is enforced by enforce_quiz_attempt_cap (20260706181240),
+              the published version is immutable, and no screen could reset the attempts or retire
+              the assignment. Both actions now exist on Training Assignments (BACKLOG.md J2), so
+              this says what a manager will actually do rather than sending the learner to ask for
+              something nobody could give them. */}
           {exhausted && !passed && (
             <div className="flex items-start gap-2 p-3 rounded-lg border bg-muted/30">
               <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
-              <p className="text-sm text-muted-foreground">
-                You've used all {maxAttempts} attempt{maxAttempts === 1 ? "" : "s"} allowed for this quiz and did not
-                reach the passing score. Contact your trainer or facility manager about next steps.
-              </p>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  You've used all {maxAttempts} attempt{maxAttempts === 1 ? "" : "s"} allowed for this quiz and did not
+                  reach the passing score. This assignment stays open until a trainer, facility manager, or
+                  administrator acts on it — you do not need to do anything else here.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  On the Training Assignments screen they can <span className="font-medium text-foreground">grant
+                  another attempt</span>, which puts the retake button back on this page, or{" "}
+                  <span className="font-medium text-foreground">cancel this assignment</span> and assign the
+                  training again from the start. Ask them for whichever fits, and review the areas listed above
+                  in the meantime.
+                </p>
+              </div>
             </div>
           )}
 

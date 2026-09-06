@@ -158,10 +158,23 @@ Deno.serve(async (req: Request) => {
     let existing: any = null;
     if (!rowErrors.length && facilityId) {
       if (externalId) {
+        // BACKLOG J39. `residents.external_id` (20260906130000) is where the source system's
+        // identifier lives now, with a unique index on (organization_id, facility_id, external_id).
         const { data } = await callerClient.from("residents").select("*")
           .eq("organization_id", effectiveOrgId).eq("facility_id", facilityId)
-          .eq("preferred_name", `import:${externalId}`).limit(1).maybeSingle();
+          .eq("external_id", externalId).limit(1).maybeSingle();
         existing = data;
+        if (!existing) {
+          // Documented fallback, for rows imported before external_id existed: this importer used
+          // to stash the identifier in `preferred_name` as `import:{id}`. Matching on it keeps a
+          // re-import of an older tenant's file finding the residents it created, and the update
+          // below moves the identifier into external_id so the next run does not need this branch.
+          // New rows never write this shape -- preferred_name is a name.
+          const legacy = await callerClient.from("residents").select("*")
+            .eq("organization_id", effectiveOrgId).eq("facility_id", facilityId)
+            .eq("preferred_name", `import:${externalId}`).limit(1).maybeSingle();
+          existing = legacy.data;
+        }
       }
       if (!existing) {
         let q = callerClient.from("residents").select("*")
@@ -181,7 +194,12 @@ Deno.serve(async (req: Request) => {
       else warnings.push("Existing resident will be updated.");
     }
 
-    // preferred_name stores import external key for contact linking: import:{external_id}
+    // The source system's identifier goes in its own column. It used to be written into
+    // `preferred_name` as `import:{external_id}` (BACKLOG J39) -- a field printed on the face
+    // sheet, freely editable by anyone who can edit a resident, and resolved organization-wide, so
+    // renaming a resident's preferred name silently broke re-import matching and two facilities'
+    // identifiers collided. `residents.external_id` is scoped per facility by a unique index and is
+    // never shown as a name.
     const payload: any = {
       organization_id: effectiveOrgId,
       facility_id: facilityId,
@@ -190,7 +208,7 @@ Deno.serve(async (req: Request) => {
       date_of_birth: dob,
       room: room,
       admission_date: today,
-      preferred_name: externalId ? `import:${externalId}` : null,
+      external_id: externalId,
       status: "active",
     };
     // Only columns this CSV actually carries: `dob`/`room` default to null when their
@@ -202,7 +220,12 @@ Deno.serve(async (req: Request) => {
         facility_id: facilityId,
         first_name: first,
         last_name: last,
-        preferred_name: externalId ? `import:${externalId}` : existing.preferred_name,
+        // Set only when the CSV carries one, so a file without the column never clears an
+        // identifier a previous import established. A row matched through the legacy
+        // `preferred_name` fallback above is migrated onto the column by this write; the stale
+        // `import:` value in preferred_name is left alone rather than guessed at, because by then
+        // it may be a name somebody has since typed.
+        ...(externalId ? { external_id: externalId } : {}),
       }
       : null;
     if (updatePayload) {

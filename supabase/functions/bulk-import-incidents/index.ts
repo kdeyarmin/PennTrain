@@ -198,8 +198,18 @@ Deno.serve(async (req: Request) => {
 
     let resident: any = null;
     if (!rowErrors.length && externalId) {
-      const { data } = await callerClient.from("residents").select("id, first_name, last_name, facility_id")
-        .eq("organization_id", effectiveOrgId).eq("preferred_name", `import:${externalId}`).limit(1).maybeSingle();
+      // BACKLOG J39. `residents.external_id` (20260906130000) is the source system's identifier.
+      // `preferred_name` is checked only as a documented fallback, for residents imported before
+      // that column existed, when the identifier was stashed there as `import:{id}` -- a field
+      // printed on the face sheet and freely editable, which is why it stopped being the carrier.
+      const found = await callerClient.from("residents").select("id, first_name, last_name, facility_id")
+        .eq("organization_id", effectiveOrgId).eq("external_id", externalId).limit(1).maybeSingle();
+      let data = found.data;
+      if (!data) {
+        const legacy = await callerClient.from("residents").select("id, first_name, last_name, facility_id")
+          .eq("organization_id", effectiveOrgId).eq("preferred_name", `import:${externalId}`).limit(1).maybeSingle();
+        data = legacy.data;
+      }
       if (!data) rowErrors.push(`Unknown resident_external_id: ${externalId}`);
       // Both apply paths (validate_incident_resident_scope and import_apply_incident) reject a
       // resident outside the incident's facility -- refuse it in the dry run too, instead of

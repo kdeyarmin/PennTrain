@@ -25,3 +25,30 @@ export function useListTrainingHourBuckets(filters: ListTrainingHourBucketsFilte
     },
   });
 }
+
+export type CourseCompletionCredit = Tables<"course_completion_credits">;
+
+/**
+ * Regulatory credit earned by finishing an individual course (BACKLOG.md J28).
+ *
+ * `recalculate_compliance_core` sums these into the annual hour buckets alongside
+ * `employee_training_records`, so any figure recomputed from the records alone under-reports every
+ * employee who did their annual hours as courses rather than in a classroom. `credited_at` is what
+ * makes an anniversary-year total possible at all: the row's own `training_year` column is keyed on
+ * the calendar year, which is the thing being worked around.
+ */
+export function useListCourseCompletionCredits(employeeId: string | undefined) {
+  return useQuery({
+    queryKey: ["course_completion_credits", employeeId ?? null],
+    enabled: !!employeeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("course_completion_credits")
+        .select("*")
+        .eq("employee_id", employeeId!)
+        .order("credited_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}

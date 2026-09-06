@@ -163,7 +163,9 @@ begin
     and course_id = p_course_id
     -- Exactly the states course_assignments_one_open_per_course_idx treats as open.
     and status = any(array[''assigned'', ''in_progress'', ''overdue'', ''paused''])
-  order by created_at desc
+  -- assigned_at, not created_at: course_assignments has no created_at column, and `db lint`
+  -- is the only gate that reads inside a plpgsql body deeply enough to say so.
+  order by assigned_at desc
   limit 1;
 
   if v_existing_assignment is not null then

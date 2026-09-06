@@ -9,7 +9,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(48);
+select plan(58);
 
 insert into public.organizations(id, name, slug, subscription_status, trial_ends_at) values
   ('4c000000-0000-4000-8000-000000000001', 'Readiness Org', 'readiness-fix-org', 'trial', now() + interval '10 days'),
@@ -279,7 +279,7 @@ select ok(
 );
 select ok(
   pg_get_functiondef('public.resolve_survey_packet_guest_token(text)'::regprocedure)
-    like '%assert_guest_request_allowed(''survey_packet_guest''%',
+    like '%guest_request_denial(''survey_packet_guest''%',
   'the survey-packet guest surface goes through the shared guest gate (J61)'
 );
 
@@ -430,6 +430,136 @@ select ok(
 select ok(
   pg_get_functiondef('public.get_platform_health()'::regprocedure) like '%is_demo, false)%',
   'and the platform tiles stop counting demo tenants as customers (J80)'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- The two RPCs whose whole job is a write. Asserting their shape is not enough: `db lint`
+-- caught two column names in this branch that no other gate reads deeply enough to see, and
+-- a definer function that raises on its own UPDATE looks identical to a working one from
+-- outside. So these are called, as a real caller, and their effects are read back.
+-- ---------------------------------------------------------------------------------------
+insert into public.incidents(id, organization_id, facility_id, incident_type, occurred_at, narrative, severity)
+values ('4c000000-0000-4000-8000-000000000601', '4c000000-0000-4000-8000-000000000001',
+  '4c000000-0000-4000-8000-000000000011', 'significant_injury', now() - interval '2 days',
+  'Readiness narrative', 'moderate');
+insert into public.corrective_actions(
+  id, organization_id, facility_id, incident_id, description, due_date, status
+) values (
+  '4c000000-0000-4000-8000-000000000611', '4c000000-0000-4000-8000-000000000001',
+  '4c000000-0000-4000-8000-000000000011', '4c000000-0000-4000-8000-000000000601',
+  'Retrain the aide on transfers', public.pa_today() + 7, 'open'
+);
+
+select pg_temp.act_as('4c000000-0000-4000-8000-000000000101');
+select lives_ok(
+  $$ select public.verify_corrective_action(
+       '4c000000-0000-4000-8000-000000000611',
+       'Observed the aide complete an unaided transfer on three residents.') $$,
+  'a corrective action can be completed and verified in one call (J13)'
+);
+reset role;
+select results_eq(
+  $$ select status, (verification_notes is not null), (verified_by is not null), (verified_at is not null)
+     from public.corrective_actions where id = '4c000000-0000-4000-8000-000000000611' $$,
+  $$ values ('completed'::text, true, true, true) $$,
+  'and all four columns move together, which is what approve_incident_investigation reads'
+);
+
+insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
+values ('4c000000-0000-4000-8000-000000000701', '4c000000-0000-4000-8000-000000000001',
+  '4c000000-0000-4000-8000-000000000011', 'Readiness', 'Resident', public.pa_today() - 200, 'active');
+insert into public.resident_personal_fund_accounts(
+  organization_id, facility_id, resident_id, account_number, opened_on, beginning_balance, created_by
+) values (
+  '4c000000-0000-4000-8000-000000000001', '4c000000-0000-4000-8000-000000000011',
+  '4c000000-0000-4000-8000-000000000701', 'PF-READINESS001', public.pa_today() - 150, 40.00,
+  '4c000000-0000-4000-8000-000000000101'
+);
+
+select pg_temp.act_as('4c000000-0000-4000-8000-000000000101');
+select throws_ok(
+  $$ select public.close_resident_personal_fund_account(
+       '4c000000-0000-4000-8000-000000000701', 'Balance returned', 'Readiness Resident') $$,
+  '55000',
+  null,
+  'a living resident''s personal funds account is not settled -- that is the end of a residency (J37)'
+);
+reset role;
+update public.residents set status = 'discharged', discharge_date = public.pa_today()
+where id = '4c000000-0000-4000-8000-000000000701';
+
+select pg_temp.act_as('4c000000-0000-4000-8000-000000000101');
+select is(
+  (public.close_resident_personal_fund_account(
+     '4c000000-0000-4000-8000-000000000701',
+     'Balance returned at discharge', 'Jordan Next-of-kin')).amount,
+  40.00::numeric,
+  'settling a discharged resident''s account returns the whole balance (J37)'
+);
+reset role;
+select results_eq(
+  $$ select amount_returned, recipient, (final_transaction_id is not null)
+     from public.resident_personal_fund_account_closures
+     where resident_id = '4c000000-0000-4000-8000-000000000701' $$,
+  $$ values (40.00::numeric, 'Jordan Next-of-kin'::text, true) $$,
+  'and the closure is its own append-only row, because the account row cannot be updated at all'
+);
+select throws_ok(
+  $$ update public.resident_personal_fund_account_closures set recipient = 'Someone else'
+     where resident_id = '4c000000-0000-4000-8000-000000000701' $$,
+  '55000',
+  null,
+  'which is itself append-only, like the ledger it settles'
+);
+
+-- The two Train RPCs, also called rather than merely described: the trap they open is a learner who
+-- cannot move, so a signature that exists and raises is no better than no signature at all.
+-- A real published course rather than a fixture one. Publishing a course version runs a readiness
+-- check only a platform admin may call, and reproducing it here would test the seed rather than the
+-- two RPCs; the seeded catalogue already has published courses, and any of them will do.
+create temporary table pg_temp_readiness_course as
+select c.id as course_id, c.current_version_id as version_id
+from public.courses c
+where c.status = 'published' and c.current_version_id is not null
+order by c.created_at, c.id
+limit 1;
+
+insert into public.course_assignments(
+  id, organization_id, facility_id, employee_id, course_id, course_version_id, assigned_by, due_date, status
+)
+select
+  '4c000000-0000-4000-8000-000000000821', '4c000000-0000-4000-8000-000000000001',
+  '4c000000-0000-4000-8000-000000000011', '4c000000-0000-4000-8000-000000000201',
+  r.course_id, r.version_id, '4c000000-0000-4000-8000-000000000101',
+  public.pa_today() + 30, 'assigned'
+from pg_temp_readiness_course r;
+
+select pg_temp.act_as('4c000000-0000-4000-8000-000000000101');
+select is(
+  (public.grant_additional_quiz_attempt(
+     '4c000000-0000-4000-8000-000000000821',
+     'They failed the third attempt on a question the video does not cover.')).additional_attempts_granted,
+  1,
+  'a manager can grant the attempt that unsticks an exhausted learner (J2)'
+);
+select throws_ok(
+  $$ select public.cancel_course_assignment('4c000000-0000-4000-8000-000000000821', 'too short') $$,
+  '22023',
+  null,
+  'cancelling takes a real reason, because it closes a training obligation'
+);
+select is(
+  (public.cancel_course_assignment(
+     '4c000000-0000-4000-8000-000000000821',
+     'Superseded by the 2026 revision of this course; reassigning that instead.')).status,
+  'canceled',
+  'and closes the assignment so the one-open-assignment index admits a replacement (J2)'
+);
+reset role;
+select ok(
+  (select canceled_at is not null and cancellation_reason is not null
+   from public.course_assignments where id = '4c000000-0000-4000-8000-000000000821'),
+  'with the three columns the table''s check constraint requires moving together'
 );
 
 select * from finish();

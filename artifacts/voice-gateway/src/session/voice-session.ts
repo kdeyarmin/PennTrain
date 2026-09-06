@@ -84,12 +84,17 @@ export interface VoiceSessionDeps {
 }
 
 const CAP_WARNING_LEAD_MS = 60_000;
+// Let the model deliver the "your sign-in expired" line it was just handed
+// before the socket goes away. Long enough for one short sentence, short
+// enough that a session with a dead token cannot keep asking for more.
+const AUTH_EXPIRED_GRACE_MS = 6_000;
 
 export class VoiceSession {
   private readonly bridge: VoiceBridge;
   private readonly deps: VoiceSessionDeps;
   private readonly timers: NodeJS.Timeout[] = [];
   private idleTimer: NodeJS.Timeout | null = null;
+  private authExpired = false;
 
   constructor(deps: VoiceSessionDeps) {
     this.deps = deps;
@@ -112,6 +117,14 @@ export class VoiceSession {
       context: { facilityId: pending.facilityId, sessionId: pending.sessionId },
       timeoutMs: config.toolTimeoutMs,
       fetchImpl: deps.fetchImpl,
+      // The session can outlive the token it was created with (the browser
+      // hands it over once; nothing refreshes it), and past that point every
+      // tool call is a 401 the model turns into an endless apology. End the
+      // session with a reason instead of leaving it talking to a door that no
+      // longer opens. Route creation also refuses a token that cannot last the
+      // session, so reaching here means the token was revoked mid-session or
+      // the cap was raised past the token's life.
+      onAuthRejected: () => this.onAuthRejected(),
     });
 
     const client = new RealtimeClient({
@@ -221,6 +234,27 @@ export class VoiceSession {
 
   end(reason: string): void {
     void this.bridge.end(reason);
+  }
+
+  /** The tool endpoint stopped accepting this session's token. */
+  private onAuthRejected(): void {
+    if (this.authExpired) return;
+    this.authExpired = true;
+    this.log("voice.session.auth_expired", {});
+    this.deps.sendControl({
+      type: "warning",
+      code: "session_token_expired",
+      message:
+        "Your sign-in expired, so the assistant can no longer look anything up. "
+        + "This session is ending — sign in again to start a new one.",
+    });
+    // The dispatcher's reply is on its way to the model; give it a beat to say
+    // the line, then close with a reason the client can render.
+    this.timers.push(
+      setTimeout(() => {
+        void this.bridge.end("token_expired");
+      }, AUTH_EXPIRED_GRACE_MS),
+    );
   }
 
   private resetIdleTimer(): void {

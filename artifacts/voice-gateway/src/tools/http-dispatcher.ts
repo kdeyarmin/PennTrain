@@ -14,6 +14,13 @@ export interface HttpToolDispatcherOptions {
   context: { facilityId: string | null; sessionId: string };
   timeoutMs: number;
   fetchImpl?: typeof fetch;
+  /**
+   * The session's own token stopped being accepted (401/403 from the app's
+   * tool endpoint). Nothing here can refresh it — the browser holds the
+   * refresh token, not the gateway — so the session must end and SAY SO,
+   * rather than answering every remaining question with an apology.
+   */
+  onAuthRejected?: () => void;
 }
 
 export class HttpToolDispatcher implements ToolDispatcher {
@@ -36,6 +43,23 @@ export class HttpToolDispatcher implements ToolDispatcher {
         signal: controller.signal,
       });
       if (!res.ok) {
+        // An expired sign-in is not "the lookup failed". The browser hands its
+        // access token over once at session creation and nothing refreshes it,
+        // so a session that outlives the token's hour turns every remaining
+        // tool call into a 401 — and the model, told only that something went
+        // wrong, apologizes and offers to try again, forever. Name it, end the
+        // session, and let the person hear why.
+        if (res.status === 401 || res.status === 403) {
+          this.opts.onAuthRejected?.();
+          return {
+            ok: false,
+            error: `tool_http_${res.status}`,
+            message:
+              "The user's sign-in has expired, so this cannot be looked up. Tell them their "
+              + "sign-in expired and that this session is ending; they can start voice again "
+              + "after signing back in. Do not offer to retry.",
+          };
+        }
         // Model-voiceable failure; the status code stays out of the spoken
         // reply but lands in the gateway log via the tool.status event.
         return {

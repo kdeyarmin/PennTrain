@@ -27082,13 +27082,105 @@ export type Database = {
           },
         ]
       }
+      resident_personal_fund_account_closures: {
+        Row: {
+          amount_returned: number
+          closed_by: string | null
+          closed_on: string
+          created_at: string
+          facility_id: string
+          final_transaction_id: string | null
+          id: string
+          organization_id: string
+          personal_fund_account_id: string
+          purpose: string
+          recipient: string
+          resident_id: string
+        }
+        Insert: {
+          amount_returned: number
+          closed_by?: string | null
+          closed_on: string
+          created_at?: string
+          facility_id: string
+          final_transaction_id?: string | null
+          id?: string
+          organization_id: string
+          personal_fund_account_id: string
+          purpose: string
+          recipient: string
+          resident_id: string
+        }
+        Update: {
+          amount_returned?: number
+          closed_by?: string | null
+          closed_on?: string
+          created_at?: string
+          facility_id?: string
+          final_transaction_id?: string | null
+          id?: string
+          organization_id?: string
+          personal_fund_account_id?: string
+          purpose?: string
+          recipient?: string
+          resident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_personal_fund_account_cl_personal_fund_account_id_fkey"
+            columns: ["personal_fund_account_id"]
+            isOneToOne: true
+            referencedRelation: "resident_personal_fund_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closur_final_transaction_id_fkey"
+            columns: ["final_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "resident_personal_fund_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_personal_fund_account_closures_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_personal_fund_accounts: {
         Row: {
           account_number: string
           beginning_balance: number
-          closed_by: string | null
-          closed_on: string | null
-          closed_reason: string | null
           created_at: string
           created_by: string | null
           facility_id: string
@@ -27100,9 +27192,6 @@ export type Database = {
         Insert: {
           account_number: string
           beginning_balance?: number
-          closed_by?: string | null
-          closed_on?: string | null
-          closed_reason?: string | null
           created_at?: string
           created_by?: string | null
           facility_id: string
@@ -27114,9 +27203,6 @@ export type Database = {
         Update: {
           account_number?: string
           beginning_balance?: number
-          closed_by?: string | null
-          closed_on?: string | null
-          closed_reason?: string | null
           created_at?: string
           created_by?: string | null
           facility_id?: string
@@ -27126,13 +27212,6 @@ export type Database = {
           resident_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "resident_personal_fund_accounts_closed_by_fkey"
-            columns: ["closed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "resident_personal_fund_accounts_created_by_fkey"
             columns: ["created_by"]

@@ -9,6 +9,9 @@ import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts
 // fingerprint below is stored on `evidence_guest_access_events` as the record of who downloaded a
 // surveyor's evidence, so a value the guest chose is worse than none.
 import { clientIp } from "../_shared/clientIp.ts";
+// The same trusted hop, forwarded to PostgREST so the database's guest throttle keys on the
+// caller rather than on this function's egress address. See _shared/guestCallerKey.ts.
+import { guestCallerForwardHeaders } from "../_shared/guestCallerKey.ts";
 
 // Public evidence-room guest download. Guests have no Supabase session -- their whole
 // identity is the grant token, so authorization happens in the database:
@@ -59,7 +62,11 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "token and artifactId are required" }, 400);
   }
 
-  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+  // authorize_evidence_guest_artifact runs public.guest_request_denial first, which keys its
+  // per-caller throttle on the first x-forwarded-for hop PostgREST sees. Send the trusted hop.
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    global: { headers: guestCallerForwardHeaders(req) },
+  });
   const fingerprint = await sha256Hex(`${clientIp(req)}|${req.headers.get("user-agent") ?? ""}`);
 
   const { data: decision, error: authorizeError } = await adminClient.rpc("authorize_evidence_guest_artifact", {

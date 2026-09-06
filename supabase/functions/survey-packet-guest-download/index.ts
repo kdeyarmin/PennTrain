@@ -2,6 +2,16 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+// 20260906120000 (BACKLOG J61) patched resolve_survey_packet_guest_token to run the guest gate
+// first, and that gate keys its per-caller throttle on the FIRST x-forwarded-for hop PostgREST
+// sees -- the half of that list a caller writes. Forward the trusted hop instead. See
+// _shared/guestCallerKey.ts.
+//
+// (Separately, and not something this function can fix: the statement that migration splices in
+// calls `assert_guest_request_allowed`, which 20260905360000 DROPPED in favour of
+// `guest_request_denial`. Until that is corrected in SQL this RPC raises 42883 before it reaches
+// the gate at all, and the header below has nothing to key. Reported with the J46 findings.)
+import { guestCallerForwardHeaders } from "../_shared/guestCallerKey.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -27,7 +37,9 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const admin = createClient(supabaseUrl, serviceKey);
+  const admin = createClient(supabaseUrl, serviceKey, {
+    global: { headers: guestCallerForwardHeaders(req) },
+  });
 
   let token = "";
   try {

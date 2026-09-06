@@ -246,6 +246,15 @@ export function ResidentAdministrativeMaster({
               <div><p className="text-xs text-muted-foreground">Mobility / supervision</p><p className="font-medium">{dash(resident.mobility_summary)} · {dash(resident.supervision_requirements)}</p></div>
               <div><p className="text-xs text-muted-foreground">Diet / allergies</p><p className="font-medium">{dash(resident.dietary_requirements)} · {resident.food_allergies.join(", ") || "—"}</p></div>
               <div><p className="text-xs text-muted-foreground">Insurance / payer</p><p className="font-medium">{dash(resident.insurance_payer_name)} · {dash(resident.insurance_member_id)}</p></div>
+              {/* Read-only, and deliberately not in the edit dialog below. The bulk resident import
+                  used to keep this identifier in `preferred_name` as `import:{id}` -- editable in
+                  that dialog, printed on the face sheet as a nickname, and the key re-import
+                  matching depends on, so renaming somebody silently orphaned their row
+                  (BACKLOG.md J39). It has its own column now, and stays something you can read and
+                  quote rather than something you can retype. */}
+              {resident.external_id ? (
+                <div><p className="text-xs text-muted-foreground">Source system ID</p><p className="font-medium font-mono text-xs">{resident.external_id}</p></div>
+              ) : null}
               <div><p className="text-xs text-muted-foreground">Advance directive</p><Badge variant="outline">{humanize(resident.advance_directive_status)}</Badge></div>
               <div><p className="text-xs text-muted-foreground">Resident rights</p><p className="font-medium">{resident.resident_rights_acknowledged_at ? `Acknowledged ${new Date(resident.resident_rights_acknowledged_at).toLocaleDateString()}` : "Not recorded"}</p></div>
               <div><p className="text-xs text-muted-foreground">Contract</p><Badge variant="outline">{humanize(resident.contract_status)}</Badge></div>

@@ -29,7 +29,14 @@ Security posture (inherited from PennFit's ADR):
 - The model never selects identity: session context (user, role, facility)
   is bound server-side from a verified Supabase JWT at session creation.
 - The WS URL carries only an opaque **claim-once** session id; the JWT never
-  rides the URL and is held in gateway memory only, never logged.
+  rides the URL and is never logged. It is held in gateway memory for the
+  session. With `VOICE_STATE_DATABASE_URL` set, the 60-second handoff ticket is
+  durable so a WS upgrade can be claimed by a replica that did not mint it —
+  but that row stores a **reference, not the token**: it is keyed by
+  `sha256(sessionId)` and holds the JWT only as AES-256-GCM ciphertext sealed
+  under a key derived from the session id (which is never stored), and claim is
+  `DELETE ... RETURNING`, so it leaves the database the moment the socket
+  connects. Unclaimed rows are swept at expiry.
 - Tool callbacks forward the **end user's** JWT — each app's own RLS and
   role checks gate every read. The gateway holds no service-role keys.
 - Audio is never stored anywhere. Transcripts are client-side only (the
@@ -72,7 +79,7 @@ Security posture (inherited from PennFit's ADR):
 | `VOICE_PLAYBACK_GRACE_MS` | no | How long the browser sink waits for delivered audio to finish playing before a graceful close (default 1500). The browser transport has no playback acknowledgement channel, so this fixed grace keeps a goodbye from being clipped. |
 | `TWILIO_AUTH_TOKEN` | phone | Validates `X-Twilio-Signature` on phone webhooks. Absent → phone channel dark (503), browser voice unaffected. |
 | `VOICE_PUBLIC_BASE_URL` | phone | Public https origin of this gateway (e.g. `https://voice-gateway.up.railway.app`) — used for signature validation and the TwiML stream/action URLs. |
-| `VOICE_STATE_DATABASE_URL` | multi-instance / phone go-live | Postgres URL for durable voice state: phone handoff tickets, transfer actions, **browser pending sessions**, and **shared usage meters** (per-caller caps + daily minutes). Schema (`voice_gateway.*`) is auto-created on boot. Unset → in-memory (single-instance only). Not Supabase — no service keys. |
+| `VOICE_STATE_DATABASE_URL` | multi-instance / phone go-live | Postgres URL for durable voice state: phone handoff tickets, transfer actions, **browser pending sessions** (sealed reference only — no end-user token at rest), and **shared usage meters** (per-caller caps + daily minutes). Schema (`voice_gateway.*`) is auto-created on boot; a pre-existing `pending_sessions` table with the old plaintext `jwt` column is dropped on the first boot after this change. Unset → in-memory (single-instance only). Not Supabase — no service keys. |
 | `PENNFIT_TRANSFER_NUMBER` | no | PennFit's existing Twilio number (E.164). Present → the triage agent offers PennFit and warm-transfers callers to it. |
 
 ## Deploying on Railway (one-time UI steps)
@@ -197,9 +204,12 @@ VITE_VOICE_GATEWAY_URL=http://localhost:8787 pnpm dev
 - **Store durability**: the PHONE handoff stores
   (`PhonePendingStore`/`TransferActionStore`) are Postgres-backed when
   `VOICE_STATE_DATABASE_URL` is set — the go-live prerequisite is done; set
-  the env var. The BROWSER `PendingSessionStore` stays in-memory on
-  purpose: a deploy in its 60s window costs one click to retry, not a live
-  call. The usage-limit stores (per-caller rolling-hour meters, daily
+  the env var. The BROWSER `PendingSessionStore` is Postgres-backed by the
+  same env var (it has to be: with more than one replica the WS upgrade
+  rarely lands on the instance that minted the ticket), storing a sealed
+  reference rather than the end user's token — see the security posture
+  above. In-memory without the env var; a deploy in its 60s window costs one
+  click to retry, not a live call. The usage-limit stores (per-caller rolling-hour meters, daily
   minutes budget, concurrency trackers) are also in-memory on purpose —
   with `VOICE_STATE_DATABASE_URL` set they are shared in Postgres; without it they are per-instance (single-instance only);
   scaling the gateway OUT (multiple instances) would need those budgets

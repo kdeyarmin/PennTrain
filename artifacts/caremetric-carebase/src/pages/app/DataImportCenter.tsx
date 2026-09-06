@@ -51,6 +51,17 @@ import { useDataImportJobs, useImportJobAction, useImportJobRows, useRunDomainIm
 import { useToast } from "@/hooks/use-toast";
 
 const label = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+type DuplicateStrategy = "create" | "skip" | "update";
+
+const DUPLICATE_STRATEGIES: { value: DuplicateStrategy; label: string }[] = [
+  { value: "create", label: "Create (reject duplicates)" },
+  { value: "skip", label: "Skip duplicates" },
+  { value: "update", label: "Update duplicates" },
+];
+
+const strategyLabel = (value: DuplicateStrategy) =>
+  DUPLICATE_STRATEGIES.find((option) => option.value === value)?.label ?? value;
 const PAGE_SIZE = 25;
 const JOB_STATUSES = [
   "pending",
@@ -84,7 +95,8 @@ export default function DataImportCenter() {
   const [file, setFile] = useState<File | null>(null);
   const [parsedUpload, setParsedUpload] = useState<ParsedCsv | null>(null);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping | null>(null);
-  const [strategy, setStrategy] = useState<"create" | "skip" | "update">("create");
+  const [strategy, setStrategy] = useState<DuplicateStrategy>("create");
+  const [switchingStrategy, setSwitchingStrategy] = useState(false);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof runImport.mutateAsync>> | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ type: "finalize" | "rollback"; jobId: string; summary: string } | null>(null);
 
@@ -138,11 +150,11 @@ export default function DataImportCenter() {
     setPreview(null);
   };
 
-  const execute = async (mode: "validate" | "apply") => {
-    if (!file || !parsedUpload) return;
+  const execute = async (mode: "validate" | "apply", overrideStrategy?: DuplicateStrategy) => {
+    if (!file || !parsedUpload) return null;
     if (!canUploadImportDomain(uploadDomain)) {
       toast({ title: "Domain is template-only", description: "No active processor for this domain.", variant: "destructive" });
-      return;
+      return null;
     }
     const csv = needsMapping && columnMapping
       ? applyColumnMapping(uploadDomain, parsedUpload.rows, columnMapping)
@@ -152,7 +164,7 @@ export default function DataImportCenter() {
         domain: uploadDomain,
         csv,
         fileName: file.name,
-        strategy,
+        strategy: overrideStrategy ?? strategy,
         mode,
         jobId: mode === "apply" ? preview?.job_id : undefined,
       });
@@ -162,12 +174,75 @@ export default function DataImportCenter() {
         title: mode === "validate" ? "Dry run complete" : "Import applied",
         description: `${result.succeeded} succeeded · ${result.failed} failed`,
       });
+      return result;
     } catch (error) {
       toast({
         title: "Import could not continue",
         description: error instanceof Error ? error.message : "Unknown import error",
         variant: "destructive",
       });
+      return null;
+    }
+  };
+
+  // The duplicate strategy a dry run's receipt is pinned to, and whether the picker has since
+  // moved off it (BACKLOG.md J38).
+  const pinnedStrategy = preview?.pinnedDuplicateStrategy ?? null;
+  const strategyDiverged = pinnedStrategy !== null && pinnedStrategy !== strategy;
+
+  /**
+   * Move this file onto the strategy currently selected, by closing the old receipt and opening a
+   * new one.
+   *
+   * `start_data_import_job` reuses an unfinished job for the same file checksum and keeps its
+   * original `duplicate_strategy`, and the processor refuses an apply whose requested strategy
+   * disagrees with the receipt. Re-uploading the same file does not help -- same bytes, same
+   * checksum, same job -- so before this the user's only remaining move was to abandon the import.
+   *
+   * The way out uses only what the control plane already exposes. The re-run first, because
+   * `finalize_data_import_job` refuses a receipt that still has error rows and "Create (reject
+   * duplicates)" is what put those rows there: re-scoring them under the new strategy is a dry
+   * run, writes nothing to customer tables, and is what clears them. Then finalize closes the old
+   * receipt -- `ready` is a status finalize explicitly accepts, and `finalized` is not one
+   * start_data_import_job will reuse -- and the fresh dry run creates a receipt pinned to the
+   * strategy the user asked for.
+   */
+  const switchStrategy = async () => {
+    if (!preview || !strategyDiverged) return;
+    const staleJobId = preview.job_id;
+    setSwitchingStrategy(true);
+    try {
+      let stale = preview;
+      if (stale.failed > 0) {
+        const rescored = await execute("validate", strategy);
+        if (!rescored) return;
+        stale = rescored;
+      }
+      if (stale.failed > 0) {
+        toast({
+          title: "The earlier dry run still has errors",
+          description: `${stale.failed} row${stale.failed === 1 ? "" : "s"} are invalid under ${strategyLabel(strategy)} as well, so the previous receipt cannot be closed. Fix those rows and upload the corrected file.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      await finalize.mutateAsync(staleJobId);
+      setPreview(null);
+      const fresh = await execute("validate", strategy);
+      if (fresh) {
+        toast({
+          title: `Now running under ${strategyLabel(strategy)}`,
+          description: `Receipt ${fresh.job_id.slice(0, 8)} replaces the previous one, which was closed without applying anything.`,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Could not switch duplicate strategy",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setSwitchingStrategy(false);
     }
   };
 
@@ -278,22 +353,28 @@ export default function DataImportCenter() {
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${__fieldIds}-duplicate-strategy`}>Duplicate strategy</Label>
+              {/* Changing this used to discard the preview outright, which read as "start again"
+                  and was not: the receipt behind the preview survives on the server, pinned to the
+                  old strategy, and the next apply is refused because of it. The preview is kept so
+                  the divergence can be stated and acted on (BACKLOG.md J38). */}
               <Select
                 value={strategy}
-                onValueChange={(value) => {
-                  setStrategy(value as typeof strategy);
-                  setPreview(null);
-                }}
+                onValueChange={(value) => setStrategy(value as DuplicateStrategy)}
+                disabled={switchingStrategy || runImport.isPending}
               >
                 <SelectTrigger id={`${__fieldIds}-duplicate-strategy`}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="create">Create (reject duplicates)</SelectItem>
-                  <SelectItem value="skip">Skip duplicates</SelectItem>
-                  <SelectItem value="update">Update duplicates</SelectItem>
+                  {DUPLICATE_STRATEGIES.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <Button disabled={!readyToRun || runImport.isPending} variant="outline" onClick={() => execute("validate")}>
+            <Button
+              disabled={!readyToRun || runImport.isPending || switchingStrategy}
+              variant="outline"
+              onClick={() => void execute("validate")}
+            >
               {runImport.isPending ? "Checking…" : "Run dry preview"}
             </Button>
           </div>
@@ -314,12 +395,48 @@ export default function DataImportCenter() {
                   <p className="text-sm text-muted-foreground">
                     {preview.totalRows} rows · {preview.succeeded} valid · {preview.failed} errors. Review row diagnostics
                     below before applying. Apply will only write rows that passed this dry run.
+                    {pinnedStrategy ? ` Pinned to ${strategyLabel(pinnedStrategy)}.` : ""}
                   </p>
                 </div>
-                <Button disabled={preview.failed > 0 || runImport.isPending} onClick={() => execute("apply")}>
-                  Apply validated rows
-                </Button>
+                {!strategyDiverged && (
+                  <Button disabled={preview.failed > 0 || runImport.isPending} onClick={() => void execute("apply")}>
+                    Apply validated rows
+                  </Button>
+                )}
               </div>
+              {strategyDiverged && pinnedStrategy && (
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-medium">
+                    This receipt is pinned to {strategyLabel(pinnedStrategy)}, and you have chosen{" "}
+                    {strategyLabel(strategy)}.
+                  </p>
+                  <p className="mt-1">
+                    An import receipt carries its duplicate behaviour for life, so applying under a
+                    different one is refused. Either go back to the strategy this receipt was
+                    validated under, or close it and start a new one — closing writes nothing, and
+                    nothing has been applied yet.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={switchingStrategy || runImport.isPending}
+                      onClick={() => setStrategy(pinnedStrategy)}
+                    >
+                      Go back to {strategyLabel(pinnedStrategy)}
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={switchingStrategy || runImport.isPending || finalize.isPending}
+                      onClick={() => void switchStrategy()}
+                    >
+                      {switchingStrategy
+                        ? "Starting a new receipt…"
+                        : `Start a new receipt under ${strategyLabel(strategy)}`}
+                    </Button>
+                  </div>
+                </div>
+              )}
               {preview.results.filter((row) => !row.success).slice(0, 5).map((row) => (
                 <p key={row.row} className="mt-2 text-sm text-destructive">Row {row.row}: {row.error}</p>
               ))}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CheckCircle2, ClipboardCheck, UserPlus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,9 +15,14 @@ import { errorText } from "@/lib/errorText";
 import { signatureDigest } from "@/lib/certificationAttempt";
 import {
   ATTENDANCE_STATUSES, useApproveTrainingSessionCompletion, useRecordTrainingAttendance,
-  useRegisterForTrainingSession, useTrainingSessionRegistrations,
+  useRegisterForTrainingSession, useTrainingAttendanceEvidence, useTrainingSessionRegistrations,
   type TrainingSessionRegistration,
 } from "@/hooks/useTrainingClasses";
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import {
+  formatSeatMinutes, seatMinutesBetween, summarizeSessionCredit,
+  type AttendanceEvidenceLike,
+} from "@/lib/trainingAttendanceCredit";
 
 const MIN_REASON = 5;
 
@@ -42,6 +47,10 @@ export function SessionRosterCard({
   classId,
   classStatus,
   capacity,
+  classDate,
+  startsAt,
+  endsAt,
+  durationHours,
   employees,
   employeesLoading = false,
   employeesError = false,
@@ -50,6 +59,16 @@ export function SessionRosterCard({
   classId: string;
   classStatus: string | null | undefined;
   capacity: number | null | undefined;
+  /** `training_classes.class_date`, the fallback day when the class carries no starts_at. */
+  classDate?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  /**
+   * `training_classes.duration_hours` -- the figure approval credits to every attendee, whatever
+   * the recorded seat time says. Shown before approval so nobody signs off hours they did not
+   * intend to grant.
+   */
+  durationHours?: number | null;
   /** Active employees who could be registered, in display order. */
   employees: { id: string; name: string }[];
   employeesLoading?: boolean;
@@ -65,6 +84,8 @@ export function SessionRosterCard({
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("attended");
   const [typedName, setTypedName] = useState("");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
   const [approving, setApproving] = useState(false);
   const [approveReason, setApproveReason] = useState("");
   const [registering, setRegistering] = useState("");
@@ -90,24 +111,105 @@ export function SessionRosterCard({
   );
   const full = capacity != null && seatsTaken >= capacity;
 
+  // What the class was scheduled to deliver. This is the number approval credits per attendee, so
+  // it is also the number the seat-time entry below is measured against.
+  const scheduledHours = durationHours ?? 0;
+
+  const attendedRegistrationIds = useMemo(
+    () => rows.filter((row) => row.registration_status === "attended").map((row) => row.id),
+    [rows],
+  );
+  const evidenceQuery = useTrainingAttendanceEvidence(attendedRegistrationIds);
+  const evidenceByRegistration = useMemo(() => {
+    const map = new Map<string, AttendanceEvidenceLike>();
+    for (const row of evidenceQuery.data ?? []) map.set(row.registration_id, row);
+    return map;
+  }, [evidenceQuery.data]);
+  const credit = useMemo(
+    () => summarizeSessionCredit(attendedRegistrationIds, evidenceByRegistration, scheduledHours),
+    [attendedRegistrationIds, evidenceByRegistration, scheduledHours],
+  );
+
+  /**
+   * The scheduled window, as `<input type="datetime-local">` values in facility wall-clock time.
+   *
+   * Defaulting both ends to `new Date()` -- which is what this card did -- produced a check-in and
+   * a check-out at the same instant on every entry, and `record_training_attendance` derives
+   * `seat_minutes` from exactly that difference. Every attendance recorded through this screen was
+   * therefore zero seat minutes, and approval credited each of them the class's full scheduled
+   * hours anyway. Seeding from the class's own window means the common case is one click and the
+   * evidence matches the class; an early departure is an edit, not a re-derivation.
+   */
+  const defaultWindow = useMemo(() => {
+    const start = startsAt
+      ? toFacilityDateTimeLocal(startsAt)
+      : classDate
+        ? `${classDate}T09:00`
+        : toFacilityDateTimeLocal(new Date());
+    if (endsAt) return { start, end: toFacilityDateTimeLocal(endsAt) };
+    const startMs = Date.parse(facilityDateTimeLocalToUtcIso(start));
+    const end = toFacilityDateTimeLocal(new Date(startMs + scheduledHours * 3_600_000));
+    return { start, end };
+  }, [startsAt, endsAt, classDate, scheduledHours]);
+
+  const openAttendance = (registrationId: string) => {
+    setOpenRow(registrationId);
+    setStatus("attended");
+    setTypedName("");
+    setCheckIn(defaultWindow.start);
+    setCheckOut(defaultWindow.end);
+  };
+
+  // Recomputed from the fields as typed, so the recorder sees the seat time their entry produces
+  // before they sign it rather than after approval has already credited the class.
+  const draftSeatMinutes = checkIn && checkOut
+    ? seatMinutesBetween(facilityDateTimeLocalToUtcIso(checkIn), facilityDateTimeLocalToUtcIso(checkOut))
+    : null;
+  // `no_show` legitimately has no seat time; the other two claim the person was in the room, and a
+  // claim of zero (or negative) minutes in the room is not evidence of anything.
+  const seatTimeRequired = status === "attended" || status === "partial";
+  const draftSeatTimeInvalid = seatTimeRequired && (draftSeatMinutes === null || draftSeatMinutes <= 0);
+
   const submitAttendance = async (row: TrainingSessionRegistration) => {
+    if (draftSeatTimeInvalid) {
+      toast({
+        title: "Check-out must be after check-in",
+        description:
+          "An attendance with no time between check-in and check-out records zero seat minutes, and approval would still credit the full scheduled hours for it.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // A no-show has no seat time to record, and writing the scheduled window for one would put
+    // hours of "attendance" behind a person who never arrived.
+    const checkInAt = seatTimeRequired ? facilityDateTimeLocalToUtcIso(checkIn) : null;
+    const checkOutAt = seatTimeRequired ? facilityDateTimeLocalToUtcIso(checkOut) : null;
     // `attended` is the only status the server demands a signature for, but recording one for every
     // status keeps the evidence row uniform and costs nothing.
-    const attestation = `${typedName.trim()}|${row.id}|${status}|${new Date().toISOString()}`;
+    const attestation = `${typedName.trim()}|${row.id}|${status}|${checkInAt}|${checkOutAt}`;
     const attendee = await signatureDigest(attestation);
     const recorder = await signatureDigest(`recorder|${attestation}`);
     record.mutate(
       {
         registrationId: row.id,
         attendanceStatus: status,
-        checkInAt: new Date().toISOString(),
-        checkOutAt: new Date().toISOString(),
+        checkInAt,
+        checkOutAt,
         attendeeSignatureSha256: attendee,
         recorderSignatureSha256: recorder,
         evidence: { attestedName: typedName.trim() },
       },
       {
-        onSuccess: () => { setOpenRow(null); setTypedName(""); toast({ title: "Attendance recorded" }); },
+        onSuccess: () => {
+          setOpenRow(null);
+          setTypedName("");
+          toast({
+            title: "Attendance recorded",
+            description: seatTimeRequired
+              ? `${formatSeatMinutes(draftSeatMinutes)} of seat time.`
+              : "No seat time recorded for a no-show.",
+          });
+        },
         onError: (error) => toast({ title: "Attendance refused", description: errorText(error), variant: "destructive" }),
       },
     );
@@ -236,7 +338,7 @@ export function SessionRosterCard({
                   {signed
                     ? <Badge variant="secondary">signed</Badge>
                     : openRow !== row.id && (
-                      <Button size="sm" variant="outline" onClick={() => { setOpenRow(row.id); setStatus("attended"); setTypedName(""); }}>
+                      <Button size="sm" variant="outline" onClick={() => openAttendance(row.id)}>
                         Record attendance
                       </Button>
                     )}
@@ -256,6 +358,43 @@ export function SessionRosterCard({
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* Hidden for a no-show: there is no seat time to enter, and the submit path
+                      sends nulls rather than the scheduled window for one. */}
+                  {seatTimeRequired && (
+                  <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor={`att-in-${row.id}`}>Checked in</Label>
+                      <Input
+                        id={`att-in-${row.id}`}
+                        type="datetime-local"
+                        value={checkIn}
+                        onChange={(event) => setCheckIn(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`att-out-${row.id}`}>Checked out</Label>
+                      <Input
+                        id={`att-out-${row.id}`}
+                        type="datetime-local"
+                        value={checkOut}
+                        onChange={(event) => setCheckOut(event.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p
+                    className={`text-xs ${draftSeatTimeInvalid ? "text-destructive" : "text-muted-foreground"}`}
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {draftSeatTimeInvalid
+                      ? "Check-out must be after check-in. A zero-length attendance records no seat time, and approval would still credit the full scheduled hours for it."
+                      : `Seat time ${formatSeatMinutes(draftSeatMinutes)}${
+                        scheduledHours > 0 ? ` · approval credits ${scheduledHours} h regardless` : ""
+                      }.`}
+                  </p>
+                  </>
+                  )}
                   <div className="space-y-1">
                     <Label htmlFor={`att-name-${row.id}`}>Attendee types their name</Label>
                     <Input
@@ -273,7 +412,7 @@ export function SessionRosterCard({
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      disabled={record.isPending || typedName.trim().length < 2}
+                      disabled={record.isPending || typedName.trim().length < 2 || draftSeatTimeInvalid}
                       onClick={() => void submitAttendance(row)}
                     >
                       {record.isPending ? "Recording…" : "Sign and record"}
@@ -288,6 +427,57 @@ export function SessionRosterCard({
 
         {rows.length > 0 && (
           <div className="space-y-2 border-t pt-3">
+            {/* What approval is about to write, before it writes it. approve_training_session_completion
+                sets hours = training_classes.duration_hours on every attended registration's
+                training record and never looks at the seat time it insisted on recording, so the
+                only place this can be caught is here. */}
+            <div className="rounded border bg-muted/30 p-2 text-xs">
+              <p className="font-medium text-foreground">
+                Approval will credit {credit.hoursPerAttendee} h to each of {credit.attendedCount}{" "}
+                attendee{credit.attendedCount === 1 ? "" : "s"} — {credit.totalCreditedHours} h in total.
+              </p>
+              <p className="mt-0.5 text-muted-foreground">
+                The credited figure is the class's scheduled duration, not the recorded seat time.
+              </p>
+            </div>
+            {evidenceQuery.isError && (
+              <p className="text-xs text-muted-foreground">
+                Recorded seat times could not be loaded, so this credit could not be checked against
+                them. The hours above are still what approval will write.
+              </p>
+            )}
+            {credit.flagged.length > 0 && (
+              <div className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="space-y-1">
+                  <p className="font-medium">
+                    {credit.flagged.length} attendance
+                    {credit.flagged.length === 1 ? "" : "s"} do not support the hours being credited.
+                  </p>
+                  <ul className="space-y-0.5">
+                    {credit.flagged.map((row) => {
+                      const registration = rows.find((r) => r.id === row.registrationId);
+                      return (
+                        <li key={row.registrationId}>
+                          {registration ? employeeName(registration.employee_id) : row.registrationId.slice(0, 8)}
+                          {" · "}
+                          {row.issue === "unrecorded"
+                            ? "no check-in/check-out recorded"
+                            : row.issue === "zero_length"
+                              ? "checked out at or before check-in (no seat time)"
+                              : `${formatSeatMinutes(row.seatMinutes)} of seat time`}
+                          {" · would still be credited "}{credit.hoursPerAttendee} h
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p>
+                    Correct the attendance before approving, or approve deliberately and say so in
+                    the reason — these hours count toward the annual training totals a surveyor reads.
+                  </p>
+                </div>
+              </div>
+            )}
             {attendedWithoutEvidence > 0 && (
               <p className="text-xs text-muted-foreground">
                 {attendedWithoutEvidence} attended registration

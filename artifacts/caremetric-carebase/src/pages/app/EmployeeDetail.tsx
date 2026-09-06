@@ -29,7 +29,11 @@ import {
 } from "@/hooks/useTrainingRecords";
 import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingTypes";
 import { useListPracticums } from "@/hooks/usePracticums";
-import { useListTrainingHourBuckets } from "@/hooks/useTrainingHourBuckets";
+import { useListTrainingHourBuckets, useListCourseCompletionCredits } from "@/hooks/useTrainingHourBuckets";
+import {
+  bucketHoursInWindow, bucketStanding, hourBucketLabel, trainingYearWindow,
+} from "@/lib/annualTrainingHours";
+import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListEmployeeCredentials, useEmployeeRequiredItems } from "@/hooks/useEmployeeCredentials";
 import {
@@ -154,6 +158,7 @@ export default function EmployeeDetail() {
   const { data: trainingTypes } = useListTrainingTypes();
   const { data: practicums, isLoading: practicumsLoading, isError: practicumsError, error: practicumsErr, refetch: refetchPracticums } = useListPracticums({ employeeId: id });
   const { data: hourBuckets, isLoading: hoursLoading, isError: hoursError, error: hoursErr, refetch: refetchHours } = useListTrainingHourBuckets({ employeeId: id });
+  const { data: courseCredits } = useListCourseCompletionCredits(id);
   const { data: documents, isLoading: documentsLoading, isError: documentsError, error: documentsErr, refetch: refetchDocuments } = useListDocuments({ employeeId: id });
   const { data: credentials, isLoading: credentialsLoading, isError: credentialsError, error: credentialsErr, refetch: refetchCredentials } = useListEmployeeCredentials({ employeeId: id });
   const { data: auditLogs, isLoading: activityLoading, isError: activityError, error: activityErr, refetch: refetchActivity } = useListAuditLogs({ entityId: id, limit: 20 });
@@ -183,6 +188,30 @@ export default function EmployeeDetail() {
   const addFacilityAssignment = useAddEmployeeFacilityAssignment();
   const removeFacilityAssignment = useRemoveEmployeeFacilityAssignment();
   const [addFacilityId, setAddFacilityId] = useState("");
+
+  // The employee's own training year, and the hours earned inside it (BACKLOG.md J28).
+  //
+  // `employee_training_hour_buckets` is keyed on the calendar year and reset every 1 January, but
+  // every requirement it summarises runs on a rolling clock -- a record's due date is
+  // `completion_date + renewal_interval_days`, and the product's own summary of 55 Pa. Code
+  // 2600.65 says hours are tracked "against their assignment date". So the card below leads with
+  // this figure and keeps the stored calendar-year row beside it, explicitly labelled, rather than
+  // showing one number that means two different things depending on the month.
+  const today = facilityToday();
+  const trainingYear = useMemo(
+    () => trainingYearWindow(employee?.hire_date, today),
+    [employee?.hire_date, today],
+  );
+  const anniversaryHours = useMemo(() => {
+    if (!trainingYear) return null;
+    return bucketHoursInWindow({
+      window: trainingYear,
+      records: trainingRecords ?? [],
+      courseCredits: courseCredits ?? [],
+      trainingTypes: trainingTypes ?? [],
+      facilityType: facility?.facility_type,
+    });
+  }, [trainingYear, trainingRecords, courseCredits, trainingTypes, facility?.facility_type]);
 
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
 
@@ -781,18 +810,61 @@ export default function EmployeeDetail() {
               ) : !hourBuckets?.length ? (
                 <EmptyState icon={Clock} text="No annual training-hour tracking on record for this employee." />
               ) : (
-                <div className="space-y-2">
-                  {hourBuckets.map(b => (
-                    <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border">
-                      <div>
-                        <p className="font-medium text-sm">{b.training_year}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {Number(b.completed_hours ?? 0)} of {Number(b.required_hours ?? 0)} hours completed
-                        </p>
+                <div className="space-y-3">
+                  {trainingYear ? (
+                    <p className="text-xs text-muted-foreground">
+                      Training year {formatDateForDisplay(trainingYear.start)} – {formatDateForDisplay(addFacilityCalendarDays(trainingYear.end, -1))},
+                      counted from this employee's hire anniversary. The calendar-year figure under each
+                      bucket is the stored annual rollup, which resets on 1 January and is what the
+                      per-calendar-year report shows.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No hire date on record, so hours can only be shown for the calendar year. Add a hire
+                      date to see them on this employee's own training year, which is the cycle the
+                      requirements above run on.
+                    </p>
+                  )}
+                  {/* Only the current calendar year's bucket can be restated on the anniversary clock:
+                      recalculate_compliance_core recomputes that row and leaves prior years frozen, so a
+                      2025 row is a closed record rather than a view of anything still moving. */}
+                  {hourBuckets.map(b => {
+                    const currentYear = b.training_year === Number(today.slice(0, 4));
+                    const earned = currentYear && anniversaryHours
+                      ? anniversaryHours.get(b.bucket_type)
+                      : undefined;
+                    const required = Number(b.required_hours ?? 0);
+                    const anniversaryCompleted = earned?.completedHours ?? 0;
+                    return (
+                      <div key={b.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm">{hourBucketLabel(b.bucket_type)}</p>
+                          {trainingYear && currentYear ? (
+                            <>
+                              <p className="text-xs text-muted-foreground">
+                                {anniversaryCompleted} of {required} hours completed this training year
+                              </p>
+                              <p className="text-[11px] text-muted-foreground/70">
+                                Calendar year {b.training_year}: {Number(b.completed_hours ?? 0)} of {required} hours
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              Calendar year {b.training_year}: {Number(b.completed_hours ?? 0)} of {required} hours completed
+                            </p>
+                          )}
+                        </div>
+                        <StatusBadge
+                          status={
+                            trainingYear && currentYear
+                              ? bucketStanding(anniversaryCompleted, required, trainingYear, today)
+                              : b.status
+                          }
+                          type="training"
+                        />
                       </div>
-                      <StatusBadge status={b.status} type="training" />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

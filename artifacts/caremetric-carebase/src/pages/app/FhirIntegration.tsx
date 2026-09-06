@@ -69,8 +69,13 @@ export default function FhirIntegration() {
     [facilities.data, facilityId],
   );
   const credentials = useOrganizationIntegrationCredentials(selectedFacilityOrgId ?? scopeOrgId);
+  // Only what the save RPC binds. `save_fhir_integration_source` (20260725120000:277) looks the
+  // credential up with `'commands:write' = any(c.scopes)` and raises 42501 for anything else --
+  // and `fhir:write`, which this filter also admitted, is not a registered scope at all
+  // (`integration_api_scope_definitions` has no such row), so the picker could offer a key the
+  // save then refused. Mirror of the eMAR picker fix in useIntegrationCredentials.ts.
   const commandCredentials = useMemo(
-    () => (credentials.data ?? []).filter((c) => (c.scopes.includes("commands:write") || c.scopes.includes("fhir:write")) && !credentialIsExpired(c)),
+    () => (credentials.data ?? []).filter((c) => c.scopes.includes("commands:write") && !credentialIsExpired(c)),
     [credentials.data],
   );
   const workspace = useFhirIntegration(facilityId || undefined);
@@ -201,6 +206,22 @@ export default function FhirIntegration() {
         </AlertDescription>
       </Alert>
 
+      {/* The console used to describe itself as read-only while the clinical chart offered
+          "Send to EHR" on every observation. Both halves of write-back are missing, and saying so
+          here is cheaper than a refusal the operator meets one observation at a time. */}
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Outbound write-back is not available yet</AlertTitle>
+        <AlertDescription>
+          This boundary is inbound-only. There is no control that enables write-back on a source,
+          and the outbound drain has no credential to authenticate to an EHR with &mdash; the
+          credential bound above is the <em>inbound</em> key the EHR uses to call CareBase. The
+          chart offers &ldquo;Send to EHR&rdquo; only for a resident mapped to a source that is
+          genuinely write-back-enabled, so today it stays hidden rather than promising a delivery
+          nobody can make.
+        </AlertDescription>
+      </Alert>
+
       <Card>
         <CardContent className="p-4">
           <div className="max-w-sm space-y-2">
@@ -241,6 +262,15 @@ export default function FhirIntegration() {
                     <p className="text-muted-foreground">Freshness target: {source.freshness_threshold_minutes} minutes</p>
                     {source.last_error_message && <p className="text-destructive">{source.last_error_message}</p>}
                     {!source.credential_id && <p className="text-amber-700">Setup required: bind a commands:write integration credential.</p>}
+                    {/* Say what the boundary actually is. `writeback_enabled` was added by
+                        20260725170000 with `default false` and no writer: `save_fhir_integration_source`
+                        never sets it and `fhir_integration_sources` carries no update policy, so
+                        nothing in the product (or in a tenant's own browser session) can turn it on.
+                        Reporting the column's real value keeps the console honest either way -- if an
+                        operator flips it in SQL, the console says so. */}
+                    <p className="text-muted-foreground">
+                      Outbound write-back: {source.writeback_enabled ? "enabled for this source" : "off (this connection is inbound-only)"}
+                    </p>
                   </CardContent>
                 </Card>
               );
@@ -327,14 +357,14 @@ export default function FhirIntegration() {
 
       <Dialog open={sourceDialogOpen} onOpenChange={setSourceDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Configure FHIR source</DialogTitle><DialogDescription>The credential must belong to this organization and include the commands:write scope. Leave it blank to save a setup-required source.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Configure FHIR source</DialogTitle><DialogDescription>The credential must belong to this organization and carry the <strong>commands:write</strong> scope &mdash; the only scope <code>save_fhir_integration_source</code> accepts. It authenticates the EHR calling <em>into</em> CareBase; it is not used for outbound write-back. Leave it blank to save a setup-required source.</DialogDescription></DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2"><Label htmlFor="fhir-source-name">Connection name</Label><Input id="fhir-source-name" value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Main campus EHR" /></div>
             <div className="space-y-2"><Label htmlFor="fhir-vendor">Vendor</Label><Input id="fhir-vendor" value={vendorName} onChange={(event) => setVendorName(event.target.value)} placeholder="Epic / Cerner / …" /></div>
             <div className="space-y-2"><Label htmlFor="fhir-external-facility">External facility ID</Label><Input id="fhir-external-facility" value={externalFacilityId} onChange={(event) => setExternalFacilityId(event.target.value)} /></div>
             <div className="space-y-2"><Label htmlFor="fhir-freshness">Freshness target (minutes)</Label><Input id="fhir-freshness" type="number" min="5" max="1440" value={freshnessMinutes} onChange={(event) => setFreshnessMinutes(event.target.value)} /></div>
             <div className="space-y-2 sm:col-span-2"><Label htmlFor="fhir-base-url">FHIR base URL</Label><Input id="fhir-base-url" value={fhirBaseUrl} onChange={(event) => setFhirBaseUrl(event.target.value)} placeholder="https://fhir.example.org/r4 (optional)" /></div>
-            <div className="space-y-2 sm:col-span-2"><Label htmlFor={`${__fieldIds}-integration-credential`}>Integration credential</Label><Select value={credentialId || unboundCredentialValue} onValueChange={(value) => setCredentialId(value === unboundCredentialValue ? "" : value)}><SelectTrigger id={`${__fieldIds}-integration-credential`} aria-label="Integration credential"><SelectValue placeholder="Select a credential" /></SelectTrigger><SelectContent><SelectItem value={unboundCredentialValue}>Leave unbound (setup required)</SelectItem>{commandCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.name} · {credential.key_prefix}… · {credential.scopes.join(", ")}</SelectItem>)}</SelectContent></Select>{credentials.isError ? <p className="text-xs text-destructive">Credentials could not be loaded.</p> : credentials.isLoading ? <p className="text-xs text-muted-foreground">Loading credentials…</p> : commandCredentials.length === 0 ? <p className="text-xs text-muted-foreground">No active commands:write credentials. Issue one from the <Link href="/app/value-center" className="underline">Value Center</Link>.</p> : null}</div>
+            <div className="space-y-2 sm:col-span-2"><Label htmlFor={`${__fieldIds}-integration-credential`}>Integration credential</Label><Select value={credentialId || unboundCredentialValue} onValueChange={(value) => setCredentialId(value === unboundCredentialValue ? "" : value)}><SelectTrigger id={`${__fieldIds}-integration-credential`} aria-label="Integration credential"><SelectValue placeholder="Select a credential" /></SelectTrigger><SelectContent><SelectItem value={unboundCredentialValue}>Leave unbound (setup required)</SelectItem>{commandCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.name} · {credential.key_prefix}… · {credential.scopes.join(", ")}</SelectItem>)}</SelectContent></Select>{credentials.isError ? <p className="text-xs text-destructive">Credentials could not be loaded.</p> : credentials.isLoading ? <p className="text-xs text-muted-foreground">Loading credentials…</p> : commandCredentials.length === 0 ? <p className="text-xs text-muted-foreground">No active credential in this organization carries commands:write. Issue one from the <Link href="/app/value-center" className="underline">Value Center</Link>.</p> : null}</div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSourceDialogOpen(false)}>Cancel</Button>

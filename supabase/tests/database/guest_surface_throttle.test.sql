@@ -7,7 +7,7 @@
 -- been its success. Run with: supabase test db.
 
 begin;
-select plan(19);
+select plan(22);
 
 ------------------------------------------------------------------------------------------------
 -- 1-2. Every anonymous entry point goes through the gate, including the next one somebody adds
@@ -67,6 +67,10 @@ insert into public.resident_portal_grants (
 
 -- One caller, so the per-caller counters mean something. Without this each token would key its
 -- own window and nothing would ever be throttled -- which is the defect a token-keyed limiter has.
+--
+-- The chain is read from the END since 20260906200000 (BACKLOG J46): `x-forwarded-for` is
+-- append-only, so `10.0.0.1` here is what the proxy in front of us observed and `203.0.113.7` is
+-- whatever the client put in the header. The caller key is the last hop.
 select set_config('request.headers', '{"x-forwarded-for":"203.0.113.7, 10.0.0.1"}', true);
 
 ------------------------------------------------------------------------------------------------
@@ -79,10 +83,31 @@ select is(
 );
 select is(
   (select count(*)::integer from app_private.guest_token_failures
-   where surface = 'resident_portal' and caller_key = 'ip:203.0.113.7'),
+   where surface = 'resident_portal' and caller_key = 'ip:10.0.0.1'),
   1,
   'and it is written down, which is how a scan becomes visible before it succeeds'
 );
+-- BACKLOG J46. The defect the last-hop rule closes: the first entry is client-supplied, so keying
+-- on it meant a caller could rotate past every limit by changing one header per request.
+select set_config('request.headers', '{"x-forwarded-for":"198.51.100.99, 10.0.0.1"}', true);
+select is(
+  public.guest_request_denial('resident_portal', 'no-such-token-forged'),
+  null,
+  'a second wrong guess behind the same proxy, with a different claimed first hop'
+);
+select is(
+  (select count(*)::integer from app_private.guest_token_failures
+   where surface = 'resident_portal' and caller_key = 'ip:10.0.0.1'),
+  2,
+  'still counts against the same caller: rotating the claimed first hop does not buy a new budget'
+);
+select is(
+  (select count(*)::integer from app_private.guest_token_failures
+   where caller_key in ('ip:203.0.113.7', 'ip:198.51.100.99')),
+  0,
+  'and nothing is ever keyed on a hop the client wrote'
+);
+select set_config('request.headers', '{"x-forwarded-for":"203.0.113.7, 10.0.0.1"}', true);
 select is(
   (select count(*)::integer from app_private.guest_token_failures
    where token_sha256 = 'no-such-token-0'),

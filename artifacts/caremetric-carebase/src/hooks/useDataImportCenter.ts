@@ -87,6 +87,20 @@ export interface DomainImportResult {
   failed: number;
   nextOffset: number | null;
   results: Array<{ row: number; success: boolean; action?: string; error?: string; warnings?: string[] }>;
+  /**
+   * The duplicate strategy the receipt is actually pinned to, read back from
+   * `data_import_jobs.duplicate_strategy` (BACKLOG.md J38).
+   *
+   * Not the strategy that was requested. `start_data_import_job` reuses an unfinished job for the
+   * same (organization, domain, file checksum, creator) and keeps the strategy it was created
+   * with, while the processor scores the rows using whatever the request asked for -- so a second
+   * dry run under a new strategy looks fine and the apply that follows is refused with
+   * "Duplicate strategy cannot change after the import job is created" (409). This column is what
+   * apply will be judged against, so it is what the wizard has to show.
+   *
+   * Null when the job row could not be read back; the wizard then simply does not claim to know.
+   */
+  pinnedDuplicateStrategy: "create" | "skip" | "update" | null;
 }
 
 /** @deprecated Prefer DomainImportResult */
@@ -115,6 +129,7 @@ async function runImportChunks(input: {
     failed: 0,
     nextOffset: null,
     results: [],
+    pinnedDuplicateStrategy: null,
   };
   do {
     const { data, error } = await supabase.functions.invoke<DomainImportResult>(fn, {
@@ -139,6 +154,18 @@ async function runImportChunks(input: {
     aggregate.nextOffset = data.nextOffset;
     offset = data.nextOffset ?? 0;
   } while (aggregate.nextOffset !== null);
+
+  // `authenticated` has select on data_import_jobs, so the pin is readable directly. The
+  // processor's own response echoes the REQUESTED strategy, which is exactly the value that
+  // disagrees with the receipt in the case this exists for.
+  const { data: job } = await supabase
+    .from("data_import_jobs")
+    .select("duplicate_strategy")
+    .eq("id", aggregate.job_id)
+    .maybeSingle();
+  const pinned = job?.duplicate_strategy;
+  aggregate.pinnedDuplicateStrategy =
+    pinned === "create" || pinned === "skip" || pinned === "update" ? pinned : null;
   return aggregate;
 }
 

@@ -40,24 +40,16 @@ Deno.serve(async (req) => {
   if (!body?.turnstile_token) return json(req, { error: "verification_required" }, 400);
   const ip = clientIp(req);
   const ipHash = await sha256(`${Deno.env.get("INTAKE_RATE_LIMIT_SALT") ?? secret}:${ip}`);
-  const { data: reservationId, error: reservationError } = await admin.rpc(
-    "reserve_confidential_intake_attempt",
-    { p_ip_hash: ipHash, p_facility_id: body.facility_id ?? null, p_limit: 5 },
-  );
-  if (reservationError?.message.includes("confidential_intake_rate_limited")) {
-    return json(req, { error: "rate_limited" }, 429);
-  }
-  if (reservationError || reservationId == null) return json(req, { error: "intake_unavailable" }, 503);
 
-  const finalize = async (success: boolean, errorCode: string | null) => {
-    const { error } = await admin.rpc("finalize_confidential_intake_attempt", {
-      p_attempt_id: reservationId,
-      p_success: success,
-      p_error_code: errorCode,
-    });
-    if (error) console.error("Failed to finalize intake reservation", error.message);
-  };
-
+  // TURNSTILE FIRST, THEN THE RESERVATION. `reserve_confidential_intake_attempt` counts EVERY
+  // confidential_intake_attempts row for this hashed IP in the last hour, whatever became of it
+  // -- the I22 shape, fixed there for signup and not here. Reserving before the challenge meant a
+  // bot's failed attempts, and a reporter's own retries after a Turnstile timeout, spent the
+  // budget of every other person on the same address. The address is a whole building: a
+  // facility-wide incident with several witnesses on the staff wifi is exactly when this endpoint
+  // matters and exactly when the cap fired. Verifying first means the counted attempts are
+  // human-verified submissions. Turnstile is itself the anti-automation control on the path in
+  // front of it, and its tokens are single-use, so nothing is left unguarded by the reorder.
   const form = new FormData();
   form.set("secret", secret);
   form.set("response", String(body.turnstile_token));
@@ -67,9 +59,48 @@ Deno.serve(async (req) => {
     method: "POST", body: form, signal: AbortSignal.timeout(10_000),
   }).then((response) => response.json()).catch(() => null) as { success?: boolean } | null;
   if (!verified?.success) {
-    await finalize(false, "turnstile_failed");
-    return json(req, { error: "verification_failed" }, 400);
+    return json(req, {
+      error: "verification_failed",
+      message: "The \u201cI am human\u201d check could not be confirmed. Refresh the page and try again.",
+    }, 400);
   }
+
+  // A confidential intake address is shared by a whole shift, so the ceiling has to fit the
+  // building rather than one person: several witnesses to the same incident, each with a couple
+  // of retries, must all get through within the hour. Passed as p_limit because the RPC takes the
+  // cap as an argument (20260714233041:752); the SQL default of 5 is unchanged for any other
+  // caller.
+  const HOURLY_ATTEMPTS_PER_ADDRESS = 25;
+  const { data: reservationId, error: reservationError } = await admin.rpc(
+    "reserve_confidential_intake_attempt",
+    { p_ip_hash: ipHash, p_facility_id: body.facility_id ?? null, p_limit: HOURLY_ATTEMPTS_PER_ADDRESS },
+  );
+  if (reservationError?.message.includes("confidential_intake_rate_limited")) {
+    // The reporter is anonymous and has nowhere else to go; "rate_limited" alone reached the page
+    // as "Edge Function returned a non-2xx status code". Say what happened and what still works.
+    return json(req, {
+      error: "rate_limited",
+      message:
+        "Too many reports have been submitted from this network in the last hour. Wait an hour and "
+        + "try again, or report from a different connection. If someone is in immediate danger, "
+        + "call 911 and tell a supervisor now.",
+    }, 429);
+  }
+  if (reservationError || reservationId == null) {
+    return json(req, {
+      error: "intake_unavailable",
+      message: "The confidential intake service is temporarily unavailable. Try again in a few minutes.",
+    }, 503);
+  }
+
+  const finalize = async (success: boolean, errorCode: string | null) => {
+    const { error } = await admin.rpc("finalize_confidential_intake_attempt", {
+      p_attempt_id: reservationId,
+      p_success: success,
+      p_error_code: errorCode,
+    });
+    if (error) console.error("Failed to finalize intake reservation", error.message);
+  };
 
   const resume = crypto.randomUUID() + crypto.randomUUID();
   const confirmation = crypto.randomUUID() + crypto.randomUUID();
@@ -88,6 +119,11 @@ Deno.serve(async (req) => {
     p_confirmation_token: confirmation,
   });
   await finalize(!error, error ? "submission_failed" : null);
-  if (error) return json(req, { error: "submission_failed" }, 400);
+  if (error) {
+    return json(req, {
+      error: "submission_failed",
+      message: "The report could not be accepted. Check the facility code and try again.",
+    }, 400);
+  }
   return json(req, { data: { ...(data as Record<string, unknown>), resumeSecret: resume } });
 });

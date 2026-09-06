@@ -139,7 +139,7 @@ begin
   select v_assignment.organization_id, e.profile_id, 'course_assigned',
     'Another attempt is available',
     'Your manager has given you another attempt at the final assessment.',
-    '/me/training'
+    '/me/trainings'
   from public.employees e
   where e.id = v_assignment.employee_id and e.profile_id is not null;
 

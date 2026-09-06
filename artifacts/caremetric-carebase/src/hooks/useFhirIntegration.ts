@@ -196,3 +196,55 @@ export function useResolveFhirIntegrationException() {
       queryClient.invalidateQueries({ queryKey: [FHIR_INTEGRATION_KEY, input.facilityId] }),
   });
 }
+
+/**
+ * Can this resident's observations actually reach an EHR right now?
+ *
+ * `queue_clinical_observation_writeback` (20260725170000) refuses with 42501 unless the resident
+ * has an ACTIVE `fhir_patient_mappings` row whose source is `status = 'active'` AND
+ * `writeback_enabled`. Nothing in the product sets `writeback_enabled`: the column was added with
+ * `default false`, `save_fhir_integration_source` never writes it, and there is no update policy
+ * on `fhir_integration_sources` for a client to write it directly. So the honest answer today is
+ * almost always "no", and the chart asks this before offering "Send to EHR" instead of promising
+ * delivery and letting the server explain afterwards.
+ *
+ * Only the roles the same migration granted `clinical.integration.writeback` to (platform_admin,
+ * org_admin, facility_manager) can queue at all, and those are also the roles
+ * `fhir_patient_mappings_read` lets read the mapping -- so the caller gates on role first and this
+ * query never runs for someone who could not use the answer.
+ */
+export interface ResidentWritebackTarget {
+  sourceId: string;
+  sourceName: string;
+}
+
+export function useResidentFhirWritebackTarget(residentId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["resident-fhir-writeback-target", residentId ?? null],
+    enabled: Boolean(residentId) && enabled,
+    queryFn: async (): Promise<ResidentWritebackTarget | null> => {
+      const { data: mappings, error: mappingError } = await supabase
+        .from("fhir_patient_mappings")
+        .select("source_id")
+        .eq("resident_id", residentId!)
+        .eq("status", "active");
+      if (mappingError) throw mappingError;
+      const sourceIds = [...new Set((mappings ?? []).map((row) => row.source_id))];
+      if (sourceIds.length === 0) return null;
+      // Two round trips rather than an embed: the mapping -> source foreign key is the COMPOSITE
+      // (source_id, organization_id, facility_id) one, which PostgREST cannot resolve from
+      // `source_id` alone.
+      const { data: sources, error: sourceError } = await supabase
+        .from("fhir_integration_sources")
+        .select("id,name,status,writeback_enabled")
+        .in("id", sourceIds)
+        .eq("status", "active")
+        .eq("writeback_enabled", true)
+        .limit(1);
+      if (sourceError) throw sourceError;
+      const source = (sources ?? [])[0];
+      return source ? { sourceId: source.id, sourceName: source.name } : null;
+    },
+    staleTime: 60_000,
+  });
+}

@@ -364,6 +364,99 @@ describe("gateway session flow", () => {
     expect(invalid.status).toBe(401);
   });
 
+  // A session must not outlive the token it runs on: the browser hands the
+  // access token over once, the gateway holds no refresh token, and past expiry
+  // `voice-tools` answers 401 to every tool call. The refusal is distinct so the
+  // hook can refresh and retry -- it is the only party that can.
+  function jwtExpiringIn(seconds: number): string {
+    const payload = Buffer.from(
+      JSON.stringify({ sub: "user-1", exp: Math.floor(Date.now() / 1_000) + seconds }),
+    ).toString("base64url");
+    return `header.${payload}.signature`;
+  }
+
+  function fetchStubAccepting(token: string): typeof fetch {
+    return async (input, init) => {
+      const url = String(input);
+      const headers = Object.fromEntries(
+        Object.entries((init?.headers ?? {}) as Record<string, string>),
+      );
+      if (url.startsWith(`${SUPABASE_URL}/auth/v1/user`)) {
+        return headers.Authorization === `Bearer ${token}`
+          ? Response.json({ id: "user-1" })
+          : new Response("{}", { status: 401 });
+      }
+      if (url.startsWith(`${SUPABASE_URL}/rest/v1/profiles`)) {
+        return Response.json({ role: "facility_manager", is_active: true });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+  }
+
+  it("refuses a session the caller's token cannot outlast", async () => {
+    // maxSessionSeconds is 600 here; five minutes of token left cannot cover it.
+    const token = jwtExpiringIn(300);
+    const base = await startServer({ fetchImpl: fetchStubAccepting(token), sockets: [] });
+    const res = await createSession(base, token);
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as {
+      error: string;
+      remainingSeconds: number;
+      neededSeconds: number;
+    };
+    expect(body.error).toBe("token_expiring");
+    expect(body.neededSeconds).toBeGreaterThan(body.remainingSeconds);
+  });
+
+  it("accepts a token that outlasts the session plus its handoff window", async () => {
+    const token = jwtExpiringIn(3_600);
+    const base = await startServer({ fetchImpl: fetchStubAccepting(token), sockets: [] });
+    const res = await createSession(base, token);
+    expect(res.status).toBe(201);
+  });
+
+  it("says why, and ends the session, when the tool endpoint rejects the token", async () => {
+    // The tool endpoint answers 401 -- the exact state a session outliving its
+    // token lands in. Before this the model just kept apologizing.
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      const headers = Object.fromEntries(
+        Object.entries((init?.headers ?? {}) as Record<string, string>),
+      );
+      if (url.startsWith(`${SUPABASE_URL}/auth/v1/user`)) {
+        return headers.Authorization === `Bearer ${GOOD_TOKEN}`
+          ? Response.json({ id: "user-1" })
+          : new Response("{}", { status: 401 });
+      }
+      if (url.startsWith(`${SUPABASE_URL}/rest/v1/profiles`)) {
+        return Response.json({ role: "facility_manager", is_active: true });
+      }
+      if (url === TOOLS_URL) return new Response("{}", { status: 401 });
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+    const sockets: FakeRealtimeSocket[] = [];
+    const base = await startServer({ fetchImpl, sockets });
+    const res = await createSession(base);
+    const { wsUrl } = (await res.json()) as { wsUrl: string };
+    const client = connect(wsUrl);
+    openSockets.push(client.ws);
+    await waitFor(() => client.control.some((m) => m.type === "ready"), "ready frame");
+
+    const upstream = await waitFor(() => sockets[0], "upstream socket");
+    upstream.receive({
+      type: "response.function_call_arguments.done",
+      call_id: "call_1",
+      name: "get_facility_readiness",
+      arguments: "{}",
+    });
+
+    const warning = await waitFor(
+      () => client.control.find((m) => m.type === "warning" && m.code === "session_token_expired"),
+      "token-expired warning",
+    );
+    expect(String(warning.message)).toContain("sign-in expired");
+  });
+
   it("rejects roles outside the app allowlist", async () => {
     const { fetchImpl } = makeFetchStub({ role: "employee" });
     const base = await startServer({ fetchImpl, sockets: [] });

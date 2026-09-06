@@ -306,17 +306,97 @@ for each row execute function app_private.rederive_resident_compliance_due_dates
 -- J37 -- the money can be given back
 -- ---------------------------------------------------------------------------
 
-alter table public.resident_personal_fund_accounts
-  add column if not exists closed_on date,
-  add column if not exists closed_reason text,
-  add column if not exists closed_by uuid references public.profiles(id);
+-- The closure is a NEW ROW, not a column on the account.
+--
+-- resident_personal_fund_accounts carries prevent_phase5_evidence_mutation on BEFORE UPDATE OR
+-- DELETE, with no escape hatch of any kind: the account row is append-only evidence and stamping a
+-- `closed_on` onto it would raise 55000 for everybody, definer or not. That is the right design
+-- and this follows it -- the closure is its own append-only record, which also lets a zero-balance
+-- account be closed at all, since the ledger's amount > 0 check means there is no transaction to
+-- post for one.
+create table if not exists public.resident_personal_fund_account_closures (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  facility_id uuid not null references public.facilities(id),
+  resident_id uuid not null references public.residents(id),
+  personal_fund_account_id uuid not null unique references public.resident_personal_fund_accounts(id),
+  closed_on date not null,
+  amount_returned numeric(12,2) not null check (amount_returned >= 0),
+  recipient text not null check (length(btrim(recipient)) between 2 and 200),
+  purpose text not null check (length(btrim(purpose)) between 3 and 500),
+  final_transaction_id uuid references public.resident_personal_fund_transactions(id),
+  closed_by uuid references public.profiles(id),
+  created_at timestamptz not null default now()
+);
 
-comment on column public.resident_personal_fund_accounts.closed_on is
-  'When the account was settled and closed. Written only by close_resident_personal_fund_account, '
-  'which posts the terminal disbursement that returns the balance. Before BACKLOG J37 there was no '
-  'terminal transaction kind at all, so a discharged or deceased resident''s money sat in the '
-  'ledger with nothing in the product that could return it -- which is the moment 2600.20 / '
-  '2800.20 are about.';
+comment on table public.resident_personal_fund_account_closures is
+  'One row per settled personal-funds account: when it was closed, how much was returned, and to '
+  'whom. Append-only like every other row in this family. Before BACKLOG J37 the ledger had no '
+  'terminal transaction kind and no notion of a closed account, so a discharged or deceased '
+  'resident''s money sat in it with nothing in the product that could return it -- which is the '
+  'moment 2600.20 / 2800.20 are about.';
+
+alter table public.resident_personal_fund_account_closures enable row level security;
+
+drop policy if exists resident_personal_fund_account_closures_select
+  on public.resident_personal_fund_account_closures;
+create policy resident_personal_fund_account_closures_select
+  on public.resident_personal_fund_account_closures
+  for select to authenticated
+  using (app_private.admission_row_visible(organization_id, facility_id));
+
+-- Same commercial boundary as the account it closes.
+drop policy if exists product_module_entitlement on public.resident_personal_fund_account_closures;
+create policy product_module_entitlement on public.resident_personal_fund_account_closures
+  as restrictive for all to authenticated
+  using ((select app_private.has_product_module('modules.billing')))
+  with check ((select app_private.has_product_module('modules.billing')));
+
+insert into app_private.product_module_resources (resource_schema, resource_name, module_key)
+values ('public', 'resident_personal_fund_account_closures', 'modules.billing')
+on conflict (resource_schema, resource_name) do update set module_key = excluded.module_key;
+
+revoke all on table public.resident_personal_fund_account_closures from public, anon, authenticated;
+grant select on table public.resident_personal_fund_account_closures to authenticated;
+grant select, insert on table public.resident_personal_fund_account_closures to service_role;
+
+drop trigger if exists prevent_resident_personal_fund_account_closures_mutation
+  on public.resident_personal_fund_account_closures;
+create trigger prevent_resident_personal_fund_account_closures_mutation
+before delete or update on public.resident_personal_fund_account_closures
+for each row execute function app_private.prevent_phase5_evidence_mutation();
+
+-- A row guard with no TRUNCATE guard is a guard with a hole in it, and
+-- evidence_survives_truncate.test.sql refuses the pair being incomplete. Same shape as the account
+-- and ledger tables this one settles.
+drop trigger if exists prevent_resident_personal_fund_account_closures_truncate
+  on public.resident_personal_fund_account_closures;
+create trigger prevent_resident_personal_fund_account_closures_truncate
+before truncate on public.resident_personal_fund_account_closures
+for each statement execute function app_private.prevent_phase5_evidence_mutation();
+
+-- Every public table carries an audit-manifest row; audit_manifest_covers_every_table.test.sql
+-- refuses one that does not. This one is classified rather than left `unclassified`: the closure
+-- IS the evidence -- an append-only record of money leaving a resident's account -- so its audit
+-- mode is domain_evidence and it carries the same retention as the account it closes.
+insert into app_private.audit_entity_manifest(
+  table_schema, table_name, audit_mode, contains_regulated_data, rationale,
+  retention_days, archive_after_days, legal_hold_eligible, review_owner
+) values (
+  'public', 'resident_personal_fund_account_closures', 'domain_evidence', true,
+  'The settlement record for a resident personal-funds account: who received the balance, when, '
+  'and how much. Append-only on both row and statement, so the row itself is the audit trail -- '
+  'a row trigger would only duplicate it. Retention follows the account it closes. BACKLOG J37.',
+  2555, 365, true, 'security-and-compliance'
+)
+on conflict (table_name) do update set
+  audit_mode = excluded.audit_mode,
+  contains_regulated_data = excluded.contains_regulated_data,
+  rationale = excluded.rationale,
+  retention_days = excluded.retention_days,
+  archive_after_days = excluded.archive_after_days,
+  legal_hold_eligible = excluded.legal_hold_eligible,
+  review_owner = excluded.review_owner;
 
 alter table public.resident_personal_fund_transactions
   drop constraint if exists resident_personal_fund_transactions_transaction_kind_check;
@@ -353,7 +433,10 @@ begin
   if not found then
     raise exception 'Personal funds account is not open' using errcode = 'P0002';
   end if;
-  if v_account.closed_on is not null then
+  if exists (
+    select 1 from public.resident_personal_fund_account_closures c
+    where c.personal_fund_account_id = v_account.id
+  ) then
     raise exception 'This personal funds account is already closed' using errcode = '55000';
   end if;
 
@@ -399,11 +482,14 @@ begin
     ) returning * into v_txn;
   end if;
 
-  update public.resident_personal_fund_accounts
-  set closed_on = (p_transaction_at at time zone 'America/New_York')::date,
-      closed_reason = v_purpose || ' (received by ' || v_recipient || ')',
-      closed_by = auth.uid()
-  where id = v_account.id;
+  insert into public.resident_personal_fund_account_closures (
+    organization_id, facility_id, resident_id, personal_fund_account_id,
+    closed_on, amount_returned, recipient, purpose, final_transaction_id, closed_by
+  ) values (
+    v_account.organization_id, v_account.facility_id, v_resident.id, v_account.id,
+    (p_transaction_at at time zone 'America/New_York')::date, v_balance,
+    v_recipient, v_purpose, v_txn.id, auth.uid()
+  );
 
   insert into public.audit_logs(organization_id, actor_profile_id, action, entity_type, entity_id, metadata)
   values (

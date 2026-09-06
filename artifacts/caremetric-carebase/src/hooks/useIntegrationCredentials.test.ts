@@ -23,9 +23,16 @@ function credential(overrides: Partial<IntegrationCredentialOption> = {}): Integ
 }
 
 describe("integration credential helpers", () => {
-  it("accepts medications:write or the commands:write superset", () => {
+  // The picker must offer exactly what save_medication_integration_source binds. It looks the
+  // credential up with `'medications:write' = any(c.scopes)` (20260714210309:278) and raises
+  // 42501 otherwise -- so a commands:write key, which the command INBOX accepts as a superset,
+  // is refused by the save and must not appear in the dialog.
+  it("accepts only medications:write -- the scope the save RPC binds", () => {
     expect(credentialSupportsMedicationWrite(credential())).toBe(true);
-    expect(credentialSupportsMedicationWrite(credential({ scopes: ["commands:write"] }))).toBe(true);
+    expect(credentialSupportsMedicationWrite(credential({ scopes: ["commands:write"] }))).toBe(false);
+    expect(
+      credentialSupportsMedicationWrite(credential({ scopes: ["commands:write", "medications:write"] })),
+    ).toBe(true);
     expect(credentialSupportsMedicationWrite(credential({ scopes: ["webhooks:read"] }))).toBe(false);
   });
 

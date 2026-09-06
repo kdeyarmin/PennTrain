@@ -74,6 +74,10 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { summarizeClassAttendance } from "@/lib/classAttendance";
+import {
+  describeTrainingClassWriteBlock, trainingClassWriteBlock,
+} from "@/lib/trainingClassPermissions";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { errorText } from "@/lib/errorText";
 import { SessionRosterCard } from "@/components/training/SessionRosterCard";
 import { absoluteAppUrl } from "@/lib/appUrl";
@@ -340,6 +344,26 @@ export default function ClassDetail() {
   const canCorrectCompleted = cls?.status === "completed"
     && ["platform_admin", "org_admin"].includes(user?.role ?? "");
 
+  // Whether `training_classes_write` will accept this caller at all (BACKLOG.md J30). The policy
+  // shows a trainer their own cross-facility class through training_classes_select and then
+  // refuses every write to it, because its trainer branch requires `facility_id is not null`. The
+  // page cannot lift that, but it can say so once, up front, instead of letting the person work
+  // through the roster and meet a raw row-level-security error on the button at the end.
+  const { data: myFacilityAssignments } = useListMyFacilityAssignments(
+    user?.id,
+    user?.role === "facility_manager" || user?.role === "trainer",
+  );
+  const assignedFacilityIds = useMemo(
+    () => new Set((myFacilityAssignments ?? []).map((assignment) => assignment.facility_id)),
+    [myFacilityAssignments],
+  );
+  const writeBlock = cls
+    ? trainingClassWriteBlock(
+      { facility_id: cls.facility_id, trainer_profile_id: cls.trainer_profile_id },
+      { role: user?.role, profileId: user?.id, assignedFacilityIds },
+    )
+    : null;
+
   const existingEmpIds = new Set(allAttendees.map((a) => a.employee_id));
   const availableEmployees = (allEmployees ?? []).filter((e) => !existingEmpIds.has(e.id));
   const filteredEmployees = availableEmployees.filter((e) => {
@@ -598,6 +622,18 @@ export default function ClassDetail() {
 
   return (
     <div className="space-y-6">
+      {writeBlock && (
+        <div
+          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+          role="status"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">You cannot make changes to this session.</p>
+            <p>{describeTrainingClassWriteBlock(writeBlock)}</p>
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -805,6 +841,10 @@ export default function ClassDetail() {
               classId={classId}
               classStatus={cls?.status}
               capacity={cls?.capacity}
+              classDate={cls?.class_date}
+              startsAt={cls?.starts_at}
+              endsAt={cls?.ends_at}
+              durationHours={cls?.duration_hours}
               employees={(allEmployees ?? []).map((employee) => ({
                 id: employee.id,
                 name: `${employee.first_name} ${employee.last_name}`,

@@ -31,6 +31,7 @@ import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import { useListAdministratorProfiles, useListAdministratorCeEntriesByOrganization } from "@/hooks/useAdministratorProfiles";
 import { buildBestAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
 import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
+import { summarizeCurrentTrainingCompliance } from "@/lib/complianceScore";
 import { facilityToday } from "@/lib/dateUtils";
 import { buildSpecialCareComplianceSummary } from "@/lib/specialCareCompliance";
 import { FacilityLicensingWorkspace } from "@/components/facilities/FacilityLicensingWorkspace";
@@ -60,7 +61,6 @@ const EMPTY_FORM: FacilityFormData = {
   isActive: true, defaultCareResponsibleParty: "", defaultCareFrequency: "",
 };
 
-const RELEVANT_STATUSES = new Set(["compliant", "due_soon", "expired", "missing"]);
 
 export default function FacilityDetail() {
   const __fieldIds = useId();
@@ -169,9 +169,14 @@ export default function FacilityDetail() {
   // Renewal cycles insert fresh training rows and leave prior ones "expired"; the
   // facility compliance picture must only grade the current record per requirement.
   const currentTrainingRecords = useMemo(() => selectCurrentTrainingRecords(trainingRecords ?? []), [trainingRecords]);
-  const relevantRecords = currentTrainingRecords.filter(r => RELEVANT_STATUSES.has(r.status));
-  const compliantCount = relevantRecords.filter(r => r.status === "compliant").length;
-  const compliancePct = relevantRecords.length > 0 ? Math.round((compliantCount / relevantRecords.length) * 100) : 100;
+  // The score itself comes from the one shared definition rather than an inline copy of it. The
+  // copy that used to live here counted the same four statuses and rounded the same way, which is
+  // exactly how the Dashboard and the Reports summary drifted apart on the server side
+  // (BACKLOG.md J80).
+  const compliance = useMemo(
+    () => summarizeCurrentTrainingCompliance(trainingRecords ?? []),
+    [trainingRecords],
+  );
   const dueSoonRecords = currentTrainingRecords.filter(r => r.status === "due_soon");
   const expiredRecords = currentTrainingRecords.filter(r => r.status === "expired");
   const administratorEvaluation = useMemo(() => {
@@ -537,7 +542,7 @@ export default function FacilityDetail() {
               <Skeleton className="h-16" />
             ) : recordsError ? (
               <QueryError what="training compliance" error={recordsErrorDetail} onRetry={() => void refetchRecords()} />
-            ) : relevantRecords.length === 0 ? (
+            ) : compliance.total === 0 ? (
               <div className="text-center py-6 text-muted-foreground">
                 <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-40" />
                 <p className="text-sm">No training requirements tracked for this facility yet.</p>
@@ -545,8 +550,8 @@ export default function FacilityDetail() {
             ) : (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-3xl font-bold">{compliancePct}%</p>
-                  <p className="text-xs text-muted-foreground">{compliantCount} of {relevantRecords.length} requirements compliant</p>
+                  <p className="text-3xl font-bold">{compliance.compliancePercentage}%</p>
+                  <p className="text-xs text-muted-foreground">{compliance.compliant} of {compliance.total} requirements compliant</p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground space-y-0.5">
                   <p>{dueSoonRecords.length} due soon</p>

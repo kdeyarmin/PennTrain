@@ -180,12 +180,24 @@ Deno.serve(async (req: Request) => {
 
     let resident: { id: string; facility_id: string; organization_id: string } | null = null;
     if (!rowErrors.length) {
+      // BACKLOG J39. `residents.external_id` (20260906130000) is the source system's identifier.
+      // `preferred_name` is checked only as a documented fallback, for residents imported before
+      // that column existed, when the identifier was stashed there as `import:{id}` -- a field
+      // printed on the face sheet and freely editable, which is why it stopped being the carrier.
       const { data } = await callerClient.from("residents").select("id, facility_id, organization_id")
         .eq("organization_id", effectiveOrgId)
-        .eq("preferred_name", `import:${externalId}`)
+        .eq("external_id", externalId)
         .limit(1).maybeSingle();
-      if (!data) rowErrors.push(`Unknown resident_external_id: ${externalId} (expected preferred_name import:{id})`);
-      else resident = data;
+      let match = data;
+      if (!match) {
+        const legacy = await callerClient.from("residents").select("id, facility_id, organization_id")
+          .eq("organization_id", effectiveOrgId)
+          .eq("preferred_name", `import:${externalId}`)
+          .limit(1).maybeSingle();
+        match = legacy.data;
+      }
+      if (!match) rowErrors.push(`Unknown resident_external_id: ${externalId} (import residents first with a matching external_id)`);
+      else resident = match;
     }
 
     let existing: any = null;

@@ -15,6 +15,8 @@ export type ResidentPersonalFundTransaction =
   Tables<"resident_personal_fund_transactions">;
 export type ResidentPersonalFundReconciliation =
   Tables<"resident_personal_fund_reconciliations">;
+export type ResidentPersonalFundAccountClosure =
+  Tables<"resident_personal_fund_account_closures">;
 export type ResidentFinancialHistory = Tables<"resident_financial_history">;
 
 export type ResidentPersonalFundPayeeProfile =
@@ -26,6 +28,13 @@ export interface FinancialWorkspace {
   transactions: ResidentFinancialTransaction[];
   statements: ResidentFinancialStatement[];
   fundAccount: ResidentPersonalFundAccount | null;
+  /**
+   * The settlement record, once the account has been closed. It is a row in its own append-only
+   * table rather than a column on the account, because `resident_personal_fund_accounts` carries
+   * `prevent_phase5_evidence_mutation` on BEFORE UPDATE with no escape hatch -- stamping a
+   * closed_on onto it would raise 55000 for everybody, definer included (20260906140000).
+   */
+  fundClosure: ResidentPersonalFundAccountClosure | null;
   payeeProfile: ResidentPersonalFundPayeeProfile | null;
   fundTransactions: Array<
     ResidentPersonalFundTransaction & {
@@ -77,6 +86,7 @@ export function useResidentFinancialWorkspace(residentId?: string) {
         transactions,
         statements,
         fundAccount,
+        fundClosure,
         payeeProfile,
         fundTransactions,
         reconciliations,
@@ -107,6 +117,11 @@ export function useResidentFinancialWorkspace(residentId?: string) {
           .order("period_end", { ascending: false }),
         supabase
           .from("resident_personal_fund_accounts")
+          .select("*")
+          .eq("resident_id", id)
+          .maybeSingle(),
+        supabase
+          .from("resident_personal_fund_account_closures")
           .select("*")
           .eq("resident_id", id)
           .maybeSingle(),
@@ -166,6 +181,7 @@ export function useResidentFinancialWorkspace(residentId?: string) {
         transactions,
         statements,
         fundAccount,
+        fundClosure,
         payeeProfile,
         fundTransactions,
         reconciliations,
@@ -180,6 +196,7 @@ export function useResidentFinancialWorkspace(residentId?: string) {
         transactions: transactions.data ?? [],
         statements: statements.data ?? [],
         fundAccount: fundAccount.data,
+        fundClosure: fundClosure.data as ResidentPersonalFundAccountClosure | null,
         payeeProfile:
           payeeProfile.data as ResidentPersonalFundPayeeProfile | null,
         fundTransactions: (fundTransactions.data ??
@@ -189,6 +206,116 @@ export function useResidentFinancialWorkspace(residentId?: string) {
         agreementVersions: (agreements.data ??
           []) as unknown as FinancialWorkspace["agreementVersions"],
         documents: documents.data ?? [],
+      };
+    },
+  });
+}
+
+/**
+ * Discharged and deceased residents whose personal-funds account is still open (BACKLOG.md J37).
+ *
+ * The resident picker on this page lists `status: "active"` residents, which is right for
+ * everything else on it -- and is exactly why a discharged resident's money became unreachable the
+ * moment their status changed. Their ledger was intact; nothing on any screen could select them to
+ * see it, let alone return it. These are the accounts a facility owes somebody.
+ */
+export interface UnsettledFundAccount {
+  accountId: string;
+  accountNumber: string;
+  residentId: string;
+  residentName: string;
+  room: string | null;
+  residentStatus: string;
+  /** The ledger's own current balance, or null when it could not be read for this account. */
+  balance: number | null;
+}
+
+/**
+ * The cap on how many such accounts this displays. Settlement is meant to happen within weeks of a
+ * discharge, so a facility carrying more than this has a backlog rather than a page-size problem --
+ * and the page says so instead of issuing an unbounded fan-out of balance reads.
+ */
+export const UNSETTLED_FUND_ACCOUNT_LIMIT = 50;
+
+/**
+ * How many ended-residency accounts are considered before the settled ones are subtracted. Larger
+ * than the display cap because closures accumulate: every account settled at this facility is still
+ * an account belonging to a discharged resident, and PostgREST cannot anti-join them away in the
+ * first query.
+ */
+const UNSETTLED_FUND_ACCOUNT_SCAN = 300;
+
+export function useUnsettledPersonalFundAccounts(facilityId?: string) {
+  return useQuery({
+    queryKey: ["resident-financial-operations", "unsettled-funds", facilityId],
+    enabled: !!facilityId,
+    queryFn: async (): Promise<{ accounts: UnsettledFundAccount[]; truncated: boolean }> => {
+      const { data, error } = await supabase
+        .from("resident_personal_fund_accounts")
+        .select(
+          "id, account_number, resident_id, beginning_balance, resident:residents!inner(id, first_name, last_name, room, status)",
+        )
+        .eq("facility_id", facilityId!)
+        .in("resident.status", ["discharged", "deceased"])
+        .order("account_number")
+        .limit(UNSETTLED_FUND_ACCOUNT_SCAN + 1);
+      if (error) throw error;
+      const candidates = (data ?? []) as unknown as Array<{
+        id: string;
+        account_number: string;
+        resident_id: string;
+        beginning_balance: number | string;
+        resident: { first_name: string; last_name: string; room: string | null; status: string };
+      }>;
+      const scanTruncated = candidates.length > UNSETTLED_FUND_ACCOUNT_SCAN;
+      const scanned = candidates.slice(0, UNSETTLED_FUND_ACCOUNT_SCAN);
+
+      // Settlement is a row in resident_personal_fund_account_closures, not a column on the
+      // account: the account row carries prevent_phase5_evidence_mutation on BEFORE UPDATE, so
+      // there is nothing on it to stamp (20260906140000).
+      const closed = new Set<string>();
+      if (scanned.length > 0) {
+        const closures = await supabase
+          .from("resident_personal_fund_account_closures")
+          .select("personal_fund_account_id")
+          .in("personal_fund_account_id", scanned.map((row) => row.id));
+        if (closures.error) throw closures.error;
+        for (const row of (closures.data ?? []) as Array<{ personal_fund_account_id: string }>) {
+          closed.add(row.personal_fund_account_id);
+        }
+      }
+      const rows = scanned.filter((row) => !closed.has(row.id));
+      const truncated = scanTruncated || rows.length > UNSETTLED_FUND_ACCOUNT_LIMIT;
+      const visible = rows.slice(0, UNSETTLED_FUND_ACCOUNT_LIMIT);
+      // One `limit(1)` read per account rather than one `in(...)` read across all of them: a
+      // shared ordered page can drop an account off the end entirely, and a balance that is
+      // silently absent -- or worse, another account's -- is not something to risk on money. The
+      // fan-out is bounded by the cap above.
+      const balances = await Promise.all(visible.map(async (row) => {
+        const latest = await supabase
+          .from("resident_personal_fund_transactions")
+          .select("balance_after")
+          .eq("personal_fund_account_id", row.id)
+          .order("transaction_at", { ascending: false })
+          .order("posted_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (latest.error) return null;
+        const balanceAfter = (latest.data as { balance_after: number | string } | null)?.balance_after;
+        return Number(balanceAfter ?? row.beginning_balance ?? 0);
+      }));
+      return {
+        truncated,
+        accounts: visible.map((row, index) => ({
+          accountId: row.id,
+          accountNumber: row.account_number,
+          residentId: row.resident_id,
+          residentName: `${row.resident.last_name}, ${row.resident.first_name}`,
+          room: row.resident.room,
+          residentStatus: row.resident.status,
+          balance: balances[index],
+        })),
       };
     },
   });
@@ -328,5 +455,32 @@ export const useUpsertResidentPersonalFundPayeeProfile = rpcMutation(
     supabase.rpc("upsert_resident_personal_fund_payee_profile", {
       p_resident_id: input.residentId,
       p_profile: input.profile,
+    }),
+);
+
+/**
+ * Settle and close a discharged or deceased resident's personal-funds account (BACKLOG.md J37).
+ *
+ * `close_resident_personal_fund_account` posts a `final_disbursement` for the whole remaining
+ * balance -- the terminal transaction kind the ledger did not have, so until it existed there was
+ * no movement in the product that could return the money -- and stamps `closed_on`,
+ * `closed_reason` and `closed_by`. A zero balance closes the account without posting anything, and
+ * the return value is then null.
+ *
+ * `p_receipt_document_id` is deliberately omitted rather than sent as null: the RPC defaults it,
+ * and a receipt is attached to the ledger the same way every other funds entry attaches one.
+ */
+export const useCloseResidentPersonalFundAccount = rpcMutation(
+  (input: {
+    residentId: string;
+    purpose: string;
+    recipient: string;
+    transactionAt: string;
+  }) =>
+    supabase.rpc("close_resident_personal_fund_account", {
+      p_resident_id: input.residentId,
+      p_purpose: input.purpose,
+      p_recipient: input.recipient,
+      p_transaction_at: input.transactionAt,
     }),
 );

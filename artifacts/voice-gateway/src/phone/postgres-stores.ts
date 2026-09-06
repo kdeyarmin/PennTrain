@@ -16,7 +16,29 @@
 // Postgres connection to a state-only database. Rows hold the caller's
 // E.164 (needed for the handoff) but live for minutes at most — the sweep
 // deletes them, and nothing here is ever logged in full.
+//
+// NO LIVE END-USER JWT IS WRITTEN TO THIS DATABASE. The browser pending-session
+// row used to hold `jwt text NOT NULL` verbatim: claim only stamped claimed_at
+// and the sweep deleted rows an HOUR after expiry, so a token that authenticates
+// as its owner against Supabase for the rest of its life sat in the Railway
+// plugin's storage — a credential at rest, outside the BAA'd path, that nothing
+// rotates and no revocation reaches. What the row holds now is a REFERENCE:
+//
+//   - the primary key is sha256(sessionId), never the ticket itself, so the row
+//     does not even name the id that opens it;
+//   - the token is AES-256-GCM ciphertext under a key derived from that same
+//     ticket by HKDF, so a copy of the table decrypts to nothing — the key
+//     exists only in the URL held by the browser that just authenticated, and
+//     in this process's memory while it serves the upgrade;
+//   - claim is DELETE ... RETURNING, so the ciphertext is gone the instant the
+//     WebSocket connects, and the sweep removes unclaimed rows AT expiry (60s),
+//     not an hour after it.
+//
+// Cross-instance claim-once is unchanged — that is what this table is for, and a
+// memory-only store would have broken browser voice on every replica that did
+// not mint the ticket.
 
+import crypto from "node:crypto";
 import pg from "pg";
 import {
   DEFAULT_PHONE_STORE_TTLS,
@@ -64,13 +86,33 @@ CREATE TABLE IF NOT EXISTS voice_gateway.transfer_actions (
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL
 );
+-- One-time removal of the legacy shape, which stored the session id and the
+-- end user's JWT in the clear. Dropping the table is also how any token still
+-- sitting in an existing deployment is purged: these rows are 60-second
+-- handoff tickets whose documented failure cost is one click to retry, so
+-- there is nothing here worth migrating.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'voice_gateway'
+       AND table_name = 'pending_sessions'
+       AND column_name = 'jwt'
+  ) THEN
+    DROP TABLE voice_gateway.pending_sessions;
+  END IF;
+END
+$$;
 CREATE TABLE IF NOT EXISTS voice_gateway.pending_sessions (
-  session_id text PRIMARY KEY,
+  -- sha256(sessionId). The ticket itself is never stored: a UUIDv4 has 122 bits
+  -- behind this hash, so the row cannot be turned back into the key below.
+  session_lookup text PRIMARY KEY,
   app_id text NOT NULL,
   user_id text NOT NULL,
   role text NOT NULL,
   facility_id text,
-  jwt text NOT NULL,
+  -- AES-256-GCM under HKDF(sessionId). Undecryptable without the ticket.
+  jwt_ciphertext text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL,
   claimed_at timestamptz
@@ -101,6 +143,62 @@ CREATE INDEX IF NOT EXISTS session_spans_phone_from_idx
 `;
 
 const SWEEP_INTERVAL_MS = 60_000;
+
+// ---------------------------------------------------------------------------
+// Pending-session token sealing
+// ---------------------------------------------------------------------------
+// The session id is the only secret involved, and it never touches the table:
+// the row is keyed by its hash and the token is sealed under a key derived from
+// it. Distinct HKDF `info` strings keep the lookup hash and the encryption key
+// from being the same function of the same input.
+
+const SEAL_INFO = Buffer.from("voice-gateway/pending-session/jwt-key");
+const LOOKUP_INFO = Buffer.from("voice-gateway/pending-session/lookup");
+// A per-deployment salt would be one more secret to hold and rotate; HKDF's
+// salt is not required to be secret, and the input already carries 122 bits.
+const HKDF_SALT = Buffer.from("voice-gateway/pending-session");
+
+function sessionLookup(sessionId: string): string {
+  return crypto
+    .createHash("sha256")
+    .update(Buffer.concat([LOOKUP_INFO, Buffer.from(sessionId, "utf8")]))
+    .digest("hex");
+}
+
+function sealKey(sessionId: string): Buffer {
+  return Buffer.from(
+    crypto.hkdfSync("sha256", Buffer.from(sessionId, "utf8"), HKDF_SALT, SEAL_INFO, 32),
+  );
+}
+
+/** iv(12) | tag(16) | ciphertext, base64. */
+export function sealPendingJwt(sessionId: string, jwt: string): string {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", sealKey(sessionId), iv);
+  const body = Buffer.concat([cipher.update(jwt, "utf8"), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), body]).toString("base64");
+}
+
+/** Null rather than throwing: a row that will not open is a dead ticket, and
+ *  the caller already treats "no pending session" as the ordinary refusal. */
+export function openPendingJwt(sessionId: string, sealed: string): string | null {
+  try {
+    const raw = Buffer.from(sealed, "base64");
+    if (raw.length <= 28) return null;
+    const decipher = crypto.createDecipheriv(
+      "aes-256-gcm",
+      sealKey(sessionId),
+      raw.subarray(0, 12),
+    );
+    decipher.setAuthTag(raw.subarray(12, 28));
+    return Buffer.concat([
+      decipher.update(raw.subarray(28)),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    return null;
+  }
+}
 
 export interface PostgresPhoneStoreOptions {
   /** Tests shrink these; production uses the defaults. */
@@ -219,8 +317,12 @@ class PostgresState {
   // transaction.
   async sweep(): Promise<void> {
     await this.ready;
+    // AT expiry, not an hour after it. The row is a 60-second handoff ticket
+    // and it holds sealed credential material; there is no reason to keep a
+    // spent one around, and the hour-long grace was the whole of the exposure
+    // window this store used to advertise.
     await this.pool.query(
-      `DELETE FROM voice_gateway.pending_sessions WHERE expires_at < now() - interval '1 hour'`,
+      `DELETE FROM voice_gateway.pending_sessions WHERE expires_at <= now()`,
     );
     await this.pool.query(
       `DELETE FROM voice_gateway.phone_call_starts WHERE started_at < now() - interval '25 hours'`,
@@ -367,16 +469,16 @@ class PostgresBrowserPendingStore implements PendingSessionStore {
     await this.state.ready;
     await this.state.pool.query(
       `INSERT INTO voice_gateway.pending_sessions
-         (session_id, app_id, user_id, role, facility_id, jwt, expires_at)
+         (session_lookup, app_id, user_id, role, facility_id, jwt_ciphertext, expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7 / 1000.0))
-       ON CONFLICT (session_id) DO NOTHING`,
+       ON CONFLICT (session_lookup) DO NOTHING`,
       [
-        entry.sessionId,
+        sessionLookup(entry.sessionId),
         entry.appId,
         entry.userId,
         entry.role,
         entry.facilityId,
-        entry.jwt,
+        sealPendingJwt(entry.sessionId, entry.jwt),
         entry.expiresAt,
       ],
     );
@@ -384,32 +486,38 @@ class PostgresBrowserPendingStore implements PendingSessionStore {
 
   async claim(sessionId: string): Promise<PendingSession | null> {
     await this.state.ready;
+    // DELETE ... RETURNING, not UPDATE claimed_at. It is still exactly one
+    // atomic statement, so claim-once still holds across instances — but the
+    // sealed token leaves the database the moment the socket that needs it
+    // connects, instead of lingering for the sweep to find.
     const result = await this.state.pool.query<{
-      session_id: string;
       app_id: string;
       user_id: string;
       role: string;
       facility_id: string | null;
-      jwt: string;
+      jwt_ciphertext: string;
       expires_at: Date;
     }>(
-      `UPDATE voice_gateway.pending_sessions
-          SET claimed_at = now()
-        WHERE session_id = $1
+      `DELETE FROM voice_gateway.pending_sessions
+        WHERE session_lookup = $1
           AND claimed_at IS NULL
           AND expires_at > now()
-        RETURNING session_id, app_id, user_id, role, facility_id, jwt, expires_at`,
-      [sessionId],
+        RETURNING app_id, user_id, role, facility_id, jwt_ciphertext, expires_at`,
+      [sessionLookup(sessionId)],
     );
     const row = result.rows[0];
     if (!row) return null;
+    const jwt = openPendingJwt(sessionId, row.jwt_ciphertext);
+    // Unopenable ciphertext means the row was not sealed by this ticket. Treat
+    // it as no ticket at all rather than starting an identity-less session.
+    if (jwt === null) return null;
     return {
-      sessionId: row.session_id,
+      sessionId,
       appId: row.app_id,
       userId: row.user_id,
       role: row.role,
       facilityId: row.facility_id,
-      jwt: row.jwt,
+      jwt,
       expiresAt: row.expires_at.getTime(),
     };
   }

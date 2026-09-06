@@ -236,18 +236,29 @@ begin
   where n.nspname = 'public' and p.proname = 'resolve_survey_packet_guest_token';
   if v_def is null then raise exception 'public.resolve_survey_packet_guest_token is missing'; end if;
 
-  if position('assert_guest_request_allowed' in v_def) > 0 then
+  if position('guest_request_denial' in v_def) > 0 then
     raise notice 'resolve_survey_packet_guest_token already calls the guest gate';
   else
     v_old := '  if length(coalesce(p_token, '''')) < 32 then';
-    v_new := '  -- BACKLOG J61. The gate has had a survey_packet_guest branch since it was written and no
+    v_new := $patch$  -- BACKLOG J61. The gate has had a survey_packet_guest branch since it was written and no
   -- caller, so this was the one guest surface with no rate limit, no organization-suspension
-  -- check, and no record of a token that resolved to nothing: a suspended organization''''s survey
+  -- check, and no record of a token that resolved to nothing: a suspended organization's survey
   -- packet still downloaded while its evidence-room link was refused. It goes FIRST, before the
   -- length test, so a caller guessing tokens is counted whatever shape the guess has.
-  perform public.assert_guest_request_allowed(''survey_packet_guest'', p_token);
+  --
+  -- Through guest_request_denial, the VALUE-returning gate 20260905360000 replaced
+  -- assert_guest_request_allowed with: a function whose contract is "abort the transaction" loses
+  -- the throttle counters it just wrote. This function's caller is the download worker rather
+  -- than the guest, so the denial comes back in its own {allowed,reason} shape.
+  declare v_guest_denial text;
+  begin
+    v_guest_denial := public.guest_request_denial('survey_packet_guest', p_token);
+    if v_guest_denial is not null then
+      return jsonb_build_object('allowed', false, 'reason', 'denied', 'message', v_guest_denial);
+    end if;
+  end;
 
-  if length(coalesce(p_token, '''')) < 32 then';
+  if length(coalesce(p_token, '')) < 32 then$patch$;
     if position(v_old in v_def) = 0 then
       raise exception 'resolve_survey_packet_guest_token no longer contains the token-length test this migration patches';
     end if;
@@ -258,7 +269,7 @@ $do$;
 
 comment on function public.resolve_survey_packet_guest_token(text) is
   'Resolves a survey-packet guest download token for the worker. Goes through '
-  'assert_guest_request_allowed first, like every other guest surface -- rate limit, '
+  'guest_request_denial first, like every other guest surface -- rate limit, '
   'organization-suspension check, and a recorded failure for a token that resolves to nothing. '
   'Before BACKLOG J61 it was the only guest surface the gate did not cover, so a suspended '
   'organization''s packet link still downloaded.';

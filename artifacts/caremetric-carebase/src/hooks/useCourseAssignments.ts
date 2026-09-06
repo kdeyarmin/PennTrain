@@ -279,3 +279,68 @@ export function useUpsertCourseProgress() {
     },
   });
 }
+
+/**
+ * A learner who fails the final assessment on their last allowed attempt is stuck, and so is the
+ * annual requirement behind them (BACKLOG.md J2).
+ *
+ * `enforce_quiz_attempt_cap` (20260706181240) caps quiz_attempts inserts at `quizzes.max_attempts`
+ * server-side, the published quiz version is immutable, Mark Complete is hidden for a
+ * `comprehensive` version and refused by `complete_course_assignment`, and
+ * `protect_course_assignment_fields` (20260704073252) reverts any plain client status write. So
+ * nothing in the product could either give the learner another try or retire the dead assignment --
+ * and `course_assignments_one_open_per_course_idx` (20260905060000) refuses a replacement while
+ * the dead one is still open, which is what also froze the annual retraining cycle.
+ *
+ * These two are the way out, and both are manager actions with a required reason so the grant or
+ * the cancellation is auditable rather than silent.
+ */
+export function useGrantAdditionalQuizAttempt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ assignmentId, reason }: { assignmentId: string; reason: string }) => {
+      const { data, error } = await supabase.rpc("grant_additional_quiz_attempt", {
+        p_assignment_id: assignmentId,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+      // TakeQuiz decides "attempts exhausted" from the attempt rows it has loaded against
+      // quizzes.max_attempts, so both have to be refetched before the learner's Retake button
+      // comes back -- invalidating only the assignment leaves the dead end on screen.
+      queryClient.invalidateQueries({ queryKey: ["quiz_attempts"] });
+      queryClient.invalidateQueries({ queryKey: ["quizzes"] });
+    },
+  });
+}
+
+/**
+ * Cancelling frees `course_assignments_one_open_per_course_idx` so a replacement assignment can be
+ * created for the same (employee, course) -- the index treats `canceled` as closed, exactly as it
+ * treats `completed`. The reason is not optional: the table's check constraint requires
+ * `canceled_at` and `cancellation_reason` together, and the RPC supplies both.
+ */
+export function useCancelCourseAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ assignmentId, reason }: { assignmentId: string; reason: string }) => {
+      const { data, error } = await supabase.rpc("cancel_course_assignment", {
+        p_assignment_id: assignmentId,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["course_progress"] });
+      // A cancelled assignment stops counting as outstanding training, which moves the same
+      // compliance surfaces complete_course_assignment refreshes.
+      queryClient.invalidateQueries({ queryKey: ["training_records"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+  });
+}

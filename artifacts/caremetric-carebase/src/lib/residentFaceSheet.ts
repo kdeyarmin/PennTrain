@@ -59,6 +59,12 @@ export function buildResidentFaceSheetPacket({
       { label: "Status", value: humanize(resident.status) },
       { label: "Date of Birth", value: formatDateOnly(resident.date_of_birth) },
       { label: "Preferred Name", value: blank(resident.preferred_name) },
+      // The identifier this resident carries in the system they were imported from. It used to be
+      // written into `preferred_name` as `import:{id}` by the bulk resident import, so this line
+      // and the title above both printed a machine key where a nickname belongs, and editing the
+      // nickname broke re-import matching (BACKLOG.md J39). `residents.external_id` is its own
+      // column now: shown, never editable, and never a name.
+      { label: "Source System ID", value: blank(resident.external_id) },
       { label: "Room", value: blank(resident.room) },
       { label: "Admission Date", value: formatDateOnly(resident.admission_date) },
       { label: "Admission Track", value: humanize(resident.admission_track) },

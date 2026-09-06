@@ -25,7 +25,7 @@ import {
   useResidentClinicalObservations,
   useSetResidentClinicalDataConsent,
 } from "@/hooks/useClinicalObservations";
-import { useResidentFhirClinical } from "@/hooks/useFhirIntegration";
+import { useResidentFhirClinical, useResidentFhirWritebackTarget } from "@/hooks/useFhirIntegration";
 import { ResidentCareDocumentation } from "@/components/residents/ResidentCareDocumentation";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -67,6 +67,29 @@ export default function ResidentClinicalChart() {
   const canChart = ["platform_admin", "org_admin", "facility_manager", "employee"].includes(user?.role ?? "");
   const canManageConsent = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const disclosureAllowed = resident.data?.clinical_data_consent === "granted";
+  // Write-back is offered only where it can actually happen. Two separate gates, both real:
+  //
+  //  1. ROLE. 20260725170000 granted `clinical.integration.writeback` to the platform_admin,
+  //     org_admin and facility_manager role templates only, and
+  //     `queue_clinical_observation_writeback` runs `assert_clinical_integration_scope` against it.
+  //     An `employee` is inside `canChart`, so every carer saw a button that answers 42501
+  //     ("Clinical integration access denied") every single time.
+  //  2. TARGET. The same RPC refuses unless the resident has an active patient mapping to a source
+  //     that is `status = 'active'` AND `writeback_enabled`. Nothing in the product turns
+  //     `writeback_enabled` on -- the column defaults false, `save_fhir_integration_source` does
+  //     not write it, and `fhir_integration_sources` has no update policy -- so this is normally
+  //     null and the action stays out of the way instead of promising an EHR delivery that the
+  //     server refuses and the drain could not authenticate anyway (see FhirIntegration.tsx).
+  const canRequestWriteback = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const writebackTarget = useResidentFhirWritebackTarget(id, canRequestWriteback);
+  // No target means the action cannot work at all, and a permanently disabled button says so only
+  // in a `title` the shadcn Button suppresses (`disabled:pointer-events-none`) -- so the reason is
+  // stated once, in the tab, and the per-row action is simply not offered. Consent is different:
+  // it is a state a manager can change today, so that stays a disabled button with the reason on a
+  // wrapper span, which does receive pointer events.
+  const writebackOffered = canRequestWriteback && Boolean(writebackTarget.data);
+  const writebackUnavailable =
+    canRequestWriteback && !writebackTarget.isLoading && !writebackTarget.data;
 
   const [recordOpen, setRecordOpen] = useState(false);
   const [observationType, setObservationType] = useState<ObservationType>("blood_pressure");
@@ -473,6 +496,19 @@ export default function ResidentClinicalChart() {
         </TabsContent>
 
         <TabsContent value="vitals" className="space-y-3">
+          {/* Said once, where it is true, instead of a "Send to EHR" button on every observation
+              that the server refuses. See the writebackOffered comment above for both gates. */}
+          {writebackUnavailable && (
+            <Alert>
+              <DatabaseZap className="h-4 w-4" />
+              <AlertTitle>Write-back to an EHR is not available for this resident</AlertTitle>
+              <AlertDescription>
+                No connected FHIR source that this resident is mapped to is enabled for outbound
+                write-back, and write-back cannot currently be enabled from CareBase. Observations
+                recorded here stay in CareBase; see <Link href="/app/fhir-integration" className="underline">FHIR Integration</Link>.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex justify-end">
             <Button
               size="sm"
@@ -528,19 +564,24 @@ export default function ResidentClinicalChart() {
                         vital to the resident's EHR is the opposite of what the retraction meant. */}
                     {canChart && !observation.entered_in_error && (
                       <div className="flex flex-wrap items-center gap-1">
-                        <Button
-                          size="sm" variant="ghost" className="text-muted-foreground"
-                          disabled={queueWriteback.isPending || !disclosureAllowed}
-                          title={disclosureAllowed ? undefined : "Requires granted clinical data consent"}
-                          onClick={() => queueWriteback.mutate({ residentId: id!, observationId: observation.id }, {
-                            onSuccess: () => toast({ title: "Queued for write-back", description: "It will be sent to the resident's EHR on the next run." }),
-                            // The server refuses unless consent is granted and the resident has an active
-                            // mapping to a write-back-enabled FHIR source.
-                            onError: (error) => toast({ title: "Not queued", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
-                          })}
-                        >
-                          <Share2 className="mr-1 h-3.5 w-3.5" />Send to EHR
-                        </Button>
+                        {writebackOffered && (
+                          <span title={disclosureAllowed ? `Queue for delivery to ${writebackTarget.data?.sourceName}` : "Requires granted clinical data consent"}>
+                            <Button
+                              size="sm" variant="ghost" className="text-muted-foreground"
+                              disabled={queueWriteback.isPending || !disclosureAllowed}
+                              onClick={() => queueWriteback.mutate({ residentId: id!, observationId: observation.id }, {
+                                // Queued, not delivered: the drain records the outcome per row, so
+                                // the toast must not claim an arrival it cannot know about.
+                                onSuccess: () => toast({ title: "Queued for write-back", description: `Delivery to ${writebackTarget.data?.sourceName ?? "the connected EHR"} is attempted on the next write-back run; a failure is recorded against the source.` }),
+                                // The server refuses unless consent is granted and the resident has an active
+                                // mapping to a write-back-enabled FHIR source.
+                                onError: (error) => toast({ title: "Not queued", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
+                              })}
+                            >
+                              <Share2 className="mr-1 h-3.5 w-3.5" />Send to EHR
+                            </Button>
+                          </span>
+                        )}
                         <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { setRetracting(observation); setRetractReason(""); }}>
                           <AlertTriangle className="mr-1 h-3.5 w-3.5" />Retract
                         </Button>
