@@ -38116,6 +38116,14 @@ export type Database = {
         Args: { p_employee_id: string; p_on?: string }
         Returns: Json
       }
+      export_organization_consent_withholding: {
+        Args: { p_organization_id: string }
+        Returns: {
+          rows_in_archive: number
+          rows_withheld: number
+          table_name: string
+        }[]
+      }
       export_organization_table: {
         Args: {
           p_after_id?: string
