@@ -54,14 +54,18 @@ rather than closed by a change that would have done nothing. All eighteen of J75
 settled, two of them by correcting the earlier row itself -- a reader of I7 has to meet the
 correction where the wrong sentence is, not only in a row that points at it.
 
-**Two things are still not closed, and the row says so.** `PA_CITATIONS_LAST_VERIFIED` is a
-person's attestation that they read the published regulation sources; the sources were re-read
-during SG-2 and the stamp was never moved, so moving it is a one-line change that belongs to whoever
-reads them. And a marketing video's narration still speaks a removed feature: its caption and script
-are corrected, but the audio needs re-rendering through a paid vendor account.
+**One thing is still not closed, and the row says so.** A marketing video's narration still speaks
+a removed feature: its caption and script are corrected, but the audio needs re-rendering through a
+paid vendor account.
 
-**The third is closed. Counsel approved the Privacy/Terms/agreement on 2026-09-06**, reported by the
-owner. That item was never an engineering question: whether the published documents name a legal
+**The other two closed on the owner's word, which is the only thing that could close either.**
+`PA_CITATIONS_LAST_VERIFIED` moved 2026-08-04 -> 2026-09-06 on the owner's statement that they read
+the two published PA sources. That constant asserts a PERSON read pacodeandbulletin.gov; no script
+may move it and nothing here infers it, which is why this pass left it open rather than stamping it.
+`check-dhs-sources.mjs` now reports both link sets resolving at a human verification age of 0 days,
+so the weekly workflow no longer goes red around 2026-09-18 for a reading that had been done, and
+both clocks next fall due 2026-10-21. **And counsel approved the Privacy/Terms/agreement on
+2026-09-06**, reported by the owner. That item was never an engineering question: whether the published documents name a legal
 entity, whether the BAA every signup accepts belongs in them, and which effective date governs are
 counsel's calls, and counsel has made them. No copy was changed on the strength of that approval --
 if the wording is to move, that is a fresh change carrying counsel's own text, not an inference from
