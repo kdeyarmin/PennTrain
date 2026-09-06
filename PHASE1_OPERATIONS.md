@@ -431,22 +431,55 @@ signature against the raw request URL, so if the runtime URL differs from the
 public one every status callback and every STOP is silently rejected. Send one
 signed test callback before you rely on delivery receipts.
 
-**H12 — DHS source re-attestation.** Overdue by more than the 45-day limit. All
-35 form links and both citation links resolve; what lapsed is a person reading
-the forms. Scope the work first:
+**H12 — DHS source re-attestation. Done 2026-09-06.** The forms were re-read and
+`DHS_FORMS_LAST_VERIFIED` re-stamped from 2026-07-13 to 2026-09-06, so
+`node scripts/check-dhs-sources.mjs` exits 0 at age 0 days and the weekly job goes
+green on the next run. `PA_CITATIONS_LAST_VERIFIED` is a separate stamp on its own
+45-day clock, sits at 2026-08-04, and falls due first — around 2026-09-18.
+
+**It comes back every 45 days, so the procedure stays here.** Scope the work first:
 
 ```
 node scripts/snapshot-dhs-sources.mjs
 ```
 
 It names which **form documents** changed since the last digest, so the review is
-those rather than all thirty-five. Index and table-of-contents pages are reported
-separately and routinely change; a change there is not evidence a form moved.
+those rather than all thirty-five. Table-of-contents pages are reported separately
+and routinely change; a change there is not evidence a form moved. A form served
+as a web page is reported as `FORM PAGE` — never as navigation — because nothing
+here can tell its site chrome moving from the form moving.
 Read the documents it names, then re-stamp `DHS_FORMS_LAST_VERIFIED` in
 `dhsFormsLibrary.ts` and re-run the digest with `--write`.
 
-An unchanged digest is not an attestation. The current baseline was taken
-2026-09-05 and says nothing about the window before it.
+It also reports each source's **origin write time** against the attestation date.
+The digest diff can only speak from the previous digest forward, which is no help
+on the first run after a lapse; pa.gov sends `Last-Modified` on every form PDF, so
+that reaches back behind the baseline into the window the digests missed. That is
+what scoped this pass: **0 of the 34 form PDFs written since 2026-07-13**, the
+newest write across those PDFs being 2025-12-04, so the reading was confirming
+they were static rather than opening each one.
+
+The 34 is the PDFs alone. The forms library holds 35 pa.gov sources — those 34
+plus **Application for Licensure**, which DHS serves as a web page rather than a
+PDF. That one is still a form, so the report names it under `FORM PAGE` and the
+review opens it by hand; its bytes and write time track the site rather than the
+form, so a diff on it is evidence neither way and it is excluded from the count
+rather than folded into it. Do not read "0 of 34 static" as covering it. The two
+`pacodeandbulletin.gov` citation sources are table-of-contents pages — navigation,
+not forms — and sit on their own stamp.
+
+Neither signal is the attestation, and the gate ignores both by design:
+
+- A write time is blind to a form **superseded at a different url** while the url
+  on file keeps serving the bytes it always had. The digest is blind to it too.
+  Only a person against the DHS index sees that, and it is the failure mode that
+  actually matters to a customer holding an obsolete form.
+- The two `pacodeandbulletin.gov` citation pages send no `Last-Modified` at all.
+  They record as `null`, which means unknown — never unchanged.
+- A digest says nothing about the window before it was taken.
+
+The stamp is the person's, never the tooling's. Nothing in the repository may move
+it — the scripts scope the reading and report; they do not attest.
 
 **H13 — The one non-demo organization.** `subscription_status = 'trial'`,
 `trial_ends_at` null, no BAA stamp, created the day the project was. Decide
