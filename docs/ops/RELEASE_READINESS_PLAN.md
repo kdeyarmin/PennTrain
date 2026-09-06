@@ -54,12 +54,18 @@ rather than closed by a change that would have done nothing. All eighteen of J75
 settled, two of them by correcting the earlier row itself -- a reader of I7 has to meet the
 correction where the wrong sentence is, not only in a row that points at it.
 
-**Three things are deliberately not closed, and the row says so.** The privacy and terms copy needs
-counsel. `PA_CITATIONS_LAST_VERIFIED` is a person's attestation that they read the published
-regulation sources; the sources were re-read during SG-2 and the stamp was never moved, so moving it
-is a one-line change that belongs to whoever reads them. And a marketing video's narration still
-speaks a removed feature: its caption and script are corrected, but the audio needs re-rendering
-through a paid vendor account. One further item was narrowed rather than closed -- a compliance
+**Two things are still not closed, and the row says so.** `PA_CITATIONS_LAST_VERIFIED` is a
+person's attestation that they read the published regulation sources; the sources were re-read
+during SG-2 and the stamp was never moved, so moving it is a one-line change that belongs to whoever
+reads them. And a marketing video's narration still speaks a removed feature: its caption and script
+are corrected, but the audio needs re-rendering through a paid vendor account.
+
+**The third is closed. Counsel approved the Privacy/Terms/agreement on 2026-09-06**, reported by the
+owner. That item was never an engineering question: whether the published documents name a legal
+entity, whether the BAA every signup accepts belongs in them, and which effective date governs are
+counsel's calls, and counsel has made them. No copy was changed on the strength of that approval --
+if the wording is to move, that is a fresh change carrying counsel's own text, not an inference from
+a sign-off. One further item was narrowed rather than closed -- a compliance
 requirement's label and evidence type now say what Pennsylvania actually requires, while its key is
 left alone, because every tenant's resolved profile references it and renaming it is a data
 migration rather than a copy change.
@@ -456,7 +462,7 @@ block ends with something observed, not something read.
 | 1 | **Close the dead ends** | J2 (exhausted attempts), J13 (incident closure), J19 (rehire/return), J17 (auto-fill), J18 (swap eligibility), J4 (plan activation), J3 (discharge through census) -- one PR per row, each with the test that would have caught it, verified on the clean stack | Every row `done` with its test named | M |
 | 2 | **Fix the clocks** | J5 (assessment completion date), J6 (import admission date), J15 (POC work-item due date); J7 and J8 (policy version rollover and campaign sweep); confirm the significant-change window and the written-report deadline with the owner's regulatory reading (I10 residual) | Every computed date traces to an entered date or a citation | M |
 | 3 | **The wall and the identity edges** | H10 (enrol MFA on both platform admins and rehearse lost-device) unblocks J11; then J10 (desktop reset control), J11 (eight-hour warning and shared error mapper), the demo-org exemption and the pre-call check from J14; seed `identity_security_policies` rows for the pilot organizations | A manager's day ends without a raw `42501` | S-M |
-| 4 | **Credentials, consoles and the decisions** | H11 (Auth toggles), B3 (SendGrid/Twilio secrets, one real email and one real SMS traced to `delivered`), H15 (restore once into a new project, time it), H13 (the non-demo organization is the seed fixture: mark it `is_demo` or delete it, and stop seeding production), H14 (write the AI posture and make `DEPLOYMENT.md` match; two of the four switches are on by seed, not by dashboard), J77 (suspension that survives the next Stripe event), the marketing decision behind J12, the legal-document consistency item for counsel (section 4.3) | Each observed, not remembered; `PHASE1_OPERATIONS.md` updated | S |
+| 4 | **Credentials, consoles and the decisions** | H11 (Auth toggles), B3 (SendGrid/Twilio secrets, one real email and one real SMS traced to `delivered`), H15 (restore once into a new project, time it), H13 (the non-demo organization is the seed fixture: mark it `is_demo` or delete it, and stop seeding production), H14 (write the AI posture and make `DEPLOYMENT.md` match; two of the four switches are on by seed, not by dashboard), J77 (suspension that survives the next Stripe event), the marketing decision behind J12, ~~the legal-document consistency item for counsel (section 4.3)~~ -- **counsel approved the agreement 2026-09-06** | Each observed, not remembered; `PHASE1_OPERATIONS.md` updated | S |
 | 5 | **P2 rows by area, in pilot order** | Resident care (J31, J32, J33, J34, J35, J36, J37) and workforce and scheduling (J65, J67, J68, J69, J71, J72, J66, J70, J73) first because the pilot is a personal-care home; then identity (J20, J21, J22, J23, J24, J81), Train (J25, J26, J27, J28, J29, J30), imports (J38, J39, J40), incidents and the work queue (J64, J60, J58, J63, J62), guest and public surfaces (J46, J47, J61, J48); the module-classification rows (J49, J50, J51, J52) only before a non-CareBase package is sold | Weekly review of the open P2 list | M |
 | 6 | **Full gate run and the canary** | `check:release` on the pinned toolchain; the `deploy-migrations` dry run; then W1 and WP1-WP8 from the earlier plans plus the WJ scripts in section 7 on the demo tenant | Every script passes with a transcript | S |
 | 7 | **First facility, then the fourteen days** | The onboarding runbook and daily checks in `PILOT_READINESS_PLAN.md` sections 8-9, unchanged | Section 8 below walked line by line | 14 days |
@@ -506,8 +512,9 @@ Go for the first facility requires every line, with evidence named in the BACKLO
 3. H10, H11, H13, H14, H15 and B3 closed as observed facts; one real email and one real SMS traced
    to `delivered`; a restore rehearsed and timed.
 4. WJ1-WJ15 and the earlier W1 / WP1-WP8 passed with transcripts.
-5. The marketing copy matches the product (J12 decided one way or the other) and counsel has seen
-   the Privacy/Terms/agreement consistency item.
+5. The marketing copy matches the product (J12 decided one way or the other). ~~and counsel has
+   seen the Privacy/Terms/agreement consistency item~~ -- **met 2026-09-06: counsel approved the
+   agreement.**
 6. Section 4.4's status corrections applied to the earlier rows.
 
 **No-go conditions during the pilot** are unchanged from `PILOT_READINESS_PLAN.md` section 10.
