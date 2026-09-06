@@ -183,13 +183,13 @@ const KNOWLEDGE_BASE: KnowledgeItem[] = [
   {
     intent: "staffing",
     priority: 2,
-    keywords: ["employee", "staff", "schedule", "shift", "credential", "clearance", "background", "exclusion", "role", "hire", "onboard", "workforce"],
+    keywords: ["employee", "staff", "schedule", "shift", "credential", "clearance", "background", "role", "hire", "onboard", "workforce"],
     title: "Workforce and credential guidance",
     answer:
       "Workforce questions usually require checking both the employee profile and the requirement that drives the task. Confirm the person, role, facility scope, schedule impact, and credential or screening status before assigning follow-up.",
     nextSteps: [
       "Open the employee profile to verify role, facility assignment, manager, and active status.",
-      "Check Credentials & Clearances, Background Checks, or Exclusion Screening for requirement-specific documentation.",
+      "Check Credentials & Clearances or Background Checks for requirement-specific documentation.",
       "Use Schedule or Workforce Operations when the issue affects coverage, shift handoff, or staffing readiness.",
     ],
     links: [

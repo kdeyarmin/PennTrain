@@ -13,7 +13,7 @@ export const PRODUCT_MODULES = [
     entitlementKey: "modules.workforce",
     name: "CareMetric Workforce",
     shortName: "Workforce",
-    description: "Credentialing, competencies, background and exclusion screening, scheduling, and practicums.",
+    description: "Credentialing, competencies, background checks, scheduling, and practicums.",
   },
   {
     id: "compliance",

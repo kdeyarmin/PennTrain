@@ -284,7 +284,7 @@ export default function WorkQueue() {
                   <SelectGroup key={category}>
                     <SelectLabel>{WORK_ITEM_CATEGORY_LABELS[category]}</SelectLabel>
                     {WORK_ITEM_SOURCE_TYPES
-                      .filter(entry => entry.category === category)
+                      .filter(entry => entry.category === category && entry.active !== false)
                       .map(entry => (
                         <SelectItem key={entry.key} value={entry.key}>{entry.label}</SelectItem>
                       ))}

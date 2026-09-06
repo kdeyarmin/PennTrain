@@ -121,6 +121,14 @@ async function main() {
   }
   // Report-only unless --apply. See the header: the default must never mutate production.
   const apply = process.argv.includes("--apply");
+  // Second belt against the workflow handing us --apply on a run that must not delete anything.
+  // The caller already decides this with an `if:` condition; this refuses if that ever regresses,
+  // because the failure mode is silent -- deletions on a run whose whole purpose is to change
+  // nothing, followed by a presence check that then looks clean.
+  if (apply && process.env.DRY_RUN === "true") {
+    console.error("Refusing --apply while DRY_RUN=true: a dry run must not delete anything.");
+    process.exit(1);
+  }
 
   const removed = readRemovedSlugs();
   if (!removed.length) {

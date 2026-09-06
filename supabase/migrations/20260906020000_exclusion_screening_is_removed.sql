@@ -892,6 +892,16 @@ update public.work_items
 set state = 'canceled', closed_at = coalesce(closed_at, now()), updated_at = now()
 where source_type = 'exclusion_match' and state not in ('closed', 'canceled');
 
+-- Retire the source type rather than delete it. Deleting is wrong three ways here: the canceled
+-- rows above still carry it and their history should stay readable; work_item_templates.source_type
+-- has a foreign key to this table; and app_private.classify_work_item_source() ADOPTS an unknown
+-- type rather than rejecting it (20260726120100, deliberately -- refusing means somebody's
+-- compliance task silently does not exist), so a deleted row would simply be re-registered with a
+-- generated label the next time anything used the key. Deactivating is what the column is for.
+update public.work_item_source_types
+set active = false
+where key = 'exclusion_match';
+
 ------------------------------------------------------------------------------------------------
 -- 5. The feature itself
 ------------------------------------------------------------------------------------------------

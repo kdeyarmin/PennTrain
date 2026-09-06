@@ -57,7 +57,7 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
 }
 
 // Targeted lookup by primary key for pages that only need labels / rows for a known, small set of
-// employee ids (kiosk cross-facility attendees, exclusion-match labels, audit-entity resolution).
+// employee ids (kiosk cross-facility attendees, credential-renewal inbox, audit-entity resolution).
 // Prefer this over useListEmployees({}) whenever the caller already has the ids -- it keeps the
 // payload proportional to the work on screen instead of the whole tenant roster.
 export function useListEmployeesByIds(ids: string[]) {

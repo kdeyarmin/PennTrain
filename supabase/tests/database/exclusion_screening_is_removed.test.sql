@@ -13,7 +13,7 @@
 -- Run with: supabase test db.
 
 begin;
-select plan(16);
+select plan(17);
 
 ------------------------------------------------------------------------------------------------
 -- Gone
@@ -146,6 +146,18 @@ select is(
    where table_name like 'exclusion%'),
   0,
   'no audit-manifest row outlives the table it classified'
+);
+
+-- The work-item source taxonomy is RETIRED, not deleted, and the difference is load-bearing three
+-- ways: the canceled work items above still carry this key and need naming,
+-- work_item_templates.source_type has a foreign key to this table, and
+-- app_private.classify_work_item_source() adopts an unknown type rather than rejecting it -- so a
+-- deleted row would come back with a generated label the first time anything used the key. A
+-- missing row makes this NULL, which fails, so presence is asserted here too.
+select is(
+  (select active from public.work_item_source_types where key = 'exclusion_match'),
+  false,
+  'the exclusion_match work-item source is retired but still present, so history keeps its label'
 );
 
 select * from finish();

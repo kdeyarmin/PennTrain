@@ -323,9 +323,19 @@ jobs:
       # `db push` has already migrated production: a half-applied deploy whose live function calls
       # schema the migration just dropped. This deletes exactly the slugs recorded in
       # scripts/removed-edge-functions.json, and is idempotent once they are gone.
+      #
+      # Two steps rather than one with an inline ternary, deliberately. The first version was
+      # `${{ env.DRY_RUN == 'true' && '' || '--apply' }}`, which passes --apply on a DRY RUN:
+      # in a GitHub `A && B || C` expression the true branch only wins when it is truthy, and
+      # the empty string is not, so `|| '--apply'` took over on exactly the runs that must not
+      # delete anything. An `if:` condition cannot be got wrong that quietly.
       - name: Prune edge functions removed from the repository
-        if: steps.gate.outputs.skip != 'true'
-        run: node scripts/prune-removed-edge-functions.mjs ${{ env.DRY_RUN == 'true' && '' || '--apply' }}
+        if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
+        run: node scripts/prune-removed-edge-functions.mjs --apply
+
+      - name: Report edge functions that would be pruned (dry run)
+        if: steps.gate.outputs.skip != 'true' && env.DRY_RUN == 'true'
+        run: node scripts/prune-removed-edge-functions.mjs
 
       - name: Verify edge function presence (no pending/orphan slugs)
         if: steps.gate.outputs.skip != 'true'
