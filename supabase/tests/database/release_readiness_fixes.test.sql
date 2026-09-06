@@ -9,7 +9,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(58);
+select plan(70);
 
 insert into public.organizations(id, name, slug, subscription_status, trial_ends_at) values
   ('4c000000-0000-4000-8000-000000000001', 'Readiness Org', 'readiness-fix-org', 'trial', now() + interval '10 days'),
@@ -560,6 +560,70 @@ select ok(
   (select canceled_at is not null and cancellation_reason is not null
    from public.course_assignments where id = '4c000000-0000-4000-8000-000000000821'),
   'with the three columns the table''s check constraint requires moving together'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- The last three: the directory push, the throttle key, and the challenge nobody could
+-- see twice.
+-- ---------------------------------------------------------------------------------------
+
+-- J22. A SCIM push may only assert what it actually says.
+select ok(
+  pg_get_functiondef('public.apply_scim_change(uuid,text,text,text,text,jsonb)'::regprocedure)
+    like '%v_scim_mapped_role is null%',
+  'the employee fallback is distinguished from a mapping that names employee (J22)'
+);
+select ok(
+  pg_get_functiondef('public.apply_scim_change(uuid,text,text,text,text,jsonb)'::regprocedure)
+    like '%last active organization administrator%',
+  'and the last active administrator is never demoted or deactivated by a directory sync'
+);
+
+-- J46. The hop the caller cannot write.
+select set_config('request.headers', '{"x-forwarded-for":"198.51.100.5, 10.0.0.9"}', true);
+select is(
+  app_private.guest_caller_key('deadbeef'),
+  'ip:10.0.0.9',
+  'the throttle keys on the last hop, which is what the gateway observed (J46)'
+);
+select set_config('request.headers', '{"x-forwarded-for":"203.0.113.200, 10.0.0.9"}', true);
+select is(
+  app_private.guest_caller_key('deadbeef'),
+  'ip:10.0.0.9',
+  'and rotating the claimed first hop does not move it, which is the whole defect'
+);
+select set_config('request.headers', '{"x-forwarded-for":"  ,  "}', true);
+select is(
+  app_private.guest_caller_key('deadbeef'),
+  'token:deadbeef',
+  'an empty chain falls back to the token rather than keying on nothing'
+);
+select set_config('request.headers', '', true);
+
+-- J47. The reporter is not charged for our failures.
+select has_column('public', 'confidential_intake_attempts', 'counts_toward_rate_limit',
+  'a confidential intake attempt records whether it spends the caller''s quota (J47)');
+select ok(
+  pg_get_functiondef('public.reserve_confidential_intake_attempt(text,uuid,integer)'::regprocedure)
+    like '%counts_toward_rate_limit%',
+  'and the limiter counts only those');
+select ok(
+  pg_get_functiondef('public.finalize_confidential_intake_attempt(bigint,boolean,text)'::regprocedure)
+    like '%submission_failed%',
+  'a submission the product could not complete stops counting against the reporter'
+);
+
+-- J44. The challenge survives a reload, and registering twice does not rotate it.
+select has_column('public', 'organization_identity_domains', 'verification_challenge',
+  'the DNS challenge is stored, so the page can show it again (J44)');
+select has_function('public', 'rotate_identity_domain_challenge', array['uuid'],
+  'rotation is a deliberate act with its own name');
+select has_function('public', 'get_organization_identity_domains', array['uuid'],
+  'and the outstanding challenge can be listed on load');
+select ok(
+  pg_get_functiondef('public.register_identity_domain(uuid,text,text)'::regprocedure)
+    like '%''rotated'', false%',
+  'registering a domain that is already pending returns the challenge already in DNS'
 );
 
 select * from finish();

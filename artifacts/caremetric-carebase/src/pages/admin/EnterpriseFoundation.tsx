@@ -22,6 +22,7 @@ import {
   type EnterpriseRpcCommand,
   useEnterpriseFoundation,
   useEnterpriseRpcCommand,
+  useOrganizationIdentityDomains,
   useSaveEnterpriseSnapshot,
   useEnterpriseTableInsert,
 } from "@/hooks/useEnterpriseFoundation";
@@ -529,65 +530,86 @@ function RegulatoryExpansionPanel() {
   );
 }
 
-type RegisteredDomain = { domainId: string; domain: string; token: string; recordName: string };
+/**
+ * The DNS TXT record name the verifier looks up. Mirrors `verificationRecordName`
+ * (`supabase/functions/_shared/phase2DomainVerification.ts:14-16`), which is what
+ * `verify-identity-domain` actually queries.
+ */
+function verificationRecordName(domain: string): string {
+  return `_caremetric-carebase-verification.${domain}`;
+}
 
 function IdentityDomainCommand() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const registerCommand = useEnterpriseRpcCommand();
+  const command = useEnterpriseRpcCommand();
   const [organizationId, setOrganizationId] = useState(user?.organizationId ?? "");
   const [domain, setDomain] = useState("");
-  const [registered, setRegistered] = useState<RegisteredDomain | null>(null);
-  const [verifying, setVerifying] = useState(false);
+  const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
+  const domainsQuery = useOrganizationIdentityDomains(organizationId || undefined);
+  const domains = domainsQuery.data ?? [];
 
+  // BACKLOG.md J44. The challenge is minted by register_identity_domain and stored, so it is read
+  // back from get_organization_identity_domains rather than held in component state. The page used
+  // to generate the token in the browser and send only its SHA-256: the plaintext lived in React
+  // state and nowhere else, so a reload -- or coming back tomorrow, which is how DNS propagation
+  // actually works -- lost the value the operator had been told to publish, and the only way
+  // forward on offer was to register again, which overwrote the digest and silently invalidated
+  // the TXT record they published last night.
   const register = async () => {
     const normalizedDomain = domain.trim().toLowerCase().replace(/\.$/, "");
     if (!organizationId || !normalizedDomain.includes(".")) {
       toast({ title: "Organization and a valid domain are required", variant: "destructive" });
       return;
     }
-    const randomBytes = crypto.getRandomValues(new Uint8Array(24));
-    const token = `cmt_${Array.from(randomBytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-    const challengeHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
     try {
-      const result = await registerCommand.mutateAsync({
+      // p_verification_challenge_sha256 is deliberately not sent. The RPC still accepts it so an
+      // older client does not fail on an unknown argument, but it is ignored.
+      const result = (await command.mutateAsync({
         rpc: "register_identity_domain",
-        args: {
-          p_organization_id: organizationId,
-          p_domain: normalizedDomain,
-          p_verification_challenge_sha256: challengeHash,
-        },
+        args: { p_organization_id: organizationId, p_domain: normalizedDomain },
+      })) as { domain?: string; rotated?: boolean } | null;
+      setDomain("");
+      toast({
+        title: "Identity domain registered",
+        description: result?.rotated === false
+          ? "This domain was already pending, so the challenge already in your DNS is unchanged."
+          : "Publish the TXT proof below, then verify.",
       });
-      const domainId = String(result);
-      setRegistered({
-        domainId,
-        domain: normalizedDomain,
-        token,
-        recordName: `_caremetric-carebase-verification.${normalizedDomain}`,
-      });
-      toast({ title: "Identity domain registered", description: "Publish the TXT proof before verification." });
     } catch (error) {
       toast({ title: "Domain registration blocked", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
     }
   };
 
-  const verify = async () => {
-    if (!registered) return;
-    setVerifying(true);
+  const rotate = async (domainId: string, domainName: string) => {
+    if (!window.confirm(
+      `Issue a new challenge for ${domainName}?\n\nWhatever is published in DNS for it now stops proving anything, and verification will fail until the new value is published.`,
+    )) return;
+    try {
+      await command.mutateAsync({
+        rpc: "rotate_identity_domain_challenge",
+        args: { p_domain_id: domainId },
+      });
+      toast({ title: "New challenge issued", description: `Publish the new TXT value for ${domainName}.` });
+    } catch (error) {
+      toast({ title: "Challenge rotation blocked", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    }
+  };
+
+  const verify = async (domainId: string, domainName: string) => {
+    setVerifyingDomainId(domainId);
     try {
       const { data, error } = await supabase.functions.invoke("verify-identity-domain", {
-        body: { domainId: registered.domainId },
+        body: { domainId },
       });
       if (error) throw error;
       if (!data?.verified) throw new Error(data?.message ?? "The expected TXT proof was not found.");
-      toast({ title: "Domain ownership verified", description: `${registered.domain} may now be used for an SSO pilot.` });
-      setRegistered(null);
-      setDomain("");
+      toast({ title: "Domain ownership verified", description: `${domainName} may now be used for an SSO pilot.` });
     } catch (error) {
       toast({ title: "Domain verification incomplete", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
     } finally {
-      setVerifying(false);
+      setVerifyingDomainId(null);
+      await domainsQuery.refetch();
     }
   };
 
@@ -606,24 +628,87 @@ function IdentityDomainCommand() {
           <Label htmlFor="phase2-domain-name">Domain</Label>
           <Input id="phase2-domain-name" value={domain} onChange={(event) => setDomain(event.target.value)} placeholder="example.org" />
         </div>
-        {registered ? (
-          <Alert className="md:col-span-2">
-            <Fingerprint className="h-4 w-4" />
-            <AlertTitle>Publish this DNS TXT record</AlertTitle>
-            <AlertDescription className="space-y-2">
-              <p><strong>Name:</strong> <code className="break-all">{registered.recordName}</code></p>
-              <p><strong>Value:</strong> <code className="break-all">{registered.token}</code></p>
-              <p>After DNS propagation, use the verification button below.</p>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        <div className="flex flex-wrap gap-2 md:col-span-2">
-          <Button variant="outline" onClick={() => void register()} disabled={registerCommand.isPending || verifying || !!registered}>Register domain</Button>
-          <Button onClick={() => void verify()} disabled={!registered || verifying}>
-            {verifying && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
-            Verify DNS proof
+        <div className="md:col-span-2">
+          <Button variant="outline" onClick={() => void register()} disabled={command.isPending || !domain.trim()}>
+            Register domain
           </Button>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Registering a domain that is already pending returns the challenge already in your DNS; it does not mint a new one.
+          </p>
         </div>
+
+        {domainsQuery.isError ? (
+          <div className="md:col-span-2">
+            <QueryError what="identity domains" error={domainsQuery.error as Error} onRetry={() => void domainsQuery.refetch()} />
+          </div>
+        ) : organizationId && domains.length === 0 && !domainsQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground md:col-span-2">No identity domains registered for this organization yet.</p>
+        ) : (
+          <div className="space-y-3 md:col-span-2">
+            {domains.map((entry) => (
+              <div key={entry.id} className="rounded-lg border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium break-all">{entry.domain}</p>
+                    <p className="text-xs text-muted-foreground break-all">{entry.id}</p>
+                  </div>
+                  <Badge variant={entry.verification_status === "verified" ? "default" : entry.revoked_at ? "destructive" : "outline"}>
+                    {entry.revoked_at ? "revoked" : entry.verification_status}
+                  </Badge>
+                </div>
+                {entry.revoked_at ? (
+                  <p className="mt-2 text-xs text-destructive">
+                    Revoked{entry.revocation_reason ? `: ${entry.revocation_reason}` : ""}
+                  </p>
+                ) : entry.verification_status === "verified" ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Verified{entry.verified_at ? ` ${new Date(entry.verified_at).toLocaleString()}` : ""}. Nothing further to publish.
+                  </p>
+                ) : entry.verification_challenge ? (
+                  <Alert className="mt-3">
+                    <Fingerprint className="h-4 w-4" />
+                    <AlertTitle>Publish this DNS TXT record</AlertTitle>
+                    <AlertDescription className="space-y-2">
+                      <p><strong>Name:</strong> <code className="break-all">{verificationRecordName(entry.domain)}</code></p>
+                      <p><strong>Value:</strong> <code className="break-all">{entry.verification_challenge}</code></p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(entry.verification_challenge ?? "").catch(() => undefined);
+                            toast({ title: "TXT value copied" });
+                          }}
+                        >
+                          Copy value
+                        </Button>
+                        <Button size="sm" onClick={() => void verify(entry.id, entry.domain)} disabled={verifyingDomainId === entry.id}>
+                          {verifyingDomainId === entry.id && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+                          Verify DNS proof
+                        </Button>
+                        {/* Deliberately secondary and confirmed: this is the act that
+                            re-registration used to perform by accident, and it invalidates
+                            whatever the operator already published. */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void rotate(entry.id, entry.domain)}
+                          disabled={command.isPending}
+                        >
+                          Issue a new challenge
+                        </Button>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    No outstanding challenge. Register this domain again to start a fresh proof.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

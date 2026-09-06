@@ -30,7 +30,55 @@ earlier passes marked `done` were re-checked on this branch; where a row's statu
 
 ---
 
+## 0. Status of this plan (2026-09-06, evening UTC)
+
+**Every one of the 82 Tier J rows is `done`.** The plan below is unchanged from the morning: it is
+the record of what the review found, in the order it should be fixed, and it is left as written so
+the reasoning behind each block is still readable. This section says where that work actually got
+to.
+
+**What is done, in code, verified here.** All 21 P0/P1 rows and all 59 P2 rows, in eighteen
+migrations and the frontend, edge functions and tests that go with them. `BACKLOG.md` Tier J
+records which migration or file closed each row; a row carries `done` only where something in the
+product calls the fixed code. The P3 long tail (row J74) and the status corrections to earlier rows
+(J75) are recorded rather than fixed, which is what those two rows are for.
+
+**Blocks 0, 1, 2 and 5 of section 6 are complete.** Block 3's code half is done (J10, J11, J14's
+demo exemption and the operational/identity split, J23, J81); its console half is not, because H10
+is somebody enrolling an authenticator on a real account. Block 4 is entirely console and owner
+work and is untouched: H11, B3, H15, H13, H14 and the marketing and legal decisions. Blocks 6 and 7
+are the gate run, the canary and the fourteen days, and they begin after this branch merges and
+deploys.
+
+**What the fix pass verified.** On a stack replayed from empty: 666 migrations, 178 pgTAP files,
+`supabase db lint` clean, generated types reproducing byte for byte. Plus 1,863 unit tests, 297
+edge-function tests, typecheck across four projects, and every static gate.
+
+**What it did NOT verify, and this matters.** Nothing here has been observed on production: the
+branch has not merged or deployed. Section 8's go/no-go is unchanged, and the production probes in
+it are still owed. Two more things are owed with them. The significant-change reassessment window
+(J36) is a product default of fourteen days recorded in the rule-pack row as a default, not a
+number read off 55 Pa. Code -- it replaced "due today with no grace", which was certainly wrong,
+and the owner's regulatory reading replaces it in turn. And J14's split moved daily operational
+work off the identity-administrator step-up bar onto a new `operational_admin` operation that is
+deliberately absent from the sensitive baseline; that is a security posture decision, stated in the
+migration, and worth the owner reading before it deploys.
+
+**Two defects the fix pass found in its own work, both caught by a gate rather than by reading.**
+`supabase db lint` is the only check in this repository that reads inside a plpgsql body, and it
+found two column names that do not exist in functions nothing had called yet -- one of them written
+by this pass, one written into a function this pass patched. It is now part of the loop this branch
+runs before every push, next to the generated-types diff, which caught a third. Any future pass that
+writes SQL should run both.
+
+---
+
 ## 1. Verdict
+
+> **Superseded in part by section 0.** Everything below is the verdict as it stood before the fix
+> pass, and it is left standing because it is the argument for what was done. The code half of it
+> is now closed; what remains is console work, two owner decisions, and observing any of it on
+> production.
 
 **Not ready to release today. Ready for the first facility in roughly four weeks of single-threaded
 work if section 6 is followed in order, with one tenant-boundary defect and two regressions that shipped in

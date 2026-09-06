@@ -153,6 +153,58 @@ export function useEnterpriseRpcCommand() {
   });
 }
 
+/**
+ * One row of `get_organization_identity_domains`.
+ *
+ * `verification_challenge` is the plaintext DNS TXT value, and it comes back null once the domain
+ * is verified -- at that point the record has done its job. It is not a secret: its whole purpose
+ * is to sit in public DNS, where what it proves is control of the zone, not knowledge of a value.
+ *
+ * Declared here rather than taken from the generated types: the generator types every column of a
+ * `returns table` as non-null, and four of these are nullable in fact (the challenge on a verified
+ * domain, and the whole revocation trio on one that is not revoked).
+ */
+export interface OrganizationIdentityDomain {
+  id: string;
+  domain: string;
+  verification_status: string;
+  verification_challenge: string | null;
+  verified_at: string | null;
+  revoked_at: string | null;
+  revocation_reason: string | null;
+  created_at: string;
+}
+
+/**
+ * The organization's identity domains, with the outstanding challenge for any still pending
+ * (BACKLOG.md J44).
+ *
+ * This is what makes a reload survivable. The registration page used to mint the challenge in the
+ * browser and send only its SHA-256, so the plaintext existed in React state and nowhere else: a
+ * refresh -- or coming back the next morning, which is how DNS propagation actually works -- lost
+ * the value the operator had been told to publish, and the only way forward the page offered was
+ * to register again, which overwrote the digest and invalidated the record they had already
+ * published. `20260906210000` moved minting to the server and stores the plaintext so it can be
+ * shown again; reading it back is this hook.
+ *
+ * Keyed under the enterprise-foundation root so every command routed through
+ * `useEnterpriseRpcCommand` -- registration, rotation, revocation -- refreshes it.
+ */
+export function useOrganizationIdentityDomains(organizationId?: string) {
+  return useQuery({
+    queryKey: ["enterprise-foundation", "identity-domains", organizationId],
+    enabled: !!organizationId,
+    queryFn: async (): Promise<OrganizationIdentityDomain[]> => {
+      const { data, error } = await enterpriseClient.rpc(
+        "get_organization_identity_domains",
+        { p_organization_id: organizationId },
+      );
+      if (error) throw new Error(error.message);
+      return (data ?? []) as OrganizationIdentityDomain[];
+    },
+  });
+}
+
 export function useEnterpriseTableInsert(table: string) {
   const queryClient = useQueryClient();
   return useMutation({

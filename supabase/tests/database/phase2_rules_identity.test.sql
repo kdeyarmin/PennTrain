@@ -1,5 +1,5 @@
 begin;
-select plan(55);
+select plan(56);
 
 select has_table('public', 'regulatory_rule_versions',
   'versioned regulatory rules are persisted');
@@ -431,8 +431,18 @@ select throws_ok(
 reset role;
 select pg_temp.act_as('32000000-0000-4000-8000-000000000103', 'aal2');
 
-select public.register_identity_domain(
-  '32000000-0000-4000-8000-000000000001', 'alpha.example', repeat('a', 64)
+-- The challenge is minted SERVER-SIDE since 20260906210000 (BACKLOG J44): the page used to mint it
+-- in the browser and send only the digest, so the plaintext lived in React state and a reload lost
+-- it for good -- and re-registering to recover it overwrote the digest, invalidating the TXT record
+-- the operator had already published. The third argument is accepted and ignored, kept in the
+-- signature so an older client does not fail on an unknown argument. The test now does what a
+-- verifier does: read the challenge back and hash it.
+select set_config(
+  'test.phase2_alpha_challenge',
+  public.register_identity_domain(
+    '32000000-0000-4000-8000-000000000001', 'alpha.example', repeat('a', 64)
+  ) ->> 'challenge',
+  true
 );
 select is(
   (
@@ -453,10 +463,19 @@ select is(
 select throws_ok(
   $$ select public.verify_identity_domain(
     (select id from public.organization_identity_domains where domain = 'alpha.example'),
-    repeat('a', 64)
+    encode(extensions.digest(convert_to(current_setting('test.phase2_alpha_challenge'), 'UTF8'), 'sha256'), 'hex')
   ) $$,
   '42501', null,
   'the registering administrator cannot self-attest DNS ownership'
+);
+-- BACKLOG J44: registering the same pending domain again returns the challenge already in DNS
+-- rather than minting a new one, which is what used to invalidate the published record.
+select is(
+  public.register_identity_domain(
+    '32000000-0000-4000-8000-000000000001', 'alpha.example'
+  ) ->> 'challenge',
+  current_setting('test.phase2_alpha_challenge'),
+  're-registering a pending domain keeps the challenge the operator already published'
 );
 select set_config(
   'test.phase2_alpha_domain_id',
@@ -468,7 +487,7 @@ select pg_temp.act_as('00000000-0000-0000-0000-000000000000', 'aal2', 'service_r
 select ok(
   public.verify_identity_domain(
     current_setting('test.phase2_alpha_domain_id')::uuid,
-    repeat('a', 64)
+    encode(extensions.digest(convert_to(current_setting('test.phase2_alpha_challenge'), 'UTF8'), 'sha256'), 'hex')
   ),
   'the trusted verifier can verify an observed DNS challenge'
 );

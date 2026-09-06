@@ -4162,6 +4162,7 @@ export type Database = {
       }
       confidential_intake_attempts: {
         Row: {
+          counts_toward_rate_limit: boolean
           created_at: string
           error_code: string | null
           facility_id: string | null
@@ -4170,6 +4171,7 @@ export type Database = {
           success: boolean
         }
         Insert: {
+          counts_toward_rate_limit?: boolean
           created_at?: string
           error_code?: string | null
           facility_id?: string | null
@@ -4178,6 +4180,7 @@ export type Database = {
           success: boolean
         }
         Update: {
+          counts_toward_rate_limit?: boolean
           created_at?: string
           error_code?: string | null
           facility_id?: string | null
@@ -19358,6 +19361,7 @@ export type Database = {
           revoked_at: string | null
           revoked_by: string | null
           updated_at: string
+          verification_challenge: string | null
           verification_challenge_sha256: string
           verification_status: string
           verified_at: string | null
@@ -19373,6 +19377,7 @@ export type Database = {
           revoked_at?: string | null
           revoked_by?: string | null
           updated_at?: string
+          verification_challenge?: string | null
           verification_challenge_sha256: string
           verification_status?: string
           verified_at?: string | null
@@ -19388,6 +19393,7 @@ export type Database = {
           revoked_at?: string | null
           revoked_by?: string | null
           updated_at?: string
+          verification_challenge?: string | null
           verification_challenge_sha256?: string
           verification_status?: string
           verified_at?: string | null
@@ -38608,6 +38614,19 @@ export type Database = {
           table_name: string
         }[]
       }
+      get_organization_identity_domains: {
+        Args: { p_organization_id: string }
+        Returns: {
+          created_at: string
+          domain: string
+          id: string
+          revocation_reason: string
+          revoked_at: string
+          verification_challenge: string
+          verification_status: string
+          verified_at: string
+        }[]
+      }
       get_paid_training_payroll_export: {
         Args: {
           p_facility_id: string
@@ -40937,9 +40956,9 @@ export type Database = {
         Args: {
           p_domain: string
           p_organization_id: string
-          p_verification_challenge_sha256: string
+          p_verification_challenge_sha256?: string
         }
-        Returns: string
+        Returns: Json
       }
       register_learning_package: {
         Args: {
@@ -41496,6 +41515,10 @@ export type Database = {
       rotate_facility_safety_report_token: {
         Args: { p_facility_id: string }
         Returns: string
+      }
+      rotate_identity_domain_challenge: {
+        Args: { p_domain_id: string }
+        Returns: Json
       }
       rotate_integration_api_credential: {
         Args: { p_credential_id: string; p_expires_at?: string }
