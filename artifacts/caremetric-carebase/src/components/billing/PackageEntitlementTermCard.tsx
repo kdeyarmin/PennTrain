@@ -38,9 +38,14 @@ function useFeatureDefinitions() {
   return useQuery({
     queryKey: ["feature_definitions", "for-terms"],
     queryFn: async () => {
+      // Active definitions only. A retired feature still has its row read by
+      // get_effective_entitlements, so offering one here let an administrator sell a
+      // capability the product no longer has. Narrowing the picker is not enforcement --
+      // set_package_entitlement still accepts any key (SG-9).
       const { data, error } = await supabase
         .from("feature_definitions")
         .select("feature_key, description, value_type, default_value")
+        .eq("is_active", true)
         .order("feature_key");
       if (error) throw error;
       return data ?? [];
