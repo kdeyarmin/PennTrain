@@ -105,7 +105,6 @@ describe("work item queue", () => {
       corrective_action: "/app/violations",
       credential: "/app/credentials",
       training_gap: "/app/training-matrix",
-      exclusion_match: "/app/exclusion-screening",
       staffing: "/app/schedule",
       shift_handoff: "/app/shift-handoffs",
       facility_license: "/app/facilities",

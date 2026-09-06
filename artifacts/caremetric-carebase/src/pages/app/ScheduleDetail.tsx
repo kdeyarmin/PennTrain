@@ -60,7 +60,6 @@ const SHIFT_STATUS_OPTIONS: { value: string; label: string }[] = [
 const ELIGIBILITY_LABELS: Record<string, string> = {
   lifecycle_inactive: "Inactive employment",
   facility_not_assigned: "Not assigned to this facility",
-  confirmed_exclusion: "Confirmed exclusion",
   oapsa_not_suitable: "OAPSA: determined not suitable for employment",
   oapsa_provisional_expired: "OAPSA: provisional period ended without clearances",
   oapsa_provisional_expiring: "OAPSA: provisional period ends within 14 days",
@@ -92,7 +91,6 @@ function eligibilityBadge(candidate: EligibilityCandidate) {
 // whether the button is drawn.
 const NON_OVERRIDABLE_BLOCKS = new Set([
   "lifecycle_inactive",
-  "confirmed_exclusion",
   "facility_not_assigned",
   "schedule_conflict",
   "oapsa_not_suitable",

@@ -82,7 +82,6 @@ const Practicums = lazy(() => import("@/pages/app/Practicums"));
 const MedAdminRoster = lazy(() => import("@/pages/app/MedAdminRoster"));
 const EmployeeCredentials = lazy(() => import("@/pages/app/EmployeeCredentials"));
 const BackgroundChecks = lazy(() => import("@/pages/app/BackgroundChecks"));
-const ExclusionScreening = lazy(() => import("@/pages/app/ExclusionScreening"));
 const AdministratorQualification = lazy(() => import("@/pages/app/AdministratorQualification"));
 const Incidents = lazy(() => import("@/pages/app/Incidents"));
 const ReportEvent = lazy(() => import("@/pages/app/ReportEvent"));
@@ -655,9 +654,6 @@ function Router() {
       <Route path="/admin/regulatory-copilot">
         {() => <ProtectedRoute component={RegulatoryCopilot} allowedRoles={PLATFORM_ADMIN} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
-      <Route path="/admin/exclusion-screening">
-        {() => <ProtectedRoute component={ExclusionScreening} allowedRoles={PLATFORM_ADMIN} />}
-      </Route>
       <Route path="/admin/settings">
         {() => <ProtectedRoute component={PlatformSettings} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
@@ -791,9 +787,6 @@ function Router() {
       </Route>
       <Route path="/app/background-checks">
         {() => <ProtectedRoute component={BackgroundChecks} allowedRoles={CREDENTIAL_ROLES} />}
-      </Route>
-      <Route path="/app/exclusion-screening">
-        {() => <ProtectedRoute component={ExclusionScreening} allowedRoles={CREDENTIAL_ROLES} />}
       </Route>
       <Route path="/app/administrator-qualification">
         {() => <ProtectedRoute component={AdministratorQualification} allowedRoles={ORG_MANAGE_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}

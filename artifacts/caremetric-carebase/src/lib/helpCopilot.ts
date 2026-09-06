@@ -171,10 +171,10 @@ const KNOWLEDGE_BASE: KnowledgeEntry[] = [
     contextLabel: "workforce or credentialing workflow",
     keywords: [
       "employee", "staff", "credential", "clearance", "background check", "license", "expiration",
-      "qualification", "onboarding", "exclusion screening", "workforce",
+      "qualification", "onboarding", "workforce",
     ],
     routePrefixes: [
-      "/app/employees", "/app/credentials", "/app/background-checks", "/app/exclusion-screening",
+      "/app/employees", "/app/credentials", "/app/background-checks",
       "/app/administrator-qualification", "/app/workforce-operations", "/trainer/employees",
       "/me/credentials",
     ],

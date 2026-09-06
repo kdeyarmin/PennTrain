@@ -166,8 +166,6 @@ export function sourceRouteForWorkItem(item: WorkItem): string | null {
       return "/app/credentials";
     case "training_gap":
       return "/app/training-matrix";
-    case "exclusion_match":
-      return "/app/exclusion-screening";
     case "staffing":
       return "/app/schedule";
     case "shift_handoff":

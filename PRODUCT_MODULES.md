@@ -6,7 +6,7 @@ CareMetric is one multi-tenant platform with a shared account and directory shel
 |---|---|---|
 | Shared core | implicit | Authentication, account security, organizations, facilities, the employee **and resident** directories, staff credential/administrator records, users, settings, notifications, and support |
 | CareMetric Train | `modules.train` | Online courses, course assignments, learning plans, training records, certificates, live learning sessions, and governed learning content |
-| CareMetric Workforce | `modules.workforce` | Scheduling and shifts, competencies, background and exclusion screening, staff qualification lifecycle, and the credentialing workflow surfaces |
+| CareMetric Workforce | `modules.workforce` | Scheduling and shifts, competencies, background screening, staff qualification lifecycle, and the credentialing workflow surfaces |
 | CareMetric Compliance | `modules.compliance` | Inspection readiness, survey day, violations, complaints, incident reporting, state/DHS forms, evidence room, QAPI, policy documents/attestations, the regulatory copilot, and resident compliance |
 | CareMetric Billing | `modules.billing` | Resident financial operations: rate agreements, monthly charges, statements, receivables aging, payments, and resident personal funds |
 | CareMetric CareBase | `modules.carebase` | The all-inclusive care-operations suite (resident care delivery, assessments, medication, dietary, admissions, emergency, maintenance, documents, and reporting). **CareBase always includes Train, Workforce, Compliance, and Billing.** |

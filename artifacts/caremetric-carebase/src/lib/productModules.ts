@@ -121,7 +121,6 @@ export const WORKFORCE_PATHS = [
   "/app/competency-records",
   "/app/competency-templates",
   "/app/background-checks",
-  "/app/exclusion-screening",
   "/app/administrator-qualification",
   "/app/practicums",
   "/app/med-admin-roster",

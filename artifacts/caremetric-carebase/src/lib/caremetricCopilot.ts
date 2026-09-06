@@ -85,7 +85,7 @@ const ROUTE_CONTEXTS: Array<{ test: RegExp; context: RouteContext }> = [
     },
   },
   {
-    test: /^\/app\/(employees|schedule|workforce-operations|credentials|background-checks|exclusion-screening)/,
+    test: /^\/app\/(employees|schedule|workforce-operations|credentials|background-checks)/,
     context: {
       label: "Workforce Operations",
       intent: "staffing",

@@ -529,7 +529,7 @@ function StaffRosterSection({ sessionId }: { sessionId: string }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" />Staff readiness roster</CardTitle>
-        <CardDescription>Active staff with training, credential, background, and exclusion flags. Minimum-necessary status only — no contact details or documents.</CardDescription>
+        <CardDescription>Active staff with training, credential and background flags. Minimum-necessary status only — no contact details or documents.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -565,7 +565,7 @@ function StaffRosterSection({ sessionId }: { sessionId: string }) {
                 <thead>
                   <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <th className="py-2 pr-3">Staff</th><th className="px-3">Training</th><th className="px-3">Credentials</th>
-                    <th className="px-3">Background</th><th className="px-3">Exclusion</th><th className="px-3">Overall</th><th />
+                    <th className="px-3">Background</th><th className="px-3">Overall</th><th />
                   </tr>
                 </thead>
                 <tbody>
@@ -575,7 +575,6 @@ function StaffRosterSection({ sessionId }: { sessionId: string }) {
                       <td className="px-3"><ReadinessChip level={row.trainingState} /></td>
                       <td className="px-3"><ReadinessChip level={row.credentialState} /></td>
                       <td className="px-3"><ReadinessChip level={row.backgroundState} /></td>
-                      <td className="px-3"><ReadinessChip level={row.exclusionState} /></td>
                       <td className="px-3"><ReadinessChip level={row.overallFlag} /></td>
                       <td className="px-3 text-right"><Button asChild variant="ghost" size="sm"><Link href={row.route}>Open</Link></Button></td>
                     </tr>
@@ -594,7 +593,6 @@ function StaffRosterSection({ sessionId }: { sessionId: string }) {
                     <ReadinessChip level={row.trainingState} detail="training" />
                     <ReadinessChip level={row.credentialState} detail="credentials" />
                     <ReadinessChip level={row.backgroundState} detail="background" />
-                    <ReadinessChip level={row.exclusionState} detail="exclusion" />
                   </div>
                   <Button asChild variant="ghost" size="sm" className="mt-2"><Link href={row.route}>Open employee</Link></Button>
                 </div>

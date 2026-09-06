@@ -268,7 +268,6 @@ select ok(
         ('policy_attestation_campaigns'),
         ('policy_attestations'),
         ('employee_background_check_profiles'),
-        ('exclusion_screening_matches'),
         ('administrator_profiles'),
         ('administrator_ce_entries'),
         ('class_checkin_tokens'),

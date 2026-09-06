@@ -422,7 +422,6 @@ export type Database = {
           employee_credential_id: string | null
           employee_id: string | null
           escalated_at: string | null
-          exclusion_screening_match_id: string | null
           facility_id: string | null
           id: string
           incident_notification_id: string | null
@@ -449,7 +448,6 @@ export type Database = {
           employee_credential_id?: string | null
           employee_id?: string | null
           escalated_at?: string | null
-          exclusion_screening_match_id?: string | null
           facility_id?: string | null
           id?: string
           incident_notification_id?: string | null
@@ -476,7 +474,6 @@ export type Database = {
           employee_credential_id?: string | null
           employee_id?: string | null
           escalated_at?: string | null
-          exclusion_screening_match_id?: string | null
           facility_id?: string | null
           id?: string
           incident_notification_id?: string | null
@@ -519,13 +516,6 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_exclusion_screening_match_id_fkey"
-            columns: ["exclusion_screening_match_id"]
-            isOneToOne: false
-            referencedRelation: "exclusion_screening_matches"
             referencedColumns: ["id"]
           },
           {
@@ -10513,322 +10503,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      exclusion_list_entries: {
-        Row: {
-          business_name: string | null
-          dob: string | null
-          exclusion_date: string | null
-          exclusion_type: string | null
-          first_name: string | null
-          id: string
-          imported_at: string
-          last_name: string | null
-          middle_name: string | null
-          npi: string | null
-          raw: Json | null
-          reinstate_date: string | null
-          snapshot_id: string
-          source: string
-          source_record_key: string
-          upin: string | null
-          waiver_date: string | null
-        }
-        Insert: {
-          business_name?: string | null
-          dob?: string | null
-          exclusion_date?: string | null
-          exclusion_type?: string | null
-          first_name?: string | null
-          id?: string
-          imported_at?: string
-          last_name?: string | null
-          middle_name?: string | null
-          npi?: string | null
-          raw?: Json | null
-          reinstate_date?: string | null
-          snapshot_id: string
-          source: string
-          source_record_key: string
-          upin?: string | null
-          waiver_date?: string | null
-        }
-        Update: {
-          business_name?: string | null
-          dob?: string | null
-          exclusion_date?: string | null
-          exclusion_type?: string | null
-          first_name?: string | null
-          id?: string
-          imported_at?: string
-          last_name?: string | null
-          middle_name?: string | null
-          npi?: string | null
-          raw?: Json | null
-          reinstate_date?: string | null
-          snapshot_id?: string
-          source?: string
-          source_record_key?: string
-          upin?: string | null
-          waiver_date?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "exclusion_list_entries_snapshot_source_fkey"
-            columns: ["snapshot_id", "source"]
-            isOneToOne: false
-            referencedRelation: "exclusion_source_snapshots"
-            referencedColumns: ["id", "source"]
-          },
-        ]
-      }
-      exclusion_refresh_runs: {
-        Row: {
-          activated_snapshot_id: string | null
-          checksum: string | null
-          completed_at: string | null
-          correlation_id: string
-          error: string | null
-          expected_record_count: number | null
-          id: string
-          last_progress_at: string | null
-          snapshot_id: string
-          source: string
-          stage_cursor: Json | null
-          staged_record_count: number
-          started_at: string
-          status: string
-        }
-        Insert: {
-          activated_snapshot_id?: string | null
-          checksum?: string | null
-          completed_at?: string | null
-          correlation_id: string
-          error?: string | null
-          expected_record_count?: number | null
-          id: string
-          last_progress_at?: string | null
-          snapshot_id: string
-          source: string
-          stage_cursor?: Json | null
-          staged_record_count?: number
-          started_at?: string
-          status?: string
-        }
-        Update: {
-          activated_snapshot_id?: string | null
-          checksum?: string | null
-          completed_at?: string | null
-          correlation_id?: string
-          error?: string | null
-          expected_record_count?: number | null
-          id?: string
-          last_progress_at?: string | null
-          snapshot_id?: string
-          source?: string
-          stage_cursor?: Json | null
-          staged_record_count?: number
-          started_at?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "exclusion_refresh_runs_activated_snapshot_fkey"
-            columns: ["activated_snapshot_id", "source"]
-            isOneToOne: false
-            referencedRelation: "exclusion_source_snapshots"
-            referencedColumns: ["id", "source"]
-          },
-          {
-            foreignKeyName: "exclusion_refresh_runs_snapshot_fkey"
-            columns: ["snapshot_id", "source"]
-            isOneToOne: false
-            referencedRelation: "exclusion_source_snapshots"
-            referencedColumns: ["id", "source"]
-          },
-        ]
-      }
-      exclusion_screening_matches: {
-        Row: {
-          created_at: string
-          employee_id: string
-          exclusion_list_entry_id: string | null
-          facility_id: string
-          id: string
-          match_score: number
-          matched_name: string
-          organization_id: string
-          reviewed_at: string | null
-          reviewed_by: string | null
-          reviewed_notes: string | null
-          source: string
-          source_record_key: string | null
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          employee_id: string
-          exclusion_list_entry_id?: string | null
-          facility_id: string
-          id?: string
-          match_score: number
-          matched_name: string
-          organization_id: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          reviewed_notes?: string | null
-          source: string
-          source_record_key?: string | null
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          employee_id?: string
-          exclusion_list_entry_id?: string | null
-          facility_id?: string
-          id?: string
-          match_score?: number
-          matched_name?: string
-          organization_id?: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          reviewed_notes?: string | null
-          source?: string
-          source_record_key?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "exclusion_screening_matches_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "exclusion_screening_matches_exclusion_list_entry_id_fkey"
-            columns: ["exclusion_list_entry_id"]
-            isOneToOne: false
-            referencedRelation: "exclusion_list_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "exclusion_screening_matches_facility_id_fkey"
-            columns: ["facility_id"]
-            isOneToOne: false
-            referencedRelation: "facilities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "exclusion_screening_matches_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "exclusion_screening_matches_reviewed_by_fkey"
-            columns: ["reviewed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      exclusion_source_snapshots: {
-        Row: {
-          activated_at: string | null
-          checksum: string | null
-          created_at: string
-          id: string
-          record_count: number | null
-          refresh_run_id: string
-          source: string
-          status: string
-          validated_at: string | null
-        }
-        Insert: {
-          activated_at?: string | null
-          checksum?: string | null
-          created_at?: string
-          id: string
-          record_count?: number | null
-          refresh_run_id: string
-          source: string
-          status?: string
-          validated_at?: string | null
-        }
-        Update: {
-          activated_at?: string | null
-          checksum?: string | null
-          created_at?: string
-          id?: string
-          record_count?: number | null
-          refresh_run_id?: string
-          source?: string
-          status?: string
-          validated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "exclusion_source_snapshots_refresh_run_fkey"
-            columns: ["refresh_run_id", "source"]
-            isOneToOne: false
-            referencedRelation: "exclusion_refresh_runs"
-            referencedColumns: ["id", "source"]
-          },
-        ]
-      }
-      exclusion_source_state: {
-        Row: {
-          active_snapshot_id: string | null
-          last_attempt_at: string | null
-          last_error: string | null
-          last_run_id: string | null
-          last_status: string
-          last_success_at: string | null
-          source: string
-          stale_after: string
-          updated_at: string
-        }
-        Insert: {
-          active_snapshot_id?: string | null
-          last_attempt_at?: string | null
-          last_error?: string | null
-          last_run_id?: string | null
-          last_status?: string
-          last_success_at?: string | null
-          source: string
-          stale_after?: string
-          updated_at?: string
-        }
-        Update: {
-          active_snapshot_id?: string | null
-          last_attempt_at?: string | null
-          last_error?: string | null
-          last_run_id?: string | null
-          last_status?: string
-          last_success_at?: string | null
-          source?: string
-          stale_after?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "exclusion_source_state_active_snapshot_fkey"
-            columns: ["active_snapshot_id", "source"]
-            isOneToOne: false
-            referencedRelation: "exclusion_source_snapshots"
-            referencedColumns: ["id", "source"]
-          },
-          {
-            foreignKeyName: "exclusion_source_state_last_run_fkey"
-            columns: ["last_run_id", "source"]
-            isOneToOne: false
-            referencedRelation: "exclusion_refresh_runs"
-            referencedColumns: ["id", "source"]
           },
         ]
       }
@@ -35652,7 +35326,6 @@ export type Database = {
           employee_credential_id: string | null
           employee_id: string | null
           escalated_at: string | null
-          exclusion_screening_match_id: string | null
           facility_id: string | null
           id: string | null
           incident_notification_id: string | null
@@ -35698,13 +35371,6 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "alerts_exclusion_screening_match_id_fkey"
-            columns: ["exclusion_screening_match_id"]
-            isOneToOne: false
-            referencedRelation: "exclusion_screening_matches"
             referencedColumns: ["id"]
           },
           {
@@ -35828,44 +35494,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      exclusion_source_health: {
-        Row: {
-          activated_snapshot_id: string | null
-          active_checksum: string | null
-          active_record_count: number | null
-          active_since: string | null
-          active_snapshot_id: string | null
-          completed_at: string | null
-          expected_record_count: number | null
-          health_status: string | null
-          is_stale: boolean | null
-          last_attempt_at: string | null
-          last_error: string | null
-          last_run_checksum: string | null
-          last_run_id: string | null
-          last_status: string | null
-          last_success_at: string | null
-          source: string | null
-          staged_record_count: number | null
-          started_at: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "exclusion_source_state_active_snapshot_fkey"
-            columns: ["active_snapshot_id", "source"]
-            isOneToOne: false
-            referencedRelation: "exclusion_source_snapshots"
-            referencedColumns: ["id", "source"]
-          },
-          {
-            foreignKeyName: "exclusion_source_state_last_run_fkey"
-            columns: ["last_run_id", "source"]
-            isOneToOne: false
-            referencedRelation: "exclusion_refresh_runs"
-            referencedColumns: ["id", "source"]
           },
         ]
       }
@@ -36869,10 +36497,6 @@ export type Database = {
         }
         Returns: Json
       }
-      begin_exclusion_source_refresh: {
-        Args: { p_correlation_id: string; p_source: string }
-        Returns: Json
-      }
       begin_notification_delivery_attempt: {
         Args: {
           p_content_sha256: string
@@ -37274,10 +36898,6 @@ export type Database = {
       complete_course_assignment: {
         Args: { p_assignment_id: string }
         Returns: undefined
-      }
-      complete_exclusion_source_refresh: {
-        Args: { p_expected_record_count: number; p_run_id: string }
-        Returns: Json
       }
       complete_fhir_writeback: {
         Args: {
@@ -38275,34 +37895,6 @@ export type Database = {
         }
         Returns: Json
       }
-      exclusion_name_key: { Args: { p_name: string }; Returns: string }
-      exclusion_name_match_score: {
-        Args: {
-          p_employee_first: string
-          p_employee_last: string
-          p_entry_first: string
-          p_entry_last: string
-        }
-        Returns: number
-      }
-      exclusion_name_probes: { Args: { p_name: string }; Returns: string[] }
-      exclusion_source_record_key: {
-        Args: {
-          p_business_name: string
-          p_dob: string
-          p_exclusion_date: string
-          p_exclusion_type: string
-          p_first_name: string
-          p_last_name: string
-          p_middle_name: string
-          p_npi: string
-          p_reinstate_date: string
-          p_source: string
-          p_upin: string
-          p_waiver_date: string
-        }
-        Returns: string
-      }
       execute_registered_sql_job: {
         Args: {
           p_correlation_id: string
@@ -38325,10 +37917,6 @@ export type Database = {
           p_table_name: string
         }
         Returns: Json[]
-      }
-      fail_exclusion_source_refresh: {
-        Args: { p_error: string; p_run_id: string }
-        Returns: Json
       }
       feature_release_active: {
         Args: { p_feature_key: string }
@@ -38685,7 +38273,6 @@ export type Database = {
         Args: { p_fingerprint?: string; p_token: string }
         Returns: Json
       }
-      get_exclusion_sam_sweep_state: { Args: never; Returns: Json }
       get_facility_benchmark_comparison: {
         Args: { p_facility_id: string }
         Returns: Json
@@ -40068,10 +39655,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      match_exclusion_list_against_roster_core: {
-        Args: { p_organization_id?: string; p_source: string }
-        Returns: undefined
-      }
       materialize_policy_campaign_targets: {
         Args: { p_campaign_id: string }
         Returns: number
@@ -40592,10 +40175,6 @@ export type Database = {
           p_subject_type: string
         }
         Returns: boolean
-      }
-      record_exclusion_stage_progress: {
-        Args: { p_cursor: Json; p_run_id: string }
-        Returns: Json
       }
       record_food_safety_log: {
         Args: {
@@ -41359,10 +40938,6 @@ export type Database = {
       }
       require_platform_rule_admin: {
         Args: { p_operation: string }
-        Returns: undefined
-      }
-      rescan_org_exclusion_matches: {
-        Args: { p_organization_id: string }
         Returns: undefined
       }
       reschedule_resident_appointment: {

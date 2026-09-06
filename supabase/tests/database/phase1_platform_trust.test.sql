@@ -381,10 +381,15 @@ select is(
 --   on. data-lifecycle, the sixth, is not a duplicate and survives -- only its execution_kind was
 --   wrong. 47 definitions, 46 active.
 --
+-- 46 -> 45 when 20260906020000 removed exclusion screening at the owner's direction. This one is
+--   not a duplicate being collapsed and not a repair: the exclusion-screening definition went
+--   because the job it described no longer exists in any form. Acknowledged here rather than
+--   quietly re-baselined, which is the whole point of keeping this as a ratchet.
+--
 -- Kept as a count because it still catches an accidental deletion; the wording no longer overclaims.
 select is(
   (select count(*)::bigint from public.get_system_job_control_plane()),
-  46::bigint,
+  45::bigint,
   'the control plane returns one row per active registered job definition'
 );
 

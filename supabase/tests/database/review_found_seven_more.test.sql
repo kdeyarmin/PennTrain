@@ -8,7 +8,7 @@
 -- Run with: supabase test db.
 
 begin;
-select plan(20);
+select plan(19);
 
 ------------------------------------------------------------------------------------------------
 -- Fixture
@@ -242,17 +242,9 @@ select throws_ok(
   'but an accepted invitation is not reopened -- that person already has an account'
 );
 
-------------------------------------------------------------------------------------------------
--- 5. The one timestamp the UTC sweep mislabelled on its way past.
-------------------------------------------------------------------------------------------------
-select is(
-  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'app_private'
-     and p.proname = 'reconcile_stalled_exclusion_refresh_runs'
-     and p.prosrc like '%pa_local%' and p.prosrc not like '%SS UTC%'),
-  1,
-  'a value converted to Pennsylvania local time is no longer labelled UTC'
-);
+-- Section 5 covered the one timestamp the UTC sweep mislabelled, in
+-- app_private.reconcile_stalled_exclusion_refresh_runs. That function was dropped with exclusion
+-- screening (20260906020000), so the assertion has nothing left to make a claim about.
 
 select * from finish();
 rollback;
