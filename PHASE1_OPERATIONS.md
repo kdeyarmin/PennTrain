@@ -431,9 +431,13 @@ signature against the raw request URL, so if the runtime URL differs from the
 public one every status callback and every STOP is silently rejected. Send one
 signed test callback before you rely on delivery receipts.
 
-**H12 — DHS source re-attestation.** Overdue by more than the 45-day limit. All
-35 form links and both citation links resolve; what lapsed is a person reading
-the forms. Scope the work first:
+**H12 — DHS source re-attestation. Done 2026-09-06.** The forms were re-read and
+`DHS_FORMS_LAST_VERIFIED` re-stamped from 2026-07-13 to 2026-09-06, so
+`node scripts/check-dhs-sources.mjs` exits 0 at age 0 days and the weekly job goes
+green on the next run. `PA_CITATIONS_LAST_VERIFIED` is a separate stamp on its own
+45-day clock, sits at 2026-08-04, and falls due first — around 2026-09-18.
+
+**It comes back every 45 days, so the procedure stays here.** Scope the work first:
 
 ```
 node scripts/snapshot-dhs-sources.mjs
@@ -448,10 +452,10 @@ Read the documents it names, then re-stamp `DHS_FORMS_LAST_VERIFIED` in
 It also reports each source's **origin write time** against the attestation date.
 The digest diff can only speak from the previous digest forward, which is no help
 on the first run after a lapse; pa.gov sends `Last-Modified` on every form PDF, so
-that reaches back behind the baseline into the window the digests missed. As of
-2026-09-06 it reports **0 of 34 form documents written since 2026-07-13**, the
-newest write across the whole set being 2025-12-04 — so the reading this pass is
-confirming the set is static, not re-reading thirty-five documents.
+that reaches back behind the baseline into the window the digests missed. That is
+what scoped this pass: **0 of 34 form documents written since 2026-07-13**, the
+newest write across the whole set being 2025-12-04, so the reading was confirming
+a static set rather than re-reading thirty-five documents.
 
 Neither signal is the attestation, and the gate ignores both by design:
 
@@ -461,10 +465,10 @@ Neither signal is the attestation, and the gate ignores both by design:
   actually matters to a customer holding an obsolete form.
 - The two `pacodeandbulletin.gov` citation pages send no `Last-Modified` at all.
   They record as `null`, which means unknown — never unchanged.
-- The digest baseline was retaken 2026-09-06 and still says nothing about the
-  window before it.
+- A digest says nothing about the window before it was taken.
 
-So the review is now small, but it is still a person's to do.
+The stamp is the person's, never the tooling's. Nothing in the repository may move
+it — the scripts scope the reading and report; they do not attest.
 
 **H13 — The one non-demo organization.** `subscription_status = 'trial'`,
 `trial_ends_at` null, no BAA stamp, created the day the project was. Decide
