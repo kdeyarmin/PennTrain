@@ -87,7 +87,23 @@ const budgets = {
   // emits. BACKLOG.md F5 was opened on the aggregate as though it were the download, measured,
   // and closed. Read this budget as what its header says: a regression tripwire that catches a
   // route module leaking into the shell.
-  totalJavaScript: 5200 * 1024,
+  // Raised 5200 -> 5900 on the release-readiness branch (BACKLOG.md J74, the I5 item). Measured
+  // 4793.8 KiB, 92.2% of the old budget, and warning. The branch closed 80 review findings across
+  // 114 files, so the growth is feature count -- and that was checked rather than assumed, because
+  // this budget's whole job is to tell feature count apart from a regression. Across the 424
+  // emitted chunks there are zero modules duplicated between chunks, zero duplicated string
+  // literals of 400 characters or more, and zero inlined data: URIs; sub-1 KiB chunks total 37.5
+  // KiB. Every per-route budget below still passes (the largest, Resident Detail, at 87.6%), which
+  // is what would catch a route module leaking into the shell, and largestJavaScript is at 88.7%,
+  // under its own warning line. Three build-level levers were measured and rejected so nobody
+  // retries them: terser ecma 2020 with comments off came out 4.2 KiB LARGER, rollup
+  // output.compact 21.3 KiB larger, and experimentalMinChunkSize 20000 saved 33.2 KiB while
+  // pushing the entry chunk to 113.2% and the shell to 103.7% -- both over budget, confirming the
+  // note above. What is left is static reference content shipped as JavaScript; moving the four
+  // largest modules to fetched assets recovers about 84 KiB, which would still leave this metric
+  // warning, so it is not the cheaper move either. Sized like the 4700 -> 5200 step before it: a
+  // deliberate raise on main rather than a per-feature shave, leaving the measurement at 81.3%.
+  totalJavaScript: 5900 * 1024,
   // Measured 129.3 KiB when this headroom policy was adopted. Raised 160 -> 176 on the
   // full-app-debugging branch: organic growth had reached 156.1 KiB, which is 97.5% of the old
   // budget and under 4 KiB of headroom. This budget is not advisory on this repo -- Railway's
@@ -98,9 +114,25 @@ const budgets = {
   // 159.1 KiB (90.4%), the +2.8 KiB being DataTable's utility classes now that two pages render
   // through it. Because this budget gates Railway's production build rather than only a branch,
   // it is raised to ~19% headroom instead of the bare ~10%.
-  totalCss: 190 * 1024,
+  // Raised 190 -> 210 on the release-readiness branch (BACKLOG.md J74). Measured 172.4 KiB, 90.7%,
+  // and warning -- the first time this metric has been in the band since the last raise. Same
+  // cause as the JavaScript total above and the same evidence: 114 files of new surface, no
+  // duplicated literals, no route budget breached. Raised to ~19% headroom rather than the bare
+  // ~10%, for the reason recorded above it -- Railway's buildCommand ends with this script, so
+  // this budget gates a production deploy and not only a branch, and the first component that
+  // added a few KiB after a bare raise would block the deploy rather than redden a PR.
+  totalCss: 210 * 1024,
   // Measured 1095.8 KiB when this headroom policy was adopted.
-  initialShell: 1250 * 1024,
+  // Raised 1250 -> 1320 on the release-readiness branch (BACKLOG.md J74). Measured 1138.1 KiB,
+  // 91.1%, and warning. This one is a per-page-load guardrail rather than an aggregate, so it gets
+  // a stricter reading than the two above, and it survives it: the whole program has moved this
+  // metric 1095.8 -> 1138.1 KiB since the policy was adopted, +3.9% raw, which the file's own
+  // measurement of a first load (five preloaded chunks, 922 KiB raw, 220 KiB brotli over the wire)
+  // puts at roughly +10 KiB compressed. The entry chunk itself is at 88.7% of its own budget, so
+  // this is not a chunk regression hiding in an aggregate. Splitting the entry chunk to shrink it
+  // was investigated under F5 and rejected -- that chunk is the app shell rather than anything
+  // liftable -- and nothing in this branch changes that finding. Restores ~15% headroom.
+  initialShell: 1320 * 1024,
 };
 
 // Warn (without failing) once a metric uses this fraction of its budget, so the
