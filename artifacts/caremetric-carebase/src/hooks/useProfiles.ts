@@ -67,7 +67,14 @@ export function useMyProfile(userId: string | undefined) {
 export type ProfileSelfServiceUpdate = Pick<
   ProfileUpdate,
   "first_name" | "last_name" | "phone" | "sms_opt_in" | "preferred_notification_channel"
->;
+> & {
+  // BACKLOG J79. The whole delivery pipeline honours profiles.email_opt_out, and until the RPC
+  // gained p_email_opt_out the only thing that could write it was the SendGrid consent webhook --
+  // which fires only if SendGrid injects an unsubscribe link the payload never asks for. So an
+  // employee who wanted the product to stop emailing them had no control at all. Omit it to leave
+  // the current value alone; the RPC lets anyone turn email off and only the recipient turn it on.
+  email_opt_out?: boolean;
+};
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
@@ -80,6 +87,7 @@ export function useUpdateProfile() {
         p_phone: payload.phone,
         p_sms_opt_in: payload.sms_opt_in,
         p_preferred_notification_channel: payload.preferred_notification_channel,
+        p_email_opt_out: payload.email_opt_out,
       } as never);
       if (error) throw error;
       return (data as unknown as Profile[])[0];

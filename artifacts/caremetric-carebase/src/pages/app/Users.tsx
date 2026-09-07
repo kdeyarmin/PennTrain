@@ -620,6 +620,23 @@ export default function Users() {
                                 <LogIn className="h-3.5 w-3.5" />
                               </Button>
                             )}
+                            {/* Same guard, same dialog as the mobile card below. It used to exist
+                                ONLY there, so the lost-device recovery drill -- which is written
+                                for the platform console -- had no control at all on any viewport
+                                at or above md, which is every browser an administrator runs it
+                                from. */}
+                            {canResetMfa(p) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                onClick={e => openResetMfa(e, p)}
+                                aria-label={`Reset multi-factor enrollment for ${p.first_name} ${p.last_name}`}
+                                title="Reset multi-factor enrollment"
+                              >
+                                <ShieldOff className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -1020,9 +1037,10 @@ export default function Users() {
           <AlertDialogHeader>
             <AlertDialogTitle>Deactivate {confirmDeactivate?.first_name} {confirmDeactivate?.last_name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Any session they're currently signed into stays valid, but they immediately lose access everywhere --
-              every page will show no facilities, employees, or records for them until reactivated. This reverses
-              instantly by switching this back on.
+              They lose access everywhere immediately -- every page will show no facilities, employees, or records
+              for them -- and any session they are signed into is deleted, so they are signed out as soon as their
+              browser next refreshes its token. This reverses instantly by switching this back on, but they will
+              have to sign in again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

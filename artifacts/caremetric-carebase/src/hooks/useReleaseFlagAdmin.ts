@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { privilegedFailureMessage, privilegedSessionExpired } from "@/lib/edgeFunctionErrors";
 
 export type ReleaseFlag = Tables<"release_flags">;
 export type FeatureKillSwitch = Tables<"feature_kill_switches">;
@@ -52,7 +53,15 @@ export function useFeatureKillSwitches() {
   });
 }
 
-function aal2Hint(message: string): string {
+// A refusal here is one of two very different things and this used to give both the same advice.
+// An EXPIRED privileged window (SQLSTATE 42501, "A fresh AAL2 session is required for operation
+// ...") mentions "aal", so it matched the keyword sniff below and was answered with "Open Account
+// security to complete MFA step-up" -- which cannot work, because the window is measured from the
+// Auth session's own created_at and a step-up does not reset it. Only a genuine "you have not
+// verified a second factor" keeps the hint.
+function aal2Hint(error: unknown): string {
+  const message = privilegedFailureMessage(error);
+  if (privilegedSessionExpired(error)) return message;
   const lower = message.toLowerCase();
   if (lower.includes("aal") || lower.includes("assurance") || lower.includes("mfa") || lower.includes("step")) {
     return `${message} Open Account security to complete MFA step-up, then retry.`;
@@ -79,7 +88,7 @@ export function useSetReleaseFlag() {
         p_reason: input.reason,
         p_expires_at: input.expiresAt ?? undefined,
       });
-      if (error) throw new Error(aal2Hint(error.message));
+      if (error) throw new Error(aal2Hint(error));
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["release_flags"] });
@@ -105,7 +114,7 @@ export function useSetFeatureKillSwitch() {
         p_reason: input.reason,
         p_expires_at: input.expiresAt ?? undefined,
       });
-      if (error) throw new Error(aal2Hint(error.message));
+      if (error) throw new Error(aal2Hint(error));
       return data;
     },
     onSuccess: () => {

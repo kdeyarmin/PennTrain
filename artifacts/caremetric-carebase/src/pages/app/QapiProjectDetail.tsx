@@ -114,6 +114,35 @@ export default function QapiProjectDetail() {
   if (project.isLoading) return <p>Loading…</p>;
   if (project.isError || !p)
     return <QueryError what="QAPI project" error={project.error} />;
+  // BACKLOG J74. update_qapi_project_plan enforces two gates the Select did not: 'closed' is
+  // refused unless the project is ALREADY 'pending_closure' ("Project requires pending closure
+  // review"), and 'pending_closure' is refused unless the closure evidence is on file -- a root
+  // cause of at least ten characters, at least one action item, at least one measurement and an
+  // effectiveness determination ("QAPI closure evidence incomplete"). The list offered all six
+  // values unconditionally, so the two that could not be taken yet were learned from a toast after
+  // the whole plan form had been filled in. They are offered when the RPC would take them, and the
+  // line under the control says what is still missing when they are not.
+  const closureEvidenceMissing = [
+    root.trim().length >= 10 ? null : "a root-cause analysis",
+    (activity.data?.actions.length ?? 0) > 0 ? null : "at least one action item",
+    (activity.data?.measurements.length ?? 0) > 0 ? null : "at least one measurement",
+    effectiveness.trim().length >= 5 ? null : "an effectiveness determination",
+  ].filter((value): value is string => value !== null);
+  const statusOptions = ["proposed", "active", "monitoring", "pending_closure", "closed", "canceled"]
+    .filter((value) => {
+      // The project's own status is always offered: leaving the Select on the value the project
+      // already has must never be a refused submission.
+      if (value === p.status) return true;
+      if (value === "closed") return p.status === "pending_closure";
+      if (value === "pending_closure") return closureEvidenceMissing.length === 0;
+      return true;
+    });
+  const statusGateExplanation =
+    p.status === "pending_closure"
+      ? null
+      : closureEvidenceMissing.length > 0
+        ? `Moving to Pending Closure needs ${closureEvidenceMissing.join(", ")}. Closing needs a completed pending-closure review.`
+        : "Closing needs a completed pending-closure review — move to Pending Closure first.";
   const save = () =>
     update.mutate(
       {
@@ -207,25 +236,23 @@ export default function QapiProjectDetail() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger aria-label="Project status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[
-                "proposed",
-                "active",
-                "monitoring",
-                "pending_closure",
-                "closed",
-                "canceled",
-              ].map((v) => (
-                <SelectItem key={v} value={v}>
-                  {human(v)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-1">
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger aria-label="Project status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {human(v)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {statusGateExplanation && (
+              <p className="text-xs text-muted-foreground">{statusGateExplanation}</p>
+            )}
+          </div>
           <Select value={method} onValueChange={setMethod}>
             <SelectTrigger aria-label="Analysis method">
               <SelectValue />

@@ -14,25 +14,39 @@ import { useAuth } from "@/lib/auth";
 export default function ReportEvent() {
   const { user } = useAuth();
   const canManage = ["org_admin", "facility_manager", "platform_admin"].includes(user?.role ?? "");
+  // BACKLOG J74. This route admits auditors (REPORTS_VIEW_ROLES in App.tsx) and the sidebar and
+  // search both offer it to them -- but the first two doors are locked on the other side.
+  // `Incidents.tsx` only honours ?action=add when `canManage` (org_admin / facility_manager) and
+  // `Complaints.tsx` only when the viewer is not an auditor, so an auditor picked a card, arrived
+  // on a list page, and no form opened and nothing said why. An auditor reviews these records; they
+  // do not file them. So the two write doors become review doors for that role -- the same page,
+  // without the ?action=add that will be ignored, and labelled for what it actually does.
+  const canFileIncident = ["org_admin", "facility_manager"].includes(user?.role ?? "");
+  const canFileComplaint = user?.role !== "auditor";
+  const reviewOnly = !canFileIncident && !canFileComplaint;
 
   const options = [
     {
-      href: "/app/incidents?action=add",
-      title: "Reportable incident",
-      description: "Death, elopement, abuse/neglect allegation, med error, injury, fire, or other DHS-reportable event.",
+      href: canFileIncident ? "/app/incidents?action=add" : "/app/incidents",
+      title: canFileIncident ? "Reportable incident" : "Reportable incidents",
+      description: canFileIncident
+        ? "Death, elopement, abuse/neglect allegation, med error, injury, fire, or other DHS-reportable event."
+        : "Review the DHS-reportable incident register. Filing an incident is a facility manager or organization administrator action.",
       icon: AlertTriangle,
       tone: "text-destructive",
       bg: "bg-destructive/10",
-      badge: "Incidents",
+      badge: canFileIncident ? "Incidents" : "Incidents · review",
     },
     {
-      href: "/app/complaints?action=add",
-      title: "Complaint or grievance",
-      description: "Resident, family, or staff complaint — rights, care quality, billing dispute, or similar.",
+      href: canFileComplaint ? "/app/complaints?action=add" : "/app/complaints",
+      title: canFileComplaint ? "Complaint or grievance" : "Complaints and grievances",
+      description: canFileComplaint
+        ? "Resident, family, or staff complaint — rights, care quality, billing dispute, or similar."
+        : "Review recorded complaints and grievances. Recording a new one is a facility action.",
       icon: MessageSquareWarning,
       tone: "text-amber-700",
       bg: "bg-amber-50",
-      badge: "Complaints",
+      badge: canFileComplaint ? "Complaints" : "Complaints · review",
     },
     {
       href: "/app/confidential-incidents",
@@ -57,11 +71,17 @@ export default function ReportEvent() {
           Report an event
         </h1>
         <p className="text-muted-foreground mt-1">
-          One entry point for incidents, complaints, and confidential safety reports.
+          {reviewOnly
+            ? "One entry point for the incident, complaint, and confidential safety-report records. Your role reviews these; it does not file them."
+            : "One entry point for incidents, complaints, and confidential safety reports."}
         </p>
       </div>
 
-      <SurfacePurpose purpose="This chooser only routes you — it does not replace the incident, complaint, or confidential record itself." />
+      <SurfacePurpose
+        purpose={reviewOnly
+          ? "This chooser only routes you — and for your role it routes to the registers, because filing an incident or a complaint is a facility action."
+          : "This chooser only routes you — it does not replace the incident, complaint, or confidential record itself."}
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         {options.map((option) => {

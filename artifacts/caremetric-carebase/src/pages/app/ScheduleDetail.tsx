@@ -358,7 +358,14 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
     });
   }
 
+  // Draft only, the same rule the "+ Add" cell and the server-side add RPC already enforce.
+  // Publishing is the point at which a schedule stops being editable: employees have been shown
+  // these shifts and the only notification this page sends is on publish, so editing the unit,
+  // shift type or times of a published shift -- or deleting it outright -- silently changed the
+  // schedule underneath the person working it. The call-off path stays open below: the status
+  // dropdown on each shift is the post-publication control, and it is deliberately not gated here.
   function openEditDialog(a: ShiftAssignmentWithDetails) {
+    if (!isDraft) return;
     setEditForm({
       unitId: a.unit_id ?? UNASSIGNED,
       shiftDefinitionId: a.shift_definition_id ?? "",
@@ -457,7 +464,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
   }
 
   function handleEditSave() {
-    if (!editTarget) return;
+    if (!editTarget || !isDraft) return;
     // Keep start_time/end_time in sync with whichever shift type is now selected -- these are
     // denormalized onto the assignment, so leaving them stale would show the new shift's name
     // next to the old shift's hours in both the manager grid and the employee's own view.
@@ -491,7 +498,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
   }
 
   function handleDelete() {
-    if (!editTarget) return;
+    if (!editTarget || !isDraft) return;
     deleteAssignment.mutate(editTarget.id, {
       onSuccess: () => {
         toast({ title: "Shift removed" });
@@ -672,7 +679,8 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
       {!isDraft && (
         <p className="text-sm text-muted-foreground">
           This schedule is published -- employees assigned to it can see their shifts under My Schedule.
-          Move it back to draft to auto-fill or bulk-edit.
+          Shifts can no longer be edited or removed here; use each shift's status badge to record a
+          call-off or no-show. Move it back to draft to auto-fill, add, or edit shifts.
         </p>
       )}
 
@@ -913,27 +921,43 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                                   className="w-full rounded-md border px-2 py-1 hover:shadow-sm transition-shadow"
                                   style={a.shift_definitions?.color ? { borderLeftColor: a.shift_definitions.color, borderLeftWidth: 3 } : undefined}
                                 >
-                                  <button type="button" onClick={() => openEditDialog(a)} className="w-full text-left block">
-                                    <div className="font-medium truncate flex items-center gap-1">
-                                      <span className="truncate min-w-0">{a.employees?.first_name} {a.employees?.last_name}</span>
-                                      {auth?.administersMedications && (
-                                        <MedAdminAuthorizationIndicator
-                                          authorized={auth.authorizedToday}
-                                          isLoading={medAuthLoading}
-                                          isError={medAuthIsError}
-                                        />
-                                      )}
-                                    </div>
-                                  </button>
+                                  {(() => {
+                                    const nameRow = (
+                                      <div className="font-medium truncate flex items-center gap-1">
+                                        <span className="truncate min-w-0">{a.employees?.first_name} {a.employees?.last_name}</span>
+                                        {auth?.administersMedications && (
+                                          <MedAdminAuthorizationIndicator
+                                            authorized={auth.authorizedToday}
+                                            isLoading={medAuthLoading}
+                                            isError={medAuthIsError}
+                                          />
+                                        )}
+                                      </div>
+                                    );
+                                    // Published schedules are read-only apart from the status
+                                    // dropdown below; rendering this as a button would offer an
+                                    // edit dialog that must not open.
+                                    return isDraft ? (
+                                      <button type="button" onClick={() => openEditDialog(a)} className="w-full text-left block">
+                                        {nameRow}
+                                      </button>
+                                    ) : nameRow;
+                                  })()}
                                   <div className="text-xs text-muted-foreground flex items-center justify-between gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => openEditDialog(a)}
-                                      className="truncate text-left flex-1 min-w-0"
-                                      title="Edit shift"
-                                    >
-                                      {a.shift_definitions?.name ?? formatTimeLabel(a.start_time)}
-                                    </button>
+                                    {isDraft ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditDialog(a)}
+                                        className="truncate text-left flex-1 min-w-0"
+                                        title="Edit shift"
+                                      >
+                                        {a.shift_definitions?.name ?? formatTimeLabel(a.start_time)}
+                                      </button>
+                                    ) : (
+                                      <span className="truncate text-left flex-1 min-w-0">
+                                        {a.shift_definitions?.name ?? formatTimeLabel(a.start_time)}
+                                      </span>
+                                    )}
                                     {/* Quick status change -- the common case doesn't need the full edit modal.
                                         Anything beyond status (notes, unit, time) still goes through openEditDialog above. */}
                                     <DropdownMenu>
@@ -1182,9 +1206,11 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
             </div>
           </div>
           <DialogFooter className="flex items-center sm:justify-between">
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteAssignment.isPending}>
-              Remove Shift
-            </Button>
+            {isDraft && (
+              <Button variant="destructive" onClick={handleDelete} disabled={deleteAssignment.isPending}>
+                Remove Shift
+              </Button>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
               <Button onClick={handleEditSave} disabled={updateAssignment.isPending}>Save</Button>

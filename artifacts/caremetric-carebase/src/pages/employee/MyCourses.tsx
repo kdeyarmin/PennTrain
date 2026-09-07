@@ -18,13 +18,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { GraduationCap, ChevronRight, BookOpen, Loader2, CloudDownload, HardDrive, Trash2, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { canSelfEnrollInCourse } from "@/lib/courseAvailability";
+import { isClosedCourseAssignmentStatus } from "@/lib/courseLearningTools";
 import { useDownloadCourseForOffline, useOfflineCourseLibrary, useRemoveOfflineCourse, useWipeOfflineCourses } from "@/hooks/useOfflineLearning";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // assigned -> "Start" (nothing begun yet); in_progress/overdue -> "Continue" (progress already
 // exists, or the due date passed either way); completed -> "Review" (re-open a finished course).
+// canceled -> "View": the player refuses to take further work on a closed assignment and says who
+// closed it, so offering "Continue" would be an invitation into a dead end (BACKLOG.md J74, Train).
 function actionLabel(status: string) {
   if (status === "completed") return "Review";
+  if (status === "canceled") return "View";
   if (status === "assigned") return "Start";
   return "Continue";
 }
@@ -206,7 +210,7 @@ export default function MyCourses() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <StatusBadge status={a.status} />
-                      {user?.role === "employee" && a.status !== "completed" && <Button size="sm" variant="outline" disabled={downloadOffline.isPending || offlineLibrary.data?.some((item) => item.assignmentId === a.id)} onClick={() => downloadOffline.mutate({ assignmentId: a.id, title: course?.title ?? "Training item" }, { onSuccess: () => toast({ title: "Course encrypted for offline use" }), onError: (error) => toast({ title: "Course could not be downloaded", description: error.message, variant: "destructive" }) })}>{downloadOffline.isPending && downloadOffline.variables?.assignmentId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}<span className="sr-only">Download for offline use</span></Button>}
+                      {user?.role === "employee" && !isClosedCourseAssignmentStatus(a.status) && <Button size="sm" variant="outline" disabled={downloadOffline.isPending || offlineLibrary.data?.some((item) => item.assignmentId === a.id)} onClick={() => downloadOffline.mutate({ assignmentId: a.id, title: course?.title ?? "Training item" }, { onSuccess: () => toast({ title: "Course encrypted for offline use" }), onError: (error) => toast({ title: "Course could not be downloaded", description: error.message, variant: "destructive" }) })}>{downloadOffline.isPending && downloadOffline.variables?.assignmentId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}<span className="sr-only">Download for offline use</span></Button>}
                       <Button asChild size="sm">
                         <Link href={`/me/courses/${a.id}`}>
                           {actionLabel(a.status)}

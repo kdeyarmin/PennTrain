@@ -26,6 +26,7 @@ import { csvEscape } from "@/lib/csv";
 import { downloadCsvText } from "@/lib/browserDownload";
 import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { containsFilterValue } from "@/lib/utils";
+import { reportScopeLines } from "@/lib/reportScope";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -815,6 +816,17 @@ export default function Reports() {
   };
 
   if (activeReport && reportData) {
+    // The filters travel with the figures. Read off activeReportRequest, not the live pickers, so
+    // the note describes the report on screen rather than what the controls have been changed to
+    // since (BACKLOG.md J80).
+    const scopeLines = reportScopeLines({
+      reportId: activeReport.id,
+      facilityName,
+      dateFrom: activeReportRequest?.dateFrom,
+      dateTo: activeReportRequest?.dateTo,
+      dateFieldLabel: REPORT_DATE_FIELD_LABEL[activeReport.id] ?? null,
+      formatDate: formatDateForDisplay,
+    });
     return (
       <div className="space-y-4">
         <ReportViewer
@@ -827,6 +839,7 @@ export default function Reports() {
           headers={reportData.headers}
           rows={reportData.rows}
           summaryCards={reportData.summaryCards}
+          scopeLines={scopeLines}
           totalRows={reportData.totalRows}
           pageSize={reportData.pageSize}
           pageOffset={reportData.pageOffset}

@@ -317,10 +317,30 @@ export async function buildFireDrillTrackerPdf(input: {
 
   w.heading(`${monthLabel(input.month)} Summary`);
   const shiftsCovered = [...new Set(input.drills.map((d) => d.shift).filter((s): s is string => !!s))];
-  const notPassing = input.drills.filter((d) => d.result !== "pass").length;
+  // The tracker and the compliance clock have to say the same thing about the same month.
+  // public.recalculate_inspection_item_compliance advances a fire drill program only from a
+  // `result = 'pass'` event (20260810160000: "a failed inspection is not a passed one"), and
+  // public.inspection_item_next_due_date then puts the next deadline at the end of the following
+  // calendar month (20260905160000, 55 Pa. Code 2600.132/2800.132). This sheet used to report only
+  // "Total Drills Logged" and "Drills Not Passing", so a month whose single drill failed printed
+  // "1 logged, 1 not passing" -- which reads as a drill having been held -- while every screen in
+  // the product still had the program overdue for that month, and nothing on the page explained
+  // the difference. It now states the passing count and the verdict the clock actually uses.
+  const passing = input.drills.filter((d) => d.result === "pass").length;
+  const notPassing = input.drills.length - passing;
   w.field("Total Drills Logged", String(input.drills.length));
+  w.field("Passing Drills", String(passing));
   w.field("Shifts Covered", shiftsCovered.length ? shiftsCovered.map(humanize).join(", ") : "—");
   w.field("Drills Not Passing", String(notPassing));
+  w.field("Sleeping-Hours Drills", String(input.drills.filter((d) => d.is_sleeping_hours_drill && d.result === "pass").length));
+  w.field(
+    "Monthly Requirement",
+    passing > 0
+      ? `Met — ${passing} passing drill${passing === 1 ? "" : "s"} logged this month`
+      : input.drills.length > 0
+        ? `NOT met — ${input.drills.length} drill${input.drills.length === 1 ? "" : "s"} logged, none passing`
+        : "NOT met — no drill logged this month",
+  );
   w.field("Regulatory Citation", fireDrillCitation(input.facilityType));
   w.y -= 6;
 
@@ -364,7 +384,10 @@ export async function buildFireDrillTrackerPdf(input: {
       "DHS-prescribed record fields (55 Pa. Code 2600.132/2800.132): date, time, evacuation duration, exit " +
       "route used, residents present, residents evacuated, staff participating, whether the alarm/detector " +
       "was operative, and problems encountered. Complete drill-level records -- including full narrative " +
-      "notes and any linked corrective actions -- are maintained in CareMetric CareBase under Inspections & Equipment.",
+      "notes and any linked corrective actions -- are maintained in CareMetric CareBase under Inspections & Equipment. " +
+      "\"Monthly Requirement\" above uses the same rule as the compliance schedule in the product: only a drill " +
+      "recorded with a passing result satisfies the month, and a drill logged as failed or with a deficiency " +
+      "noted leaves the month outstanding until a passing drill is held.",
   );
   w.ensureSpace(12);
   w.page.drawText(

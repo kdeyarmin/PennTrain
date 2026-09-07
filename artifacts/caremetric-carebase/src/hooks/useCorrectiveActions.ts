@@ -78,6 +78,32 @@ export function useUpdateCorrectiveAction() {
   });
 }
 
+// Completing an action and recording the verification are the SAME step, because
+// approve_incident_investigation and the client stage engine both refuse to close an incident
+// while a completed action has an empty `verification_notes` -- and until this RPC existed nothing
+// in the product wrote that column, so such an incident could never be approved or closed at all.
+// The RPC marks the action completed and stamps verified_by / verified_at with it. BACKLOG J13.
+export function useVerifyCorrectiveAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, verificationNotes, completedOn }: { id: string; verificationNotes: string; completedOn?: string }) => {
+      const { data, error } = await supabase.rpc("verify_corrective_action", {
+        p_action_id: id,
+        p_verification_notes: verificationNotes,
+        p_completed_on: completedOn,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["corrective_actions"] });
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
+  });
+}
+
 export function useDeleteCorrectiveAction() {
   const queryClient = useQueryClient();
   return useMutation({

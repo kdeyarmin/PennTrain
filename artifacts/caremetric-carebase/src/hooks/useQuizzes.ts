@@ -74,6 +74,48 @@ export function useGetQuizByBlockId(courseBlockId: string | undefined) {
   });
 }
 
+/** One quiz block of a course version, as the attempt-grant picker needs it. */
+export interface CourseVersionQuiz {
+  id: string;
+  title: string | null;
+  max_attempts: number | null;
+  quiz_kind: string | null;
+  sort_order: number;
+}
+
+/**
+ * Every quiz on a course version, in the order the learner meets them (BACKLOG J93).
+ *
+ * Granting an extra attempt is a decision about ONE assessment, and until this existed there was
+ * nothing to name it with: the grant went onto the assignment and `enforce_quiz_attempt_cap` added
+ * it to the cap of every quiz block under that assignment, so a retry on a failed final assessment
+ * quietly raised the limit on module quizzes nobody had failed. Nothing constrains a version to one
+ * quiz block -- `course_blocks.block_type` simply allows `quiz` -- so the picker has to ask.
+ */
+export function useListQuizzesForCourseVersion(courseVersionId: string | undefined) {
+  return useQuery({
+    queryKey: ["quizzes", "by-version", courseVersionId ?? null],
+    enabled: !!courseVersionId,
+    queryFn: async (): Promise<CourseVersionQuiz[]> => {
+      const { data, error } = await supabase
+        .from("quizzes")
+        .select("id, title, max_attempts, quiz_kind, block:course_blocks!inner(id, sort_order, course_version_id)")
+        .eq("block.course_version_id", courseVersionId!);
+      if (error) throw error;
+      type Row = Omit<CourseVersionQuiz, "sort_order"> & { block: { sort_order: number } | null };
+      return ((data ?? []) as unknown as Row[])
+        .map((row) => ({
+          id: row.id,
+          title: row.title,
+          max_attempts: row.max_attempts,
+          quiz_kind: row.quiz_kind,
+          sort_order: row.block?.sort_order ?? 0,
+        }))
+        .sort((a, b) => a.sort_order - b.sort_order);
+    },
+  });
+}
+
 export function useGetQuiz(id: string | undefined) {
   return useQuery({
     queryKey: ["quizzes", id],

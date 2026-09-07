@@ -45,6 +45,27 @@ export async function edgeFunctionError(error: unknown): Promise<EdgeFunctionErr
 }
 
 /**
+ * The same refusal, raised by Postgres rather than by an Edge Function.
+ *
+ * `assert_identity_assurance` raises SQLSTATE 42501 with 'A fresh AAL2 session is required for
+ * operation %', and supabase-js surfaces that as a PostgrestError -- a plain object carrying
+ * `code` and `message`, not an instance of anything this module can name. So an RPC-backed
+ * privileged action (the enterprise identity console, release flags) hit exactly the refusal
+ * below and matched none of it: the operator saw the raw sentence, or worse, a hint offering a
+ * step-up that cannot possibly clear a window measured from session creation.
+ */
+const POSTGRES_ASSURANCE_REFUSAL = "fresh AAL2 session is required";
+const INSUFFICIENT_PRIVILEGE = "42501";
+
+function isPostgresAssuranceRefusal(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  return code === INSUFFICIENT_PRIVILEGE
+    && typeof message === "string"
+    && message.includes(POSTGRES_ASSURANCE_REFUSAL);
+}
+
+/**
  * "Your privileged window has closed", which is NOT the same thing as "you need a second factor".
  *
  * identity_assurance_is_current measures the privileged window from `auth.sessions.created_at`,
@@ -58,6 +79,7 @@ export async function edgeFunctionError(error: unknown): Promise<EdgeFunctionErr
  * "re-verify" here would be advice that cannot work.
  */
 export function privilegedSessionExpired(error: unknown): boolean {
+  if (isPostgresAssuranceRefusal(error)) return true;
   return error instanceof EdgeFunctionError
     && error.status === 403
     && error.message.includes(ASSURANCE_REFUSAL);
@@ -66,3 +88,18 @@ export function privilegedSessionExpired(error: unknown): boolean {
 /** What to put on screen for it. Kept here so both surfaces say the same thing. */
 export const PRIVILEGED_SESSION_EXPIRED_MESSAGE =
   "Your administrator session has been open too long for this action. Sign out and sign back in to continue -- re-verifying your authenticator will not reset it.";
+
+/**
+ * What a failed privileged mutation should say, whichever side refused it.
+ *
+ * Callers that only ever render `error.message` route through this so the one refusal with an
+ * action attached keeps its action, and everything else is passed through untouched -- the
+ * alternative, seen in more than one hook, is a hand-rolled keyword sniff that catches the right
+ * error and then gives advice that does not work.
+ */
+export function privilegedFailureMessage(error: unknown, fallback = "Unknown error"): string {
+  if (privilegedSessionExpired(error)) return PRIVILEGED_SESSION_EXPIRED_MESSAGE;
+  if (error instanceof Error) return error.message;
+  const message = (error as { message?: unknown } | null)?.message;
+  return typeof message === "string" && message.trim() ? message : fallback;
+}

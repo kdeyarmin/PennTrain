@@ -236,6 +236,23 @@ Deno.serve(async (req: Request) => {
   }
   const existingLedgerByRowNumber = new Map((existingLedgers ?? []).map((r) => [r.row_number, r]));
 
+  // A lookup that failed leaves this run unable to finish honestly, and returning on the spot
+  // would strand the rows the chunk has already processed: they live in `ledgerRows` until the
+  // receipt at the end, so a bare return would let a resume apply them a second time. Receipt what
+  // is there, THEN refuse. `failed` is a status apply mode is allowed to resume from, it carries
+  // the reason into the job's `last_error` where the imports page shows it, and it releases this
+  // run's claim so the resume is not blocked by the lease of the run that gave up.
+  async function abortRun(message: string) {
+    const { error: receiptError } = await callerClient.rpc("record_data_import_chunk", {
+      p_job_id: jobId,
+      p_rows: ledgerRows,
+      p_job_status: "failed",
+      p_last_error: message.slice(0, 2000),
+    });
+    const alsoFailed = receiptError ? ` The receipt for this chunk also failed: ${receiptError.message}` : "";
+    return json(req, { error: `${message}${alsoFailed}`, job_id: jobId }, 500);
+  }
+
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
     const rowNumber = index + 2;
@@ -306,7 +323,12 @@ Deno.serve(async (req: Request) => {
 
     let existingRecord: { id: string; status: string; completion_date: string | null } | null = null;
     if (!rowErrors.length && employee && trainingType) {
-      const { data } = await callerClient
+      // A failed duplicate check reads as "no match", and the row then applies as a create -- a
+      // second completion record for training the employee has already been credited with, which
+      // double-counts against the annual hour requirement. Stop the run instead: abortRun receipts
+      // what this chunk has already done before refusing, so re-posting this job_id resumes rather
+      // than repeats.
+      const { data, error: existingRecordError } = await callerClient
         .from("employee_training_records")
         .select("id, status, completion_date")
         .eq("employee_id", employee.id)
@@ -315,6 +337,7 @@ Deno.serve(async (req: Request) => {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (existingRecordError) return await abortRun(`Row ${rowNumber}: existing training record lookup failed: ${existingRecordError.message}`);
       existingRecord = data;
     }
 

@@ -8,6 +8,8 @@ import { AuthBackground } from "@/components/auth/AuthBackground";
 import { useToast } from "@/hooks/use-toast";
 import { supabase, clearSupabaseRuntimeCache } from "@/lib/supabase";
 import { Loader2, ShieldCheck, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 type LinkState = "checking" | "valid" | "invalid";
 
@@ -35,6 +37,7 @@ function isMarkedRecoveryUser(userId: string): boolean {
 }
 
 export default function ResetPassword() {
+  usePageMeta({ ...MARKETING_ROUTE_META["/reset-password"], path: "/reset-password" });
   const { toast } = useToast();
   const [linkState, setLinkState] = useState<LinkState>("checking");
   const [password, setPassword] = useState("");

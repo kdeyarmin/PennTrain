@@ -8,6 +8,7 @@ import {
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { clientIp } from "../_shared/clientIp.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { scrubEmails } from "../_shared/aiRedaction.ts";
 
 // Public, unauthenticated newsletter/regulatory-update signup (requires verify_jwt:false for
 // [functions.subscribe-updates] in supabase/config.toml, the same registration as request-demo).
@@ -146,7 +147,15 @@ async function sendWelcomeEmail(params: {
       console.warn("subscribe-updates welcome email failed", resp.status);
     }
   } catch (error) {
-    console.warn("subscribe-updates welcome email error", error instanceof Error ? error.message : error);
+    // BACKLOG J74 (P3, guest). The I23 scrub reached the outer catch of this file and both
+    // siblings, and stopped here: a non-Error throw still went into the log AS THE WHOLE OBJECT,
+    // and even an Error's message went in unscrubbed -- from the one block in this function that
+    // has the subscriber's address in scope (it is the `to` of the request being made). Same shape
+    // as the outer catch: name, scrubbed message, nothing else.
+    console.warn("subscribe-updates welcome email error", {
+      name: error instanceof Error ? error.name : typeof error,
+      message: scrubEmails(error instanceof Error ? error.message : String(error)).slice(0, 500),
+    });
   }
 }
 
@@ -163,7 +172,7 @@ async function welcomeSendCeilingReached(adminClient: QueryClient): Promise<bool
     .select("id", { count: "exact", head: true })
     .gte("updated_at", windowStart);
   if (error) {
-    console.warn("subscribe-updates welcome ceiling check failed; skipping send", error.message);
+    console.warn("subscribe-updates welcome ceiling check failed; skipping send", scrubEmails(error.message).slice(0, 500));
     return true;
   }
   if ((count ?? 0) > globalMaxPerHour) {
@@ -316,7 +325,18 @@ Deno.serve(async (req: Request) => {
     const message = isHttpError ? (error as HttpError).message : "An unexpected error occurred. Please try again.";
     const internalDetail = isHttpError ? (error as HttpError).internalDetail : undefined;
     if (!isHttpError || status >= 500 || internalDetail) {
-      console.error(isHttpError ? "Subscribe HttpError:" : "Unexpected subscribe error:", error, internalDetail ?? "");
+      // BACKLOG.md I23, same reasoning as request-demo/index.ts and email-savings-model/index.ts:
+      // `error` used to go into the log as a whole object. This public function handles a visitor's
+      // email address, and an unexpected throw from validation, the database or SendGrid can carry
+      // the submitted payload on it -- so the address landed in a function log with a different
+      // audience and a different retention from the row it belongs to. Log the shape instead:
+      // name, scrubbed message, and the internalDetail the throw site chose to say.
+      console.error(isHttpError ? "Subscribe HttpError" : "Unexpected subscribe error", {
+        name: error instanceof Error ? error.name : typeof error,
+        message: scrubEmails(error instanceof Error ? error.message : String(error)).slice(0, 500),
+        internalDetail: internalDetail ? scrubEmails(internalDetail).slice(0, 500) : undefined,
+        status,
+      });
     }
     return json(req, { ok: false, error: message }, status);
   }

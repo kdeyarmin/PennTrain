@@ -9,7 +9,10 @@ import { loginPathWithNext } from "./loginRedirect";
 import { useToast } from "@/hooks/use-toast";
 import { AuthProfileError } from "@/components/AuthProfileError";
 import { isDefinitiveProfileAbsence, shouldShowProfileError } from "@/lib/authProfileErrors";
-import { STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT } from "@/hooks/useImpersonation";
+import {
+  STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT,
+  useStopImpersonation,
+} from "@/hooks/useImpersonation";
 import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
 import { signedInIdentityChanged, type SessionIdentity } from "@/lib/sessionIdentity";
 import {
@@ -194,6 +197,19 @@ export function markExplicitPasswordSignIn() {
   explicitPasswordSignInExpiresAt = Date.now() + 15_000;
 }
 
+// The same one-shot idiom, for the one sign-in that is not a change of identity.
+//
+// IdleSessionLock unlocks with a real signInWithPassword, which mints a new session and fires
+// SIGNED_IN -- and SIGNED_IN clears the whole react-query cache. Both session gates then fall back
+// to their full-screen spinners while their own queries reload, so the route unmounts and whatever
+// the user had half-typed is gone, underneath a banner promising "continue without losing the
+// current page". Nothing about that clear was needed: the account is the same account, which is
+// why the handler additionally checks the user id below rather than trusting this flag alone.
+let idleUnlockSignInExpiresAt = 0;
+export function markIdleUnlockSignIn() {
+  idleUnlockSignInExpiresAt = Date.now() + 15_000;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -243,8 +259,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // meant to gate ever arrived.
       const isConfirmedPasswordSignIn =
         event === "SIGNED_IN" && !!nextSession && Date.now() < explicitPasswordSignInExpiresAt;
+      // Same account, same tab, one continuous piece of work: an idle-lock unlock. The user id
+      // check is the real guard -- the marker alone would let any SIGNED_IN inside the window keep
+      // another account's cached data on screen.
+      const isIdleUnlockSignIn =
+        event === "SIGNED_IN" && !!nextSession
+        && Date.now() < idleUnlockSignInExpiresAt
+        && nextSession.user.id === lastSessionRef.current?.user.id;
       if (event === "SIGNED_IN") {
         explicitPasswordSignInExpiresAt = 0;
+        idleUnlockSignInExpiresAt = 0;
       }
 
       if (event === "SIGNED_OUT") {
@@ -277,10 +301,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       lastSessionRef.current = nextSession;
       setSession(nextSession);
-      if (event === "SIGNED_IN") {
+      if (event === "SIGNED_IN" && !isIdleUnlockSignIn) {
         void clearSupabaseRuntimeCache();
         queryClient.clear();
       } else {
+        // An idle unlock lands here with the token refreshes, which is what it is for cache
+        // purposes: the identity did not change, so nothing cached under it belongs to anyone else.
         queryClient.invalidateQueries({ queryKey: ["profile"] });
       }
     });
@@ -496,7 +522,35 @@ export function useAuth() {
 export function useSignOut() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const stopImpersonation = useStopImpersonation();
   return async () => {
+    // While impersonating, the live session belongs to the TARGET -- and auth-js's signOut
+    // defaults to `scope: 'global'`, which revokes every session that user holds, on every device
+    // they are signed in on. The impersonation also ended with no `impersonation_end` audit row,
+    // because impersonate-user's `end` action is the only thing that writes one, and behind an
+    // MFA-required tenant's wall this "Sign out" was the only exit on screen.
+    //
+    // So end the impersonation first: that revokes exactly the impersonated session, writes the
+    // audit row, and restores the administrator's own session -- which is the session this
+    // sign-out is actually for. Everything after this line is then the ordinary path.
+    if (sessionStorage.getItem(IMPERSONATION_STORAGE_KEY)) {
+      try {
+        await stopImpersonation.mutateAsync();
+      } catch (error) {
+        // The impersonated session is still the live one, so a global sign-out here would do the
+        // exact damage this branch exists to prevent. Drop the local session only, and say what
+        // did not happen -- the audit row for this impersonation is now the operator's to explain.
+        toast({
+          variant: "destructive",
+          title: "Signed out without ending impersonation",
+          description: error instanceof Error ? error.message : String(error),
+        });
+        await supabase.auth.signOut({ scope: "local" });
+        await clearLocalSessionState();
+        setLocation("/login");
+        return;
+      }
+    }
     const { error } = await supabase.auth.signOut();
     if (error) {
       toast({ variant: "destructive", title: "Sign out failed", description: error.message });

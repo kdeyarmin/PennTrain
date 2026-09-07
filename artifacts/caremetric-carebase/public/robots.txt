@@ -13,6 +13,10 @@ Disallow: /move-in-access/
 Disallow: /resident-agreement-access/
 Disallow: /survey-packet-access/
 Disallow: /resident-portal
+# The poster/QR URL for /report-safety carries the facility's resolve token in the query string.
+# The page exists to be opened by somebody holding that link -- an employee scanning the poster --
+# not to be crawled and indexed with the code attached.
+Disallow: /report-safety
 # /verify/ and /passport/ carry a named person's certificate and training history. They exist to be
 # opened by somebody holding the link -- a surveyor checking a certificate, a nurse aide showing
 # their record -- not to be findable by searching that person's name. The slug is what authorizes

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { useAuth } from "@/lib/auth";
 import type { Tables } from "@/lib/database.types";
 import { navigationFavoritePaths } from "@/lib/navigationPreferences";
@@ -24,12 +25,24 @@ export type ProductChangelog = {
   unreadCount: number;
   entries: ProductChangelogEntry[];
 };
+/**
+ * The passport used to print "CE hours" equal to `courses.estimated_duration_minutes / 60` on a
+ * page badged "Verified transcript" (BACKLOG.md J74, Train). CareMetric accredits nothing, and a
+ * course's estimated length is not a continuing-education credit. What the compliance model does
+ * stand behind is `course_completion_credits.credit_hours` -- the governed, citation-carrying
+ * credit recorded when the assignment completed -- and only for the courses that have one. So the
+ * RPC now returns `creditHours: null` where no credit was recorded, and the page prints nothing
+ * there rather than a number nothing backs.
+ */
 export type PublicTrainingPassport = {
   passportId: string;
   employeeName: string;
   generatedAt: string;
   certificateCount: number;
-  totalCeHours: number;
+  /** Sum of the recorded compliance credit across the certificates that carry one. */
+  totalCreditHours: number;
+  /** How many of `certificates` contributed to `totalCreditHours`. */
+  creditedCertificateCount: number;
   certificates: Array<{
     certificateId: string;
     credentialNumber: string;
@@ -38,7 +51,8 @@ export type PublicTrainingPassport = {
     expiresAt: string | null;
     isValid: boolean;
     verificationPath: string;
-    ceHours: number;
+    /** Recorded compliance credit for this completion, or null when none was recorded. */
+    creditHours: number | null;
   }>;
 };
 export type ManagerDigestItem = { key: string; label: string; count: number; path: string };
@@ -104,11 +118,35 @@ export function useNavigationWorkspace() {
 }
 
 export function useAnnouncements() {
+  const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
   const queryClient = useQueryClient();
+  // `viewingOrgId` FIRST, and that is the whole point (BACKLOG J94). A platform admin has no
+  // organization of their own -- `user.organizationId` is null and stays null however they use the
+  // product -- and the header's "Viewing as" selection lives in `useViewingOrg`, which yields a
+  // value for that role alone. Scoping on `user.organizationId` therefore left the announcements
+  // query permanently disabled for the one caller it was written for, on a page that told them to
+  // use a picker it never read: strictly worse than the cross-tenant interleave it replaced.
+  // EvidenceRoom and QualifiedWorkforce take the same pair; this now matches them.
+  const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
   const query = useQuery({
-    queryKey: ["org_announcements"],
+    // `org_announcements_visible` starts with `is_platform_admin() or ...`, so a platform admin
+    // reads every tenant's announcements and this page interleaved them by published_at with no
+    // way to tell whose was whose (BACKLOG.md J74, Policy). Announcements are an organization
+    // surface; scope the read to the caller's own organization, as every other /app list does.
+    //
+    // `enabled`, not a conditional filter (BACKLOG J93). Applying `.eq()` only when an organization
+    // happens to be known left the unscoped read intact for the one caller that can actually see
+    // across tenants: a platform admin with no organization of their own. For them the filter was
+    // simply omitted and the policy's first clause returned every tenant's rows again -- the J74
+    // defect, unfixed, on the accounts most likely to hit it. A query that cannot be scoped must
+    // not run; the page says which control supplies the missing context -- and that control now
+    // feeds this hook, which it did not when the guard was first written (J94).
+    queryKey: ["org_announcements", organizationId],
+    enabled: !!organizationId,
     queryFn: async () => {
       const { data, error } = await supabase.from("org_announcements").select("*")
+        .eq("organization_id", organizationId!)
         .order("published_at", { ascending: false }).limit(100);
       if (error) throw error;
       return data;

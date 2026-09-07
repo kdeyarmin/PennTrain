@@ -60,5 +60,13 @@ export function marketingPlansFromLabel(): string {
   return `Plans from ${MARKETING_TRAIN_PRICE_LABEL}/month · ${MARKETING_TRIAL_DAYS}-day free trial.`;
 }
 
-/** Effective date shown on public Privacy Policy and Terms of Service. */
-export const MARKETING_LEGAL_EFFECTIVE_DATE = "July 23, 2026";
+/**
+ * Effective date shown on the public Privacy Policy and Terms of Service.
+ *
+ * Re-exported from src/lib/legalAgreements.ts rather than written out again: this used to be its
+ * own literal ("July 23, 2026") while the platform agreement and BAA the same visitor accepts at
+ * signup carried July 14, 2026, so the public pages and the signed documents disagreed about when
+ * the terms took effect. LEGAL_EFFECTIVE_DATE is the anchored one -- SERVICE_AGREEMENT_VERSION and
+ * BAA_VERSION embed the same 2026-07-14 stamp and are recorded per organization at signup.
+ */
+export { LEGAL_EFFECTIVE_DATE as MARKETING_LEGAL_EFFECTIVE_DATE } from "../../lib/legalAgreements";

@@ -1257,8 +1257,19 @@ test.describe("resident lifecycle journey", () => {
       page.getByRole("heading", { level: 1, name: "Resident, Journey" }),
     ).toBeVisible({ timeout: 20000 });
 
-    await page.getByRole("combobox", { name: "Resident status" }).click();
-    await page.getByRole("option", { name: "Discharged" }).click();
+    // Retargeted 2026-09-06: the header's two-option Select was replaced by
+    // ResidentCensusStatusDialog, because writing residents.status directly left the discharged
+    // resident holding their bed -- set_bed_availability then refused to release it, since
+    // releasing an occupied bed is the census workflow's job. The dialog routes the change through
+    // transition_resident_census, which is also why it asks for a reason.
+    await page.getByRole("button", { name: "Change status" }).click();
+    const censusDialog = page.getByRole("dialog").filter({ hasText: "Change resident status" });
+    await expect(censusDialog).toBeVisible({ timeout: 20000 });
+    await censusDialog.getByRole("combobox", { name: "New resident status" }).click();
+    // The listbox portals out of the dialog, so it is matched on the page rather than inside it.
+    await page.getByRole("option", { name: "Discharged", exact: true }).click();
+    await censusDialog.getByLabel("Reason").fill("Journey test: resident discharged to family care");
+    await censusDialog.getByRole("button", { name: "Record status change" }).click();
 
     // The status and the date move together: a discharged resident with no discharge date is a
     // census record nobody can reconcile later.

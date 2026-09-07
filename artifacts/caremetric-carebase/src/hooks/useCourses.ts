@@ -278,6 +278,17 @@ export function useCloneCourseVersion() {
           title: q.title,
           passing_score_percent: q.passing_score_percent,
           max_attempts: q.max_attempts,
+          // Behaviour columns, not decoration. quiz_kind defaults to 'assessment', so a clone that
+          // omitted it turned the source's final exam into a practice quiz --
+          // complete_course_assignment then found no final-exam attempt and the certificate printed
+          // no examination score, the renewal record stored a null score, and the compliance
+          // report's exam CTE (and its "Areas to review" panel) saw nothing. The three shuffle/
+          // reveal flags default to false the same way, quietly changing how the quiz behaves.
+          // Revising the annual course is a clone, so every one of these has to travel with it.
+          quiz_kind: q.quiz_kind,
+          shuffle_questions: q.shuffle_questions,
+          shuffle_answers: q.shuffle_answers,
+          reveals_answers_after_attempt: q.reveals_answers_after_attempt,
         }));
         const { error: insertQuizzesError } = await supabase.from("quizzes").insert(newQuizzes);
         if (insertQuizzesError) throw insertQuizzesError;
@@ -296,6 +307,10 @@ export function useCloneCourseVersion() {
           question_type: q.question_type,
           points: q.points,
           sort_order: q.sort_order,
+          // The topic a missed question maps back to. Dropping these left the clone's exam results
+          // untopiced, so "Areas to review" had nothing to group by.
+          topic_code: q.topic_code,
+          topic_label: q.topic_label,
         }));
         const { error: insertQuestionsError } = await supabase.from("quiz_questions").insert(newQuestions);
         if (insertQuestionsError) throw insertQuestionsError;

@@ -26,7 +26,7 @@ function chainable(result: { data: unknown; error: unknown; count?: number }) {
   // deno-lint-ignore no-explicit-any
   const obj: any = {};
   const self = () => obj;
-  for (const method of ["select", "eq", "limit", "update"]) obj[method] = self;
+  for (const method of ["select", "eq", "is", "limit", "update"]) obj[method] = self;
   obj.maybeSingle = async () => result;
   obj.single = async () => result;
   obj.then = (resolve: (v: unknown) => unknown) => resolve(result);
@@ -37,7 +37,9 @@ const ATTESTATION_ID = "att-1";
 const CAMPAIGN_ID = "camp-1";
 const PROFILE_ID = "profile-1";
 
-function makeCallerClient(opts: { profileId?: string; status?: string } = {}) {
+function makeCallerClient(
+  opts: { profileId?: string; status?: string; contentHash?: string | null; supersededAt?: string } = {},
+) {
   return {
     auth: {
       getUser: async () => ({ data: { user: { id: PROFILE_ID } }, error: null }),
@@ -48,11 +50,14 @@ function makeCallerClient(opts: { profileId?: string; status?: string } = {}) {
         data: {
           id: ATTESTATION_ID,
           status: opts.status ?? "pending",
+          superseded_at: opts.supersededAt ?? null,
           employee_id: "emp-1",
           campaign_id: CAMPAIGN_ID,
           policy_document_version_id: "ver-1",
           employees: { profile_id: opts.profileId ?? PROFILE_ID },
-          policy_document_versions: { content_hash: "hash-1" },
+          policy_document_versions: opts.contentHash === null
+            ? null
+            : { content_hash: opts.contentHash ?? "hash-1" },
         },
         error: null,
       });
@@ -63,6 +68,7 @@ function makeCallerClient(opts: { profileId?: string; status?: string } = {}) {
 interface AdminTracking {
   updateCalled: boolean;
   questionCountQueriedWithAdminClient: boolean;
+  updateFilteredOnSuperseded?: boolean;
 }
 
 function makeAdminClient(
@@ -80,10 +86,18 @@ function makeAdminClient(
       }
       if (table === "policy_attestations") {
         track.updateCalled = true;
-        return chainable({
+        const chain = chainable({
           data: { id: ATTESTATION_ID, status: "attested", attested_at: "2026-08-02T00:00:00Z" },
           error: null,
         });
+        // deno-lint-ignore no-explicit-any
+        const withIs: any = chain;
+        const originalIs = withIs.is;
+        withIs.is = (column: string, value: unknown) => {
+          if (column === "superseded_at" && value === null) track.updateFilteredOnSuperseded = true;
+          return originalIs(column, value);
+        };
+        return withIs;
       }
       throw new Error(`unexpected admin table: ${table}`);
     },
@@ -148,6 +162,30 @@ Deno.test("attest-policy counts questions with the service-role client, not the 
   assertEquals(track.questionCountQueriedWithAdminClient, true);
 });
 
+Deno.test("attest-policy refuses to sign when the document hash cannot be read", async () => {
+  // BACKLOG.md J74 (Policy). `document_version_hash` is the only record of WHICH bytes were
+  // attested to. It used to be written as null whenever the embedded version read came back empty
+  // -- an ESIGN/UETA record attesting to nothing -- and the attestation still read as signed.
+  const track: AdminTracking = { updateCalled: false, questionCountQueriedWithAdminClient: false };
+  const callerClient = makeCallerClient({ contentHash: null });
+  let callCount = 0;
+  const createClient = () => {
+    callCount += 1;
+    return callCount === 1
+      ? callerClient
+      : makeAdminClient(track, { questionCount: 0, hasPassedAttempt: false });
+  };
+  const handler = createAttestPolicyHandler({ createClient, getEnv });
+
+  const response = await handler(makeRequest({ attestationId: ATTESTATION_ID }));
+  const body = await response.json();
+
+  assertEquals(response.status, 409);
+  assertEquals(track.updateCalled, false);
+  assertEquals(typeof body.error, "string");
+  assertEquals(body.error.includes("fingerprint"), true);
+});
+
 Deno.test("attest-policy still rejects attesting someone else's assigned policy", async () => {
   const track: AdminTracking = { updateCalled: false, questionCountQueriedWithAdminClient: false };
   const callerClient = makeCallerClient({ profileId: "someone-else" });
@@ -158,4 +196,40 @@ Deno.test("attest-policy still rejects attesting someone else's assigned policy"
 
   assertEquals(response.status, 403);
   assertEquals(track.updateCalled, false);
+});
+
+Deno.test("attest-policy refuses to sign a version that has been superseded", async () => {
+  // BACKLOG.md J7. Publishing a new version stamps `superseded_at` on the pending attestations
+  // against older ones and closes their campaign -- and deliberately leaves `status` as `pending`,
+  // so the row still reads as unfinished rather than as withdrawn. This function only asked about
+  // `status`, so an employee holding the old assignment link could still sign replaced text and
+  // produce the stale evidence that migration exists to refuse.
+  const track: AdminTracking = { updateCalled: false, questionCountQueriedWithAdminClient: false };
+  const callerClient = makeCallerClient({ supersededAt: "2026-09-06T12:00:00Z" });
+  let callCount = 0;
+  const createClient = () => {
+    callCount += 1;
+    return callCount === 1
+      ? callerClient
+      : makeAdminClient(track, { questionCount: 0, hasPassedAttempt: false });
+  };
+  const handler = createAttestPolicyHandler({ createClient, getEnv });
+
+  const response = await handler(makeRequest({ attestationId: ATTESTATION_ID }));
+  const body = await response.json();
+
+  assertEquals(response.status, 409);
+  assertEquals(body.superseded, true);
+  assertEquals(track.updateCalled, false, "a superseded version must never be signed");
+});
+
+Deno.test("attest-policy also filters the service-role update on superseded_at", async () => {
+  // The read above cannot close the window on its own: publish_policy_document_version can land
+  // between it and the write, and this update runs as service_role, which RLS does not see.
+  const { handler, track } = makeHandler({ questionCount: 0, hasPassedAttempt: false });
+
+  const response = await handler(makeRequest({ attestationId: ATTESTATION_ID }));
+
+  assertEquals(response.status, 200);
+  assertEquals(track.updateFilteredOnSuperseded, true);
 });

@@ -712,6 +712,15 @@ export default function PaDhsCitations() {
               same report&apos;s medication and incident-reporting findings and the
               prior-year (2024, 2022) tables, so the fifteen cover what surveyors
               write beyond each setting&apos;s published top ten.
+              <br />
+              <br />
+              This page ranks what is cited most often. It is not an index of
+              every section CareBase tracks: administrator qualification and
+              continuing education (§2600.64 · §2800.64), for one, is governed in
+              the product and referenced by the regulatory crosswalk without
+              appearing here, because it is not among the most-cited sections.
+              Ranking it would say something about surveyor findings that the
+              published data does not support.
             </div>
           </Reveal>
         </div>

@@ -11,6 +11,7 @@ import {
   MARKETING_TRIAL_DAYS,
   carebaseMonthlyPrice,
 } from "@/components/marketing/marketingPricing";
+import { CAREBASE_ANNUAL_LIST_PRICE, calculateSavingsModel } from "@/lib/savingsModel";
 import { useEmailSavingsModel } from "@/hooks/useEmailSavingsModel";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/lib/usePageMeta";
@@ -34,8 +35,8 @@ const EDUCATION_COSTS = [
 ] as const;
 
 const INCLUDED_FEATURES = [
-  "Course builder with graded quizzes & certificates",
-  "AI course creation from your own policies — human-approved before publishing",
+  "Course library built and maintained for you, with graded quizzes & certificates",
+  "AI-assisted courses written from your own policies by our team — human-approved before publishing",
   "Live classes with QR sign-in — hours log themselves",
   "Resident clinical charting + FHIR med sync (CareBase)",
   "Survey Day Mode, compliance copilot & one-click binders",
@@ -173,15 +174,25 @@ export default function Savings() {
 
   usePageMeta({ ...MARKETING_ROUTE_META["/savings"], path: "/savings" });
 
-  const labor = calculator.hours * 52 * calculator.rate;
-  const toolSpend = calculator.tools * 12;
-  const gross = (labor * calculator.cut) / 100 + toolSpend;
-  // Keep the local formula aligned with marketingPricing so the worksheet never
-  // drifts from Landing / FAQ / billing catalog list prices.
+  // One model, computed in lib/savingsModel.ts, shared with the emailed model and the in-app
+  // Value Center (RELEASE_READINESS_PLAN 4.3, platform L2/L3/L4). The year used to be priced at
+  // `monthlyPrice * 12` = $5,988 while the catalog sells the annual plan at $4,990, so every net
+  // and payback figure on this page charged the visitor $998 a year the company does not bill.
+  const model = calculateSavingsModel({
+    weeklyCoordinationHours: calculator.hours,
+    annualBinderHours: 0,
+    loadedHourlyRate: calculator.rate,
+    monthlyReplaceableToolSpend: calculator.tools,
+    expectedLaborReductionPercent: calculator.cut,
+    annualCareBasePrice: CAREBASE_ANNUAL_LIST_PRICE,
+  });
+  const labor = model.annualLaborCost;
+  const toolSpend = model.annualReplaceableToolSpend;
+  const gross = model.grossAnnualOpportunity;
   const monthlyPrice = carebaseMonthlyPrice();
-  const annualPrice = monthlyPrice * 12;
-  const net = gross - annualPrice;
-  const payback = gross > 0 ? annualPrice / (gross / 12) : null;
+  const annualPrice = CAREBASE_ANNUAL_LIST_PRICE;
+  const net = model.netAnnualOpportunity ?? gross;
+  const payback = model.modeledPaybackMonths;
 
   const updateCalculator = (key: SliderKey, value: string) => {
     setCalculator((current) => ({ ...current, [key]: Number(value) }));
@@ -525,7 +536,9 @@ export default function Savings() {
               [
                 <>
                   CareBase plan{" "}
-                  <span className="text-white/60">({money(monthlyPrice)}/mo)</span>
+                  <span className="text-white/60">
+                    (annual, or {money(monthlyPrice)}/mo)
+                  </span>
                 </>,
                 `${money(annualPrice)} /yr`,
               ],

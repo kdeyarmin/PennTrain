@@ -9,7 +9,7 @@ import { Loader2, Eye, X, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { IdleSessionLock, MfaPolicyGate } from "./SessionSecurityGates";
+import { IdleSessionLock, MfaPolicyGate, useCurrentIdleSessionLock } from "./SessionSecurityGates";
 import { OfflineSyncManager } from "@/components/offline/OfflineSyncManager";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { CareMetricCopilot } from "@/components/CareMetricCopilot";
@@ -70,6 +70,11 @@ function ImpersonationBanner() {
   );
 }
 
+// `current_org_id()` excludes BOTH 'suspended' and 'canceled' (20260716224753), and the probe
+// below can only see that the organization row has become unreadable -- the row itself, which is
+// where the status lives, is exactly what RLS is withholding. So this screen cannot honestly name
+// one of the two, and used to name the wrong one for every canceled organization. It says what is
+// actually known, and both routes out of it are true for either status.
 function SuspendedScreen() {
   const handleLogout = useSignOut();
   return (
@@ -78,10 +83,11 @@ function SuspendedScreen() {
         <div className="h-14 w-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
           <ShieldAlert className="h-7 w-7 text-destructive" />
         </div>
-        <h1 className="text-xl font-bold">Organization Access Suspended</h1>
+        <h1 className="text-xl font-bold">Organization Access Unavailable</h1>
         <p className="text-muted-foreground text-sm">
-          Your organization's access to CareMetric CareBase has been suspended. Contact your administrator or
-          CareMetric CareBase support to resolve this.
+          Your organization's CareMetric CareBase subscription is suspended or canceled, so its records are not
+          available to you right now. Your data is not deleted. Contact your organization administrator, or
+          CareMetric CareBase support, to restore access.
         </p>
         <Button variant="outline" onClick={handleLogout}>Sign Out</Button>
       </div>
@@ -115,6 +121,16 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const checkSuspension = isAuthenticated && !!user && user.role !== "platform_admin" && !!user.organizationId;
   const { data: orgAccessible, isLoading: suspensionLoading } = useMyOrganizationAccessible(user?.organizationId, checkSuspension);
 
+  // ...but so does a session the server has locked: `current_org_id()` is
+  // `... and public.current_session_unlocked()`, so an idle or kiosk lock makes that same row
+  // unreadable. A user whose session locked and who then reloaded the tab therefore got the
+  // full-page suspension screen -- whose only control is Sign Out -- and the unlock prompt one
+  // level down never mounted. The lock has to be resolved before "unreadable" can be read as
+  // "suspended"; when it is not resolved (still loading, or the probe itself failed) fall through
+  // to IdleSessionLock, which owns both the prompt and its own fail-closed screen.
+  const sessionLock = useCurrentIdleSessionLock(user?.id);
+  const sessionNotLocked = sessionLock.isSuccess && sessionLock.data === null;
+
   if (isLoading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background" role="status" aria-live="polite">
@@ -130,7 +146,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  if (checkSuspension && suspensionLoading) {
+  if (checkSuspension && (suspensionLoading || sessionLock.isPending)) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background" role="status" aria-live="polite">
         <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
@@ -144,22 +160,30 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   // way back to their own session (see the P2 review finding this comment documents). Falling
   // through to the normal layout instead keeps "Return to Admin" reachable; the impersonated
   // user's pages will simply show no data, same as any other suspended-org browsing session.
-  if (checkSuspension && orgAccessible === false && !isImpersonating) {
+  if (checkSuspension && orgAccessible === false && !isImpersonating && sessionNotLocked) {
     return <SuspendedScreen />;
   }
 
   return (
+    // The banner, and the 30-minute auto-return timer it owns, sit ABOVE MfaPolicyGate on purpose.
+    // Inside it, an administrator impersonating a manager in an MFA-required tenant met the
+    // full-screen "Multi-factor verification required" gate -- the impersonated session is that
+    // manager's, and it is not AAL2 -- with the exit rendered underneath it and therefore not on
+    // screen at all. Out here the way back is always visible, and the timer keeps running whichever
+    // gate is showing.
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
+      <ImpersonationBanner />
+      <div className="min-h-0 flex-1 overflow-auto">
     <MfaPolicyGate>
     <IdleSessionLock>
     <PageTitleProvider>
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="flex h-full w-full overflow-hidden bg-background">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground">
         Skip to main content
       </a>
       <Sidebar />
       <MobileSidebar open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
       <div className="flex-1 flex flex-col min-w-0">
-        <ImpersonationBanner />
         {/* Owns the offline draft sync loop for the whole signed-in session, and renders the
             critical-reading warning a background sync can raise. In the shell rather than on a
             page because the pages that used to carry it are not the ones a caregiver sits on while
@@ -186,5 +210,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     </PageTitleProvider>
     </IdleSessionLock>
     </MfaPolicyGate>
+      </div>
+    </div>
   );
 }

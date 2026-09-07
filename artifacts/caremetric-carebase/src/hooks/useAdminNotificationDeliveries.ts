@@ -8,6 +8,17 @@ export type NotificationDelivery = Tables<"notification_deliveries"> & {
   fallback_group_id?: string;
   fallback_sequence?: number;
   escalation_reason?: string | null;
+  /**
+   * How many provider events this delivery has, embedded so the retry control can mirror the
+   * server's whole predicate rather than half of it (BACKLOG J93).
+   *
+   * `retry_notification_delivery` accepts an ambiguous (`final_outcome = 'unknown'`) delivery only
+   * when it was finalized more than six hours ago AND has no `notification_provider_events` row.
+   * The page mirrored the six hours and not the second half, so a delivery that later received a
+   * provider event still showed a Retry button that the RPC refused -- the dead-end control the
+   * mirror exists to remove, back again for a narrower set of rows.
+   */
+  provider_events?: Array<{ count: number }>;
 };
 
 export interface NotificationOperationsSummary {
@@ -111,7 +122,10 @@ export function useListNotificationDeliveries(filters: ListNotificationDeliverie
     queryFn: async () => {
       let query = supabase
         .from("notification_deliveries")
-        .select("*")
+        // The count is an aggregate over the embedded table, so it costs one query rather than one
+        // per row -- and it has to come from the same read as the rows, or the mirror is deciding
+        // from state older than the row it is deciding about.
+        .select("*, provider_events:notification_provider_events(count)")
         .order("created_at", { ascending: false })
         .limit(filters.limit ?? 200);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);

@@ -38,19 +38,33 @@ export function useListShiftAssignments(filters: ListShiftAssignmentsFilters = {
   return useQuery({
     queryKey: ["shift_assignments", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("shift_assignments")
-        .select(WITH_DETAILS_SELECT)
-        .order("shift_date")
-        .order("start_time");
-      if (filters.scheduleId) query = query.eq("schedule_id", filters.scheduleId);
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.fromDate) query = query.gte("shift_date", filters.fromDate);
-      if (filters.toDate) query = query.lte("shift_date", filters.toDate);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as unknown as ShiftAssignmentWithDetails[];
+      // PostgREST caps a single response. Page until exhausted: a published month across a large
+      // facility passes the cap easily, and a schedule grid that silently stops mid-month reads as
+      // an unstaffed shift rather than as a truncated read.
+      // (shift_date, start_time) is not a total order -- every employee on the same shift shares
+      // both -- so the `id` tie-break is what keeps rows from repeating on one page and vanishing
+      // from another.
+      const pageSize = 1000;
+      const rows: ShiftAssignmentWithDetails[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("shift_assignments")
+          .select(WITH_DETAILS_SELECT)
+          .order("shift_date")
+          .order("start_time")
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (filters.scheduleId) query = query.eq("schedule_id", filters.scheduleId);
+        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.fromDate) query = query.gte("shift_date", filters.fromDate);
+        if (filters.toDate) query = query.lte("shift_date", filters.toDate);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...((data ?? []) as unknown as ShiftAssignmentWithDetails[]));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     enabled: options.enabled,
   });

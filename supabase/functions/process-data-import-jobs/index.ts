@@ -698,66 +698,42 @@ async function processResidentContactJob(supabase: ReturnType<typeof createClien
       continue;
     }
 
-    if (action === "update") {
-      if (!row.target_id || !UUID_PATTERN.test(row.target_id)) {
-        await markLedgerRowFailureForTable(supabase, row, RESIDENT_CONTACT_TARGET_TABLE, `Row ${row.row_number}: update action is missing target_id`);
-        continue;
-      }
-      const { data: existingContact, error: existingContactErr } = await supabase
-        .from("resident_contacts")
-        .select("id,organization_id,resident_id")
-        .eq("id", row.target_id)
-        .eq("organization_id", job.organization_id)
-        .maybeSingle();
-      if (existingContactErr || !existingContact) {
-        await markLedgerRowFailureForTable(
-          supabase,
-          row,
-          RESIDENT_CONTACT_TARGET_TABLE,
-          `Row ${row.row_number}: ${existingContactErr?.message ?? "resident contact target was not found in the job organization"}`,
-        );
-        continue;
-      }
-      if (asStringOrNull(existingContact.resident_id) !== residentId) {
-        await markLedgerRowFailureForTable(
-          supabase,
-          row,
-          RESIDENT_CONTACT_TARGET_TABLE,
-          `Row ${row.row_number}: resident contact target is not in resident scope`,
-        );
-        continue;
-      }
-      const { error: updateErr } = await supabase
-        .from("resident_contacts")
-        .update(payload)
-        .eq("id", row.target_id)
-        .eq("organization_id", job.organization_id);
-      if (updateErr) {
-        await markLedgerRowFailureForTable(supabase, row, RESIDENT_CONTACT_TARGET_TABLE, `Row ${row.row_number}: ${updateErr.message}`);
-        continue;
-      }
-      await markLedgerRowStatus(supabase, row, {
-        status: "applied",
-        targetTable: RESIDENT_CONTACT_TARGET_TABLE,
-        targetId: row.target_id,
-      });
+    if (action === "update" && (!row.target_id || !UUID_PATTERN.test(row.target_id))) {
+      await markLedgerRowFailureForTable(supabase, row, RESIDENT_CONTACT_TARGET_TABLE, `Row ${row.row_number}: update action is missing target_id`);
       continue;
     }
 
-    const { data: createdContact, error: createErr } = await supabase
-      .from("resident_contacts")
-      .insert(payload)
-      .select("id")
-      .single();
-    if (createErr) {
-      await markLedgerRowFailureForTable(supabase, row, RESIDENT_CONTACT_TARGET_TABLE, `Row ${row.row_number}: ${createErr.message}`);
+    // Through the RPC, not the table (RELEASE_READINESS_PLAN 4.4, row I5). `resident_contacts` is
+    // SELECT-only for `authenticated` and writes are RPC-only, which is why the browser processor
+    // (bulk-import-resident-contacts) has always called `import_apply_resident_contact`. This
+    // worker holds a service-role key, so the blanket table grant let it insert and update the
+    // table directly -- and it did, which meant the same import obeyed different rules depending
+    // on whether the tab stayed open: the direct path skipped the contact-type vocabulary, the
+    // required name, the resident-in-organization check, and the derivation of facility_id from
+    // the resident rather than from the browser-supplied ledger payload. One write path now, with
+    // the RPC's own org/resident scope checks doing the work this function used to do by hand.
+    const { data: appliedContact, error: applyErr } = await supabase.rpc("import_apply_resident_contact", {
+      p_job_id: job.id,
+      p_resident_id: residentId,
+      p_contact_id: action === "update" ? row.target_id : null,
+      p_payload: {
+        name: payload.name,
+        relationship: payload.relationship,
+        email: payload.email,
+        phone: payload.phone,
+        is_primary: payload.is_primary,
+        contact_type: payload.contact_type,
+      },
+    });
+    if (applyErr) {
+      await markLedgerRowFailureForTable(supabase, row, RESIDENT_CONTACT_TARGET_TABLE, `Row ${row.row_number}: ${applyErr.message}`);
       continue;
     }
 
     await markLedgerRowStatus(supabase, row, {
       status: "applied",
       targetTable: RESIDENT_CONTACT_TARGET_TABLE,
-      targetId: asStringOrNull(createdContact?.id),
+      targetId: asStringOrNull((appliedContact as { id?: unknown } | null)?.id) ?? row.target_id,
     });
   }
 

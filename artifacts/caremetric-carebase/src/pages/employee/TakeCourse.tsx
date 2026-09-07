@@ -65,7 +65,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Clock, Copy, Download, FileText, Lightbulb, ListChecks, RotateCcw, ShieldCheck, Trash2, Video, BookOpen, Star, Target,
+  ArrowLeft, ArrowRight, Ban, CheckCircle2, ClipboardCheck, Clock, Copy, Download, FileText, Lightbulb, ListChecks, RotateCcw, ShieldCheck, Trash2, Video, BookOpen, Star, Target,
   type LucideIcon,
 } from "lucide-react";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
@@ -700,6 +700,45 @@ useEffect(() => {
           <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
         </Button>
         <QueryError what="your training progress" error={progressErrorDetail} onRetry={() => void refetchProgress()} />
+      </div>
+    );
+  }
+
+  // Cancelled is a closed assignment, and the player cannot honestly take another minute of work
+  // against it: `complete_course_assignment` would write status='completed' while `canceled_at`
+  // stays set, and `course_assignment_cancellation_check` refuses that with its raw constraint text
+  // (BACKLOG.md J74, Train). Say who closed it and where the replacement lives instead.
+  if (assignment.status === "canceled") {
+    return (
+      <div className="space-y-4">
+        <Button asChild variant="ghost" size="sm">
+          <Link href={backHref}><ArrowLeft className="mr-2 h-4 w-4" /> {backLabel}</Link>
+        </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Ban className="h-5 w-5" /> This training assignment was cancelled
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {course?.title ?? "This training item"} is no longer assigned to you, so it can no longer
+              be worked or marked complete. Nothing you did on it was lost.
+            </p>
+            {assignment.cancellation_reason && (
+              <p className="rounded-lg border bg-muted/20 p-3 text-sm">
+                <span className="font-medium">Reason given: </span>
+                {assignment.cancellation_reason}
+              </p>
+            )}
+            <p className="text-sm text-muted-foreground">
+              If this training is still required, your manager can assign it again.
+            </p>
+            <Button asChild>
+              <Link href={backHref}>{backLabel}</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

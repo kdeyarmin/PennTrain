@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Download, FolderLock, Loader2, ShieldCheck, ShieldX } from "lucide-react";
 import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const SESSION_TOKEN_KEY = "carebase-evidence-room-token";
 
@@ -45,6 +47,10 @@ function Shell({ children }: { children: ReactNode }) {
 }
 
 export default function EvidenceGuestRoom() {
+  // BACKLOG J74 (P3, guest). Without this the tab, the canonical and the robots tag stayed
+  // whatever the last route left in index.html -- the homepage's, on a page reached only by
+  // holding a credential. The prerendered head says the same thing for a crawler.
+  usePageMeta({ ...MARKETING_ROUTE_META["/evidence-access"], path: "/evidence-access" });
   const { token: routeToken } = useParams<{ token?: string }>();
   const [token] = useState(() => consumePublicAccessToken(
     routeToken,

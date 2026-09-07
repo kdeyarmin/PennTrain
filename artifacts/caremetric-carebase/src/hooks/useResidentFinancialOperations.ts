@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Json, Tables } from "@/lib/database.types";
+import { addFacilityCalendarDays } from "@/lib/dateUtils";
 
 export type ResidentFinancialAccount = Tables<"resident_financial_accounts">;
 export type ResidentRateAgreement = Tables<"resident_rate_agreements">;
@@ -15,10 +16,18 @@ export type ResidentPersonalFundTransaction =
   Tables<"resident_personal_fund_transactions">;
 export type ResidentPersonalFundReconciliation =
   Tables<"resident_personal_fund_reconciliations">;
+export type ResidentPersonalFundAccountClosure =
+  Tables<"resident_personal_fund_account_closures">;
 export type ResidentFinancialHistory = Tables<"resident_financial_history">;
 
 export type ResidentPersonalFundPayeeProfile =
   Tables<"resident_personal_fund_payee_profiles">;
+
+/** A ledger row as every read of this table selects it: the row plus the two embeds it renders. */
+export type FundLedgerEntry = ResidentPersonalFundTransaction & {
+  staff: { id: string; first_name: string; last_name: string } | null;
+  receipt: { id: string; document_label: string | null; file_name: string } | null;
+};
 
 export interface FinancialWorkspace {
   account: ResidentFinancialAccount | null;
@@ -26,17 +35,15 @@ export interface FinancialWorkspace {
   transactions: ResidentFinancialTransaction[];
   statements: ResidentFinancialStatement[];
   fundAccount: ResidentPersonalFundAccount | null;
+  /**
+   * The settlement record, once the account has been closed. It is a row in its own append-only
+   * table rather than a column on the account, because `resident_personal_fund_accounts` carries
+   * `prevent_phase5_evidence_mutation` on BEFORE UPDATE with no escape hatch -- stamping a
+   * closed_on onto it would raise 55000 for everybody, definer included (20260906140000).
+   */
+  fundClosure: ResidentPersonalFundAccountClosure | null;
   payeeProfile: ResidentPersonalFundPayeeProfile | null;
-  fundTransactions: Array<
-    ResidentPersonalFundTransaction & {
-      staff: { id: string; first_name: string; last_name: string } | null;
-      receipt: {
-        id: string;
-        document_label: string | null;
-        file_name: string;
-      } | null;
-    }
-  >;
+  fundTransactions: FundLedgerEntry[];
   reconciliations: ResidentPersonalFundReconciliation[];
   history: ResidentFinancialHistory[];
   agreementVersions: Array<{
@@ -77,6 +84,7 @@ export function useResidentFinancialWorkspace(residentId?: string) {
         transactions,
         statements,
         fundAccount,
+        fundClosure,
         payeeProfile,
         fundTransactions,
         reconciliations,
@@ -107,6 +115,11 @@ export function useResidentFinancialWorkspace(residentId?: string) {
           .order("period_end", { ascending: false }),
         supabase
           .from("resident_personal_fund_accounts")
+          .select("*")
+          .eq("resident_id", id)
+          .maybeSingle(),
+        supabase
+          .from("resident_personal_fund_account_closures")
           .select("*")
           .eq("resident_id", id)
           .maybeSingle(),
@@ -166,6 +179,7 @@ export function useResidentFinancialWorkspace(residentId?: string) {
         transactions,
         statements,
         fundAccount,
+        fundClosure,
         payeeProfile,
         fundTransactions,
         reconciliations,
@@ -180,6 +194,7 @@ export function useResidentFinancialWorkspace(residentId?: string) {
         transactions: transactions.data ?? [],
         statements: statements.data ?? [],
         fundAccount: fundAccount.data,
+        fundClosure: fundClosure.data as ResidentPersonalFundAccountClosure | null,
         payeeProfile:
           payeeProfile.data as ResidentPersonalFundPayeeProfile | null,
         fundTransactions: (fundTransactions.data ??
@@ -189,6 +204,153 @@ export function useResidentFinancialWorkspace(residentId?: string) {
         agreementVersions: (agreements.data ??
           []) as unknown as FinancialWorkspace["agreementVersions"],
         documents: documents.data ?? [],
+      };
+    },
+  });
+}
+
+/**
+ * Discharged and deceased residents whose personal-funds account is still open (BACKLOG.md J37).
+ *
+ * The resident picker on this page lists `status: "active"` residents, which is right for
+ * everything else on it -- and is exactly why a discharged resident's money became unreachable the
+ * moment their status changed. Their ledger was intact; nothing on any screen could select them to
+ * see it, let alone return it. These are the accounts a facility owes somebody.
+ */
+export interface UnsettledFundAccount {
+  accountId: string;
+  accountNumber: string;
+  residentId: string;
+  residentName: string;
+  room: string | null;
+  residentStatus: string;
+  /** The ledger's own current balance, or null when it could not be read for this account. */
+  balance: number | null;
+}
+
+/**
+ * The cap on how many such accounts this displays. Settlement is meant to happen within weeks of a
+ * discharge, so a facility carrying more than this has a backlog rather than a page-size problem --
+ * and the page says so instead of issuing an unbounded fan-out of balance reads.
+ */
+export const UNSETTLED_FUND_ACCOUNT_LIMIT = 50;
+
+/**
+ * How many ended-residency accounts are considered before the settled ones are subtracted. Larger
+ * than the display cap because closures accumulate: every account settled at this facility is still
+ * an account belonging to a discharged resident, and PostgREST cannot anti-join them away in the
+ * first query.
+ */
+const UNSETTLED_FUND_ACCOUNT_SCAN = 300;
+/**
+ * Pages of UNSETTLED_FUND_ACCOUNT_SCAN to walk before giving up and reporting truncation.
+ *
+ * Bounds the work on a facility with a long settled history while still letting the walk pass a
+ * large block of closed accounts, which a single page could not. Ten pages is 3,000 discharged or
+ * deceased residents at one facility; past that the card says the list is incomplete rather than
+ * pretending it is not.
+ */
+const UNSETTLED_FUND_ACCOUNT_MAX_PAGES = 10;
+
+export function useUnsettledPersonalFundAccounts(facilityId?: string) {
+  return useQuery({
+    queryKey: ["resident-financial-operations", "unsettled-funds", facilityId],
+    enabled: !!facilityId,
+    queryFn: async (): Promise<{ accounts: UnsettledFundAccount[]; truncated: boolean }> => {
+      type AccountRow = {
+        id: string;
+        account_number: string;
+        resident_id: string;
+        beginning_balance: number | string;
+        resident: { first_name: string; last_name: string; room: string | null; status: string };
+      };
+
+      // Paged, and the paging is the fix rather than a scaling nicety.
+      //
+      // Settlement is a row in resident_personal_fund_account_closures, not a column on the
+      // account -- the account row carries prevent_phase5_evidence_mutation on BEFORE UPDATE, so
+      // there is nothing on it to stamp (20260906140000) -- which means the closed ones can only
+      // be removed after the rows come back. Taking a single ordered page of 300 FIRST and
+      // filtering afterwards meant that once a facility had accumulated 300 settled accounts
+      // sorting ahead of an unsettled one, that account was never in the page and so never
+      // appeared: money still owed to a discharged resident, invisible behind settled history, for
+      // good. Worse, when every scanned row was closed the result was an empty list, and the card
+      // is hidden on empty -- so the "more accounts are unsettled" warning went with it.
+      //
+      // So: walk pages of accounts in the same order, drop the settled ones per page, and keep
+      // going until enough unsettled rows are in hand or the facility is exhausted. The page cap
+      // bounds the work; hitting it is reported as truncation rather than passed off as "none".
+      const rows: AccountRow[] = [];
+      let scanExhausted = false;
+      let pagesRead = 0;
+      for (let from = 0; pagesRead < UNSETTLED_FUND_ACCOUNT_MAX_PAGES; from += UNSETTLED_FUND_ACCOUNT_SCAN) {
+        pagesRead += 1;
+        const { data, error } = await supabase
+          .from("resident_personal_fund_accounts")
+          .select(
+            "id, account_number, resident_id, beginning_balance, resident:residents!inner(id, first_name, last_name, room, status)",
+          )
+          .eq("facility_id", facilityId!)
+          .in("resident.status", ["discharged", "deceased"])
+          .order("account_number")
+          // `id` breaks ties: account_number is not unique by constraint, and paging inside a run
+          // of equal keys without a unique tie-break lets rows repeat on one page and vanish from
+          // another -- which is the same disappearance this whole change exists to stop.
+          .order("id")
+          .range(from, from + UNSETTLED_FUND_ACCOUNT_SCAN - 1);
+        if (error) throw error;
+        const page = (data ?? []) as unknown as AccountRow[];
+        if (page.length === 0) { scanExhausted = true; break; }
+
+        const closed = new Set<string>();
+        const closures = await supabase
+          .from("resident_personal_fund_account_closures")
+          .select("personal_fund_account_id")
+          .in("personal_fund_account_id", page.map((row) => row.id));
+        if (closures.error) throw closures.error;
+        for (const row of (closures.data ?? []) as Array<{ personal_fund_account_id: string }>) {
+          closed.add(row.personal_fund_account_id);
+        }
+        rows.push(...page.filter((row) => !closed.has(row.id)));
+
+        if (page.length < UNSETTLED_FUND_ACCOUNT_SCAN) { scanExhausted = true; break; }
+        // One more than the display limit is enough to know the list is truncated.
+        if (rows.length > UNSETTLED_FUND_ACCOUNT_LIMIT) break;
+      }
+
+      // Truncated means "there may be more than this list shows", which is true both when the
+      // display cap bites and when the page cap stopped the walk short of the end.
+      const truncated = rows.length > UNSETTLED_FUND_ACCOUNT_LIMIT || !scanExhausted;
+      const visible = rows.slice(0, UNSETTLED_FUND_ACCOUNT_LIMIT);
+      // One `limit(1)` read per account rather than one `in(...)` read across all of them: a
+      // shared ordered page can drop an account off the end entirely, and a balance that is
+      // silently absent -- or worse, another account's -- is not something to risk on money. The
+      // fan-out is bounded by the cap above.
+      const balances = await Promise.all(visible.map(async (row) => {
+        const latest = await supabase
+          .from("resident_personal_fund_transactions")
+          .select("balance_after")
+          .eq("personal_fund_account_id", row.id)
+          .order("transaction_at", { ascending: false })
+          .order("posted_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (latest.error) return null;
+        const balanceAfter = (latest.data as { balance_after: number | string } | null)?.balance_after;
+        return Number(balanceAfter ?? row.beginning_balance ?? 0);
+      }));
+      return {
+        truncated,
+        accounts: visible.map((row, index) => ({
+          accountId: row.id,
+          accountNumber: row.account_number,
+          residentId: row.resident_id,
+          residentName: `${row.resident.last_name}, ${row.resident.first_name}`,
+          room: row.resident.room,
+          residentStatus: row.resident.status,
+          balance: balances[index],
+        })),
       };
     },
   });
@@ -330,3 +492,125 @@ export const useUpsertResidentPersonalFundPayeeProfile = rpcMutation(
       p_profile: input.profile,
     }),
 );
+
+/**
+ * Settle and close a discharged or deceased resident's personal-funds account (BACKLOG.md J37).
+ *
+ * `close_resident_personal_fund_account` posts a `final_disbursement` for the whole remaining
+ * balance -- the terminal transaction kind the ledger did not have, so until it existed there was
+ * no movement in the product that could return the money -- and stamps `closed_on`,
+ * `closed_reason` and `closed_by`. A zero balance closes the account without posting anything, and
+ * the return value is then null.
+ *
+ * `p_receipt_document_id` is deliberately omitted rather than sent as null: the RPC defaults it,
+ * and a receipt is attached to the ledger the same way every other funds entry attaches one.
+ */
+export const useCloseResidentPersonalFundAccount = rpcMutation(
+  (input: {
+    residentId: string;
+    purpose: string;
+    recipient: string;
+    transactionAt: string;
+  }) =>
+    supabase.rpc("close_resident_personal_fund_account", {
+      p_resident_id: input.residentId,
+      p_purpose: input.purpose,
+      p_recipient: input.recipient,
+      p_transaction_at: input.transactionAt,
+    }),
+);
+
+
+/** Pages of ledger rows the statement will read before it declares itself incomplete. */
+const STATEMENT_PAGE = 500;
+const STATEMENT_MAX_PAGES = 8;
+
+export interface FundStatementLedger {
+  /** Every entry in the period, plus the one immediately before it. */
+  transactions: FundLedgerEntry[];
+  /** True when the period holds more rows than this read is willing to fetch. */
+  truncated: boolean;
+}
+
+/**
+ * The ledger a statement is built from, read for the PERIOD rather than taken from the workspace.
+ *
+ * The workspace's own `fundTransactions` query is newest-first and unbounded, which means PostgREST
+ * silently truncates it at `db-max-rows` (1000 on this project and on a default hosted one --
+ * verified against the running stack, not assumed). Building the statement from that list was fine
+ * until a resident had more entries than the cap, and then it was quietly wrong in the worst way:
+ * a period reaching into the omitted older history printed only the movements that happened to
+ * survive the truncation, and opened on a balance taken from whichever predecessor did. Because the
+ * running-balance column is the ledger's own `balance_after` rather than a re-sum, the statement's
+ * internal cross-check could still say it reconciles -- so the artifact a resident is handed and a
+ * surveyor reads had missing rows, a wrong opening figure, and a tick beside it (BACKLOG J93).
+ *
+ * Two reads, and the second is what the opening balance needs:
+ *
+ *   1. The period itself, widened by a day at each end. The statement groups entries by the
+ *      PENNSYLVANIA calendar day of `transaction_at`, and this filter is on the instant, so the
+ *      window is deliberately a superset -- the day-exact selection stays in
+ *      buildPersonalFundStatement where it already is, rather than being reimplemented here against
+ *      a timezone offset.
+ *   2. The newest entry strictly before that window. Whichever entry is the true predecessor -- one
+ *      inside the widened window or this one -- is now in the list the builder sees, and the
+ *      builder picks the last with a facility date before the period.
+ *
+ * `truncated` is returned rather than swallowed: an incomplete statement must say so, since saying
+ * nothing is exactly the failure this replaces.
+ */
+export function useFundStatementLedger(
+  accountId: string | undefined,
+  periodStart: string,
+  periodEnd: string,
+) {
+  return useQuery({
+    queryKey: ["resident-financial-operations", "fund-statement", accountId ?? null, periodStart, periodEnd],
+    enabled: !!accountId && !!periodStart && !!periodEnd,
+    queryFn: async (): Promise<FundStatementLedger> => {
+      const windowStart = addFacilityCalendarDays(periodStart, -1);
+      const windowEnd = addFacilityCalendarDays(periodEnd, 2);
+      const select =
+        "*, staff:employees(id,first_name,last_name), receipt:resident_documents(id,document_label,file_name)";
+
+      const rows: FundLedgerEntry[] = [];
+      let truncated = true;
+      for (let page = 0; page < STATEMENT_MAX_PAGES; page += 1) {
+        const from = page * STATEMENT_PAGE;
+        const { data, error } = await supabase
+          .from("resident_personal_fund_transactions")
+          .select(select)
+          .eq("personal_fund_account_id", accountId!)
+          .gte("transaction_at", windowStart)
+          .lt("transaction_at", windowEnd)
+          .order("transaction_at", { ascending: true })
+          .order("posted_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, from + STATEMENT_PAGE - 1);
+        if (error) throw error;
+        const batch = (data ?? []) as unknown as FundLedgerEntry[];
+        rows.push(...batch);
+        if (batch.length < STATEMENT_PAGE) { truncated = false; break; }
+      }
+
+      const { data: predecessor, error: predecessorError } = await supabase
+        .from("resident_personal_fund_transactions")
+        .select(select)
+        .eq("personal_fund_account_id", accountId!)
+        .lt("transaction_at", windowStart)
+        .order("transaction_at", { ascending: false })
+        .order("posted_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (predecessorError) throw predecessorError;
+
+      return {
+        transactions: predecessor
+          ? [predecessor as unknown as FundLedgerEntry, ...rows]
+          : rows,
+        truncated,
+      };
+    },
+  });
+}

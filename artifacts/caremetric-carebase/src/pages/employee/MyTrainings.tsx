@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { QueryError } from "@/components/QueryState";
@@ -32,7 +33,13 @@ export default function MyTrainings() {
   const { data: trainingTypes } = useListTrainingTypes();
 
   const isLoading = employeeLoading || recordsLoading;
-  const allRecords = records ?? [];
+  // The CURRENT record per (employee, training type), not every row ever written. A renewal inserts
+  // a fresh employee_training_records row and leaves the previous cycle's row graded 'expired'
+  // forever (see currentTrainingRecords.ts), so this page listed the fire-safety training an
+  // employee renewed last month twice -- once compliant, once expired with a due date long past --
+  // and its "Expired" filter showed obligations that no longer exist. FacilityDetail and the
+  // compliance RPCs already reduce the same way.
+  const allRecords = useMemo(() => selectCurrentTrainingRecords(records ?? []), [records]);
 
   const typeNameById = new Map((trainingTypes ?? []).map(t => [t.id, t.name]));
   const trainingTypeName = (r: TrainingRecord) => typeNameById.get(r.training_type_id) ?? `Training #${r.id.slice(0, 8)}`;

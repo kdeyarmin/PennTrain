@@ -24,7 +24,7 @@ import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 interface StateFormWorkflowStepperProps {
   item: WorkflowItem;
-  resident: { id: string; organization_id: string; facility_id: string };
+  resident: { id: string; organization_id: string; facility_id: string; admission_date: string | null };
   facilityType: string | undefined;
   canManage: boolean;
   // The item_type of the item that cross-triggered this one (resolved by the parent, which holds

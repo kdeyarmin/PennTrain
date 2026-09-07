@@ -39,6 +39,10 @@ const END_REASON_TEXT: Record<string, string> = {
   agent_ended: "Session complete.",
   idle_timeout: "The session ended after a period of silence.",
   max_duration: "The session reached its time limit.",
+  // The gateway ends a session whose access token the tool endpoint has stopped
+  // accepting. Before this, the session stayed open and every question came back
+  // as an apology from the assistant, with nothing anywhere saying why.
+  token_expired: "Your sign-in expired, so the session ended. Sign in again to start a new one.",
 };
 
 interface LiveResources {
@@ -120,7 +124,7 @@ export function useVoiceSession(facilityId: string) {
     setStatus("requesting");
 
     const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
+    let token = sessionData.session?.access_token;
     if (!token) {
       fail("Your session has expired. Sign in again to use the voice assistant.");
       return;
@@ -143,16 +147,40 @@ export function useVoiceSession(facilityId: string) {
       return;
     }
 
-    let wsUrl: string;
-    try {
-      const res = await fetch(`${VOICE_GATEWAY_URL}/apps/carebase/sessions`, {
+    // The gateway refuses a token that cannot outlast the session it would open
+    // (`token_expiring`): it holds no refresh token, and a session that outlives
+    // its token answers every tool call with a 401 that the assistant can only
+    // apologize for. This hook IS the party that can refresh, so it does -- once,
+    // then retries. A second refusal is reported rather than looped on.
+    const requestSession = (bearer: string): Promise<Response> =>
+      fetch(`${VOICE_GATEWAY_URL}/apps/carebase/sessions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${bearer}`,
         },
         body: JSON.stringify({ facilityId }),
       });
+
+    let wsUrl: string;
+    try {
+      let res = await requestSession(token);
+      if (res.status === 401) {
+        let firstCode = "";
+        try {
+          firstCode = ((await res.clone().json()) as { error?: string }).error ?? "";
+        } catch {
+          // Non-JSON body; treated as an ordinary 401 below.
+        }
+        if (firstCode === "token_expiring" || firstCode === "invalid_token") {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          const nextToken = refreshed.session?.access_token;
+          if (nextToken) {
+            token = nextToken;
+            res = await requestSession(nextToken);
+          }
+        }
+      }
       if (!res.ok) {
         stream.getTracks().forEach((track) => track.stop());
         // 503 is both "not configured" and the daily budget kill-switch —
@@ -167,6 +195,8 @@ export function useVoiceSession(facilityId: string) {
         else if (res.status === 503) fail("The voice assistant isn't set up yet. Ask your administrator to configure the voice gateway.");
         else if (res.status === 429) fail("A voice session is already running for your account. Close it and try again.");
         else if (res.status === 403) fail("Your role doesn't have access to the voice assistant.");
+        else if (res.status === 401 && errorCode === "token_expiring") fail("Your sign-in is about to expire, so a voice session would be cut short. Reload the page or sign in again, then start voice.");
+        else if (res.status === 401) fail("Your sign-in has expired. Sign in again to use the voice assistant.");
         else fail("The voice assistant could not start a session. Try again in a moment.");
         return;
       }

@@ -96,7 +96,7 @@ const BOT_INTENTS: BotIntent[] = [
     bullets: [
       "For owners and executives: one source of truth across facilities instead of waiting for manual status updates.",
       "For facility managers: daily work queues show exactly what to fix, who owns it, and which deadline is at risk.",
-      "For trainers and employees: AI-assisted course creation, assignments, quizzes, certificates, sign-ins, and self-service records reduce friction.",
+      "For trainers and employees: a course catalog we build and keep current for you, plus assignments, quizzes, certificates, sign-ins, and self-service records reduce friction.",
     ],
     closer:
       "The easiest way to evaluate fit is to compare one of your current spreadsheet or binder processes against the CareBase workflow in a guided walkthrough.",
@@ -110,7 +110,7 @@ const BOT_INTENTS: BotIntent[] = [
     bullets: [
       "Owners and executives get a portfolio-ready view of readiness, overdue work, and operational risk.",
       "Administrators and managers get daily workflows that turn compliance gaps into assigned, trackable action.",
-      "Trainers get AI-assisted course creation, live class sign-in, assignments, quizzes, certificates, and documentation tied together.",
+      "Trainers get a maintained course catalog, live class sign-in, assignments, quizzes, certificates, and documentation tied together.",
     ],
     closer:
       "In a demo, ask to see the one screen or workflow that makes your own job measurably easier — and bring the colleagues who'd want to see theirs.",
@@ -134,11 +134,11 @@ const BOT_INTENTS: BotIntent[] = [
     id: "ai",
     terms: ["ai", "course", "builder", "generate", "avatar", "quiz", "training", "content", "rewrite", "intelligent"],
     answer:
-      "CareBase's AI tools exist to save your team real time. Instead of starting every course, quiz, and lesson from scratch, you can draft training from your own policies or source material, review it, refine exact blocks, and keep the approved result tied to compliance records.",
+      "CareBase's AI tools exist to save your team real time. Instead of your staff writing every course, quiz, and lesson from scratch, the CareMetric team drafts the training from your own policies or source material, refines the exact blocks you want changed, and keeps the approved result tied to your compliance records.",
     bullets: [
-      "Generate modules, lesson text or scripts, quiz questions, and answer keys from controlled source material.",
-      "Regenerate only the section a reviewer wants changed instead of rebuilding the whole course.",
-      "Use AI avatar video workflows to turn approved scripts into polished training assets stored privately for your organization.",
+      "Modules, lesson text or scripts, quiz questions, and answer keys are generated from your controlled source material.",
+      "Only the section a reviewer wants changed is regenerated, instead of rebuilding the whole course.",
+      "AI avatar video workflows turn approved scripts into polished training assets stored privately for your organization.",
     ],
     closer:
       "The question isn't whether AI is exciting — it's how many training-administration hours your team can stop losing this quarter.",
@@ -312,7 +312,7 @@ export const buildProspectEmail = (profile: LeadProfile): ProspectEmail => {
     "",
     "Why operators take a closer look:",
     "• One place for training, resident requirements, incidents, policies, credentials, and survey documentation.",
-    "• AI-assisted course creation from your own source material, with review before publication.",
+    "• Courses built for you with AI from your own source material, with review before publication.",
     "• Role-scoped views for leaders, managers, trainers, employees, and auditors.",
     "",
     `Ready to see it with your workflow? Start a free ${MARKETING_TRIAL_DAYS}-day trial — no call required:`,
@@ -341,7 +341,7 @@ export const buildProspectEmail = (profile: LeadProfile): ProspectEmail => {
             </div>
             <div style="display:grid;gap:10px;margin:20px 0;">
               <div style="padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">One place for training, resident requirements, incidents, policies, credentials, and survey documentation.</div>
-              <div style="padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">AI-assisted course creation from your own source material, reviewed before publication.</div>
+              <div style="padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">Courses built for you with AI from your own source material, reviewed before publication.</div>
               <div style="padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">Role-scoped views for leaders, managers, trainers, employees, and auditors.</div>
             </div>
             <a href="https://cmcarebase.com/signup" style="display:inline-block;background:#2552b8;color:#ffffff;text-decoration:none;font-weight:800;border-radius:999px;padding:13px 18px;">Start a free trial</a>

@@ -76,6 +76,57 @@ const EDGE_JOBS: Record<
   },
 };
 
+// The registered arms of `public.execute_registered_sql_job`
+// (20260905240000_nineteen_jobs_the_control_plane_could_not_reach.sql).
+//
+// A key that is in neither map reaches the wrapper's `else` arm, which raises
+// `Job is not a registered SQL worker` (22023) -- and the wrapper's own exception handler then
+// finalizes the run it was given as FAILED. So the click manufactures the very evidence that the
+// job is broken. That is how "Run now" on the System job watchdog behaved on every press
+// (BACKLOG.md J82); 20260906170000 fixed that definition at the source by registering it
+// `retry_mode = 'none'`, which `request_system_job_rerun` refuses before any run exists. This map
+// closes the general case for whatever is registered next: a key with no dispatch path is a
+// control-plane registration gap, not a job failure, and it is refused before a run is queued.
+//
+// Kept in sync with the migration by `src/lib/systemJobDispatch.test.ts`, which re-derives the
+// case list from that file.
+const SQL_WRAPPER_JOBS: ReadonlySet<string> = new Set([
+  "alert-escalation",
+  "audit-integrity-reconciliation",
+  "billing-trial-expiry",
+  "carebase-report-subscriptions",
+  "change-followup-escalation",
+  "compliance-recalculation",
+  "compliance-requirement-maintenance",
+  "course-assignment-due-reminders",
+  "course-continuation-reminders",
+  "course-status-recalculation",
+  "fhir-integration-freshness",
+  "incident-notifications",
+  "integration-command-inbox-drain",
+  "manager-weekly-digest",
+  "medication-integration-freshness",
+  "monday-digest",
+  "phase1-synthetic-health",
+  "plan-of-correction-escalation",
+  "policy-campaign-recurrence",
+  "policy-campaign-targeting",
+  "policy-reminders",
+  "public-demo-baseline-restore",
+  "resident-compliance-recalculation",
+  "resident-compliance-reminders",
+  "resident-service-task-generation",
+  "shift-handoff-escalation",
+  "support-plan-activation",
+  "survey-day-session-expiry",
+  "work-item-escalation",
+  "work-item-registration",
+]);
+
+function hasDispatchPath(jobKey: string): boolean {
+  return Boolean(EDGE_JOBS[jobKey]) || SQL_WRAPPER_JOBS.has(jobKey);
+}
+
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -109,6 +160,19 @@ Deno.serve(async (req: Request) => {
   const reason = body.reason?.trim() ?? "";
   if (!body.jobKey || reason.length < 8) {
     return json(req, { error: "jobKey and a meaningful reason are required" }, 400);
+  }
+  // Refuse BEFORE request_system_job_rerun, not after. Queueing first and discovering the job has
+  // no dispatch path second is what wrote a durable failed run against the System job watchdog on
+  // every click (BACKLOG.md J82): the wrapper's exception handler finalizes the run it was given,
+  // so the evidence of "this job is broken" was manufactured by the operator trying to run it.
+  if (!hasDispatchPath(body.jobKey)) {
+    return json(req, {
+      error:
+        "This job has no manual dispatch path: it is neither an Edge worker nor a registered SQL " +
+        "job. Register it in run-system-job or in execute_registered_sql_job before running it " +
+        "from the console.",
+      jobKey: body.jobKey,
+    }, 400);
   }
 
   const callerClient = createClient(supabaseUrl, anonKey, {

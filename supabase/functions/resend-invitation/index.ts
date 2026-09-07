@@ -164,6 +164,41 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Closed invitations cannot be resent" }, 409);
   }
 
+  // BACKLOG J74 (P3, identity). The ledger is a receipt, not the truth: nothing writes
+  // `accepted` at the moment the invitee actually completes setup -- reconcile_user_invitation_
+  // lifecycle() does it later, from auth.users. So an invitee who had already signed in sat at
+  // `sent`, this endpoint let the resend through, and GoTrue refused the invite link with its own
+  // wording ("A user with this email address has already been registered") which was handed to the
+  // administrator verbatim. Ask auth.users first, reconcile the ledger so the row stops lying, and
+  // refuse in the product's own words.
+  const { data: invitedAuth, error: invitedAuthError } = await adminClient.auth.admin.getUserById(
+    invitation.invited_user_id,
+  );
+  if (invitedAuthError || !invitedAuth?.user) {
+    console.error("resend-invitation: invited auth user lookup failed", {
+      invitation_id: invitationId,
+      error: invitedAuthError?.message,
+    });
+    return json(req, {
+      error: "This invitation no longer has a login record. Revoke it and invite the person again.",
+    }, 409);
+  }
+  if (invitedAuth.user.email_confirmed_at || invitedAuth.user.last_sign_in_at) {
+    // Service-role RPC; it walks auth.users and closes every stale `sent`/`expired` row, so the
+    // ledger and the users list agree the moment the administrator retries.
+    const { error: reconcileError } = await adminClient.rpc("reconcile_user_invitation_lifecycle");
+    if (reconcileError) {
+      console.error("resend-invitation: lifecycle reconcile failed", {
+        invitation_id: invitationId,
+        error: reconcileError.message,
+      });
+    }
+    return json(req, {
+      error: "This person has already accepted their invitation and signed in. "
+        + "Manage their account from Users instead of resending the invitation.",
+    }, 409);
+  }
+
   let redirectTo: string;
   try {
     redirectTo = resolveRedirectTo(invitation.redirect_to);
@@ -183,7 +218,18 @@ Deno.serve(async (req: Request) => {
     },
   });
   if (linkError || !linkData?.properties) {
-    return json(req, { error: linkError?.message ?? "Unable to generate invitation link" }, 400);
+    // GoTrue's raw text ("A user with this email address has already been registered",
+    // "Signups not allowed for this instance") named internals to an administrator who could do
+    // nothing with them. Log it; tell the caller what to do next.
+    console.error("resend-invitation: generateLink failed", {
+      invitation_id: invitationId,
+      error: linkError?.message,
+      status: linkError?.status,
+    });
+    return json(req, {
+      error: "The invitation link could not be regenerated for this address. "
+        + "Revoke the invitation and invite the person again.",
+    }, 400);
   }
 
   const properties = linkData.properties as {

@@ -11,7 +11,7 @@ import { useResidentServiceExceptions, useResidentUnscheduledServices } from "@/
 import {
   detectResidentChangeSignals, summarizeChangeSignals, type ChangeSignal,
 } from "@/lib/residentChangeDetection";
-import { addFacilityCalendarDays, facilityDayBounds, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityDateOf, facilityDayBounds, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 
 /**
  * Meals, weights, and hospital episodes are read here rather than through a shared hook because this
@@ -77,12 +77,12 @@ function SignalCard({ signal }: { signal: ChangeSignal }) {
       {/* The records behind the claim. A detection that cannot show its evidence is an assertion. */}
       <div className="mt-2 rounded-md bg-muted/40 p-2">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Supporting records · {formatDateForDisplay(signal.windowStart.slice(0, 10))} to {formatDateForDisplay(signal.windowEnd.slice(0, 10))}
+          Supporting records · {formatDateForDisplay(facilityDateOf(signal.windowStart))} to {formatDateForDisplay(facilityDateOf(signal.windowEnd))}
         </p>
         <ul className="mt-1 space-y-0.5">
           {signal.evidence.map((entry, index) => (
             <li key={`${entry.label}-${index}`} className="text-xs text-muted-foreground">
-              {entry.label}{entry.at ? ` — ${formatDateForDisplay(entry.at.slice(0, 10))}` : ""}
+              {entry.label}{entry.at ? ` — ${formatDateForDisplay(facilityDateOf(entry.at))}` : ""}
             </li>
           ))}
         </ul>

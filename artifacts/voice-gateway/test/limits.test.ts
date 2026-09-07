@@ -19,6 +19,7 @@ import {
   PhoneCallerLimiter,
 } from "../src/session/usage-limits.js";
 import { MAX_UNCLAIMED_PHONE_SOCKETS } from "../src/transports/twilio-media.js";
+import { PENDING_SESSION_TTL_MS } from "../src/session/pending-sessions.js";
 import { FakeRealtimeSocket } from "./fake-realtime.js";
 
 const AUTH_TOKEN = "twilio-test-token";
@@ -26,6 +27,10 @@ const PUBLIC_BASE = "https://gateway.test";
 const SUPABASE_URL = "https://testapp-project.supabase.co";
 const GOOD_TOKEN = "good-token";
 const MINUTE_MS = 60_000;
+
+// What a browser token carries right after supabase.auth.refreshSession(): the Supabase default,
+// and this project sets no jwt_expiry. The gateway's session ceiling is derived from it.
+const FRESH_ACCESS_TOKEN_SECONDS = 3_600;
 
 const TEST_APP: AppDefinition = {
   id: "testapp",
@@ -151,12 +156,29 @@ describe("readGatewayConfig boot validation", () => {
     expect(config?.idleTimeoutSeconds).toBe(90); // ceil(75s) + 15s
   });
 
-  it("clamps a per-session cap above one hour", () => {
+  it("clamps a per-session cap above the startable ceiling", () => {
     const config = readGatewayConfig({
       OPENAI_API_KEY: "sk-test",
       VOICE_MAX_SESSION_SECONDS: "7200",
     } as NodeJS.ProcessEnv);
-    expect(config?.maxSessionSeconds).toBe(3600);
+    // 3600s token hour - 60s pending-ticket TTL - 30s handoff slack.
+    expect(config?.maxSessionSeconds).toBe(3510);
+  });
+
+  // The ceiling and the route's refusal are two halves of one rule, and they were written apart:
+  // the ceiling was a flat hour while POST /sessions demanded the session PLUS the pending-ticket
+  // TTL, so the largest documented setting could be configured and then never started -- every
+  // request came back token_expiring, the browser refreshed into the same wall, and voice was off
+  // with nothing saying why. This asserts the property rather than the number, so moving either
+  // constant on its own fails here instead of in production.
+  it("leaves the largest configurable session startable on a freshly refreshed token", () => {
+    const config = readGatewayConfig({
+      OPENAI_API_KEY: "sk-test",
+      VOICE_MAX_SESSION_SECONDS: "999999",
+    } as NodeJS.ProcessEnv);
+    const neededSeconds =
+      (config?.maxSessionSeconds ?? 0) + Math.ceil(PENDING_SESSION_TTL_MS / 1_000);
+    expect(neededSeconds).toBeLessThanOrEqual(FRESH_ACCESS_TOKEN_SECONDS);
   });
 });
 

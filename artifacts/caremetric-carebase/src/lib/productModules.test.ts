@@ -30,6 +30,45 @@ describe("product module routing", () => {
     expect(productModuleForPath("/app/resident-finance")).toBe("billing");
   });
 
+  // The route classifier and the database's table-to-module map have to agree: the database accepts
+  // a write the router refuses, or refuses one the router allows, wherever they disagree. These are
+  // the routes that used to fall through to CareBase while their primary table was classified to a
+  // pillar -- the incident register above all, which is what the Compliance pillar is sold as.
+  it("classifies each route by the module that owns its primary table", () => {
+    // incidents / incident_notifications -> modules.compliance
+    expect(productModuleForPath("/app/incidents")).toBe("compliance");
+    expect(productModuleForPath("/app/incidents/incident-id")).toBe("compliance");
+    expect(productModuleForPath("/app/incidents?action=add")).toBe("compliance");
+    // evidence_guest_grants -> modules.compliance
+    expect(productModuleForPath("/app/guest-access")).toBe("compliance");
+    // survey rehearsals are mock surveys, classified with the rest of survey readiness
+    expect(productModuleForPath("/app/survey-rehearsals")).toBe("compliance");
+    // training_documents -> modules.train, and Train-only /app/pending-approvals depends on it
+    expect(productModuleForPath("/app/documents")).toBe("train");
+    expect(productModuleForPath("/me/documents")).toBe("train");
+    // Deliberately NOT moved: their tables are classified modules.carebase.
+    expect(productModuleForPath("/app/confidential-incidents")).toBe("carebase");
+    expect(productModuleForPath("/app/work")).toBe("carebase");
+  });
+
+  it("gives a Compliance package the incident register it is sold as", () => {
+    // "Report an event" is already a Compliance path; every destination it offers that the database
+    // would accept a write for has to be reachable, or the chooser bounces off ProtectedRoute.
+    const essentials = withModuleDependencies(["train", "compliance"]);
+    expect(canAccessProductPath("/app/report-event", essentials)).toBe(true);
+    expect(canAccessProductPath("/app/incidents", essentials)).toBe(true);
+    expect(canAccessProductPath("/app/incidents/incident-id", essentials)).toBe(true);
+    expect(canAccessProductPath("/app/complaints", essentials)).toBe(true);
+    expect(canAccessProductPath("/app/guest-access", essentials)).toBe(true);
+    expect(canAccessProductPath("/app/survey-rehearsals", essentials)).toBe(true);
+    expect(canAccessProductPath("/app/documents", essentials)).toBe(true);
+    // A Workforce-only package still owns none of them.
+    const workforceOnly = withModuleDependencies(["workforce"]);
+    expect(canAccessProductPath("/app/incidents", workforceOnly)).toBe(false);
+    expect(canAccessProductPath("/app/guest-access", workforceOnly)).toBe(false);
+    expect(canAccessProductPath("/app/documents", workforceOnly)).toBe(false);
+  });
+
   it("keeps the billing page reachable after a trial lapses", () => {
     // A lapsed trial leaves an organization with core routes only; the page that sells a plan
     // must be one of them or the lockout has no exit.

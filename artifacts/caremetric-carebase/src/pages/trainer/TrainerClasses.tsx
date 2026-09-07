@@ -50,6 +50,16 @@ import { useToast } from "@/hooks/use-toast";
 import { buildTrainingClassesIcs } from "@/lib/calendarExport";
 import { downloadTextFile } from "@/lib/browserDownload";
 
+/**
+ * Facility-filter value for "sessions that belong to no single facility".
+ *
+ * `facility_id` is null on those rows, so no facility id can select them and "All Facilities"
+ * mixes them in with everything else -- a trainer looking for the cross-facility session somebody
+ * scheduled for them had no way to narrow to it (BACKLOG.md J30). Not a real facility id, and
+ * the empty string is not a legal Select value, so it is a named sentinel.
+ */
+const CROSS_FACILITY = "__cross_facility__";
+
 export default function TrainerClasses() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -71,7 +81,8 @@ export default function TrainerClasses() {
     error: classesErrorDetail,
     refetch: refetchClasses,
   } = useListTrainingClasses({
-    facilityId: facilityFilter !== "all" ? facilityFilter : undefined,
+    facilityId: facilityFilter !== "all" && facilityFilter !== CROSS_FACILITY ? facilityFilter : undefined,
+    crossFacilityOnly: facilityFilter === CROSS_FACILITY,
   });
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
   const { data: facilities } = useListFacilities();
@@ -82,13 +93,17 @@ export default function TrainerClasses() {
   // actually running it -- a trainer creating their own class stays attributed to themselves,
   // same as before this page opened up to admin roles.
   const isTrainer = user?.role === "trainer";
+  // Mirrors trainingClassWriteBlock's facility-exempt branch: only these two roles have a write
+  // branch in training_classes_write with no facility test, so only they can run a class whose
+  // facility_id is null.
+  const canRunCrossFacility = user?.role === "org_admin" || user?.role === "platform_admin";
   const { data: trainerProfiles } = useListProfiles({ organizationId: user?.organizationId ?? undefined, role: "trainer" });
 
   const [form, setForm] = useState({
     className: "",
     trainingTypeId: "",
     classDate: facilityToday(),
-    facilityId: "none",
+    facilityId: canRunCrossFacility ? "none" : "",
     location: "",
     durationHours: "1",
     notes: "",
@@ -128,7 +143,7 @@ export default function TrainerClasses() {
       className: "",
       trainingTypeId: "",
       classDate: facilityToday(),
-      facilityId: "none",
+      facilityId: canRunCrossFacility ? "none" : "",
       location: "",
       durationHours: "1",
       notes: "",
@@ -146,7 +161,9 @@ export default function TrainerClasses() {
       className: cls.class_name,
       trainingTypeId: cls.training_type_id,
       classDate: facilityToday(),
-      facilityId: cls.facility_id ?? "none",
+      // A cross-facility source duplicates into a blank facility for a role that cannot run one,
+      // rather than silently carrying the setting that makes the copy unusable to them.
+      facilityId: cls.facility_id ?? (canRunCrossFacility ? "none" : ""),
       location: cls.location ?? "",
       durationHours: String(cls.duration_hours),
       notes: "",
@@ -165,13 +182,17 @@ export default function TrainerClasses() {
       toast({ title: "Select who's running this session", variant: "destructive" });
       return;
     }
+    if (!canRunCrossFacility && !form.facilityId) {
+      toast({ title: "Choose the facility this session is held at", variant: "destructive" });
+      return;
+    }
     if (!user?.organizationId || !user?.id) return;
     createClass.mutate(
       {
         class_name: form.className.trim(),
         training_type_id: form.trainingTypeId,
         class_date: form.classDate,
-        facility_id: form.facilityId !== "none" ? form.facilityId : null,
+        facility_id: form.facilityId && form.facilityId !== "none" ? form.facilityId : null,
         location: form.location.trim() || null,
         duration_hours: Number(form.durationHours) || 1,
         notes: form.notes.trim() || null,
@@ -316,7 +337,16 @@ export default function TrainerClasses() {
                       <SelectValue placeholder="Any facility" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Any / Cross-facility</SelectItem>
+                      {/* Offered only to the roles that can actually run the result.
+                          `training_classes_write` requires `facility_id is not null` for its
+                          trainer and facility_manager branches, so a cross-facility class created
+                          by either of them is one they can then neither open for enrolment nor
+                          complete -- RLS refuses every write, with a raw error and no explanation
+                          (BACKLOG.md J30). Until that policy admits a null facility for the owning
+                          trainer, offering the option to them is offering a trap. */}
+                      {canRunCrossFacility ? (
+                        <SelectItem value="none">Any / Cross-facility</SelectItem>
+                      ) : null}
                       {(facilities ?? []).map((f) => (
                         <SelectItem key={f.id} value={f.id}>
                           {f.name}
@@ -324,6 +354,12 @@ export default function TrainerClasses() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {!canRunCrossFacility && (
+                    <p className="text-xs text-muted-foreground">
+                      A session that spans facilities has to be scheduled by an organization
+                      administrator — only they can run one.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="duration">Duration (hours)</Label>
@@ -397,6 +433,11 @@ export default function TrainerClasses() {
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="draft">Draft</SelectItem>
+            {/* The two live states were missing entirely, so the only way to find the sessions
+                actually taking registrations or running right now was "All Statuses" (BACKLOG.md
+                J74, Train). */}
+            <SelectItem value="scheduled">Open for enrollment</SelectItem>
+            <SelectItem value="in_progress">In progress</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
@@ -413,6 +454,7 @@ export default function TrainerClasses() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Facilities</SelectItem>
+            <SelectItem value={CROSS_FACILITY}>Cross-facility sessions</SelectItem>
             {(facilities ?? []).map((f) => (
               <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
             ))}

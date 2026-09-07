@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Flag, ShieldAlert } from "lucide-react";
 
@@ -58,12 +61,24 @@ export default function ReleaseFlags() {
 
   const [flagReason, setFlagReason] = useState("Operator release change");
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [newFlagKey, setNewFlagKey] = useState("");
 
   const defByKey = useMemo(() => {
     const map = new Map<string, string>();
     for (const d of defsQ.data ?? []) map.set(d.feature_key, d.display_name ?? d.feature_key);
     return map;
   }, [defsQ.data]);
+
+  // The table below renders `release_flags` rows, so a feature whose row was never created had no
+  // control anywhere in the product: evaluate_feature_access needs BOTH an entitlement and a
+  // release_flags row, and there was no in-product way to make the second one. `set_release_flag`
+  // already upserts, so registering a flag is the same call the Global/Off buttons make -- this
+  // form only needs to name a key. Restricted to declared feature_definitions keys so the console
+  // cannot mint a flag for a feature the platform does not define.
+  const unregisteredDefinitions = useMemo(() => {
+    const registered = new Set((flagsQ.data ?? []).map((flag) => flag.feature_key));
+    return (defsQ.data ?? []).filter((def) => def.is_active && !registered.has(def.feature_key));
+  }, [defsQ.data, flagsQ.data]);
 
   const killSet = useMemo(() => {
     const set = new Set<string>();
@@ -76,10 +91,10 @@ export default function ReleaseFlags() {
   const anyError = flagsQ.isError || defsQ.isError;
   const firstError = (flagsQ.error as Error | null) ?? (defsQ.error as Error | null);
 
-  const handleSetFlag = async (featureKey: string, mode: "global" | "off") => {
+  const handleSetFlag = async (featureKey: string, mode: "global" | "off"): Promise<boolean> => {
     if (flagReason.trim().length < 8) {
       toast({ title: "Reason required", description: "Use at least 8 characters before changing flags.", variant: "destructive" });
-      return;
+      return false;
     }
     try {
       setBusyKey(`flag:${featureKey}:${mode}`);
@@ -91,15 +106,25 @@ export default function ReleaseFlags() {
         reason: flagReason.trim(),
       });
       toast({ title: "Release flag updated", description: `${featureKey} → ${mode}` });
+      return true;
     } catch (e) {
       toast({
         title: "Flag update failed",
         description: e instanceof Error ? e.message : String(e),
         variant: "destructive",
       });
+      return false;
     } finally {
       setBusyKey(null);
     }
+  };
+
+  const handleRegisterFlag = async (mode: "global" | "off") => {
+    if (!newFlagKey) {
+      toast({ title: "Pick a feature", description: "Choose a feature key to register a flag for.", variant: "destructive" });
+      return;
+    }
+    if (await handleSetFlag(newFlagKey, mode)) setNewFlagKey("");
   };
 
   const handleKill = async (featureKey: string, disable: boolean) => {
@@ -182,6 +207,55 @@ export default function ReleaseFlags() {
           <div className="max-w-xl space-y-1.5">
             <Label htmlFor={`${__fieldIds}-change-reason-required-for-flag-writes`}>Change reason (required for flag writes)</Label>
             <Input id={`${__fieldIds}-change-reason-required-for-flag-writes`} value={flagReason} onChange={(e) => setFlagReason(e.target.value)} />
+          </div>
+
+          <div className="rounded-md border bg-muted/40 p-4 space-y-3">
+            <div>
+              <p className="text-sm font-medium">Register a flag</p>
+              <p className="text-xs text-muted-foreground">
+                A feature with no flag row here can never evaluate as enabled, even for an organization
+                that is entitled to it. Register the flag first, then set it Global or Off.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor={`${__fieldIds}-register-flag-feature-key`}>Feature key</Label>
+                <Select value={newFlagKey} onValueChange={setNewFlagKey}>
+                  <SelectTrigger id={`${__fieldIds}-register-flag-feature-key`} aria-label="Feature key">
+                    <SelectValue placeholder={
+                      defsQ.isLoading
+                        ? "Loading feature definitions…"
+                        : unregisteredDefinitions.length
+                          ? "Select a feature key"
+                          : "Every active feature already has a flag"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unregisteredDefinitions.map((def) => (
+                      <SelectItem key={def.feature_key} value={def.feature_key}>
+                        {def.display_name ?? def.feature_key} ({def.feature_key})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  disabled={!!busyKey || !newFlagKey}
+                  onClick={() => void handleRegisterFlag("global")}
+                >
+                  Register as global
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={!!busyKey || !newFlagKey}
+                  onClick={() => void handleRegisterFlag("off")}
+                >
+                  Register as off
+                </Button>
+              </div>
+            </div>
           </div>
           <Table>
             <TableHeader>

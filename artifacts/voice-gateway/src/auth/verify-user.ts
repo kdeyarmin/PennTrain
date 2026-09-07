@@ -25,6 +25,27 @@ export type VerifyResult =
   | { ok: true; user: VerifiedUser }
   | { ok: false; failure: VerifyFailure };
 
+/**
+ * The `exp` claim, in epoch seconds, or null when the token has no readable one.
+ *
+ * Read, never trusted for authorization: `verifyAppUser` above is what decides whether a token is
+ * good, by asking GoTrue. This is only used to answer "can this token last as long as the session
+ * we are about to open", which is a scheduling question — and getting it wrong in the permissive
+ * direction (unreadable claim -> null -> allowed) leaves today's behaviour exactly as it was.
+ */
+export function accessTokenExpiry(jwt: string): number | null {
+  const segments = jwt.split(".");
+  if (segments.length < 2) return null;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(segments[1]!.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"),
+    ) as { exp?: unknown };
+    return typeof payload.exp === "number" && Number.isFinite(payload.exp) ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyAppUser(
   app: AppDefinition,
   jwt: string,

@@ -60,13 +60,12 @@ export function useUpdateFacility() {
   });
 }
 
-export function useDeleteFacility() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("facilities").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["facilities"] }),
-  });
-}
+// There is deliberately no useDeleteFacility.
+//
+// `delete from facilities` is refused by employment_episodes.facility_id, which references
+// facilities `on delete restrict` -- and an episode exists for every facility that has ever
+// employed anybody. The two Delete Facility buttons that called this always answered with a
+// foreign-key error, under a dialog promising to remove "all associated data".
+//
+// Retiring a facility is `is_active = false` through useUpdateFacility, which both facility edit
+// dialogs already offer as Status -> Inactive.

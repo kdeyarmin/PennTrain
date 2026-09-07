@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation, useSearch } from "wouter";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,8 @@ import {
   type MfaFactor,
   type MfaFactorType,
 } from "@/lib/mfaFactors";
-import { CheckCircle2, KeyRound, Loader2, LockKeyhole, MessageSquare, ShieldCheck, Trash2 } from "lucide-react";
+import { sanitizePostLoginPath } from "@/lib/loginRedirect";
+import { ArrowLeft, ArrowRight, CheckCircle2, KeyRound, Loader2, LockKeyhole, MessageSquare, ShieldCheck, Trash2 } from "lucide-react";
 
 type Enrollment = {
   factorId: string;
@@ -43,7 +45,19 @@ type PendingChallenge = {
 export default function MfaSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+  const search = useSearch();
   const smsAvailable = isSmsMfaEnabled();
+  // BACKLOG J74 (P3, identity). This page was a dead end: whether you arrived from the header
+  // menu, the sidebar, or the MFA wall standing in front of a deep link, there was no control on
+  // it that went anywhere. MfaPolicyGate now forwards the blocked route as ?next=; everything else
+  // falls back to the app root so there is always a way out.
+  const returnPath = useMemo(() => {
+    const raw = new URLSearchParams(search).get("next");
+    const sanitized = sanitizePostLoginPath(raw);
+    return sanitized === "/account/security" ? "/" : sanitized;
+  }, [search]);
+  const hasDeepLink = returnPath !== "/";
   const [factors, setFactors] = useState<MfaFactor[]>([]);
   const [assurance, setAssurance] = useState<Assurance>({ currentLevel: null, nextLevel: null });
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
@@ -310,8 +324,20 @@ export default function MfaSettings() {
 
   const showCodeForm = enrollment || (verifiedFactors.length > 0 && assurance.currentLevel !== "aal2");
 
+  const verifiedHere = assurance.currentLevel === "aal2";
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="-ml-2 h-8 px-2 text-muted-foreground"
+        onClick={() => navigate(returnPath)}
+      >
+        <ArrowLeft className="mr-1.5 h-4 w-4" />
+        {hasDeepLink ? "Back to the page you were opening" : "Back to CareBase"}
+      </Button>
       <div>
         <p className="text-sm font-medium text-primary">Account security</p>
         <h1 className="text-3xl font-bold tracking-tight">Multi-factor authentication</h1>
@@ -332,6 +358,14 @@ export default function MfaSettings() {
               ? "Verify an enrolled factor before performing protected enterprise administration actions."
               : "Enroll a factor to enable protected enterprise administration actions."}
         </AlertDescription>
+        {hasDeepLink && verifiedHere ? (
+          <div className="mt-3">
+            <Button type="button" size="sm" onClick={() => navigate(returnPath)}>
+              Continue to the page you were opening
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Button>
+          </div>
+        ) : null}
       </Alert>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">

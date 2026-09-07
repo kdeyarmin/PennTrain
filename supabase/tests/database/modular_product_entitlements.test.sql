@@ -1,5 +1,5 @@
 begin;
-select plan(57);
+select plan(61);
 
 select results_eq(
   $$ select feature_key from public.feature_definitions where feature_key like 'modules.%' order by feature_key $$,
@@ -336,6 +336,75 @@ select ok(
       )
   ),
   'every non-core classified storage bucket resolves to a real bucket'
+);
+
+-- BACKLOG J51. The 2026-07-20 sweep classified every RLS table that existed THEN and nothing has
+-- classified one since, so thirty-four tables -- the compliance-requirement family, Survey Day's
+-- live tables, the rehearsal tables, the evidence-packet exports and their guest grants, the
+-- plan-of-correction versions, the import ledger -- carried no restrictive module policy at all.
+-- Tenant and role RLS still covered them; the commercial wall did not, so a Train-only tenant
+-- could reach a Compliance table through PostgREST while the sidebar pretended it was not sold.
+--
+-- The rule from here: an RLS-enabled public table is either classified in
+-- product_module_resources or named, with a reason, in product_module_shell_resources. Anything
+-- in neither is an oversight, and this says which one.
+select is(
+  (
+    select coalesce(string_agg(c.relname, ', ' order by c.relname), '')
+    from pg_catalog.pg_class c
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relkind in ('r', 'p')
+      and c.relrowsecurity
+      and not exists (
+        select 1 from app_private.product_module_resources r
+        where r.resource_schema = n.nspname and r.resource_name = c.relname
+      )
+      and not exists (
+        select 1 from app_private.product_module_shell_resources h
+        where h.resource_schema = n.nspname and h.resource_name = c.relname
+      )
+  ),
+  '',
+  'every RLS-enabled public table is either classified into a module or recorded as shared shell'
+);
+
+-- And a classification without a policy is a classification that does nothing.
+select is(
+  (
+    select coalesce(string_agg(r.resource_name, ', ' order by r.resource_name), '')
+    from app_private.product_module_resources r
+    join pg_catalog.pg_class c on c.relname = r.resource_name
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = r.resource_schema
+    where c.relkind in ('r', 'p')
+      and c.relrowsecurity
+      and not exists (
+        select 1 from pg_catalog.pg_policy p
+        where p.polrelid = c.oid and p.polname = 'product_module_entitlement'
+      )
+  ),
+  '',
+  'every classified table carries the restrictive product_module_entitlement policy'
+);
+
+-- J52. Survey Day needs an entitlement AND a release flag, and had neither -- so it was in every
+-- PCH/ALF organization's onboarding list, refused for all of them, and not switchable from the
+-- console, which can only toggle rows that exist.
+select is(
+  (select count(*)::bigint from public.release_flags where feature_key = 'survey_day_mode'),
+  1::bigint,
+  'Survey Day has a release_flags row the console can toggle'
+);
+select is(
+  (
+    select count(*)::bigint from public.package_entitlements
+    where feature_key = 'survey_day_mode' and entitlement_value = 'true'::jsonb
+  ),
+  (
+    select count(*)::bigint from public.package_entitlements
+    where feature_key = 'modules.compliance' and entitlement_value = 'true'::jsonb
+  ),
+  'Survey Day is granted by exactly the packages that grant the Compliance pillar'
 );
 
 select * from finish();

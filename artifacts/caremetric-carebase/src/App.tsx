@@ -710,8 +710,13 @@ function Router() {
       <Route path="/app/data-imports">
         {() => <ProtectedRoute component={DataImportCenter} allowedRoles={ORG_MANAGE_ROLES} />}
       </Route>
+      {/* BACKLOG J74 (P3, identity). platform_admin was the one role locked out of this route
+          although both backends already admit it: user_invitation_lifecycle_select is
+          `is_platform_admin() OR (org matches AND role in (...))`, and both revoke_user_invitation
+          and the resend-invitation function name platform_admin first. The page's own canManage
+          has always included it. */}
       <Route path="/app/invitations">
-        {() => <ProtectedRoute component={InvitationLifecycle} allowedRoles={["org_admin", "facility_manager", "auditor"]} />}
+        {() => <ProtectedRoute component={InvitationLifecycle} allowedRoles={["platform_admin", "org_admin", "facility_manager", "auditor"]} />}
       </Route>
       <Route path="/app/employee-lifecycle">
         {() => <ProtectedRoute component={EmployeeLifecycleCases} allowedRoles={ORG_MANAGE_ROLES} />}
@@ -1102,7 +1107,12 @@ function Router() {
         {() => <ProtectedRoute component={Documents} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/credentials">
-        {() => <ProtectedRoute component={MyCredentials} allowedRoles={["employee"]} />}
+        {/* trainer as well as employee: employee_credentials_select admits any profile with an
+            employee record through owns_employee(), CREDENTIAL_ROLES deliberately keeps trainers
+            off the manager-facing /app/credentials, and without this a trainer who holds an
+            employee record has nowhere in the product to see their own clearance -- including from
+            the "renewal approved" notification addressed to them. */}
+        {() => <ProtectedRoute component={MyCredentials} allowedRoles={["employee", "trainer"]} />}
       </Route>
       <Route path="/me/attestations">
         {() => <ProtectedRoute component={MyAttestations} allowedRoles={["employee"]} />}

@@ -58,6 +58,13 @@ export default function RegulatoryCrosswalk() {
 
   const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const activeFacilityId = facilityId || facilities?.[0]?.id || "";
+  // Which PA program the selected facility runs under. The governed rule lookup needs it: the PCH
+  // pack and the ALF pack are both active and both map to these obligations, so an obligation-only
+  // match would put one program's citation on every facility's row.
+  const activeFacilityProgram = useMemo<FacilityProgram | null>(() => {
+    const type = (facilities ?? []).find((facility) => facility.id === activeFacilityId)?.facility_type;
+    return type === "PCH" || type === "ALR" ? type : null;
+  }, [facilities, activeFacilityId]);
   const { data: trainingRecords, ...trainingRecordsQuery } = useListTrainingRecords({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
   const { data: credentials, ...credentialsQuery } = useListEmployeeCredentials({ facilityId: activeFacilityId || undefined }, { enabled: Boolean(activeFacilityId) });
   // Every facility-scoped source is gated on the facility being known, the way the training and
@@ -97,7 +104,7 @@ export default function RegulatoryCrosswalk() {
     policyDocuments,
     policyAttestations: (policyAttestations ?? []).filter((attestation) => !activeFacilityId || attestation.facility_id === activeFacilityId),
     evidenceCollections: (evidenceCollections ?? []).filter((collection) => !activeFacilityId || collection.facility_id === activeFacilityId),
-  }, user?.role, governedRules.data), [trainingRecords, credentials, residentItems, incidents, correctiveActions, inspectionItems, violations, policyDocuments, policyAttestations, evidenceCollections, activeFacilityId, user?.role, governedRules.data]);
+  }, user?.role, governedRules.data, activeFacilityProgram), [trainingRecords, credentials, residentItems, incidents, correctiveActions, inspectionItems, violations, policyDocuments, policyAttestations, evidenceCollections, activeFacilityId, user?.role, governedRules.data, activeFacilityProgram]);
 
   const filteredRows = useMemo(() => filterRegulatoryCrosswalkRows(rows, { facilityType, status, evidenceSource, citation }), [rows, facilityType, status, evidenceSource, citation]);
   const summary = useMemo(() => ({
@@ -175,7 +182,13 @@ export default function RegulatoryCrosswalk() {
         <AlertDescription>
           {rows.every((row) => row.governedRule)
             ? "Every crosswalk obligation is backed by an approved, effective, checksum-pinned rule version."
-            : "Rows without a governed version are clearly marked reference mappings. They must not be treated as legal advice or activated compliance logic until independent review, fixtures, shadow comparison, and approval are complete."}
+            : activeFacilityProgram
+              // The 30-day live-shadow window stopped being an activation gate on 2026-08-04
+              // (20260804020000_activation_no_longer_waits_on_a_shadow_period.sql); golden-fixture
+              // verification, author/reviewer separation and approval still block activation, and
+              // naming a gate that no longer exists misdescribes what these rows are waiting for.
+              ? "Rows without a governed version are clearly marked reference mappings. They must not be treated as legal advice or activated compliance logic until independent review, golden-fixture verification, and approval are complete."
+              : "No PCH or ALF facility is selected, so no rule pack applies to these rows. Choose a personal care home or assisted living facility above to see which obligations its installed rule pack governs."}
         </AlertDescription>
       </Alert>
       )}

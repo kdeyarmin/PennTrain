@@ -13,7 +13,7 @@ import { GuestAccessHealthCard } from "@/components/admin/GuestAccessHealthCard"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Eye, Building2, Sliders, ShieldAlert, ShieldCheck, Archive, Scale, type LucideIcon } from "lucide-react";
+import { Eye, Building2, Sliders, ShieldAlert, ShieldCheck, Archive, Scale, KeyRound, type LucideIcon } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
 import { DataLifecyclePanel } from "@/components/admin/DataLifecyclePanel";
 
@@ -24,6 +24,9 @@ type TabValue = "all" | SecurityAuditEntityType;
 const TABS: { value: TabValue; label: string }[] = [
   { value: "all", label: "All" },
   { value: "impersonation", label: "Impersonation" },
+  // BACKLOG J74 (P3, identity). Administrator MFA resets are written as entity_type "identity";
+  // without this tab (and the entity type in useSecurityAuditLog) they were invisible here.
+  { value: "identity", label: "Identity" },
   { value: "organizations", label: "Organization Changes" },
   { value: "platform_settings", label: "Settings Changes" },
 ];
@@ -49,6 +52,9 @@ interface EntityBadge {
 function getEntityBadge(log: SecurityAuditRow): EntityBadge {
   if (log.entity_type === "impersonation") {
     return { Icon: Eye, iconBg: "bg-blue-100", iconColor: "text-blue-600", badgeColor: "bg-blue-100 text-blue-800", badgeLabel: "Impersonation" };
+  }
+  if (log.entity_type === "identity") {
+    return { Icon: KeyRound, iconBg: "bg-teal-100", iconColor: "text-teal-600", badgeColor: "bg-teal-100 text-teal-800", badgeLabel: "Identity" };
   }
   if (log.entity_type === "organizations") {
     if (subscriptionStatusChanged(log)) {
@@ -77,18 +83,49 @@ function describeRow(log: SecurityAuditRow, profileNames: Record<string, string>
   const newValues = (log.new_values ?? {}) as Record<string, unknown>;
 
   if (log.entity_type === "impersonation") {
-    const reason = typeof newValues.reason === "string" ? newValues.reason : undefined;
+    const reason = typeof newValues.reason === "string" ? newValues.reason : log.reason ?? undefined;
+    const target = typeof newValues.target_email === "string" ? newValues.target_email : log.entity_id ?? "unknown user";
+    // impersonate-user writes THREE actions, not two: `impersonation_authorized` (the
+    // authorization evidence, recorded before any credential is minted), then
+    // `impersonation_start`, then `impersonation_end`. Only the first two were named here, so
+    // every authorization row read "returned to their own session" -- the exact opposite of
+    // what it records. BACKLOG J74 (P3, identity).
+    if (log.action === "impersonation_authorized") {
+      return { primary: `${actorName} was authorized to log in as ${target}`, secondary: reason };
+    }
     if (log.action === "impersonation_start") {
-      const target = typeof newValues.target_email === "string" ? newValues.target_email : log.entity_id ?? "unknown user";
       return { primary: `${actorName} logged in as ${target}`, secondary: reason };
     }
-    return { primary: `${actorName} returned to their own session`, secondary: reason };
+    if (log.action === "impersonation_end") {
+      return { primary: `${actorName} returned to their own session`, secondary: reason };
+    }
+    return { primary: `${actorName} ${log.action.replace(/_/g, " ")} (${target})`, secondary: reason };
+  }
+
+  if (log.entity_type === "identity") {
+    const reason = log.reason ?? undefined;
+    const subject = log.entity_id ? profileNames[log.entity_id] ?? `User #${log.entity_id}` : "an account";
+    if (log.action === "mfa_reset") {
+      const count = typeof newValues.factor_count === "number" ? newValues.factor_count : null;
+      const factors = count === null ? "" : ` (${count} ${count === 1 ? "factor" : "factors"} removed)`;
+      return {
+        primary: `${actorName} reset multi-factor enrolment for ${subject}${factors}`,
+        secondary: reason,
+      };
+    }
+    return { primary: `${actorName} ${log.action.replace(/_/g, " ")} for ${subject}`, secondary: reason };
   }
 
   if (log.entity_type === "organizations") {
     if (subscriptionStatusChanged(log)) {
       const newStatus = (log.new_values as Record<string, unknown>)?.subscription_status;
-      const verb = newStatus === "suspended" ? "suspended" : "reactivated";
+      // `canceled` is its own end state, and reading it as "reactivated" was the same mislabel
+      // OrganizationDetail carried. BACKLOG J74 (P3, identity).
+      const verb = newStatus === "suspended"
+        ? "suspended"
+        : newStatus === "canceled"
+          ? "canceled the subscription for"
+          : "reactivated";
       return { primary: `${actorName} ${verb} organization ${log.entity_id}` };
     }
     if (log.action.endsWith("_created")) return { primary: `${actorName} created organization ${log.entity_id}` };
@@ -123,7 +160,7 @@ export default function SecurityGovernance() {
       <div>
         <h1 className="text-2xl font-bold">Security & Governance</h1>
         <p className="text-muted-foreground">
-          Impersonation sessions, organization suspensions, and platform settings changes across the entire platform.
+          Impersonation sessions, administrator identity actions, organization suspensions, and platform settings changes across the entire platform.
         </p>
       </div>
 
@@ -257,7 +294,7 @@ export default function SecurityGovernance() {
               </div>
               <p className="font-medium text-muted-foreground">No security events found</p>
               <p className="text-sm text-muted-foreground/60 mt-1">
-                Impersonation, organization suspension, and platform settings changes will be recorded here.
+                Impersonation, multi-factor resets, organization suspension, and platform settings changes will be recorded here.
               </p>
             </div>
           ) : (

@@ -5,19 +5,48 @@ import {
   MARKETING_TRIAL_DAYS,
 } from "@/components/marketing/marketingPricing";
 import { Reveal } from "@/components/marketing/primitives";
+import {
+  BAA_VERSION,
+  LEGAL_COMPANY_LOCATION,
+  LEGAL_COMPANY_NAME,
+  SERVICE_AGREEMENT_VERSION,
+} from "@/lib/legalAgreements";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { Link } from "wouter";
 
 const TERMS_SECTIONS = [
   {
     title: "1. The service",
-    body:
-      "CareBase is subscription software for facility operations, workforce compliance, survey-readiness documentation, and resident clinical records — including native charting and FHIR-based integration with external clinical systems. It is not a pharmacy eMAR (it does not administer medications), a payroll system, or an accounting system, and it does not provide legal, clinical, medical, or regulatory advice. Clinical features are a record-keeping and coordination tool and are not a substitute for professional clinical judgment.",
+    body: (
+      <>
+        CareBase is provided by {LEGAL_COMPANY_NAME}, a Pennsylvania limited
+        liability company located in {LEGAL_COMPANY_LOCATION} ("CareMetric,"
+        "we"). It is subscription software for facility operations, workforce
+        compliance, survey-readiness documentation, and resident clinical
+        records — including native charting and FHIR-based integration with
+        external clinical systems. It is not a pharmacy eMAR (it does not
+        administer medications), a payroll system, or an accounting system, and
+        it does not provide legal, clinical, medical, or regulatory advice.
+        Clinical features are a record-keeping and coordination tool and are not
+        a substitute for professional clinical judgment.
+      </>
+    ),
   },
   {
     title: "2. Accounts",
-    body:
-      "Your organization is responsible for its users, the accuracy of information entered, and maintaining the confidentiality of credentials. You must be authorized to act for the organization you register.",
+    body: (
+      <>
+        Your organization is responsible for its users, the accuracy of
+        information entered, and maintaining the confidentiality of credentials.
+        You must be authorized to act for the organization you register — at
+        signup an authorized administrator accepts the{" "}
+        <Link href="/legal/facility-signup" className="font-semibold text-primary hover:underline">
+          Facility Administrator Platform Agreement and HIPAA Business Associate Agreement
+        </Link>{" "}
+        ({SERVICE_AGREEMENT_VERSION}; {BAA_VERSION}) for {LEGAL_COMPANY_NAME},
+        both published in full.
+      </>
+    ),
   },
   {
     title: "3. Subscriptions and billing",
@@ -35,7 +64,12 @@ const TERMS_SECTIONS = [
         <Link href="/privacy" className="font-semibold text-primary hover:underline">
           Privacy Policy
         </Link>
-        .
+        ; Protected Health Information we handle for your organization is
+        governed by the{" "}
+        <Link href="/legal/facility-signup" className="font-semibold text-primary hover:underline">
+          HIPAA Business Associate Agreement
+        </Link>{" "}
+        accepted at signup.
       </>
     ),
   },

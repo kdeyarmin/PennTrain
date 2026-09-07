@@ -15,6 +15,11 @@ interface ReportViewerProps {
   headers: string[];
   rows: string[][];
   summaryCards?: { label: string; value: string | number; variant?: "default" | "success" | "warning" | "danger" }[];
+  /**
+   * What the figures were computed over -- population, facility, date window. Printed with the
+   * report so a compliance percentage travels with its own denominator (BACKLOG.md J80).
+   */
+  scopeLines?: string[];
   totalRows?: number;
   pageSize?: number;
   pageOffset?: number;
@@ -35,6 +40,7 @@ export function ReportViewer({
   headers,
   rows,
   summaryCards,
+  scopeLines,
   totalRows = rows.length,
   pageSize = rows.length || 1,
   pageOffset = 0,
@@ -111,6 +117,19 @@ export function ReportViewer({
             <Badge variant="secondary">{facilityName}</Badge>
           )}
         </div>
+
+        {scopeLines && scopeLines.length > 0 && (
+          <div className="mb-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 print-scope">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              What this counts
+            </p>
+            <ul className="mt-1.5 space-y-0.5">
+              {scopeLines.map((line) => (
+                <li key={line} className="text-xs text-muted-foreground">{line}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {summaryCards && summaryCards.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 pb-6 border-b border-border/60 print-summary">

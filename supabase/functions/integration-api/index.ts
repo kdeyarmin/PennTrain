@@ -33,9 +33,15 @@ Deno.serve(async (req: Request) => {
   const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
   const url = new URL(req.url);
   const isCommands = url.pathname.endsWith("/v1/commands") && req.method === "POST";
+  // GET /v1/commands/:id -- what became of a command the partner submitted. Without it a 202 was
+  // the last thing a partner ever heard: the apply outcome lives on the receipt and nothing
+  // exposed it, so an accepted-then-rejected bundle was indistinguishable from an applied one.
+  const commandReceiptMatch = req.method === "GET"
+    ? url.pathname.match(/\/v1\/commands\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)
+    : null;
   const isEvents = url.pathname.endsWith("/v1/events") && req.method === "GET";
   const isEntitlements = url.pathname.endsWith("/v1/entitlements") && req.method === "GET";
-  if (!isCommands && !isEvents && !isEntitlements) {
+  if (!isCommands && !commandReceiptMatch && !isEvents && !isEntitlements) {
     return response(req, { error: { code: "route_not_found" }, meta: { correlationId } }, 404, correlationId);
   }
   const plaintextKey = parsePhase2ApiCredential(req.headers.get("authorization"));
@@ -84,6 +90,10 @@ Deno.serve(async (req: Request) => {
   }
   const scopeCandidates = isCommands
     ? phase2CommandScopeCandidates(commandType)
+    : commandReceiptMatch
+    // Either write scope may read back a command it could have submitted; the RPC then scopes the
+    // receipt to the credential's own tenant.
+    ? ["commands:write", "medications:write"]
     : [isEvents ? "events:read" : "entitlements:read"];
   const secretSha256 = await phase2IntegrationSha256(plaintextKey);
   let credential: Record<string, unknown> | null = null;
@@ -167,8 +177,16 @@ Deno.serve(async (req: Request) => {
     });
     if (commandError) {
       const conflict = commandError.code === "23505";
+      // The inbox drains two command types and refuses the rest at the door (the message names
+      // them). Passing that message through is the whole point: the partner has to be able to
+      // tell "this API does not implement that command" from "your payload was bad".
+      const unsupported = commandError.code === "22023" &&
+        /is not accepted by this API/.test(commandError.message ?? "");
       return response(req, {
-        error: { code: conflict ? "idempotency_conflict" : "command_rejected" },
+        error: {
+          code: conflict ? "idempotency_conflict" : unsupported ? "unsupported_command_type" : "command_rejected",
+          ...(unsupported ? { message: commandError.message } : {}),
+        },
         meta: { schemaVersion: contract.schemaVersion, correlationId },
       }, conflict ? 409 : 422, correlationId, rate);
     }
@@ -181,6 +199,32 @@ Deno.serve(async (req: Request) => {
       },
       meta: { schemaVersion: contract.schemaVersion, correlationId: command.correlation_id },
     }, command.was_duplicate ? 200 : 202, correlationId, rate);
+  }
+
+  if (commandReceiptMatch) {
+    const { data: rows, error } = await admin.rpc("get_integration_command_receipt", {
+      p_credential_id: credential.credential_id,
+      p_command_id: commandReceiptMatch[1],
+    });
+    if (error) {
+      return response(req, { error: { code: "command_read_failed" }, meta: { correlationId } }, 500, correlationId, rate);
+    }
+    const receipt = (Array.isArray(rows) ? rows[0] : rows) as Record<string, unknown> | null | undefined;
+    if (!receipt) {
+      return response(req, { error: { code: "command_not_found" }, meta: { correlationId } }, 404, correlationId, rate);
+    }
+    return response(req, {
+      data: {
+        commandId: receipt.command_id,
+        commandType: receipt.command_type,
+        status: receipt.command_status,
+        correlationId: receipt.correlation_id,
+        submittedAt: receipt.submitted_at,
+        updatedAt: receipt.updated_at,
+        result: receipt.result,
+      },
+      meta: { schemaVersion: receipt.schema_version, correlationId },
+    }, 200, correlationId, rate);
   }
 
   if (isEvents) {

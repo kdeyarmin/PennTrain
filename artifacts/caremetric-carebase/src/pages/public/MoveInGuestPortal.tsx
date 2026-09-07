@@ -17,10 +17,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
 import { useToast } from "@/hooks/use-toast";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 const SESSION_TOKEN_KEY = "carebase-move-in-guest-token";
 
 export default function MoveInGuestPortal() {
+  // BACKLOG J74 (P3, guest). Without this the tab, the canonical and the robots tag stayed
+  // whatever the last route left in index.html -- the homepage's, on a page reached only by
+  // holding a credential. The prerendered head says the same thing for a crawler.
+  usePageMeta({ ...MARKETING_ROUTE_META["/move-in-access"], path: "/move-in-access" });
   const __fieldIds = useId();
   const { toast } = useToast();
   const { token: routeToken } = useParams<{ token?: string }>();

@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
 import { FileText, Upload, Trash2, Download, Files, UserRound } from "lucide-react";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { canUploadTrainingDocumentType, canUploadTrainingDocuments } from "@/lib/policyPermissions";
 
 // Matches the training_documents_delete RLS policy (org_admin/facility_manager, or
 // platform_admin via is_platform_admin()) — trainer and employee can never delete a
@@ -256,15 +257,23 @@ export default function Documents() {
 
   const uploading = uploadingBatch || uploadDocument.isPending;
   const canDelete = !!user && DOCUMENTS_DELETE_ROLES.includes(user.role);
+  // training_documents_insert has no auditor branch at all, so the whole Upload Document card --
+  // facility picker, employee picker, type picker and Choose Files -- was offered to a role whose
+  // every upload came back 42501 (BACKLOG.md J74, Policy). See policyPermissions.ts.
+  const canUpload = canUploadTrainingDocuments(user?.role);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Documents</h1>
-        <p className="text-muted-foreground">Upload and manage training certificates and compliance documents</p>
+        <p className="text-muted-foreground">
+          {canUpload
+            ? "Upload and manage training certificates and compliance documents"
+            : "Training certificates and compliance documents"}
+        </p>
       </div>
 
-      <Card>
+      {canUpload && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
@@ -308,7 +317,12 @@ export default function Documents() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="certificate">Certificate</SelectItem>
-                  <SelectItem value="roster">Roster</SelectItem>
+                  {/* A trainer's insert branch admits a roster only through the storage path of a
+                      class they own, which this page's upload never writes -- so "Roster" here was
+                      a guaranteed 42501 for them. Rosters are uploaded on the class page. */}
+                  {canUploadTrainingDocumentType(user?.role, "roster") && (
+                    <SelectItem value="roster">Roster</SelectItem>
+                  )}
                   <SelectItem value="practicum_form">Practicum Form</SelectItem>
                   <SelectItem value="transcript">Transcript</SelectItem>
                   <SelectItem value="external_certificate">External Certificate</SelectItem>
@@ -337,7 +351,7 @@ export default function Documents() {
             Accepted formats: PDF, JPG, PNG, DOC, DOCX. Max 20MB each. Multiple files can be selected at once.
           </p>
         </CardContent>
-      </Card>
+      </Card>}
 
       {canDelete && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-md border">

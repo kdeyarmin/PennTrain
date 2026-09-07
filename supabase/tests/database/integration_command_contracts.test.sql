@@ -82,12 +82,18 @@ select results_eq(
   $$ values (false, 'accepted'::text) $$,
   'commands:write remains a superset scope that can submit medication snapshots'
 );
-select lives_ok(
+-- RETARGETED by 20260906260000: this asserted that an unregistered command type was ACCEPTED at
+-- the baseline envelope. The inbox drains two command types and nothing consumed the rest, so that
+-- acceptance was a 202 followed by silence forever; the command is now refused at the door naming
+-- what is accepted. The envelope-version half of the old assertion is still covered below.
+select throws_ok(
   $$ select * from public.accept_integration_command(
        'aa000000-0000-4000-8000-000000000102', 'generic-contract-0001', repeat('c', 64),
        'workforce.lifecycle.sync', '2026-07-11', '{"externalId":"employee-1"}'::jsonb,
        'generic-contract-correlation') $$,
-  'unregistered commands keep the 2026-07-11 baseline envelope'
+  '22023',
+  'Command type workforce.lifecycle.sync is not accepted by this API; accepted command types are fhir.bundle.import and medication.snapshot.import',
+  'a command type the inbox never drains is refused rather than accepted and abandoned'
 );
 
 select throws_ok(

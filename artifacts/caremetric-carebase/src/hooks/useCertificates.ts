@@ -26,12 +26,31 @@ export function useListCertificates(
   return useQuery({
     queryKey: ["certificates", filters],
     queryFn: async () => {
-      let query = supabase.from("certificates").select("*").order("issued_at", { ascending: false });
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-      if (filters.courseId) query = query.eq("course_id", filters.courseId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // PostgREST caps a single response. Page until exhausted: CourseAssignments.tsx joins this
+      // whole list to its completion rows to render each Download button, so past the cap the
+      // oldest completions silently lost the control with no error anywhere.
+      //
+      // `issued_at` alone is not a total order -- a bulk course completion issues many certificates
+      // inside the same instant -- and Postgres may resolve each page's request differently inside
+      // a run of equal keys, so without the `id` tie-break rows repeat on one page and vanish from
+      // another. That is the same silent gap this loop exists to close.
+      const pageSize = 1000;
+      const rows: Certificate[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("certificates")
+          .select("*")
+          .order("issued_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+        if (filters.courseId) query = query.eq("course_id", filters.courseId);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
     enabled: options.enabled,
     refetchInterval: refetchInterval ? (query) => refetchInterval(query.state.data) : undefined,

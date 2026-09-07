@@ -7,7 +7,7 @@
 -- been its success. Run with: supabase test db.
 
 begin;
-select plan(19);
+select plan(23);
 
 ------------------------------------------------------------------------------------------------
 -- 1-2. Every anonymous entry point goes through the gate, including the next one somebody adds
@@ -20,9 +20,26 @@ select is(
      and p.proname not in (
        'verify_certificate', 'verify_training_passport', 'list_regulatory_updates',
        'guest_request_denial')
-     and p.prosrc not like '%guest_request_denial%'),
+     and p.prosrc not like '%guest_request_denial%'
+     -- 20260906230000 (BACKLOG J74, P3) retargets this one line. get_resident_portal_experience no
+     -- longer calls the gate itself: its FIRST statement calls get_resident_portal_snapshot, which
+     -- does, and running the gate in both charged a single portal page load two of the caller's
+     -- sixty requests a minute -- and a single wrong link two of the ten unknown-token strikes.
+     -- This is delegation, not an exemption: the delegate is named here, it is itself in the gated
+     -- set counted below, and any OTHER anon function that stops calling the gate still fails.
+     and not (p.proname = 'get_resident_portal_experience'
+              and p.prosrc like '%public.get_resident_portal_snapshot(p_token%')),
   0,
   'no token-bearing anonymous RPC reaches its own body without passing the gate'
+);
+-- The delegate, pinned. Without this the exemption above would be a hole: if
+-- get_resident_portal_snapshot ever stopped gating, get_resident_portal_experience would go
+-- ungated and the count above would still be zero.
+select ok(
+  (select prosrc like '%guest_request_denial%'
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'get_resident_portal_snapshot'),
+  'and the function the portal home page delegates its gate to still runs the gate itself'
 );
 select is(
   (select count(*)::integer from pg_proc p
@@ -30,8 +47,11 @@ select is(
    where n.nspname = 'public' and p.prosecdef
      and has_function_privilege('anon', p.oid, 'execute')
      and p.prosrc like '%guest_request_denial%'),
-  17,
-  'and there are seventeen of them, which is the number to change deliberately'
+  -- 17 -> 16 on 2026-09-06 (20260906230000, BACKLOG J74): get_resident_portal_experience delegates
+  -- its gate to get_resident_portal_snapshot rather than calling it a second time. Still the
+  -- number to change deliberately.
+  16,
+  'and there are sixteen of them, which is the number to change deliberately'
 );
 
 ------------------------------------------------------------------------------------------------
@@ -67,6 +87,10 @@ insert into public.resident_portal_grants (
 
 -- One caller, so the per-caller counters mean something. Without this each token would key its
 -- own window and nothing would ever be throttled -- which is the defect a token-keyed limiter has.
+--
+-- The chain is read from the END since 20260906200000 (BACKLOG J46): `x-forwarded-for` is
+-- append-only, so `10.0.0.1` here is what the proxy in front of us observed and `203.0.113.7` is
+-- whatever the client put in the header. The caller key is the last hop.
 select set_config('request.headers', '{"x-forwarded-for":"203.0.113.7, 10.0.0.1"}', true);
 
 ------------------------------------------------------------------------------------------------
@@ -79,10 +103,31 @@ select is(
 );
 select is(
   (select count(*)::integer from app_private.guest_token_failures
-   where surface = 'resident_portal' and caller_key = 'ip:203.0.113.7'),
+   where surface = 'resident_portal' and caller_key = 'ip:10.0.0.1'),
   1,
   'and it is written down, which is how a scan becomes visible before it succeeds'
 );
+-- BACKLOG J46. The defect the last-hop rule closes: the first entry is client-supplied, so keying
+-- on it meant a caller could rotate past every limit by changing one header per request.
+select set_config('request.headers', '{"x-forwarded-for":"198.51.100.99, 10.0.0.1"}', true);
+select is(
+  public.guest_request_denial('resident_portal', 'no-such-token-forged'),
+  null,
+  'a second wrong guess behind the same proxy, with a different claimed first hop'
+);
+select is(
+  (select count(*)::integer from app_private.guest_token_failures
+   where surface = 'resident_portal' and caller_key = 'ip:10.0.0.1'),
+  2,
+  'still counts against the same caller: rotating the claimed first hop does not buy a new budget'
+);
+select is(
+  (select count(*)::integer from app_private.guest_token_failures
+   where caller_key in ('ip:203.0.113.7', 'ip:198.51.100.99')),
+  0,
+  'and nothing is ever keyed on a hop the client wrote'
+);
+select set_config('request.headers', '{"x-forwarded-for":"203.0.113.7, 10.0.0.1"}', true);
 select is(
   (select count(*)::integer from app_private.guest_token_failures
    where token_sha256 = 'no-such-token-0'),

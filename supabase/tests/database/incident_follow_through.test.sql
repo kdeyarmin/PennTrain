@@ -1,5 +1,5 @@
 begin;
-select plan(34);
+select plan(35);  -- 34 + one added by 20260906270000 (BACKLOG.md J74) when a single-row status read was split into a scoped read and a count
 
 -- The claim this migration has to survive is that it changes nothing for incidents created the way
 -- they are created today, and only adds behaviour when a pathway is deliberately chosen. Most of
@@ -105,8 +105,10 @@ select is(
   (select count(*)::int from public.incident_notifications n
    join public.incidents i on i.id = n.incident_id
    where i.idempotency_key = 'incident-death-key-2'),
-  1,
-  'so the required notification is created anyway'
+  2,
+  -- Retargeted by 20260906270000 (BACKLOG.md J74, the I10 residual): every reportable type now owes
+  -- a 48-hour written report alongside the department call, so the presets create two rows, not one.
+  'so the required notifications are created anyway -- the department call and the written report'
 );
 
 -- A fall: significant_injury, but investigated through the fall pathway ---------------
@@ -147,8 +149,10 @@ select is(
   (select count(*)::int from public.incident_notifications n
    join public.incidents i on i.id = n.incident_id
    where i.idempotency_key = 'incident-fall-key-1'),
-  1,
-  'the type preset still auto-created a notification at insert, as it did before this migration'
+  2,
+  -- Retargeted by 20260906270000 (BACKLOG.md J74): the significant_injury presets are now the
+  -- 24-hour state-hotline call AND the 48-hour written report.
+  'the type presets still auto-created notifications at insert, as they did before this migration'
 );
 select is(
   (select reportability_status from public.incidents where idempotency_key = 'incident-fall-key-1'),
@@ -180,17 +184,28 @@ select is(
   0,
   'a not-reportable determination creates no notifications'
 );
+-- Scoped to the department call by 20260906270000 (BACKLOG.md J74): the incident now carries a
+-- second preset (the 48-hour written report), so a bare single-row subquery over its notifications
+-- no longer has one answer. The stand-down rule itself is unchanged and covers every preset -- the
+-- next assertion checks that none of them is left outstanding.
 select is(
   (select n.status from public.incident_notifications n
    join public.incidents i on i.id = n.incident_id
-   where i.idempotency_key = 'incident-fall-key-1'),
+   where i.idempotency_key = 'incident-fall-key-1' and n.notification_type = 'state_hotline'),
   'not_required',
   'the auto-created notification is stood down rather than deleted'
+);
+select is(
+  (select count(*)::int from public.incident_notifications n
+   join public.incidents i on i.id = n.incident_id
+   where i.idempotency_key = 'incident-fall-key-1' and n.status <> 'not_required'),
+  0,
+  'and so is every other preset the type created, including the written report'
 );
 select ok(
   (select n.notes like '%below the reporting threshold%' from public.incident_notifications n
    join public.incidents i on i.id = n.incident_id
-   where i.idempotency_key = 'incident-fall-key-1'),
+   where i.idempotency_key = 'incident-fall-key-1' and n.notification_type = 'state_hotline'),
   'and it carries the reasoning that stood it down'
 );
 
@@ -206,16 +221,19 @@ select is(
   (select count(*)::int from public.incident_notifications n
    join public.incidents i on i.id = n.incident_id
    where i.idempotency_key = 'incident-fall-key-1'),
-  1,
-  'and there is still exactly one notification for the incident'
+  2,
+  -- Retargeted by 20260906270000 (BACKLOG.md J74): two presets, and the point of the assertion --
+  -- that a reversal reinstates rather than duplicates -- is unchanged.
+  'and there are still exactly the two presets for the incident, not four'
 );
 -- A reversal that left the obligation dormant would be the worst outcome of this whole mechanism.
-select isnt(
-  (select n.status from public.incident_notifications n
+select is(
+  (select count(*)::int from public.incident_notifications n
    join public.incidents i on i.id = n.incident_id
-   where i.idempotency_key = 'incident-fall-key-1'),
-  'not_required',
-  'the stood-down notification is reinstated rather than left dormant'
+   where i.idempotency_key = 'incident-fall-key-1' and n.status = 'not_required'),
+  0,
+  -- Scoped by count rather than by a single-row status read, same reason as above.
+  'and every stood-down notification is reinstated rather than left dormant'
 );
 
 -- Approval gate ----------------------------------------------------------------------

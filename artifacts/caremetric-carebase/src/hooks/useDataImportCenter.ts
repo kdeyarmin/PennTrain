@@ -57,6 +57,62 @@ export function useImportJobRows(jobId: string | null) {
   });
 }
 
+// database.types.ts is regenerated separately from this branch, so the two RPCs added with this fix
+// are not in the generated union yet. Same escape hatch useHrisImportRuns.ts uses; the argument
+// names are still checked against the migration by scripts/check-rpc-call-signatures.mjs.
+interface ImportRpcResult { data: unknown; error: { message: string } | null }
+interface ImportRpcClient { rpc: (name: string, args?: Record<string, unknown>) => PromiseLike<ImportRpcResult> }
+
+/**
+ * Stop stranding an import on one bad row (RELEASE_READINESS_PLAN 4.3, imports D1).
+ *
+ * `finalize_data_import_job` refuses a receipt with `error_rows > 0` -- "Resolve or explicitly skip
+ * invalid rows before finalization" -- and nothing in the product could perform the explicit skip.
+ * `start_data_import_job` reuses any job for the same (organization, domain, checksum, creator) that
+ * is still in `uploaded|mapping|validated|ready|applying|failed`, so the stuck receipt also owned the
+ * file: re-uploading the same bytes came back to the same dead job. `data_import_jobs` has carried a
+ * `canceled` status and a `canceled_at` column since it was created and nothing ever wrote them.
+ *
+ * `skip_data_import_rows` marks the failed/invalid rows skipped and recounts, which unblocks Apply
+ * and Finalize; `cancel_data_import_job` closes a receipt that nothing was applied from, which
+ * releases the checksum so the corrected file can start a clean one.
+ */
+export function useSkipImportRows() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { jobId: string; rowNumbers?: number[] }) => {
+      const { data, error } = await (supabase as unknown as ImportRpcClient).rpc("skip_data_import_rows", {
+        p_job_id: input.jobId,
+        p_row_numbers: input.rowNumbers ?? null,
+      });
+      if (error) throw new Error(error.message);
+      return data as { skippedRows: number; errorRows: number };
+    },
+    onSuccess: (_data, variables) => {
+      client.invalidateQueries({ queryKey: ["data-import-jobs"] });
+      client.invalidateQueries({ queryKey: ["data-import-rows", variables.jobId] });
+    },
+  });
+}
+
+export function useCancelImportJob() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { jobId: string; reason: string }) => {
+      const { data, error } = await (supabase as unknown as ImportRpcClient).rpc("cancel_data_import_job", {
+        p_job_id: input.jobId,
+        p_reason: input.reason,
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      client.invalidateQueries({ queryKey: ["data-import-jobs"] });
+      client.invalidateQueries({ queryKey: ["data-import-rows", variables.jobId] });
+    },
+  });
+}
+
 export function useImportJobAction(action: "finalize" | "rollback") {
   const client = useQueryClient();
   return useMutation({
@@ -87,6 +143,20 @@ export interface DomainImportResult {
   failed: number;
   nextOffset: number | null;
   results: Array<{ row: number; success: boolean; action?: string; error?: string; warnings?: string[] }>;
+  /**
+   * The duplicate strategy the receipt is actually pinned to, read back from
+   * `data_import_jobs.duplicate_strategy` (BACKLOG.md J38).
+   *
+   * Not the strategy that was requested. `start_data_import_job` reuses an unfinished job for the
+   * same (organization, domain, file checksum, creator) and keeps the strategy it was created
+   * with, while the processor scores the rows using whatever the request asked for -- so a second
+   * dry run under a new strategy looks fine and the apply that follows is refused with
+   * "Duplicate strategy cannot change after the import job is created" (409). This column is what
+   * apply will be judged against, so it is what the wizard has to show.
+   *
+   * Null when the job row could not be read back; the wizard then simply does not claim to know.
+   */
+  pinnedDuplicateStrategy: "create" | "skip" | "update" | null;
 }
 
 /** @deprecated Prefer DomainImportResult */
@@ -115,6 +185,7 @@ async function runImportChunks(input: {
     failed: 0,
     nextOffset: null,
     results: [],
+    pinnedDuplicateStrategy: null,
   };
   do {
     const { data, error } = await supabase.functions.invoke<DomainImportResult>(fn, {
@@ -139,6 +210,18 @@ async function runImportChunks(input: {
     aggregate.nextOffset = data.nextOffset;
     offset = data.nextOffset ?? 0;
   } while (aggregate.nextOffset !== null);
+
+  // `authenticated` has select on data_import_jobs, so the pin is readable directly. The
+  // processor's own response echoes the REQUESTED strategy, which is exactly the value that
+  // disagrees with the receipt in the case this exists for.
+  const { data: job } = await supabase
+    .from("data_import_jobs")
+    .select("duplicate_strategy")
+    .eq("id", aggregate.job_id)
+    .maybeSingle();
+  const pinned = job?.duplicate_strategy;
+  aggregate.pinnedDuplicateStrategy =
+    pinned === "create" || pinned === "skip" || pinned === "update" ? pinned : null;
   return aggregate;
 }
 

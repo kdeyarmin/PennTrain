@@ -9,6 +9,9 @@ import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts
 // fingerprint below is the access record for a resident document reached with nothing but a guest
 // token, so an address the holder chose is worse than none.
 import { clientIp } from "../_shared/clientIp.ts";
+// The same trusted hop, forwarded to PostgREST so the database's guest throttle keys on the
+// caller rather than on this function's egress address. See _shared/guestCallerKey.ts.
+import { guestCallerForwardHeaders } from "../_shared/guestCallerKey.ts";
 
 const SIGNED_URL_TTL_SECONDS = 300;
 const MAX_REQUEST_BYTES = 16_384;
@@ -45,8 +48,12 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "token and sharedDocumentId are required" }, 400);
   }
 
+  // authorize_resident_portal_document_download runs public.guest_request_denial first, which
+  // keys its per-caller throttle on the first x-forwarded-for hop PostgREST sees. Send the
+  // trusted hop.
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    global: { headers: guestCallerForwardHeaders(req) },
   });
   const fingerprint = await sha256Hex(`${clientIp(req)}|${req.headers.get("user-agent") ?? ""}`);
   const { data: decision, error: authorizeError } = await adminClient.rpc("authorize_resident_portal_document_download", {

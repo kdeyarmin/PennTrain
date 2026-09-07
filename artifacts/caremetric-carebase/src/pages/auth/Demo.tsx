@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { AuthBackground } from "@/components/auth/AuthBackground";
+import { DemoRequestForm } from "@/components/auth/DemoRequestForm";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { useToast } from "@/hooks/use-toast";
@@ -145,10 +146,7 @@ export default function Demo() {
                 })}
               </div>
             ) : (
-              <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-                Public demo accounts are not configured for this deployment. Request a dedicated account and the
-                CareMetric team will set up a safe workspace for you.
-              </div>
+              <DemoRequestForm />
             )}
 
             <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs leading-relaxed text-amber-950">

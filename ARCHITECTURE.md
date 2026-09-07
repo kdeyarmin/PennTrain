@@ -193,7 +193,7 @@ login identities.
 
 ## Scheduling
 
-Basic shift scheduling (not qualification-gated -- see ROADMAP.md's deferred-ideas table). `employee_facility_assignments`
+Shift scheduling, qualification-gated. `employee_facility_assignments`
 is an additive join table recording every facility an employee can be scheduled at, mirroring the existing
 profile-level `facility_assignments`; `employees.facility_id` remains the employee's home/primary facility and is
 kept in sync via a trigger, so every pre-existing compliance feature is unaffected. On top of that:
@@ -205,9 +205,16 @@ employee already has a shift (manual entries always win); `clear_auto_filled_ass
 (only removes untouched auto-generated rows). `publish_schedule`/`unpublish_schedule` flip a schedule's visibility
 to employees -- `shift_assignments_select`'s employee-owned branch requires the parent schedule to be
 `published`. `org_admin`/`facility_manager` manage scheduling at `/app/schedule` (`/app/schedule/setup` for
-units/shifts/patterns); employees see their own published shifts (read-only) at `/me/schedule`. One deliberate v1
-limitation: `shift_assignments` has a `unique (employee_id, shift_date)` constraint, so an employee is capped at
-one shift per calendar date across every facility -- no double shifts, no same-day float between two facilities.
+units/shifts/patterns); employees see their own published shifts (read-only) at `/me/schedule`.
+
+Two things this section used to say, and no longer should. Scheduling IS qualification-gated: the
+`enforce_shift_assignment_eligibility` trigger fires BEFORE INSERT and before any UPDATE of the employee,
+facility, unit, shift definition, date or times, and `public.evaluate_shift_assignment_eligibility` is the
+predicate behind it -- `claim_open_shift` and both sides of a swap route through the same function, so an open
+shift cannot be claimed by someone who is not eligible for it. And the one-shift-per-calendar-date cap is gone:
+`20260731053000` dropped `shift_assignments_employee_id_shift_date_key` deliberately, leaving the interval
+overlap trigger (`prevent_shift_assignment_overlap`) as the authority. Split shifts and same-day float between
+two facilities are supported; what is refused is a shift that overlaps one the employee already has.
 
 ## Database Schema (selected tables)
 

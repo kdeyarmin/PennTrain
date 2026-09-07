@@ -1,7 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import webpush from "npm:web-push@3.6.7";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
-import { buildDisabledPushSubscriptionPatch } from "../_shared/webPush.ts";
+import { buildDisabledPushSubscriptionPatch, webPushTargetPath } from "../_shared/webPush.ts";
 import {
   channelProviderConfigured,
   classifyNotificationDispatchStatus,
@@ -41,6 +41,8 @@ interface PendingDelivery {
   recipient: string;
   profile_id: string;
   notification_id: string | null;
+  /** The recipient's role, for the web-push landing path. See webPushTargetPath. */
+  profiles: { role: string } | null;
   notifications: {
     notification_type: string;
     title: string;
@@ -257,6 +259,7 @@ async function sendWebPush(
   title: string,
   body: string,
   notificationId: string | null,
+  targetPath: string,
 ): Promise<ProviderResult> {
   const publicKey = Deno.env.get("WEB_PUSH_VAPID_PUBLIC_KEY");
   const privateKey = Deno.env.get("WEB_PUSH_VAPID_PRIVATE_KEY");
@@ -280,7 +283,9 @@ async function sendWebPush(
       keys: { p256dh: subscription.p256dh_key, auth: subscription.auth_key },
     }, JSON.stringify({
       title: title.slice(0, 160), body: body.slice(0, 500),
-      data: { url: "/me", notificationId },
+      // The notification's own destination, or the recipient role's home -- never "/me" for
+      // everybody (RELEASE_READINESS_PLAN 4.3, platform L8).
+      data: { url: targetPath, notificationId },
     }), { TTL: 60 * 60 * 24, urgency: "normal", topic: notificationId?.replaceAll("-", "").slice(0, 32) });
     await adminClient.from("push_subscriptions").update({ last_used_at: new Date().toISOString() }).eq("id", subscription.id);
     return { ok: true, retryable: false, providerId: response.headers?.location, providerStatus: "accepted", httpStatus: response.statusCode };
@@ -423,7 +428,7 @@ Deno.serve(async (req: Request) => {
   const { data: rows, error: fetchError } = await adminClient
     .from("notification_deliveries")
     .select(
-      "id, channel, recipient, profile_id, notification_id, notifications(notification_type, title, body, link), notification_templates(subject_template, body_template, allowed_variables, version, template_key), organizations(name)",
+      "id, channel, recipient, profile_id, notification_id, profiles(role), notifications(notification_type, title, body, link), notification_templates(subject_template, body_template, allowed_variables, version, template_key), organizations(name)",
     )
     .in("id", claimed.map((row: { id: string }) => row.id));
   if (fetchError) {
@@ -569,6 +574,7 @@ Deno.serve(async (req: Request) => {
         rendered.subject,
         outboundBody,
         row.notification_id,
+        webPushTargetPath(row.notifications?.link ?? null, row.profiles?.role ?? null),
       );
 
     const completion = result.ok

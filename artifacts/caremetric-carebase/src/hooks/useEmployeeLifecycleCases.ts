@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import type { EmployeeLifecycleTransition } from "@/lib/employeeLifecycleCases";
+import { TRAINING_MATRIX_QUERY_KEY } from "@/hooks/useTrainingMatrix";
 
 export type EmployeeLifecycleCase = Tables<"employee_lifecycle_cases">;
 
@@ -92,9 +93,20 @@ export function useApplyEmployeeLifecycleCase() {
       if (error) throw error;
       return data;
     },
+    // Applying a case is the one mutation in the product that moves an employee between
+    // facilities, closes their employment episode, or brings them back -- and it used to refresh
+    // only the case list and the roster (BACKLOG J74, P3 tail). The training matrix is keyed by
+    // employee, the schedule grid embeds `employees(first_name,last_name)` in every shift row, and
+    // get_org_dashboard_summary counts active staff behind a 60-second staleTime, so a manager who
+    // transferred somebody and went straight to the schedule saw them at the facility they had
+    // just left, for a minute, with no way to tell it was a cache.
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["employee-lifecycle-cases"] });
       client.invalidateQueries({ queryKey: ["employees"] });
+      client.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
+      client.invalidateQueries({ queryKey: ["shift_assignments"] });
+      client.invalidateQueries({ queryKey: ["schedule-service-workload"] });
+      client.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
     },
   });
 }

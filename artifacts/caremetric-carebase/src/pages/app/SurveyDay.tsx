@@ -48,6 +48,9 @@ import { QueryError, QueryLoading } from "@/components/QueryState";
 import { SurfacePurpose } from "@/components/SurfacePurpose";
 import { SurveyPrepChecklist } from "@/components/checklists/SurveyPrepChecklist";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+// Both entrance-conference surfaces read the same rows and must reach the same verdict; the two
+// rules that had already drifted apart live in one module now.
+import { inspectionReadinessVerdict, isOutstandingReadinessStatus, trainingReadinessVerdict } from "@/lib/inspectionReadiness";
 
 // Mirrors the server-side assert_survey_day_manager gate (app_private.assert_phase5_manager):
 // only these roles may activate/refresh/close a session or record a disposition. Auditors reach the
@@ -57,7 +60,6 @@ const SURVEY_DAY_MANAGE_ROLES = ["platform_admin", "org_admin", "facility_manage
 
 const HEALTH_CREDENTIAL_TYPES = ["tb_screening", "immunization"];
 const BACKGROUND_CREDENTIAL_TYPES = ["act34_criminal_history", "act73_fbi_fingerprint", "act33_child_abuse"];
-const OUTSTANDING = ["expired", "due_soon", "missing"];
 const DISPOSITIONS: Array<{ value: SurveyDayDisposition; label: string }> = [
   { value: "ready", label: "Ready" },
   { value: "provided", label: "Provided" },
@@ -330,31 +332,29 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
       case "training": {
         const blocked = sourceBlocked(trainingQuery, "training data unavailable");
         if (blocked) return blocked;
-        const n = (training ?? []).filter((r: any) => OUTSTANDING.includes(r.status)).length;
-        return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
+        // Superseded renewal history is dropped before anything is counted, so a renewed CPR
+        // certification does not read Outstanding here while reading Ready on Inspection Readiness.
+        return trainingReadinessVerdict(training ?? []);
       }
       case "credentials": {
         const blocked = sourceBlocked(credentialsQuery, "credential data unavailable");
         if (blocked) return blocked;
-        const n = (credentials ?? []).filter((c: any) => HEALTH_CREDENTIAL_TYPES.includes(c.credential_type) && OUTSTANDING.includes(c.status)).length;
+        const n = (credentials ?? []).filter((c: any) => HEALTH_CREDENTIAL_TYPES.includes(c.credential_type) && isOutstandingReadinessStatus(c.status)).length;
         return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
       }
       case "background_checks": {
         const blocked = sourceBlocked(credentialsQuery, "background-check data unavailable");
         if (blocked) return blocked;
-        const n = (credentials ?? []).filter((c: any) => BACKGROUND_CREDENTIAL_TYPES.includes(c.credential_type) && OUTSTANDING.includes(c.status)).length;
+        const n = (credentials ?? []).filter((c: any) => BACKGROUND_CREDENTIAL_TYPES.includes(c.credential_type) && isOutstandingReadinessStatus(c.status)).length;
         return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
       }
       case "inspections": {
         const blocked = sourceBlocked(inspectionsQuery, "inspection data unavailable");
         if (blocked) return blocked;
-        // Only count inspection items whose type this checklist row actually covers (its item_types
-        // snapshot). Without this, one unrelated overdue inspection would flip every inspection
-        // prompt -- fire drills, extinguisher/alarm checks, emergency plan -- to Attention.
-        const scoped = (inspections ?? []).filter((i: any) =>
-          !itemTypes || itemTypes.length === 0 || itemTypes.includes(i.item_type));
-        const n = scoped.filter((i: any) => OUTSTANDING.includes(i.status)).length;
-        return n === 0 ? { level: "ready" } : { level: "attention", detail: `${n} outstanding` };
+        // Scoped to this row's item_types snapshot (one unrelated overdue inspection must not flip
+        // every inspection prompt), and an empty scoped set is Attention, not Ready: a facility with
+        // no fire-drill program at all has nothing outstanding and nothing on file.
+        return inspectionReadinessVerdict(inspections ?? [], itemTypes);
       }
       default:
         return { level: "unknown" };

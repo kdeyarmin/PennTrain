@@ -2,6 +2,7 @@ import { assertEquals, assertFalse } from "jsr:@std/assert@1.0.14";
 import {
   buildDisabledPushSubscriptionPatch,
   buildPushSubscriptionRow,
+  webPushTargetPath,
 } from "./webPush.ts";
 
 Deno.test("push subscription rows use the schema column and clear disable state", () => {
@@ -34,4 +35,26 @@ Deno.test("disable patches satisfy the paired timestamp and reason constraint", 
       disabled_reason: "provider_subscription_expired",
     },
   );
+});
+
+Deno.test("webPushTargetPath prefers the notification's own destination", () => {
+  assertEquals(webPushTargetPath("/app/work-queue/abc", "employee"), "/app/work-queue/abc");
+  assertEquals(webPushTargetPath("/me/courses", "org_admin"), "/me/courses");
+});
+
+Deno.test("webPushTargetPath falls back to the recipient role's home, not /me for everyone", () => {
+  assertEquals(webPushTargetPath(null, "platform_admin"), "/admin");
+  assertEquals(webPushTargetPath(null, "org_admin"), "/app/today");
+  assertEquals(webPushTargetPath(null, "facility_manager"), "/app/today");
+  assertEquals(webPushTargetPath(null, "auditor"), "/app/today");
+  assertEquals(webPushTargetPath(null, "trainer"), "/trainer");
+  assertEquals(webPushTargetPath(null, "employee"), "/me");
+  assertEquals(webPushTargetPath(null, null), "/");
+});
+
+Deno.test("webPushTargetPath refuses a link that is not a same-origin path", () => {
+  assertEquals(webPushTargetPath("//evil.example/steal", "employee"), "/me");
+  assertEquals(webPushTargetPath("https://evil.example/steal", "org_admin"), "/app/today");
+  assertEquals(webPushTargetPath("", "trainer"), "/trainer");
+  assertEquals(webPushTargetPath("app/today", "org_admin"), "/app/today");
 });

@@ -77,6 +77,28 @@ export function useMyOrganizationAccessible(organizationId: string | null | unde
   });
 }
 
+// Suspension and reactivation go through set_organization_suspension, not a table update.
+// The admin page used to write `organizations.subscription_status` alone; `billing_accounts` was
+// left untouched, so `state_source` never said a human had done it and the webhook's preserve
+// branch was false -- the tenant's next `invoice.paid` reactivated an organization suspended for
+// cause, with no audit row saying so. The RPC owns both tables, and lifting a hold restores the
+// state the provider implies rather than a literal `active`. BACKLOG J77.
+export function useSetOrganizationSuspension() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, suspended, reason }: { id: string; suspended: boolean; reason?: string }) => {
+      const { data, error } = await supabase.rpc("set_organization_suspension", {
+        p_organization_id: id,
+        p_suspended: suspended,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["organizations"] }),
+  });
+}
+
 export function useUpdateOrganization() {
   const queryClient = useQueryClient();
   return useMutation({

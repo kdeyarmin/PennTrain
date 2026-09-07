@@ -17,13 +17,19 @@ export function usePageMeta({
   title,
   description,
   path,
+  noindex = false,
 }: {
   title: string;
   description: string;
   path: string;
+  /** Credential-bearing routes opt out of indexing -- see RouteMeta.noindex. */
+  noindex?: boolean;
 }) {
   useEffect(() => {
     document.title = title;
+    // Always written, not only when true: client-side navigation from a noindex route to an
+    // indexable one has to clear it again, since index.html's tag is shared by every route.
+    setMetaContent('meta[name="robots"]', "content", noindex ? "noindex, nofollow" : "index, follow");
     setMetaContent('meta[name="description"]', "content", description);
     setMetaContent('meta[property="og:title"]', "content", title);
     setMetaContent('meta[property="og:description"]', "content", description);
@@ -33,7 +39,7 @@ export function usePageMeta({
     const canonicalUrl = `${SITE_URL}${path}`;
     setMetaContent('link[rel="canonical"]', "href", canonicalUrl);
     setMetaContent('meta[property="og:url"]', "content", canonicalUrl);
-  }, [title, description, path]);
+  }, [title, description, path, noindex]);
 }
 
 /**

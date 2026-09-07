@@ -4,9 +4,15 @@ import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts
 
 // Public one-click unsubscribe for the marketing/newsletter list. Recipients have no Supabase
 // session -- the per-subscriber unsubscribe_token uuid (newsletter_subscribers.unsubscribe_token)
-// IS the credential, the same pattern as evidence-guest-download. Supports GET (link click from
-// the email footer) and POST (RFC 8058 List-Unsubscribe-Post one-click from the mailbox
-// provider), both keyed on the ?token= query parameter.
+// IS the credential, the same pattern as evidence-guest-download. Both GET (link click from the
+// email footer) and POST (RFC 8058 List-Unsubscribe-Post one-click from the mailbox provider) are
+// keyed on the ?token= query parameter, but only POST changes anything.
+//
+// GET is deliberately a read-only confirmation page with a POST button, not the unsubscribe
+// itself. A mail-security link scanner (Outlook SafeLinks and similar) fetches every URL in a
+// message before the recipient ever sees it, so a GET that wrote would silently unsubscribe the
+// recipient of the welcome email. RFC 8058 one-click is POST-only for exactly this reason, and
+// scanners do not POST.
 //
 // Idempotent and oracle-free: the same confirmation page is returned whether the token matched a
 // subscriber, matched an already-unsubscribed subscriber, or matched nothing at all, so the
@@ -20,8 +26,18 @@ const CORS_OPTIONS = {
   methods: "GET, POST, OPTIONS",
 };
 
-function htmlPage(options: { title: string; heading: string; body: string; siteUrl: string }): string {
-  const { title, heading, body, siteUrl } = options;
+function htmlPage(
+  options: { title: string; heading: string; body: string; siteUrl: string; confirmAction?: string },
+): string {
+  const { title, heading, body, siteUrl, confirmAction } = options;
+  // `confirmAction` is only ever built from a token that already matched UUID_RE, so nothing
+  // caller-controlled reaches this attribute.
+  const actions = confirmAction
+    ? `<form method="post" action="${confirmAction}" style="margin:0;">
+        <button type="submit" style="display:inline-block;background:#1b6fc2;color:#ffffff;border:0;cursor:pointer;font-weight:700;font-size:14px;font-family:inherit;padding:11px 20px;border-radius:8px;">Unsubscribe me</button>
+        <a href="${siteUrl}" style="display:inline-block;color:#1b6fc2;text-decoration:none;font-weight:700;font-size:14px;padding:11px 12px;">Keep me subscribed</a>
+      </form>`
+    : `<a href="${siteUrl}" style="display:inline-block;background:#1b6fc2;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:8px;">Back to cmcarebase.com</a>`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -39,7 +55,7 @@ function htmlPage(options: { title: string; heading: string; body: string; siteU
     <div style="padding:28px;">
       <h1 style="margin:0 0 12px;color:#0d2742;font-size:22px;font-weight:800;line-height:1.25;">${heading}</h1>
       <p style="margin:0 0 18px;color:#2b3a4a;font-size:15px;line-height:1.6;">${body}</p>
-      <a href="${siteUrl}" style="display:inline-block;background:#1b6fc2;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:8px;">Back to cmcarebase.com</a>
+      ${actions}
     </div>
     <div style="padding:16px 28px 24px;border-top:1px solid #e5eaf0;color:#6b7a89;font-size:12px;line-height:1.6;">
       Changed your mind? You can re-subscribe any time at ${siteUrl}/regulatory-updates.
@@ -87,6 +103,23 @@ Deno.serve(async (req: Request) => {
         siteUrl,
       }),
       400,
+    );
+  }
+
+  // GET only asks. Nothing is read or written here, so a link scanner's prefetch is a no-op and
+  // the page is the same for a live token, a spent one, and a well-formed token that never
+  // existed -- no membership oracle, same as the POST result below.
+  if (req.method === "GET") {
+    return htmlResponse(
+      req,
+      htmlPage({
+        title: "Confirm unsubscribe",
+        heading: "Unsubscribe from regulatory updates?",
+        body:
+          "Choose Unsubscribe me and this address stops receiving regulatory-update emails from CareMetric CareBase. Nothing has changed yet.",
+        siteUrl,
+        confirmAction: `?token=${token}`,
+      }),
     );
   }
 

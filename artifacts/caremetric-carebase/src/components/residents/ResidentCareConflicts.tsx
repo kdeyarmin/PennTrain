@@ -16,14 +16,14 @@ import { useRecordCareConflictDisposition } from "@/hooks/useResidentCareConflic
 import {
   CONFLICT_DISPOSITION_LABELS, type CareConflict, type ConflictDisposition,
 } from "@/lib/residentCareConflicts";
-import { formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityDateOf, formatDateForDisplay } from "@/lib/dateUtils";
 
 function RecordRef({ label, at, href, caption }: { label: string; at: string | null; href?: string; caption: string }) {
   const body = (
     <>
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{caption}</p>
       <p className="text-sm font-medium">{label}</p>
-      <p className="text-[11px] text-muted-foreground">{at ? formatDateForDisplay(at.slice(0, 10)) : "No date recorded"}</p>
+      <p className="text-[11px] text-muted-foreground">{at ? formatDateForDisplay(facilityDateOf(at)) : "No date recorded"}</p>
     </>
   );
   return href

@@ -11,6 +11,8 @@ import {
   baaSections,
   facilityAdminAgreementSections,
 } from "@/lib/legalAgreements";
+import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
+import { usePageMeta } from "@/lib/usePageMeta";
 
 function SectionList({ sections }: { sections: { title: string; body: string[] }[] }) {
   return (
@@ -32,6 +34,8 @@ function SectionList({ sections }: { sections: { title: string; body: string[] }
 }
 
 export default function FacilitySignupLegal() {
+  usePageMeta({ ...MARKETING_ROUTE_META["/legal/facility-signup"], path: "/legal/facility-signup" });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 py-10">
       <main className="mx-auto w-full max-w-5xl space-y-6 px-4">

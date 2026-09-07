@@ -196,3 +196,85 @@ export function useResolveFhirIntegrationException() {
       queryClient.invalidateQueries({ queryKey: [FHIR_INTEGRATION_KEY, input.facilityId] }),
   });
 }
+
+/**
+ * Can this resident's observations actually reach an EHR right now?
+ *
+ * `queue_clinical_observation_writeback` (20260725170000) refuses with 42501 unless the resident
+ * has an ACTIVE `fhir_patient_mappings` row whose source is `status = 'active'` AND
+ * `writeback_enabled`. Nothing in the product sets `writeback_enabled`: the column was added with
+ * `default false`, `save_fhir_integration_source` never writes it, and there is no update policy
+ * on `fhir_integration_sources` for a client to write it directly. So the honest answer today is
+ * almost always "no", and the chart asks this before offering "Send to EHR" instead of promising
+ * delivery and letting the server explain afterwards.
+ *
+ * Only the roles the same migration granted `clinical.integration.writeback` to (platform_admin,
+ * org_admin, facility_manager) can queue at all, and those are also the roles
+ * `fhir_patient_mappings_read` lets read the mapping -- so the caller gates on role first and this
+ * query never runs for someone who could not use the answer.
+ */
+export interface ResidentWritebackTarget {
+  sourceId: string;
+  /**
+   * The destination to name in the UI, or null when this query cannot know it.
+   *
+   * `queue_clinical_observation_writeback` picks the mapping with the newest `mapped_at` and writes
+   * to ITS source. This hook now reads the mappings in that order, so the two agree whenever the
+   * order is decisive -- but `mapped_at` is not unique and the RPC's `limit 1` has no tie-break, so
+   * where the newest timestamp is shared the server's choice is genuinely unpredictable from here.
+   * Naming a source in that case is a guess printed as a fact on a clinical control, so it is left
+   * null and the caller says "the connected EHR" instead (BACKLOG J94).
+   */
+  sourceName: string | null;
+}
+
+export function useResidentFhirWritebackTarget(residentId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["resident-fhir-writeback-target", residentId ?? null],
+    enabled: Boolean(residentId) && enabled,
+    queryFn: async (): Promise<ResidentWritebackTarget | null> => {
+      // Ordered the way the RPC orders, newest mapping first, rather than taking whichever row
+      // came back. `queue_clinical_observation_writeback` selects
+      // `order by m.mapped_at desc limit 1` over the resident's active mappings; this hook used an
+      // unordered `.limit(1)` over the SOURCES, so with more than one write-back-enabled mapping
+      // the tooltip and the success toast could name a different EHR than the one the observation
+      // was queued to (BACKLOG J94).
+      const { data: mappings, error: mappingError } = await supabase
+        .from("fhir_patient_mappings")
+        .select("source_id,mapped_at")
+        .eq("resident_id", residentId!)
+        .eq("status", "active")
+        .order("mapped_at", { ascending: false });
+      if (mappingError) throw mappingError;
+      const ordered = (mappings ?? []) as Array<{ source_id: string; mapped_at: string | null }>;
+      if (ordered.length === 0) return null;
+      // Two round trips rather than an embed: the mapping -> source foreign key is the COMPOSITE
+      // (source_id, organization_id, facility_id) one, which PostgREST cannot resolve from
+      // `source_id` alone.
+      const { data: sources, error: sourceError } = await supabase
+        .from("fhir_integration_sources")
+        .select("id,name,status,writeback_enabled")
+        .in("id", [...new Set(ordered.map((row) => row.source_id))])
+        .eq("status", "active")
+        .eq("writeback_enabled", true);
+      if (sourceError) throw sourceError;
+      const eligible = new Map(
+        ((sources ?? []) as Array<{ id: string; name: string }>).map((row) => [row.id, row.name]),
+      );
+      // The first mapping in the RPC's own order whose source can actually receive a write.
+      const candidates = ordered.filter((row) => eligible.has(row.source_id));
+      const top = candidates[0];
+      if (!top) return null;
+      // Ambiguous exactly when the RPC's ordering is: another eligible mapping shares the newest
+      // `mapped_at`, and nothing breaks that tie on either side.
+      const tied = candidates.some(
+        (row) => row.source_id !== top.source_id && row.mapped_at === top.mapped_at,
+      );
+      return {
+        sourceId: top.source_id,
+        sourceName: tied ? null : (eligible.get(top.source_id) ?? null),
+      };
+    },
+    staleTime: 60_000,
+  });
+}

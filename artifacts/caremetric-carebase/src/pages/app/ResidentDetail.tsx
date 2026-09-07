@@ -1,23 +1,19 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useParams, Link, useLocation, useSearch } from "wouter";
-import { useGetResident, useUpdateResident } from "@/hooks/useResidents";
+import { useGetResident } from "@/hooks/useResidents";
 import { usePageTitle } from "@/lib/pageTitle";
 import { useListResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import { useListResidentInformalSupports } from "@/hooks/useResidentInformalSupports";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
 import { ArrowLeft, HeartPulse, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useToast } from "@/hooks/use-toast";
-import { humanize } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
-import { facilityToday } from "@/lib/dateUtils";
 import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
 import { ResidentCareHeaderPanel } from "@/components/residents/ResidentCareHeader";
 import { ResidentNeedsAttentionPanel } from "@/components/residents/ResidentNeedsAttention";
@@ -46,6 +42,9 @@ import type { ResidentTabProps } from "./resident-tabs/types";
 const ResidentCareConflictsSection = lazy(() => import("@/components/residents/ResidentCareConflictsSection"));
 const ResidentChangeSignalsSection = lazy(() => import("@/components/residents/ResidentChangeSignalsSection"));
 const ResidentHospitalSection = lazy(() => import("@/components/residents/ResidentHospitalSection"));
+// Lazy for the same reason, and mounted only while open: the census dialog pulls in the admissions
+// hook module, which nothing else on this route needs.
+const ResidentCensusStatusDialog = lazy(() => import("@/components/residents/ResidentCensusStatusDialog"));
 
 const TAB_COMPONENTS: Record<string, React.LazyExoticComponent<React.ComponentType<ResidentTabProps>>> = {
   overview: lazy(() => import("./resident-tabs/OverviewTab")),
@@ -105,8 +104,7 @@ export default function ResidentDetail() {
   );
   const appointmentPreparationQuery = useResidentAppointmentPreparation(appointmentIds);
 
-  const { toast } = useToast();
-  const { mutate: updateResident } = useUpdateResident();
+  const [censusDialogOpen, setCensusDialogOpen] = useState(false);
 
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   // instantiate_resident_compliance_items() only seeds rule-pack rows for PCH/ALR (Phase 5) --
@@ -275,34 +273,16 @@ export default function ResidentDetail() {
               <Button variant="outline" size="sm" onClick={() => window.print()} disabled={informalSupportsLoading || itemsLoading || documentsLoading}>
                 <Printer className="mr-2 h-3.5 w-3.5" /> Print Face Sheet
               </Button>
+              {/* Was a two-option Select writing residents.status directly. That bypassed the census
+                  workflow -- the discharged resident kept their bed, which set_bed_availability then
+                  refused to release ("Occupied or reserved beds must be released through census
+                  workflow") -- and it could not express five of the seven lifecycle states. The
+                  dialog routes every change through transition_resident_census, which releases the
+                  bed, writes the census event, and needs the reason it collects. */}
               {canManage ? (
-                <Select
-                  value={resident.status}
-                  onValueChange={(v) => updateResident({
-                    id: resident.id,
-                    status: v as typeof resident.status,
-                    discharge_date: v === "discharged" ? facilityToday() : null,
-                  }, {
-                    // Discharging a resident is the most consequential control on this page and it
-                    // was the only mutation here with no error path: a refused update (RLS, or a
-                    // trigger holding the discharge until something is documented) left the Select
-                    // showing the new value until the next refetch quietly snapped it back, with
-                    // nothing said. Silence reads as success on a status change.
-                    onError: (error: Error) => toast({
-                      title: v === "discharged" ? "Could not discharge this resident" : "Could not reactivate this resident",
-                      description: error.message,
-                      variant: "destructive",
-                    }),
-                  })}
-                >
-                  {/* Named: an unlabelled combobox announces only its current value, so a screen
-                      reader hears "Active" with no indication it controls the resident's status --
-                      and discharging a resident is not a control to leave ambiguous. */}
-                  <SelectTrigger className="w-36 h-9" aria-label="Resident status"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {["active", "discharged"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Button variant="outline" size="sm" onClick={() => setCensusDialogOpen(true)}>
+                  Change status
+                </Button>
               ) : null}
             </>
           }
@@ -380,6 +360,19 @@ export default function ResidentDetail() {
           </Suspense>
         </div>
       </div>
+
+      {censusDialogOpen && (
+        <Suspense fallback={null}>
+          <ResidentCensusStatusDialog
+            open
+            onOpenChange={setCensusDialogOpen}
+            residentId={resident.id}
+            residentName={`${resident.first_name} ${resident.last_name}`}
+            currentStatus={resident.status}
+            moveInHref={isPlatformRoute ? undefined : "/app/admissions"}
+          />
+        </Suspense>
+      )}
 
       <ResidentFaceSheet packet={faceSheetPacket} />
     </div>

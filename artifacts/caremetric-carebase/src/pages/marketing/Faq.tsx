@@ -23,7 +23,17 @@ const FAQ_JSON_LD = {
 };
 
 function FaqCard({ faq }: { faq: MarketingFaq }) {
-  const answerParts = faq.links?.reduce<ReactNode[]>((parts, link) => {
+  // A link can only be linkified in place when its label literally occurs in the answer. Four
+  // declared labels ("See the copilot on Features", "Survey Day Mode on Features", "Start free
+  // trial", "Explore live demo") do not, and used to render nothing at all. Everything that
+  // doesn't match in place is rendered as a trailing list instead, so a declared link is always
+  // reachable. The answer strings themselves are untouched -- the FAQPage JSON-LD (here and the
+  // build-time copy in server/prerender-heads.mjs) is built from faq.answer.
+  const links = faq.links ?? [];
+  const inlineLinks = links.filter((link) => faq.answer.includes(link.label));
+  const trailingLinks = links.filter((link) => !faq.answer.includes(link.label));
+
+  const answerParts = inlineLinks.reduce<ReactNode[]>((parts, link) => {
     const nextParts: ReactNode[] = [];
     parts.forEach((part) => {
       if (typeof part !== "string") {
@@ -46,12 +56,25 @@ function FaqCard({ faq }: { faq: MarketingFaq }) {
       });
     });
     return nextParts;
-  }, [faq.answer]) ?? [faq.answer];
+  }, [faq.answer]);
 
   return (
     <article className="rounded-xl border border-[#e5eaf0] bg-white px-5 py-[18px] shadow-[0_1px_0_rgba(13,39,66,0.02)]">
       <h3 className="text-[15px] font-bold leading-snug text-[#0d2742]">{faq.question}</h3>
       <p className="mt-1.5 text-sm leading-6 text-[#44566b]">{answerParts}</p>
+      {trailingLinks.length > 0 && (
+        <p className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-sm leading-6">
+          {trailingLinks.map((link) => (
+            <Link
+              key={`${link.href}-${link.label}`}
+              href={link.href}
+              className="font-semibold text-[#1b6fc2] hover:text-[#0d2742] hover:underline"
+            >
+              {link.label} →
+            </Link>
+          ))}
+        </p>
+      )}
     </article>
   );
 }

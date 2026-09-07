@@ -117,7 +117,7 @@ const PLAIN_ENGLISH: PlainEnglishCard[] = [
     number: "02",
     eyebrow: "Education spend",
     title: "Spend less on required education",
-    copy: "The course builder, AI-generated courses grounded in your own policies, live QR-code classes, and certificates are all included — so you can stop paying per-seat LMS fees and yearly content libraries for the same required topics.",
+    copy: "Your course library is built and kept current for you by the CareMetric team — including AI-assisted courses grounded in your own policies — and live QR-code classes and certificates are included too, so you can stop paying per-seat LMS fees and yearly content libraries for the same required topics.",
     href: "/savings",
     link: "See where the money comes from →",
   },
@@ -247,10 +247,10 @@ const DIFF_ITEMS: DiffItem[] = [
 const DIFFERENTIATORS: Differentiator[] = [
   {
     icon: GraduationCap,
-    title: "AI course creation, with a human sign-off",
+    title: "AI course creation, done for you, with a human sign-off",
     body: [
-      "Paste in a regulation, policy, or reference document and CareBase drafts the whole course — modules, lesson text or video scripts, and graded quizzes — based only on your source. It points out gaps instead of inventing citations.",
-      "Add an AI presenter video if you want one. Nothing goes live until a named reviewer signs off — and that sign-off clears automatically the moment any section is regenerated.",
+      "Send us a regulation, policy, or reference document and the CareMetric team drafts the whole course with AI — modules, lesson text or video scripts, and graded quizzes — based only on your source. It points out gaps instead of inventing citations.",
+      "An AI presenter video can be added if you want one. Nothing goes live until a named reviewer signs off — and that sign-off clears automatically the moment any section is regenerated.",
     ],
     footer: "Reviewed by a real person, every time",
   },
@@ -325,7 +325,7 @@ const PLANS: Plan[] = [
     price: MARKETING_TRAIN_PRICE_LABEL,
     suffix: " /month · unlimited active learners",
     features: [
-      "Course builder, AI-generated courses, live QR-code classes",
+      "Course library built for you, AI-assisted from your policies, live QR-code classes",
       "Training records, certificates, compliance mapping",
       "Flat monthly price — no per-person overages",
       "Self-serve setup, CSV roster import",

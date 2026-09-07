@@ -1,5 +1,6 @@
 import {
   decodePhase2Cursor,
+  phase2IntegrationSignatureHeader,
   encodePhase2Cursor,
   parsePhase2ApiCredential,
   PHASE2_INTEGRATION_SCHEMA_VERSION,
@@ -33,6 +34,35 @@ Deno.test("outbound signatures bind id, timestamp, and exact body with replay pr
     secret: "whsec_test", webhookId: "event-1", timestamp: 1000,
     rawBody: '{"ok":true}', signature: `v1=${signature}`, nowSeconds: 1301,
   }), false);
+});
+
+Deno.test("a rotation window sends both signatures and either one verifies", async () => {
+  // The two columns rotate_integration_webhook_secret writes had no reader, so the "grace window"
+  // the rotation dialog promises did not exist: the old secret stopped being accepted the instant
+  // the new one was minted. Now the claim returns both and the header carries one v1= per secret.
+  const header = await phase2IntegrationSignatureHeader(
+    ["whsec_new", "whsec_previous"], "event-1", 1000, '{"ok":true}',
+  );
+  assertEquals(header.split(" ").length, 2);
+  for (const secret of ["whsec_new", "whsec_previous"]) {
+    assertEquals(await verifyPhase2IntegrationWebhook({
+      secret, webhookId: "event-1", timestamp: 1000,
+      rawBody: '{"ok":true}', signature: header, nowSeconds: 1001,
+    }), true);
+  }
+  assertEquals(await verifyPhase2IntegrationWebhook({
+    secret: "whsec_retired", webhookId: "event-1", timestamp: 1000,
+    rawBody: '{"ok":true}', signature: header, nowSeconds: 1001,
+  }), false);
+  // Outside a rotation the previous secret is null and the header is exactly one signature.
+  const single = await phase2IntegrationSignatureHeader(
+    ["whsec_new", null], "event-1", 1000, '{"ok":true}',
+  );
+  assertEquals(single.split(" ").length, 1);
+  assertEquals(await verifyPhase2IntegrationWebhook({
+    secret: "whsec_new", webhookId: "event-1", timestamp: 1000,
+    rawBody: '{"ok":true}', signature: single, nowSeconds: 1001,
+  }), true);
 });
 
 Deno.test("credentials are strict, expiring, scoped, and rotation/revocation aware", () => {

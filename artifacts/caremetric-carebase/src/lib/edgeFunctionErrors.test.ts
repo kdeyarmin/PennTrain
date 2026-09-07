@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import {
-  EdgeFunctionError, edgeFunctionError, privilegedSessionExpired,
+  EdgeFunctionError, edgeFunctionError, privilegedFailureMessage,
+  PRIVILEGED_SESSION_EXPIRED_MESSAGE, privilegedSessionExpired,
 } from "./edgeFunctionErrors";
 
 function httpError(status: number, body: unknown): FunctionsHttpError {
@@ -67,5 +68,44 @@ describe("privilegedSessionExpired", () => {
     expect(privilegedSessionExpired(
       new Error("Recent multi-factor authentication is required"),
     )).toBe(false);
+  });
+
+  // The other half of the same refusal: every RPC guarded by assert_identity_assurance answers
+  // with SQLSTATE 42501, not an HTTP status, and supabase-js hands that back as a plain object.
+  it("recognizes the Postgres form assert_identity_assurance raises", () => {
+    expect(privilegedSessionExpired({
+      code: "42501",
+      message: "A fresh AAL2 session is required for operation identity_admin",
+    })).toBe(true);
+  });
+
+  it("does not claim every 42501 is one", () => {
+    expect(privilegedSessionExpired({
+      code: "42501",
+      message: "platform administrator access is required",
+    })).toBe(false);
+  });
+
+  it("does not fire on the same words without the insufficient-privilege code", () => {
+    expect(privilegedSessionExpired({
+      code: "P0001",
+      message: "A fresh AAL2 session is required for operation identity_admin",
+    })).toBe(false);
+  });
+});
+
+describe("privilegedFailureMessage", () => {
+  it("replaces the refusal with the copy that says what actually clears it", () => {
+    expect(privilegedFailureMessage({
+      code: "42501",
+      message: "A fresh AAL2 session is required for operation billing_admin",
+    })).toBe(PRIVILEGED_SESSION_EXPIRED_MESSAGE);
+  });
+
+  it("passes every other failure through unchanged", () => {
+    expect(privilegedFailureMessage({ code: "42501", message: "row-level security violation" }))
+      .toBe("row-level security violation");
+    expect(privilegedFailureMessage(new Error("network down"))).toBe("network down");
+    expect(privilegedFailureMessage(null, "Unknown error")).toBe("Unknown error");
   });
 });

@@ -2,11 +2,11 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 import {
   phase2IntegrationSha256,
+  phase2IntegrationSignatureHeader,
   phase2PinnedWebhookRequest,
   phase2RetryableWebhookStatus,
   phase2RoundRobinByTenant,
   sanitizePhase2IntegrationError,
-  signPhase2IntegrationWebhook,
   validatePhase2WebhookDestination,
 } from "../_shared/phase2Integration.ts";
 
@@ -30,6 +30,8 @@ interface ClaimedDelivery {
   event_id: string;
   request_body: Record<string, unknown>;
   plaintext_signing_secret: string;
+  /** The secret the endpoint held before the last rotation, while its window is still open. */
+  previous_signing_secret: string | null;
   attempt_number: number;
   max_attempts: number;
   timeout_ms: number;
@@ -116,8 +118,11 @@ Deno.serve(async (req: Request) => {
     await Promise.all(orderedClaims.slice(offset, offset + concurrency).map(async (delivery) => {
     const rawBody = JSON.stringify(delivery.request_body);
     const timestamp = Math.floor(Date.now() / 1000);
-    const signature = await signPhase2IntegrationWebhook(
-      delivery.plaintext_signing_secret,
+    // Both live secrets while a rotation window is open, so a consumer that has not switched over
+    // yet still verifies -- the grace window the rotation dialog promises and that nothing had
+    // ever sent. Outside a rotation `previous_signing_secret` is null and this is one signature.
+    const signature = await phase2IntegrationSignatureHeader(
+      [delivery.plaintext_signing_secret, delivery.previous_signing_secret],
       delivery.event_id,
       timestamp,
       rawBody,
@@ -151,7 +156,7 @@ Deno.serve(async (req: Request) => {
           "User-Agent": "CareMetric-CareBase-Integration-Webhooks/1.0",
           "Webhook-Id": delivery.event_id,
           "Webhook-Timestamp": String(timestamp),
-          "Webhook-Signature": `v1=${signature}`,
+          "Webhook-Signature": signature,
           "X-Correlation-Id": delivery.correlation_id,
           "X-Event-Schema-Version": delivery.event_schema_version,
         },

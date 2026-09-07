@@ -31,9 +31,38 @@ import {
   ClipboardCheck,
   Gavel,
   GraduationCap,
+  Gift,
+  PauseCircle,
+  Timer,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { QueryError } from "@/components/QueryState";
+
+/**
+ * One tile per subscription state, in the order the column's CHECK constraint lists them
+ * (RELEASE_READINESS_PLAN 4.3, platform L5).
+ *
+ * The "Total Organizations" tile has always summed every key `get_platform_health` returns, which
+ * is all seven states; the row beside it showed active, trial and past_due. So Total was larger
+ * than its neighbours for reasons the page never explained, and `grace` and `comped` -- the two
+ * states an operator most needs to act on -- appeared nowhere and could not even be filtered for.
+ * Every state gets a tile, so the row adds up to the total by construction.
+ */
+const SUBSCRIPTION_STATE_TILES: ReadonlyArray<{
+  status: string;
+  label: string;
+  icon: LucideIcon;
+  tone: "success" | "info" | "warning" | "danger" | "default";
+}> = [
+  { status: "active", label: "Active Subscriptions", icon: CheckCircle, tone: "success" },
+  { status: "trial", label: "Trial Accounts", icon: TrendingUp, tone: "info" },
+  { status: "grace", label: "In Grace", icon: Timer, tone: "warning" },
+  { status: "past_due", label: "Past Due", icon: AlertCircle, tone: "warning" },
+  { status: "comped", label: "Comped", icon: Gift, tone: "default" },
+  { status: "suspended", label: "Suspended", icon: PauseCircle, tone: "danger" },
+  { status: "canceled", label: "Canceled", icon: Ban, tone: "default" },
+];
 
 export default function AdminDashboard() {
   const {
@@ -59,6 +88,14 @@ export default function AdminDashboard() {
   const trialOrgs = Number(orgsByStatus.trial ?? 0);
   const pastDueOrgs = Number(orgsByStatus.past_due ?? 0);
   const suspendedOrgs = Number(orgsByStatus.suspended ?? 0);
+  // "Total" sums every key the control plane returns -- all seven subscription states -- while the
+  // tile row showed three of them, so the numbers could not be reconciled by anyone reading the
+  // page (RELEASE_READINESS_PLAN 4.3, platform L5). Every state now has its own tile, and the
+  // Total tile states the arithmetic. `unaccountedOrgs` is normally zero; it is shown rather than
+  // hidden if the control plane ever returns a state this list does not know about.
+  const orgsInState = (status: string) => Number(orgsByStatus[status] ?? 0);
+  const accountedOrgs = SUBSCRIPTION_STATE_TILES.reduce((sum, tile) => sum + orgsInState(tile.status), 0);
+  const unaccountedOrgs = totalOrgs - accountedOrgs;
   const openSupportTickets = dashboardPage?.openSupportTickets ?? 0;
   const urgentWorkItems =
     (health?.notificationDeliveriesFailed ?? 0)
@@ -376,16 +413,30 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {/* Each tile deep-links to Organizations with the matching subscription_status
             pre-selected -- the page reads `?status=` via useUrlState, so a tile that counts
             past-due tenants lands on exactly those rows instead of the unfiltered list the
             admin then has to scan badge by badge. Values must stay in the set the column's
             check constraint allows (SUBSCRIPTION_STATUSES in Organizations.tsx). */}
-        <StatCard label="Total Organizations" value={healthBusy ? "—" : totalOrgs} icon={Building2} tone="primary" href="/admin/organizations" />
-        <StatCard label="Active Subscriptions" value={healthBusy ? "—" : activeOrgs} icon={CheckCircle} tone="success" href="/admin/organizations?status=active" />
-        <StatCard label="Trial Accounts" value={healthBusy ? "—" : trialOrgs} icon={TrendingUp} tone="info" href="/admin/organizations?status=trial" />
-        <StatCard label="Past Due" value={healthBusy ? "—" : pastDueOrgs} icon={AlertCircle} tone="warning" href="/admin/organizations?status=past_due" />
+        <StatCard
+          label="Total Organizations"
+          value={healthBusy ? "—" : totalOrgs}
+          hint={healthBusy ? undefined : `Sum of all ${SUBSCRIPTION_STATE_TILES.length} subscription states below${unaccountedOrgs > 0 ? `, plus ${unaccountedOrgs} in an unrecognized state` : ""}.`}
+          icon={Building2}
+          tone="primary"
+          href="/admin/organizations"
+        />
+        {SUBSCRIPTION_STATE_TILES.map((tile) => (
+          <StatCard
+            key={tile.status}
+            label={tile.label}
+            value={healthBusy ? "—" : orgsInState(tile.status)}
+            icon={tile.icon}
+            tone={tile.tone}
+            href={`/admin/organizations?status=${tile.status}`}
+          />
+        ))}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

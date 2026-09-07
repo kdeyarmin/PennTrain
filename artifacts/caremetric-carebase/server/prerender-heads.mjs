@@ -16,7 +16,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -131,6 +131,13 @@ function renderRouteHtml(baseHtml, route, meta, siteUrl) {
   );
   html = replaceOnce(
     html,
+    /<meta\s+name="robots"\s+content="[^"]*"\s*\/>/g,
+    `<meta name="robots" content="${meta.noindex ? "noindex, nofollow" : "index, follow"}" />`,
+    'meta[name="robots"]',
+    route,
+  );
+  html = replaceOnce(
+    html,
     /<link\s+rel="canonical"\s+href="[^"]*"\s*\/>/g,
     `<link rel="canonical" href="${canonicalUrl}" />`,
     'link[rel="canonical"]',
@@ -238,9 +245,13 @@ async function main() {
     }
     const slug = route === "/" ? "root" : route.slice(1);
     const outPath = join(PRERENDER_DIR, `${slug}.html`);
-    if (dirname(outPath) !== PRERENDER_DIR) {
-      throw new Error(`route ${route} maps outside ${PRERENDER_DIR} -- nested routes need explicit support here.`);
+    // Nested routes (/legal/facility-signup) write into a matching subdirectory; server/index.mjs
+    // walks PRERENDER_DIR recursively and rebuilds the route from the relative path. The guard
+    // still refuses anything that would escape PRERENDER_DIR entirely.
+    if (!outPath.startsWith(PRERENDER_DIR + sep)) {
+      throw new Error(`route ${route} maps outside ${PRERENDER_DIR}.`);
     }
+    await mkdir(dirname(outPath), { recursive: true });
     await writeFile(outPath, html);
     written += 1;
   }
