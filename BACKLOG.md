@@ -996,4 +996,4 @@ pgTAP suite, `check:all`, and this register's own freshness check. Treat a mecha
 that a second account merely unlocked (`approve_regulatory_rule_version`) as unverified,
 and say so in the row rather than counting it as review.
 
-<!-- Register verified: SG-2 counsel-cleared option 2; templates seeded; activation remains; C5 citation_ref done; B1 done; B3 owner drop-path documented; F6/F7/F8 done; SG-3 opened (video_watch_gate global-enable vs. non-prod Storage gap); J97 central Support Hub integration added default-off -->
+<!-- Register verified: SG-2 counsel-cleared option 2; templates seeded; activation remains; C5 citation_ref done; B1 done; B3 owner drop-path documented; F6/F7/F8 done; SG-3 opened (video_watch_gate global-enable vs. non-prod Storage gap); J98 central Support Hub integration added default-off; production ledger placeholder 20260907184641 recorded -->
