@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   audienceStatusByTypeId,
+  comparableInstant,
   bucketHoursInWindow,
   bucketStanding,
   ojtCapForBucket,
@@ -435,5 +436,55 @@ describe("bucketStanding", () => {
 
   it("stays incomplete rather than compliant when nothing is required yet", () => {
     expect(bucketStanding(0, 0, window, "2026-04-01")).toBe("incomplete");
+  });
+});
+
+describe("comparableInstant", () => {
+  // Sorting keys, so a > b as text must mean a is later than b as an instant.
+  const later = (a: string, b: string) => comparableInstant(a) > comparableInstant(b);
+
+  it("orders every shape PostgREST emits, mixed precision included", () => {
+    // Measured against Postgres rather than assumed: `to_json` trims trailing zeros, so
+    // `.500000` comes back `.5`, and a whole second carries no fractional part at all.
+    const ascending = [
+      "2026-09-07T21:09:22+00:00",
+      "2026-09-07T21:09:22.05+00:00",
+      "2026-09-07T21:09:22.123456+00:00",
+      "2026-09-07T21:09:22.5+00:00",
+      "2026-09-07T21:09:23+00:00",
+    ];
+    for (let i = 1; i < ascending.length; i += 1) {
+      expect(later(ascending[i], ascending[i - 1]), `${ascending[i]} > ${ascending[i - 1]}`).toBe(true);
+    }
+  });
+
+  it("keeps the microseconds Date.parse would round away", () => {
+    // The reason this normalises text instead of parsing: JavaScript dates hold milliseconds, so
+    // these two collapse to the same number, and one statement can write records this close.
+    const earlier = "2026-09-07T21:09:22.123400+00:00";
+    const later_ = "2026-09-07T21:09:22.123500+00:00";
+    expect(Date.parse(earlier)).toBe(Date.parse(later_));
+    expect(later(later_, earlier)).toBe(true);
+  });
+
+  it("compares a Z-suffixed value against a +00:00 one correctly", () => {
+    // `new Date().toISOString()` ends in Z, and Z sorts ABOVE + -- so raw string comparison
+    // reverses this pair. Normalising is what makes the two spellings comparable at all.
+    expect(later("2026-09-07T21:09:23Z", "2026-09-07T21:09:22+00:00")).toBe(true);
+    expect(later("2026-09-07T21:09:22+00:00", "2026-09-07T21:09:23Z")).toBe(false);
+    expect(comparableInstant("2026-09-07T21:09:22Z")).toBe(comparableInstant("2026-09-07T21:09:22+00:00"));
+  });
+
+  it("compares across timezone offsets by instant, not wall clock", () => {
+    // Same instant, two spellings: neither is later than the other.
+    expect(comparableInstant("2026-09-07T17:09:22-04:00")).toBe(comparableInstant("2026-09-07T21:09:22+00:00"));
+    expect(later("2026-09-07T18:00:00-04:00", "2026-09-07T21:00:00+00:00")).toBe(true);
+  });
+
+  it("returns an unparseable value unchanged rather than collapsing it", () => {
+    // So an odd value still compares against itself deterministically instead of every odd value
+    // landing in one bucket.
+    expect(comparableInstant("not a timestamp")).toBe("not a timestamp");
+    expect(comparableInstant("")).toBe("");
   });
 });

@@ -105,15 +105,51 @@ export function audienceStatusByTypeId(
   return new Map([...latest].map(([typeId, record]) => [typeId, record.status]));
 }
 
+const INSTANT_PATTERN =
+  /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|z|[+-]\d{2}:?\d{2})?$/;
+
 /**
- * `audience_decision_at desc nulls last, created_at desc, id desc`, as a comparison.
+ * A timestamptz rewritten so that comparing two of them as strings compares the INSTANTS.
  *
- * The two timestamps are compared as strings, which is chronological for the shape PostgREST
- * serialises a `timestamptz` in: a fixed-width date and time, a variable-length fractional part,
- * then a constant `+00:00`. Every character that can follow the seconds sorts above `+`, so a
- * value with no fractional part precedes one that has any, and longer fractions compare digit by
- * digit against shorter ones correctly.
+ * WHY NOT JUST COMPARE THE RAW STRINGS, which is what this did. For the one shape PostgREST
+ * actually emits it is already chronological, and that was measured rather than assumed: a fixed
+ * date and time, a fractional part with trailing zeros trimmed (`.500000` comes back `.5`), then a
+ * constant `+00:00`; `+` sorts below every digit, so no fraction precedes any fraction, and
+ * fractions compare digit by digit as left-aligned decimals. Sorting
+ * `[22+00:00, 22.05+00:00, 22.123456+00:00, 22.5+00:00]` lexicographically gives the chronological
+ * order exactly.
+ *
+ * It is right for that shape and silently wrong for any other, which is a bad thing for a
+ * comparison to be. `new Date().toISOString()` -- which this codebase does write into timestamptz
+ * columns elsewhere -- ends in `Z`, and `Z` sorts ABOVE `+`, so one `Z` value mixed into a page of
+ * `+00:00` ones reverses the pair. These two columns are server-written today (a trigger sets
+ * `audience_decision_at`, a default sets `created_at`), so nothing produces that mix now; the point
+ * is that nothing would notice if something started to.
+ *
+ * WHY NOT `Date.parse`, which is the obvious repair and is a regression here. Postgres stores
+ * microseconds and JavaScript dates hold milliseconds, so `Date.parse` maps
+ * `...22.123400Z` and `...22.123500Z` to the same number -- two records a tenth of a millisecond
+ * apart, which one statement can easily produce, become a tie. The raw strings ordered those
+ * correctly. Normalising and comparing as text keeps the microseconds and drops the dependence on
+ * one serialisation at the same time.
+ *
+ * An unparseable value is returned unchanged rather than coerced, so it still compares against
+ * itself deterministically instead of collapsing every odd value into one bucket.
  */
+export function comparableInstant(value: string): string {
+  const match = INSTANT_PATTERN.exec(value.trim());
+  if (!match) return value;
+  const [, date, hours, minutes, seconds, fraction = "", offset = "Z"] = match;
+  const micros = `${fraction}000000`.slice(0, 6);
+  if (/^(Z|z|[+-]00:?00)$/.test(offset)) return `${date}T${hours}:${minutes}:${seconds}.${micros}`;
+  // A non-UTC offset: shift the whole-second part to UTC and re-attach the fraction, which an
+  // offset never changes.
+  const shifted = Date.parse(`${date}T${hours}:${minutes}:${seconds}${offset.replace(/(\d{2})(\d{2})$/, "$1:$2")}`);
+  if (Number.isNaN(shifted)) return `${date}T${hours}:${minutes}:${seconds}.${micros}`;
+  return `${new Date(shifted).toISOString().slice(0, 19)}.${micros}`;
+}
+
+/** `audience_decision_at desc nulls last, created_at desc, id desc`, as a comparison. */
 function isMoreRecentAudienceRecord(candidate: TrainingRecordHours, held: TrainingRecordHours): boolean {
   const decided = candidate.audience_decision_at;
   const heldDecided = held.audience_decision_at;
@@ -121,9 +157,11 @@ function isMoreRecentAudienceRecord(candidate: TrainingRecordHours, held: Traini
   if (decided !== heldDecided) {
     if (decided === null) return false;
     if (heldDecided === null) return true;
-    return decided > heldDecided;
+    return comparableInstant(decided) > comparableInstant(heldDecided);
   }
-  if (candidate.created_at !== held.created_at) return candidate.created_at > held.created_at;
+  if (candidate.created_at !== held.created_at) {
+    return comparableInstant(candidate.created_at) > comparableInstant(held.created_at);
+  }
   return candidate.id > held.id;
 }
 
