@@ -4,6 +4,7 @@ import { BellRing, CheckCheck, Megaphone, Send } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useAnnouncements } from "@/hooks/useProductExperience";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +40,10 @@ export default function Announcements() {
   const { toast } = useToast();
   const canPublish = user?.role === "org_admin" || user?.role === "facility_manager";
   const announcements = useAnnouncements();
+  // The same pair the hook scopes on: a platform admin's tenant comes from the header picker, not
+  // from their own profile, so the empty state has to test what the hook tests (BACKLOG J94).
+  const { viewingOrgId } = useViewingOrg();
+  const scopedOrgId = viewingOrgId ?? user?.organizationId ?? null;
   const { data: facilities = [] } = useListFacilities({ organizationId: user?.organizationId ?? undefined }, !!user?.organizationId);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -100,7 +105,7 @@ export default function Announcements() {
         (BACKLOG J93). Said here rather than shown as an empty list, because "no announcements" and
         "no tenant chosen" are different answers and only one of them has a control that fixes it.
       */}
-      {!user?.organizationId ? (
+      {!scopedOrgId ? (
         <Card>
           <CardContent className="py-6 text-sm text-muted-foreground">
             Choose the organization in the header's "Viewing as" picker to read its announcements.

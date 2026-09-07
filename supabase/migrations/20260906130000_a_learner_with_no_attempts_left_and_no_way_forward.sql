@@ -72,6 +72,35 @@ comment on column public.course_assignments.additional_quiz_attempts is
   'attempts, and the one-open-assignment index refused a replacement while the dead one stayed '
   'open.';
 
+-- The single-writer contract, enforced rather than asserted (BACKLOG J94).
+--
+-- The column comment says this is written only by grant_additional_quiz_attempt, and nothing made
+-- that true: `course_assignments_update` gives an org_admin, facility_manager or trainer an
+-- ordinary UPDATE on the row, and `protect_course_assignment_fields` restored only `status` and
+-- `completed_at`. A manager could therefore set the map directly -- twenty attempts on every quiz
+-- in the version -- with no reason recorded, no check that the quiz belongs to the assignment's
+-- course version, no `course_assignment.attempt_granted` audit row and no notification to the
+-- learner. A comment is not a control.
+create or replace function public.protect_course_assignment_fields()
+returns trigger language plpgsql set search_path to 'public' as $function$
+begin
+  if public.is_platform_admin() or coalesce(current_setting('app.privileged_write', true), '') = 'on' then
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    new.status := 'assigned';
+    new.completed_at := null;
+    -- A new assignment starts with no granted attempts, whatever the insert said.
+    new.additional_quiz_attempts := '{}'::jsonb;
+  else
+    new.status := old.status;
+    new.completed_at := old.completed_at;
+    new.additional_quiz_attempts := old.additional_quiz_attempts;
+  end if;
+  return new;
+end;
+$function$;
+
 create or replace function public.enforce_quiz_attempt_cap()
 returns trigger
 language plpgsql
@@ -131,6 +160,7 @@ declare
   v_assignment public.course_assignments%rowtype;
   v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
   v_granted integer;
+  v_quiz_title text;
 begin
   select * into v_assignment from public.course_assignments where id = p_assignment_id for update;
   if not found then
@@ -185,6 +215,14 @@ begin
       using errcode = '23514';
   end if;
 
+  -- The trigger above restores this column for every non-privileged writer, this definer function
+  -- included, so the write is made under the same transaction-local escape hatch the other trusted
+  -- RPCs use -- opened here and closed immediately after, exactly as cancel_course_assignment
+  -- does below. Set here rather than at the top: everything above is authorization, and a bypass
+  -- that outlives a refusal is a bypass nobody meant to grant. Closed straight after the update
+  -- because the audit and notification inserts that follow carry triggers of their own, and those
+  -- should run under the caller's rights rather than through the escape hatch.
+  perform set_config('app.privileged_write', 'on', true);
   update public.course_assignments
   set additional_quiz_attempts = jsonb_set(
         coalesce(additional_quiz_attempts, '{}'::jsonb),
@@ -195,6 +233,7 @@ begin
       updated_at = now()
   where id = v_assignment.id
   returning * into v_assignment;
+  perform set_config('app.privileged_write', '', true);
 
   insert into public.audit_logs(organization_id, actor_profile_id, action, entity_type, entity_id, metadata)
   values (
@@ -223,10 +262,17 @@ begin
   -- precisely because taking an assigned course is not an employee-only act. Same defect as the
   -- credential notifications in 20260906280000; that one needed the route widened, this one only
   -- needed the right route.
+  -- Names the assessment the grant was actually made for. "the final assessment" was true while
+  -- the grant was assignment-wide and is a wrong answer now that it is per quiz: a learner given a
+  -- retry on a module check would be sent back to an assessment whose limit did not move (J94).
+  select q.title into v_quiz_title from public.quizzes q where q.id = p_quiz_id;
+
   insert into public.notifications(organization_id, profile_id, notification_type, title, body, link)
   select v_assignment.organization_id, e.profile_id, 'course_assigned',
     'Another attempt is available',
-    'Your manager has given you another attempt at the final assessment.',
+    'Your manager has given you another attempt at '
+      || coalesce(nullif(btrim(coalesce(v_quiz_title, '')), ''), 'an assessment')
+      || ' in this course.',
     '/me/courses'
   from public.employees e
   where e.id = v_assignment.employee_id and e.profile_id is not null;

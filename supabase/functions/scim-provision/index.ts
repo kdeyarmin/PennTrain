@@ -118,15 +118,23 @@ async function governedProfileCandidates(
   externalSubjectId: string,
   userName: string,
 ): Promise<GovernedProfile[] | { failed: true }> {
+  // `profile_id` as well as `employee_id`, because `apply_scim_change` targets
+  // `coalesce(resolve_scim_link_profile_id(...), v_link.profile_id)` and that last arm is the one
+  // this guard could not see (BACKLOG J94). It is used exactly when the resolver comes back empty
+  // -- the employee row detached by a revocation or an organization move, and the address no
+  // longer matching -- which is also precisely when this function used to return no candidates at
+  // all and wave the write through.
   const link = await admin
     .from("scim_subject_links")
-    .select("employee_id")
+    .select("employee_id, profile_id")
     .eq("scim_connection_id", connectionId)
     .eq("external_subject_id", externalSubjectId)
     .maybeSingle();
   if (link.error) return { failed: true };
 
-  const employeeId = (link.data as { employee_id?: string } | null)?.employee_id ?? null;
+  const linkRow = link.data as { employee_id?: string; profile_id?: string } | null;
+  const employeeId = linkRow?.employee_id ?? null;
+  const linkProfileId = linkRow?.profile_id ?? null;
   if (employeeId) {
     const employee = await admin
       .from("employees")
@@ -180,7 +188,7 @@ async function governedProfileCandidates(
   // hundred profiles at one email -- so it costs nothing in ordinary traffic and closes the case
   // where an unescapable `*` widened the pattern.
   if (rows.length >= GOVERNED_CANDIDATE_PAGE) return { failed: true };
-  return rows
+  const matches = rows
     .filter((row) => (row.email ?? "").toLowerCase() === userName)
     .map((row) => ({
       id: row.id,
@@ -188,6 +196,27 @@ async function governedProfileCandidates(
       is_active: row.is_active,
       resolution: "email_match" as const,
     }));
+  if (matches.length > 0) return matches;
+
+  // Nothing resolved, which is the case the RPC answers with the link's recorded profile. Load and
+  // hand it over so the guard judges what will actually be written, rather than concluding there
+  // is nothing to protect. Scoped to the organization like every other lookup here: a profile
+  // moved out of this tenant is no longer this connection's to touch, and if the RPC still reaches
+  // it that is a separate defect this guard should not paper over.
+  if (linkProfileId) {
+    const linked = await admin
+      .from("profiles")
+      .select("id, role, is_active")
+      .eq("id", linkProfileId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (linked.error) return { failed: true };
+    const row = linked.data as { id: string; role: string; is_active: boolean } | null;
+    if (row) {
+      return [{ id: row.id, role: row.role, is_active: row.is_active, resolution: "link_fallback" }];
+    }
+  }
+  return [];
 }
 
 Deno.serve(async (request: Request) => {

@@ -565,7 +565,7 @@ export default function ResidentClinicalChart() {
                     {canChart && !observation.entered_in_error && (
                       <div className="flex flex-wrap items-center gap-1">
                         {writebackOffered && (
-                          <span title={disclosureAllowed ? `Queue for delivery to ${writebackTarget.data?.sourceName}` : "Requires granted clinical data consent"}>
+                          <span title={disclosureAllowed ? `Queue for delivery to ${writebackTarget.data?.sourceName ?? "the connected EHR"}` : "Requires granted clinical data consent"}>
                             <Button
                               size="sm" variant="ghost" className="text-muted-foreground"
                               disabled={queueWriteback.isPending || !disclosureAllowed}

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { useAuth } from "@/lib/auth";
 import type { Tables } from "@/lib/database.types";
 import { navigationFavoritePaths } from "@/lib/navigationPreferences";
@@ -118,8 +119,16 @@ export function useNavigationWorkspace() {
 
 export function useAnnouncements() {
   const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
   const queryClient = useQueryClient();
-  const organizationId = user?.organizationId ?? undefined;
+  // `viewingOrgId` FIRST, and that is the whole point (BACKLOG J94). A platform admin has no
+  // organization of their own -- `user.organizationId` is null and stays null however they use the
+  // product -- and the header's "Viewing as" selection lives in `useViewingOrg`, which yields a
+  // value for that role alone. Scoping on `user.organizationId` therefore left the announcements
+  // query permanently disabled for the one caller it was written for, on a page that told them to
+  // use a picker it never read: strictly worse than the cross-tenant interleave it replaced.
+  // EvidenceRoom and QualifiedWorkforce take the same pair; this now matches them.
+  const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
   const query = useQuery({
     // `org_announcements_visible` starts with `is_platform_admin() or ...`, so a platform admin
     // reads every tenant's announcements and this page interleaved them by published_at with no
@@ -131,7 +140,8 @@ export function useAnnouncements() {
     // across tenants: a platform admin with no organization of their own. For them the filter was
     // simply omitted and the policy's first clause returned every tenant's rows again -- the J74
     // defect, unfixed, on the accounts most likely to hit it. A query that cannot be scoped must
-    // not run; the page says which control supplies the missing context.
+    // not run; the page says which control supplies the missing context -- and that control now
+    // feeds this hook, which it did not when the guard was first written (J94).
     queryKey: ["org_announcements", organizationId],
     enabled: !!organizationId,
     queryFn: async () => {

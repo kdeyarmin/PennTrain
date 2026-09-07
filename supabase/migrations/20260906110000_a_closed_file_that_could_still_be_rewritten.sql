@@ -513,26 +513,37 @@ begin
     v_new := $patch$  -- The census transition graph. See this migration's header for why a target-only check was
   -- not enough: `reserved -> temporarily_out -> active` walked around the one edge the UI blocked.
   --
-  -- Every arm keeps the resident's OWN status as a legal target, and that is not slack in the
-  -- graph -- it is where two of this function's operations live. `active -> active` with a
-  -- different p_bed_id is the room transfer this function maps to the `room_transfer` event, and
-  -- `discharged -> discharged` / `deceased -> deceased` is the bed-release repair
-  -- AdmissionOperations.tsx offers by name for residents the old bare-discharge workflow left
-  -- holding a bed. A first version of this graph omitted both and turned each into a 22023; the
-  -- terminal arms in particular have to be self-edges rather than empty, because "terminal" is a
-  -- statement about the resident's STATUS, not about the bed still attached to it.
+  -- A self-edge is a BED operation, and it is spelled out as one rather than left to the guard
+  -- below. `active -> active` with a different p_bed_id is the room transfer this function maps to
+  -- the `room_transfer` event; `discharged -> discharged` / `deceased -> deceased` while the
+  -- resident still holds a bed is the release repair AdmissionOperations.tsx offers by name, for
+  -- records the old bare-discharge workflow closed without freeing the bed. Both are operations
+  -- this same function implements, so a graph that reads "terminal" as "no outgoing edges" and
+  -- "active ->" as "some OTHER status" turns each into a 22023 with no other route in the product.
   --
-  -- Nothing here has to exclude the no-op, because the guard below already refuses same status
-  -- AND same bed. That is the one check that distinguishes an operation from a rewrite, and it
-  -- predates this graph.
+  -- What an earlier version of this got wrong was the JUSTIFICATION, not the arms: it admitted
+  -- every same-status pair on the reasoning that the no-op guard below refuses same status AND
+  -- same bed. That guard tests `p_bed_id is not distinct from v.bed_id`, which is FALSE when the
+  -- caller sends no bed and the resident holds one -- so `temporarily_out -> temporarily_out` with
+  -- a null bed passed everything, changed nothing, and still wrote a resident_census_events row.
+  -- That table is append-only evidence a DHS inspector reads, and inventing a movement in it is
+  -- worse than refusing a legitimate one. So the self-edges are now stated with the bed condition
+  -- that makes each of them an operation, and the guard below is a second line rather than the
+  -- argument.
   if not (
     (v.status in ('prospect', 'applicant', 'approved', 'waitlisted', 'reserved')
       and p_target_status in ('discharged', 'deceased'))
     or (v.status = 'active'
-      and p_target_status in ('active', 'temporarily_out', 'hospital_leave', 'discharged', 'deceased'))
+      and p_target_status in ('temporarily_out', 'hospital_leave', 'discharged', 'deceased'))
     or (v.status in ('temporarily_out', 'hospital_leave')
-      and p_target_status in ('active', 'temporarily_out', 'hospital_leave', 'discharged', 'deceased'))
-    or (v.status in ('discharged', 'deceased') and p_target_status = v.status)
+      and p_target_status in ('active', 'temporarily_out', 'hospital_leave', 'discharged', 'deceased')
+      and p_target_status <> v.status)
+    -- The room transfer: same status, a bed named, and a different one.
+    or (v.status = 'active' and p_target_status = 'active'
+      and p_bed_id is not null and p_bed_id is distinct from v.bed_id)
+    -- The bed-release repair: same terminal status, and only while a bed is still attached.
+    or (v.status in ('discharged', 'deceased') and p_target_status = v.status
+      and v.bed_id is not null)
   ) then
     raise exception 'A resident who is % cannot be moved to %. Use the admission or move-in workflow for that change.',
       replace(v.status, '_', ' '), replace(p_target_status, '_', ' ')
@@ -540,7 +551,29 @@ begin
   end if;
 
   if p_bed_id is not null then$patch$;
-    execute replace(v_def, v_old, v_new);
+    v_def := replace(v_def, v_old, v_new);
+
+    -- Second patch, in the same rebuild: the bed-release repair must not restamp the discharge.
+    --
+    -- The update below sets `discharge_date = pa_today()` for ANY discharged/deceased target,
+    -- which was harmless while a terminal status could only be entered once. Re-recording the same
+    -- terminal status is now the supported way to free a bed the old bare-discharge path left
+    -- occupied, and that repair happens whenever somebody notices -- days or months later. Taking
+    -- the repair date as the discharge date rewrites the face sheet, the census history and every
+    -- report keyed on it, for a resident who left when they left. The stored date stands; pa_today()
+    -- fills it only when the legacy row never carried one.
+    v_old := $old$      discharge_date = case when p_target_status in ('discharged', 'deceased') then public.pa_today() else null end,$old$;
+    if position(v_old in v_def) = 0 then
+      raise exception 'transition_resident_census no longer stamps discharge_date the way this migration patches';
+    end if;
+    v_new := $patch$      discharge_date = case
+        when p_target_status in ('discharged', 'deceased')
+          then case when v.status = p_target_status then coalesce(v.discharge_date, public.pa_today())
+                    else public.pa_today() end
+        else null end,$patch$;
+    v_def := replace(v_def, v_old, v_new);
+
+    execute v_def;
   end if;
 end;
 $do$;
@@ -551,7 +584,9 @@ comment on function public.transition_resident_census(uuid, text, uuid, text) is
   'cancelled (discharged/deceased), an active one may transfer bed or leave or end their '
   'residency, one who is out may return or end it, and discharged/deceased accept only their own '
   'status again, which is the bed-release repair -- a readmission goes through the admission '
-  'pipeline. Same status with the same bed is still refused by the guard that follows, so a '
-  'self-edge is always an operation on the bed. Before the graph, `reserved -> temporarily_out -> '
-  'active` reached `active` without ever running complete_move_in_admission''s readiness checks or '
-  'occupying the reserved bed (BACKLOG J92, corrected in J93).';
+  'pipeline. The two self-edges are stated as bed operations and admitted only as such: an '
+  '`active` transfer naming a DIFFERENT bed, and a terminal repair while a bed is still attached '
+  '-- which is also why a terminal repair keeps the discharge date it already carried rather than '
+  'restamping today. Before the graph, `reserved -> temporarily_out -> active` reached `active` '
+  'without ever running complete_move_in_admission''s readiness checks or occupying the reserved '
+  'bed (BACKLOG J92, corrected in J93 and J94).';

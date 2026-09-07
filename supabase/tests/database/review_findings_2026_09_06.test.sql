@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(14);
+select plan(17);
 
 ------------------------------------------------------------------------------------------------
 -- Fixture
@@ -167,6 +167,29 @@ select is(
   false,
   'and the other quiz on the same course version keeps its own limit'
 );
+-- BACKLOG J94. The column's single-writer contract is enforced, not just asserted: a manager holds
+-- an ordinary UPDATE on course_assignments, so without the protection trigger they could set the
+-- map by hand -- twenty attempts on every quiz -- with no reason, no version check, no audit row
+-- and no notification. The write is silently reverted rather than raised, which is how every other
+-- protected column on this table behaves.
+select lives_ok($$
+  update public.course_assignments
+  set additional_quiz_attempts = '{"7c000000-0000-4000-8000-000000000036": 20}'::jsonb
+  where id = '7c000000-0000-4000-8000-000000000041'
+$$, 'a direct write to the grant map is accepted by RLS');
+select is(
+  (select additional_quiz_attempts ->> '7c000000-0000-4000-8000-000000000036'
+   from public.course_assignments where id = '7c000000-0000-4000-8000-000000000041'),
+  null,
+  'but reverted by the trigger, so only the RPC can move the cap'
+);
+select is(
+  (select (additional_quiz_attempts ->> '7c000000-0000-4000-8000-000000000037')::integer
+   from public.course_assignments where id = '7c000000-0000-4000-8000-000000000041'),
+  1,
+  'and the grant the RPC made is left exactly as it was'
+);
+
 -- A quiz from outside this assignment's course version is refused, so naming one is not a way to
 -- raise a cap anywhere in the installation.
 select throws_ok($$

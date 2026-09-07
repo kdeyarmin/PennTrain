@@ -42,7 +42,15 @@ export type ProfileResolution =
   /** Arm 1: `employees.profile_id` on the subject's own employee row. SCIM owns this login. */
   | "employee_link"
   /** Arms 2 and 3: a same-organization profile that merely shares the SCIM userName. */
-  | "email_match";
+  | "email_match"
+  /**
+   * The coalesce's LAST arm: `scim_subject_links.profile_id`, the profile this subject was
+   * recorded against when it still resolved. `apply_scim_change` keeps it deliberately -- "a
+   * resolution miss never clears a previously recorded profile (the link keeps its revocation
+   * target even if the employee row was unlinked later)" -- so it is a profile SCIM can still act
+   * on after both other arms have gone quiet.
+   */
+  | "link_fallback";
 
 export interface GovernedProfile {
   id: string;
@@ -85,12 +93,24 @@ function deny(errorCode: string, message: string): ScimRoleGuardVerdict {
 }
 
 export function evaluateScimRoleGuard(input: ScimRoleGuardInput): ScimRoleGuardVerdict {
-  // Deterministic: the employee-row link is the authoritative target when it exists, exactly as
-  // the resolver's coalesce orders its arms. Otherwise every email match is judged, because with
+  // Deterministic, and shaped like the coalesce it stands in for. The employee-row link is the
+  // authoritative target when it exists. Otherwise every email match is judged, because with
   // duplicate emails the resolver's own ordering decides which login gets written and a guard that
   // inspected only one of them would have a hole exactly the width of the case it exists to stop.
+  //
+  // The persisted link profile is the LAST arm, and it is judged only when the two above it are
+  // empty -- which is exactly when `apply_scim_change` falls back to it (BACKLOG J94). Leaving it
+  // out meant that a subject whose employee row had been detached and whose email no longer
+  // matched produced NO candidates at all, this guard allowed the write, and the RPC then
+  // suspended or deprovisioned the recorded profile unjudged: a profile that may since have been
+  // promoted to platform_admin, which is the one role no SCIM payload can even assert.
   const linked = input.candidates.find((candidate) => candidate.resolution === "employee_link");
-  const judged = linked ? [linked] : input.candidates;
+  const emailMatches = input.candidates.filter((candidate) => candidate.resolution === "email_match");
+  const judged = linked
+    ? [linked]
+    : emailMatches.length > 0
+      ? emailMatches
+      : input.candidates.filter((candidate) => candidate.resolution === "link_fallback");
 
   for (const profile of judged) {
     if (profile.role === UNREACHABLE_ROLE) {
@@ -102,6 +122,9 @@ export function evaluateScimRoleGuard(input: ScimRoleGuardInput): ScimRoleGuardV
       );
     }
     if (input.operation === "suspend" || input.operation === "deprovision") continue;
+    // The unasserted-role rule is about a profile found ONLY because it shares an address. The
+    // persisted link profile is not that: SCIM was governing it, and the link still names it. It
+    // is judged here for the platform_admin rule above, which is what the fallback path can reach.
     if (
       profile.resolution === "email_match" &&
       input.assertedRole === null &&

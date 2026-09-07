@@ -178,3 +178,72 @@ Deno.test("escapeLikePattern leaves PostgREST's own wildcard alone", () => {
   // over-match is caught by the full-page refusal at the call site.
   assertEquals(escapeLikePattern("a*b@x.com"), "a*b@x.com");
 });
+
+// BACKLOG J94. apply_scim_change targets coalesce(resolve_scim_link_profile_id(...),
+// v_link.profile_id). The last arm is reached when the employee row has been detached and the
+// address no longer matches -- and until this the guard saw no candidates there at all and allowed
+// the write.
+Deno.test("the persisted link profile is judged when nothing else resolves", () => {
+  const verdict = evaluateScimRoleGuard({
+    operation: "deprovision",
+    assertedRole: null,
+    candidates: [
+      { id: "p1", role: "platform_admin", is_active: true, resolution: "link_fallback" },
+    ],
+  });
+  assertEquals(verdict.allowed, false);
+  assertEquals(verdict.errorCode, "scim_would_write_platform_admin");
+});
+
+Deno.test("the persisted link profile yields to the arms above it", () => {
+  // An employee link exists, so the RPC never reaches the fallback and neither does the guard.
+  assertEquals(
+    evaluateScimRoleGuard({
+      operation: "deprovision",
+      assertedRole: null,
+      candidates: [
+        { id: "p1", role: "employee", is_active: true, resolution: "employee_link" },
+        { id: "p2", role: "platform_admin", is_active: true, resolution: "link_fallback" },
+      ],
+    }).allowed,
+    true,
+  );
+  // Same when an email match resolves: that is the arm the coalesce takes.
+  assertEquals(
+    evaluateScimRoleGuard({
+      operation: "deprovision",
+      assertedRole: null,
+      candidates: [
+        { id: "p1", role: "employee", is_active: true, resolution: "email_match" },
+        { id: "p2", role: "platform_admin", is_active: true, resolution: "link_fallback" },
+      ],
+    }).allowed,
+    true,
+  );
+});
+
+Deno.test("a non-admin persisted link profile is not treated as an email-only match", () => {
+  // The unasserted-role rule exists for a profile found ONLY because it shares an address. The
+  // link profile is one SCIM was governing, so an update still goes through.
+  assertEquals(
+    evaluateScimRoleGuard({
+      operation: "update",
+      assertedRole: null,
+      candidates: [
+        { id: "p1", role: "facility_manager", is_active: true, resolution: "link_fallback" },
+      ],
+    }).allowed,
+    true,
+  );
+  // ...where the same profile reached by email alone is refused, unchanged.
+  assertEquals(
+    evaluateScimRoleGuard({
+      operation: "update",
+      assertedRole: null,
+      candidates: [
+        { id: "p1", role: "facility_manager", is_active: true, resolution: "email_match" },
+      ],
+    }).errorCode,
+    "scim_role_not_asserted",
+  );
+});

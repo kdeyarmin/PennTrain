@@ -1,5 +1,5 @@
 begin;
-select plan(40);
+select plan(44);
 
 select has_table('public', 'admission_prospects', 'admission prospects are separate from active census');
 select has_table('public', 'facility_beds', 'room and bed inventory exists');
@@ -365,8 +365,9 @@ select is(
   'the room transfer occupies the bed the resident moved to'
 );
 
--- The guard that makes a self-edge safe. Same status AND same bed changes nothing, and is refused
--- by a check that predates the graph -- which is why the graph itself does not need to exclude it.
+-- A self-edge that moves nothing is refused, and it is the GRAPH that refuses it now: the arm
+-- requires a bed that is actually different, so the old no-op guard is a second line rather than
+-- the argument (BACKLOG J94).
 select throws_ok(
   $$ select public.transition_resident_census(
        (select id from admission_ids where key = 'resident'),
@@ -374,16 +375,49 @@ select throws_ok(
        (select id from admission_ids where key = 'bed2'),
        'Recording the same thing again') $$,
   '22023',
-  'Census transition would not change resident state',
+  null,
   'a self-edge that moves nothing is still refused'
 );
+
+-- The counterexample the first version of this graph missed. A resident who is out normally keeps
+-- their bed_id, so a same-status call with NO bed slips past `p_bed_id is not distinct from
+-- v.bed_id` -- null is distinct from a uuid -- and used to change nothing while still writing a
+-- resident_census_events row. That table is append-only evidence; inventing a movement in it is
+-- worse than refusing a real one.
+select set_config('app.privileged_write', 'on', true);
+update public.residents
+set status = 'temporarily_out', bed_id = (select id from admission_ids where key = 'bed2')
+where id = (select id from admission_ids where key = 'resident');
+select set_config('app.privileged_write', 'off', true);
+select pg_temp.act_as('58000000-0000-4000-8000-000000000101');
+select throws_ok(
+  $$ select public.transition_resident_census(
+       (select id from admission_ids where key = 'resident'),
+       'temporarily_out', null, 'Recording that they are still out') $$,
+  '22023',
+  null,
+  'a same-status call with no bed is refused rather than writing an empty census event'
+);
+select is(
+  (select count(*)::integer from public.resident_census_events
+   where resident_id = (select id from admission_ids where key = 'resident')
+     and prior_status = 'temporarily_out' and resulting_status = 'temporarily_out'),
+  0,
+  'and no census event was written for it'
+);
+select set_config('app.privileged_write', 'on', true);
+update public.residents set status = 'active'
+where id = (select id from admission_ids where key = 'resident');
+select set_config('app.privileged_write', 'off', true);
+select pg_temp.act_as('58000000-0000-4000-8000-000000000101');
 
 -- The bed-release repair. A resident closed by the old bare-discharge path is `discharged` and
 -- still holds an occupied bed; AdmissionOperations.tsx offers "recording the same status again"
 -- as the way to release it and write the census event that was missed. Staged here the way that
 -- data actually looks, because no current code path can produce it.
 select set_config('app.privileged_write', 'on', true);
-update public.residents set status = 'discharged'
+update public.residents
+set status = 'discharged', discharge_date = public.pa_today() - 40
 where id = (select id from admission_ids where key = 'resident');
 select set_config('app.privileged_write', 'off', true);
 select pg_temp.act_as('58000000-0000-4000-8000-000000000101');
@@ -402,6 +436,25 @@ select is(
   (select bed_id from public.residents where id = (select id from admission_ids where key = 'resident')),
   null,
   'and clears the resident''s own bed reference, which is what left the two out of step'
+);
+-- The repair is a bed operation, not a re-discharge. Taking the repair date as the discharge date
+-- would rewrite the face sheet, the census history and every report keyed on it for a resident who
+-- left when they left -- and this repair happens whenever somebody notices the stuck bed, which is
+-- days or months later by construction (BACKLOG J94).
+select is(
+  (select discharge_date from public.residents where id = (select id from admission_ids where key = 'resident')),
+  public.pa_today() - 40,
+  'and keeps the discharge date the record already carried rather than restamping today'
+);
+-- With the bed released there is nothing left to repair, so a second call is refused instead of
+-- writing another census event against a closed record.
+select throws_ok(
+  $$ select public.transition_resident_census(
+       (select id from admission_ids where key = 'resident'),
+       'discharged', null, 'Releasing a bed that is already released') $$,
+  '22023',
+  null,
+  'a terminal self-edge with no bed left to release is refused'
 );
 reset role;
 
