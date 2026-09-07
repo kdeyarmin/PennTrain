@@ -1,4 +1,4 @@
-import { Zip, ZipDeflate, ZipPassThrough } from "npm:fflate@0.8.2";
+import { Zip, ZipDeflate, ZipPassThrough } from "npm:fflate@0.8.3";
 import { crypto as stdCrypto } from "jsr:@std/crypto@1";
 
 // Streaming-archive plumbing and pure decision logic for the organization export

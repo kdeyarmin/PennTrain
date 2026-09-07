@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
-import { strToU8 } from "npm:fflate@0.8.2";
+import { strToU8 } from "npm:fflate@0.8.3";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { StreamingZipWriter } from "../_shared/organizationExportArchive.ts";
 

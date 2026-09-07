@@ -88,19 +88,7 @@ export function useListSecurityAuditLog(filters: ListSecurityAuditLogFilters = {
   });
 }
 
-// id -> "First Last" lookup so the page can show actor names instead of raw
-// profile uuids (mirrors useOrganizationNameMap in useAdminNotificationDeliveries.ts).
-// platform_admin has unrestricted profiles SELECT via RLS, so no filtering needed --
-// this intentionally fetches every profile rather than scoping by organization.
-export function useProfileNameMap() {
-  return useQuery({
-    queryKey: ["profiles", "name_map"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, first_name, last_name");
-      if (error) throw error;
-      const map: Record<string, string> = {};
-      for (const profile of data ?? []) map[profile.id] = `${profile.first_name} ${profile.last_name}`.trim();
-      return map;
-    },
-  });
-}
+// useProfileNameMap moved to hooks/useProfiles.ts. It had a second copy in AuditLog.tsx, and
+// having two of it is what let the unbounded-select defect survive in one while the other was
+// reasoned about -- the same duplication that produced the Recents/Header UUID split. One copy
+// now, and it carries the request-size bound the support queue needs.

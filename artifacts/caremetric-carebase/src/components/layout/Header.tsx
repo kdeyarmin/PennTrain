@@ -32,7 +32,7 @@ import {
   CENTRAL_SUPPORT_HUB_FEATURE_KEY,
 } from "@/lib/centralHelp";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
-import { registryLabelForPath, usePageTitleContext } from "@/lib/pageTitle";
+import { pathFallbackLabel, registryLabelForPath, usePageTitleContext } from "@/lib/pageTitle";
 import { GlobalSearch } from "./GlobalSearch";
 import { useLocation } from "wouter";
 
@@ -263,24 +263,14 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
     "/me": "My day",
   };
 
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-  // Last-resort title for routes not in the shared registry: title-case the last URL segment (or
-  // its parent when the last segment is a UUID/number, i.e. a detail route). Preserved so unknown
-  // routes still get a readable title.
-  const mungePathTitle = () => {
-    const segments = location.split("/").filter(Boolean);
-    if (segments.length === 0) return "Dashboard";
-    const last = segments[segments.length - 1];
-    if ((UUID_RE.test(last) || !isNaN(Number(last))) && segments.length > 1) {
-      return segments[segments.length - 2].replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-    }
-    return last.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-  };
-
   // Precedence: the entity a detail page published (usePageTitle) > a section-root override > the
   // shared page registry (covers list and :param detail routes) > title-cased last segment.
-  const pageTitle = entityTitle ?? rootTitles[location] ?? registryLabelForPath(location) ?? mungePathTitle();
+  //
+  // The last resort is pathFallbackLabel, which used to be a private copy here. It was the only
+  // copy that guarded against title-casing a UUID, and MainLayout's Recents recorder had its own
+  // unguarded one -- so the same route was titled "Residents" above the page and stored as
+  // "Ab2c6aba 1c36 ..." in the sidebar's history. One shared function, so they cannot drift again.
+  const pageTitle = entityTitle ?? rootTitles[location] ?? registryLabelForPath(location) ?? pathFallbackLabel(location);
 
   // Give each authenticated route a distinct browser-tab title -- the app shell otherwise inherits
   // index.html's single static title. Marketing pages set their own via usePageMeta and never

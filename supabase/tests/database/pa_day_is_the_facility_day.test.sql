@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(19);
 
 -- The facility's calendar day, pinned.
 --
@@ -290,6 +290,18 @@ select is(
   'pa_midnight() ignores a hostile search_path'
 );
 
+-- pa_local is the seventh member of the family, added by 20260905310000 six weeks after the other
+-- six were hardened. Its body is pg_catalog-qualified like theirs, but nothing asserted that until
+-- this probe: the enumeration below and the shadowing block above were both written when the family
+-- had six members and neither grew when it gained a seventh. pa_local is the one member the
+-- `timezone(text, timestamptz) returns timestamp` shadow above resolves against exactly -- an
+-- unqualified call in its body returns 1999-01-01 00:00:00 -- so it is the member this probe catches
+-- most directly, and it was the one member not covered.
+select is(
+  public.pa_local(timestamptz '2026-07-27 00:56:00+00'), timestamp '2026-07-26 20:56:00',
+  'pa_local() ignores a hostile search_path'
+);
+
 reset search_path;
 drop schema shadow_probe cascade;
 
@@ -300,7 +312,7 @@ select is(
    from pg_catalog.pg_proc p
    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
-     and p.proname in ('pa_today', 'pa_day', 'pa_clock', 'pa_now', 'pa_midnight', 'pa_week_start')
+     and p.proname in ('pa_today', 'pa_day', 'pa_clock', 'pa_now', 'pa_midnight', 'pa_week_start', 'pa_local')
      and p.proconfig is not null),
   '(none)',
   'no day helper carries a SET clause -- that would stop it inlining, at roughly 9x on a large scan'

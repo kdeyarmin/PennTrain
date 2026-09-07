@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1.0.14";
-import { strFromU8, strToU8, unzipSync } from "npm:fflate@0.8.2";
+import { strFromU8, strToU8, unzipSync } from "npm:fflate@0.8.3";
 import {
   computeExportExclusions,
   decideDocumentEmbedding,

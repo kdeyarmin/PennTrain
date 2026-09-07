@@ -1068,8 +1068,15 @@ group by path, status order by n desc;
 ## Appendix D — Advisor triage lists
 
 **`function_search_path_mutable` (7):** `public.pa_today`, `pa_day`, `pa_clock`, `pa_now`,
-`pa_midnight`, `pa_week_start` (deliberate, documented in `20260727050000` — keep, and say so in the
-review record); `app_private.clinical_disclosure_allowed` (N2 — pin).
+`pa_midnight`, `pa_week_start`, `pa_local` — the whole `pa_*` day-helper family, and nothing else.
+Deliberate and documented in `20260727050000`: their bodies schema-qualify every name, which a
+`SET search_path` clause would not improve on and would cost roughly 9x by making them
+non-inlinable in per-row compliance scans. Keep, and say so in the review record. The property the
+warning stands in for is asserted directly by `pa_day_is_the_facility_day.test.sql`, which runs each
+of the seven under a deliberately hostile `search_path` and separately fails if any of them acquires
+a `SET` clause — check that test covers the family before accepting a new member into it.
+`app_private.clinical_disclosure_allowed` was the eighth entry and the one with no argument for
+staying; `20260904060000` pinned it, so it is no longer on this list.
 
 **`anon_security_definer_function_executable` (20), all token- or slug-gated public surfaces:**
 `accept_evidence_guest_terms`, `accept_move_in_guest_terms`, `accept_resident_agreement_guest_terms`,
@@ -1090,5 +1097,6 @@ hris_source_systems, identity_security_policies, maintenance_locations, open_shi
 organization_settings, organization_sso_connections, package_billing_prices, packages,
 platform_settings, policy_documents, preventive_maintenance_schedules, regulatory_rule_golden_fixtures,
 schedules, scim_group_mappings, service_workload_profiles, shift_definitions,
-shift_eligibility_requirements, training_class_attendees, and one more reported past the first
-thirty in the raw output. Performance only; N4.
+shift_eligibility_requirements, training_class_attendees, training_classes. Performance only; N4.
+(The thirty-first was previously left unnamed as "one more reported past the first thirty in the raw
+output" -- it is `training_classes`, read off a full local advisor run rather than a truncated one.)

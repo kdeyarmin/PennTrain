@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useProfileNameMap } from "@/hooks/useProfiles";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import {
   type SupportTicketMessage,
 } from "@/hooks/useSupportTickets";
 import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
-import { useProfileNameMap } from "@/hooks/useSecurityAuditLog";
+
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -55,7 +56,15 @@ export default function SupportTicketDetail() {
   const { data: ticket, isLoading, isError, error, refetch } = useGetSupportTicket(id);
   const { data: messages, isLoading: messagesLoading, isError: messagesError, error: messagesErrorDetail, refetch: refetchMessages } = useListSupportTicketMessages(id);
   const { data: orgNameMap } = useOrganizationNameMap();
-  const { data: profileNameMap } = useProfileNameMap();
+  const { data: profileNameMap } = useProfileNameMap(
+    useMemo(
+      () =>
+        [ticket?.created_by, ...(messages ?? []).map((m) => m.sender_id)].filter(
+          (id): id is string => Boolean(id),
+        ),
+      [ticket?.created_by, messages],
+    ),
+  );
   const { mutate: sendMessage, isPending: sending } = useSendSupportTicketMessage();
   const { mutate: updateTicket } = useUpdateSupportTicket();
 

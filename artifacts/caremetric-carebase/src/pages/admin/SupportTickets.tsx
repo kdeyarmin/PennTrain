@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useProfileNameMap } from "@/hooks/useProfiles";
 import { facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { StatCard } from "@/components/StatCard";
 import { AlertTriangle, Clock, History, Inbox, LifeBuoy, Search } from "lucide-react";
 import { useListSupportTickets, SUPPORT_TICKET_CATEGORIES } from "@/hooks/useSupportTickets";
 import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
-import { useProfileNameMap } from "@/hooks/useSecurityAuditLog";
+
 import { useUrlState } from "@/hooks/useUrlState";
 import { summarizeSupportTicketAnalytics } from "@/lib/supportTicketAnalytics";
 import { QueryError } from "@/components/QueryState";
@@ -64,10 +65,12 @@ export default function SupportTickets() {
   const openTicketsQuery = useListSupportTickets({ status: "open" });
   const allTicketsQuery = useListSupportTickets({});
   const { data: orgNameMap } = useOrganizationNameMap();
-  const { data: profileNameMap } = useProfileNameMap();
 
   const { data: ticketsData, isLoading } = ticketsQuery;
-  const tickets = ticketsData ?? [];
+  const tickets = useMemo(() => ticketsData ?? [], [ticketsData]);
+  const { data: profileNameMap } = useProfileNameMap(
+    useMemo(() => tickets.map((t) => t.created_by).filter((id): id is string => Boolean(id)), [tickets]),
+  );
   const metricsUnavailable = allTicketsQuery.isLoading || allTicketsQuery.isError;
   const openCountUnavailable = openTicketsQuery.isLoading || openTicketsQuery.isError;
   const openCount = openTicketsQuery.data?.length ?? 0;

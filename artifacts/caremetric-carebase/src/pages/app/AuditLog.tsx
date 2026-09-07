@@ -5,6 +5,7 @@ import { useListOrganizations } from "@/hooks/useOrganizations";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
+import { useProfileNameMap } from "@/hooks/useProfiles";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
@@ -30,18 +31,6 @@ function getActionDisplay(action: string): { color: string; label: string } {
   return { color: "bg-gray-100 text-gray-800", label: action };
 }
 
-function useProfileNameMap() {
-  return useQuery({
-    queryKey: ["profiles", "name_map"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, first_name, last_name");
-      if (error) throw error;
-      const map: Record<string, string> = {};
-      for (const p of data ?? []) map[p.id] = `${p.first_name} ${p.last_name}`.trim();
-      return map;
-    },
-  });
-}
 
 // Populates the entity-type filter dropdown from a wide, unfiltered sample of entity_type values
 // (only that one column, not full rows) independent of the paginated/filtered query below -- so
@@ -104,7 +93,9 @@ export default function AuditLog() {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const { data: entityTypeOptions } = useEntityTypeOptions();
-  const { data: profileNameMap } = useProfileNameMap();
+  const { data: profileNameMap } = useProfileNameMap(
+    useMemo(() => logs.map((l) => l.actor_profile_id).filter((id): id is string => Boolean(id)), [logs]),
+  );
   const { data: organizations } = useListOrganizations();
   const { data: employeesData } = useListEmployees();
   const { data: facilitiesData } = useListFacilities();
