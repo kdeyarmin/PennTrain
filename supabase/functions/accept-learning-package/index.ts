@@ -1,6 +1,6 @@
 // @ts-nocheck -- fflate npm module causes Deno type errors
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
-import { strFromU8, strToU8, unzipSync, zipSync } from "npm:fflate@0.8.2";
+import { strFromU8, strToU8, unzipSync, zipSync } from "npm:fflate@0.8.3";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { LEARNING_RUNTIME_BRIDGE_SOURCE } from "../_shared/learningPackageBridge.ts";
 

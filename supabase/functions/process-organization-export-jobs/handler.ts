@@ -1,5 +1,5 @@
 import { type SupabaseClient } from "jsr:@supabase/supabase-js@2.48.1";
-import { strToU8 } from "npm:fflate@0.8.2";
+import { strToU8 } from "npm:fflate@0.8.3";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 import { validateOrganizationExportDocument } from "../_shared/organizationExport.ts";
 import {

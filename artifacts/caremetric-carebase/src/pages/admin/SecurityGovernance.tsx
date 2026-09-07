@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   useAuditCoverage,
   useAuditGovernanceStatus,
@@ -143,11 +143,13 @@ export default function SecurityGovernance() {
   const { data: logsData, isLoading, isError: logsError, error: logsErrorDetail, refetch: refetchLogs } = useListSecurityAuditLog({
     entityType: tab === "all" ? undefined : tab,
   });
-  const { data: profileNameMap } = useProfileNameMap();
+  const logs = useMemo(() => logsData ?? [], [logsData]);
+  const { data: profileNameMap } = useProfileNameMap(
+    useMemo(() => logs.map((log) => log.actor_profile_id).filter((id): id is string => Boolean(id)), [logs]),
+  );
   const { data: coverageData, isLoading: coverageLoading } = useAuditCoverage();
   const { data: governance, isLoading: governanceLoading, isError: governanceError } = useAuditGovernanceStatus();
 
-  const logs = logsData ?? [];
   const profileNames = profileNameMap ?? {};
   const regulatedCoverage = (coverageData ?? []).filter(
     (entry) => entry.contains_regulated_data || !entry.has_required_trigger,

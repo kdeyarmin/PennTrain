@@ -14,7 +14,7 @@ import { OfflineSyncManager } from "@/components/offline/OfflineSyncManager";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { CareMetricCopilot } from "@/components/CareMetricCopilot";
 import { EndUserExperiencePanel } from "./EndUserExperiencePanel";
-import { PageTitleProvider, registryLabelForPath } from "@/lib/pageTitle";
+import { PageTitleProvider, pathFallbackLabel, registryLabelForPath } from "@/lib/pageTitle";
 
 // Impersonation sessions auto-return after this long as a defense-in-depth backstop, independent
 // of the underlying magic-link JWT's own expiry (see useImpersonation.ts).
@@ -108,10 +108,11 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     if (!user || lastRecordedPath.current === path || !/^\/(admin|app|trainer|me|account)(\/|$)/.test(path)) return;
     lastRecordedPath.current = path;
     // Prefer the shared registry label so "Recents" reads "Incident detail", not a raw UUID or a
-    // title-cased last segment; fall back to the old munging for any route not in the registry.
-    const label = registryLabelForPath(path)
-      ?? path.split("/").filter(Boolean).at(-1)?.replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
-      ?? "Dashboard";
+    // title-cased last segment. The fallback is the shared one rather than a local copy: the copy
+    // that used to live here title-cased the last segment unconditionally, so every detail route
+    // the registry does not carry a :param pattern for -- all of /app, /me and /trainer -- wrote a
+    // title-cased UUID into Recents, which is exactly what the comment above says it avoids.
+    const label = registryLabelForPath(path) ?? pathFallbackLabel(path);
     navigation.recordVisit.mutate({ path, label });
   }, [location, navigation.recordVisit, user]);
 

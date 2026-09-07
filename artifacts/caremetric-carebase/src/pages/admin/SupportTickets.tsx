@@ -64,10 +64,12 @@ export default function SupportTickets() {
   const openTicketsQuery = useListSupportTickets({ status: "open" });
   const allTicketsQuery = useListSupportTickets({});
   const { data: orgNameMap } = useOrganizationNameMap();
-  const { data: profileNameMap } = useProfileNameMap();
 
   const { data: ticketsData, isLoading } = ticketsQuery;
-  const tickets = ticketsData ?? [];
+  const tickets = useMemo(() => ticketsData ?? [], [ticketsData]);
+  const { data: profileNameMap } = useProfileNameMap(
+    useMemo(() => tickets.map((t) => t.created_by).filter((id): id is string => Boolean(id)), [tickets]),
+  );
   const metricsUnavailable = allTicketsQuery.isLoading || allTicketsQuery.isError;
   const openCountUnavailable = openTicketsQuery.isLoading || openTicketsQuery.isError;
   const openCount = openTicketsQuery.data?.length ?? 0;
