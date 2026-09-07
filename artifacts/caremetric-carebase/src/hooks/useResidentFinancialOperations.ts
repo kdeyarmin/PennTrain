@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Json, Tables } from "@/lib/database.types";
+import { addFacilityCalendarDays } from "@/lib/dateUtils";
 
 export type ResidentFinancialAccount = Tables<"resident_financial_accounts">;
 export type ResidentRateAgreement = Tables<"resident_rate_agreements">;
@@ -22,6 +23,12 @@ export type ResidentFinancialHistory = Tables<"resident_financial_history">;
 export type ResidentPersonalFundPayeeProfile =
   Tables<"resident_personal_fund_payee_profiles">;
 
+/** A ledger row as every read of this table selects it: the row plus the two embeds it renders. */
+export type FundLedgerEntry = ResidentPersonalFundTransaction & {
+  staff: { id: string; first_name: string; last_name: string } | null;
+  receipt: { id: string; document_label: string | null; file_name: string } | null;
+};
+
 export interface FinancialWorkspace {
   account: ResidentFinancialAccount | null;
   rates: ResidentRateAgreement[];
@@ -36,16 +43,7 @@ export interface FinancialWorkspace {
    */
   fundClosure: ResidentPersonalFundAccountClosure | null;
   payeeProfile: ResidentPersonalFundPayeeProfile | null;
-  fundTransactions: Array<
-    ResidentPersonalFundTransaction & {
-      staff: { id: string; first_name: string; last_name: string } | null;
-      receipt: {
-        id: string;
-        document_label: string | null;
-        file_name: string;
-      } | null;
-    }
-  >;
+  fundTransactions: FundLedgerEntry[];
   reconciliations: ResidentPersonalFundReconciliation[];
   history: ResidentFinancialHistory[];
   agreementVersions: Array<{
@@ -521,3 +519,98 @@ export const useCloseResidentPersonalFundAccount = rpcMutation(
       p_transaction_at: input.transactionAt,
     }),
 );
+
+
+/** Pages of ledger rows the statement will read before it declares itself incomplete. */
+const STATEMENT_PAGE = 500;
+const STATEMENT_MAX_PAGES = 8;
+
+export interface FundStatementLedger {
+  /** Every entry in the period, plus the one immediately before it. */
+  transactions: FundLedgerEntry[];
+  /** True when the period holds more rows than this read is willing to fetch. */
+  truncated: boolean;
+}
+
+/**
+ * The ledger a statement is built from, read for the PERIOD rather than taken from the workspace.
+ *
+ * The workspace's own `fundTransactions` query is newest-first and unbounded, which means PostgREST
+ * silently truncates it at `db-max-rows` (1000 on this project and on a default hosted one --
+ * verified against the running stack, not assumed). Building the statement from that list was fine
+ * until a resident had more entries than the cap, and then it was quietly wrong in the worst way:
+ * a period reaching into the omitted older history printed only the movements that happened to
+ * survive the truncation, and opened on a balance taken from whichever predecessor did. Because the
+ * running-balance column is the ledger's own `balance_after` rather than a re-sum, the statement's
+ * internal cross-check could still say it reconciles -- so the artifact a resident is handed and a
+ * surveyor reads had missing rows, a wrong opening figure, and a tick beside it (BACKLOG J93).
+ *
+ * Two reads, and the second is what the opening balance needs:
+ *
+ *   1. The period itself, widened by a day at each end. The statement groups entries by the
+ *      PENNSYLVANIA calendar day of `transaction_at`, and this filter is on the instant, so the
+ *      window is deliberately a superset -- the day-exact selection stays in
+ *      buildPersonalFundStatement where it already is, rather than being reimplemented here against
+ *      a timezone offset.
+ *   2. The newest entry strictly before that window. Whichever entry is the true predecessor -- one
+ *      inside the widened window or this one -- is now in the list the builder sees, and the
+ *      builder picks the last with a facility date before the period.
+ *
+ * `truncated` is returned rather than swallowed: an incomplete statement must say so, since saying
+ * nothing is exactly the failure this replaces.
+ */
+export function useFundStatementLedger(
+  accountId: string | undefined,
+  periodStart: string,
+  periodEnd: string,
+) {
+  return useQuery({
+    queryKey: ["resident-financial-operations", "fund-statement", accountId ?? null, periodStart, periodEnd],
+    enabled: !!accountId && !!periodStart && !!periodEnd,
+    queryFn: async (): Promise<FundStatementLedger> => {
+      const windowStart = addFacilityCalendarDays(periodStart, -1);
+      const windowEnd = addFacilityCalendarDays(periodEnd, 2);
+      const select =
+        "*, staff:employees(id,first_name,last_name), receipt:resident_documents(id,document_label,file_name)";
+
+      const rows: FundLedgerEntry[] = [];
+      let truncated = true;
+      for (let page = 0; page < STATEMENT_MAX_PAGES; page += 1) {
+        const from = page * STATEMENT_PAGE;
+        const { data, error } = await supabase
+          .from("resident_personal_fund_transactions")
+          .select(select)
+          .eq("personal_fund_account_id", accountId!)
+          .gte("transaction_at", windowStart)
+          .lt("transaction_at", windowEnd)
+          .order("transaction_at", { ascending: true })
+          .order("posted_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, from + STATEMENT_PAGE - 1);
+        if (error) throw error;
+        const batch = (data ?? []) as unknown as FundLedgerEntry[];
+        rows.push(...batch);
+        if (batch.length < STATEMENT_PAGE) { truncated = false; break; }
+      }
+
+      const { data: predecessor, error: predecessorError } = await supabase
+        .from("resident_personal_fund_transactions")
+        .select(select)
+        .eq("personal_fund_account_id", accountId!)
+        .lt("transaction_at", windowStart)
+        .order("transaction_at", { ascending: false })
+        .order("posted_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (predecessorError) throw predecessorError;
+
+      return {
+        transactions: predecessor
+          ? [predecessor as unknown as FundLedgerEntry, ...rows]
+          : rows,
+        truncated,
+      };
+    },
+  });
+}

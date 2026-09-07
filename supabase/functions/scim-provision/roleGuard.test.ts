@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1.0.14";
 import {
+  escapeLikePattern,
   evaluateScimRoleGuard,
   type GovernedProfile,
   SQL_GOVERNED_ROLES,
@@ -151,4 +152,29 @@ Deno.test("a subject that resolves to nothing is a clean create", () => {
       operation,
     );
   }
+});
+
+// BACKLOG J93. The candidate query truncates before the exact comparison is redone in memory, so a
+// pattern that matches many rows can hide the very profile this guard protects. `_` and `%` are the
+// realistic ones and are escaped; `*` cannot be, because PostgREST rewrites it to `%` without
+// honouring a backslash (verified against the running stack), which is why the call site refuses a
+// full page rather than filtering it.
+Deno.test("escapeLikePattern neutralises the SQL wildcards", () => {
+  assertEquals(escapeLikePattern("a_min@x.com"), "a\\_min@x.com");
+  assertEquals(escapeLikePattern("%@x.com"), "\\%@x.com");
+  assertEquals(escapeLikePattern("a%b_c@x.com"), "a\\%b\\_c@x.com");
+  assertEquals(escapeLikePattern("plain@x.com"), "plain@x.com");
+});
+
+Deno.test("escapeLikePattern escapes the escape character before the wildcards", () => {
+  // A lone backslash must not become the escape for whatever follows it.
+  assertEquals(escapeLikePattern("back\\slash@x.com"), "back\\\\slash@x.com");
+  assertEquals(escapeLikePattern("a\\_b@x.com"), "a\\\\\\_b@x.com");
+});
+
+Deno.test("escapeLikePattern leaves PostgREST's own wildcard alone", () => {
+  // Deliberate: escaping it produces `\%`, a literal percent sign, and the address stops matching
+  // altogether. A guard that silently matches nothing is worse than one that over-matches, and the
+  // over-match is caught by the full-page refusal at the call site.
+  assertEquals(escapeLikePattern("a*b@x.com"), "a*b@x.com");
 });

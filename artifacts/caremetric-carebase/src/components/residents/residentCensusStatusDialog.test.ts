@@ -29,6 +29,12 @@ const DRIVEN_NAMES = [
   "Record status change", // the submit button
 ];
 
+/** Every census status the residents table can hold, so the parse below cannot drift onto some other map. */
+const CENSUS_STATUS_NAMES = [
+  "prospect", "applicant", "approved", "waitlisted", "reserved",
+  "active", "temporarily_out", "hospital_leave", "discharged", "deceased",
+];
+
 describe("the census dialog and the journey that drives it", () => {
   const dialog = readFileSync(DIALOG, "utf8");
   const journey = readFileSync(JOURNEY, "utf8");
@@ -69,6 +75,21 @@ describe("the census dialog and the journey that drives it", () => {
     // And the terminal states stay terminal: a readmission is a new admission.
     for (const terminal of ["discharged", "deceased"]) {
       expect(dialog).toContain(`${terminal}: []`);
+    }
+  });
+
+  // BACKLOG J93. The server graph also admits three SAME-STATUS edges, and all three are bed
+  // operations: active -> active is a room transfer, discharged/deceased -> themselves is the
+  // bed-release repair. This dialog sends no bed id, so every one of them would hit the RPC's
+  // "would not change resident state" refusal. Offering a subset is safe; offering a superset is
+  // what produces a 22023 from a control the product itself put on screen.
+  it("offers no same-status edge, because this dialog never sends a bed", () => {
+    const rows = [...dialog.matchAll(/^\s*([a-z_]+): \[([^\]]*)\],?$/gm)]
+      .map((row) => ({ from: row[1], to: [...row[2].matchAll(/"([a-z_]+)"/g)].map((t) => t[1]) }))
+      .filter((row) => CENSUS_STATUS_NAMES.includes(row.from));
+    expect(rows.length, "no CENSUS_TRANSITIONS rows were parsed").toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.to, `${row.from} offers itself as a target`).not.toContain(row.from);
     }
   });
 

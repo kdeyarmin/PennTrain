@@ -41,16 +41,36 @@
 -- J2 -- another attempt, or a different assignment
 -- ---------------------------------------------------------------------------
 
+-- PER QUIZ, not per assignment. A course version may carry more than one `quiz` block -- nothing
+-- constrains it to one, and the player gates on each -- and an assignment-wide integer was added to
+-- the cap of EVERY one of them by enforce_quiz_attempt_cap below. So granting a retry on an
+-- exhausted final assessment also raised the limit on the module quizzes the learner had not
+-- failed, without a manager ever deciding that, while the dialog and the notification both spoke
+-- about one more attempt at one assessment (BACKLOG J93).
+--
+-- A jsonb map rather than a second table: the value here is a counter, the audited event is the
+-- `course_assignment.attempt_granted` row in audit_logs, and course_assignments already carries the
+-- RLS and module classification this belongs under. The bound the integer column had is kept as a
+-- jsonpath check -- `strict` so an array value is not silently unwrapped into a valid number -- and
+-- it is the bound that matters, since it is what caps attempts.
 alter table public.course_assignments
-  add column if not exists additional_attempts_granted integer not null default 0
-    check (additional_attempts_granted between 0 and 20);
+  add column if not exists additional_quiz_attempts jsonb not null default '{}'::jsonb
+    check (
+      jsonb_typeof(additional_quiz_attempts) = 'object'
+      and not jsonb_path_exists(
+        additional_quiz_attempts,
+        'strict $.* ? (@.type() != "number" || @ < 0 || @ > 20 || @.floor() != @)'
+      )
+    );
 
-comment on column public.course_assignments.additional_attempts_granted is
-  'Extra quiz attempts a manager has granted on this assignment, on top of the quiz''s '
-  'max_attempts. Written only by grant_additional_quiz_attempt. Before BACKLOG J2 a learner who '
-  'exhausted the cap on a comprehensive final assessment was stuck for good: the quiz is '
-  'immutable, Mark Complete is refused, no screen resets attempts, and the one-open-assignment '
-  'index refused a replacement while the dead one stayed open.';
+comment on column public.course_assignments.additional_quiz_attempts is
+  'Extra attempts a manager has granted on this assignment, keyed by quiz id, on top of each '
+  'quiz''s own max_attempts. Written only by grant_additional_quiz_attempt. Keyed by quiz because a '
+  'course version may hold several quiz blocks and a grant is a decision about ONE of them '
+  '(BACKLOG J93). Before BACKLOG J2 a learner who exhausted the cap on a comprehensive final '
+  'assessment was stuck for good: the quiz is immutable, Mark Complete is refused, no screen resets '
+  'attempts, and the one-open-assignment index refused a replacement while the dead one stayed '
+  'open.';
 
 create or replace function public.enforce_quiz_attempt_cap()
 returns trigger
@@ -71,11 +91,12 @@ begin
     return new;
   end if;
 
-  -- BACKLOG J2. The cap is the quiz's, plus whatever a manager has deliberately granted on this
-  -- assignment. Granting is audited and takes a reason; the cap itself is unchanged for everyone
-  -- who has not been given one.
-  select coalesce(additional_attempts_granted, 0) into v_granted
-  from public.course_assignments where id = new.assignment_id;
+  -- BACKLOG J2. The cap is the quiz's, plus whatever a manager has deliberately granted for THIS
+  -- quiz on this assignment. Granting is audited and takes a reason; the cap itself is unchanged
+  -- for everyone who has not been given one, and unchanged for every other quiz block in the same
+  -- course version, which an assignment-wide counter did not manage (BACKLOG J93).
+  select coalesce((a.additional_quiz_attempts ->> new.quiz_id::text)::integer, 0) into v_granted
+  from public.course_assignments a where a.id = new.assignment_id;
   v_max := v_max + coalesce(v_granted, 0);
 
   select count(*) into v_used
@@ -91,8 +112,14 @@ begin
 end;
 $function$;
 
+-- The signature gained p_quiz_id, so the two-argument form has to go rather than be replaced:
+-- `create or replace` would leave the old one beside it, and PostgREST would keep offering a call
+-- that grants an attempt at every quiz in the version.
+drop function if exists public.grant_additional_quiz_attempt(uuid, text);
+
 create or replace function public.grant_additional_quiz_attempt(
   p_assignment_id uuid,
+  p_quiz_id uuid,
   p_reason text
 )
 returns public.course_assignments
@@ -103,6 +130,7 @@ as $function$
 declare
   v_assignment public.course_assignments%rowtype;
   v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_granted integer;
 begin
   select * into v_assignment from public.course_assignments where id = p_assignment_id for update;
   if not found then
@@ -138,8 +166,32 @@ begin
     raise exception 'This assignment is already finished' using errcode = '55000';
   end if;
 
+  -- The quiz has to belong to the version this assignment is FOR. Without this the caller could
+  -- name any quiz in the installation and raise its cap for this learner, and the check is cheap:
+  -- quizzes hang off a course_block, and a block belongs to exactly one course version.
+  if not exists (
+    select 1
+    from public.quizzes q
+    join public.course_blocks b on b.id = q.course_block_id
+    where q.id = p_quiz_id and b.course_version_id = v_assignment.course_version_id
+  ) then
+    raise exception 'That quiz is not part of the course version this assignment was made from'
+      using errcode = '23514';
+  end if;
+
+  v_granted := coalesce((v_assignment.additional_quiz_attempts ->> p_quiz_id::text)::integer, 0);
+  if v_granted >= 20 then
+    raise exception 'This assignment has already been granted the maximum extra attempts at that quiz'
+      using errcode = '23514';
+  end if;
+
   update public.course_assignments
-  set additional_attempts_granted = coalesce(additional_attempts_granted, 0) + 1,
+  set additional_quiz_attempts = jsonb_set(
+        coalesce(additional_quiz_attempts, '{}'::jsonb),
+        array[p_quiz_id::text],
+        to_jsonb(v_granted + 1),
+        true
+      ),
       updated_at = now()
   where id = v_assignment.id
   returning * into v_assignment;
@@ -152,7 +204,8 @@ begin
       'reason', v_reason,
       'employeeId', v_assignment.employee_id,
       'courseId', v_assignment.course_id,
-      'additionalAttemptsGranted', v_assignment.additional_attempts_granted
+      'quizId', p_quiz_id,
+      'additionalAttemptsGranted', v_granted + 1
     )
   );
 
@@ -182,14 +235,16 @@ begin
 end;
 $function$;
 
-comment on function public.grant_additional_quiz_attempt(uuid, text) is
-  'Gives one more attempt at this assignment''s quiz, on top of the quiz''s own max_attempts, with '
-  'a recorded reason. The exit from the trap BACKLOG J2 describes: a learner who exhausted the cap '
-  'on a comprehensive final assessment could not be helped by anything in the product, and the '
-  'annual requirement the course satisfies stayed unmet for ever.';
+comment on function public.grant_additional_quiz_attempt(uuid, uuid, text) is
+  'Gives one more attempt at ONE quiz on this assignment, on top of that quiz''s own max_attempts, '
+  'with a recorded reason. The exit from the trap BACKLOG J2 describes: a learner who exhausted the '
+  'cap on a comprehensive final assessment could not be helped by anything in the product, and the '
+  'annual requirement the course satisfies stayed unmet for ever. The quiz is named by the caller '
+  'and checked against the assignment''s course version, because a version may hold several quiz '
+  'blocks and granting across all of them is not the decision the manager made (BACKLOG J93).';
 
-revoke all on function public.grant_additional_quiz_attempt(uuid, text) from public, anon;
-grant execute on function public.grant_additional_quiz_attempt(uuid, text) to authenticated;
+revoke all on function public.grant_additional_quiz_attempt(uuid, uuid, text) from public, anon;
+grant execute on function public.grant_additional_quiz_attempt(uuid, uuid, text) to authenticated;
 
 create or replace function public.cancel_course_assignment(
   p_assignment_id uuid,

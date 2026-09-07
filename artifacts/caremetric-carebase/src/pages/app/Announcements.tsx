@@ -94,7 +94,20 @@ export default function Announcements() {
         </Card>
       )}
 
-      {announcements.isLoading ? <QueryLoading what="announcements" /> : announcements.isError ? (
+      {/*
+        A platform admin has no organization of their own, and announcements are an organization
+        surface -- so with no tenant selected there is nothing to list, and the hook does not run
+        (BACKLOG J93). Said here rather than shown as an empty list, because "no announcements" and
+        "no tenant chosen" are different answers and only one of them has a control that fixes it.
+      */}
+      {!user?.organizationId ? (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">
+            Choose the organization in the header's "Viewing as" picker to read its announcements.
+            Announcements belong to one organization, so there is no cross-tenant view of them.
+          </CardContent>
+        </Card>
+      ) : announcements.isLoading ? <QueryLoading what="announcements" /> : announcements.isError ? (
         <QueryError what="announcements" error={announcements.error} onRetry={() => announcements.refetch()} />
       ) : announcements.data?.length ? (
         <div className="space-y-3">{announcements.data.map((announcement) => (

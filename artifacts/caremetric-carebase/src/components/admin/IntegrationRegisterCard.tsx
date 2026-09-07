@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { errorText } from "@/lib/errorText";
 import { QueryError } from "@/components/QueryState";
 import {
+  DEAD_LETTER_PAGE_SIZE,
   useDeactivateWebhookEndpoint, useIntegrationCredentialRegister, useIntegrationDeadLetters,
   useIntegrationWebhookRegister, useIntegrationWebhookSubscriptions,
   useReactivateWebhookEndpoint, useReplayWebhookDelivery, useRevokeIntegrationCredential,
@@ -41,7 +42,11 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
   const credentials = useIntegrationCredentialRegister(organizationId);
   const webhooks = useIntegrationWebhookRegister(organizationId);
   const subscriptions = useIntegrationWebhookSubscriptions(organizationId);
-  const deadLetters = useIntegrationDeadLetters(organizationId);
+  // Replaying leaves the replayed row dead-lettered on purpose, so this queue never drains on its
+  // own and the older failures are only reachable by paging (BACKLOG J93).
+  const [deadLetterPage, setDeadLetterPage] = useState(0);
+  const deadLetters = useIntegrationDeadLetters(organizationId, deadLetterPage);
+  const deadLetterRows = deadLetters.data?.rows ?? [];
   const revokeCredential = useRevokeIntegrationCredential();
   const rotateCredential = useRotateIntegrationCredential();
   const rotateSecret = useRotateWebhookSecret();
@@ -301,13 +306,14 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
             <p className="text-sm text-muted-foreground">Loading dead-lettered deliveries…</p>
           ) : deadLetters.isError ? (
             <QueryError what="dead-lettered deliveries" error={deadLetters.error} onRetry={() => void deadLetters.refetch()} />
-          ) : (deadLetters.data ?? []).length === 0 ? (
+          ) : deadLetterRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              None. A delivery lands here after it exhausts its attempts; replaying re-queues the
-              same event rather than editing the record of the failure.
+              {deadLetterPage === 0
+                ? "None. A delivery lands here after it exhausts its attempts; replaying re-queues the same event rather than editing the record of the failure."
+                : "No more dead-lettered deliveries on this page."}
             </p>
           ) : null}
-          {!deadLetters.isLoading && !deadLetters.isError && (deadLetters.data ?? []).map((delivery) => (
+          {!deadLetters.isLoading && !deadLetters.isError && deadLetterRows.map((delivery) => (
             <div key={delivery.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
               <div className="min-w-0">
                 <p className="font-mono text-sm">{delivery.event_type}</p>
@@ -330,6 +336,28 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
               </Button>
             </div>
           ))}
+          {!deadLetters.isLoading && !deadLetters.isError && (deadLetterPage > 0 || deadLetters.data?.hasMore) && (
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <p className="text-xs text-muted-foreground">
+                Newest first, {DEAD_LETTER_PAGE_SIZE} per page. A replayed delivery stays on this
+                list — the replay is a new attempt, not an edit to the record of the failure.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm" variant="outline" disabled={deadLetterPage === 0}
+                  onClick={() => setDeadLetterPage(page => Math.max(0, page - 1))}
+                >
+                  Newer
+                </Button>
+                <Button
+                  size="sm" variant="outline" disabled={!deadLetters.data?.hasMore}
+                  onClick={() => setDeadLetterPage(page => page + 1)}
+                >
+                  Older
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

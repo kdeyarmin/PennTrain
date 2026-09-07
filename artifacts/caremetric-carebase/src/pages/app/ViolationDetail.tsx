@@ -377,7 +377,17 @@ export default function ViolationDetail() {
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {canEdit && ca.status !== "cancelled" && (ca.status !== "completed" || !ca.verification_notes?.trim()) && (
+                          {/*
+                            `canManage`, not `canEdit`. canEdit already excludes a completed action,
+                            so gating on it made the `|| !verification_notes` arm below unreachable
+                            and there was no route to verify_corrective_action for the state that
+                            arm exists to catch: an action set to `completed` through the shared
+                            edit form, which supplies a completion date and no verification notes.
+                            The incident and inspection surfaces gate this on canManage and reach
+                            it; the violation page was the odd one out, and a required verification
+                            could not be recorded there at all (BACKLOG J93).
+                          */}
+                          {canManage && ca.status !== "cancelled" && (ca.status !== "completed" || !ca.verification_notes?.trim()) && (
                             <Button
                               variant="ghost" size="icon" className="h-7 w-7"
                               onClick={() => setVerifyingAction(ca)}

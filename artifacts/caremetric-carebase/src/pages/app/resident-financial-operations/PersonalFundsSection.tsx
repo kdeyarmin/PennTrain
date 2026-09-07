@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Printer } from "lucide-react";
-import type { FinancialWorkspace } from "@/hooks/useResidentFinancialOperations";
+import { useFundStatementLedger, type FinancialWorkspace } from "@/hooks/useResidentFinancialOperations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -303,15 +303,20 @@ function buildPayeeActionItems(
 function FundStatement({ data }: { data: FinancialWorkspace }) {
   const [periodStart, setPeriodStart] = useState(() => addFacilityCalendarDays(today(), -90));
   const [periodEnd, setPeriodEnd] = useState(() => today());
+  // Read for the PERIOD, not taken from the workspace list. That list is newest-first and unbounded,
+  // so PostgREST truncates it at db-max-rows and a statement covering older history silently lost
+  // rows and opened on the wrong predecessor -- with the reconciliation tick still showing, because
+  // the balance column is the ledger's own (BACKLOG J93). See useFundStatementLedger.
+  const ledger = useFundStatementLedger(data.fundAccount?.id, periodStart, periodEnd);
   const statement = useMemo(
     () =>
       buildPersonalFundStatement({
-        transactions: data.fundTransactions,
+        transactions: ledger.data?.transactions ?? [],
         beginningBalance: data.fundAccount?.beginning_balance,
         periodStart,
         periodEnd,
       }),
-    [data.fundTransactions, data.fundAccount?.beginning_balance, periodStart, periodEnd],
+    [ledger.data?.transactions, data.fundAccount?.beginning_balance, periodStart, periodEnd],
   );
 
   return (
@@ -369,7 +374,28 @@ function FundStatement({ data }: { data: FinancialWorkspace }) {
           </p>
         )}
 
-        {statement.rows.length === 0 ? (
+        {/*
+          An incomplete statement has to say so on the page that prints. Reconciliation cannot catch
+          this on its own -- the balance column is the ledger's own figure, so a statement missing
+          its oldest rows can still add up internally -- which is why the truncation is reported
+          rather than inferred.
+        */}
+        {ledger.data?.truncated && (
+          <p className="text-sm text-destructive">
+            This period holds more entries than can be shown at once, so the movements and the
+            opening balance below are incomplete. Issue the statement over a shorter period.
+          </p>
+        )}
+        {ledger.isError && (
+          <p className="text-sm text-destructive">
+            The ledger for this period could not be read, so this statement is not complete. Try
+            again before issuing it.
+          </p>
+        )}
+
+        {ledger.isLoading ? (
+          <Empty>Loading this period's ledger…</Empty>
+        ) : statement.rows.length === 0 ? (
           <Empty>No personal-funds movements in this period.</Empty>
         ) : (
           <div className="rounded-lg border print-table-container">

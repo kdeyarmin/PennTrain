@@ -189,12 +189,27 @@ export default function NotificationDeliveries() {
    * phase1-synthetic-health check. The RPC now also accepts an ambiguous outcome finalized more
    * than six hours ago with no provider event since, and still refuses anything younger, so the
    * client applies the same six hours: the button appears exactly when it will work.
+   *
+   * BOTH halves of that predicate, which the first version of this mirror did not carry (BACKLOG
+   * J93). "No provider event" is not implied by the age: a status callback can arrive after the
+   * six hours -- late, out of order, or on a provider's own retry -- and from that moment the RPC
+   * refuses the row for ever while this page went on offering it. Mirroring one clause of a
+   * two-clause server rule reproduces the exact defect the mirror was written to remove, over the
+   * subset of rows the missing clause covers.
    */
   const UNKNOWN_RETRY_QUARANTINE_MS = 6 * 60 * 60 * 1000;
   const isAmbiguousOutcome = (d: { final_outcome?: string | null }) => d.final_outcome === "unknown";
-  const retryOffered = (d: { status: string; final_outcome?: string | null; finalized_at?: string | null }) => {
+  const hasProviderEvent = (d: { provider_events?: Array<{ count: number }> }) =>
+    (d.provider_events ?? []).some((row) => (row?.count ?? 0) > 0);
+  const retryOffered = (d: {
+    status: string;
+    final_outcome?: string | null;
+    finalized_at?: string | null;
+    provider_events?: Array<{ count: number }>;
+  }) => {
     if (d.status !== "failed") return false;
     if (!isAmbiguousOutcome(d)) return true;
+    if (hasProviderEvent(d)) return false;
     if (!d.finalized_at) return false;
     const finalizedAt = new Date(d.finalized_at).getTime();
     return Number.isFinite(finalizedAt) && Date.now() - finalizedAt > UNKNOWN_RETRY_QUARANTINE_MS;

@@ -118,3 +118,21 @@ export function evaluateScimRoleGuard(input: ScimRoleGuardInput): ScimRoleGuardV
   }
   return ALLOWED;
 }
+
+/**
+ * A LIKE/ILIKE pattern that matches `value` and nothing else -- as far as this transport allows.
+ *
+ * `%` and `_` are SQL wildcards and are escaped, backslash first because it is the escape character
+ * itself. `*` is deliberately NOT escaped: it is PostgREST's own wildcard, rewritten to `%` on the
+ * way through, and the rewrite does not respect a preceding backslash. Verified against the local
+ * stack rather than reasoned about -- `email=ilike.a\*b@x.com` returns nothing at all, because what
+ * reaches Postgres is `a\%b`, a literal percent sign. So a `*` in an address cannot be expressed
+ * here, and escaping it would turn a rare over-match into a guaranteed miss, which for a guard is
+ * the worse failure.
+ *
+ * The residual widening is handled where it matters, at the call site: a full page of candidates
+ * means the set may be incomplete, and an incomplete set is refused rather than filtered.
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}

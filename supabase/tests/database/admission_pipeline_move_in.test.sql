@@ -1,5 +1,5 @@
 begin;
-select plan(32);
+select plan(40);
 
 select has_table('public', 'admission_prospects', 'admission prospects are separate from active census');
 select has_table('public', 'facility_beds', 'room and bed inventory exists');
@@ -314,6 +314,96 @@ select ok(
   ),
   'admission is recorded in immutable census history'
 );
+
+-- The three SAME-STATUS edges, which the first version of the graph refused and which are two of
+-- this function's own operations (BACKLOG J93). A graph that reads "terminal" as "no outgoing
+-- edges" and "active ->" as "some OTHER status" turns a room transfer and the bed-release repair
+-- into 22023s, and neither has another route in the product. These run before the cancellation
+-- block below because they need the resident admitted and holding a bed.
+-- Still acting as the facility manager set at the top of this section, which is the role that
+-- created the first room; no privileged write is needed to add inventory.
+insert into admission_ids(key, id)
+values (
+  'room2',
+  public.create_room_with_beds(
+    '58000000-0000-4000-8000-000000000011', 'Main Building',
+    'First Floor', '102', 'private', 1, 'none', 20
+  )
+);
+insert into admission_ids(key, id)
+select 'bed2', id from public.facility_beds where room_id = (select id from admission_ids where key = 'room2');
+
+select lives_ok(
+  $$ select public.transition_resident_census(
+       (select id from admission_ids where key = 'resident'),
+       'active',
+       (select id from admission_ids where key = 'bed2'),
+       'Moved to 102 at the family''s request') $$,
+  'an active resident can be transferred to another bed -- same status, different bed'
+);
+-- Identified by the beds it moved between, not by "the newest event". Every row written in this
+-- test shares one `effective_at`, because now() is fixed for the transaction, so ordering by it
+-- falls through to a random uuid tie-break and picks an arbitrary row -- which is how the first
+-- version of this assertion passed once and failed on the next run. Same lesson as the paging fix
+-- in this round: an ordering without a meaningful tie-break is not an ordering.
+select is(
+  (select event_type from public.resident_census_events
+   where resident_id = (select id from admission_ids where key = 'resident')
+     and prior_bed_id = (select id from admission_ids where key = 'bed')
+     and resulting_bed_id = (select id from admission_ids where key = 'bed2')),
+  'room_transfer',
+  'the same-status bed move is recorded as a room transfer, not as its target status'
+);
+select is(
+  (select status from public.facility_beds where id = (select id from admission_ids where key = 'bed')),
+  'available',
+  'the room transfer releases the bed the resident came from'
+);
+select is(
+  (select status from public.facility_beds where id = (select id from admission_ids where key = 'bed2')),
+  'occupied',
+  'the room transfer occupies the bed the resident moved to'
+);
+
+-- The guard that makes a self-edge safe. Same status AND same bed changes nothing, and is refused
+-- by a check that predates the graph -- which is why the graph itself does not need to exclude it.
+select throws_ok(
+  $$ select public.transition_resident_census(
+       (select id from admission_ids where key = 'resident'),
+       'active',
+       (select id from admission_ids where key = 'bed2'),
+       'Recording the same thing again') $$,
+  '22023',
+  'Census transition would not change resident state',
+  'a self-edge that moves nothing is still refused'
+);
+
+-- The bed-release repair. A resident closed by the old bare-discharge path is `discharged` and
+-- still holds an occupied bed; AdmissionOperations.tsx offers "recording the same status again"
+-- as the way to release it and write the census event that was missed. Staged here the way that
+-- data actually looks, because no current code path can produce it.
+select set_config('app.privileged_write', 'on', true);
+update public.residents set status = 'discharged'
+where id = (select id from admission_ids where key = 'resident');
+select set_config('app.privileged_write', 'off', true);
+select pg_temp.act_as('58000000-0000-4000-8000-000000000101');
+select lives_ok(
+  $$ select public.transition_resident_census(
+       (select id from admission_ids where key = 'resident'),
+       'discharged', null, 'Releasing a bed the discharge left occupied') $$,
+  'a discharged resident who still holds a bed can have it released by re-recording the status'
+);
+select is(
+  (select status from public.facility_beds where id = (select id from admission_ids where key = 'bed2')),
+  'available',
+  'the repair releases the bed the closed record was still holding'
+);
+select is(
+  (select bed_id from public.residents where id = (select id from admission_ids where key = 'resident')),
+  null,
+  'and clears the resident''s own bed reference, which is what left the two out of step'
+);
+reset role;
 
 -- Cancelling is the one move a pre-admission resident may make, so the graph is not mistaken for
 -- "a reserved resident is frozen". Last, because it releases the bed the assertions above read.

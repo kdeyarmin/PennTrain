@@ -9,7 +9,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(74);
+select plan(75);
 
 insert into public.organizations(id, name, slug, subscription_status, trial_ends_at) values
   ('4c000000-0000-4000-8000-000000000001', 'Readiness Org', 'readiness-fix-org', 'trial', now() + interval '10 days'),
@@ -292,11 +292,13 @@ select ok(
 -- J2. A learner who exhausted the attempts had no way forward at all.
 select ok(
   pg_get_functiondef('public.enforce_quiz_attempt_cap()'::regprocedure)
-    like '%additional_attempts_granted%',
-  'the attempt cap counts what a manager has granted on the assignment (J2)'
+    like '%additional_quiz_attempts ->> new.quiz_id%',
+  'the attempt cap counts what a manager granted FOR THIS QUIZ, not for the assignment (J2, J93)'
 );
-select has_function('public', 'grant_additional_quiz_attempt', array['uuid', 'text'],
-  'a manager can grant another attempt');
+select has_function('public', 'grant_additional_quiz_attempt', array['uuid', 'uuid', 'text'],
+  'a manager can grant another attempt at a named quiz');
+select hasnt_function('public', 'grant_additional_quiz_attempt', array['uuid', 'text'],
+  'and the assignment-wide form is gone rather than left beside it (J93)');
 select has_function('public', 'cancel_course_assignment', array['uuid', 'text'],
   'and can close a dead assignment so a replacement can be assigned');
 
@@ -593,11 +595,16 @@ select is(
 -- A real published course rather than a fixture one. Publishing a course version runs a readiness
 -- check only a platform admin may call, and reproducing it here would test the seed rather than the
 -- two RPCs; the seeded catalogue already has published courses, and any of them will do.
+-- Joined through to a QUIZ, because the grant now names one (BACKLOG J93) and the RPC checks that
+-- the quiz belongs to this assignment's course version.
 create temporary table pg_temp_readiness_course as
-select c.id as course_id, c.current_version_id as version_id
+select c.id as course_id, c.current_version_id as version_id, q.id as quiz_id
 from public.courses c
+join public.course_blocks b
+  on b.course_version_id = c.current_version_id and b.block_type = 'quiz'
+join public.quizzes q on q.course_block_id = b.id
 where c.status = 'published' and c.current_version_id is not null
-order by c.created_at, c.id
+order by c.created_at, c.id, b.sort_order, q.id
 limit 1;
 
 insert into public.course_assignments(
@@ -610,12 +617,17 @@ select
   public.pa_today() + 30, 'assigned'
 from pg_temp_readiness_course r;
 
+-- The assertion below reads the quiz id out of this temp table while acting as the manager, so the
+-- switched role needs to see it.
+grant select on pg_temp_readiness_course to authenticated;
 select pg_temp.act_as('4c000000-0000-4000-8000-000000000101');
 select is(
-  (public.grant_additional_quiz_attempt(
-     '4c000000-0000-4000-8000-000000000821',
-     'They failed the third attempt on a question the video does not cover.')).additional_attempts_granted,
-  1,
+  (select (public.grant_additional_quiz_attempt(
+     '4c000000-0000-4000-8000-000000000821', r.quiz_id,
+     'They failed the third attempt on a question the video does not cover.')
+   ).additional_quiz_attempts ->> r.quiz_id::text
+   from pg_temp_readiness_course r),
+  '1',
   'a manager can grant the attempt that unsticks an exhausted learner (J2)'
 );
 select throws_ok(

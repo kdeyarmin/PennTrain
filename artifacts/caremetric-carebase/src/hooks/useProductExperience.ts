@@ -125,12 +125,19 @@ export function useAnnouncements() {
     // reads every tenant's announcements and this page interleaved them by published_at with no
     // way to tell whose was whose (BACKLOG.md J74, Policy). Announcements are an organization
     // surface; scope the read to the caller's own organization, as every other /app list does.
+    //
+    // `enabled`, not a conditional filter (BACKLOG J93). Applying `.eq()` only when an organization
+    // happens to be known left the unscoped read intact for the one caller that can actually see
+    // across tenants: a platform admin with no organization of their own. For them the filter was
+    // simply omitted and the policy's first clause returned every tenant's rows again -- the J74
+    // defect, unfixed, on the accounts most likely to hit it. A query that cannot be scoped must
+    // not run; the page says which control supplies the missing context.
     queryKey: ["org_announcements", organizationId],
+    enabled: !!organizationId,
     queryFn: async () => {
-      let query = supabase.from("org_announcements").select("*")
+      const { data, error } = await supabase.from("org_announcements").select("*")
+        .eq("organization_id", organizationId!)
         .order("published_at", { ascending: false }).limit(100);
-      if (organizationId) query = query.eq("organization_id", organizationId);
-      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

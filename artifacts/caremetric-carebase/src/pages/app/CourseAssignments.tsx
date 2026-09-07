@@ -17,6 +17,7 @@ import {
   isCourseVersionLearnerReady,
 } from "@/hooks/useCourses";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useListQuizzesForCourseVersion } from "@/hooks/useQuizzes";
 import { useListCertificates, usePrepareCertificatePdf } from "@/hooks/useCertificates";
 import {
   describeBulkAssignment, summarizeBulkAssignment, summarizeCourseAssignmentAnalytics,
@@ -154,6 +155,20 @@ export default function CourseAssignments() {
   // The unblock dialog (BACKLOG.md J2): one dialog, two intents, one required reason.
   const [unblock, setUnblock] = useState<{ mode: "grant" | "cancel"; assignment: CourseAssignment } | null>(null);
   const [unblockReason, setUnblockReason] = useState("");
+  // Which assessment the extra attempt is for. A course version may hold more than one quiz block,
+  // and the grant is recorded against exactly one of them (BACKLOG J93) -- an assignment-wide grant
+  // raised the cap on every quiz in the version, including ones the learner had passed first time.
+  const [grantQuizId, setGrantQuizId] = useState("");
+  const grantQuizzes = useListQuizzesForCourseVersion(
+    unblock?.mode === "grant" ? unblock.assignment.course_version_id ?? undefined : undefined,
+  );
+  const grantQuizOptions = grantQuizzes.data ?? [];
+  // One quiz is the ordinary case, and asking a manager to choose from a list of one is noise --
+  // but it is chosen explicitly rather than left blank, because the RPC requires the id.
+  useEffect(() => {
+    if (unblock?.mode !== "grant") return;
+    if (grantQuizOptions.length === 1) setGrantQuizId(grantQuizOptions[0].id);
+  }, [unblock?.mode, grantQuizOptions]);
 
   // RLS also lets an employee complete their own assignment, but that
   // self-service path lives on the employee training page -- this admin view
@@ -502,6 +517,7 @@ export default function CourseAssignments() {
   const openUnblock = (mode: "grant" | "cancel", assignment: CourseAssignment) => {
     setUnblock({ mode, assignment });
     setUnblockReason("");
+    setGrantQuizId("");
   };
 
   // Both halves of the way out of an exhausted final assessment (BACKLOG.md J2). Grant is the
@@ -515,10 +531,13 @@ export default function CourseAssignments() {
     const { mode, assignment } = unblock;
     try {
       if (mode === "grant") {
-        await grantAttemptAsync({ assignmentId: assignment.id, reason });
+        if (!grantQuizId) return;
+        await grantAttemptAsync({ assignmentId: assignment.id, quizId: grantQuizId, reason });
         toast({
           title: "Additional attempt granted",
-          description: "The learner can retake the assessment from My Training.",
+          description: `The learner can retake ${
+            grantQuizOptions.find((quiz) => quiz.id === grantQuizId)?.title ?? "that assessment"
+          } from My Training. Any other assessment on this course keeps its own limit.`,
           variant: "success",
         });
       } else {
@@ -960,7 +979,7 @@ export default function CourseAssignments() {
 
       <Dialog
         open={!!unblock}
-        onOpenChange={open => { if (!open) { setUnblock(null); setUnblockReason(""); } }}
+        onOpenChange={open => { if (!open) { setUnblock(null); setUnblockReason(""); setGrantQuizId(""); } }}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -969,7 +988,7 @@ export default function CourseAssignments() {
             </DialogTitle>
             <DialogDescription>
               {unblock?.mode === "grant"
-                ? "Adds one more attempt at this assignment's final assessment. The learner retakes it from My Training; nothing already recorded is discarded."
+                ? "Adds one more attempt at the assessment you name below. The learner retakes it from My Training; nothing already recorded is discarded, and every other assessment on the course keeps its own limit."
                 : "Closes this assignment without a completion. The same course can then be assigned to this employee again — use this when a fresh start is the right answer rather than another attempt."}
             </DialogDescription>
           </DialogHeader>
@@ -982,6 +1001,35 @@ export default function CourseAssignments() {
                   return `${emp ? `${emp.last_name}, ${emp.first_name}` : `Employee #${unblock.assignment.employee_id.slice(0, 8)}`} · ${course?.title ?? `Course #${unblock.assignment.course_id.slice(0, 8)}`}`;
                 })()}
               </p>
+            )}
+            {unblock?.mode === "grant" && (
+              <div className="space-y-1.5">
+                <Label htmlFor={`${__fieldIds}-grant-quiz`} className="text-[13px]">
+                  Which assessment *
+                </Label>
+                {grantQuizzes.isLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading this course's assessments…</p>
+                ) : grantQuizOptions.length === 0 ? (
+                  <p className="text-xs text-destructive">
+                    This course version has no quiz configured, so there is no attempt limit to raise.
+                    Cancel the assignment instead if the learner needs a fresh start.
+                  </p>
+                ) : (
+                  <Select value={grantQuizId} onValueChange={setGrantQuizId}>
+                    <SelectTrigger id={`${__fieldIds}-grant-quiz`} aria-label="Assessment to grant an attempt at">
+                      <SelectValue placeholder="Select the assessment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {grantQuizOptions.map(quiz => (
+                        <SelectItem key={quiz.id} value={quiz.id}>
+                          {quiz.title ?? "Untitled assessment"}
+                          {quiz.max_attempts == null ? "" : ` · ${quiz.max_attempts} attempt${quiz.max_attempts === 1 ? "" : "s"}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             )}
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-unblock-reason`} className="text-[13px]">
@@ -1001,12 +1049,17 @@ export default function CourseAssignments() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setUnblock(null); setUnblockReason(""); }}>
+            <Button variant="outline" onClick={() => { setUnblock(null); setUnblockReason(""); setGrantQuizId(""); }}>
               Keep as is
             </Button>
             <Button
               variant={unblock?.mode === "cancel" ? "destructive" : "default"}
-              disabled={unblockReason.trim().length < MIN_REASON || grantingAttempt || cancelingAssignment}
+              disabled={
+                unblockReason.trim().length < MIN_REASON
+                || grantingAttempt
+                || cancelingAssignment
+                || (unblock?.mode === "grant" && !grantQuizId)
+              }
               onClick={() => void submitUnblock()}
             >
               {unblock?.mode === "grant"

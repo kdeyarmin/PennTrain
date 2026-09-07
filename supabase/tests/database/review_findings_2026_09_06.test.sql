@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(11);
+select plan(14);
 
 ------------------------------------------------------------------------------------------------
 -- Fixture
@@ -71,7 +71,30 @@ insert into public.course_versions(id, course_id, organization_id, version_numbe
    '7c000000-0000-4000-8000-000000000001', 1, 'Review Findings Course', 'draft');
 insert into public.course_blocks(id, course_version_id, organization_id, block_type, sort_order, title, body) values
   ('7c000000-0000-4000-8000-000000000033', '7c000000-0000-4000-8000-000000000032',
-   '7c000000-0000-4000-8000-000000000001', 'text', 0, 'Lesson', '{"content":"Review findings lesson."}'::jsonb);
+   '7c000000-0000-4000-8000-000000000001', 'text', 0, 'Lesson', '{"content":"Review findings lesson."}'::jsonb),
+  -- TWO quiz blocks, which is the case the assignment-wide grant got wrong (BACKLOG J93): nothing
+  -- constrains a version to one, and a grant is a decision about one of them.
+  ('7c000000-0000-4000-8000-000000000034', '7c000000-0000-4000-8000-000000000032',
+   '7c000000-0000-4000-8000-000000000001', 'quiz', 1, 'Module check', '{}'::jsonb),
+  ('7c000000-0000-4000-8000-000000000035', '7c000000-0000-4000-8000-000000000032',
+   '7c000000-0000-4000-8000-000000000001', 'quiz', 2, 'Final assessment', '{}'::jsonb);
+insert into public.quizzes(id, course_block_id, organization_id, title, passing_score_percent, max_attempts) values
+  ('7c000000-0000-4000-8000-000000000036', '7c000000-0000-4000-8000-000000000034',
+   '7c000000-0000-4000-8000-000000000001', 'Module check', 80, 3),
+  ('7c000000-0000-4000-8000-000000000037', '7c000000-0000-4000-8000-000000000035',
+   '7c000000-0000-4000-8000-000000000001', 'Final assessment', 80, 2);
+-- Publishing runs a readiness check that refuses a quiz with no questions, or a question with
+-- fewer than two choices or no correct one, so each gets a complete question.
+insert into public.quiz_questions(id, quiz_id, organization_id, question_text, question_type, sort_order) values
+  ('7c000000-0000-4000-8000-000000000038', '7c000000-0000-4000-8000-000000000036',
+   '7c000000-0000-4000-8000-000000000001', 'Is the module check answerable?', 'true_false', 0),
+  ('7c000000-0000-4000-8000-000000000039', '7c000000-0000-4000-8000-000000000037',
+   '7c000000-0000-4000-8000-000000000001', 'Is the final assessment answerable?', 'true_false', 0);
+insert into public.quiz_answers(question_id, organization_id, answer_text, is_correct, sort_order) values
+  ('7c000000-0000-4000-8000-000000000038', '7c000000-0000-4000-8000-000000000001', 'True', true, 0),
+  ('7c000000-0000-4000-8000-000000000038', '7c000000-0000-4000-8000-000000000001', 'False', false, 1),
+  ('7c000000-0000-4000-8000-000000000039', '7c000000-0000-4000-8000-000000000001', 'True', true, 0),
+  ('7c000000-0000-4000-8000-000000000039', '7c000000-0000-4000-8000-000000000001', 'False', false, 1);
 
 -- Assignments require a published course on its current version, and publishing runs a readiness
 -- trigger reserved to platform admins. Same transaction-local bypass the other course fixtures use.
@@ -118,13 +141,39 @@ select pg_temp.act_as('7c000000-0000-4000-8000-000000000101');
 
 select lives_ok($$
   select public.grant_additional_quiz_attempt(
-    '7c000000-0000-4000-8000-000000000041', 'The learner lost connectivity partway through the quiz.')
+    '7c000000-0000-4000-8000-000000000041', '7c000000-0000-4000-8000-000000000037',
+    'The learner lost connectivity partway through the quiz.')
 $$, 'a facility manager may grant another attempt at their own site');
 
 select throws_ok($$
   select public.grant_additional_quiz_attempt(
-    '7c000000-0000-4000-8000-000000000042', 'The learner lost connectivity partway through the quiz.')
+    '7c000000-0000-4000-8000-000000000042', '7c000000-0000-4000-8000-000000000037',
+    'The learner lost connectivity partway through the quiz.')
 $$, '42501', null, 'and may not, at a site they are not assigned to');
+
+-- BACKLOG J93. The grant lands on the quiz it was made for and NOWHERE else. An assignment-wide
+-- counter was added by enforce_quiz_attempt_cap to the cap of every quiz block under the
+-- assignment, so a retry on the final assessment quietly raised the module check's limit too --
+-- a decision no manager made, and one the dialog and the notification both denied making.
+select is(
+  (select (additional_quiz_attempts ->> '7c000000-0000-4000-8000-000000000037')::integer
+   from public.course_assignments where id = '7c000000-0000-4000-8000-000000000041'),
+  1,
+  'the grant is recorded against the quiz it names'
+);
+select is(
+  (select additional_quiz_attempts ? '7c000000-0000-4000-8000-000000000036'
+   from public.course_assignments where id = '7c000000-0000-4000-8000-000000000041'),
+  false,
+  'and the other quiz on the same course version keeps its own limit'
+);
+-- A quiz from outside this assignment's course version is refused, so naming one is not a way to
+-- raise a cap anywhere in the installation.
+select throws_ok($$
+  select public.grant_additional_quiz_attempt(
+    '7c000000-0000-4000-8000-000000000041', '7c000000-0000-4000-8000-0000000000ff',
+    'A quiz that belongs to no version of this course.')
+$$, '23514', null, 'a quiz outside the assignment''s course version is refused');
 
 select throws_ok($$
   select public.cancel_course_assignment(
@@ -177,7 +226,8 @@ limit 1;
 select pg_temp.act_as('7c000000-0000-4000-8000-000000000102');
 select throws_ok($$
   select public.grant_additional_quiz_attempt(
-    '7c000000-0000-4000-8000-000000000041', 'An auditor should not be granting attempts at all.')
+    '7c000000-0000-4000-8000-000000000041', '7c000000-0000-4000-8000-000000000037',
+    'An auditor should not be granting attempts at all.')
 $$, '42501', null, 'an auditor is refused even at a facility they are assigned to');
 select throws_ok($$
   select public.cancel_course_assignment(
@@ -189,9 +239,9 @@ $$, '42501', null, 'and refused from cancelling one');
 -- would find nothing whether or not the write happened.
 reset role;
 select is(
-  (select coalesce(additional_attempts_granted, 0) from public.course_assignments
+  (select coalesce(additional_quiz_attempts, '{}'::jsonb) from public.course_assignments
    where id = '7c000000-0000-4000-8000-000000000042'),
-  0,
+  '{}'::jsonb,
   'the refused grant left the out-of-scope assignment untouched'
 );
 

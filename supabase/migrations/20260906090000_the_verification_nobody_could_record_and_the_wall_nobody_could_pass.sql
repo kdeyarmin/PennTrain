@@ -112,8 +112,17 @@ begin
   end if;
 
   -- Completing and verifying in one step is the real workflow: the manager who signs off on the
-  -- work is the one recording that it was done. An action already marked completed keeps its date.
-  v_completed := coalesce(v_action.completed_date, p_completed_on, public.pa_today());
+  -- work is the one recording that it was done.
+  --
+  -- The SUBMITTED date wins. An earlier version preferred `v_action.completed_date`, on the reading
+  -- that an action already marked completed keeps the date it was completed on -- but the dialog
+  -- opens for exactly that action (its whole purpose is verifying work someone else marked done),
+  -- prefills the stored date, and lets the verifier correct it. Preferring the stored value meant
+  -- the RPC returned success while discarding the correction, leaving the wrong date standing as
+  -- the survey evidence and telling nobody. A date the verifier typed is the better witness than a
+  -- date the completer typed, which is the whole reason this dialog exists; the stored value is the
+  -- fallback for a caller that has no field to send, which is what the pa_today() default is too.
+  v_completed := coalesce(p_completed_on, v_action.completed_date, public.pa_today());
   if v_completed > public.pa_today() then
     raise exception 'A completion date cannot be in the future' using errcode = '22023';
   end if;

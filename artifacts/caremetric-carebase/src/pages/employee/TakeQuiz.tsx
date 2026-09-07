@@ -70,13 +70,18 @@ export default function TakeQuiz() {
   const gradedAttempts = attemptsForQuiz.filter((a) => a.submitted_at !== null);
   const lastGraded = gradedAttempts[0];
   const attemptsUsed = attemptsForQuiz.length;
-  // The allowance is the quiz's cap PLUS anything a manager has granted on this assignment.
-  // `enforce_quiz_attempt_cap` adds `course_assignments.additional_attempts_granted` to
-  // `quizzes.max_attempts` before it refuses an insert (20260906130000), so computing the client's
-  // "exhausted" from max_attempts alone would leave the retake button hidden and this page still
-  // reading "you've used all your attempts" after the grant the learner was told about --
-  // the grant would be invisible, which is the J2 dead end again one step further on.
-  const grantedAttempts = assignment?.additional_attempts_granted ?? 0;
+  // The allowance is the quiz's cap PLUS anything a manager has granted FOR THIS QUIZ on this
+  // assignment. `enforce_quiz_attempt_cap` reads
+  // `course_assignments.additional_quiz_attempts ->> quiz_id` and adds it to `quizzes.max_attempts`
+  // before it refuses an insert (20260906130000), so computing the client's "exhausted" from
+  // max_attempts alone would leave the retake button hidden and this page still reading "you've
+  // used all your attempts" after the grant the learner was told about -- the grant would be
+  // invisible, which is the J2 dead end again one step further on. Reading the map by quiz id
+  // rather than a single number is what keeps this page honest when the version has more than one
+  // quiz block: the other blocks' caps did not move (BACKLOG J93).
+  const grantedAttempts = quizId
+    ? Number((assignment?.additional_quiz_attempts as Record<string, number> | null)?.[quizId] ?? 0)
+    : 0;
   const maxAttempts = quiz?.max_attempts == null ? null : quiz.max_attempts + grantedAttempts;
   const attemptsExhausted = !inProgressAttempt && maxAttempts != null && attemptsUsed >= maxAttempts;
 

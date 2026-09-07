@@ -302,9 +302,15 @@ export function useUpsertCourseProgress() {
 export function useGrantAdditionalQuizAttempt() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ assignmentId, reason }: { assignmentId: string; reason: string }) => {
+    mutationFn: async (
+      // The quiz is named, not inferred. The grant is recorded against ONE quiz on the assignment
+      // (20260906130000), because a course version may hold several quiz blocks and raising the cap
+      // on all of them is not the decision the manager is making (BACKLOG J93).
+      { assignmentId, quizId, reason }: { assignmentId: string; quizId: string; reason: string },
+    ) => {
       const { data, error } = await supabase.rpc("grant_additional_quiz_attempt", {
         p_assignment_id: assignmentId,
+        p_quiz_id: quizId,
         p_reason: reason,
       });
       if (error) throw error;

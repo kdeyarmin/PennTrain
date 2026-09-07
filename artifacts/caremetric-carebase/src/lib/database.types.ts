@@ -4576,7 +4576,7 @@ export type Database = {
       }
       course_assignments: {
         Row: {
-          additional_attempts_granted: number
+          additional_quiz_attempts: Json
           assigned_at: string
           assigned_by: string | null
           canceled_at: string | null
@@ -4599,7 +4599,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          additional_attempts_granted?: number
+          additional_quiz_attempts?: Json
           assigned_at?: string
           assigned_by?: string | null
           canceled_at?: string | null
@@ -4622,7 +4622,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          additional_attempts_granted?: number
+          additional_quiz_attempts?: Json
           assigned_at?: string
           assigned_by?: string | null
           canceled_at?: string | null
@@ -36689,7 +36689,7 @@ export type Database = {
       cancel_course_assignment: {
         Args: { p_assignment_id: string; p_reason: string }
         Returns: {
-          additional_attempts_granted: number
+          additional_quiz_attempts: Json
           assigned_at: string
           assigned_by: string | null
           canceled_at: string | null
@@ -39086,9 +39086,9 @@ export type Database = {
       }
       grade_quiz_attempt: { Args: { p_attempt_id: string }; Returns: undefined }
       grant_additional_quiz_attempt: {
-        Args: { p_assignment_id: string; p_reason: string }
+        Args: { p_assignment_id: string; p_quiz_id: string; p_reason: string }
         Returns: {
-          additional_attempts_granted: number
+          additional_quiz_attempts: Json
           assigned_at: string
           assigned_by: string | null
           canceled_at: string | null

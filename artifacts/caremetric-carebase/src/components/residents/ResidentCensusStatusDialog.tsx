@@ -20,15 +20,23 @@ import { ResidentStatusPill } from "@/components/residents/ResidentStatusPill";
 export const CENSUS_TARGET_STATUSES = ["active", "temporarily_out", "hospital_leave", "discharged", "deceased"] as const;
 
 /**
- * The transition graph `transition_resident_census` enforces (20260906110000), mirrored so the
- * picker offers only what the RPC will take.
+ * What this dialog offers, derived from the transition graph `transition_resident_census` enforces
+ * (20260906110000).
  *
  * This replaces a single "not reserved -> active" exclusion, which was the wrong shape: it blocked
  * one edge and left the two-step route around it open, since a reserved resident sent
  * `temporarily_out` is no longer reserved and the next dialog then offers `active`. Two moves and
  * an admitted resident sits on a bed still held for a prospect, having run none of
  * complete_move_in_admission's checks. The RPC is the control -- this is the courtesy on top of it,
- * and the two must agree or the dialog offers something that returns 22023.
+ * and every entry here must be one the RPC accepts, or the dialog offers a 22023.
+ *
+ * It is a SUBSET of that graph, deliberately, and the direction matters: the server also accepts
+ * three same-status edges, and all three are bed operations. `active -> active` is a room transfer
+ * and `discharged -> discharged` / `deceased -> deceased` is the bed-release repair
+ * AdmissionOperations.tsx offers. This dialog never sends a bed id, and the RPC refuses same status
+ * with an unchanged bed ("Census transition would not change resident state"), so offering any of
+ * them HERE could only ever produce that refusal. They belong on the surface that owns beds, which
+ * is Admission Operations. A subset is safe; a superset is what returns 22023.
  */
 export const CENSUS_TRANSITIONS: Record<string, readonly string[]> = {
   // Pre-admission: cancelling is legitimate, everything else belongs to the admission workflow.
@@ -40,7 +48,10 @@ export const CENSUS_TRANSITIONS: Record<string, readonly string[]> = {
   active: ["temporarily_out", "hospital_leave", "discharged", "deceased"],
   temporarily_out: ["active", "hospital_leave", "discharged", "deceased"],
   hospital_leave: ["active", "temporarily_out", "discharged", "deceased"],
-  // Terminal. A readmission is a new admission, not an edit to a closed record.
+  // Terminal for a STATUS change. The server also takes discharged -> discharged and
+  // deceased -> deceased, but only to release a bed the old bare-discharge path left occupied, and
+  // that repair lives on Admission Operations where a bed is in hand. A readmission is a new
+  // admission, not an edit to a closed record.
   discharged: [],
   deceased: [],
 };

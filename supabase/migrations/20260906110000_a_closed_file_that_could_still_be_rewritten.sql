@@ -480,10 +480,21 @@ $do$;
 --   * pre-admission (prospect, applicant, approved, waitlisted, reserved) -> only discharged or
 --     deceased. Cancelling before move-in is legitimate; anything else is the admission workflow's
 --     job and has its own gates.
---   * active -> temporarily_out, hospital_leave, discharged, deceased.
+--   * active -> active (a room transfer: same status, different bed), temporarily_out,
+--     hospital_leave, discharged, deceased.
 --   * temporarily_out / hospital_leave -> active, each other, discharged, deceased.
---   * discharged / deceased -> nothing. A readmission is a new admission, and it produces a bed
---     assignment through the pipeline rather than by rewriting a closed record.
+--   * discharged / deceased -> only themselves, and only to release a bed. A readmission is a new
+--     admission and produces a bed assignment through the pipeline rather than by rewriting a
+--     closed record; but a resident whose record was closed by the old bare-discharge path still
+--     holds a bed, and re-recording the same status is how AdmissionOperations.tsx releases it and
+--     writes the census event that was missed.
+--
+-- The self-edges are the part a first draft of this graph got wrong. Reading "terminal" as "no
+-- outgoing edges at all" refused the bed-release repair, and reading the active arm as a list of
+-- OTHER statuses refused every room transfer -- both operations this same function implements, one
+-- of them with its own event type (`room_transfer`). Same status is not the same as no change: the
+-- pre-existing guard below refuses same status AND same bed, and that is the check that means a
+-- self-edge can never be a rewrite of nothing.
 --
 -- The refusal names both ends, because "Invalid census transition" told an operator nothing about
 -- which half of it we objected to.
@@ -501,13 +512,27 @@ begin
     end if;
     v_new := $patch$  -- The census transition graph. See this migration's header for why a target-only check was
   -- not enough: `reserved -> temporarily_out -> active` walked around the one edge the UI blocked.
+  --
+  -- Every arm keeps the resident's OWN status as a legal target, and that is not slack in the
+  -- graph -- it is where two of this function's operations live. `active -> active` with a
+  -- different p_bed_id is the room transfer this function maps to the `room_transfer` event, and
+  -- `discharged -> discharged` / `deceased -> deceased` is the bed-release repair
+  -- AdmissionOperations.tsx offers by name for residents the old bare-discharge workflow left
+  -- holding a bed. A first version of this graph omitted both and turned each into a 22023; the
+  -- terminal arms in particular have to be self-edges rather than empty, because "terminal" is a
+  -- statement about the resident's STATUS, not about the bed still attached to it.
+  --
+  -- Nothing here has to exclude the no-op, because the guard below already refuses same status
+  -- AND same bed. That is the one check that distinguishes an operation from a rewrite, and it
+  -- predates this graph.
   if not (
     (v.status in ('prospect', 'applicant', 'approved', 'waitlisted', 'reserved')
       and p_target_status in ('discharged', 'deceased'))
     or (v.status = 'active'
-      and p_target_status in ('temporarily_out', 'hospital_leave', 'discharged', 'deceased'))
+      and p_target_status in ('active', 'temporarily_out', 'hospital_leave', 'discharged', 'deceased'))
     or (v.status in ('temporarily_out', 'hospital_leave')
       and p_target_status in ('active', 'temporarily_out', 'hospital_leave', 'discharged', 'deceased'))
+    or (v.status in ('discharged', 'deceased') and p_target_status = v.status)
   ) then
     raise exception 'A resident who is % cannot be moved to %. Use the admission or move-in workflow for that change.',
       replace(v.status, '_', ' '), replace(p_target_status, '_', ' ')
@@ -523,8 +548,10 @@ $do$;
 comment on function public.transition_resident_census(uuid, text, uuid, text) is
   'Moves a resident between census states, releasing and taking beds as it goes. Transitions follow '
   'an explicit graph rather than a list of destinations: a pre-admission resident may only be '
-  'cancelled (discharged/deceased), an active one may leave or end their residency, one who is out '
-  'may return or end it, and discharged/deceased are terminal -- a readmission goes through the '
-  'admission pipeline. Before that graph, `reserved -> temporarily_out -> active` reached `active` '
-  'without ever running complete_move_in_admission''s readiness checks or occupying the reserved '
-  'bed (BACKLOG J92).';
+  'cancelled (discharged/deceased), an active one may transfer bed or leave or end their '
+  'residency, one who is out may return or end it, and discharged/deceased accept only their own '
+  'status again, which is the bed-release repair -- a readmission goes through the admission '
+  'pipeline. Same status with the same bed is still refused by the guard that follows, so a '
+  'self-edge is always an operation on the bed. Before the graph, `reserved -> temporarily_out -> '
+  'active` reached `active` without ever running complete_move_in_admission''s readiness checks or '
+  'occupying the reserved bed (BACKLOG J92, corrected in J93).';

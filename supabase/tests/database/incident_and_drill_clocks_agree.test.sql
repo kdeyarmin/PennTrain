@@ -1,7 +1,7 @@
 -- BACKLOG.md J74 (P3 long tail), section 4.3 "Safety / incidents / survey" and "Resident care".
 -- Pins the six defects 20260906270000 fixed. Each block names the behaviour that was wrong.
 begin;
-select plan(24);
+select plan(26);
 
 ------------------------------------------------------------------------------------------------
 -- 1-6. The 48-hour written report exists, as data, with the same anchor as the department call
@@ -204,6 +204,25 @@ select lives_ok(
     update public.corrective_actions set status = 'completed', completed_date = public.pa_today()
     where id = 'd1000000-0000-4000-8000-000000000301'$$,
   'reopening the action first and then completing it is still allowed'
+);
+
+-- BACKLOG J93. The action above is now `completed` with today's date on it, which is exactly the
+-- state the verify dialog opens for: someone else marked the work done, and the verifier is asked
+-- to say when it was ACTUALLY done. An earlier coalesce preferred the stored date, so the RPC
+-- returned success and dropped the correction on the floor -- leaving a date nobody chose standing
+-- as the survey evidence, and telling nobody it had.
+select lives_ok(
+  $$select public.verify_corrective_action(
+    'd1000000-0000-4000-8000-000000000301',
+    'Read the overnight briefing sheet and both aides'' sign-offs against the fall protocol.',
+    public.pa_today() - 3)$$,
+  'a verifier may correct the completion date of an action already marked complete'
+);
+select is(
+  (select completed_date from public.corrective_actions
+   where id = 'd1000000-0000-4000-8000-000000000301'),
+  public.pa_today() - 3,
+  'and the date they submitted is the one recorded, not the one already stored'
 );
 reset role;
 

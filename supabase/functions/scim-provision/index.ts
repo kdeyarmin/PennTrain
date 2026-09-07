@@ -7,6 +7,7 @@ import {
 } from "../_shared/phase2IdentitySecurity.ts";
 import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
 import {
+  escapeLikePattern,
   evaluateScimRoleGuard,
   type GovernedProfile,
   type ScimOperation,
@@ -101,6 +102,15 @@ async function assertedRoleForPayload(
  * login gets rewritten, and a guard that inspected only one of them would have a hole exactly the
  * width of the case it exists to stop.
  */
+/**
+ * How many same-email candidates are read before the set is treated as untrustworthy.
+ *
+ * Not a page size to tune: it is the line past which this guard stops answering. See the refusal
+ * below for why a full page has to be refused rather than filtered.
+ */
+const GOVERNED_CANDIDATE_PAGE = 100;
+
+
 async function governedProfileCandidates(
   admin: AdminClient,
   organizationId: string,
@@ -142,17 +152,35 @@ async function governedProfileCandidates(
   }
 
   // `ilike` so a stored mixed-case address still matches the way `lower(p.email) = lower(...)`
-  // does in SQL. It can over-match (`_` is a LIKE wildcard and the SCIM userName grammar permits
-  // it), so the exact comparison is redone here -- over-matching only widens the candidate set,
-  // it never lets one through.
+  // does in SQL -- but the pattern is ESCAPED first, so this is an exact case-insensitive
+  // comparison rather than a pattern at all.
+  //
+  // An earlier version passed the userName through raw, with a comment arguing that over-matching
+  // was harmless because the exact filter is redone below. That was wrong, and the reason is the
+  // `.limit()` on the next line: the limit truncates BEFORE the in-memory filter runs, so a pattern
+  // matching many rows can push the real profile past the cut and leave this guard with no
+  // candidate at all. `resolve_scim_link_profile_id` matches exactly and would still find it, so
+  // the push would proceed against a profile the protected-role check never saw -- which is the one
+  // thing this function exists to stop. A `%` in a userName (the SCIM grammar permits it in a
+  // quoted local part) matched every address in the organization, turning "over-matching" into
+  // "the guard is off" for any tenant with more than a page of profiles.
   const profiles = await admin
     .from("profiles")
     .select("id, role, is_active, email")
     .eq("organization_id", organizationId)
-    .ilike("email", userName)
-    .limit(100);
+    .ilike("email", escapeLikePattern(userName))
+    .limit(GOVERNED_CANDIDATE_PAGE);
   if (profiles.error) return { failed: true };
-  return (profiles.data as Array<{ id: string; role: string; is_active: boolean; email: string | null }>)
+  const rows = profiles.data as Array<{ id: string; role: string; is_active: boolean; email: string | null }>;
+  // A FULL page means the set may be truncated, and a truncated set cannot answer this question:
+  // the exact match could be one of the rows that did not come back, and this guard would then
+  // report no protected candidate while `resolve_scim_link_profile_id`, which matches exactly in
+  // SQL, goes on to find and re-role that very profile. Refusing is the only safe reading. With the
+  // wildcards escaped this is unreachable for a real address -- an organization does not hold a
+  // hundred profiles at one email -- so it costs nothing in ordinary traffic and closes the case
+  // where an unescapable `*` widened the pattern.
+  if (rows.length >= GOVERNED_CANDIDATE_PAGE) return { failed: true };
+  return rows
     .filter((row) => (row.email ?? "").toLowerCase() === userName)
     .map((row) => ({
       id: row.id,

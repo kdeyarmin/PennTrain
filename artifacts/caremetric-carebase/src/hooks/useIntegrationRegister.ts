@@ -111,24 +111,41 @@ export function useIntegrationWebhookSubscriptions(organizationId: string | unde
   });
 }
 
+/** How many dead letters one page of the replay queue shows. */
+export const DEAD_LETTER_PAGE_SIZE = 50;
+
 /**
  * Deliveries that exhausted their attempts. `get_integration_control_plane` counts them and the
  * Enterprise tab prints the count as JSON; nothing let anyone act on one.
+ *
+ * Paged, and the paging is the fix rather than a nicety (BACKLOG J93). Replaying does NOT clear the
+ * row it replays: `replay_integration_webhook_delivery` inserts a fresh delivery carrying the same
+ * event and leaves the original `dead_letter` with its original `dead_lettered_at`, deliberately,
+ * so the record of the failure survives. A newest-first cap therefore never drains -- the same
+ * fifty rows hold the page for ever, and every older dead letter was unreachable from the only
+ * surface in the product that can replay one. `id` breaks ties because several deliveries can be
+ * dead-lettered in the same instant, and paging through equal sort keys without a unique tie-break
+ * lets rows repeat on one page and vanish from another.
  */
-export function useIntegrationDeadLetters(organizationId: string | undefined) {
+export function useIntegrationDeadLetters(organizationId: string | undefined, page = 0) {
   return useQuery({
-    queryKey: ["integration-register", "dead-letters", organizationId ?? null],
+    queryKey: ["integration-register", "dead-letters", organizationId ?? null, page],
     enabled: !!organizationId,
-    queryFn: async () => {
+    queryFn: async (): Promise<{ rows: IntegrationDeadLetterRow[]; hasMore: boolean }> => {
+      const from = page * DEAD_LETTER_PAGE_SIZE;
+      // One row past the page, so "is there another page" is answered by the same read rather than
+      // by a second count that can disagree with it.
       const { data, error } = await supabase
         .from("integration_webhook_deliveries")
         .select("id,endpoint_id,event_type,attempt_count,last_http_status,last_error_code,last_error_message,dead_lettered_at,replay_count")
         .eq("organization_id", organizationId!)
         .eq("status", "dead_letter")
         .order("dead_lettered_at", { ascending: false })
-        .limit(50);
+        .order("id", { ascending: false })
+        .range(from, from + DEAD_LETTER_PAGE_SIZE);
       if (error) throw error;
-      return (data ?? []) as IntegrationDeadLetterRow[];
+      const rows = (data ?? []) as IntegrationDeadLetterRow[];
+      return { rows: rows.slice(0, DEAD_LETTER_PAGE_SIZE), hasMore: rows.length > DEAD_LETTER_PAGE_SIZE };
     },
   });
 }
