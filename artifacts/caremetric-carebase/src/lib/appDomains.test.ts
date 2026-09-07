@@ -5,6 +5,7 @@ import {
   canonicalHelpPathForRole,
   helpBasePathForRole,
   safePathForRole,
+  staticAppRouteTemplateForPath,
   viewablePathForRole,
   pagesForRole,
   searchPages,
@@ -13,6 +14,23 @@ import {
 import { withModuleDependencies } from "./productModules";
 
 describe("role-based page visibility", () => {
+  it("reduces contextual-help locations to registry-owned static route templates", () => {
+    expect(staticAppRouteTemplateForPath("/app/today?tab=overdue#priority")).toBe("/app/today");
+    expect(staticAppRouteTemplateForPath("/app/courses/7bc84bdf-4877-43a7-95eb-92a3f6f09584?tab=video")).toBe("/app/courses");
+    expect(staticAppRouteTemplateForPath("/account/manager-digest/digest-secret/"))
+      .toBe("/account/manager-digest/:id");
+    expect(staticAppRouteTemplateForPath("/admin/residents/resident-secret/assessment-forms/form-secret"))
+      .toBe("/admin/residents/:residentId/assessment-forms/:formId");
+    expect(staticAppRouteTemplateForPath("/app/help/tickets/ticket-secret?reply=1"))
+      .toBe("/app/help");
+    expect(staticAppRouteTemplateForPath("/app/settings/not-a-real-page"))
+      .toBeNull();
+    expect(staticAppRouteTemplateForPath("/app/not-a-real-page?record=secret"))
+      .toBeNull();
+    expect(staticAppRouteTemplateForPath("https://example.com/app/today"))
+      .toBeNull();
+  });
+
   it("keeps employees in the self-service surface", () => {
     const employeePaths = pagesForRole("employee").map((page) => page.path);
 

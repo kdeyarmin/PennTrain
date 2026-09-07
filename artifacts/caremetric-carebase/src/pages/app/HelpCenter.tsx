@@ -18,6 +18,10 @@ import {
 } from "@/hooks/useSupportTickets";
 import { useAuth } from "@/lib/auth";
 import { viewablePathForRole } from "@/lib/appDomains";
+import {
+  buildCentralHelpUrl,
+  CENTRAL_SUPPORT_HUB_FEATURE_KEY,
+} from "@/lib/centralHelp";
 import { searchCarebaseGlossary } from "@/lib/carebaseGlossary";
 import { filterHelpArticlesForRole } from "@/lib/helpArticleVisibility";
 import {
@@ -27,6 +31,7 @@ import {
   type HelpCopilotConfidence,
 } from "@/lib/helpCopilot";
 import { useToast } from "@/hooks/use-toast";
+import { useFeatureReleaseActive } from "@/hooks/useFeatureRelease";
 import { QueryError } from "@/components/QueryState";
 import {
   AlertTriangle, Bot, Search, FileDown, Plus, ChevronRight, Lightbulb, ExternalLink,
@@ -658,6 +663,7 @@ export default function HelpCenter() {
   const [location] = useLocation();
   const base = location.startsWith("/me") ? "/me" : "/app";
   const [activeTab, setActiveTab] = useState("faq");
+  const centralSupportHub = useFeatureReleaseActive(CENTRAL_SUPPORT_HUB_FEATURE_KEY);
 
   // Read once per mount rather than tracked live -- this page is about where the user *came from*
   // on the way in, so it shouldn't shift under them while they're sitting here (it wouldn't anyway,
@@ -679,6 +685,7 @@ export default function HelpCenter() {
     () => findArticleForRoute(visibleJobAides, originRoute, user?.role),
     [visibleJobAides, originRoute, user?.role]
   );
+  const centralSupportHubUrl = buildCentralHelpUrl({ route: originRoute ?? location });
 
   return (
     <div className="space-y-6">
@@ -688,6 +695,25 @@ export default function HelpCenter() {
           Answers to common questions, step-by-step job aides, the full user manual, and support if you're still stuck.
         </p>
       </div>
+
+      {centralSupportHub.isActive && centralSupportHubUrl && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              <p className="font-semibold">CareMetric Support Hub</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Find shared CareMetric articles, tutorials, courses, explainer videos, and central contact options.
+                CareBase guides and support tickets remain available below.
+              </p>
+            </div>
+            <Button asChild className="shrink-0">
+              <a href={centralSupportHubUrl} target="_blank" rel="noopener noreferrer">
+                Open Support Hub <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <HelpCopilotPanel originRoute={originRoute} />
 

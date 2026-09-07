@@ -53,6 +53,7 @@ const port =
     : 5173;
 
 const basePath = process.env.BASE_PATH ?? "/";
+const CENTRAL_SUPPORT_HUB_ORIGIN = "https://support-hub-web-production.up.railway.app";
 
 export default defineConfig(({ command, mode }) => {
   // Fail production builds loudly when the Supabase vars are missing: they are baked into
@@ -80,6 +81,27 @@ export default defineConfig(({ command, mode }) => {
           "Set them as Railway service variables (or in artifacts/caremetric-carebase/.env for local " +
           "builds) BEFORE building -- Vite inlines them into the bundle, so a bundle built " +
           "without them ships a broken app even if the vars are added to the runtime later.",
+      );
+    }
+
+    // The central-support launcher is intentionally first-party-only. Reject a configured
+    // localhost, relative path, vanity hostname that is not live yet, or credential-bearing URL
+    // at build time; the browser adapter repeats this check and fails closed at runtime.
+    const supportHubUrlIsConfigured = "VITE_CENTRAL_SUPPORT_HUB_URL" in env;
+    const configuredSupportHubUrl = env.VITE_CENTRAL_SUPPORT_HUB_URL?.trim();
+    if (
+      supportHubUrlIsConfigured
+      && (
+        !configuredSupportHubUrl
+        || (
+          configuredSupportHubUrl !== CENTRAL_SUPPORT_HUB_ORIGIN
+          && configuredSupportHubUrl !== `${CENTRAL_SUPPORT_HUB_ORIGIN}/`
+        )
+      )
+    ) {
+      throw new Error(
+        `VITE_CENTRAL_SUPPORT_HUB_URL must be non-blank and use the approved live first-party origin `
+        + `${CENTRAL_SUPPORT_HUB_ORIGIN} (an optional trailing slash is allowed).`,
       );
     }
 
@@ -124,7 +146,11 @@ export default defineConfig(({ command, mode }) => {
     // `|| "unknown"` fallback; a whitespace-only value is truthy and ships as itself. Measured,
     // not assumed -- building with VITE_RELEASE_ID=" " emits `release:" "`, so calling that
     // "built as if it were never set" would have been wrong (thanks to the review that caught it).
-    const blankOptional = ["VITE_RELEASE_ID", "VITE_DEMO_ACCOUNTS_JSON", "VITE_CAREMETRIC_MODULES"]
+    const blankOptional = [
+      "VITE_RELEASE_ID",
+      "VITE_DEMO_ACCOUNTS_JSON",
+      "VITE_CAREMETRIC_MODULES",
+    ]
       .filter((key) => key in env && env[key].trim() === "");
     for (const key of blankOptional) {
       console.warn(
