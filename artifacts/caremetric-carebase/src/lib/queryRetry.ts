@@ -34,17 +34,24 @@ import { isRlsViolation } from "./rlsErrors";
  *     context are fixed for the request. A refusal now is a refusal in a second.
  *   - `PGRST100`/`PGRST102`/`PGRST103`/`PGRST106`: the request itself did not parse -- a bad
  *     filter, body, range or schema. The client would send the identical malformed request again.
- *   - `PGRST202`/`PGRST203`/`PGRST204`: the function or column is not in the schema cache under
- *     the name and argument list this build asked for. A deploy fixes that; a retry does not.
+ * Deliberately NOT on the list, and each omission is the point:
+ *
+ *   - `PGRST202`/`PGRST203`/`PGRST204`. These read as "no function/column by that name", which
+ *     sounds permanent and is not: PostgREST answers from a cached schema, and during and just
+ *     after `supabase db push` it can serve them for an RPC or column the migration has already
+ *     added, until the reload lands. The identical request then succeeds on the next attempt --
+ *     precisely what the backoff is for. Treating them as permanent would turn a few seconds of
+ *     deploy-time cache lag into a hard error on every affected page, which is worse than the
+ *     spinner this module exists to remove, and it would do it during a deploy.
+ *
+ *   - `PGRST301` and a bare 401. A JWT that has just expired is the one authorization failure a
+ *     retry can fix, because supabase-js refreshes the token underneath it.
  *   - `42883`/`42P01`/`22P02`: undefined function, undefined table, and a value that is not valid
  *     for its column type (a malformed uuid in an `.eq()`), all decided by the request text.
  *   - `22023`/`23514`/`23503`/`23505`/`P0002`: an RPC's own `raise exception`, a check, a foreign
  *     key, a unique index, a `no_data_found`. These are the server stating a rule about the
  *     arguments it was given.
  *
- * Deliberately NOT on the list, and the omission is the point: `PGRST301` and a bare 401. A JWT
- * that has just expired is the one authorization failure a retry can fix, because supabase-js
- * refreshes the token underneath it -- so those keep all three attempts.
  */
 const PERMANENT_ERROR_CODES = new Set([
   "PGRST116",
@@ -52,9 +59,6 @@ const PERMANENT_ERROR_CODES = new Set([
   "PGRST102",
   "PGRST103",
   "PGRST106",
-  "PGRST202",
-  "PGRST203",
-  "PGRST204",
   "42501",
   "42883",
   "42P01",

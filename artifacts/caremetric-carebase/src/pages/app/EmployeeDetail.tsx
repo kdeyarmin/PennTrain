@@ -345,14 +345,16 @@ export default function EmployeeDetail() {
     }
     const dueDate = computeDueDate(trainingForm.completionDate, trainingFormType?.renewal_interval_days ?? null);
     // Resolved before the status, which needs it: this form updates an existing record when there
-    // is one, and a `pending_review` or `not_applicable` record's status is a decision somebody
-    // made, not a position on a clock. The server's own recalc preserves both.
+    // is one, and a certificate still awaiting a reviewer must not be graduated by an ordinary
+    // edit. `approval_status` is what distinguishes that from an audience shell wearing the same
+    // `pending_review` -- see lib/complianceDates.ts.
     const existing = findCurrentRecord(trainingRecords ?? [], trainingForm.trainingTypeId);
     const status = computeStatus(
       trainingForm.completionDate,
       dueDate,
       trainingFormType?.warning_days_default ?? 90,
       existing?.status,
+      existing?.approval_status,
     );
     const hoursValue = trainingForm.hours.trim() ? Number(trainingForm.hours) : (trainingFormType?.required_hours ?? null);
     const payload: TrainingRecordInsert = {

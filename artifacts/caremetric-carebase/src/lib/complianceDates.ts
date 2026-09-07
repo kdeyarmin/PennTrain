@@ -31,15 +31,43 @@ export function computeDueDate(completionDate: string | null, renewalIntervalDay
 }
 
 /**
- * Statuses the recalc refuses to recompute, because each is a decision somebody made rather than a
- * position on a clock: `pending_review` says a certificate is waiting for a reviewer, and
- * `not_applicable` says this requirement does not apply to this person.
+ * Whether this record is a certificate genuinely waiting for a reviewer.
+ *
+ * WHY THIS IS NARROWER THAN THE RECALC'S OWN BRANCH, which preserves `pending_review` and
+ * `not_applicable` unconditionally. `pending_review` carries TWO meanings on this table and they
+ * want opposite things from an edit:
+ *
+ *   1. A certificate awaiting approval. `PendingApprovals` writes `status: 'pending_review'` WITH
+ *      `approval_status: 'pending'`, and only a reviewer may graduate it. An ordinary edit that
+ *      recomputed the status would credit a certificate nobody had looked at -- measured: the
+ *      employee's annual bucket goes from crediting nothing to `completed_hours 8.00` while
+ *      `approval_status` is still `pending` and `verified_at` null.
+ *
+ *   2. An auto-instantiated audience shell, `approval_status` NULL. For a training type with
+ *      `audience_verification_required`, facility type is only a catalog prefilter, and
+ *      `training_types.audience_verification_required`'s own column comment says the requirement
+ *      "remains pending_review and is excluded from annual-hour rollups until an employer confirms
+ *      this exact audience BY CHANGING THE RECORD TO AN ACTIVE REQUIREMENT STATUS". Recording
+ *      training against such a cell IS that confirmation. Preserving the status there is what a
+ *      first version of this did, and it would have saved the completion and the hours while
+ *      `recalculate_compliance_core` went on excluding them -- 47 such shells exist in the seeded
+ *      demo tenant alone.
+ *
+ * `approval_status` separates them cleanly and is the only thing that does: a reviewer's queue
+ * filters on it, and an audience shell has never been through that queue so it is null.
+ * `not_applicable` is the same audience mechanism seen from the other side -- an employer decision
+ * among `pending_review`, `not_applicable` and applicable, changed by the same route -- so it is
+ * not preserved either; a manager recording a completion against it is asserting the requirement
+ * does apply.
  */
-const DECIDED_STATUSES = new Set(["pending_review", "not_applicable"]);
+function isAwaitingCertificateReview(currentStatus: string | null | undefined, approvalStatus: string | null | undefined): boolean {
+  return currentStatus === "pending_review" && approvalStatus === "pending";
+}
 
 /**
- * `currentStatus` is the status the record already carries, for an UPDATE. Passing it reproduces
- * the server's first branch; omitting it says the caller is deliberately overriding that decision.
+ * `currentStatus` and `currentApprovalStatus` are what the record already carries, for an UPDATE.
+ * Passing them holds a certificate that is still awaiting review; omitting them says the caller is
+ * deliberately overriding that, which is what approving one means.
  *
  * WHY THE PARAMETER EXISTS. This function had no way to express the first line of the CASE above,
  * and its three callers do not want the same thing. `PendingApprovals` needs the omission -- moving
@@ -64,8 +92,9 @@ export function computeStatus(
   dueDate: string | null,
   warningDays: number,
   currentStatus?: string | null,
+  currentApprovalStatus?: string | null,
 ): string {
-  if (currentStatus && DECIDED_STATUSES.has(currentStatus)) return currentStatus;
+  if (isAwaitingCertificateReview(currentStatus, currentApprovalStatus)) return currentStatus!;
   if (!completionDate) return "missing";
   if (!dueDate) return "compliant";
   const today = todayISO();

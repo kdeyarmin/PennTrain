@@ -7,6 +7,14 @@ export interface TrainingMatrixCell {
   trainingTypeId: string;
   trainingRecordId: string | null;
   status: string;
+  /**
+   * `employee_training_records.approval_status`, null when no record backs the cell AND when the
+   * record is an auto-instantiated audience shell. It is what separates a `pending_review` cell
+   * that is a certificate awaiting a reviewer (`'pending'`) from one that is an unconfirmed
+   * audience (null) -- two meanings of one status that want opposite things from an edit. Added by
+   * 20260907211500.
+   */
+  approvalStatus: string | null;
   completionDate: string | null;
   dueDate: string | null;
   trainerName: string | null;

@@ -15,9 +15,20 @@ describe("isPermanentQueryFailure", () => {
     })).toBe(true);
   });
 
-  it("treats a request the server could not parse or resolve as permanent", () => {
-    for (const code of ["PGRST100", "PGRST202", "PGRST204", "42883", "42P01", "22P02"]) {
+  it("treats a request the server could not parse as permanent", () => {
+    for (const code of ["PGRST100", "PGRST102", "PGRST103", "PGRST106", "42883", "42P01", "22P02"]) {
       expect(isPermanentQueryFailure({ code }), code).toBe(true);
+    }
+  });
+
+  it("keeps a schema-cache miss retryable, because a deploy makes it transient", () => {
+    // PostgREST answers from a cached schema. During and just after `supabase db push` it can
+    // serve these for an RPC or column the migration has already added, until the reload lands --
+    // and the identical request then succeeds on the next attempt, which is what the backoff is
+    // for. Classifying them permanent would turn deploy-time cache lag into a hard error on every
+    // affected page.
+    for (const code of ["PGRST202", "PGRST203", "PGRST204"]) {
+      expect(isPermanentQueryFailure({ code }), code).toBe(false);
     }
   });
 
