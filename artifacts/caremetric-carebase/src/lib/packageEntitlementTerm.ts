@@ -15,7 +15,18 @@
  * string and json -- a limit like `limits.learners` is a number, not a switch.
  */
 
+import { facilityDateOf } from "./dateUtils";
+
 export type FeatureValueType = "boolean" | "integer" | "decimal" | "string" | "json";
+
+/**
+ * One currently-open term on the package, as `usePackageEntitlements` maps it: `effective_to is
+ * null`, `effective_from` an instant. Only the two columns the server's collision test reads.
+ */
+export interface OpenEntitlementTerm {
+  featureKey: string;
+  effectiveFromAt: string;
+}
 
 export interface EntitlementTermForm {
   packageId: string;
@@ -72,8 +83,20 @@ export function parseEntitlementValue(raw: string, valueType: FeatureValueType):
   }
 }
 
-/** What is wrong with the term, or an empty list when the server will accept it. */
-export function entitlementTermIssues(form: EntitlementTermForm, now: Date): string[] {
+/**
+ * What is wrong with the term, or an empty list when the server will accept it.
+ *
+ * `openTerms` is the package's currently-open terms -- `undefined` while that query has not
+ * answered. The collision rule below is the only one that needs them, and it is skipped when they
+ * are unknown: the server tests it too, so an unknown-terms submit gets a refusal with the server's
+ * own message, whereas guessing a collision would disable the button over a term that may not
+ * exist. This is the opposite trade-off from a write that destroys data on a wrong guess -- here
+ * the wrong guess costs a round trip, and blocking costs the operation.
+ */
+export function entitlementTermIssues(
+  form: EntitlementTermForm,
+  openTerms: readonly OpenEntitlementTerm[] | undefined,
+): string[] {
   const issues: string[] = [];
   if (!form.packageId) issues.push("Choose the package this term applies to.");
   if (!form.featureKey) issues.push("Choose the feature.");
@@ -93,10 +116,30 @@ export function entitlementTermIssues(form: EntitlementTermForm, now: Date): str
     // Mirrors `check (effective_to is null or effective_to > effective_from)`.
     else if (!Number.isNaN(from) && to <= from) issues.push("The term has to end after it starts.");
   }
-  // Mirrors the server's own refusal: a current term that already starts at or after the new one
-  // means the new term does not supersede it, it collides with it.
-  if (!Number.isNaN(from) && from < now.getTime() - 86_400_000) {
-    issues.push("A term cannot be backdated more than a day — supersede the current one going forward instead.");
+  // Mirrors `set_package_entitlement`'s own refusal, which is about the CURRENT TERM's start and
+  // not about today:
+  //
+  //     if exists (select 1 from public.package_entitlements e
+  //                where e.package_id = p_package_id and e.feature_key = p_feature_key
+  //                  and e.effective_to is null and e.effective_from >= p_effective_from)
+  //     then raise exception 'New package term must start after the current term';
+  //
+  // It is per FEATURE, not per package: an open term on `modules.billing` says nothing about a new
+  // term on `limits.learners`. And it is not a ban on backdating -- the RPC closes the current term
+  // at `p_effective_from`, so a term backdated to after that term started is exactly the supersede
+  // it is for, and a feature with no open term at all can be backdated freely. That matters for the
+  // real reason a term is entered late: a contract signed weeks ago being recorded now.
+  if (!Number.isNaN(from) && openTerms && form.featureKey) {
+    const collision = openTerms.find(
+      (term) => term.featureKey === form.featureKey && Date.parse(term.effectiveFromAt) >= from,
+    );
+    if (collision) {
+      const started = facilityDateOf(collision.effectiveFromAt);
+      issues.push(
+        `${form.featureKey} already has an open term starting ${started ?? "on an unreadable date"}` +
+          " — a new term has to start after that one, so it supersedes rather than collides with it.",
+      );
+    }
   }
   return issues;
 }

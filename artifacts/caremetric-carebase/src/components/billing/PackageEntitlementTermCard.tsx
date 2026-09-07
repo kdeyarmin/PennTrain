@@ -163,11 +163,15 @@ export function PackageEntitlementTermCard({
     effectiveTo: effectiveTo ? facilityDayBounds(effectiveTo).from : "",
     contractReference,
   };
-  const issues = entitlementTermIssues(form, now);
-  const parsed = parseEntitlementValue(rawValue, valueType);
+  // Computed before the issue list, which needs it: the server's collision test is against the
+  // feature's current open term, so the validator cannot state it without these rows. `undefined`
+  // while the query is in flight or failed, which `entitlementTermIssues` treats as "unknown", not
+  // as "none open".
+  const current = entitlements.data?.filter((row) => row.effectiveToAt === null);
+  const scheduled = (current ?? []).filter((row) => Date.parse(row.effectiveFromAt) > now.getTime());
 
-  const current = (entitlements.data ?? []).filter((row) => row.effectiveToAt === null);
-  const scheduled = current.filter((row) => Date.parse(row.effectiveFromAt) > now.getTime());
+  const issues = entitlementTermIssues(form, current);
+  const parsed = parseEntitlementValue(rawValue, valueType);
 
   return (
     <Card>
@@ -282,10 +286,10 @@ export function PackageEntitlementTermCard({
             </p>
             {entitlements.isLoading ? (
               <p className="text-xs text-muted-foreground">Loading open terms…</p>
-            ) : entitlements.isError ? null : current.length === 0 ? (
+            ) : entitlements.isError ? null : current?.length === 0 ? (
               <p className="text-xs text-muted-foreground">No open terms on this package.</p>
             ) : null}
-            {!entitlements.isLoading && !entitlements.isError && current.map((row) => (
+            {!entitlements.isLoading && !entitlements.isError && (current ?? []).map((row) => (
               <p key={row.id} className="text-xs text-muted-foreground">
                 {row.featureKey} = {JSON.stringify(row.entitlementValue)} · from{" "}
                 {new Date(row.effectiveFromAt).toLocaleDateString()}
