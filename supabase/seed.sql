@@ -22,9 +22,35 @@ select 'Sunrise Healthcare Group', 'sunrise-healthcare', 'Dr. Robert Chen', 'rob
 from public.packages p where p.name = 'CareMetric CareBase'
 on conflict (slug) do nothing;
 
-update public.organizations
-set is_demo = true, demo_seed_version = 1, updated_at = now()
-where slug = 'sunrise-healthcare';
+-- `is_demo` and `demo_seed_version` are not tenant-writable: `protect_organization_subscription_fields`
+-- (20260704050042, extended to cover the demo posture by 20260906060000 / BACKLOG J76) copies both
+-- back from OLD for any writer that is neither `is_platform_admin()` nor running with
+-- `app.privileged_write` set. A plain UPDATE from this file is neither -- `supabase db reset` runs
+-- it as `postgres` with no JWT, so `is_platform_admin()` is false -- and the trigger reverts a
+-- row-level UPDATE silently, reporting `UPDATE 1` either way.
+--
+-- So this statement stopped working the day J76 landed, and nothing said so. `is_demo` stayed false
+-- on every locally seeded tenant, which cost two things: `get_my_mfa_policy()` no longer exempted
+-- the demo org, so `admin@sunrisehealthcare.com` and `manager@sunrisemanor.com` hit the MFA gate and
+-- could reach no route but /account/security with the documented `demo123` password; and the
+-- `and is_demo` guard further down this file silently skipped `app_private.seed_demo_organization()`
+-- entirely, so the demo tenant came up without the facilities, employees, classes, residents,
+-- rooms, shifts, schedules, plans and forms that function seeds.
+--
+-- The escape hatch the trigger itself offers is the fix, used the way the definer RPCs use it.
+-- Wrapped in a DO block that turns the elevation on and off around the one statement that needs
+-- it, rather than leaving it set for whatever follows. `is_local => true` alone would not be
+-- enough: if the runner wraps this whole file in a transaction, transaction-local means "for the
+-- rest of the seed". Both together mean this is the only write in the file that bypasses the
+-- protect triggers.
+do $$
+begin
+  perform set_config('app.privileged_write', 'on', true);
+  update public.organizations
+  set is_demo = true, demo_seed_version = 1, updated_at = now()
+  where slug = 'sunrise-healthcare';
+  perform set_config('app.privileged_write', 'off', true);
+end $$;
 
 insert into public.organizations (name, slug, contact_name, contact_email, contact_phone, address, city, state, zip, subscription_status, plan_name, package_id)
 select 'Maple Grove Senior Living', 'maple-grove', 'Patricia Nguyen', 'patricia.nguyen@maplegrove.com', '412-555-0200',
@@ -192,3 +218,20 @@ where e.organization_id = o.id and o.slug = 'sunrise-healthcare';
 select app_private.seed_demo_organization(id)
 from public.organizations
 where slug = 'sunrise-healthcare' and is_demo;
+
+-- Fail loudly rather than under-seed. The `and is_demo` guard above is a WHERE clause, so a false
+-- flag produces zero rows and no error -- which is exactly how the reverted UPDATE at the top of
+-- this file went unnoticed: `db:reset:demo` reported success and handed back a demo tenant with the
+-- MFA gate on and most of its content missing. Any future trigger, grant or policy that takes the
+-- write away again stops the reset here instead.
+do $$
+begin
+  if not exists (
+    select 1 from public.organizations where slug = 'sunrise-healthcare' and is_demo
+  ) then
+    raise exception
+      'demo seed incomplete: organizations.is_demo is not set for sunrise-healthcare, so '
+      'app_private.seed_demo_organization() was skipped and get_my_mfa_policy() will gate the '
+      'demo admin. Something is reverting the write -- see the note above the UPDATE in this file.';
+  end if;
+end $$;

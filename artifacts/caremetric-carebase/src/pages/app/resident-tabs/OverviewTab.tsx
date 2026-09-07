@@ -14,7 +14,10 @@ import {
   useDeleteResidentInformalSupport, useListResidentInformalSupports, useUpsertResidentInformalSupport,
   type ResidentInformalSupport,
 } from "@/hooks/useResidentInformalSupports";
-import { useResidentAdministrativeMaster, useSaveResidentAdministrativeMaster } from "@/hooks/useResidentAdministrativeMaster";
+import {
+  useResidentAdministrativeMaster, useSaveResidentAdministrativeMaster, type ResidentContact,
+} from "@/hooks/useResidentAdministrativeMaster";
+import { officialContactEditStart } from "@/lib/residentOfficialContacts";
 import { ResidentAdministrativeMaster } from "@/components/residents/ResidentAdministrativeMaster";
 import { buildMoveInReadinessPacket } from "@/lib/moveInReadiness";
 import { formatDateOnly, getComplianceFormLabel } from "@/lib/residentCompliance";
@@ -55,6 +58,10 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
   const [supportRows, setSupportRows] = useState<SupportRow[]>([]);
   const [isSavingContacts, setIsSavingContacts] = useState(false);
   const originalSupportIds = useRef<Set<string>>(new Set());
+  // The official contacts this dialog is about to REPLACE, snapshotted at open time for the same
+  // reason the support ids above are: the save sends a complete set, so it must diff against what
+  // was on file when the user started, not against whatever the query holds when they hit save.
+  const originalOfficialContacts = useRef<ResidentContact[]>([]);
 
   const formLabel = getComplianceFormLabel(facility?.facility_type);
   const moveInPacket = buildMoveInReadinessPacket({
@@ -66,8 +73,17 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
     officialContacts: administrativeMaster?.contacts ?? [],
   });
 
+  // Both queries must have answered: the supports feed the editable rows, and the official contacts
+  // are the set the save replaces wholesale. See lib/residentOfficialContacts.ts.
+  const contactEditStart = officialContactEditStart(
+    administrativeMasterQuery.isSuccess,
+    administrativeMaster?.contacts,
+  );
+  const canOpenContactsDialog = !informalSupportsLoading && contactEditStart.canEdit;
+
   const openContactsDialog = () => {
-    if (informalSupportsLoading) return;
+    if (informalSupportsLoading || !contactEditStart.canEdit) return;
+    originalOfficialContacts.current = contactEditStart.contacts;
     setContactsForm({
       date_of_birth: resident.date_of_birth ?? "",
       primary_physician_name: resident.primary_physician_name ?? "",
@@ -110,12 +126,12 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
       }
 
       const synchronizedContactTypes = new Set(["primary_care_provider", "dentist", "case_manager", "designated_person"]);
-      const officialContacts = (administrativeMaster?.contacts ?? [])
+      const officialContacts = originalOfficialContacts.current
         .filter((contact) => !synchronizedContactTypes.has(contact.contact_type))
         .map((contact) => ({ ...contact }));
       const addOfficialContact = (contact_type: string, name: string, phone?: string) => {
         if (name.trim()) officialContacts.push({
-          ...(administrativeMaster?.contacts.find((contact) => contact.contact_type === contact_type) ?? {}),
+          ...(originalOfficialContacts.current.find((contact) => contact.contact_type === contact_type) ?? {}),
           contact_type, name: name.trim(), phone: phone?.trim() || null,
           is_primary: true, receives_notifications: contact_type === "designated_person",
           active: true, sort_order: officialContacts.length,
@@ -198,7 +214,7 @@ export default function OverviewTab({ resident, facility, canManage, canDelete, 
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Contacts &amp; Supports (Part I)</CardTitle>
             {canManage && (
-              <Button variant="outline" size="sm" onClick={openContactsDialog} disabled={informalSupportsLoading}>
+              <Button variant="outline" size="sm" onClick={openContactsDialog} disabled={!canOpenContactsDialog}>
                 <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
               </Button>
             )}

@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import { defaultQueryRetry } from "./queryRetry";
 
 // Default staleTime of 0 (react-query's factory default) means every page revisit -- even
 // tabbing between two already-visited pages -- refetches from Supabase and re-shows a loading
@@ -11,6 +12,12 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 60_000,
       refetchOnWindowFocus: false,
+      // Three attempts for a failure that might go away, none for a refusal the database will
+      // repeat verbatim -- a missing row, an RLS denial, a malformed filter. Without this a
+      // permanent error still costs four requests and about seven seconds of spinner before the
+      // page shows what the first response already said. See lib/queryRetry.ts; the queries that
+      // pass their own `retry` keep it, because an option set on the query wins over this default.
+      retry: defaultQueryRetry,
     },
     // react-query's default mutation networkMode is "online", which does not fail a write while
     // `navigator.onLine` is false -- it PAUSES it. The mutation never settles, so the button keeps

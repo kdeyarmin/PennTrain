@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from "react";
+import { officialContactEditStart } from "@/lib/residentOfficialContacts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,9 +140,17 @@ export function ResidentAdministrativeMaster({
   const activeProperty = useMemo(() => data?.propertyItems.filter((item) => item.active) ?? [], [data]);
   const currentLegal = useMemo(() => data?.legalRecords.filter((record) => record.status !== "superseded") ?? [], [data]);
 
+  // `contacts` below becomes the COMPLETE set the save replaces, so the editor must not open on a
+  // master record that is merely unloaded or failed -- `data?.contacts ?? []` reads the same as "no
+  // contacts on file" and saving from it deactivates every real one. `dataUnavailable` already
+  // carries `isError || isLoading` for the read-only panels; this is the same fact reaching the
+  // write. See lib/residentOfficialContacts.ts.
+  const editStart = officialContactEditStart(!dataUnavailable, data?.contacts);
+
   const openEditor = () => {
+    if (!editStart.canEdit) return;
     setProfile(profileFromResident(resident));
-    setContacts((data?.contacts ?? []).map(contactDraft));
+    setContacts(editStart.contacts.map(contactDraft));
     setEditOpen(true);
   };
 
@@ -231,7 +240,7 @@ export function ResidentAdministrativeMaster({
               <CardTitle className="flex items-center gap-2"><UserRound className="h-5 w-5" /> Administrative master record</CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">Authoritative non-EHR data reused by packets, forms, contracts, and designated-person workflows.</p>
             </div>
-            {canManage && <Button size="sm" onClick={openEditor}><Pencil className="mr-2 h-4 w-4" /> Edit master record</Button>}
+            {canManage && <Button size="sm" onClick={openEditor} disabled={!editStart.canEdit}><Pencil className="mr-2 h-4 w-4" /> Edit master record</Button>}
           </div>
         </CardHeader>
         <CardContent className="space-y-5">

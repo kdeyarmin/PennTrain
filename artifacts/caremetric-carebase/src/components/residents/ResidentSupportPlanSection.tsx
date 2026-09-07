@@ -33,7 +33,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertTriangle, BookOpenCheck, ClipboardList, FileCheck2, GitBranch, GitCompareArrows } from "lucide-react";
 import {
   allowedSupportPlanTransitions, diffSupportPlanVersions, isActivationOverdue, summarizePlanDiff,
-  SUPPORT_PLAN_STATE_DESCRIPTIONS, supportPlanStateLabel, transitionRequiresReason,
+  SUPPORT_PLAN_STATE_DESCRIPTIONS, supportPlanRevisionStart, supportPlanStateLabel,
+  transitionRequiresReason,
   type SupportPlanState,
 } from "@/lib/supportPlanLifecycle";
 import { SupportPlanVersionComparison } from "@/components/residents/SupportPlanVersionComparison";
@@ -215,10 +216,27 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
     return addFacilityCalendarYears(from, 1);
   }
 
+  /**
+   * A revision must start from the plan in force, and this component cannot tell whether there is
+   * one until `plansQuery` has answered -- `effectivePlan` is derived from `data ?? []`, so it is
+   * `undefined` both for "no active plan" and for "not loaded yet". See
+   * `supportPlanRevisionStart`, which holds the rule and the reason.
+   */
+  const revisionStart = supportPlanRevisionStart(plansQuery.isSuccess, plansQuery.data);
+
   async function startDraft() {
+    if (!revisionStart.canStart) {
+      toast({
+        title: "Still loading this resident's plans",
+        description: "A revision has to start from the plan in force. Try again in a moment.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const { priorPlanId } = revisionStart;
     try {
-      await createDraft.mutateAsync({ residentId, priorPlanId: effectivePlan?.id });
-      toast({ title: "Draft support plan created", description: effectivePlan ? "Copied from the active plan — edit and submit for review." : "Blank draft created." });
+      await createDraft.mutateAsync({ residentId, priorPlanId });
+      toast({ title: "Draft support plan created", description: priorPlanId ? "Copied from the active plan — edit and submit for review." : "Blank draft created." });
     } catch (e) {
       toast({ title: "Could not create draft", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
@@ -392,7 +410,7 @@ export function ResidentSupportPlanSection({ residentId, canManage }: { resident
                   <FileCheck2 className="mr-1.5 h-4 w-4" />Check assessment for changes
                 </Button>
               )}
-              <Button size="sm" onClick={startDraft} disabled={createDraft.isPending}>
+              <Button size="sm" onClick={startDraft} disabled={createDraft.isPending || !revisionStart.canStart}>
                 <ClipboardList className="mr-1.5 h-4 w-4" />Start new draft
               </Button>
             </div>

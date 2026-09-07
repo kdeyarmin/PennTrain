@@ -145,6 +145,9 @@ function buildDecisionPayload(action: DecisionAction, input: DecisionInput): Tra
     };
   }
 
+  // No `currentStatus`, deliberately: approving IS the act of moving this record out of
+  // pending_review, which the recalc's `when r.status in (...) then r.status` branch would
+  // otherwise preserve forever. Every other caller passes it.
   const status = computeStatus(input.completionDate || null, dueDate, input.trainingType?.warning_days_default ?? 90);
   return {
     ...base,
@@ -319,6 +322,7 @@ function PendingRecordRow({
 
   const handleApprove = async () => {
     const dueDate = computeDueDate(record.completion_date, trainingType?.renewal_interval_days ?? null);
+    // As above: the omitted `currentStatus` is what makes this an approval rather than an edit.
     const status = computeStatus(record.completion_date, dueDate, trainingType?.warning_days_default ?? 90);
     await onDecide({
       id: record.id,

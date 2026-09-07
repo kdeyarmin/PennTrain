@@ -15,7 +15,16 @@ export interface ListProfilesFilters {
   role?: string;
 }
 
-export function useListProfiles(filters: ListProfilesFilters = {}) {
+// `options.enabled` matters for a caller that intends to scope by organizationId but does not have
+// one yet -- every filter here is applied only `if` truthy, so an absent organizationId does not
+// scope to "nothing", it scopes to "no filter at all". That fires an unscoped fetch first and the
+// correctly-scoped one right behind it, and `profiles_select` is
+// `is_platform_admin() or id = auth.uid() or organization_id = current_org_id()`, so for a
+// platform_admin the unscoped one reads every profile on the platform (and silently stops at
+// PostgREST's 1,000-row cap). Mirrors useListEmployees, which carries the same option for the same
+// reason. Defaults to `undefined`, which react-query treats as "always enabled", so every existing
+// caller that does not pass `options` is unaffected.
+export function useListProfiles(filters: ListProfilesFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["profiles", filters],
     queryFn: async () => {
@@ -26,6 +35,7 @@ export function useListProfiles(filters: ListProfilesFilters = {}) {
       if (error) throw error;
       return data;
     },
+    enabled: options.enabled,
   });
 }
 

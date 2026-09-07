@@ -84,3 +84,49 @@ describe("computeStatus", () => {
     expect(computeStatus("2025-06-15", "2026-06-15", 90)).toBe("due_soon");
   });
 });
+
+describe("computeStatus holds a certificate that is still awaiting review", () => {
+  // `pending_review` carries two meanings on this table and `approval_status` separates them:
+  // a certificate the Pending Approvals queue is holding (`'pending'`), and an auto-instantiated
+  // audience shell (null) whose whole purpose is to be confirmed by recording training against it.
+
+  it("preserves a certificate the approval queue is holding", () => {
+    // The defect this covers, measured on a live stack: writing `compliant` over that status makes
+    // the record's hours count toward the annual bucket -- `legacy_earned` joins
+    // `r.status not in ('pending_review','not_applicable')` -- while `approval_status` is still
+    // `pending` and `verified_at` still null. An unreviewed certificate credited as training.
+    expect(computeStatus("2026-06-01", "2027-06-01", 90, "pending_review", "pending"))
+      .toBe("pending_review");
+    expect(computeStatus("2020-01-01", "2021-01-01", 90, "pending_review", "pending"))
+      .toBe("pending_review");
+  });
+
+  it("lets an audience shell graduate, because recording training IS the confirmation", () => {
+    // `training_types.audience_verification_required`'s own column comment: the requirement
+    // "remains pending_review and is excluded from annual-hour rollups until an employer confirms
+    // this exact audience by changing the record to an active requirement status". Preserving the
+    // status here would save the completion and the hours while the recalc went on excluding them.
+    expect(computeStatus("2026-06-01", "2027-06-01", 90, "pending_review", null)).toBe("compliant");
+    expect(computeStatus("2026-06-01", "2027-06-01", 90, "pending_review", undefined)).toBe("compliant");
+  });
+
+  it("lets not_applicable graduate too -- it is the same audience decision, seen from the other side", () => {
+    // `audience_decision_at` is stamped "when the audience decision category changes among
+    // pending_review, not_applicable, and applicable", so both are changed by the same route. A
+    // manager recording a completion against one is asserting the requirement does apply.
+    expect(computeStatus("2026-06-01", "2027-06-01", 90, "not_applicable", null)).toBe("compliant");
+  });
+
+  it("recomputes every other status from the dates, unchanged", () => {
+    for (const carried of ["missing", "compliant", "due_soon", "expired", "", null, undefined]) {
+      expect(computeStatus("2025-06-01", "2026-06-14", 90, carried, "pending"), String(carried))
+        .toBe("expired");
+    }
+  });
+
+  it("still recomputes when nothing is passed, which is how an approval is expressed", () => {
+    // PendingApprovals omits both arguments on purpose: moving a record out of pending_review is
+    // what approving it means, and the recalc would never do that on its own.
+    expect(computeStatus("2026-06-01", "2027-06-01", 90)).toBe("compliant");
+  });
+});

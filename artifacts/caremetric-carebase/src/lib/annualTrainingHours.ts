@@ -66,11 +66,103 @@ export function trainingYearWindow(
 
 /** A completed training record, in the shape `employee_training_records` returns it. */
 export interface TrainingRecordHours {
+  id: string;
   training_type_id: string;
   completion_date: string | null;
   hours: number | null;
   completion_method: string | null;
   status: string | null;
+  /** `employee_training_records.audience_decision_at`; null until an employer decides. */
+  audience_decision_at: string | null;
+  created_at: string;
+}
+
+/** The two statuses that mean "the employer has not confirmed this requirement applies". */
+const UNCONFIRMED_AUDIENCE_STATUSES = new Set(["pending_review", "not_applicable"]);
+
+/**
+ * The employer's current audience decision for each training type -- the browser-side twin of
+ * `public.current_training_audience_status(employee, training_type)`, which reads the status of the
+ * LATEST record for that pair, ordered `audience_decision_at desc nulls last, created_at desc,
+ * id desc`.
+ *
+ * This is the type-level half of an exclusion the module previously applied only per record. The
+ * server excludes the whole TYPE from `creditable_types` when its current decision is
+ * `pending_review` / `not_applicable`; skipping just the undecided record leaves any other record
+ * on that type still contributing. A renewal inserts a fresh row rather than editing the old one
+ * (see 20260906240000), so more than one record per (employee, type) is the normal shape, not an
+ * edge case -- and an employer who marks a requirement not-applicable after hours were already
+ * logged against it is exactly the case where the two readings part company.
+ */
+export function audienceStatusByTypeId(
+  records: readonly TrainingRecordHours[],
+): Map<string, string | null> {
+  const latest = new Map<string, TrainingRecordHours>();
+  for (const record of records) {
+    const held = latest.get(record.training_type_id);
+    if (!held || isMoreRecentAudienceRecord(record, held)) latest.set(record.training_type_id, record);
+  }
+  return new Map([...latest].map(([typeId, record]) => [typeId, record.status]));
+}
+
+const INSTANT_PATTERN =
+  /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|z|[+-]\d{2}:?\d{2})?$/;
+
+/**
+ * A timestamptz rewritten so that comparing two of them as strings compares the INSTANTS.
+ *
+ * WHY NOT JUST COMPARE THE RAW STRINGS, which is what this did. For the one shape PostgREST
+ * actually emits it is already chronological, and that was measured rather than assumed: a fixed
+ * date and time, a fractional part with trailing zeros trimmed (`.500000` comes back `.5`), then a
+ * constant `+00:00`; `+` sorts below every digit, so no fraction precedes any fraction, and
+ * fractions compare digit by digit as left-aligned decimals. Sorting
+ * `[22+00:00, 22.05+00:00, 22.123456+00:00, 22.5+00:00]` lexicographically gives the chronological
+ * order exactly.
+ *
+ * It is right for that shape and silently wrong for any other, which is a bad thing for a
+ * comparison to be. `new Date().toISOString()` -- which this codebase does write into timestamptz
+ * columns elsewhere -- ends in `Z`, and `Z` sorts ABOVE `+`, so one `Z` value mixed into a page of
+ * `+00:00` ones reverses the pair. These two columns are server-written today (a trigger sets
+ * `audience_decision_at`, a default sets `created_at`), so nothing produces that mix now; the point
+ * is that nothing would notice if something started to.
+ *
+ * WHY NOT `Date.parse`, which is the obvious repair and is a regression here. Postgres stores
+ * microseconds and JavaScript dates hold milliseconds, so `Date.parse` maps
+ * `...22.123400Z` and `...22.123500Z` to the same number -- two records a tenth of a millisecond
+ * apart, which one statement can easily produce, become a tie. The raw strings ordered those
+ * correctly. Normalising and comparing as text keeps the microseconds and drops the dependence on
+ * one serialisation at the same time.
+ *
+ * An unparseable value is returned unchanged rather than coerced, so it still compares against
+ * itself deterministically instead of collapsing every odd value into one bucket.
+ */
+export function comparableInstant(value: string): string {
+  const match = INSTANT_PATTERN.exec(value.trim());
+  if (!match) return value;
+  const [, date, hours, minutes, seconds, fraction = "", offset = "Z"] = match;
+  const micros = `${fraction}000000`.slice(0, 6);
+  if (/^(Z|z|[+-]00:?00)$/.test(offset)) return `${date}T${hours}:${minutes}:${seconds}.${micros}`;
+  // A non-UTC offset: shift the whole-second part to UTC and re-attach the fraction, which an
+  // offset never changes.
+  const shifted = Date.parse(`${date}T${hours}:${minutes}:${seconds}${offset.replace(/(\d{2})(\d{2})$/, "$1:$2")}`);
+  if (Number.isNaN(shifted)) return `${date}T${hours}:${minutes}:${seconds}.${micros}`;
+  return `${new Date(shifted).toISOString().slice(0, 19)}.${micros}`;
+}
+
+/** `audience_decision_at desc nulls last, created_at desc, id desc`, as a comparison. */
+function isMoreRecentAudienceRecord(candidate: TrainingRecordHours, held: TrainingRecordHours): boolean {
+  const decided = candidate.audience_decision_at;
+  const heldDecided = held.audience_decision_at;
+  // "nulls last" in a DESC order puts a decided record ahead of an undecided one.
+  if (decided !== heldDecided) {
+    if (decided === null) return false;
+    if (heldDecided === null) return true;
+    return comparableInstant(decided) > comparableInstant(heldDecided);
+  }
+  if (candidate.created_at !== held.created_at) {
+    return comparableInstant(candidate.created_at) > comparableInstant(held.created_at);
+  }
+  return candidate.id > held.id;
 }
 
 /** An individual course completion's regulatory credit, from `course_completion_credits`. */
@@ -80,10 +172,52 @@ export interface CourseCreditHours {
   credited_at: string | null;
 }
 
-/** The hour-bucket membership of a training type, from `training_types`. */
+/** The hour-bucket membership and applicability scope of a training type, from `training_types`. */
 export interface TrainingTypeBucket {
   id: string;
   hour_bucket: string | null;
+  is_active: boolean;
+  /** `training_types.state`, NOT NULL default 'PA'. */
+  state: string;
+  /** `training_types.applies_to_facility_type`, NOT NULL default 'BOTH'. */
+  applies_to_facility_type: string;
+  /** `training_types.audience_verification_required`, NOT NULL default false. */
+  audience_verification_required: boolean;
+}
+
+/** The facility an employee is assigned to, as the applicability rule reads it. */
+export interface TrainingFacilityScope {
+  facilityType: string | null | undefined;
+  /** `facilities.state`; the server reads a missing one as 'PA'. */
+  facilityState: string | null | undefined;
+}
+
+/**
+ * Whether a training type's records may earn hours for an employee at this facility.
+ *
+ * The server decides this in `recalculate_compliance_core`'s `applicable_types` /
+ * `creditable_types` CTEs (20260715210000): a type contributes only while it `is_active`, its
+ * `state` equals the facility's (a missing facility state reads as 'PA', as it does in SQL), and
+ * its `applies_to_facility_type` is either 'BOTH' or the facility's own type. `get_training_matrix_page`
+ * applies the same facility-type rule from the other side, rendering a type outside the employee's
+ * facility type as `not_applicable` rather than `missing`.
+ *
+ * This existed only in SQL, and the hours card recomputed its numerator without it: every training
+ * type in the tenant's reach was folded into the bucket map, so hours recorded against a deactivated
+ * type, another state's type, or another facility type's type (a Home Health Aide in-service against
+ * a personal care home employee) were added to the anniversary figure that the server's own bucket
+ * would never count. The card then showed that inflated number FIRST, above the calendar-year row it
+ * is supposed to restate -- so the two figures on one card disagreed for a reason that had nothing to
+ * do with the clock the card exists to explain, and the larger one could read as compliant while the
+ * record of truth said the employee was short.
+ */
+export function trainingTypeCreditsFacility(
+  type: TrainingTypeBucket,
+  { facilityType, facilityState }: TrainingFacilityScope,
+): boolean {
+  if (!type.is_active) return false;
+  if (type.state !== (facilityState ?? "PA")) return false;
+  return type.applies_to_facility_type === "BOTH" || type.applies_to_facility_type === facilityType;
 }
 
 export interface BucketHours {
@@ -111,8 +245,24 @@ export function ojtCapForBucket(bucketType: string, facilityType: string | null 
  * Earned hours per bucket over a training-year window, summed the way the server sums them.
  *
  * Deliberately mirrors `recalculate_compliance_core`'s `legacy_earned` + `course_earned` CTEs,
- * including their exclusions: a record in `pending_review` or `not_applicable` contributes nothing,
- * because the employer has not confirmed the requirement applies to this person at all.
+ * including the exclusions their `creditable_types` join carries. Three of them:
+ *
+ *   1. A record in `pending_review` or `not_applicable` contributes nothing (`legacy_earned`'s own
+ *      `r.status not in (...)`).
+ *   2. Nothing on a training type outside this employee's facility contributes -- see
+ *      `trainingTypeCreditsFacility`.
+ *   3. On a type that asks for an audience decision, nothing contributes while that decision is
+ *      `pending_review` or `not_applicable` -- whichever record carries the hours. A type that
+ *      does not ask is unaffected, as `not tt.audience_verification_required` makes it in SQL.
+ *      See `audienceStatusByTypeId`.
+ *
+ * NOT mirrored, on purpose: `applicable_types`' `distinct on (employee, bucket)`, which picks ONE
+ * denominator-supplying type per bucket. That selection only narrows what earns credit where two
+ * types in the same bucket BOTH survive the three exclusions above -- in the seeded catalog, only
+ * the two Chapter 6400 group-home types, and only for an employer who has confirmed both the
+ * direct-service-worker and the other-staff audience for the same person. The denominator this
+ * numerator is shown against comes from the server's own bucket row either way, so reproducing the
+ * tie-break here would add a second copy of a rule to drift rather than close a gap.
  */
 export function bucketHoursInWindow({
   window,
@@ -120,16 +270,28 @@ export function bucketHoursInWindow({
   courseCredits,
   trainingTypes,
   facilityType,
+  facilityState,
 }: {
   window: TrainingYearWindow;
   records: readonly TrainingRecordHours[];
   courseCredits: readonly CourseCreditHours[];
   trainingTypes: readonly TrainingTypeBucket[];
   facilityType: string | null | undefined;
+  facilityState: string | null | undefined;
 }): Map<string, BucketHours> {
+  const audienceByTypeId = audienceStatusByTypeId(records);
   const bucketByTypeId = new Map<string, string>();
   for (const type of trainingTypes) {
-    if (type.hour_bucket) bucketByTypeId.set(type.id, type.hour_bucket);
+    if (!type.hour_bucket) continue;
+    if (!trainingTypeCreditsFacility(type, { facilityType, facilityState })) continue;
+    // Only for a type that asks for a decision. The server's guard is
+    // `not tt.audience_verification_required or current_training_audience_status(...) not in (...)`,
+    // so a type that never asks is credited whatever its records say -- and applying the exclusion
+    // to it anyway would be a new divergence introduced by the fix for the old one.
+    const audience = audienceByTypeId.get(type.id);
+    if (type.audience_verification_required && audience != null
+      && UNCONFIRMED_AUDIENCE_STATUSES.has(audience)) continue;
+    bucketByTypeId.set(type.id, type.hour_bucket);
   }
 
   const nonOjt = new Map<string, number>();

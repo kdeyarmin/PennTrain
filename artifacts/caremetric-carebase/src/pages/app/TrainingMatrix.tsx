@@ -49,6 +49,9 @@ interface MatrixCell {
   trainingTypeId: string;
   trainingRecordId: string | null;
   status: string;
+  /** See TrainingMatrixCell in hooks/useTrainingMatrix.ts -- what separates the two meanings of a
+   * `pending_review` cell. */
+  approvalStatus: string | null;
   completionDate: string | null;
   dueDate: string | null;
   trainerName: string | null;
@@ -228,7 +231,20 @@ function CellDetailDialog({
       return;
     }
     const dueDate = computeDueDate(completionDate, trainingType.renewal_interval_days);
-    const status = computeStatus(completionDate, dueDate, trainingType.warning_days_default);
+    // The cell's own status and approval status, but only when a record backs it:
+    // `get_training_matrix_page` returns `coalesce(r.status, <derived from facility type>)`, so with
+    // no record this would hand computeStatus a `not_applicable` the server invented for display.
+    // With a record they are that record's stored values, and computeStatus needs BOTH -- a
+    // `pending_review` cell is a certificate awaiting a reviewer only when `approvalStatus` is
+    // `pending`; with a null one it is an unconfirmed audience shell, and recording training
+    // against it IS the confirmation that must let the status recompute.
+    const status = computeStatus(
+      completionDate,
+      dueDate,
+      trainingType.warning_days_default,
+      entry.trainingRecordId ? entry.status : undefined,
+      entry.trainingRecordId ? entry.approvalStatus : undefined,
+    );
     const payload: TrainingRecordInsert = {
       organization_id: employee.organization_id,
       facility_id: employee.facility_id,
@@ -982,7 +998,7 @@ export default function TrainingMatrix() {
                             onClick={() => {
                               if (!fullTrainingType) return;
                               setSelectedCell({
-                                entry: cell ?? { trainingTypeId: tt.id, trainingRecordId: null, status: "missing", completionDate: null, dueDate: null, trainerName: null, hours: null },
+                                entry: cell ?? { trainingTypeId: tt.id, trainingRecordId: null, status: "missing", approvalStatus: null, completionDate: null, dueDate: null, trainerName: null, hours: null },
                                 trainingType: fullTrainingType,
                                 employee: row.employee,
                               });
@@ -1040,7 +1056,7 @@ export default function TrainingMatrix() {
                               onClick={() => {
                                 if (!fullTrainingType) return;
                                 setSelectedCell({
-                                  entry: cell ?? { trainingTypeId: tt.id, trainingRecordId: null, status: "missing", completionDate: null, dueDate: null, trainerName: null, hours: null },
+                                  entry: cell ?? { trainingTypeId: tt.id, trainingRecordId: null, status: "missing", approvalStatus: null, completionDate: null, dueDate: null, trainerName: null, hours: null },
                                   trainingType: fullTrainingType,
                                   employee: row.employee,
                                 });

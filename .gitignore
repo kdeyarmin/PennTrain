@@ -71,3 +71,11 @@ artifacts/caremetric-carebase/slides-out/
 # uploads them as artifacts on failure, so they never belong in the tree.
 artifacts/caremetric-carebase/test-results/
 artifacts/caremetric-carebase/playwright-report/
+
+# A local Playwright config, which a machine whose installed Chromium build does not match the
+# revision @playwright/test pins needs in order to run the suite at all -- it points
+# `launchOptions.executablePath` at whatever browser is actually present. That path is true for one
+# machine and false everywhere else, so such a config must never be committed: checked in, it would
+# shadow the real `playwright.config.ts` for anyone who ran `--config` against it and send CI
+# looking for a binary that is not there. See AGENTS.md.
+artifacts/caremetric-carebase/playwright.local.config.ts

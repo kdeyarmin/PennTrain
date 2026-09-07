@@ -103,6 +103,33 @@ export function isSupportPlanInFlight(state: string): boolean {
     .includes(state);
 }
 
+/**
+ * Whether a revision may be started, and which plan it must be copied from.
+ *
+ * `create_support_plan_draft` copies the prior plan's needs, goals, services and interventions when
+ * it is given one, and creates an empty version when it is not. So "there is no active plan" and
+ * "the plans have not loaded yet" must never look the same to the caller: both leave the active
+ * plan undefined, and one of them turns a revision of a resident's care plan into a blank one that
+ * then IS the record. Deriving the prior plan from `data ?? []` made them identical, and the
+ * resident-lifecycle journey caught it -- a page reload followed immediately by the button produced
+ * a version 2 with no needs and no services where the previous run of the same code produced three
+ * of each.
+ *
+ * `isSuccess` rather than `!isLoading`: a failed query is also not an answer, and a revision built
+ * on a guess about what the plan in force contained is worse than one the user has to retry.
+ */
+export type SupportPlanRevisionStart =
+  | { canStart: false }
+  | { canStart: true; priorPlanId: string | undefined };
+
+export function supportPlanRevisionStart(
+  plansLoaded: boolean,
+  plans: readonly { id: string; state: string }[] | undefined,
+): SupportPlanRevisionStart {
+  if (!plansLoaded || !plans) return { canStart: false };
+  return { canStart: true, priorPlanId: plans.find((plan) => plan.state === "active")?.id };
+}
+
 // ---------------------------------------------------------------------------
 // Version comparison
 // ---------------------------------------------------------------------------

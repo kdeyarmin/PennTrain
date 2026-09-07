@@ -68,7 +68,7 @@ export const WORK_ITEM_SOURCE_TYPES: WorkItemSourceType[] = [
   { key: "finding", label: "Audit finding", category: "compliance", sortOrder: 230, description: "An internal audit finding needs closing." },
   { key: "policy", label: "Policy review", category: "compliance", sortOrder: 240, description: "A policy is due for review or acknowledgement." },
   { key: "corrective_action", label: "Corrective action", category: "compliance", sortOrder: 250, description: "A corrective action is open or awaiting verification." },
-  { key: "inspection_war_room", label: "Inspection request", category: "compliance", sortOrder: 225, description: "A documentation request during an inspection is awaiting verification." },
+  { key: "inspection_war_room", label: "Inspection response request", category: "compliance", sortOrder: 225, description: "A survey, inspection, or complaint-response room has an open documentation request." },
 
   { key: "credential", label: "Credential", category: "workforce", sortOrder: 300, description: "A staff credential is expiring or expired." },
   { key: "training_gap", label: "Training gap", category: "workforce", sortOrder: 310, description: "Required training is overdue." },
