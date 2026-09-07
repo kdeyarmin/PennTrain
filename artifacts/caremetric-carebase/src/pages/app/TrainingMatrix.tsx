@@ -228,7 +228,17 @@ function CellDetailDialog({
       return;
     }
     const dueDate = computeDueDate(completionDate, trainingType.renewal_interval_days);
-    const status = computeStatus(completionDate, dueDate, trainingType.warning_days_default);
+    // The cell's own status, but only when a record backs it: `get_training_matrix_page` returns
+    // `coalesce(r.status, <derived from facility type>)`, so with no record this would hand
+    // computeStatus a `not_applicable` the server invented for display and freeze the new record in
+    // it. With a record it is that record's stored status, which is what must survive an edit --
+    // recording a corrected date on a certificate still awaiting review must not approve it.
+    const status = computeStatus(
+      completionDate,
+      dueDate,
+      trainingType.warning_days_default,
+      entry.trainingRecordId ? entry.status : undefined,
+    );
     const payload: TrainingRecordInsert = {
       organization_id: employee.organization_id,
       facility_id: employee.facility_id,

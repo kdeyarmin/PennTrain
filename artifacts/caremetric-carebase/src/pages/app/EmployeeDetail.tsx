@@ -344,7 +344,16 @@ export default function EmployeeDetail() {
       return;
     }
     const dueDate = computeDueDate(trainingForm.completionDate, trainingFormType?.renewal_interval_days ?? null);
-    const status = computeStatus(trainingForm.completionDate, dueDate, trainingFormType?.warning_days_default ?? 90);
+    // Resolved before the status, which needs it: this form updates an existing record when there
+    // is one, and a `pending_review` or `not_applicable` record's status is a decision somebody
+    // made, not a position on a clock. The server's own recalc preserves both.
+    const existing = findCurrentRecord(trainingRecords ?? [], trainingForm.trainingTypeId);
+    const status = computeStatus(
+      trainingForm.completionDate,
+      dueDate,
+      trainingFormType?.warning_days_default ?? 90,
+      existing?.status,
+    );
     const hoursValue = trainingForm.hours.trim() ? Number(trainingForm.hours) : (trainingFormType?.required_hours ?? null);
     const payload: TrainingRecordInsert = {
       organization_id: employee.organization_id,
@@ -360,7 +369,6 @@ export default function EmployeeDetail() {
       external_certificate_document_id: trainingForm.documentId || null,
       document_required: !!trainingForm.documentId,
     };
-    const existing = findCurrentRecord(trainingRecords ?? [], trainingForm.trainingTypeId);
     const onDone = {
       onSuccess: () => { toast({ title: "Training recorded" }); setShowRecordTraining(false); },
       onError: (e: Error) => toast({ title: "Failed to record training", description: e.message, variant: "destructive" }),
