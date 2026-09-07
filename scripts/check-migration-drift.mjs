@@ -126,6 +126,27 @@ export function supabaseStatementsJoined(sql) {
       "",
     );
   }
+
+  // Whatever follows the LAST statement, which is a comment block often enough to matter.
+  //
+  // libpg_query reports statements, and a trailing comment is not one -- so the loop above walks
+  // straight past it. The Supabase CLI does not: it records that tail as its own row in
+  // `supabase_migrations.schema_migrations.statements`, exactly the way it keeps a comment sitting
+  // in FRONT of a statement (the `orphan` gap handling above). Dropping it here made this function
+  // disagree with the CLI by precisely the length of that comment, and a migration whose file ends
+  // in prose then false-positived as CONTENT drift for ever.
+  //
+  // Found the hard way: 20260906230000 ends with a five-line note about why it grants nothing to
+  // anon, and it failed the post-deploy drift gate on 2026-09-07 after pushing cleanly -- 6291
+  // characters here against 6725 recorded, the difference being that 433-character note plus its
+  // joining newline. The migration itself was fine; the checker was wrong (BACKLOG J95).
+  const lastStmt = stmts[stmts.length - 1];
+  const lastEnd = (lastStmt.stmt_location ?? 0) + (lastStmt.stmt_len ?? 0);
+  if (lastEnd < buf.length) {
+    const tail = sliceBytes(lastEnd, buf.length).replace(/^[\s;]*/, "").replace(/[\s;]*$/, "");
+    if (tail) parts.push(tail);
+  }
+
   return parts.join("\n");
 }
 
@@ -408,6 +429,22 @@ async function runSelfTest() {
   if (!multiHashes.includes(md5(multiJoined))) {
     failures += 1;
     console.error(`✗ localContentHashes should include the statement-join hash, got ${JSON.stringify(multiHashes)}`);
+  }
+
+  // A comment block AFTER the last statement is recorded by the CLI as its own statement, so it
+  // has to survive here too. Dropping it is what failed the post-deploy drift gate on 2026-09-07:
+  // 20260906230000 pushed cleanly and then reported CONTENT drift, short by exactly the length of
+  // its closing note (BACKLOG J95). Same treatment as a comment in FRONT of a statement.
+  const trailing = "select 1;\n\n-- why this migration grants nothing to anon\n-- and the second line of that note.\n";
+  const trailingJoined = supabaseStatementsJoined(trailing);
+  if (
+    trailingJoined !==
+      "select 1\n-- why this migration grants nothing to anon\n-- and the second line of that note."
+  ) {
+    failures += 1;
+    console.error(
+      `\u2717 supabaseStatementsJoined should keep a trailing comment block, got ${JSON.stringify(trailingJoined)}`,
+    );
   }
 
   // Non-ASCII earlier in the file must not shift the statements after it. The parser reports byte
