@@ -44,12 +44,23 @@ export function documentHasUnsavedInput(doc: Document = document): boolean {
   const fields = doc.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
   for (const field of fields) {
     if (field.disabled || field.readOnly) continue;
-    if (field instanceof HTMLInputElement && ["hidden", "submit", "button", "reset"].includes(field.type)) continue;
-    if (field instanceof HTMLInputElement && (field.type === "checkbox" || field.type === "radio")) {
-      if (field.checked !== field.defaultChecked) return true;
+    // `field.type` rather than `instanceof HTMLInputElement`. A textarea reports "textarea", so the
+    // type name distinguishes the two on its own -- and instanceof does not survive a second realm
+    // (an iframe's document has its own HTMLInputElement), which would have silently reduced this
+    // to the value comparison for every field in an embedded document. It also made the predicate
+    // untestable outside a browser, since the class is simply not defined in the unit environment.
+    const type = (field as HTMLInputElement).type;
+    if (["hidden", "submit", "button", "reset"].includes(type)) continue;
+    if (type === "checkbox" || type === "radio") {
+      const box = field as HTMLInputElement;
+      if (box.checked !== box.defaultChecked) return true;
       continue;
     }
-    if (field.value.trim() && field.value !== field.defaultValue) return true;
+    // Compared to the default WITHOUT requiring the new value to be non-empty. Clearing a
+    // prefilled field is an edit -- often the most deliberate kind -- and requiring content meant
+    // the automatic reload discarded exactly that edit, which is the loss this guard exists to
+    // prevent. An untouched empty field still equals its empty default and stays silent.
+    if (field.value !== field.defaultValue) return true;
   }
   for (const editable of doc.querySelectorAll<HTMLElement>("[contenteditable='true']")) {
     if ((editable.textContent ?? "").trim()) return true;

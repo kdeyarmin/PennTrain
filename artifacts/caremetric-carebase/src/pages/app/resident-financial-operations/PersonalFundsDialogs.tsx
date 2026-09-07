@@ -7,7 +7,7 @@ import {
   useUpsertResidentPersonalFundPayeeProfile,
   type FinancialWorkspace,
 } from "@/hooks/useResidentFinancialOperations";
-import { currentFundBalance, fundSettlementBlocker } from "@/lib/personalFundsStatement";
+import { currentFundBalance, fundSettlementBlocker, latestLedgerInstant } from "@/lib/personalFundsStatement";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
 import {
@@ -746,6 +746,9 @@ export function FundSettlementDialog({
     purpose: form.purpose,
     recipient: form.recipient,
     transactionAt: transactionAt || "invalid",
+    // Both of the RPC's date bounds are relative to the newest ledger entry, so the form cannot
+    // check either without it.
+    latestLedgerAt: latestLedgerInstant(data.fundTransactions),
   });
 
   return (

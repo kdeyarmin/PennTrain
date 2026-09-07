@@ -48,9 +48,20 @@ export function trainingYearWindow(
   // Roll forward from the hire date rather than substituting this year's number into it:
   // addFacilityCalendarYears clamps 29 February to 28 February in non-leap years, so a leap-day
   // hire keeps a stable anniversary instead of drifting to 1 March.
-  let start = addFacilityCalendarYears(anniversaryDate, currentYear - anniversaryYear);
-  if (start > today) start = addFacilityCalendarYears(start, -1);
-  return { start, end: addFacilityCalendarYears(start, 1) };
+  //
+  // BOTH boundaries are measured from the hire date, each with its own offset. Deriving `end` from
+  // the already-clamped `start` lost a day for a 29 February hire: on 2028-02-28 a 2020-02-29 hire
+  // resolved to { start: 2027-02-28, end: 2028-02-28 }, and since the contract is [start, end) the
+  // current day fell outside its own window while the next did not open until 2028-02-29. Hours
+  // completed that day counted toward nothing. Clamping each boundary independently keeps
+  // consecutive windows touching, which is what makes the half-open interval safe.
+  let offset = currentYear - anniversaryYear;
+  let start = addFacilityCalendarYears(anniversaryDate, offset);
+  if (start > today) {
+    offset -= 1;
+    start = addFacilityCalendarYears(anniversaryDate, offset);
+  }
+  return { start, end: addFacilityCalendarYears(anniversaryDate, offset + 1) };
 }
 
 /** A completed training record, in the shape `employee_training_records` returns it. */

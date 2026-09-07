@@ -461,3 +461,70 @@ begin
   execute replace(v_def, v_old, v_new);
 end;
 $do$;
+
+-- ---------------------------------------------------------------------------
+-- Census transitions follow a graph, not a list of five destinations.
+--
+-- `transition_resident_census` validated only that the TARGET was one of five states. It never
+-- asked where the resident was coming from, so every pair was reachable -- and the pair that
+-- mattered was `reserved -> temporarily_out`. A reserved resident has not moved in: their bed is
+-- held for the prospect, `complete_move_in_admission` is what occupies it and re-runs the readiness
+-- checks. Sending them "temporarily out" left all of that undone AND cleared the one marker that
+-- said so, because the next transition sees `temporarily_out` rather than `reserved` and happily
+-- offers `active`. Two steps, and an active resident is attached to a bed still reserved for a
+-- prospect, having passed no admission gate at all. The UI blocked `reserved -> active` directly;
+-- it was the two-step route that was open, which is what a blocklist of one edge always leaves.
+--
+-- So the rule is stated as a graph:
+--
+--   * pre-admission (prospect, applicant, approved, waitlisted, reserved) -> only discharged or
+--     deceased. Cancelling before move-in is legitimate; anything else is the admission workflow's
+--     job and has its own gates.
+--   * active -> temporarily_out, hospital_leave, discharged, deceased.
+--   * temporarily_out / hospital_leave -> active, each other, discharged, deceased.
+--   * discharged / deceased -> nothing. A readmission is a new admission, and it produces a bed
+--     assignment through the pipeline rather than by rewriting a closed record.
+--
+-- The refusal names both ends, because "Invalid census transition" told an operator nothing about
+-- which half of it we objected to.
+do $do$
+declare v_def text; v_old text; v_new text;
+begin
+  v_def := pg_get_functiondef('public.transition_resident_census(uuid,text,uuid,text)'::regprocedure);
+
+  if position('census transition graph' in v_def) > 0 then
+    raise notice 'transition_resident_census already applies the transition graph';
+  else
+    v_old := $old$  if p_bed_id is not null then$old$;
+    if position(v_old in v_def) = 0 then
+      raise exception 'transition_resident_census no longer contains the bed lookup this migration patches';
+    end if;
+    v_new := $patch$  -- The census transition graph. See this migration's header for why a target-only check was
+  -- not enough: `reserved -> temporarily_out -> active` walked around the one edge the UI blocked.
+  if not (
+    (v.status in ('prospect', 'applicant', 'approved', 'waitlisted', 'reserved')
+      and p_target_status in ('discharged', 'deceased'))
+    or (v.status = 'active'
+      and p_target_status in ('temporarily_out', 'hospital_leave', 'discharged', 'deceased'))
+    or (v.status in ('temporarily_out', 'hospital_leave')
+      and p_target_status in ('active', 'temporarily_out', 'hospital_leave', 'discharged', 'deceased'))
+  ) then
+    raise exception 'A resident who is % cannot be moved to %. Use the admission or move-in workflow for that change.',
+      replace(v.status, '_', ' '), replace(p_target_status, '_', ' ')
+      using errcode = '22023';
+  end if;
+
+  if p_bed_id is not null then$patch$;
+    execute replace(v_def, v_old, v_new);
+  end if;
+end;
+$do$;
+
+comment on function public.transition_resident_census(uuid, text, uuid, text) is
+  'Moves a resident between census states, releasing and taking beds as it goes. Transitions follow '
+  'an explicit graph rather than a list of destinations: a pre-admission resident may only be '
+  'cancelled (discharged/deceased), an active one may leave or end their residency, one who is out '
+  'may return or end it, and discharged/deceased are terminal -- a readmission goes through the '
+  'admission pipeline. Before that graph, `reserved -> temporarily_out -> active` reached `active` '
+  'without ever running complete_move_in_admission''s readiness checks or occupying the reserved '
+  'bed (BACKLOG J92).';

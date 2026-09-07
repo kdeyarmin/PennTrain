@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
 import { ITEM_TYPE_LABELS, getRequiredStateFormInfo } from "@/lib/residentCompliance";
@@ -16,10 +16,22 @@ export interface CompletableItem {
   item_type: string;
 }
 
+/**
+ * How far before admission `complete_resident_compliance_item` accepts a form date.
+ *
+ * The RPC bounds the date on both sides: not in the future, and not before `admission_date - 180
+ * days` -- an ALF pre-admission assessment legitimately predates the admission, an unbounded past
+ * does not. Mirrored here because the upload happens BEFORE the RPC is called, so a date the server
+ * refuses left the document attached to the resident with the item still incomplete, and a facility
+ * manager has no delete access on resident documents: every retry added another one they could not
+ * remove.
+ */
+export const STATE_FORM_BACKDATE_DAYS = 180;
+
 interface CompleteWithStateFormDialogProps {
   // Dialog is open while item is non-null; parent owns which item is being completed.
   item: CompletableItem | null;
-  resident: { id: string; organization_id: string; facility_id: string };
+  resident: { id: string; organization_id: string; facility_id: string; admission_date: string | null };
   facilityType: string | undefined;
   onClose: () => void;
 }
@@ -42,6 +54,11 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
   const [completedOn, setCompletedOn] = useState(facilityToday());
 
   const stateForm = item ? getRequiredStateFormInfo(item.item_type, facilityType) : null;
+  const earliestAllowed = resident.admission_date
+    ? addFacilityCalendarDays(resident.admission_date, -STATE_FORM_BACKDATE_DAYS)
+    : null;
+  const dateOutOfRange = Boolean(completedOn)
+    && (completedOn > facilityToday() || (earliestAllowed !== null && completedOn < earliestAllowed));
 
   // Single reset used by every way this dialog can close (Cancel, backdrop/Escape via
   // onOpenChange, and a successful submit) so a file picked for one item can never carry over
@@ -56,7 +73,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
   };
 
   const handleMarkComplete = async () => {
-    if (!item || !file) return;
+    if (!item || !file || dateOutOfRange) return;
     try {
       const uploadedDocument = await uploadDocument.mutateAsync({
         file,
@@ -115,17 +132,19 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
               type="date"
               value={completedOn}
               max={facilityToday()}
+              {...(earliestAllowed ? { min: earliestAllowed } : {})}
               onChange={(e) => setCompletedOn(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              The day the assessor signed it, which is what the next cycle is measured from -- not the day
-              you are uploading the scan.
+            <p className={`text-xs ${dateOutOfRange ? "text-destructive" : "text-muted-foreground"}`}>
+              {dateOutOfRange
+                ? `The form date must be on or after ${earliestAllowed} and not in the future. Fix it before uploading — the document is saved first, and a facility manager cannot delete one that the completion then rejects.`
+                : "The day the assessor signed it, which is what the next cycle is measured from -- not the day you are uploading the scan."}
             </p>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={close}>Cancel</Button>
-          <Button onClick={handleMarkComplete} disabled={!file || !completedOn || uploadDocument.isPending || completeItem.isPending}>
+          <Button onClick={handleMarkComplete} disabled={!file || !completedOn || dateOutOfRange || uploadDocument.isPending || completeItem.isPending}>
             {uploadDocument.isPending || completeItem.isPending ? "Saving..." : "Upload & Mark Complete"}
           </Button>
         </DialogFooter>

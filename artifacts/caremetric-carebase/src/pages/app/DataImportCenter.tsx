@@ -230,34 +230,43 @@ export default function DataImportCenter() {
    * disagrees with the receipt. Re-uploading the same file does not help -- same bytes, same
    * checksum, same job -- so before this the user's only remaining move was to abandon the import.
    *
-   * The way out uses only what the control plane already exposes. The re-run first, because
-   * `finalize_data_import_job` refuses a receipt that still has error rows and "Create (reject
-   * duplicates)" is what put those rows there: re-scoring them under the new strategy is a dry
-   * run, writes nothing to customer tables, and is what clears them. Then finalize closes the old
-   * receipt -- `ready` is a status finalize explicitly accepts, and `finalized` is not one
-   * start_data_import_job will reuse -- and the fresh dry run creates a receipt pinned to the
-   * strategy the user asked for.
+   * The way out uses only what the control plane already exposes: cancel the old receipt, then run
+   * a fresh dry run, which creates one pinned to the strategy the user asked for. A dry run has
+   * applied nothing, `cancel_data_import_job` refuses any receipt that has, and `canceled` is not a
+   * status `start_data_import_job` will reuse -- so cancelling releases the file checksum and the
+   * next run is genuinely new.
+   *
+   * The first version of this re-scored the old receipt under the new strategy and then finalized
+   * it, because finalize refuses a receipt with error rows. That could not work for a file over one
+   * chunk: the rescue validate ran with no job id, so the checksum match handed back the SAME open
+   * receipt, chunk one was accepted (the pin is only compared when a job id is supplied), and
+   * chunk two supplied the returned id and took a duplicate-strategy 409. Cancelling needs no
+   * clean rows and no second pass, so the size of the file stops mattering.
    */
   const switchStrategy = async () => {
     if (!preview || !strategyDiverged) return;
     const staleJobId = preview.job_id;
     setSwitchingStrategy(true);
     try {
-      let stale = preview;
-      if (stale.failed > 0) {
-        const rescored = await execute("validate", strategy);
-        if (!rescored) return;
-        stale = rescored;
-      }
-      if (stale.failed > 0) {
-        toast({
-          title: "The earlier dry run still has errors",
-          description: `${stale.failed} row${stale.failed === 1 ? "" : "s"} are invalid under ${strategyLabel(strategy)} as well, so the previous receipt cannot be closed. Fix those rows and upload the corrected file.`,
-          variant: "destructive",
-        });
-        return;
-      }
-      await finalize.mutateAsync(staleJobId);
+      // The old receipt is CLOSED first, and is closed by cancelling rather than by re-scoring it.
+      //
+      // Re-scoring in place could not work for a file over one chunk. The rescue validate ran with
+      // no job id, so start_data_import_job matched the file checksum and handed back the SAME
+      // still-open receipt -- the one pinned to the old strategy. The first chunk was accepted,
+      // because the processor only compares the pin when a job id was supplied; runImportChunks
+      // then supplied the returned id on chunk two and got the duplicate-strategy 409. So the
+      // advertised way out of a pinned receipt stopped after one chunk for exactly the imports big
+      // enough to need it.
+      //
+      // Cancelling is both simpler and the honest description of what is happening: a dry run has
+      // applied nothing, `cancel_data_import_job` refuses any receipt that has, and `canceled` is
+      // not a status start_data_import_job will reuse -- so it releases the checksum the same way
+      // finalize did, without needing the rows to be clean first. The error-row branch this
+      // replaces existed only because finalize refuses a receipt that still has them.
+      await cancelJob.mutateAsync({
+        jobId: staleJobId,
+        reason: `Dry run replaced by one under ${strategyLabel(strategy)}`,
+      });
       setPreview(null);
       const fresh = await execute("validate", strategy);
       if (fresh) {
@@ -267,9 +276,14 @@ export default function DataImportCenter() {
         });
       }
     } catch (error) {
+      // The most likely refusal is a worker still holding the lease on the old receipt, which
+      // cancel_data_import_job rejects by name. That resolves itself, so say so rather than leaving
+      // the operator with a bare error on a control that had just promised to switch strategies.
       toast({
         title: "Could not switch duplicate strategy",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: error instanceof Error
+          ? `${error.message} The previous dry run is still open; if a worker is processing it, try again once its claim expires.`
+          : "Unknown error",
         variant: "destructive",
       });
     } finally {

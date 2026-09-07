@@ -19,6 +19,32 @@ import { ResidentStatusPill } from "@/components/residents/ResidentStatusPill";
  */
 export const CENSUS_TARGET_STATUSES = ["active", "temporarily_out", "hospital_leave", "discharged", "deceased"] as const;
 
+/**
+ * The transition graph `transition_resident_census` enforces (20260906110000), mirrored so the
+ * picker offers only what the RPC will take.
+ *
+ * This replaces a single "not reserved -> active" exclusion, which was the wrong shape: it blocked
+ * one edge and left the two-step route around it open, since a reserved resident sent
+ * `temporarily_out` is no longer reserved and the next dialog then offers `active`. Two moves and
+ * an admitted resident sits on a bed still held for a prospect, having run none of
+ * complete_move_in_admission's checks. The RPC is the control -- this is the courtesy on top of it,
+ * and the two must agree or the dialog offers something that returns 22023.
+ */
+export const CENSUS_TRANSITIONS: Record<string, readonly string[]> = {
+  // Pre-admission: cancelling is legitimate, everything else belongs to the admission workflow.
+  prospect: ["discharged", "deceased"],
+  applicant: ["discharged", "deceased"],
+  approved: ["discharged", "deceased"],
+  waitlisted: ["discharged", "deceased"],
+  reserved: ["discharged", "deceased"],
+  active: ["temporarily_out", "hospital_leave", "discharged", "deceased"],
+  temporarily_out: ["active", "hospital_leave", "discharged", "deceased"],
+  hospital_leave: ["active", "temporarily_out", "discharged", "deceased"],
+  // Terminal. A readmission is a new admission, not an edit to a closed record.
+  discharged: [],
+  deceased: [],
+};
+
 /** The census RPC refuses a reason shorter than this after trimming. */
 export const CENSUS_REASON_MIN_LENGTH = 3;
 
@@ -57,15 +83,14 @@ export function ResidentCensusStatusDialog({
   }, [open]);
 
   const isReserved = currentStatus === "reserved";
+  // An unknown current status offers nothing rather than everything: a state this file has not
+  // been taught about is not a licence to guess, and the RPC would refuse the guess anyway.
+  const allowed = CENSUS_TRANSITIONS[currentStatus ?? ""] ?? [];
   const options = CENSUS_TARGET_STATUSES.filter((value) => {
     // The RPC refuses a transition that would not change anything, so offering the current state
     // could only produce a raw "Census transition would not change resident state" error.
     if (value === currentStatus) return false;
-    // Admitting is the move-in workspace's job: complete_move_in_admission re-checks readiness,
-    // flips the reserved bed to occupied and advances the prospect. Marking a reserved resident
-    // active from here would leave their bed reserved and skip that gate entirely.
-    if (isReserved && value === "active") return false;
-    return true;
+    return allowed.includes(value);
   });
 
   const submit = () => {

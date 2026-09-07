@@ -1,5 +1,5 @@
 begin;
-select plan(28);
+select plan(32);
 
 select has_table('public', 'admission_prospects', 'admission prospects are separate from active census');
 select has_table('public', 'facility_beds', 'room and bed inventory exists');
@@ -138,6 +138,34 @@ select is(
   10,
   'standard workspace instantiates complete admission checklist'
 );
+
+-- A reserved resident has not moved in, and the census RPC now says so as a graph rather than as a
+-- list of destinations. The direct route was already blocked in the UI; this covers the two-step
+-- one, which is what actually reached `active`: sent "temporarily out" the resident is no longer
+-- reserved, so the next call sees an ordinary out-of-facility resident and admits them -- with the
+-- bed still held for the prospect and complete_move_in_admission's readiness checks never run.
+select throws_ok(
+  $$ select public.transition_resident_census(
+       (select id from admission_ids where key = 'resident'),
+       'temporarily_out', null, 'Family took them out for the afternoon') $$,
+  '22023',
+  null,
+  'a reserved resident cannot be sent temporarily out -- the first step of the route around the block'
+);
+select throws_ok(
+  $$ select public.transition_resident_census(
+       (select id from admission_ids where key = 'resident'),
+       'active', null, 'Admitting from the resident record') $$,
+  '22023',
+  null,
+  'nor admitted from here, which is complete_move_in_admission''s job'
+);
+select is(
+  (select status from public.residents where id = (select id from admission_ids where key = 'resident')),
+  'reserved',
+  'and both refusals left the census state alone'
+);
+
 
 reset role;
 with document as (
@@ -286,6 +314,21 @@ select ok(
   ),
   'admission is recorded in immutable census history'
 );
+
+-- Cancelling is the one move a pre-admission resident may make, so the graph is not mistaken for
+-- "a reserved resident is frozen". Last, because it releases the bed the assertions above read.
+select set_config('app.privileged_write', 'on', true);
+update public.residents set status = 'reserved'
+where id = (select id from admission_ids where key = 'resident');
+select set_config('app.privileged_write', 'off', true);
+select pg_temp.act_as('58000000-0000-4000-8000-000000000101');
+select lives_ok(
+  $$ select public.transition_resident_census(
+       (select id from admission_ids where key = 'resident'),
+       'discharged', null, 'Family chose another facility') $$,
+  'cancelling a reservation still works, which is the point of a graph rather than a freeze'
+);
+reset role;
 
 select * from finish();
 rollback;

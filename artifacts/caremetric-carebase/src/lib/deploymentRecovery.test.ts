@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { isDeploymentAssetError, recoverFromStaleDeployment } from "./deploymentRecovery";
+import { documentHasUnsavedInput, isDeploymentAssetError, recoverFromStaleDeployment } from "./deploymentRecovery";
 
 describe("deployment recovery", () => {
   it("recognizes stale dynamic import failures without matching normal errors", () => {
@@ -146,5 +146,46 @@ describe("the stale-shell notice", () => {
     const source = readFileSync(join(__dirname, "deploymentRecovery.ts"), "utf8");
     expect(source).toContain("const hadControllerAtInstall = Boolean(navigator.serviceWorker?.controller)");
     expect(source).toContain("if (!hadControllerAtInstall) return;");
+  });
+});
+
+describe("a cleared prefilled field is still unsaved input", () => {
+  // The suite runs without a DOM, and this predicate takes its Document as a parameter for exactly
+  // that reason -- the same injection `recoverFromStaleDeployment` uses for its environment. Only
+  // the four properties the function reads are stubbed; anything more would be testing jsdom.
+  type Field = {
+    disabled?: boolean; readOnly?: boolean; type?: string;
+    value: string; defaultValue: string;
+  };
+  const docWith = (fields: Field[]) => ({
+    querySelectorAll: (selector: string) => (selector === "input, textarea" ? fields : []),
+  } as unknown as Document);
+
+  // Requiring a non-empty value meant emptying a field the server had prefilled read as "nothing
+  // to lose", so the automatic reload after a stale chunk discarded it. Deleting a wrong value is
+  // an edit, and often a more deliberate one than typing over it.
+  it("reports a prefilled field the user has emptied", () => {
+    expect(documentHasUnsavedInput(docWith([{ value: "", defaultValue: "Prefilled reason" }]))).toBe(true);
+  });
+
+  it("still reports an ordinary edit", () => {
+    expect(documentHasUnsavedInput(docWith([{ value: "Changed", defaultValue: "Prefilled" }]))).toBe(true);
+  });
+
+  it("stays silent on an untouched empty field, which equals its own default", () => {
+    expect(documentHasUnsavedInput(docWith([{ value: "", defaultValue: "" }]))).toBe(false);
+  });
+
+  it("stays silent on an untouched prefilled field", () => {
+    expect(documentHasUnsavedInput(docWith([{ value: "Prefilled", defaultValue: "Prefilled" }]))).toBe(false);
+  });
+
+  // A disabled or read-only field cannot hold an unsaved edit, and skipping them is what keeps this
+  // from reporting a false positive that leaves a genuinely broken shell un-reloaded.
+  it("ignores fields the user cannot have edited", () => {
+    expect(documentHasUnsavedInput(docWith([
+      { value: "", defaultValue: "Prefilled", disabled: true },
+      { value: "", defaultValue: "Prefilled", readOnly: true },
+    ]))).toBe(false);
   });
 });

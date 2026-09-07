@@ -178,7 +178,10 @@ export default function ResidentFinancialOperations() {
           </Field>
         </CardContent>
       </Card>
-      {facilityId && unsettledAccounts.length > 0 && (
+      {/* `|| truncated` matters on its own: the scan can stop short of the end of a long settled
+          history, and gating the card on a non-empty list meant the "there may be more" notice
+          disappeared in exactly the case it exists for -- nothing shown, and no reason given. */}
+      {facilityId && (unsettledAccounts.length > 0 || unsettledFunds.data?.truncated) && (
         <Card className="border-amber-500/50">
           <CardContent className="space-y-3 pt-6">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -214,8 +217,9 @@ export default function ResidentFinancialOperations() {
             </div>
             {unsettledFunds.data?.truncated && (
               <p className="text-xs text-muted-foreground">
-                Showing the first {UNSETTLED_FUND_ACCOUNT_LIMIT}. More accounts are unsettled at this
-                facility than this list holds.
+                {unsettledAccounts.length > 0
+                  ? `Showing the first ${UNSETTLED_FUND_ACCOUNT_LIMIT}. More accounts are unsettled at this facility than this list holds.`
+                  : "This facility has more settled accounts than one pass can read past, so any that are still unsettled could not be listed here. Open the resident's record directly to settle one."}
               </p>
             )}
           </CardContent>

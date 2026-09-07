@@ -53,6 +53,25 @@ describe("the census dialog and the journey that drives it", () => {
     expect(states).not.toContain("reserved");
   });
 
+  // A blocklist of one edge is not a graph. `reserved -> temporarily_out -> active` walked around
+  // the single exclusion this dialog used to carry, and arrived at `active` without ever running
+  // complete_move_in_admission -- so these assertions are about the SHAPE of the rule, not one pair.
+  it("mirrors the RPC's transition graph rather than excluding one edge", () => {
+    expect(dialog).toContain("CENSUS_TRANSITIONS");
+    // The two-step route is what the old exclusion missed: a pre-admission resident may only be
+    // cancelled, so there is no intermediate state to launder them through.
+    for (const preAdmission of ["prospect", "applicant", "approved", "waitlisted", "reserved"]) {
+      const row = dialog.match(new RegExp(`${preAdmission}: \\[([^\\]]*)\\]`));
+      expect(row, `no transition row for ${preAdmission}`).not.toBeNull();
+      const targets = [...row![1].matchAll(/"([a-z_]+)"/g)].map((entry) => entry[1]);
+      expect(targets).toEqual(["discharged", "deceased"]);
+    }
+    // And the terminal states stay terminal: a readmission is a new admission.
+    for (const terminal of ["discharged", "deceased"]) {
+      expect(dialog).toContain(`${terminal}: []`);
+    }
+  });
+
   it("holds the reason floor the RPC enforces", () => {
     // transition_resident_census raises 22023 on `length(btrim(coalesce(p_reason,''))) < 3`, so a
     // dialog that submitted a shorter one would only produce a raw "Invalid census transition".

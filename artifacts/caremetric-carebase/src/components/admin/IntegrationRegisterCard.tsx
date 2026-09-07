@@ -271,7 +271,16 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
                     <Button
                       size="sm" variant="outline" disabled={busy}
                       onClick={() => reactivateEndpoint.mutate({ endpointId: endpoint.id }, {
-                        onSuccess: () => toast({ title: "Endpoint switched back on", description: "The failure count is cleared and queued deliveries resume." }),
+                        // Not "queued deliveries resume". Switching the endpoint off sets every
+                        // pending, retrying and processing delivery to `canceled`
+                        // (deactivate_integration_webhook_endpoint), and reactivation touches only
+                        // the endpoint row -- so those events are gone unless somebody replays
+                        // them. Saying they resume left an operator believing the downstream system
+                        // would catch up on its own while it silently stayed short of the data.
+                        onSuccess: () => toast({
+                          title: "Endpoint switched back on",
+                          description: "New events will be delivered and the failure count is cleared. Deliveries cancelled when it was switched off do not resume — replay any that still matter.",
+                        }),
                         onError: (error) => toast({ title: "Blocked", description: errorText(error), variant: "destructive" }),
                       })}
                     >

@@ -54,6 +54,35 @@ describe("trainingYearWindow", () => {
     });
   });
 
+  // Deriving `end` from the already-clamped `start` lost a day for a leap-day hire, and the
+  // contract is [start, end) -- so the day fell in no window at all and its hours counted toward
+  // nothing. Each boundary is measured from the hire date with its own offset now.
+  it("leaves no gap between a leap-day hire's windows", () => {
+    // 2028 is a leap year, so this year's anniversary is 29 February and has not arrived yet.
+    // The window that covers 28 February must therefore END on the 29th, not on the 28th.
+    expect(trainingYearWindow("2020-02-29", "2028-02-28")).toEqual({
+      start: "2027-02-28",
+      end: "2028-02-29",
+    });
+    // And the next one picks up exactly where it left off.
+    expect(trainingYearWindow("2020-02-29", "2028-02-29")).toEqual({
+      start: "2028-02-29",
+      end: "2029-02-28",
+    });
+  });
+
+  // The property, rather than the two dates: consecutive windows touch, so every day belongs to
+  // exactly one of them.
+  it("keeps consecutive windows contiguous across a leap boundary", () => {
+    for (const [earlier, later] of [["2028-02-28", "2028-02-29"], ["2029-02-27", "2029-02-28"]]) {
+      const before = trainingYearWindow("2020-02-29", earlier)!;
+      const after = trainingYearWindow("2020-02-29", later)!;
+      if (before.start !== after.start) expect(before.end).toBe(after.start);
+      expect(earlier >= before.start && earlier < before.end).toBe(true);
+      expect(later >= after.start && later < after.end).toBe(true);
+    }
+  });
+
   it("returns null without a hire date, or when the hire date is still ahead", () => {
     expect(trainingYearWindow(null, "2026-09-06")).toBeNull();
     expect(trainingYearWindow(undefined, "2026-09-06")).toBeNull();

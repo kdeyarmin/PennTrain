@@ -175,9 +175,18 @@ site_url = "http://127.0.0.1:5173"
 # root URL for enterprise SSO." ForgotPassword.tsx sends redirectTo=<origin><base>/reset-password,
 # and Auth silently falls back to the bare Site URL -- no error anywhere -- when redirect_to is not
 # an exact allow-list match, which strands the user on the login page instead of the password form.
+#
+# Both spellings of the dev origin are listed, and that is not redundancy. AGENTS.md documents
+# `pnpm run dev` as serving http://localhost:5173, ForgotPassword builds its redirect from
+# window.location.origin, and GoTrue matches the allow-list EXACTLY -- localhost and 127.0.0.1 are
+# different origins to it. With only the 127.0.0.1 spelling, a reset requested from the documented
+# URL silently fell back to site_url and landed the developer on the login page: the same failure
+# this block exists to prevent, in the one environment where it is meant to be rehearsed.
 additional_redirect_urls = [
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5173/reset-password",
+  "http://localhost:5173",
+  "http://localhost:5173/reset-password",
 ]
 # Plain POST /auth/v1/signup stays off: ARCHITECTURE.md and DEPLOYMENT.md both record that the
 # self-service path is the hardened signup-organization function (Turnstile, hashed rate limits,

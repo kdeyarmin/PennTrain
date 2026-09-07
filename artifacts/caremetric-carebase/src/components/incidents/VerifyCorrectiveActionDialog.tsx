@@ -43,11 +43,17 @@ export function VerifyCorrectiveActionDialog({
   }, [open, action?.id, action?.verification_notes, action?.completed_date]);
 
   const notesTooShort = notes.trim().length < 10;
+  // `verify_corrective_action` defaults a missing date to pa_today() for compatibility with callers
+  // that predate the field. Submitting `undefined` from a field the verifier deliberately CLEARED
+  // therefore records today as the day the work was done, and that fabricated date goes into the
+  // survey evidence. The dialog offers the field, so the dialog has to require it rather than let
+  // the server invent one.
+  const completedOnMissing = !completedOn;
 
   const handleSubmit = () => {
-    if (!action || notesTooShort) return;
+    if (!action || notesTooShort || completedOnMissing) return;
     verify(
-      { id: action.id, verificationNotes: notes.trim(), completedOn: completedOn || undefined },
+      { id: action.id, verificationNotes: notes.trim(), completedOn },
       {
         onSuccess: () => {
           toast({
@@ -82,8 +88,10 @@ export function VerifyCorrectiveActionDialog({
               max={facilityToday()}
               onChange={(e) => setCompletedOn(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              The day the work was actually done, not today, if they differ.
+            <p className={`text-xs ${completedOnMissing ? "text-destructive" : "text-muted-foreground"}`}>
+              {completedOnMissing
+                ? "Enter the day the work was actually done. It is recorded as the completion date a surveyor reads, so it cannot be left for the system to guess."
+                : "The day the work was actually done, not today, if they differ."}
             </p>
           </div>
           <div className="space-y-2">
@@ -102,7 +110,7 @@ export function VerifyCorrectiveActionDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={isPending || notesTooShort || !action}>
+          <Button onClick={handleSubmit} disabled={isPending || notesTooShort || completedOnMissing || !action}>
             Complete and verify
           </Button>
         </DialogFooter>

@@ -168,4 +168,38 @@ describe("fundSettlementBlocker", () => {
   it("allows a settlement dated within the day of grace the RPC permits", () => {
     expect(fundSettlementBlocker({ ...valid, transactionAt: "2026-05-02T11:00:00Z" })).toBeNull();
   });
+
+  // Both bounds move with the ledger, because the RPC's do (20260906140000). Getting this wrong in
+  // one direction leaves an account that cannot be settled at all: the server requiring a date at
+  // or after a far-future entry while the form refuses anything past tomorrow is no window.
+  describe("bounds derived from the newest ledger entry", () => {
+    const withLedger = { ...valid, latestLedgerAt: "2026-05-20T09:00:00Z" };
+
+    it("accepts the date the ledger forces, even though it is weeks ahead", () => {
+      expect(fundSettlementBlocker({ ...withLedger, transactionAt: "2026-05-20T09:00:00Z" })).toBeNull();
+    });
+
+    it("still refuses a date past that entry's own day of grace", () => {
+      expect(fundSettlementBlocker({ ...withLedger, transactionAt: "2026-05-21T10:00:00Z" }))
+        .toContain("more than a day ahead");
+    });
+
+    it("refuses a settlement dated before the newest entry, which the RPC also refuses", () => {
+      expect(fundSettlementBlocker({ ...withLedger, transactionAt: "2026-05-19T09:00:00Z" }))
+        .toContain("most recent ledger entry");
+    });
+
+    it("leaves the plain day-ahead ceiling in place for an empty ledger", () => {
+      expect(fundSettlementBlocker({ ...valid, latestLedgerAt: null, transactionAt: "2026-05-03T12:00:00Z" }))
+        .toContain("more than a day ahead");
+      expect(fundSettlementBlocker({ ...valid, latestLedgerAt: null })).toBeNull();
+    });
+
+    // An entry already behind us must not drag the ceiling backwards.
+    it("keeps the day of grace when the newest entry is in the past", () => {
+      expect(fundSettlementBlocker({
+        ...valid, latestLedgerAt: "2026-04-28T09:00:00Z", transactionAt: "2026-05-02T11:00:00Z",
+      })).toBeNull();
+    });
+  });
 });

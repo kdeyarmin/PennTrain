@@ -141,6 +141,15 @@ export function currentFundBalance(
     : toNumber(beginningBalance);
 }
 
+/**
+ * `transaction_at` of the newest entry, in the same ordering the statement and the server use, or
+ * null for an account with no postings. Both settlement bounds are derived from it.
+ */
+export function latestLedgerInstant(transactions: FundLedgerEntryLike[]): string | null {
+  const ordered = inLedgerOrder(transactions);
+  return ordered.length > 0 ? ordered[ordered.length - 1].transaction_at : null;
+}
+
 // ------------------------------------------------------------------------------------------------
 // Settlement
 //
@@ -148,7 +157,8 @@ export function currentFundBalance(
 // the whole remaining balance and stamps `closed_on` / `closed_reason` / `closed_by`. It refuses
 // four things, and the form says all four BEFORE the call rather than surfacing a 55000 afterwards:
 // a residency that has not ended, an account already closed, a purpose under three characters or a
-// recipient under two, and a settlement dated more than a day ahead.
+// recipient under two, and a settlement outside the window the ledger allows -- not before the
+// newest entry, and not more than a day ahead of it or of now, whichever is later.
 // ------------------------------------------------------------------------------------------------
 
 /** Resident statuses whose residency has ended, and only then may funds be settled. */
@@ -161,6 +171,17 @@ export interface FundSettlementInput {
   recipient: string;
   /** The settlement instant, as an ISO timestamp. */
   transactionAt: string;
+  /**
+   * `transaction_at` of the newest entry already in this account's ledger, if there is one.
+   *
+   * Both of this function's date bounds depend on it, because the server's do (20260906140000).
+   * The ledger is append-only and nothing can recompute a later row's `balance_after`, so the
+   * terminal disbursement has to sort last: it may not be dated BEFORE the newest entry. And
+   * ordinary postings are not capped forward, so an account can hold an entry further out than a
+   * day -- which is why the server's future cap yields to the ledger rather than refusing both
+   * ends and leaving the account impossible to close.
+   */
+  latestLedgerAt?: string | null;
   /** Compared against, so tests do not depend on the wall clock. */
   now?: Date;
 }
@@ -181,7 +202,23 @@ export function fundSettlementBlocker(input: FundSettlementInput): string | null
   }
   const at = new Date(input.transactionAt);
   if (Number.isNaN(at.getTime())) return "Enter a valid settlement date and time.";
-  const limit = (input.now ?? new Date()).getTime() + 24 * 60 * 60 * 1000;
-  if (at.getTime() > limit) return "A settlement cannot be dated more than a day ahead.";
+
+  const latest = input.latestLedgerAt ? new Date(input.latestLedgerAt) : null;
+  const latestMs = latest && !Number.isNaN(latest.getTime()) ? latest.getTime() : null;
+
+  // Mirrors `greatest(now() + interval '1 day', coalesce(v_latest_at, now()))`. Without the
+  // second half this refused every value the server would accept whenever the ledger reached more
+  // than a day ahead, so a discharged resident's money could not be returned through the product
+  // at all until that date arrived -- a dead end created by fixing one.
+  const dayAhead = (input.now ?? new Date()).getTime() + 24 * 60 * 60 * 1000;
+  const ceiling = latestMs !== null ? Math.max(dayAhead, latestMs) : dayAhead;
+  if (at.getTime() > ceiling) return "A settlement cannot be dated more than a day ahead.";
+
+  // The floor the server applies for the same reason, said here rather than after the submit.
+  if (latestMs !== null && at.getTime() < latestMs) {
+    return `A settlement must be dated on or after the most recent ledger entry (${
+      latest!.toLocaleString()
+    }), so the final disbursement is the last row on the statement.`;
+  }
   return null;
 }

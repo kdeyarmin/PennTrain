@@ -244,48 +244,85 @@ export const UNSETTLED_FUND_ACCOUNT_LIMIT = 50;
  * first query.
  */
 const UNSETTLED_FUND_ACCOUNT_SCAN = 300;
+/**
+ * Pages of UNSETTLED_FUND_ACCOUNT_SCAN to walk before giving up and reporting truncation.
+ *
+ * Bounds the work on a facility with a long settled history while still letting the walk pass a
+ * large block of closed accounts, which a single page could not. Ten pages is 3,000 discharged or
+ * deceased residents at one facility; past that the card says the list is incomplete rather than
+ * pretending it is not.
+ */
+const UNSETTLED_FUND_ACCOUNT_MAX_PAGES = 10;
 
 export function useUnsettledPersonalFundAccounts(facilityId?: string) {
   return useQuery({
     queryKey: ["resident-financial-operations", "unsettled-funds", facilityId],
     enabled: !!facilityId,
     queryFn: async (): Promise<{ accounts: UnsettledFundAccount[]; truncated: boolean }> => {
-      const { data, error } = await supabase
-        .from("resident_personal_fund_accounts")
-        .select(
-          "id, account_number, resident_id, beginning_balance, resident:residents!inner(id, first_name, last_name, room, status)",
-        )
-        .eq("facility_id", facilityId!)
-        .in("resident.status", ["discharged", "deceased"])
-        .order("account_number")
-        .limit(UNSETTLED_FUND_ACCOUNT_SCAN + 1);
-      if (error) throw error;
-      const candidates = (data ?? []) as unknown as Array<{
+      type AccountRow = {
         id: string;
         account_number: string;
         resident_id: string;
         beginning_balance: number | string;
         resident: { first_name: string; last_name: string; room: string | null; status: string };
-      }>;
-      const scanTruncated = candidates.length > UNSETTLED_FUND_ACCOUNT_SCAN;
-      const scanned = candidates.slice(0, UNSETTLED_FUND_ACCOUNT_SCAN);
+      };
 
+      // Paged, and the paging is the fix rather than a scaling nicety.
+      //
       // Settlement is a row in resident_personal_fund_account_closures, not a column on the
-      // account: the account row carries prevent_phase5_evidence_mutation on BEFORE UPDATE, so
-      // there is nothing on it to stamp (20260906140000).
-      const closed = new Set<string>();
-      if (scanned.length > 0) {
+      // account -- the account row carries prevent_phase5_evidence_mutation on BEFORE UPDATE, so
+      // there is nothing on it to stamp (20260906140000) -- which means the closed ones can only
+      // be removed after the rows come back. Taking a single ordered page of 300 FIRST and
+      // filtering afterwards meant that once a facility had accumulated 300 settled accounts
+      // sorting ahead of an unsettled one, that account was never in the page and so never
+      // appeared: money still owed to a discharged resident, invisible behind settled history, for
+      // good. Worse, when every scanned row was closed the result was an empty list, and the card
+      // is hidden on empty -- so the "more accounts are unsettled" warning went with it.
+      //
+      // So: walk pages of accounts in the same order, drop the settled ones per page, and keep
+      // going until enough unsettled rows are in hand or the facility is exhausted. The page cap
+      // bounds the work; hitting it is reported as truncation rather than passed off as "none".
+      const rows: AccountRow[] = [];
+      let scanExhausted = false;
+      let pagesRead = 0;
+      for (let from = 0; pagesRead < UNSETTLED_FUND_ACCOUNT_MAX_PAGES; from += UNSETTLED_FUND_ACCOUNT_SCAN) {
+        pagesRead += 1;
+        const { data, error } = await supabase
+          .from("resident_personal_fund_accounts")
+          .select(
+            "id, account_number, resident_id, beginning_balance, resident:residents!inner(id, first_name, last_name, room, status)",
+          )
+          .eq("facility_id", facilityId!)
+          .in("resident.status", ["discharged", "deceased"])
+          .order("account_number")
+          // `id` breaks ties: account_number is not unique by constraint, and paging inside a run
+          // of equal keys without a unique tie-break lets rows repeat on one page and vanish from
+          // another -- which is the same disappearance this whole change exists to stop.
+          .order("id")
+          .range(from, from + UNSETTLED_FUND_ACCOUNT_SCAN - 1);
+        if (error) throw error;
+        const page = (data ?? []) as unknown as AccountRow[];
+        if (page.length === 0) { scanExhausted = true; break; }
+
+        const closed = new Set<string>();
         const closures = await supabase
           .from("resident_personal_fund_account_closures")
           .select("personal_fund_account_id")
-          .in("personal_fund_account_id", scanned.map((row) => row.id));
+          .in("personal_fund_account_id", page.map((row) => row.id));
         if (closures.error) throw closures.error;
         for (const row of (closures.data ?? []) as Array<{ personal_fund_account_id: string }>) {
           closed.add(row.personal_fund_account_id);
         }
+        rows.push(...page.filter((row) => !closed.has(row.id)));
+
+        if (page.length < UNSETTLED_FUND_ACCOUNT_SCAN) { scanExhausted = true; break; }
+        // One more than the display limit is enough to know the list is truncated.
+        if (rows.length > UNSETTLED_FUND_ACCOUNT_LIMIT) break;
       }
-      const rows = scanned.filter((row) => !closed.has(row.id));
-      const truncated = scanTruncated || rows.length > UNSETTLED_FUND_ACCOUNT_LIMIT;
+
+      // Truncated means "there may be more than this list shows", which is true both when the
+      // display cap bites and when the page cap stopped the walk short of the end.
+      const truncated = rows.length > UNSETTLED_FUND_ACCOUNT_LIMIT || !scanExhausted;
       const visible = rows.slice(0, UNSETTLED_FUND_ACCOUNT_LIMIT);
       // One `limit(1)` read per account rather than one `in(...)` read across all of them: a
       // shared ordered page can drop an account off the end entirely, and a balance that is
