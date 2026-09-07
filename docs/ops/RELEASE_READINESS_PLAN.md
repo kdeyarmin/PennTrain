@@ -92,6 +92,18 @@ remembering for its near miss: the first attempted fix added a config key that d
 would have turned six failing journeys into a stack that will not start, and only restarting the
 stack instead of reasoning about it caught that.
 
+**Five rounds of automated review on the pull request, and 26 more defects (J83-J88).** None of
+these were found by this pass; all of them were in work this pass had just done. Every finding was
+read out against the code rather than accepted on its say-so: 27 raised, 26 real and fixed, one
+rejected with evidence from the live database. Rounds two through five were requested deliberately,
+each time on a green head, and the rate did not fall -- 3, 9, 2, 5, 8 -- because rounds three, four
+and five each found a defect inside the previous round's fix. Two shapes account for most of them:
+a `SECURITY DEFINER` function restating PART of the policy it stands in for (once too wide, once
+too narrow, in consecutive rounds), and UI copy asserting backend behaviour that had changed
+underneath it (four rounds running, all in one component). The rows carry the detail; what belongs
+here is the lesson about this pass's own reading, which is that a suite going green is not the same
+as the change having been read.
+
 **Blocks 0, 1, 2 and 5 of section 6 are complete.** Block 3's code half is done (J10, J11, J14's
 demo exemption and the operational/identity split, J23, J81); its console half is not, because H10
 is somebody enrolling an authenticator on a real account. Block 4 is entirely console and owner

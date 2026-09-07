@@ -18,7 +18,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(16);
+select plan(17);
 
 -- ---------------------------------------------------------------------------------------
 -- Fixture
@@ -190,12 +190,18 @@ insert into public.offline_content_manifests(
   repeat('b', 64), 'device-bound:test', '[]'::jsonb, now() + interval '30 days',
   now() - interval '6 hours'
 );
+-- assigned_at is set explicitly, and earlier than the manifest above, because the download floor
+-- only counts a bundle pulled FOR THIS ASSIGNMENT: `assigned now, downloaded six hours ago` is not
+-- a sequence the product can produce, and the clamp deliberately refuses to credit it (see the
+-- manifest filter in 20260906240000). The scenario under test is the ordinary one -- assigned,
+-- then downloaded, then studied offline, then reconnected.
 insert into public.course_assignments(
-  id, organization_id, facility_id, employee_id, course_id, course_version_id
+  id, organization_id, facility_id, employee_id, course_id, course_version_id, assigned_at
 ) values (
   '7c000000-0000-4000-8000-000000000082', '7c000000-0000-4000-8000-000000000001',
   '7c000000-0000-4000-8000-000000000011', '7c000000-0000-4000-8000-000000000021',
-  '7c000000-0000-4000-8000-000000000051', '7c000000-0000-4000-8000-000000000061'
+  '7c000000-0000-4000-8000-000000000051', '7c000000-0000-4000-8000-000000000061',
+  now() - interval '8 hours'
 );
 
 create or replace function pg_temp.act_as(p_profile_id uuid)
@@ -269,11 +275,12 @@ insert into public.offline_content_manifests(
   now() - interval '6 hours'
 );
 insert into public.course_assignments(
-  id, organization_id, facility_id, employee_id, course_id, course_version_id
+  id, organization_id, facility_id, employee_id, course_id, course_version_id, assigned_at
 ) values (
   '7c000000-0000-4000-8000-000000000083', '7c000000-0000-4000-8000-000000000001',
   '7c000000-0000-4000-8000-000000000011', '7c000000-0000-4000-8000-000000000021',
-  '7c000000-0000-4000-8000-000000000052', '7c000000-0000-4000-8000-000000000062'
+  '7c000000-0000-4000-8000-000000000052', '7c000000-0000-4000-8000-000000000062',
+  now() - interval '8 hours'
 );
 select pg_temp.act_as('7c000000-0000-4000-8000-000000000101');
 select public.sync_offline_learning_action(
@@ -283,11 +290,71 @@ select public.sync_offline_learning_action(
   jsonb_build_object('percentComplete', 40, 'startedAt', (now() - interval '90 days')::text)
 );
 reset role;
+-- Bounded on both sides on purpose. `>= now() - 7 hours` alone also passes when the floor has
+-- collapsed to now() -- the next case -- so it would not distinguish "clamped to the download"
+-- from "no download counted at all". The upper bound is what pins it to the six-hour-old manifest.
 select ok(
   (select started_at from public.course_progress
    where assignment_id = '7c000000-0000-4000-8000-000000000083')
-    >= now() - interval '7 hours',
+    between now() - interval '7 hours' and now() - interval '5 hours',
   'a start time earlier than the bundle download is clamped to the download'
+);
+
+-- A download made before this assignment existed is not evidence for it. Annual retraining pinned
+-- to an unchanged course version is the real case: the device still holds a live bundle from the
+-- last time round, and without this the learner could claim the whole gap as seat time the moment
+-- the new assignment was issued. Nothing links a manifest to an assignment, so the bound is the
+-- assignment's own issue time and the floor falls back to now() -- the learner loses the offline
+-- session's start credit rather than the product crediting time it cannot evidence.
+insert into public.courses(id, organization_id, title, estimated_duration_minutes)
+values ('7c000000-0000-4000-8000-000000000053', '7c000000-0000-4000-8000-000000000001',
+        'Superseded Test Course Three', 60);
+insert into public.course_versions(id, course_id, organization_id, version_number, title)
+values ('7c000000-0000-4000-8000-000000000063', '7c000000-0000-4000-8000-000000000053',
+        '7c000000-0000-4000-8000-000000000001', 1, 'Superseded Test Course Three');
+insert into public.course_blocks(
+  id, course_version_id, organization_id, block_type, sort_order, title, body
+) values
+  ('7c000000-0000-4000-8000-000000000073', '7c000000-0000-4000-8000-000000000063',
+   '7c000000-0000-4000-8000-000000000001', 'text', 1, 'Only lesson', '{"content":"Only lesson"}'::jsonb);
+select set_config('app.privileged_write', 'on', true);
+update public.course_versions set status = 'published', published_at = now()
+where id = '7c000000-0000-4000-8000-000000000063';
+update public.courses
+set current_version_id = '7c000000-0000-4000-8000-000000000063', status = 'published'
+where id = '7c000000-0000-4000-8000-000000000053';
+select set_config('app.privileged_write', 'off', true);
+insert into public.offline_content_manifests(
+  organization_id, profile_id, device_id, course_version_id, manifest_version,
+  content_sha256, encrypted_content_key, allowlisted_assets, expires_at, created_at
+) values (
+  '7c000000-0000-4000-8000-000000000001', '7c000000-0000-4000-8000-000000000101',
+  '7c000000-0000-4000-8000-000000000091', '7c000000-0000-4000-8000-000000000063', 1,
+  repeat('f', 64), 'device-bound:test', '[]'::jsonb, now() + interval '30 days',
+  now() - interval '6 hours'
+);
+-- assigned_at defaults to now(), so this assignment is issued AFTER the download above.
+insert into public.course_assignments(
+  id, organization_id, facility_id, employee_id, course_id, course_version_id
+) values (
+  '7c000000-0000-4000-8000-000000000084', '7c000000-0000-4000-8000-000000000001',
+  '7c000000-0000-4000-8000-000000000011', '7c000000-0000-4000-8000-000000000021',
+  '7c000000-0000-4000-8000-000000000053', '7c000000-0000-4000-8000-000000000063'
+);
+select pg_temp.act_as('7c000000-0000-4000-8000-000000000101');
+-- Five hours ago is AFTER the stale download, so only the assignment bound can refuse it.
+select public.sync_offline_learning_action(
+  '7c000000-0000-4000-8000-000000000091',
+  '7c000000-0000-4000-8000-000000000084',
+  'idem-offline-3', 1, 0, 'progress', now(),
+  jsonb_build_object('percentComplete', 40, 'startedAt', (now() - interval '5 hours')::text)
+);
+reset role;
+select ok(
+  (select started_at from public.course_progress
+   where assignment_id = '7c000000-0000-4000-8000-000000000084')
+    >= now() - interval '1 minute',
+  'a bundle downloaded before this assignment existed buys no seat time against it'
 );
 
 -- ---------------------------------------------------------------------------------------
