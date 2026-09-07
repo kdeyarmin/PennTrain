@@ -105,6 +105,18 @@ running things in this environment.
   whole lockfile and fails on npm packages it does not need), and give the
   container the egress proxy plus its CA (`DENO_CERT`, `HTTPS_PROXY` pointed at
   the docker gateway) or a Deno cache warmed on the host.
+  Two more things the browser lane needs, both of which cost a run to find out:
+  the sandbox's installed Chromium may not be the revision `@playwright/test`
+  pins (1194 against 1228 here), which a throwaway `playwright.local.config.ts`
+  setting `launchOptions.executablePath` fixes -- `.gitignore` covers that name
+  precisely because the path is true for one machine only. And `/demo`'s persona
+  buttons come from `VITE_DEMO_ACCOUNTS_JSON`, read at BUILD time: a bundle
+  built without it (and `VITE_ENABLE_PUBLIC_DEMO=true`, which
+  `parseDemoAccounts` requires before it will hand accounts to a production
+  build) renders the demo page with no buttons, so `role-routing.spec.ts`'s
+  guest-auditor test times out on a click and its serial block skips nine more
+  tests behind it. `.github/workflows/ci.yml` sets both; a local run has to as
+  well, or it is reading its own omission as a defect.
 - **Local backend = local Supabase**: the SPA has no API server of its own; it
   talks to Supabase directly. From the repo root run
   `npx --yes supabase@2.109.1 start` (applies all migrations, no demo data:
