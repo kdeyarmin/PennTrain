@@ -86,6 +86,25 @@ running things in this environment.
   stack and `pnpm run check:database`. `check:database` mirrors the CI job exactly,
   which means it stops any stack you have running and brings up a clean one --
   anything living only in your local stack is gone when it runs.
+- **A sandbox that refuses the edge runtime is recoverable**: in a restricted
+  container runtime, `supabase start` fails at
+  `supabase_edge_runtime_<project>` with `error setting rlimit type 7:
+  operation not permitted`. That is the CLI asking for `nofile 65536`, not
+  anything wrong with the image, and two release passes wrote off the
+  edge-function browser coverage over it. `supabase start -x edge-runtime`
+  brings the rest of the stack up; then run the same container by hand with a
+  permitted limit. Capture the CLI's own container spec (`supabase functions
+  serve`, and `docker container inspect` it before the failure removes it) for
+  the exact command, mounts and env, and copy the generated main service out of
+  the `/tmp/supabase-functions-serve-main-*/index.ts` it bind-mounts; then
+  `docker run -d --name supabase_edge_runtime_<project> --network
+  supabase_network_<project> --network-alias edge_runtime --ulimit
+  nofile=8192:8192 ...` with those. Restart Kong afterwards so it stops serving
+  the cached negative DNS answer. Two things bite in a proxied sandbox: do NOT
+  mount the repo's `deno.json`/`deno.lock` (the runtime tries to resolve the
+  whole lockfile and fails on npm packages it does not need), and give the
+  container the egress proxy plus its CA (`DENO_CERT`, `HTTPS_PROXY` pointed at
+  the docker gateway) or a Deno cache warmed on the host.
 - **Local backend = local Supabase**: the SPA has no API server of its own; it
   talks to Supabase directly. From the repo root run
   `npx --yes supabase@2.109.1 start` (applies all migrations, no demo data:

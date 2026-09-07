@@ -31,9 +31,10 @@ import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingType
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListTrainingHourBuckets, useListCourseCompletionCredits } from "@/hooks/useTrainingHourBuckets";
 import {
-  bucketHoursInWindow, bucketStanding, hourBucketLabel, trainingYearWindow,
+  bucketHoursInWindow, bucketStanding, hourBucketLabel, trainingTypeCreditsFacility, trainingYearWindow,
 } from "@/lib/annualTrainingHours";
 import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityTypeLabel } from "@/lib/facilityTypes";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListEmployeeCredentials, useEmployeeRequiredItems } from "@/hooks/useEmployeeCredentials";
 import {
@@ -202,16 +203,41 @@ export default function EmployeeDetail() {
     () => trainingYearWindow(employee?.hire_date, today),
     [employee?.hire_date, today],
   );
+  // Null until every input is in, and the card falls back to the stored calendar-year row while it
+  // is. Which types are creditable depends on the FACILITY, and the records and course credits are
+  // the numerator itself, so computing this from whatever has arrived so far does not produce a
+  // partial answer -- it produces a different, wrong one, briefly, in the position the card gives
+  // the most weight. A figure that appears a moment later is better than one that is wrong now.
   const anniversaryHours = useMemo(() => {
-    if (!trainingYear) return null;
+    if (!trainingYear || !facility || !trainingTypes || !trainingRecords || !courseCredits) return null;
     return bucketHoursInWindow({
       window: trainingYear,
-      records: trainingRecords ?? [],
-      courseCredits: courseCredits ?? [],
-      trainingTypes: trainingTypes ?? [],
-      facilityType: facility?.facility_type,
+      records: trainingRecords,
+      courseCredits,
+      trainingTypes,
+      facilityType: facility.facility_type,
+      facilityState: facility.state,
     });
-  }, [trainingYear, trainingRecords, courseCredits, trainingTypes, facility?.facility_type]);
+  }, [trainingYear, trainingRecords, courseCredits, trainingTypes, facility]);
+
+  /**
+   * The training types a completion may be recorded against for THIS employee.
+   *
+   * The picker below offered every type the tenant can read -- all six facility types' system
+   * catalogs, every state's, and deactivated ones. Nothing downstream honours that choice: the
+   * server credits hours only from `creditable_types` (`recalculate_compliance_core`), and the
+   * training matrix renders a type outside the employee's facility type as `not_applicable`. So
+   * recording a Home Health Aide in-service against a personal care home employee wrote a real
+   * record that earned nothing, said so nowhere, and left the employee's hours card and their
+   * bucket disagreeing. Same rule as the server's, in one place.
+   */
+  const recordableTrainingTypes = useMemo(
+    () => (trainingTypes ?? []).filter(t => trainingTypeCreditsFacility(
+      t,
+      { facilityType: facility?.facility_type, facilityState: facility?.state },
+    )),
+    [trainingTypes, facility?.facility_type, facility?.state],
+  );
 
   const trainingTypeName = (typeId: string) => trainingTypes?.find(t => t.id === typeId)?.name ?? "Unknown requirement";
 
@@ -830,16 +856,17 @@ export default function EmployeeDetail() {
                       2025 row is a closed record rather than a view of anything still moving. */}
                   {hourBuckets.map(b => {
                     const currentYear = b.training_year === Number(today.slice(0, 4));
-                    const earned = currentYear && anniversaryHours
-                      ? anniversaryHours.get(b.bucket_type)
-                      : undefined;
+                    // Only the anniversary figure gates on `anniversaryHours`; the calendar-year
+                    // row below is the server's own and is always safe to show.
+                    const onAnniversaryClock = Boolean(trainingYear && currentYear && anniversaryHours);
+                    const earned = onAnniversaryClock ? anniversaryHours!.get(b.bucket_type) : undefined;
                     const required = Number(b.required_hours ?? 0);
                     const anniversaryCompleted = earned?.completedHours ?? 0;
                     return (
                       <div key={b.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                         <div className="min-w-0">
                           <p className="font-medium text-sm">{hourBucketLabel(b.bucket_type)}</p>
-                          {trainingYear && currentYear ? (
+                          {onAnniversaryClock ? (
                             <>
                               <p className="text-xs text-muted-foreground">
                                 {anniversaryCompleted} of {required} hours completed this training year
@@ -856,8 +883,8 @@ export default function EmployeeDetail() {
                         </div>
                         <StatusBadge
                           status={
-                            trainingYear && currentYear
-                              ? bucketStanding(anniversaryCompleted, required, trainingYear, today)
+                            onAnniversaryClock
+                              ? bucketStanding(anniversaryCompleted, required, trainingYear!, today)
                               : b.status
                           }
                           type="training"
@@ -1030,11 +1057,18 @@ export default function EmployeeDetail() {
               >
                 <SelectTrigger id={`${__fieldIds}-training-type`} className="h-9"><SelectValue placeholder="Select training type" /></SelectTrigger>
                 <SelectContent>
-                  {trainingTypes?.map(t => (
+                  {recordableTrainingTypes.map(t => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {trainingTypes && recordableTrainingTypes.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No active training type applies to this employee's facility
+                  {facility?.facility_type ? ` (${facilityTypeLabel(facility.facility_type)})` : ""}. Add one under
+                  Training types before recording a completion.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-completion-date`} className="text-[13px]">Completion Date *</Label>

@@ -3,7 +3,8 @@ import {
   allowedSupportPlanTransitions, canTransitionSupportPlan, diffSupportPlanVersions,
   isActivationOverdue, isSupportPlanInFlight, isSupportPlanState, summarizePlanDiff,
   SUPPORT_PLAN_STATE_DESCRIPTIONS,
-  SUPPORT_PLAN_STATE_LABELS, SUPPORT_PLAN_STATES, supportPlanStateLabel, transitionRequiresReason,
+  SUPPORT_PLAN_STATE_LABELS, SUPPORT_PLAN_STATES, supportPlanRevisionStart, supportPlanStateLabel,
+  transitionRequiresReason,
 } from "./supportPlanLifecycle";
 
 describe("state set", () => {
@@ -229,5 +230,27 @@ describe("isActivationOverdue", () => {
   // that shift the day west of Greenwich.
   it("compares facility calendar dates, not UTC instants", () => {
     expect(isActivationOverdue("2026-07-26", "2026-07-26")).toBe(true);
+  });
+});
+
+describe("supportPlanRevisionStart", () => {
+  const active = [{ id: "plan-1", state: "active" }, { id: "plan-0", state: "superseded" }];
+
+  it("refuses until the plans query has actually answered", () => {
+    // The whole point: "not loaded" must not look like "no plan to copy". Both leave the active
+    // plan undefined, and one of them turns a revision into a blank plan that becomes the record.
+    expect(supportPlanRevisionStart(false, undefined)).toEqual({ canStart: false });
+    expect(supportPlanRevisionStart(false, active)).toEqual({ canStart: false });
+    expect(supportPlanRevisionStart(true, undefined)).toEqual({ canStart: false });
+  });
+
+  it("copies the plan in force once the answer is in", () => {
+    expect(supportPlanRevisionStart(true, active)).toEqual({ canStart: true, priorPlanId: "plan-1" });
+  });
+
+  it("starts a genuinely blank draft only when the answer is that there is no active plan", () => {
+    expect(supportPlanRevisionStart(true, [])).toEqual({ canStart: true, priorPlanId: undefined });
+    expect(supportPlanRevisionStart(true, [{ id: "plan-0", state: "draft" }]))
+      .toEqual({ canStart: true, priorPlanId: undefined });
   });
 });
