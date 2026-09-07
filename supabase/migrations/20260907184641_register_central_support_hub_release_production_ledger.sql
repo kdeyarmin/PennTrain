@@ -1,0 +1,12 @@
+-- Production migration-ledger placeholder.
+--
+-- On 2026-09-07, the idempotent statements in
+-- 20260907143902_register_central_support_hub_release.sql were applied to the
+-- CareBase production project through the Supabase management API. Supabase
+-- recorded that application as version 20260907184641.
+--
+-- Keep this comment-only file so source migration history contains the exact
+-- production ledger version. Fresh environments receive the actual feature
+-- registration from 20260907143902; production deploys use
+-- `supabase db push --include-all` to backfill that earlier idempotent version
+-- and skip this already-recorded placeholder.
