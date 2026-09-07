@@ -116,7 +116,13 @@ running things in this environment.
   build) renders the demo page with no buttons, so `role-routing.spec.ts`'s
   guest-auditor test times out on a click and its serial block skips nine more
   tests behind it. `.github/workflows/ci.yml` sets both; a local run has to as
-  well, or it is reading its own omission as a defect.
+  well, or it is reading its own omission as a defect. Make
+  `E2E_ACCOUNT_PASSWORD` at least eight characters, too: the fixtures set their
+  own accounts' passwords with it through `auth.admin.updateUserById`, and
+  GoTrue refuses a shorter one with `AuthWeakPasswordError` from inside a
+  `beforeAll`, which fails the first test of a serial file and skips the rest.
+  The seeded demo logins' `demo123` is a different thing and is not subject to
+  that rule -- it is written straight into `auth.users` by `seed.sql`.
 - **Local backend = local Supabase**: the SPA has no API server of its own; it
   talks to Supabase directly. From the repo root run
   `npx --yes supabase@2.109.1 start` (applies all migrations, no demo data:
