@@ -88,8 +88,32 @@ overrides:
   'browserslist@<=4.28.8': 4.28.9
   # Patch a transitive postcss (via tailwindcss/vite) off the range flagged by
   # GHSA-r28c-9q8g-f849 (path traversal in sourceMappingURL auto-loading -> arbitrary
-  # .map disclosure); fixed in 8.5.18, pinned to the latest mature 8.5.x patch.
-  'postcss@<=8.5.17': 8.5.22
+  # .map disclosure), then GHSA-fxqj-rqcc-2cmp, which found that fix incomplete: an
+  # attacker-controlled sourceMappingURL still reads arbitrary .map files when `from` is
+  # unset, and its range reaches <=8.5.22 -- taking 8.5.22, this override's own previous
+  # target, with it. That is the same shape as the fast-uri and brace-expansion entries
+  # above, and it is the third time in this file that aiming at the lowest version which
+  # clears the advisory bought a repeat, so this targets the latest mature 8.5.x patch
+  # rather than 8.5.23.
+  #
+  # Build-time only: postcss runs inside Vite/Tailwind during the build and ships nothing to
+  # a browser, so neither advisory describes a risk to a served page. Bumped anyway, because
+  # an advisory list is only useful while every entry on it is either absent or argued for.
+  'postcss@<=8.5.22': 8.5.28
+  # Patch qs off two advisories that both reach the version express@4.22.2 resolves (6.15.3):
+  # GHSA-x5fp-wj9c-mxmx (array-limit bypass via bracket-key comma parsing) and
+  # GHSA-4mjr-xmp4-gh2g (DoS via an attacker-controlled isBuffer). Only the first is clearable
+  # inside express's declared `qs: ~6.15.1`; the second is fixed in 6.16.0, so clearing both
+  # means stepping one minor outside that range. qs 6.16.0 is the same major with an unchanged
+  # parse/stringify surface, and express pins with `~` as a matter of habit rather than because
+  # 6.16 breaks it.
+  #
+  # voice-gateway is the only consumer and it is not actually reachable through either bug:
+  # bodies go through `express.urlencoded({ extended: false })`, which uses node's querystring
+  # rather than qs, and no route reads `req.query`, which is what express would otherwise parse
+  # with qs. So this is hygiene on a dependency list, not a live fix -- which is also why it is
+  # safe to take the out-of-range minor rather than leave one advisory standing.
+  'qs@<6.16.0': 6.16.0
   # Patch transitive brace-expansion off the range flagged by GHSA-mh99-v99m-4gvg (DoS via
   # unbounded expansion length -> out-of-memory crash), then GHSA-rgw5-rvv9-x895, which found the
   # first fix bypassable via unbounded INTERMEDIATE arrays and widened the affected range to
