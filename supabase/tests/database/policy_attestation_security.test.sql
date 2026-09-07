@@ -1,5 +1,5 @@
 begin;
-select plan(19);
+select plan(20);
 
 insert into public.organizations (id, name, slug)
 values
@@ -324,6 +324,35 @@ select results_eq(
              null::text, null::text, null::timestamptz) $$,
   'new assignments contain no caller-authored completion evidence'
 );
+
+-- BACKLOG J7/J88. Publishing a newer version closes every campaign pinned to an older one, but
+-- nothing stopped a manager assigning MORE employees into the closed campaign afterwards -- and
+-- attest-policy refuses a signature on the ATTESTATION's own superseded_at, which a row created
+-- after the publish does not carry. Those rows would have been signable against replaced text.
+select set_config('app.privileged_write', 'on', true);
+update public.policy_attestation_campaigns
+set closed_at = now(), closed_reason = 'superseded_by_version'
+where id = '91000000-0000-4000-8000-000000000401';
+select set_config('app.privileged_write', 'off', true);
+
+select pg_temp.act_as('91000000-0000-4000-8000-000000000101', 'aal2');
+select throws_ok(
+  $$ insert into public.policy_attestations (
+       id, organization_id, facility_id, employee_id, campaign_id,
+       policy_document_version_id
+     ) values (
+       '91000000-0000-4000-8000-000000000504',
+       '91000000-0000-4000-8000-000000000002',
+       '91000000-0000-4000-8000-000000000012',
+       '91000000-0000-4000-8000-000000000201',
+       '91000000-0000-4000-8000-000000000401',
+       '91000000-0000-4000-8000-000000000312'
+     ) $$,
+  '23514',
+  'This attestation campaign has been closed and can no longer be assigned. Start a campaign on the current version instead.',
+  'nobody can be assigned into a campaign a newer version closed'
+);
+reset role;
 
 select is(
   (

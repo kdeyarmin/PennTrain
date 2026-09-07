@@ -126,7 +126,10 @@ export default function EmployeeDashboard() {
     const doc = campaign ? policyDocumentById.get(campaign.policy_document_id) : undefined;
     return doc?.title ?? campaign?.name ?? "Policy Attestation";
   };
-  const pendingAttestations = (attestations ?? []).filter(a => a.status === "pending");
+  // `superseded_at` excluded: publishing a newer policy version stamps it on every still-pending
+  // attestation against an older one and attest-policy refuses to sign those, so counting them here
+  // put a permanent, unclearable task on this employee's dashboard (20260906100000).
+  const pendingAttestations = (attestations ?? []).filter(a => a.status === "pending" && !a.superseded_at);
 
   // Next published shift -- shift_assignments RLS already restricts an employee's own rows to
   // schedules with status = 'published' (see MySchedule.tsx, which uses the same

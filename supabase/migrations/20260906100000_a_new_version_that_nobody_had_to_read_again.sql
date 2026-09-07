@@ -316,3 +316,73 @@ comment on function public.rotate_integration_api_credential(uuid, timestamptz) 
   'eMAR source bound to it. Without the repoint the sources kept the retired credential, so the '
   'new key''s bundles were accepted and then silently rejected at apply time and nothing in the '
   'product could rebind them (BACKLOG J9).';
+
+-- ---------------------------------------------------------------------------
+-- And nothing may be assigned INTO a closed campaign.
+--
+-- Closing the campaign above stops the daily sweep and the reminder job, but it does not stop a
+-- manager from assigning employees by hand: the campaign is still listed and the "Assign Employees"
+-- button is still offered. That path was worse than a dead end. `attest-policy` refuses a signature
+-- only when the ATTESTATION carries `superseded_at`, and publishing stamps that on rows that
+-- already exist -- a row created afterwards has a null `superseded_at`, so it would have been
+-- perfectly signable, against a version nobody is required to follow any more. That is exactly the
+-- stale evidence J7 exists to refuse, reached by a second route.
+--
+-- The refusal goes in the BEFORE INSERT trigger rather than in the page, because the page is not
+-- authorization: `policy_attestations_insert` admits an org_admin or facility_manager writing the
+-- table directly, and the trigger already reads the campaign row to stamp scope off it.
+do $do$
+declare
+  v_def text;
+  v_old text;
+  v_new text;
+begin
+  v_def := pg_get_functiondef('public.stamp_scope_from_employee_for_attestation()'::regprocedure);
+
+  if position('closed_at' in v_def) > 0 then
+    raise notice 'stamp_scope_from_employee_for_attestation already refuses a closed campaign';
+  else
+    v_old := $q$  select c.organization_id, c.policy_document_version_id, c.due_date
+  into v_campaign_org, v_campaign_version, v_campaign_due_date
+  from public.policy_attestation_campaigns c
+  where c.id = new.campaign_id;$q$;
+    if position(v_old in v_def) = 0 then
+      raise exception 'stamp_scope_from_employee_for_attestation no longer reads the campaign row this migration patches';
+    end if;
+    v_new := $q$  select c.organization_id, c.policy_document_version_id, c.due_date, c.closed_at
+  into v_campaign_org, v_campaign_version, v_campaign_due_date, v_campaign_closed_at
+  from public.policy_attestation_campaigns c
+  where c.id = new.campaign_id;$q$;
+    v_def := replace(v_def, v_old, v_new);
+
+    v_old := $q$  v_campaign_due_date date;$q$;
+    if position(v_old in v_def) = 0 then
+      raise exception 'stamp_scope_from_employee_for_attestation no longer declares v_campaign_due_date';
+    end if;
+    v_new := $q$  v_campaign_due_date date;
+  v_campaign_closed_at timestamptz;$q$;
+    v_def := replace(v_def, v_old, v_new);
+
+    v_old := $q$  new.organization_id := v_employee_org;$q$;
+    if position(v_old in v_def) = 0 then
+      raise exception 'stamp_scope_from_employee_for_attestation no longer stamps organization_id';
+    end if;
+    v_new := $patch$  -- BACKLOG J7/J88. Publishing a newer version closes this campaign; an attestation created
+  -- after that point carries no superseded_at of its own and would therefore be signable against
+  -- text that has been replaced.
+  if v_campaign_closed_at is not null then
+    raise exception 'This attestation campaign has been closed and can no longer be assigned. Start a campaign on the current version instead.'
+      using errcode = '23514';
+  end if;
+
+  new.organization_id := v_employee_org;$patch$;
+    execute replace(v_def, v_old, v_new);
+  end if;
+end;
+$do$;
+
+comment on function public.stamp_scope_from_employee_for_attestation() is
+  'Derives an attestation''s organization, facility, version and due date from the employee and '
+  'the campaign rather than trusting the caller, and refuses an assignment into a campaign that '
+  'has been closed -- a row created after a newer version was published carries no superseded_at '
+  'and would otherwise be signable against replaced text (BACKLOG J7/J88).';

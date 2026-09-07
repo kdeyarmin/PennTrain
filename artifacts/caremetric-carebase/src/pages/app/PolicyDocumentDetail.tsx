@@ -30,7 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { AlertTriangle, ArrowLeft, ClipboardCheck, Upload, FileText, Megaphone, Plus, Search, ChevronDown, ChevronRight } from "lucide-react";
-import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityDateOf, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { QueryError } from "@/components/QueryState";
 import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
@@ -519,6 +519,13 @@ function CampaignRoster({ campaignId }: { campaignId: string }) {
   );
 }
 
+// `closed_reason` is a stored code, not a sentence. The only writer today is the publish path
+// (20260906100000); anything else falls back to the bare "Closed <date>" above rather than
+// printing a raw enum at a reader.
+const CLOSED_REASON_TEXT: Record<string, string> = {
+  superseded_by_version: " — a newer version was published",
+};
+
 function CampaignsTab({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
   const { user } = useAuth();
   // policy_attestation_campaigns_select names `auditor` explicitly -- reading campaigns is the
@@ -559,11 +566,22 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
                     >
                       {expandedId === c.id ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                       <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">{c.name}</p>
-                        <p className="text-xs text-muted-foreground">{c.due_date ? `Due ${fmtDate(c.due_date)}` : "No due date"}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm truncate">{c.name}</p>
+                          {/* Publishing a newer version closes every campaign pinned to an older
+                              one (20260906100000). Listing those as if they were live left the
+                              roster reading like current work and offered an Assign button the
+                              INSERT trigger now refuses -- so say the state instead. */}
+                          {c.closed_at && <Badge variant="outline" className="shrink-0">Closed</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {c.closed_at
+                            ? `Closed ${fmtDate(facilityDateOf(c.closed_at))}${CLOSED_REASON_TEXT[c.closed_reason ?? ""] ?? ""}`
+                            : c.due_date ? `Due ${fmtDate(c.due_date)}` : "No due date"}
+                        </p>
                       </div>
                     </button>
-                    {canWrite && (
+                    {canWrite && !c.closed_at && (
                       <Button
                         size="sm"
                         onClick={() => setAssignTarget({ id: c.id, versionId: c.policy_document_version_id, dueDate: c.due_date })}

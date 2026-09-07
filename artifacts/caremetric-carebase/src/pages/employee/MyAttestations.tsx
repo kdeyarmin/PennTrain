@@ -27,6 +27,13 @@ function AttestationBadge({ attestation }: { attestation: PolicyAttestation }) {
   if (attestation.status === "attested") {
     return <Badge className="bg-success text-success-foreground hover:bg-success/80">Attested</Badge>;
   }
+  // Before Overdue. Publishing a newer version stamps `superseded_at` on every still-pending
+  // attestation against an older one, and attest-policy refuses to sign it afterwards. Showing it
+  // as Overdue with a Review & Attest button asked this employee, every day for ever, to do the
+  // one thing the server was going to reject.
+  if (attestation.superseded_at) {
+    return <Badge variant="outline">No longer required</Badge>;
+  }
   if (attestation.due_date && attestation.due_date < facilityToday()) {
     return <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive/80">Overdue</Badge>;
   }
@@ -55,6 +62,10 @@ export default function MyAttestations() {
   const { mutateAsync: getSignedUrl } = usePolicyDocumentSignedUrl();
   const { mutateAsync: attestPolicy, isPending: attesting } = useAttestPolicy();
 
+  // A superseded row is neither outstanding work nor a signature -- it sorts with the finished
+  // ones so the top of this list is only what the employee can actually act on.
+  const isActionable = (a: PolicyAttestation) => a.status === "pending" && !a.superseded_at;
+
   const [reviewing, setReviewing] = useState<PolicyAttestation | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -67,7 +78,7 @@ export default function MyAttestations() {
     data: knowledgeCheckQuestions,
     isLoading: knowledgeCheckLoading,
     isError: knowledgeCheckError,
-  } = usePolicyKnowledgeCheck(reviewing?.status === "pending" ? reviewing?.id : undefined);
+  } = usePolicyKnowledgeCheck(reviewing && isActionable(reviewing) ? reviewing.id : undefined);
   // Fail closed while the answer is unknown. Treating "not loaded yet" as "no check required" would
   // enable the attest button for a moment on every open, and clicking in that window earns a 403
   // from the server-side gate -- while PolicyKnowledgeCheck is simultaneously telling the reader it
@@ -86,7 +97,7 @@ export default function MyAttestations() {
   };
 
   const sorted = (attestations ?? []).slice().sort((a, b) => {
-    if (a.status !== b.status) return a.status === "pending" ? -1 : 1;
+    if (isActionable(a) !== isActionable(b)) return isActionable(a) ? -1 : 1;
     return (a.due_date ?? "9999-99-99").localeCompare(b.due_date ?? "9999-99-99");
   });
 
@@ -147,8 +158,9 @@ export default function MyAttestations() {
           ) : (
             <div className="space-y-2">
               {sorted.map((a) => {
-                const dueDistance = a.status === "pending" ? formatDueDistance(a.due_date) : null;
-                const daysLeft = a.status === "pending" ? facilityDaysUntil(a.due_date) : null;
+                const actionable = isActionable(a);
+                const dueDistance = actionable ? formatDueDistance(a.due_date) : null;
+                const daysLeft = actionable ? facilityDaysUntil(a.due_date) : null;
                 const dueTone =
                   daysLeft !== null && daysLeft < 0
                     ? "text-destructive font-medium"
@@ -162,13 +174,15 @@ export default function MyAttestations() {
                     <p className={`text-xs ${dueTone || "text-muted-foreground"}`}>
                       {a.status === "attested"
                         ? `Attested ${fmtDate(facilityDateOf(a.attested_at))}`
-                        : `Due ${fmtDate(a.due_date)}${dueDistance ? ` · ${dueDistance}` : ""}`}
+                        : a.superseded_at
+                          ? "A newer version of this policy was published — you will be assigned that one instead."
+                          : `Due ${fmtDate(a.due_date)}${dueDistance ? ` · ${dueDistance}` : ""}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <AttestationBadge attestation={a} />
-                    <Button variant={a.status === "pending" ? "default" : "outline"} onClick={() => openReview(a)}>
-                      {a.status === "pending" ? "Review & Attest" : "View"}
+                    <Button variant={actionable ? "default" : "outline"} onClick={() => openReview(a)}>
+                      {actionable ? "Review & Attest" : "View"}
                     </Button>
                   </div>
                 </div>
@@ -213,16 +227,24 @@ export default function MyAttestations() {
             <p className="text-sm text-muted-foreground">Document unavailable.</p>
           )}
 
-          {reviewing?.status === "pending" && (
+          {reviewing && isActionable(reviewing) && (
             <PolicyKnowledgeCheck
               attestationId={reviewing.id}
               onPassed={() => setKnowledgeCheckPassed(true)}
             />
           )}
 
+          {reviewing?.superseded_at && (
+            <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+              This version was replaced on {fmtDate(facilityDateOf(reviewing.superseded_at))}. It is
+              kept here so you can see what you were asked to read, but it can no longer be signed —
+              your organization will assign the current version.
+            </p>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setReviewing(null)}>Cancel</Button>
-            {reviewing?.status === "pending" && (
+            {reviewing && isActionable(reviewing) && (
               // The attestation is a legal signature -- never allow sign-off
               // unless the document actually loaded and could be read, and (when the campaign has
               // one) the knowledge check has been passed. This disabled state is a courtesy, not
