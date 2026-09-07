@@ -203,14 +203,41 @@ them:
 
 ## Preventing recurrence
 
-Three layers close the gap — automated deployment, a check that fails loudly if drift ever
-reappears, and a PR-time gate that stops deployed migration files from being edited in the
-first place.
+Four layers close the gap — automated deployment, a check that fails loudly if drift ever
+reappears, a PR-time gate that stops deployed migration files from being edited in the
+first place, and a nightly run of the drift check so a gap is reported on its own schedule
+rather than discovered by the next person to merge.
+
+### 0. Applying a migration by hand is now a deploy-blocking event
+
+This audit's own subject — migrations applied piecemeal to the remote while the bulk deploy fell
+behind — is no longer merely untidy. Since the deploy workflow exists, `supabase db push` is the
+first production step of *every* merge to `main`, and it refuses to run at all when the remote
+holds a version with no local file:
+
+```
+Remote migration versions not found in local migrations directory.
+```
+
+So a migration applied out-of-band does not just leave the repository out of step with
+production; it blocks the deploy of **whatever merges next**, including edge functions and
+migrations that have nothing to do with it. Observed on 2026-09-07: a Support Hub migration was
+applied through the Management API, PR #497 merged before the file recording it existed, and its
+edge-function changes stayed undeployed for 34 minutes until #499 added that file.
+
+The process is therefore: **write the migration file, open a PR, and let merging it apply the
+change** (ARCHITECTURE.md, "Key Commands"). Where an out-of-band apply genuinely cannot be
+avoided, the file recording it — named with the version Supabase actually assigned — goes in the
+same pull request as anything depending on it, and onto `main` immediately.
 
 ### 1. Automated deploy on merge — `.github/workflows/deploy-migrations.yml`
 
 Runs **after the `CI` workflow succeeds on `main`** (via `workflow_run`), plus manual
-`workflow_dispatch` restricted to `main`. It checks out exactly the commit CI validated, links
+`workflow_dispatch` restricted to `main`, plus a **nightly `schedule`** that runs the same job in
+dry-run mode: it pushes nothing and deploys nothing, but it does run both drift checks against
+production, so a pending migration, an orphan version, or a missing edge function is reported on
+its own schedule. A green nightly run is also what retires a stale `[deploy]` issue, since it is
+direct evidence that production is back in sync. It checks out exactly the commit CI validated, links
 the project, runs `supabase db push --include-all`, then runs the drift check to confirm the
 remote is in sync. Gating on CI success means production is never mutated ahead of the `database`
 job that reapplies and tests the whole chain; `--include-all` lets it backfill any pending

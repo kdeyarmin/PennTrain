@@ -6,6 +6,14 @@ const urls = [...new Set([...source.matchAll(/url:\s*"(https:\/\/www\.pa\.gov\/[
 const verified = source.match(/DHS_FORMS_LAST_VERIFIED\s*=\s*"(\d{4}-\d{2}-\d{2})"/)?.[1];
 const maxAgeDays = Number(process.env.DHS_SOURCE_MAX_AGE_DAYS || 45);
 
+// How much notice the review clock gives before it goes red. The gate itself is right -- a human
+// has to re-read the source documents, and 45 days is the limit -- but the first signal that the
+// deadline was approaching used to be the weekly job failing after it had passed: run 7 failed at
+// 49 days and the stamp was refreshed at 55. On a WEEKLY cadence a seven-day lead is the smallest
+// one that guarantees at least one warning run before the failing one. BACKLOG K10.
+const warnLeadDays = Number(process.env.DHS_SOURCE_WARN_LEAD_DAYS || 7);
+const warnings = [];
+
 if (!verified) throw new Error("DHS_FORMS_LAST_VERIFIED is missing or malformed.");
 if (urls.length < 30) throw new Error(`Expected at least 30 official PA source links; found ${urls.length}.`);
 
@@ -18,6 +26,13 @@ if (ageDays > maxAgeDays) {
     + "changed since the last digest, so the review is scoped to those rather than all of them. "
     + "Re-stamp DHS_FORMS_LAST_VERIFIED only after a person has read them; an unchanged digest is "
     + "not an attestation.",
+  );
+} else if (ageDays > maxAgeDays - warnLeadDays) {
+  warnings.push(
+    `Human source review is due in ${maxAgeDays - ageDays} day(s): ${ageDays} days since ${verified} `
+    + `(limit ${maxAgeDays}). Run \`node scripts/snapshot-dhs-sources.mjs\` to see which form `
+    + "documents actually changed, review those, and re-stamp DHS_FORMS_LAST_VERIFIED before the "
+    + "limit passes -- this is the notice that avoids a red weekly run.",
   );
 }
 
@@ -46,6 +61,7 @@ if (citationUrls.length < 1) throw new Error(`Expected at least 1 official PA re
 
 const citationAgeDays = Math.floor((Date.now() - new Date(`${citationVerified}T00:00:00Z`).getTime()) / 86_400_000);
 if (citationAgeDays > citationMaxAgeDays) failures.push(`Citation source review is stale: ${citationAgeDays} days since ${citationVerified} (limit ${citationMaxAgeDays}).`);
+else if (citationAgeDays > citationMaxAgeDays - warnLeadDays) warnings.push(`Citation source review is due in ${citationMaxAgeDays - citationAgeDays} day(s): ${citationAgeDays} days since ${citationVerified} (limit ${citationMaxAgeDays}).`);
 
 async function inspect(url) {
   let lastError;
@@ -87,6 +103,9 @@ const formResults = results.filter((result) => !citationUrlSet.has(result.url));
 const citationResults = results.filter((result) => citationUrlSet.has(result.url));
 process.stdout.write(`Checked ${formResults.length}/${urls.length} PA DHS source links; human verification age ${ageDays} day(s).\n`);
 process.stdout.write(`Checked ${citationResults.length}/${citationUrls.length} PA regulatory citation source links; human verification age ${citationAgeDays} day(s).\n`);
+// Warnings go to stdout so a GREEN run still carries them into the tee'd report and the run
+// summary -- the whole point is that someone sees the deadline while the job is still passing.
+for (const warning of warnings) process.stdout.write(`WARN ${warning}\n`);
 if (failures.length) {
   for (const failure of failures) process.stderr.write(`FAIL ${failure}\n`);
   process.exitCode = 1;

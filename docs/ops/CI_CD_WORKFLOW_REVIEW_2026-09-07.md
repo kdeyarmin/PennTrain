@@ -8,7 +8,14 @@
 
 **Prepared:** 2026-09-07 (evening UTC), against `main` @ `9d5072f` (PR #501, deployed by run 190 at
 22:08 UTC). Run history, issues and job timings were read from the GitHub API on the same evening.
-Nothing in this pass changed a workflow: the owner asked for the plan first.
+The review was written before anything was changed, because the owner asked for the plan first.
+
+**Status:** all ten code findings (K1–K10) were then implemented on the same branch, in the order
+section 6 sets out. K11 is dashboard-side and remains the owner's. The findings below are left as
+they were written — they are the evidence, and rewriting them in the past tense would lose it;
+section 6 records what was done, what was verified, and the three places the implementation
+deliberately departed from the plan. Status for each finding lives in its `BACKLOG.md` Tier K row,
+not here.
 
 ---
 
@@ -298,10 +305,42 @@ following were each checked and should not be changed in the course of fixing th
 
 ---
 
-## 6. The plan
+## 6. The plan, and what was done
 
 Single-threaded, in this order. Each block is one change set; each has a gate that says it is done.
 Sizes use the backlog's scale (`S` = days).
+
+**All three blocks were executed**, in the order below, in one branch rather than three. What each
+one actually did is in its `BACKLOG.md` Tier K row. Three things are worth recording here, because
+they are decisions rather than implementations:
+
+- **K2 does not do what the plan proposed.** The plan said a transport failure should produce a
+  `::warning::` and a green run. That is a run which audited nothing and reports success — the
+  silence this repository distrusts everywhere else. Implemented instead as a visible failure plus
+  a *differently titled* issue (`[deps] Advisory audit could not run`) that states in its first
+  line that main was not audited, and that closes itself on the next clean audit. The false
+  security signal is gone either way; this way the absence of an audit is not silent either.
+- **K1 grew a shared component the plan did not call for.** Writing close-on-success three times
+  meant writing dedup three times, and the three existing copies already disagreed with each other
+  (`per_page: 30` in the deploy workflow, `50` in the two audits, and "not on the first page" read
+  as "not open"). Both halves now live in `.github/actions/reconcile-issue`, which paginates, so
+  the answer to "when does this alert go away" is in one place for all four workflows.
+- **K8 had a consequence the finding did not anticipate.** Adding a pin-agreement check to
+  `check:all` only helps if the check runs on the diffs that move a pin — and `.devcontainer/*`
+  and `AGENTS.md` were in no path-filter group, so a Dependabot dev-container bump would have
+  changed a pin in a diff that booted no job able to notice. Both were added to `APP_PATTERNS` in
+  the same change.
+
+Each block's gate was met by something other than reading the diff: the K3 regression was
+reproduced in a scratch worktree and shown to fail before the fix and pass after; K2's exit path
+was exercised end-to-end against an unreachable endpoint; K7's filtered install was measured (3
+packages against 690) and all four deploy-time scripts re-run against it; K8's new check was
+mutation-tested against a drifted `.nvmrc`, the historical dev-container pnpm regression, and a
+pattern that stops matching; K10's two clock paths were run against the live PA.gov sources; K6's
+claim about the action's scan scope was verified against the pinned v3.0.0 source before any of it
+was written. What could not be verified from here is what runs only on GitHub: the schedules, the
+issue open/close round trips, and the `production` environment's behaviour under a scheduled dry
+run (see K11).
 
 **Block 1 -- stop the false and missing signals (K1, K2, K3). One change set, `S`.**
 These three are the ones producing wrong output *today*: two stale issues open, one PR red for a

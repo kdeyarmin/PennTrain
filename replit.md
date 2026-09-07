@@ -100,9 +100,14 @@ per environment; no seeded account has the `platform_admin` role.
 - `pnpm --filter @workspace/pa-medtrack run dev` — run the frontend dev server
 - `pnpm --filter @workspace/pa-medtrack run build` — production build
 - `pnpm run typecheck` — typecheck all workspace packages
-- Schema changes go through `mcp__Supabase__apply_migration`, then the exact same SQL is written to
-  `supabase/migrations/<version>_<name>.sql` using the version number Supabase actually assigned (from
-  `mcp__Supabase__list_migrations`), so the Supabase GitHub integration's preview-branch deploys stay in sync.
+- **Schema changes are committed as a migration file and applied by the pipeline** — write
+  `supabase/migrations/<UTC timestamp>_<name>.sql` and merge it; `.github/workflows/deploy-migrations.yml`
+  runs `supabase db push --include-all` against production once CI passes on `main`, then deploys
+  the edge functions. Do not apply schema to production by hand first: a version applied
+  out-of-band with no local file makes `db push` refuse to run, which blocks the *next* merge's
+  deploy as well. If it cannot be avoided, the file recording it (named with the version Supabase
+  assigned, from `mcp__Supabase__list_migrations`) goes in the same pull request. See
+  ARCHITECTURE.md for the full reasoning.
 
 ## Database Schema (selected tables)
 

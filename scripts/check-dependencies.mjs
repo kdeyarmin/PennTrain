@@ -296,6 +296,24 @@ function classifyAdvisories(headAdvisories, baseAdvisories) {
 const ADVISORY_REQUEST_TIMEOUT_MS = 60_000;
 const ADVISORY_REQUEST_ATTEMPTS = 3;
 
+/**
+ * Exit status for "the advisory database could not be reached", as distinct from 1, which
+ * means "the audit ran and this change introduces a high or critical advisory".
+ *
+ * A number rather than a message, because the consumer is a workflow `if:` condition and
+ * GitHub gives a step's exit code to bash but never to the expression language -- so the
+ * workflow captures this into a step output and branches on it. See BACKLOG K2.
+ */
+export const EXIT_TRANSPORT_FAILURE = 3;
+
+/** The advisory endpoint was unreachable or unparseable. Never means "a package is vulnerable". */
+export class AdvisoryTransportError extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = "AdvisoryTransportError";
+  }
+}
+
 function postJson(hostname, urlPath, body) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
@@ -464,6 +482,25 @@ function runSelfTest() {
     auditSetsAreIdentical(auditSet([]), auditSet([])),
     true);
 
+  // The transport/advisory split (K2). Exit 3 is a contract with dependency-advisories.yml,
+  // which reads it to decide which issue -- if any -- this run opens, so a change to either
+  // number breaks a security signal quietly. Asserted here rather than left to a reading.
+  check("a transport failure has its own exit status", EXIT_TRANSPORT_FAILURE, 3);
+  check("a transport failure is not the advisory failure status", EXIT_TRANSPORT_FAILURE !== 1, true);
+  check(
+    "a transport error is distinguishable from every other failure",
+    [
+      new AdvisoryTransportError("unreachable") instanceof AdvisoryTransportError,
+      new Error("anything else") instanceof AdvisoryTransportError,
+    ],
+    [true, false],
+  );
+  check(
+    "a transport error keeps the underlying cause for the log",
+    new AdvisoryTransportError("outer", { cause: new Error("inner") }).cause.message,
+    "inner",
+  );
+
   const failed = cases.filter((c) => !c.ok);
   for (const c of failed) {
     console.error(`  FAIL ${c.name}`);
@@ -558,13 +595,36 @@ async function audit(set, label) {
       toPayload(set),
     );
   } catch (error) {
-    throw new Error(`Failed to fetch security advisories for ${label}: ${error.message}`, {
-      cause: error,
-    });
+    throw new AdvisoryTransportError(
+      `Failed to fetch security advisories for ${label}: ${error.message}`,
+      { cause: error },
+    );
   }
 }
 
-const headAdvisories = await audit(packages, "this branch");
+// "The audit found something" and "the audit could not run" are different facts, and until now
+// they left by the same exit door. Both threw, both exited 1, and dependency-advisories.yml opens
+// `[deps] High or critical advisory affects main` on any non-zero -- so on 2026-09-04 three
+// 60-second timeouts against registry.npmjs.org, with nothing audited at all, commented "Still
+// failing" on the open advisory issue as though main shipped the vulnerability. That is a false
+// security signal, and a standing security issue bumped by someone else's outage is one people
+// stop believing -- the exact failure this script's own header was written to prevent, arriving
+// through the transport instead of through the advisory feed. Exit 3 lets the caller tell them
+// apart; the workflow opens a differently-titled issue for it. BACKLOG K2.
+let headAdvisories;
+try {
+  headAdvisories = await audit(packages, "this branch");
+} catch (error) {
+  if (!(error instanceof AdvisoryTransportError)) throw error;
+  console.error(`\n${error.message}`);
+  console.error(
+    `\nNOTHING WAS AUDITED (exit ${EXIT_TRANSPORT_FAILURE}). This says the advisory database could ` +
+      "not be reached after " +
+      `${ADVISORY_REQUEST_ATTEMPTS} attempts -- it is not a finding about this repository's ` +
+      "dependencies, and it must not be reported as one. Re-run once the registry is reachable.",
+  );
+  process.exit(EXIT_TRANSPORT_FAILURE);
+}
 // A base audit that cannot be fetched must not quietly excuse anything: fall back to strict
 // rather than treating an empty result as "the base was clean".
 let baseAdvisories = null;
