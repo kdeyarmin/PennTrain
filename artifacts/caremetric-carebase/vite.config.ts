@@ -87,14 +87,20 @@ export default defineConfig(({ command, mode }) => {
     // The central-support launcher is intentionally first-party-only. Reject a configured
     // localhost, relative path, vanity hostname that is not live yet, or credential-bearing URL
     // at build time; the browser adapter repeats this check and fails closed at runtime.
+    const supportHubUrlIsConfigured = "VITE_CENTRAL_SUPPORT_HUB_URL" in env;
     const configuredSupportHubUrl = env.VITE_CENTRAL_SUPPORT_HUB_URL?.trim();
     if (
-      configuredSupportHubUrl
-      && configuredSupportHubUrl !== CENTRAL_SUPPORT_HUB_ORIGIN
-      && configuredSupportHubUrl !== `${CENTRAL_SUPPORT_HUB_ORIGIN}/`
+      supportHubUrlIsConfigured
+      && (
+        !configuredSupportHubUrl
+        || (
+          configuredSupportHubUrl !== CENTRAL_SUPPORT_HUB_ORIGIN
+          && configuredSupportHubUrl !== `${CENTRAL_SUPPORT_HUB_ORIGIN}/`
+        )
+      )
     ) {
       throw new Error(
-        `VITE_CENTRAL_SUPPORT_HUB_URL must be the approved live first-party origin `
+        `VITE_CENTRAL_SUPPORT_HUB_URL must be non-blank and use the approved live first-party origin `
         + `${CENTRAL_SUPPORT_HUB_ORIGIN} (an optional trailing slash is allowed).`,
       );
     }
@@ -144,7 +150,6 @@ export default defineConfig(({ command, mode }) => {
       "VITE_RELEASE_ID",
       "VITE_DEMO_ACCOUNTS_JSON",
       "VITE_CAREMETRIC_MODULES",
-      "VITE_CENTRAL_SUPPORT_HUB_URL",
     ]
       .filter((key) => key in env && env[key].trim() === "");
     for (const key of blankOptional) {
