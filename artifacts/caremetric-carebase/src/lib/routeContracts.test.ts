@@ -35,6 +35,19 @@ describe("internal route contract", () => {
     expect(canViewPath("/app/credentials", "facility_manager")).toBe(true);
   });
 
+  // `grant_additional_quiz_attempt` (20260906130000) notifies the profile behind an employee row,
+  // which is whatever role that person holds -- a facility_manager, trainer or auditor can have an
+  // employee record. So the link it writes has to be reachable by all of them. It named
+  // /me/trainings, which is employee-only; taking an assigned course is not an employee-only act
+  // and /me/courses is ANY_ROLE for that reason.
+  it("keeps the assigned-course destination open to every role that can hold an assignment", () => {
+    for (const role of ["employee", "trainer", "facility_manager", "org_admin", "auditor"] as const) {
+      expect(canViewPath("/me/courses", role)).toBe(true);
+    }
+    // The page the notification used to name is self-service only, which is the defect.
+    expect(canViewPath("/me/trainings", "trainer")).toBe(false);
+  });
+
   it("redirects legacy paths to destinations visible to their intended roles", () => {
     expect(canViewPath(LEGACY_ROUTE_REDIRECTS["/app/my-trainings"], "employee")).toBe(true);
     expect(canViewPath(LEGACY_ROUTE_REDIRECTS["/app/my-schedule"], "employee")).toBe(true);

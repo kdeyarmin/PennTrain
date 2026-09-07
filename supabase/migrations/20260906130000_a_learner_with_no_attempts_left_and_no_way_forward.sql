@@ -156,11 +156,25 @@ begin
     )
   );
 
+  -- /me/courses, not /me/trainings. Two reasons, and the second is the one that makes this a
+  -- defect rather than a preference.
+  --
+  -- By CONTENT: MyTrainings reads employee_training_records; this message is about a course
+  -- ASSIGNMENT and its quiz, which is MyCourses (useListCourseAssignments) and the TakeCourse /
+  -- TakeQuiz routes under it. The old link landed the learner on a page with no assignment on it.
+  --
+  -- By ROLE: the recipient is resolved through public.employees, so it is whatever role that
+  -- profile holds -- and a facility_manager, trainer or auditor can hold an employee record.
+  -- /me/trainings is ProtectedRoute-gated to `employee` alone, so every one of those was sent to a
+  -- route that redirects them away from a notification addressed to them. /me/courses is ANY_ROLE
+  -- precisely because taking an assigned course is not an employee-only act. Same defect as the
+  -- credential notifications in 20260906280000; that one needed the route widened, this one only
+  -- needed the right route.
   insert into public.notifications(organization_id, profile_id, notification_type, title, body, link)
   select v_assignment.organization_id, e.profile_id, 'course_assigned',
     'Another attempt is available',
     'Your manager has given you another attempt at the final assessment.',
-    '/me/trainings'
+    '/me/courses'
   from public.employees e
   where e.id = v_assignment.employee_id and e.profile_id is not null;
 
