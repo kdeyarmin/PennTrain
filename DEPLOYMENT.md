@@ -287,8 +287,9 @@ static route template from the checked-in app page registry. It does not send us
 resident, employee, ticket, record identifier, search, query-string, fragment, or free-text context.
 
 The `support.central_hub` release flag is registered `off` by default. After verifying the live Hub,
-an AAL2 platform administrator may release it globally or to a cohort through the existing Release
-Flags control plane. Loading failures, configuration mistakes, and a disabled flag all fail closed.
+an AAL2 platform administrator may release it globally through the existing Release Flags control
+plane. The current UI does not expose cohort-mode activation; cohort membership alone does not
+enable this flag. Loading failures, configuration mistakes, and a disabled flag all fail closed.
 The local `/app/help` and `/me/help` articles, Help Copilot, manuals, support-ticket creation/history,
 ticket detail routes, and all existing course/HeyGen records remain available independently; this
 integration adds a shared entry point and does not redirect or migrate those workflows.
