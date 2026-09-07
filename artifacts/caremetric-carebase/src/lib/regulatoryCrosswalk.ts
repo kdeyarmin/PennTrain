@@ -33,7 +33,10 @@ export interface CrosswalkEvidenceInput {
   inspectionItems?: Array<{ status?: string | null; due_date?: string | null }>;
   violations?: Array<{ status?: string | null; citation?: string | null }>;
   policyDocuments?: Array<{ current_version_id?: string | null }>;
-  policyAttestations?: Array<{ status?: string | null; due_date?: string | null; superseded_at?: string | null }>;
+  policyAttestations?: Array<{
+    status?: string | null; due_date?: string | null; superseded_at?: string | null;
+    policy_document_version_id?: string | null;
+  }>;
   evidenceCollections?: Array<{ status?: string | null; expires_at?: string | null }>;
 }
 
@@ -219,13 +222,26 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
   }
   if (obligation.evidenceSource === "policy") {
     const policies = input.policyDocuments ?? [];
-    // A SUPERSEDED attestation is neither evidence nor a gap -- it is history. Publishing a new
-    // version stamps `superseded_at` on every pending attestation against an older one and closes
-    // its campaign (20260906100000), and those rows can no longer be signed. Counted as evidence,
-    // a fully signed old campaign made an obligation look covered by text nobody in force has read;
-    // counted as gaps, its unsignable pending rows sat overdue for ever with no action that could
-    // clear them. Both readings were wrong in the same rows, in opposite directions.
-    const attestations = (input.policyAttestations ?? []).filter((a) => !a.superseded_at);
+    // Only a signature against the version IN FORCE is evidence, and only a pending row against
+    // that version is a gap. `superseded_at` cannot express that on its own: publishing stamps it
+    // on the PENDING attestations against older versions and deliberately never touches the signed
+    // ones (20260906100000 -- a signature is a historical fact, not something to erase). So
+    // filtering on that column alone still counted every signed row from a closed old campaign as
+    // current evidence, and a surveyor-facing row read `inspection_ready` off text nobody is
+    // required to follow. The version each attestation was assigned against is the honest test:
+    // `policy_attestations.policy_document_version_id` is stamped from the campaign by
+    // `stamp_scope_from_employee_for_attestation`, so comparing it to the documents' own
+    // `current_version_id` covers signed and pending rows in one rule.
+    //
+    // With no policy documents loaded the set is empty and every attestation drops, which reports a
+    // gap rather than false readiness -- the safe direction for a page a surveyor reads.
+    const currentVersionIds = new Set(
+      (input.policyDocuments ?? []).map((d) => d.current_version_id).filter((id): id is string => Boolean(id)),
+    );
+    const attestations = (input.policyAttestations ?? []).filter(
+      (a) => !a.superseded_at && a.policy_document_version_id
+        && currentVersionIds.has(a.policy_document_version_id),
+    );
     // `policy_attestations.status` is only 'pending' or 'attested', and signing does not move
     // due_date -- so without excluding the signed rows, every attestation counted as a gap forever
     // once its date passed, and an obligation whose evidence is fully signed still reported as

@@ -18,7 +18,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(17);
+select plan(22);
 
 -- ---------------------------------------------------------------------------------------
 -- Fixture
@@ -355,6 +355,161 @@ select ok(
    where assignment_id = '7c000000-0000-4000-8000-000000000084')
     >= now() - interval '1 minute',
   'a bundle downloaded before this assignment existed buys no seat time against it'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- Round six found three more in this same clamp. Each needs its own course, because
+-- course_assignments_one_open_per_course_idx allows one open assignment per (employee, course).
+-- ---------------------------------------------------------------------------------------
+
+-- (a) An existing course_progress row is a lower bound to improve on, not an answer to defer to.
+-- A learner studies offline from 04:00, opens the live player (which stamps started_at = now()),
+-- then syncs. `coalesce(v_progress.started_at, ...)` took the later row and the correction below it
+-- then compared that value to itself, so the offline hours were discarded every time the learner
+-- touched the online course first -- which is the ordinary thing to do on reconnecting.
+insert into public.courses(id, organization_id, title, estimated_duration_minutes)
+values ('7c000000-0000-4000-8000-000000000054', '7c000000-0000-4000-8000-000000000001',
+        'Superseded Test Course Four', 60);
+insert into public.course_versions(id, course_id, organization_id, version_number, title)
+values ('7c000000-0000-4000-8000-000000000064', '7c000000-0000-4000-8000-000000000054',
+        '7c000000-0000-4000-8000-000000000001', 1, 'Superseded Test Course Four');
+insert into public.course_blocks(
+  id, course_version_id, organization_id, block_type, sort_order, title, body
+) values
+  ('7c000000-0000-4000-8000-000000000074', '7c000000-0000-4000-8000-000000000064',
+   '7c000000-0000-4000-8000-000000000001', 'text', 1, 'Only lesson', '{"content":"Only lesson"}'::jsonb);
+select set_config('app.privileged_write', 'on', true);
+update public.course_versions set status = 'published', published_at = now()
+where id = '7c000000-0000-4000-8000-000000000064';
+update public.courses set current_version_id = '7c000000-0000-4000-8000-000000000064', status = 'published'
+where id = '7c000000-0000-4000-8000-000000000054';
+select set_config('app.privileged_write', 'off', true);
+insert into public.course_assignments(
+  id, organization_id, facility_id, employee_id, course_id, course_version_id, assigned_at
+) values (
+  '7c000000-0000-4000-8000-000000000085', '7c000000-0000-4000-8000-000000000001',
+  '7c000000-0000-4000-8000-000000000011', '7c000000-0000-4000-8000-000000000021',
+  '7c000000-0000-4000-8000-000000000054', '7c000000-0000-4000-8000-000000000064',
+  now() - interval '8 hours'
+);
+insert into public.offline_content_manifests(
+  organization_id, profile_id, device_id, course_version_id, manifest_version,
+  content_sha256, encrypted_content_key, allowlisted_assets, expires_at, created_at
+) values (
+  '7c000000-0000-4000-8000-000000000001', '7c000000-0000-4000-8000-000000000101',
+  '7c000000-0000-4000-8000-000000000091', '7c000000-0000-4000-8000-000000000064', 1,
+  repeat('1', 64), 'device-bound:test', '[]'::jsonb, now() + interval '30 days',
+  now() - interval '6 hours'
+);
+-- protect_course_progress_timing stamps started_at = now() on any non-privileged insert, which is
+-- exactly how the real row gets its later value; the hatch is only so the fixture can be explicit.
+select set_config('app.privileged_write', 'on', true);
+insert into public.course_progress(assignment_id, percent_complete, started_at, updated_at)
+values ('7c000000-0000-4000-8000-000000000085', 10, now() - interval '1 hour', now() - interval '1 hour');
+select set_config('app.privileged_write', 'off', true);
+
+select pg_temp.act_as('7c000000-0000-4000-8000-000000000101');
+select public.sync_offline_learning_action(
+  '7c000000-0000-4000-8000-000000000091',
+  '7c000000-0000-4000-8000-000000000085',
+  'idem-offline-4', 1,
+  (select coalesce(extract(epoch from updated_at)::integer, 0) from public.course_progress
+   where assignment_id = '7c000000-0000-4000-8000-000000000085'),
+  'progress', now(),
+  jsonb_build_object('percentComplete', 60, 'startedAt', (now() - interval '4 hours')::text)
+);
+reset role;
+select ok(
+  (select started_at from public.course_progress
+   where assignment_id = '7c000000-0000-4000-8000-000000000085')
+    <= now() - interval '3 hours 30 minutes',
+  'an offline start earlier than the existing row wins -- opening the live player first no longer erases it'
+);
+
+-- (b) A bundle valid when it was STUDIED still counts, even if it expired before the learner got a
+-- connection back. Testing the expiry against now() threw away the whole session.
+insert into public.courses(id, organization_id, title, estimated_duration_minutes)
+values ('7c000000-0000-4000-8000-000000000055', '7c000000-0000-4000-8000-000000000001',
+        'Superseded Test Course Five', 60);
+insert into public.course_versions(id, course_id, organization_id, version_number, title)
+values ('7c000000-0000-4000-8000-000000000065', '7c000000-0000-4000-8000-000000000055',
+        '7c000000-0000-4000-8000-000000000001', 1, 'Superseded Test Course Five');
+insert into public.course_blocks(
+  id, course_version_id, organization_id, block_type, sort_order, title, body
+) values
+  ('7c000000-0000-4000-8000-000000000075', '7c000000-0000-4000-8000-000000000065',
+   '7c000000-0000-4000-8000-000000000001', 'text', 1, 'Only lesson', '{"content":"Only lesson"}'::jsonb);
+select set_config('app.privileged_write', 'on', true);
+update public.course_versions set status = 'published', published_at = now()
+where id = '7c000000-0000-4000-8000-000000000065';
+update public.courses set current_version_id = '7c000000-0000-4000-8000-000000000065', status = 'published'
+where id = '7c000000-0000-4000-8000-000000000055';
+select set_config('app.privileged_write', 'off', true);
+insert into public.course_assignments(
+  id, organization_id, facility_id, employee_id, course_id, course_version_id, assigned_at
+) values (
+  '7c000000-0000-4000-8000-000000000086', '7c000000-0000-4000-8000-000000000001',
+  '7c000000-0000-4000-8000-000000000011', '7c000000-0000-4000-8000-000000000021',
+  '7c000000-0000-4000-8000-000000000055', '7c000000-0000-4000-8000-000000000065',
+  now() - interval '40 days'
+);
+-- Downloaded 39 days ago, valid for 30, studied on day 38, syncing on day 40: the ordinary shape of
+-- a learner who works offline and reconnects late.
+insert into public.offline_content_manifests(
+  organization_id, profile_id, device_id, course_version_id, manifest_version,
+  content_sha256, encrypted_content_key, allowlisted_assets, expires_at, created_at
+) values (
+  '7c000000-0000-4000-8000-000000000001', '7c000000-0000-4000-8000-000000000101',
+  '7c000000-0000-4000-8000-000000000091', '7c000000-0000-4000-8000-000000000065', 1,
+  repeat('2', 64), 'device-bound:test', '[]'::jsonb, now() - interval '9 days',
+  now() - interval '39 days'
+);
+select pg_temp.act_as('7c000000-0000-4000-8000-000000000101');
+select public.sync_offline_learning_action(
+  '7c000000-0000-4000-8000-000000000091',
+  '7c000000-0000-4000-8000-000000000086',
+  'idem-offline-5', 1, 0, 'progress', now(),
+  jsonb_build_object('percentComplete', 30, 'startedAt', (now() - interval '11 days')::text)
+);
+reset role;
+select ok(
+  (select started_at from public.course_progress
+   where assignment_id = '7c000000-0000-4000-8000-000000000086')
+    <= now() - interval '10 days',
+  'a bundle that expired between studying and reconnecting still evidences the download'
+);
+
+-- (c) Cancelling an assignment has to reach the copy already on the device. The sync checked
+-- ownership and never asked what state the assignment was in, so the learner kept studying and kept
+-- being told each checkpoint synced -- until completion refused, after the hours were spent.
+select set_config('app.privileged_write', 'on', true);
+update public.course_assignments
+set status = 'canceled', canceled_at = now(), cancellation_reason = 'Learner moved to another site'
+where id = '7c000000-0000-4000-8000-000000000086';
+select set_config('app.privileged_write', 'off', true);
+
+select pg_temp.act_as('7c000000-0000-4000-8000-000000000101');
+select is(
+  (public.sync_offline_learning_action(
+     '7c000000-0000-4000-8000-000000000091',
+     '7c000000-0000-4000-8000-000000000086',
+     'idem-offline-6', 2, 0, 'progress', now(),
+     jsonb_build_object('percentComplete', 90)) ->> 'outcome'),
+  'rejected',
+  'a checkpoint against a cancelled assignment is refused rather than reported as applied'
+);
+reset role;
+select is(
+  (select conflict_detail ->> 'assignmentStatus' from public.offline_sync_receipts
+   where idempotency_key = 'idem-offline-6'),
+  'canceled',
+  'and the receipt says WHICH terminal state it is, so the player can name it to the learner'
+);
+select is(
+  (select percent_complete from public.course_progress
+   where assignment_id = '7c000000-0000-4000-8000-000000000086'),
+  30,
+  'the refused checkpoint changed no progress'
 );
 
 -- ---------------------------------------------------------------------------------------

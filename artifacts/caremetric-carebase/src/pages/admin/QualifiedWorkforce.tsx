@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { AlertTriangle, Award, CalendarCheck, FileScan, RefreshCw, UserCheck, UsersRound } from "lucide-react";
 import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
@@ -185,7 +185,6 @@ function StartImportRunCard(
 
 function HrisCommands() {
   const [runId, setRunId] = useState("");
-  const runs = useHrisImportRuns();
   const { user } = useAuth();
   // This page is platform_admin only, and a platform admin's profile deliberately carries no
   // organization_id -- they do not belong to a customer. Passing `user.organizationId` therefore
@@ -195,6 +194,13 @@ function HrisCommands() {
   // tenant they are acting for everywhere else; it is the answer here too.
   const { viewingOrgId } = useViewingOrg();
   const sourceOrgId = viewingOrgId ?? user?.organizationId ?? null;
+  const runs = useHrisImportRuns(sourceOrgId);
+  // The selected run has to be dropped when the tenant changes, not just the list. Validate and
+  // Resume are authorized for a platform admin in every organization, so a run id left over from
+  // the previous selection stayed live under the new tenant's heading and would have applied that
+  // other tenant's import. Clearing it in an effect rather than on the picker's change handler
+  // because "Viewing as" lives in the header, outside this component.
+  useEffect(() => { setRunId(""); }, [sourceOrgId]);
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {/* Before "Start an import run", because a run cannot exist without a source and nothing in

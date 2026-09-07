@@ -127,13 +127,25 @@ export function hrisSourceSystemIssues(input: {
   return issues;
 }
 
-export function useHrisImportRuns() {
+/**
+ * The runs for ONE organization, scoped and keyed the same way useHrisSourceSystems is.
+ *
+ * Unscoped, this was the half of the J87 finding that got missed: hris_import_runs_select admits a
+ * platform admin across every tenant, so `limit(20)` returned the newest twenty runs in the whole
+ * installation. On the one screen where a platform admin picks which tenant they are working in,
+ * that meant the selected tenant's runs could be absent from the list entirely while another
+ * tenant's sat at the top of it -- and Validate or Resume, which are authorized globally for this
+ * role, would then act on that other tenant's run under the new tenant's heading.
+ */
+export function useHrisImportRuns(organizationId: string | null) {
   return useQuery({
-    queryKey: [...HRIS_KEY, "runs"],
+    queryKey: [...HRIS_KEY, "runs", organizationId],
+    enabled: !!organizationId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("hris_import_runs")
         .select("*")
+        .eq("organization_id", organizationId!)
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;

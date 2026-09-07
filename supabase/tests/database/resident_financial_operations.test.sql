@@ -353,18 +353,32 @@ update public.residents set status='discharged' where id='75000000-0000-4000-800
 select set_config('app.privileged_write','off',true);
 select pg_temp.act_as('75000000-0000-4000-8000-000000000101');
 
+-- Dated from the ledger, not from `now()`.
+--
+-- The settlement has to be on or after the newest entry, because the final disbursement is what
+-- makes the ending balance zero and an append-only ledger orders by transaction_at -- dated behind
+-- an existing row it lands behind it, and the statement then prints that row's balance under a
+-- closure saying the money was returned. Every fixture above nudges transactionAt forward by two or
+-- three minutes (see the note further up on why), so at this point the newest entry is a few minutes
+-- AHEAD of now() and `now()` is not a date this account can be settled on. Reading the ledger is
+-- also what the dialog does.
 select lives_ok($$
   select public.close_resident_personal_fund_account(
-    '75000000-0000-4000-8000-000000000201','Settlement on discharge','Daughter, in person',now(),null)
+    '75000000-0000-4000-8000-000000000201','Settlement on discharge','Daughter, in person',
+    (select max(t.transaction_at) from public.resident_personal_fund_transactions t
+     join public.resident_personal_fund_accounts a on a.id = t.personal_fund_account_id
+     where a.resident_id = '75000000-0000-4000-8000-000000000201'),
+    null)
 $$,'a discharged resident''s account can be settled and closed');
 select throws_ok($$
   select public.post_resident_personal_fund_transaction('75000000-0000-4000-8000-000000000201',jsonb_build_object(
     'transactionKind','deposit','direction','in','amount',10,'purpose','Deposit after the money was returned',
-    'transactionAt',now(),'residentAcknowledged',true))
+    'transactionAt',now() + interval '10 minutes','residentAcknowledged',true))
 $$,'55000',null,'no ledger entry can be posted to a settled account');
 select throws_ok($$
   select public.close_resident_personal_fund_account(
-    '75000000-0000-4000-8000-000000000201','Second settlement','Somebody else',now(),null)
+    '75000000-0000-4000-8000-000000000201','Second settlement','Somebody else',
+    now() + interval '10 minutes',null)
 $$,'55000',null,'a settled account cannot be settled a second time');
 
 select * from finish();

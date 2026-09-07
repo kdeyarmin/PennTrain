@@ -95,6 +95,43 @@ where rule.notification_type = 'state_hotline'
   and rule.is_active
 on conflict (incident_type, notification_type) do nothing;
 
+-- Inserting the rule creates no obligation for an incident that is ALREADY on file. Presets are
+-- generated when an incident is inserted and when its reportability is determined; the hourly
+-- recalculation only updates rows that exist. So without this, every reportable incident open at
+-- deploy time silently owes no written report -- no due date, no overdue alert, no stage on the
+-- incident file -- and the duty this migration exists to make visible would appear only for
+-- incidents recorded afterwards.
+--
+-- Scoped to incidents that are still open. `create_incident_notification_presets` is idempotent and
+-- anchors the deadline on `reportability_determined_at / reported_at / occurred_at`, so running it
+-- against a CLOSED incident would mint a 48-hour duty whose deadline is already months past and an
+-- overdue alert nobody can clear -- the same dead end this pass has now had to undo twice. A closed
+-- incident's written report either happened or is a records question, not a live task.
+--
+-- The population is "has a state_hotline notification": those rules are what the written_report
+-- rules above are derived from, so an incident that owed the department call is exactly one that
+-- owes the report.
+do $do$
+declare
+  v_incident_id uuid;
+  v_incidents integer := 0;
+  v_rows integer := 0;
+begin
+  for v_incident_id in
+    select distinct n.incident_id
+    from public.incident_notifications n
+    join public.incidents i on i.id = n.incident_id
+    where n.notification_type = 'state_hotline'
+      and i.status <> 'closed'
+  loop
+    v_incidents := v_incidents + 1;
+    v_rows := v_rows + app_private.create_incident_notification_presets(v_incident_id);
+  end loop;
+  raise notice 'Written-report backfill: % open reportable incident(s) examined, % notification row(s) created.',
+    v_incidents, v_rows;
+end;
+$do$;
+
 comment on constraint incident_notifications_notification_type_check on public.incident_notifications is
   'state_hotline / licensing_agency are the department call, written_report is the report that '
   'follows it (48 hours, BACKLOG.md I10 residual), family_guardian and law_enforcement are the '

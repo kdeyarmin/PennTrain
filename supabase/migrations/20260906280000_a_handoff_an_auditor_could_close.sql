@@ -44,7 +44,17 @@ begin
           public.current_role() in ('facility_manager', 'trainer')
           and public.is_assigned_to_facility(v.facility_id)
         )
-        or public.is_own_employee_assigned_to_facility(v.facility_id)
+        or (
+          -- The role test is not decoration. is_own_employee_assigned_to_facility asks only
+          -- whether the CALLER'S profile has an active employee record assigned to this facility;
+          -- it says nothing about what that profile is allowed to do now. A person promoted from
+          -- aide to auditor keeps the employee row and the assignment, so without this the arm
+          -- readmitted through the side door exactly the role the rest of this migration exists to
+          -- keep out. Restricted at the call site rather than inside the helper: its four other
+          -- users are SELECT policies, where an auditor reading is the job.
+          public.current_role() = 'employee'
+          and public.is_own_employee_assigned_to_facility(v.facility_id)
+        )
       )
     )
   ), false) then
@@ -119,6 +129,16 @@ comment on function public.record_shift_call_off(uuid, text, text, timestamptz, 
 -- The link is chosen from the RECIPIENT's role rather than hard-coded to /me/credentials, because
 -- these rows also reach staff who hold a manager profile and an employee record at once; sending
 -- them to an employee-only route would just move the redirect.
+--
+-- `trainer` goes to the self-service page with `employee`, not to /app/credentials with the
+-- managers. CREDENTIAL_ROLES deliberately excludes trainers -- clearance data is more sensitive
+-- than training records, and employee_credentials_select excludes them too -- so a trainer holding
+-- an employee record had NO page in the product showing their own approved renewal: /app/credentials
+-- redirects them to /trainer and /me/credentials was gated to `employee` alone. The RLS policy
+-- already admits them through its `owns_employee(employee_id)` arm, which carries no role test, so
+-- the route guard was the only thing in the way and it is widened to match (App.tsx). This is the
+-- same shape as the trainer locked out of the corrective-action dialog: a guard narrower than the
+-- policy it stands in front of.
 do $do$
 declare v_def text; v_old text; v_new text;
 begin
@@ -131,7 +151,7 @@ begin
     raise exception 'review_credential_renewal_submission no longer emits the notification this migration patches';
   end if;
   v_new := $patch$    'Credential renewal approved', 'Your reviewed credential renewal is now effective.',
-    case when p.role = 'employee' then '/me/credentials' else '/app/credentials' end
+    case when p.role in ('employee', 'trainer') then '/me/credentials' else '/app/credentials' end
   from public.employees e
   join public.profiles p on p.id = e.profile_id
   where e.id = v_submission.employee_id and e.profile_id is not null;$patch$;
@@ -150,10 +170,52 @@ begin
     raise exception 'approve_certification_attempt no longer emits the notification this migration patches';
   end if;
   v_new := $patch$    'Qualification approved', v_definition.name || ' is active.',
-    case when p.role = 'employee' then '/me/credentials' else '/app/credentials' end
+    case when p.role in ('employee', 'trainer') then '/me/credentials' else '/app/credentials' end
   from public.employees e
   join public.profiles p on p.id = e.profile_id
   where e.id = v_attempt.employee_id and e.profile_id is not null;$patch$;
   execute replace(v_def, v_old, v_new);
 end
 $do$;
+
+-- ---------------------------------------------------------------------------
+-- And the same arm on the WRITE path, which has it too.
+--
+-- The comment above claims this function admits "the same set create_shift_report_entry admits".
+-- It did not: that function carries the identical unguarded
+-- `or public.is_own_employee_assigned_to_facility(v_fac.id)` arm (from 20260806030000, so this is
+-- older than this branch), and an auditor with a live employee record could therefore WRITE a
+-- clinical handoff entry as well as acknowledge one. Fixing only the acknowledgement would have
+-- left the larger half open behind a comment asserting they matched.
+--
+-- These two are the only writers of the helper; its other four users are SELECT policies.
+do $do$
+declare v_def text; v_old text; v_new text;
+begin
+  v_def := pg_get_functiondef(
+    'public.create_shift_report_entry(uuid,uuid,uuid,uuid,text,text,timestamptz,timestamptz,text,uuid,boolean,text)'::regprocedure);
+
+  if position($probe$public.current_role() = 'employee'$probe$ in v_def) > 0 then
+    raise notice 'create_shift_report_entry already restricts the self-employee arm';
+  else
+    v_old := $old$        or public.is_own_employee_assigned_to_facility(v_fac.id)$old$;
+    if position(v_old in v_def) = 0 then
+      raise exception 'create_shift_report_entry no longer contains the self-employee arm this migration patches';
+    end if;
+    v_new := $patch$        or (
+          -- Same reasoning as acknowledge_shift_report_entry above: the helper answers "does this
+          -- profile have an employee record here", not "may this profile write clinical content".
+          public.current_role() = 'employee'
+          and public.is_own_employee_assigned_to_facility(v_fac.id)
+        )$patch$;
+    execute replace(v_def, v_old, v_new);
+  end if;
+end
+$do$;
+
+comment on function public.create_shift_report_entry(uuid, uuid, uuid, uuid, text, text, timestamptz, timestamptz, text, uuid, boolean, text) is
+  'Records one shift handoff entry. Scoped to the people who work the shift -- platform admin, '
+  'org_admin, a facility_manager/trainer assigned to the facility, or an EMPLOYEE whose facility '
+  'assignments include it. The employee arm carries an explicit role test because '
+  'is_own_employee_assigned_to_facility answers only whether the caller has an employee record at '
+  'that facility, which stays true for a person whose role has since become auditor.';

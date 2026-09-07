@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
-import { useOfflineCourseBundle, useOfflineProgress, useQueueOfflineProgress, useSyncOfflineProgress } from "@/hooks/useOfflineLearning";
+import { useOfflineCourseBundle, useOfflineProgress, useQueueOfflineProgress, useRemoveOfflineCourse, useSyncOfflineProgress } from "@/hooks/useOfflineLearning";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, CloudOff, CloudUpload, FileQuestion, Loader2, PlayCircle, ShieldCheck } from "lucide-react";
 
@@ -63,6 +63,7 @@ export default function OfflineCourse() {
   const progress = useOfflineProgress(assignmentId);
   const queueProgress = useQueueOfflineProgress();
   const syncProgress = useSyncOfflineProgress();
+  const removeOffline = useRemoveOfflineCourse();
   const [stepIndex, setStepIndex] = useState(0);
   const [resumedAssignmentId, setResumedAssignmentId] = useState<string | null>(null);
   // `navigator.onLine` read straight into JSX is a one-shot value: it is not reactive, so nothing
@@ -125,7 +126,7 @@ export default function OfflineCourse() {
         // there (BACKLOG.md J74, Train).
         lastBlockId: blocks[nextIndex]?.id ?? null,
       });
-      if (navigator.onLine) await syncProgress.mutateAsync(assignmentId);
+      if (navigator.onLine) reportSyncOutcome(await syncProgress.mutateAsync(assignmentId));
     } catch (error) {
       toast({
         title: navigator.onLine ? "Progress is still stored on this device" : "Progress saved for later sync",
@@ -135,17 +136,34 @@ export default function OfflineCourse() {
     }
   };
 
+  // Shared by the sync button and the automatic sync after a checkpoint. The automatic one used to
+  // discard the outcome entirely, so a learner whose assignment had been cancelled or completed
+  // elsewhere kept working through the offline copy with nothing said until they tried to finish.
+  const reportSyncOutcome = (result: { lastOutcome?: string | null } | null | undefined) => {
+    const outcome = result?.lastOutcome;
+    if (outcome === "conflict") {
+      toast({ title: "Progress needs review", description: "The online course changed after this copy was downloaded. Open the live course to reconcile progress.", variant: "destructive" });
+    } else if (outcome === "wipe_required") {
+      toast({ title: "This device copy was revoked", description: "Return to My Training and wipe the offline library.", variant: "destructive" });
+    } else if (outcome === "rejected") {
+      // The server refused the checkpoint because the assignment is closed. Removing the cached
+      // bundle is the point of saying so: leaving it on the device invites the learner straight
+      // back into a course whose hours can no longer be credited. The page's own "Offline course
+      // unavailable" state then takes over, which already offers the way back to My Training.
+      toast({
+        title: "This course is no longer assigned",
+        description: "It was cancelled or completed elsewhere, so this offline copy has been removed. Check My Training for what to do next.",
+        variant: "destructive",
+      });
+      void removeOffline.mutateAsync(assignmentId).catch(() => {});
+    } else {
+      toast({ title: "Offline progress synchronized" });
+    }
+  };
+
   const handleSync = async () => {
     try {
-      const result = await syncProgress.mutateAsync(assignmentId);
-      const outcome = result?.lastOutcome;
-      if (outcome === "conflict") {
-        toast({ title: "Progress needs review", description: "The online course changed after this copy was downloaded. Open the live course to reconcile progress.", variant: "destructive" });
-      } else if (outcome === "wipe_required") {
-        toast({ title: "This device copy was revoked", description: "Return to My Training and wipe the offline library.", variant: "destructive" });
-      } else {
-        toast({ title: "Offline progress synchronized" });
-      }
+      reportSyncOutcome(await syncProgress.mutateAsync(assignmentId));
     } catch (error) {
       toast({ title: "Progress could not synchronize", description: error instanceof Error ? error.message : "Try again when connected.", variant: "destructive" });
     }

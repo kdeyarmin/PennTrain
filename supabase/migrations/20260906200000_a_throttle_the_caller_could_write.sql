@@ -219,6 +219,10 @@ as $function$
     set success = p_success,
         error_code = case when p_success then null else left(coalesce(p_error_code, 'failed'), 100) end,
         -- BACKLOG J47. A failure the caller caused still counts; one the product caused does not.
+        -- The three refunded codes are ours to own. `submission_rejected` is deliberately NOT among
+        -- them: submit-confidential-intake reports that when the intake RPC refused the caller's own
+        -- payload (an unknown facility, a too-short narrative, a malformed timestamp), and treating
+        -- those as a product fault let one valid Turnstile token drive unlimited rejected calls.
         counts_toward_rate_limit = p_success
           or coalesce(p_error_code, 'failed') not in ('submission_failed', 'failed', 'turnstile_failed')
     where id = p_attempt_id and error_code = 'reserved'
@@ -229,6 +233,7 @@ $function$;
 
 comment on function public.finalize_confidential_intake_attempt(bigint, boolean, text) is
   'Closes out a reserved confidential-intake attempt. A failure the CALLER caused keeps counting '
-  'against their hourly quota; one the product caused (submission_failed, a timed-out challenge) '
+  'against their hourly quota -- including submission_rejected, which is the intake RPC refusing '
+  'the caller''s own payload; one the product caused (submission_failed, a timed-out challenge) '
   'stops counting, so a reporter is not locked out of a safety report by our own errors '
   '(BACKLOG J47).';

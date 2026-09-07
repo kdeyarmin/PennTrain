@@ -571,7 +571,15 @@ export default function DataImportCenter() {
               // what releases the file checksum start_data_import_job keeps reusing.
               const isOpen = !["finalized", "rolled_back", "canceled"].includes(job.status);
               const canSkipRows = isOpen && job.error_rows > 0;
-              const canCancel = isOpen && job.applied_rows === 0;
+              // `cancel_data_import_job` refuses while a worker's lease is live, and a large job
+              // sits in `applying` with zero applied rows through validation and its first write --
+              // so testing applied_rows alone offered, and confirmed, a cancellation that could
+              // only come back as an error until the lease lapsed. The list refetches, so a claim
+              // that expires between fetches leaves the button disabled for a few seconds longer
+              // than strictly necessary; that is the right way round.
+              const workerHoldsClaim = Boolean(job.claim_expires_at)
+                && new Date(job.claim_expires_at as string).getTime() > Date.now();
+              const canCancel = isOpen && job.applied_rows === 0 && !workerHoldsClaim;
               return (
                 <div key={job.id} className={`rounded-lg border p-4 ${selected === job.id ? "border-primary" : ""}`}>
                   <button className="w-full text-left" onClick={() => setSelected(selected === job.id ? null : job.id)}>
@@ -659,6 +667,15 @@ export default function DataImportCenter() {
                           size="sm"
                           variant="outline"
                           disabled={!canCancel || cancelJob.isPending}
+                          // A disabled control with no reason reads as a broken page. These are the
+                          // three refusals the RPC itself raises, in the order it checks them.
+                          title={
+                            workerHoldsClaim
+                              ? "A worker is processing this import. Cancelling is available once its claim expires."
+                              : job.applied_rows > 0
+                                ? "Rows from this import have been applied. Roll it back or finalize it instead."
+                                : undefined
+                          }
                           onClick={() =>
                             setConfirmAction({
                               type: "cancel",

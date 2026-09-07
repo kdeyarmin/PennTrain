@@ -10,6 +10,7 @@ import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts
 // ESIGN attribution stored on the intake, so a forgeable value defeated the limit with a fresh
 // fake per request and wrote an attacker-chosen address onto a signed legal record.
 import { clientIp } from "../_shared/clientIp.ts";
+import { intakeFailureCode } from "../_shared/intakeFailureClass.ts";
 
 const json = (req: Request, body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -118,7 +119,11 @@ Deno.serve(async (req) => {
     p_resume_secret: resume,
     p_confirmation_token: confirmation,
   });
-  await finalize(!error, error ? "submission_failed" : null);
+  // BACKLOG J47 counts a failure the CALLER caused and refunds one the product caused. Reporting
+  // every RPC error as `submission_failed` put all of them in the refund bucket, so one valid
+  // Turnstile token bought unlimited rejected submissions. intakeFailureCode draws the line and
+  // carries the reasoning; it is in _shared because that is where the tests can reach it.
+  await finalize(!error, error ? intakeFailureCode(error.code) : null);
   if (error) {
     return json(req, {
       error: "submission_failed",

@@ -1107,7 +1107,12 @@ function Router() {
         {() => <ProtectedRoute component={Documents} allowedRoles={["employee"]} />}
       </Route>
       <Route path="/me/credentials">
-        {() => <ProtectedRoute component={MyCredentials} allowedRoles={["employee"]} />}
+        {/* trainer as well as employee: employee_credentials_select admits any profile with an
+            employee record through owns_employee(), CREDENTIAL_ROLES deliberately keeps trainers
+            off the manager-facing /app/credentials, and without this a trainer who holds an
+            employee record has nowhere in the product to see their own clearance -- including from
+            the "renewal approved" notification addressed to them. */}
+        {() => <ProtectedRoute component={MyCredentials} allowedRoles={["employee", "trainer"]} />}
       </Route>
       <Route path="/me/attestations">
         {() => <ProtectedRoute component={MyAttestations} allowedRoles={["employee"]} />}

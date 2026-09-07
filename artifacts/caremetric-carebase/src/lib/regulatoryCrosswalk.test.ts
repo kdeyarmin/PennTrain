@@ -19,7 +19,7 @@ describe("regulatory crosswalk", () => {
     inspectionItems: [{ status: "current", due_date: "2026-09-01" }],
     violations: [{ status: "open", citation: "2600" }],
     policyDocuments: [{ current_version_id: null }],
-    policyAttestations: [{ status: "pending", due_date: "2026-07-20" }],
+    policyAttestations: [{ status: "pending", due_date: "2026-07-20", policy_document_version_id: "v1" }],
     evidenceCollections: [],
   }, "auditor");
 
@@ -88,7 +88,7 @@ describe("satisfied evidence stops counting as a gap once its due date passes", 
     const rows = buildRegulatoryCrosswalkRows({
       today: "2026-08-05",
       policyDocuments: [{ current_version_id: "v1" }],
-      policyAttestations: [{ status: "attested", due_date: "2026-07-20" }],
+      policyAttestations: [{ status: "attested", due_date: "2026-07-20", policy_document_version_id: "v1" }],
     });
     expect(rows.some((row) => row.gapCount > 0)).toBe(false);
   });
@@ -103,7 +103,7 @@ describe("satisfied evidence stops counting as a gap once its due date passes", 
       today: "2026-08-05",
       policyDocuments: [{ current_version_id: "v1" }],
       policyAttestations: [
-        { status: "pending", due_date: "2026-07-01", superseded_at: "2026-07-15T00:00:00Z" },
+        { status: "pending", due_date: "2026-07-01", superseded_at: "2026-07-15T00:00:00Z", policy_document_version_id: "v0" },
       ],
     });
     const policyRows = rows.filter((row) => row.evidenceSource === "policy");
@@ -112,12 +112,52 @@ describe("satisfied evidence stops counting as a gap once its due date passes", 
     expect(policyRows.some((row) => row.status === "overdue")).toBe(false);
   });
 
+  // The half of that finding the first fix missed. `publish_policy_document_version` stamps
+  // `superseded_at` only on rows whose status is 'pending' -- a signature is a historical fact and
+  // is deliberately never touched -- so a SIGNED row against an older version carries no marker at
+  // all. Filtering on that column alone left every one of them counting as current evidence, and a
+  // surveyor-facing row read inspection_ready off text nobody is required to follow.
+  it("does not count a signed attestation against an older version as evidence", () => {
+    const olderVersionOnly = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      policyDocuments: [{ current_version_id: "v2" }],
+      policyAttestations: [
+        // No superseded_at: this is exactly what publishing leaves behind on a signed row.
+        { status: "attested", due_date: "2026-07-01", policy_document_version_id: "v1" },
+      ],
+    }).filter((row) => row.evidenceSource === "policy");
+    const noneAtAll = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      policyDocuments: [{ current_version_id: "v2" }],
+      policyAttestations: [],
+    }).filter((row) => row.evidenceSource === "policy");
+    expect(olderVersionOnly.length).toBeGreaterThan(0);
+    expect(olderVersionOnly.map((row) => row.evidenceCount))
+      .toEqual(noneAtAll.map((row) => row.evidenceCount));
+    // And it is not converted into a gap either -- nobody can act on it.
+    expect(olderVersionOnly.every((row) => row.gapCount === 0)).toBe(true);
+  });
+
+  // The same signature against the version IN FORCE still counts, so the scoping cannot be
+  // mistaken for "attestations never count".
+  it("still counts a signed attestation against the current version", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      policyDocuments: [{ current_version_id: "v2" }],
+      policyAttestations: [
+        { status: "attested", due_date: "2026-07-01", policy_document_version_id: "v2" },
+      ],
+    }).filter((row) => row.evidenceSource === "policy");
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((row) => row.evidenceCount > 0)).toBe(true);
+  });
+
   it("does not count a superseded attested attestation as evidence either", () => {
     const supersededOnly = buildRegulatoryCrosswalkRows({
       today: "2026-08-05",
       policyDocuments: [{ current_version_id: "v1" }],
       policyAttestations: [
-        { status: "attested", due_date: "2026-07-01", superseded_at: "2026-07-15T00:00:00Z" },
+        { status: "attested", due_date: "2026-07-01", superseded_at: "2026-07-15T00:00:00Z", policy_document_version_id: "v0" },
       ],
     }).filter((row) => row.evidenceSource === "policy");
     const noneAtAll = buildRegulatoryCrosswalkRows({
@@ -139,8 +179,8 @@ describe("overdue is read off the gap records, not off every record", () => {
       today: "2026-08-05",
       policyDocuments: [{ current_version_id: "v1" }],
       policyAttestations: [
-        { status: "attested", due_date: "2026-07-01" },
-        { status: "pending", due_date: "2026-08-12" },
+        { status: "attested", due_date: "2026-07-01", policy_document_version_id: "v1" },
+        { status: "pending", due_date: "2026-08-12", policy_document_version_id: "v1" },
       ],
     });
     const policyRows = rows.filter((row) => row.evidenceSource === "policy");
@@ -155,8 +195,8 @@ describe("overdue is read off the gap records, not off every record", () => {
       today: "2026-08-05",
       policyDocuments: [{ current_version_id: "v1" }],
       policyAttestations: [
-        { status: "attested", due_date: "2026-07-01" },
-        { status: "pending", due_date: "2026-07-30" },
+        { status: "attested", due_date: "2026-07-01", policy_document_version_id: "v1" },
+        { status: "pending", due_date: "2026-07-30", policy_document_version_id: "v1" },
       ],
     });
     const policyRows = rows.filter((row) => row.evidenceSource === "policy");

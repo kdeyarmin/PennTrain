@@ -9,7 +9,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(70);
+select plan(74);
 
 insert into public.organizations(id, name, slug, subscription_status, trial_ends_at) values
   ('4c000000-0000-4000-8000-000000000001', 'Readiness Org', 'readiness-fix-org', 'trial', now() + interval '10 days'),
@@ -510,6 +510,82 @@ select throws_ok(
   '55000',
   null,
   'which is itself append-only, like the ledger it settles'
+);
+
+-- Settlement is not just "return the balance": it writes a terminal row into an append-only ledger,
+-- and a sixth review round found two ways that row could be wrong.
+insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
+values ('4c000000-0000-4000-8000-000000000702', '4c000000-0000-4000-8000-000000000001',
+  '4c000000-0000-4000-8000-000000000011', 'Backdate', 'Resident', public.pa_today() - 300, 'discharged');
+insert into public.residents(id, organization_id, facility_id, first_name, last_name, admission_date, status)
+values ('4c000000-0000-4000-8000-000000000703', '4c000000-0000-4000-8000-000000000001',
+  '4c000000-0000-4000-8000-000000000011', 'Other', 'Resident', public.pa_today() - 300, 'active');
+insert into public.resident_personal_fund_accounts(
+  organization_id, facility_id, resident_id, account_number, opened_on, beginning_balance, created_by
+) values (
+  '4c000000-0000-4000-8000-000000000001', '4c000000-0000-4000-8000-000000000011',
+  '4c000000-0000-4000-8000-000000000702', 'PF-READINESS002', public.pa_today() - 250, 0.00,
+  '4c000000-0000-4000-8000-000000000101'
+);
+-- One ordinary posting, three days ago. Everything below is about what a settlement dated BEFORE it
+-- would do to the ledger.
+insert into public.resident_personal_fund_transactions(
+  organization_id, facility_id, resident_id, personal_fund_account_id,
+  transaction_kind, direction, amount, purpose, transaction_at,
+  resident_acknowledged, resident_acknowledged_at, balance_after, posted_by
+)
+select
+  '4c000000-0000-4000-8000-000000000001', '4c000000-0000-4000-8000-000000000011',
+  '4c000000-0000-4000-8000-000000000702', a.id,
+  'deposit', 'in', 25.00, 'Monthly allowance', now() - interval '3 days',
+  true, now() - interval '3 days', 25.00, '4c000000-0000-4000-8000-000000000101'
+from public.resident_personal_fund_accounts a
+where a.resident_id = '4c000000-0000-4000-8000-000000000702';
+-- A receipt belonging to somebody else entirely. The FK only proves the document exists.
+insert into public.resident_documents(
+  id, organization_id, facility_id, resident_id, storage_bucket, storage_path, file_name, file_type
+) values (
+  '4c000000-0000-4000-8000-000000000801', '4c000000-0000-4000-8000-000000000001',
+  '4c000000-0000-4000-8000-000000000011', '4c000000-0000-4000-8000-000000000703',
+  'resident-documents', 'funds/other-resident-receipt.pdf', 'other-resident-receipt.pdf',
+  'application/pdf'
+);
+
+select pg_temp.act_as('4c000000-0000-4000-8000-000000000101');
+-- The ledger is append-only, so nothing can recompute a later row's balance_after. Dated a week
+-- back, the "final" disbursement lands BEFORE the deposit above -- statements order by
+-- transaction_at -- so the printed ending balance is 25.00 while the closure beside it records that
+-- the money was returned and the account is settled.
+select throws_ok(
+  $$ select public.close_resident_personal_fund_account(
+       '4c000000-0000-4000-8000-000000000702', 'Balance returned', 'Next of kin',
+       now() - interval '7 days') $$,
+  '22023',
+  null,
+  'a settlement dated before the newest ledger entry is refused, as every other posting already was'
+);
+-- Same scope check post_resident_personal_fund_transaction applies to every other receipt. This is
+-- a SECURITY DEFINER path with RLS off, so the FK is the only thing that was looking.
+select throws_ok(
+  $$ select public.close_resident_personal_fund_account(
+       '4c000000-0000-4000-8000-000000000702', 'Balance returned', 'Next of kin',
+       now(), '4c000000-0000-4000-8000-000000000801') $$,
+  '23514',
+  'Receipt document is outside resident record',
+  'and a receipt belonging to another resident cannot be cited as the evidence for it'
+);
+select lives_ok(
+  $$ select public.close_resident_personal_fund_account(
+       '4c000000-0000-4000-8000-000000000702', 'Balance returned', 'Next of kin', now()) $$,
+  'while a settlement dated now, with no receipt, still closes the account'
+);
+reset role;
+select is(
+  (select balance_after from public.resident_personal_fund_transactions
+   where resident_id = '4c000000-0000-4000-8000-000000000702'
+   order by transaction_at desc, posted_at desc, id desc limit 1),
+  0.00::numeric,
+  'and the newest row really is the zero-balance final disbursement, which is the point of the date rule'
 );
 
 -- The two Train RPCs, also called rather than merely described: the trap they open is a learner who

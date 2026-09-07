@@ -10,7 +10,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(11);
+select plan(13);
 
 insert into public.organizations(id, name, slug) values
   ('4b000000-0000-4000-8000-000000000001', 'Handoff Org', 'handoff-authority-org');
@@ -60,6 +60,28 @@ insert into public.employees(
 -- is the predicate is_own_employee_assigned_to_facility reads, so assert it rather than assume it.
 insert into public.employee_facility_assignments(employee_id, facility_id, is_primary)
 values ('4b000000-0000-4000-8000-000000000201', '4b000000-0000-4000-8000-000000000011', true)
+on conflict do nothing;
+
+-- The auditor gets an employee record too, and that is the whole point of it.
+--
+-- The first version of this file gave the auditor no employee row, so the assertions below passed
+-- for a reason that had nothing to do with the guard: they simply fell off the end of every arm.
+-- `is_own_employee_assigned_to_facility` asks only whether the caller's profile has an ACTIVE
+-- employee record assigned to this facility -- it never looks at what that profile is allowed to do
+-- now -- so a person promoted from aide to auditor keeps the row, keeps the assignment, and walked
+-- back in through the last arm of a guard written to keep auditors out. That is the shape here:
+-- the fixture is an auditor who used to work the floor.
+insert into public.employees(
+  id, organization_id, facility_id, profile_id, employee_number, first_name, last_name,
+  email, hire_date, job_title, status
+) values (
+  '4b000000-0000-4000-8000-000000000202', '4b000000-0000-4000-8000-000000000001',
+  '4b000000-0000-4000-8000-000000000011', '4b000000-0000-4000-8000-000000000102',
+  'HO-2', 'Handoff', 'Auditor', 'handoff-auditor@test.local', public.pa_today()-400,
+  'Quality Auditor', 'active'
+);
+insert into public.employee_facility_assignments(employee_id, facility_id, is_primary)
+values ('4b000000-0000-4000-8000-000000000202', '4b000000-0000-4000-8000-000000000011', true)
 on conflict do nothing;
 
 insert into public.shift_report_entries(
@@ -116,6 +138,28 @@ select is(
    where shift_report_entry_id = '4b000000-0000-4000-8000-000000000301'),
   0,
   'and nothing was written on their behalf'
+);
+
+-- WRITING one is the same question, and the guard on that side was missed the first time round:
+-- create_shift_report_entry carries the identical unrestricted self-employee arm, so the auditor
+-- above could author clinical handoff content as well as sign for it. Acknowledging without being
+-- able to write would have been a strange half of a rule.
+select throws_ok(
+  $$ select public.create_shift_report_entry(
+       '4b000000-0000-4000-8000-000000000011'::uuid, null::uuid, null::uuid, null::uuid,
+       'missed_refused_service', 'high',
+       now() - interval '2 hours', now(),
+       'Auditor-authored narrative that should never be accepted.',
+       null::uuid, false, 'handoff-authority-auditor-write') $$,
+  '42501',
+  null,
+  'and the same auditor cannot author one either -- the write guard had the same hole'
+);
+select is(
+  (select count(*)::int from public.shift_report_entries
+   where idempotency_key = 'handoff-authority-auditor-write'),
+  0,
+  'no entry was written from the refused call'
 );
 
 select pg_temp.act_as('4b000000-0000-4000-8000-000000000103');

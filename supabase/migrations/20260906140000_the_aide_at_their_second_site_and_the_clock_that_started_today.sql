@@ -437,6 +437,7 @@ declare
   v_txn public.resident_personal_fund_transactions%rowtype;
   v_purpose text := nullif(btrim(coalesce(p_purpose, '')), '');
   v_recipient text := nullif(btrim(coalesce(p_recipient, '')), '');
+  v_latest_at timestamptz;
 begin
   v_resident := app_private.assert_resident_finance_manager(p_resident_id);
 
@@ -465,8 +466,39 @@ begin
   if v_recipient is null or length(v_recipient) < 2 then
     raise exception 'Record who received the funds' using errcode = '22023';
   end if;
-  if p_transaction_at is null or p_transaction_at > now() + interval '1 day' then
+  -- The newest entry bounds the settlement at BOTH ends, so it is read once.
+  select max(t.transaction_at) into v_latest_at
+  from public.resident_personal_fund_transactions t
+  where t.personal_fund_account_id = v_account.id;
+
+  -- The future cap yields to the ledger. Ordinary postings are not capped forward, so an account
+  -- can legitimately hold an entry dated further out than a day -- and refusing a settlement both
+  -- before that entry and after tomorrow would have left the account impossible to close until the
+  -- date passed. There has to be at least one timestamp an operator can supply.
+  if p_transaction_at is null
+     or p_transaction_at > greatest(now() + interval '1 day', coalesce(v_latest_at, now())) then
     raise exception 'A settlement cannot be dated in the future' using errcode = '22023';
+  end if;
+  -- And not before the newest entry either, which is the same rule 20260714120000 put on every
+  -- ordinary posting and for the same reason: the ledger is append-only, so nothing can recompute
+  -- a later row's balance_after. Dated earlier, the final disbursement lands BEFORE a transaction
+  -- that already exists -- statements order by transaction_at -- so the printed ending balance is
+  -- that later row's, not zero, while the closure beside it records that the money was returned.
+  -- The message names the date that would work, because "must be on or after the most recent
+  -- entry" is not actionable unless the operator can see what that entry is.
+  if v_latest_at is not null and p_transaction_at < v_latest_at then
+    raise exception 'A settlement must be dated on or after the most recent ledger entry (%)', v_latest_at
+      using errcode = '22023';
+  end if;
+  -- The receipt has to belong to this resident. The FK only proves the document exists, so without
+  -- this a settlement could cite another resident's -- or another tenant's -- evidence, and this is
+  -- a SECURITY DEFINER path with RLS off. Same check, same errcode, as
+  -- post_resident_personal_fund_transaction applies to every other receipt.
+  if p_receipt_document_id is not null and not exists (
+    select 1 from public.resident_documents d
+    where d.id = p_receipt_document_id and d.resident_id = v_resident.id
+  ) then
+    raise exception 'Receipt document is outside resident record' using errcode = '23514';
   end if;
 
   select coalesce(t.balance_after, v_account.beginning_balance) into v_balance

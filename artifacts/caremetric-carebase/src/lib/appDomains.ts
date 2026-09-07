@@ -358,7 +358,11 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/me/resident-services-calendar", label: "Assigned resident services calendar", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["appointment", "driver", "transportation", "accompany", "activity", "return instructions"] },
   { path: "/me/certificates", label: "My certificates", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["proof", "download"] },
   { path: "/me/documents", label: "My documents", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["files", "uploads"] },
-  { path: "/me/credentials", label: "My credentials", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["clearances", "licenses"] },
+  // Mirrors App.tsx: a trainer holding an employee record reaches their own clearances here,
+  // because CREDENTIAL_ROLES keeps them off the manager-facing page and the RLS policy admits them
+  // through owns_employee(). If this list and the route guard disagree, the directory advertises a
+  // page that redirects.
+  { path: "/me/credentials", label: "My credentials", domain: "self_service", roles: ["employee", "trainer"], keywords: ["clearances", "licenses"] },
   { path: "/me/attestations", label: "My attestations", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["policies", "sign"] },
   { path: "/me/help", label: "My help center", domain: "support", roles: EMPLOYEE_ONLY, keywords: ["support", "tickets"] },
 ];

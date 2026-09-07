@@ -20,6 +20,21 @@ describe("internal route contract", () => {
     expect(registered.has(CANONICAL_ROUTES.shiftHandoffs)).toBe(true);
   });
 
+  // The credential-renewal and qualification notifications choose their link from the RECIPIENT's
+  // role (20260906280000). That choice is only correct if the page it names is one that role can
+  // actually open, and for `trainer` it was not: CREDENTIAL_ROLES deliberately keeps trainers off
+  // the manager-facing page, and the self-service one was gated to `employee` alone, so a trainer
+  // holding an employee record was sent to a route that redirects them away from their own
+  // approved clearance. These two assertions are the contract that branch depends on.
+  it("gives a trainer somewhere to read their own credential", () => {
+    expect(canViewPath("/me/credentials", "trainer")).toBe(true);
+    expect(canViewPath("/me/credentials", "employee")).toBe(true);
+    // And the manager-facing page stays closed to them, which is why the branch exists at all --
+    // employee_credentials_select excludes trainers from other people's clearance data.
+    expect(canViewPath("/app/credentials", "trainer")).toBe(false);
+    expect(canViewPath("/app/credentials", "facility_manager")).toBe(true);
+  });
+
   it("redirects legacy paths to destinations visible to their intended roles", () => {
     expect(canViewPath(LEGACY_ROUTE_REDIRECTS["/app/my-trainings"], "employee")).toBe(true);
     expect(canViewPath(LEGACY_ROUTE_REDIRECTS["/app/my-schedule"], "employee")).toBe(true);

@@ -201,8 +201,21 @@ begin
       and m.course_version_id = v_assignment.course_version_id
       and m.created_at >= v_assignment.assigned_at
       and m.withdrawn_at is null
-      and (m.expires_at is null or m.expires_at > now());
-    v_started_at := coalesce(
+      -- Validity is asked about the moment the learner says they STUDIED, not the moment they
+      -- reconnected. A bundle downloaded on day 1 and studied on day 29 expires on day 30; testing
+      -- `expires_at > now()` at a day-31 sync threw the manifest away and collapsed the floor,
+      -- erasing a session the client had every right to run. A claim later than the expiry still
+      -- fails, and a claim earlier than the download is floored at the download below, so nothing
+      -- is bought by moving the claim around. Withdrawal is NOT relaxed the same way: that is
+      -- device revocation, and a revoked device's offline work should stop counting.
+      and (m.expires_at is null or m.expires_at > coalesce(v_client_started_at, now()));
+    -- least(), not coalesce(). An existing course_progress row is a lower bound to IMPROVE on, not
+    -- an answer to defer to: a learner who studies offline from 10:00, opens the live player at
+    -- 12:00 (which creates the row stamped now()) and syncs at 13:00 had their 10:00 discarded,
+    -- because coalesce took the 12:00 row and the correction below then compared it to itself.
+    -- least() ignores nulls in PostgreSQL, so the first-sync case -- no row yet -- still resolves
+    -- to the clamped value, and the result can only ever move started_at EARLIER, never later.
+    v_started_at := least(
       v_progress.started_at,
       greatest(
         coalesce(v_downloaded_at, now()),

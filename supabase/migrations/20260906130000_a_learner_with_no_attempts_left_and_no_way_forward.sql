@@ -361,3 +361,45 @@ begin
   end loop;
 end;
 $do$;
+
+-- ---------------------------------------------------------------------------
+-- Cancelling an assignment has to reach the copy already on the learner's device.
+--
+-- `cancel_course_assignment` above closes the assignment on the server and frees the
+-- one-open-per-course index. It does not reach `sync_offline_learning_action`, which checks that
+-- the caller owns the assignment and never asks what state it is in -- so a learner who downloaded
+-- the course before the cancellation keeps studying it, keeps queueing checkpoints, and keeps being
+-- told each sync succeeded. The cancellation only surfaces when they finish and
+-- complete_course_assignment refuses by name, after the hours are spent.
+--
+-- `rejected` rather than a new outcome value: it is already in
+-- offline_sync_receipts_outcome_check, and the reason goes in conflict_detail so the client can say
+-- WHICH terminal state it is rather than showing the generic refusal. Placed above the version
+-- check, because a cancelled assignment is not a conflict to reconcile -- there is nothing to
+-- reconcile it with.
+do $do$
+declare v_def text; v_old text; v_new text;
+begin
+  v_def := pg_get_functiondef(
+    'public.sync_offline_learning_action(uuid,uuid,text,integer,integer,text,timestamptz,jsonb)'::regprocedure);
+
+  if position($probe$v_assignment.status in ('canceled','completed')$probe$ in v_def) > 0 then
+    raise notice 'sync_offline_learning_action already refuses a closed assignment';
+  else
+    v_old := $old$  if v_device.status<>'active' or v_device.wipe_required_at is not null then v_outcome:='wipe_required';$old$;
+    if position(v_old in v_def) = 0 then
+      raise exception 'sync_offline_learning_action no longer opens the outcome cascade this migration patches';
+    end if;
+    v_new := $patch$  if v_device.status<>'active' or v_device.wipe_required_at is not null then v_outcome:='wipe_required';
+  elsif v_assignment.status in ('canceled','completed') then v_outcome:='rejected';$patch$;
+    v_def := replace(v_def, v_old, v_new);
+
+    v_old := $old$case when v_outcome='conflict' then jsonb_build_object('expectedServerVersion',v_server_version) else '{}' end$old$;
+    if position(v_old in v_def) = 0 then
+      raise exception 'sync_offline_learning_action no longer writes the conflict detail this migration patches';
+    end if;
+    v_new := $patch$case when v_outcome='conflict' then jsonb_build_object('expectedServerVersion',v_server_version) when v_outcome='rejected' then jsonb_build_object('assignmentStatus',v_assignment.status) else '{}' end$patch$;
+    execute replace(v_def, v_old, v_new);
+  end if;
+end;
+$do$;
