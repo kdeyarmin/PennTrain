@@ -426,6 +426,24 @@ function splitPathSuffix(path: string): [pathname: string, suffix: string] {
   return [match?.[1] || "/", match?.[2] || ""];
 }
 
+/**
+ * Reduces a browser location to a route template that is safe to share with the central Help
+ * Hub. The returned value always comes from APP_PAGES -- never from the caller's URL -- so record
+ * identifiers, search terms, fragments, and any other free-form context cannot leave CareBase.
+ * Unknown routes fail closed and contribute no route context.
+ */
+export function staticAppRouteTemplateForPath(path: string | null | undefined): string | null {
+  if (!path || !path.startsWith("/")) return null;
+  const [rawPathname] = splitPathSuffix(path);
+  const pathname = rawPathname.length > 1 ? rawPathname.replace(/\/+$/, "") : rawPathname;
+  const match = APP_PAGE_ROUTE_MATCHERS.find(({ page, matcher }) => {
+    if (matcher) return matcher.test(pathname);
+    if (pathname === page.path) return true;
+    return NESTED_PAGE_OWNER_PATHS.has(page.path) && pathname.startsWith(`${page.path}/`);
+  });
+  return match?.page.path ?? null;
+}
+
 export function pagesForRole(
   role: Role | undefined,
   enabledModules?: ReadonlySet<ProductModuleId>,

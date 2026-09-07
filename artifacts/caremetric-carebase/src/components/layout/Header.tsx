@@ -3,6 +3,7 @@ import { useAuth, useSignOut } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListOrganizations } from "@/hooks/useOrganizations";
 import { isHelpRoute, LAST_VISITED_ROUTE_KEY } from "@/hooks/useHelpArticles";
+import { useFeatureReleaseActive } from "@/hooks/useFeatureRelease";
 import { useProductChangelog } from "@/hooks/useProductExperience";
 import {
   useListNotifications,
@@ -14,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown, Search, Sparkles, Megaphone, ShieldCheck, PlusCircle } from "lucide-react";
+import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown, Search, Sparkles, Megaphone, ShieldCheck, PlusCircle, ExternalLink } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,10 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { commandActionsForRole, safePathForRole } from "@/lib/appDomains";
+import {
+  buildCentralHelpUrl,
+  CENTRAL_SUPPORT_HUB_FEATURE_KEY,
+} from "@/lib/centralHelp";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { pathFallbackLabel, registryLabelForPath, usePageTitleContext } from "@/lib/pageTitle";
 import { GlobalSearch } from "./GlobalSearch";
@@ -228,9 +233,11 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const handleLogout = useSignOut();
   const productChangelog = useProductChangelog();
+  const centralSupportHub = useFeatureReleaseActive(CENTRAL_SUPPORT_HUB_FEATURE_KEY);
   const { entityTitle } = usePageTitleContext();
   const moduleAccess = useProductModuleAccess();
   const quickActions = commandActionsForRole(user?.role, moduleAccess.enabledModules).slice(0, 6);
+  const centralSupportHubUrl = buildCentralHelpUrl({ route: location });
 
   // Stash the route on every navigation (skipping Help's own pages) so HelpCenter can contextually
   // pin whichever job aide's relatedRoute matches wherever the user came from -- see
@@ -363,10 +370,17 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-64">
+              {centralSupportHub.isActive && centralSupportHubUrl && (
+                <DropdownMenuItem asChild>
+                  <a href={centralSupportHubUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="mr-2 h-4 w-4" /> CareMetric Support Hub
+                  </a>
+                </DropdownMenuItem>
+              )}
               {user.role !== "platform_admin" && (
                 <DropdownMenuItem onClick={() => navigate(user.role === "employee" ? "/me/help" : "/app/help")}>
-                  <HelpCircle className="mr-2 h-4 w-4" /> Help center
+                  <HelpCircle className="mr-2 h-4 w-4" /> CareBase guides &amp; tickets
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onClick={() => navigate("/account/whats-new")}>

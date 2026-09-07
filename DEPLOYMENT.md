@@ -267,6 +267,7 @@ can see the whole workspace and lockfile.
 | `VITE_TURNSTILE_SITE_KEY` | yes | Cloudflare Turnstile site key for `/signup`. **Build-time**, same redeploy caveat as other `VITE_` values |
 | `VITE_CLIENT_ERROR_REPORTING_ENABLED` | no | Build-time switch for PHI-scrubbed client error events. Reporting is enabled by default in production; set `false` only during an incident |
 | `VITE_RELEASE_ID` | recommended | Build-time release identifier, normally `RAILWAY_GIT_COMMIT_SHA`, attached to client error events |
+| `VITE_CENTRAL_SUPPORT_HUB_URL` | no | Optional build-time pin for the first-party Support Hub. Leave unset to use `https://support-hub-web-production.up.railway.app`, or set exactly that origin. Any other configured origin fails the build and the browser launcher fails closed. |
 | `VITE_DEMO_ACCOUNTS_JSON` | no | Optional JSON array powering the self-serve sandbox at `/demo` (the "Live demo" links). Leave unset in production unless public demo access is intentionally enabled. See "Public demo sandbox" below |
 | `VITE_MFA_SMS_ENABLED` | no | Build-time switch that offers SMS text-message codes alongside authenticator apps on `/account/security`. Set `true` **only** once the Supabase project has the paid "Advanced MFA Phone" add-on enabled and an SMS provider configured under Authentication -> Phone; otherwise Auth rejects phone enrollment. Text messages are billed per message by the SMS provider |
 | `VITE_CAREMETRIC_MODULES` | no | Comma-separated build-time product allow-list. Leave unset for a universal build, use `train` for a standalone CareMetric Train deployment, or `carebase` for the full CareBase deployment (which includes Train). Runtime organization entitlements are still authoritative. |
@@ -275,6 +276,23 @@ can see the whole workspace and lockfile.
 | `HOST` | no | the server binds dual-stack `::` by default (Railway's recommendation); override only if you need something else |
 | `BASE_PATH` | no | e.g. `/train/`; only needed if served from a non-root subpath. Set it identically for both the build (`vite.config.ts` reads it) and the running server (`server/index.mjs` strips it before resolving files) -- both read the same `BASE_PATH` var, so one value covers both. |
 | `ASSET_ARCHIVE_DIR` | recommended | Mount a Railway volume at this path (for example `/data/release-assets`). The server archives content-hashed assets for 14 days and serves old hashes to tabs that remained open across a deploy |
+
+### Central CareMetric Support Hub
+
+CareBase exposes the shared Support Hub from both the header Help menu and the existing Help Center.
+Those links are absolute anchors to
+`https://support-hub-web-production.up.railway.app/help`, so the browser never resolves them against
+localhost or the CareBase origin. The client sends only `product=carebase` and, when recognized, a
+static route template from the checked-in app page registry. It does not send user, organization,
+resident, employee, ticket, record identifier, search, query-string, fragment, or free-text context.
+
+The `support.central_hub` release flag is registered `off` by default. After verifying the live Hub,
+an AAL2 platform administrator may release it globally through the existing Release Flags control
+plane. The current UI does not expose cohort-mode activation; cohort membership alone does not
+enable this flag. Loading failures, configuration mistakes, and a disabled flag all fail closed.
+The local `/app/help` and `/me/help` articles, Help Copilot, manuals, support-ticket creation/history,
+ticket detail routes, and all existing course/HeyGen records remain available independently; this
+integration adds a shared entry point and does not redirect or migrate those workflows.
 
 In Cloudflare Turnstile -> Widget -> Hostname Management, authorize `cmcarebase.com`
 for the `VITE_TURNSTILE_SITE_KEY` used by this service. A missing hostname authorization
