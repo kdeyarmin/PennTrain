@@ -58,7 +58,12 @@ export default function EmergencyEventDetail() {
   const eventQuery = useEmergencyEvent(id);
   const event = eventQuery.data?.event;
   const readiness = useEmergencyReadiness(event?.facility_id);
-  const profiles = useListProfiles({ organizationId: event?.organization_id });
+  // Held until the event has answered: this page is reachable by platform_admin, for whom an
+  // unscoped profiles read is every profile on the platform rather than this event's tenant.
+  const profiles = useListProfiles(
+    { organizationId: event?.organization_id },
+    { enabled: !!event?.organization_id },
+  );
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const record = useRecordEmergencyAccountability();
   const addTimeline = useAddEmergencyTimelineEntry();
