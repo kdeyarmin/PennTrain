@@ -5,6 +5,7 @@ import { useListOrganizations } from "@/hooks/useOrganizations";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
+import { useProfileNameMap } from "@/hooks/useProfiles";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
@@ -30,43 +31,6 @@ function getActionDisplay(action: string): { color: string; label: string } {
   return { color: "bg-gray-100 text-gray-800", label: action };
 }
 
-// Resolves actor ids to names for the rows currently on screen, and only those.
-//
-// This used to select every profile in reach and index the result. PostgREST caps an unbounded
-// select at `db-max-rows` -- 1000, the hosted default and what the local stack returns -- so past
-// a thousand profiles the map silently lost its tail, and the actor column below renders a miss as
-// "Unknown user". On an audit log that is worse than blank: an action attributed to nobody is what
-// an unattributed action looks like to a surveyor, and the row would have been ordinary evidence
-// of a real person's edit. Same class as the personal-funds statement in J93, on a page a DHS
-// inspector is more likely to open.
-//
-// Keying on the page's own ids fixes it and is strictly cheaper -- at most PAGE_SIZE distinct
-// actors instead of the whole profile table -- so there is no truncation left to bound. The ids
-// are sorted into the query key so two pages with the same actors in a different order share a
-// cache entry rather than refetching.
-function useProfileNameMap(actorIds: string[]) {
-  const ids = Array.from(new Set(actorIds)).sort();
-  return useQuery({
-    queryKey: ["profiles", "name_map", ids],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", ids);
-      if (error) throw error;
-      const map: Record<string, string> = {};
-      for (const p of data ?? []) map[p.id] = `${p.first_name} ${p.last_name}`.trim();
-      return map;
-    },
-    // Page changes swap the id set and therefore the query key. Without this, every paged
-    // navigation blanks the map for a moment and the rows render "Unknown user" -- the exact string
-    // this fix exists to stop showing. Keeping the previous map is safe precisely because it is
-    // keyed by profile id: an id it does not carry falls through to the same fallback it would have
-    // anyway, and one it does carry is still that person's name.
-    placeholderData: (previous) => previous,
-    enabled: ids.length > 0,
-  });
-}
 
 // Populates the entity-type filter dropdown from a wide, unfiltered sample of entity_type values
 // (only that one column, not full rows) independent of the paginated/filtered query below -- so

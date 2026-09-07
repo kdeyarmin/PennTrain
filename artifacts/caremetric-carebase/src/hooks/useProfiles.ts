@@ -30,6 +30,95 @@ export function useListProfiles(filters: ListProfilesFilters = {}) {
 }
 
 /**
+ * Chunk size for the `id in (...)` lookup below.
+ *
+ * PostgREST takes the filter in the query string, so every id is spelled out in the URL: a UUID
+ * plus its separator is 39 bytes, making 100 ids roughly 3.9 KB of request line. That sits under
+ * the ~8 KB a Kong/nginx front end accepts by default with enough room for the rest of the URL,
+ * while keeping the request count low for the ordinary case of one page of actors.
+ */
+const PROFILE_NAME_CHUNK_SIZE = 100;
+
+export type ProfileNameMap = Record<string, string>;
+
+/**
+ * id -> "First Last" for a known set of profile ids, so a page can show actor names instead of raw
+ * uuids. The single implementation behind the audit log, the security audit log, and the support
+ * queue.
+ *
+ * WHY IT TAKES IDS. Three of those callers used to select every profile in reach and index the
+ * result. PostgREST caps an unbounded select at `db-max-rows` -- 1000, the hosted default -- so past
+ * a thousand profiles the map lost its tail, and every caller renders a miss as "Unknown user" /
+ * "Unknown requester". On an audit log that is worse than a blank: an action attributed to nobody is
+ * what an unattributed action looks like to a surveyor, when the row was really an ordinary edit by
+ * a real person. The security audit log was the worst of them and said so in its own comment --
+ * "platform_admin has unrestricted profiles SELECT via RLS, so no filtering needed" -- because
+ * unrestricted is exactly what makes the cap an installation-wide profile count rather than a
+ * per-tenant one.
+ *
+ * WHY IT CHUNKS. Scoping to the caller's ids fixes the cap and is far cheaper, but it moves the
+ * bound from the response to the REQUEST, and one of the callers has no bound to give:
+ * `useListSupportTickets` pages until exhausted, and SupportTickets renders every row it returns.
+ * A single `.in()` over thousands of ids builds a URL the gateway rejects with 414 URI Too Long --
+ * and since no caller surfaces this query's error, the queue would label every requester unknown.
+ * That is the same symptom the id-scoping was introduced to remove, arriving through the fix
+ * instead of the bug, which is why the bound belongs here rather than in each caller.
+ *
+ * Chunks run in parallel and merge; ids are de-duplicated and sorted so callers holding the same
+ * actors in a different order share one cache entry instead of refetching.
+ */
+/** De-duplicate, sort, and split ids into request-sized batches. Exported for its own test. */
+export function profileNameIdChunks(profileIds: string[], chunkSize = PROFILE_NAME_CHUNK_SIZE): string[][] {
+  const ids = Array.from(new Set(profileIds.filter(Boolean))).sort();
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += chunkSize) chunks.push(ids.slice(i, i + chunkSize));
+  return chunks;
+}
+
+/** Sorted, de-duplicated id list — the query key, so callers holding the same actors share a cache entry. */
+export function profileNameCacheIds(profileIds: string[]): string[] {
+  return Array.from(new Set(profileIds.filter(Boolean))).sort();
+}
+
+type ProfileNameRow = { id: string; first_name: string | null; last_name: string | null };
+type ProfileNameFetcher = (chunk: string[]) => Promise<ProfileNameRow[]>;
+
+const fetchProfileNameChunk: ProfileNameFetcher = async (chunk) => {
+  const { data, error } = await supabase.from("profiles").select("id, first_name, last_name").in("id", chunk);
+  if (error) throw error;
+  return (data ?? []) as ProfileNameRow[];
+};
+
+/** Fetch every chunk in parallel and merge into one id -> name map. Exported for its own test. */
+export async function fetchProfileNameMap(
+  profileIds: string[],
+  fetchChunk: ProfileNameFetcher = fetchProfileNameChunk,
+  chunkSize = PROFILE_NAME_CHUNK_SIZE,
+): Promise<ProfileNameMap> {
+  const results = await Promise.all(profileNameIdChunks(profileIds, chunkSize).map(fetchChunk));
+  const map: ProfileNameMap = {};
+  for (const rows of results) {
+    for (const profile of rows) map[profile.id] = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim();
+  }
+  return map;
+}
+
+export function useProfileNameMap(profileIds: string[]) {
+  const ids = profileNameCacheIds(profileIds);
+  return useQuery({
+    queryKey: ["profiles", "name_map", ids],
+    queryFn: () => fetchProfileNameMap(ids),
+    enabled: ids.length > 0,
+    // A page change swaps the id set and therefore the query key. Without this, every paged
+    // navigation blanks the map for a moment and the rows render "Unknown user" -- the exact string
+    // this hook exists to stop showing. Keeping the previous map is safe precisely because it is
+    // keyed by profile id: an id it does not carry falls through to the same fallback it would have
+    // anyway, and one it does carry is still that person's name.
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
  * The signed-in user's own profiles row, sharing the exact query key and shape the
  * AuthProvider already populates (see lib/auth.tsx `["profile", session.user.id]`), so
  * pages reading it usually render from cache with no second fetch. Exposes the contact/

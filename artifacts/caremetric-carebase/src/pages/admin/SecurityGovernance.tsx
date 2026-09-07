@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
+import { useProfileNameMap } from "@/hooks/useProfiles";
 import {
   useAuditCoverage,
   useAuditGovernanceStatus,
   useListSecurityAuditLog,
-  useProfileNameMap,
   type SecurityAuditEntityType,
 } from "@/hooks/useSecurityAuditLog";
 import type { Tables } from "@/lib/database.types";

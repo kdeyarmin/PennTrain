@@ -88,44 +88,7 @@ export function useListSecurityAuditLog(filters: ListSecurityAuditLogFilters = {
   });
 }
 
-// id -> "First Last" lookup so the page can show actor names instead of raw profile uuids
-// (mirrors useOrganizationNameMap in useAdminNotificationDeliveries.ts).
-//
-// Takes the ids the caller actually needs. It used to select every profile and index the result,
-// on the reasoning -- written in the comment this replaces -- that platform_admin has unrestricted
-// profiles SELECT via RLS so no filtering was needed. RLS was never the binding constraint:
-// PostgREST caps an unbounded select at `db-max-rows`, 1000 on the hosted default and on the local
-// stack, so the map lost everything past the thousandth profile. Unrestricted is precisely what
-// makes that reachable -- this is the one caller reading across every tenant at once, so the cap is
-// an installation-wide profile count rather than a per-organization one.
-//
-// The callers all render a miss as "Unknown" / "Unknown requester", so the effect was a real
-// person's action attributed to nobody on the SECURITY audit log, which is the page where that
-// reads as an unattributed action rather than a cosmetic gap. Same defect and same fix as the
-// tenant-facing AuditLog page.
-//
-// Ids are de-duplicated and sorted into the query key so callers holding the same actors in a
-// different order share one cache entry instead of refetching.
-export function useProfileNameMap(profileIds: string[]) {
-  const ids = Array.from(new Set(profileIds.filter(Boolean))).sort();
-  return useQuery({
-    queryKey: ["profiles", "name_map", ids],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", ids);
-      if (error) throw error;
-      const map: Record<string, string> = {};
-      for (const profile of data ?? []) map[profile.id] = `${profile.first_name} ${profile.last_name}`.trim();
-      return map;
-    },
-    // Page changes swap the id set and therefore the query key. Without this, every paged
-    // navigation blanks the map for a moment and the rows render "Unknown user" -- the exact string
-    // this fix exists to stop showing. Keeping the previous map is safe precisely because it is
-    // keyed by profile id: an id it does not carry falls through to the same fallback it would have
-    // anyway, and one it does carry is still that person's name.
-    placeholderData: (previous) => previous,
-    enabled: ids.length > 0,
-  });
-}
+// useProfileNameMap moved to hooks/useProfiles.ts. It had a second copy in AuditLog.tsx, and
+// having two of it is what let the unbounded-select defect survive in one while the other was
+// reasoned about -- the same duplication that produced the Recents/Header UUID split. One copy
+// now, and it carries the request-size bound the support queue needs.

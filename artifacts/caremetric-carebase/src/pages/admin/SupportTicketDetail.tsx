@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useProfileNameMap } from "@/hooks/useProfiles";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import {
   type SupportTicketMessage,
 } from "@/hooks/useSupportTickets";
 import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
-import { useProfileNameMap } from "@/hooks/useSecurityAuditLog";
+
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";

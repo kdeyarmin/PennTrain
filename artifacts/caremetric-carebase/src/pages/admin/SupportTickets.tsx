@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useProfileNameMap } from "@/hooks/useProfiles";
 import { facilityToday } from "@/lib/dateUtils";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { StatCard } from "@/components/StatCard";
 import { AlertTriangle, Clock, History, Inbox, LifeBuoy, Search } from "lucide-react";
 import { useListSupportTickets, SUPPORT_TICKET_CATEGORIES } from "@/hooks/useSupportTickets";
 import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
-import { useProfileNameMap } from "@/hooks/useSecurityAuditLog";
+
 import { useUrlState } from "@/hooks/useUrlState";
 import { summarizeSupportTicketAnalytics } from "@/lib/supportTicketAnalytics";
 import { QueryError } from "@/components/QueryState";
