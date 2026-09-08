@@ -57,6 +57,16 @@ function validBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
+for (const body of [null, [], true, { note: "x".repeat(16_384) }]) {
+  Deno.test(`create-user rejects malformed or oversized JSON ${typeof body}`, async () => {
+    const { handler, track } = makeHandler({ callerRole: "platform_admin" });
+    const response = await handler(makeRequest(body));
+    assertEquals(response.status, body && typeof body === "object" && "note" in body ? 413 : 400);
+    assertEquals(track.createUserCalls, []);
+    assertEquals(track.profileRpcArgs, []);
+  });
+}
+
 function makeHandler(opts: {
   callerRole: string;
   callerOrgId?: string | null;

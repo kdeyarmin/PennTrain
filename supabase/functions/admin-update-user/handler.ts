@@ -1,6 +1,7 @@
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 import { isDemoOrganization } from "../_shared/demoTenant.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -97,7 +98,7 @@ export function createAdminUpdateUserHandler({
       reason?: string;
       user_id?: string;
       role?: string;
-      organization_id?: string;
+      organization_id?: string | null;
       is_active?: boolean;
       email?: string;
       first_name?: string;
@@ -105,9 +106,27 @@ export function createAdminUpdateUserHandler({
       password?: string;
     };
     try {
-      body = await req.json();
-    } catch {
-      return json(req, { error: "Invalid JSON body" }, 400);
+      body = await readJsonBody(req);
+      if (Array.isArray(body)) return json(req, { error: "Invalid JSON body" }, 400);
+    } catch (error) {
+      return json(req, {
+        error: error instanceof RequestBodyError ? error.message : "Invalid JSON body",
+      }, error instanceof RequestBodyError ? error.status : 400);
+    }
+
+    // Do not let JSON coercion change the meaning of an identity update (for example,
+    // the string "false" is truthy in JavaScript but becomes false in a boolean SQL field).
+    for (const key of ["action", "reason", "user_id", "role", "email", "first_name", "last_name", "password"] as const) {
+      if (body[key] !== undefined && typeof body[key] !== "string") {
+        return json(req, { error: `${key} must be a string` }, 400);
+      }
+    }
+    if (body.organization_id !== undefined && body.organization_id !== null
+      && typeof body.organization_id !== "string") {
+      return json(req, { error: "organization_id must be a string or null" }, 400);
+    }
+    if (body.is_active !== undefined && typeof body.is_active !== "boolean") {
+      return json(req, { error: "is_active must be a boolean" }, 400);
     }
 
     const { action, reason, user_id, role, organization_id, is_active, email, first_name, last_name, password } = body;

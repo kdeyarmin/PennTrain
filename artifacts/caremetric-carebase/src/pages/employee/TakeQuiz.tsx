@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryError } from "@/components/QueryState";
@@ -27,9 +27,17 @@ import {
   useGetQuizAttemptTopicReview,
 } from "@/hooks/useQuizzes";
 import { orderAnswersForAttempt, orderQuestionsForAttempt } from "@/lib/quizShuffle";
+import { createQuizAnswerQueue } from "@/lib/quizAnswerQueue";
+import { isClosedCourseAssignmentStatus } from "@/lib/courseLearningTools";
 
 export default function TakeQuiz() {
   const { assignmentId, quizId } = useParams<{ assignmentId: string; quizId: string }>();
+  // The same quiz may belong to multiple annual assignments. Remount all attempt, answer,
+  // and pending-submission state whenever either route identity changes.
+  return <QuizAttemptPage key={`${assignmentId}:${quizId}`} assignmentId={assignmentId} quizId={quizId} />;
+}
+
+function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizId: string }) {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -90,21 +98,16 @@ export default function TakeQuiz() {
   const [newAttemptId, setNewAttemptId] = useState<string | null>(null);
   const activeAttemptId = newAttemptId ?? inProgressAttempt?.id ?? null;
 
-  const { data: activeAttempt } = useGetQuizAttempt(activeAttemptId ?? undefined);
-  const { data: attemptAnswers } = useListQuizAttemptAnswers(activeAttemptId ?? undefined);
+  const activeAttemptQuery = useGetQuizAttempt(activeAttemptId ?? undefined);
+  const { data: activeAttempt } = activeAttemptQuery;
+  const attemptAnswersQuery = useListQuizAttemptAnswers(activeAttemptId ?? undefined);
+  const { data: attemptAnswers } = attemptAnswersQuery;
 
   // Local per-question selections, keyed by question_id. Seeded once from any
   // answers already saved against the active attempt (covers resuming an
   // in-progress attempt); a brand-new attempt seeds to {} since it has none.
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [seededFor, setSeededFor] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Reset all local quiz-taking state when navigating to a different quiz.
-    setSelections({});
-    setSeededFor(null);
-    setNewAttemptId(null);
-  }, [quizId]);
 
   useEffect(() => {
     if (activeAttemptId && activeAttemptId !== seededFor && attemptAnswers) {
@@ -137,11 +140,16 @@ export default function TakeQuiz() {
   }, [choices, orderingAttemptId, shuffleAnswers]);
 
   const { mutate: startAttempt, isPending: starting } = useStartQuizAttempt();
-  const { mutate: saveAnswer } = useSubmitQuizAttemptAnswer();
-  const { mutate: gradeAttempt, isPending: grading } = useGradeQuizAttempt();
+  const { mutateAsync: saveAnswer } = useSubmitQuizAttemptAnswer();
+  const { mutateAsync: gradeAttempt } = useGradeQuizAttempt();
+  const answerQueue = useMemo(() => createQuizAnswerQueue(saveAnswer), [saveAnswer]);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const [answerSaveError, setAnswerSaveError] = useState<string | null>(null);
+  const assignmentClosed = isClosedCourseAssignmentStatus(assignment?.status);
 
   function handleStart() {
-    if (!assignmentId || !quizId) return;
+    if (!assignmentId || !quizId || assignmentClosed || starting) return;
     startAttempt(
       { assignment_id: assignmentId, quiz_id: quizId },
       {
@@ -157,26 +165,33 @@ export default function TakeQuiz() {
   }
 
   function setAnswer(questionId: string, ids: string[]) {
+    if (submittingRef.current || assignmentClosed || activeAttempt?.submitted_at) return;
     setSelections((prev) => ({ ...prev, [questionId]: ids }));
     if (!activeAttemptId) return;
-    saveAnswer(
-      { attempt_id: activeAttemptId, question_id: questionId, selected_answer_ids: ids },
-      {
-        onError: (e: Error) =>
-          toast({ title: "Failed to save answer", description: e.message, variant: "destructive" }),
-      },
-    );
+    void answerQueue.save({ attempt_id: activeAttemptId, question_id: questionId, selected_answer_ids: ids })
+      .catch((e: Error) => {
+        setAnswerSaveError("Some answers could not be saved. Stay on this page; submitting will retry them before grading.");
+        toast({ title: "Failed to save answer", description: e.message, variant: "destructive" });
+      });
   }
 
   const allAnswered = (questions ?? []).length > 0 && (questions ?? []).every((q) => (selections[q.id]?.length ?? 0) > 0);
 
-  function handleSubmit() {
-    if (!activeAttemptId) return;
-    gradeAttempt(activeAttemptId, {
-      onSuccess: () => toast({ title: "Quiz submitted" }),
-      onError: (e: Error) =>
-        toast({ title: "Failed to submit quiz", description: e.message, variant: "destructive" }),
-    });
+  async function handleSubmit() {
+    if (!activeAttemptId || !allAnswered || submittingRef.current || assignmentClosed) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await answerQueue.submit(activeAttemptId, (questions ?? []).map(q => q.id), selections, gradeAttempt);
+      setAnswerSaveError(null);
+      toast({ title: "Quiz submitted" });
+    } catch (e) {
+      setAnswerSaveError("Your submission could not be confirmed. Your selections are still here; retry or refresh to check your result.");
+      toast({ title: "Failed to submit quiz", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   }
 
   const isLoading =
@@ -253,6 +268,22 @@ export default function TakeQuiz() {
         </Button>
       </div>
     );
+  }
+
+  if (activeAttemptId && (activeAttemptQuery.isError || attemptAnswersQuery.isError)) {
+    return <QueryError what="your saved quiz answers" error={activeAttemptQuery.error ?? attemptAnswersQuery.error}
+      onRetry={() => void Promise.all([activeAttemptQuery.refetch(), attemptAnswersQuery.refetch()])} />;
+  }
+
+  if (activeAttemptId && (activeAttemptQuery.isLoading || attemptAnswersQuery.isLoading || seededFor !== activeAttemptId)) {
+    return <p role="status" className="text-sm text-muted-foreground">Loading your saved quiz answers…</p>;
+  }
+
+  if (assignmentClosed && !lastGraded && !activeAttempt?.submitted_at) {
+    return <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">This training assignment is {assignment.status}. Quiz answers can no longer be changed.</p>
+      <Button asChild variant="outline"><Link href={backHref}>Back to training</Link></Button>
+    </div>;
   }
 
   const allQuestions = orderQuestionsForAttempt(questions ?? [], orderingAttemptId, shuffleQuestions);
@@ -483,13 +514,17 @@ export default function TakeQuiz() {
         {course && <p className="text-muted-foreground">{course.title}</p>}
       </div>
 
+      {assignmentClosed && <p role="status" className="text-sm text-muted-foreground">
+        This training assignment is {assignment.status}. Quiz answers can no longer be changed.
+      </p>}
+
       {isGraded && activeAttempt ? (
         <ResultCard
           attemptId={activeAttempt.id}
           scorePercent={activeAttempt.score_percent}
           passed={activeAttempt.passed}
           attemptNumber={activeAttempt.attempt_number}
-          showRetake={!activeAttempt.passed && (maxAttempts == null || attemptsUsed < maxAttempts)}
+          showRetake={!assignmentClosed && !activeAttempt.passed && (maxAttempts == null || attemptsUsed < maxAttempts)}
           exhausted={!activeAttempt.passed && maxAttempts != null && attemptsUsed >= maxAttempts}
         />
       ) : activeAttemptId ? (
@@ -504,6 +539,7 @@ export default function TakeQuiz() {
         // soon as the employee picks it (not batched at the end), so progress
         // survives a refresh or a resumed session.
         <div className="space-y-4">
+          {answerSaveError && <p role="alert" className="text-sm text-destructive">{answerSaveError}</p>}
           {allQuestions.map((q, idx) => {
             const questionChoices = choicesByQuestion.get(q.id) ?? [];
             const selected = selections[q.id] ?? [];
@@ -521,6 +557,7 @@ export default function TakeQuiz() {
                       {questionChoices.map((c) => (
                         <label key={c.id} className="flex items-center gap-2.5 cursor-pointer">
                           <Checkbox
+                            disabled={submitting || assignmentClosed}
                             checked={selected.includes(c.id)}
                             onCheckedChange={(checked) => {
                               const next = checked
@@ -535,6 +572,7 @@ export default function TakeQuiz() {
                     </div>
                   ) : (
                     <RadioGroup
+                      disabled={submitting || assignmentClosed}
                       value={selected[0] ?? ""}
                       onValueChange={(val) => setAnswer(q.id, [val])}
                       className="space-y-2"
@@ -559,9 +597,9 @@ export default function TakeQuiz() {
               {Object.values(selections).filter((s) => s.length > 0).length} of {allQuestions.length} answered
             </p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => navigate(backHref)}>Exit</Button>
-              <Button onClick={handleSubmit} disabled={!allAnswered || grading}>
-                {grading ? "Submitting..." : "Submit Quiz"}
+              <Button variant="outline" disabled={submitting} onClick={() => navigate(backHref)}>Exit</Button>
+              <Button onClick={() => void handleSubmit()} disabled={!allAnswered || submitting || assignmentClosed}>
+                {submitting ? "Saving and submitting..." : "Submit Quiz"}
               </Button>
             </div>
           </div>
@@ -575,7 +613,7 @@ export default function TakeQuiz() {
           scorePercent={lastGraded.score_percent}
           passed={lastGraded.passed}
           attemptNumber={lastGraded.attempt_number}
-          showRetake={!lastGraded.passed && !attemptsExhausted}
+          showRetake={!assignmentClosed && !lastGraded.passed && !attemptsExhausted}
           exhausted={attemptsExhausted && !lastGraded.passed}
         />
       ) : (

@@ -418,7 +418,7 @@ export default function Features() {
           </h2>
           <p className="m-0 max-w-[52ch] text-[15px] text-white/82">
             Import your roster and see your own facility's compliance picture
-            this week — or open the live demo and click around as every role.
+            this week — or request a demo workspace with fictional facility data.
           </p>
           <div className="mt-1.5 flex flex-wrap justify-center gap-3">
             <Button
@@ -433,7 +433,7 @@ export default function Features() {
               variant="outline"
               className="rounded-[9px] border-white/30 bg-transparent px-5 py-3 text-[14.5px] font-bold text-white hover:bg-white/10 hover:text-white"
             >
-              <Link href="/demo">Explore live demo</Link>
+              <Link href="/demo">Explore demo options</Link>
             </Button>
           </div>
         </Reveal>

@@ -43,7 +43,7 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
   "/security": {
     title: "Security & Trust — CareBase for PA Senior Care Facilities",
     description:
-      "Row-level security, private documentation storage, immutable audit trails, and read-only auditor access — controls you can verify in a free trial or live demo.",
+      "Row-level security, private documentation storage, immutable audit trails, and read-only auditor access — controls you can verify in a free trial or demo workspace.",
   },
   "/how-it-works": {
     title: "How CareBase Works — From Spreadsheet Chaos to Survey-Ready",

@@ -295,8 +295,8 @@ export default function DataImportCenter() {
     if (!confirmAction) return;
     try {
       let description = confirmAction.summary;
-      if (confirmAction.type === "finalize") await finalize.mutateAsync(confirmAction.jobId);
-      else if (confirmAction.type === "rollback") await rollback.mutateAsync(confirmAction.jobId);
+      if (confirmAction.type === "finalize") await finalize.mutateAsync({ jobId: confirmAction.jobId, domain: confirmAction.domain });
+      else if (confirmAction.type === "rollback") await rollback.mutateAsync({ jobId: confirmAction.jobId, domain: confirmAction.domain });
       else if (confirmAction.type === "cancel") {
         await cancelJob.mutateAsync({ jobId: confirmAction.jobId, reason: "Canceled from the Data Import Center" });
       } else {
@@ -711,6 +711,9 @@ export default function DataImportCenter() {
                         <p className="text-xs text-muted-foreground">
                           Loaded {rows.data.length} row receipt{rows.data.length === 1 ? "" : "s"} for this job.
                         </p>
+                      )}
+                      {rows.isError && (
+                        <QueryError what="import row receipts" error={rows.error} onRetry={() => rows.refetch()} />
                       )}
                     </div>
                   )}

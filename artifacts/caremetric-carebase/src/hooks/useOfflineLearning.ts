@@ -41,6 +41,9 @@ export function useOfflineCourseLibrary() {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["offline-course-library", user?.id],
+    // IndexedDB is available without a network. The default online mode pauses these reads
+    // on disconnect, making an already downloaded course impossible to open.
+    networkMode: "always",
     enabled: Boolean(user?.id && user.role === "employee" && typeof indexedDB !== "undefined"),
     queryFn: listCachedCourseBundles,
   });
@@ -50,6 +53,7 @@ export function useOfflineCourseBundle(assignmentId: string) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["offline-course-bundle", user?.id, assignmentId],
+    networkMode: "always",
     enabled: Boolean(user?.id && user.organizationId && user.role === "employee" && assignmentId && typeof indexedDB !== "undefined"),
     queryFn: async () => {
       if (!user?.id || !user.organizationId || user.role !== "employee") throw new Error("Offline learning requires an employee account.");
@@ -65,8 +69,10 @@ export function useOfflineCourseBundle(assignmentId: string) {
 export function useOfflineProgress(assignmentId: string) {
   return useQuery({
     queryKey: ["offline-course-progress", assignmentId],
+    networkMode: "always",
     enabled: Boolean(assignmentId && typeof indexedDB !== "undefined"),
-    queryFn: () => getOfflineProgressCheckpoint(assignmentId),
+    // A new download has no checkpoint yet. React Query forbids undefined query results.
+    queryFn: async () => (await getOfflineProgressCheckpoint(assignmentId)) ?? null,
   });
 }
 
@@ -136,8 +142,10 @@ export function useDownloadCourseForOffline() {
       if (!versionId) throw new Error("The offline course version was not returned.");
       return cacheCourseBundle({ identity, assignmentId, title, versionId, manifestId: bundle.manifestId, expiresAt: bundle.expiresAt, bundle: bundle.bundle });
     },
-    onSuccess: () => {
+    onSuccess: (_data, { assignmentId }) => {
       queryClient.invalidateQueries({ queryKey: ["offline-course-library"] });
+      queryClient.invalidateQueries({ queryKey: ["offline-course-bundle"], predicate: query => query.queryKey[2] === assignmentId });
+      queryClient.invalidateQueries({ queryKey: ["offline-course-progress", assignmentId] });
       // Warm the lazy OfflineCourse chunk while online so a cold restart without
       // network can still open a downloaded course from the cache.
       void import("@/pages/employee/OfflineCourse");
@@ -149,7 +157,14 @@ export function useRemoveOfflineCourse() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: removeCachedCourseBundle,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["offline-course-library"] }),
+    onSuccess: async (_data, assignmentId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["offline-course-library"] }),
+        // Drop decrypted content immediately, including a currently open revoked assignment.
+        queryClient.resetQueries({ queryKey: ["offline-course-bundle"], predicate: query => query.queryKey[2] === assignmentId }),
+        queryClient.resetQueries({ queryKey: ["offline-course-progress", assignmentId] }),
+      ]);
+    },
   });
 }
 
@@ -164,6 +179,12 @@ export function useWipeOfflineCourses() {
       }
       await wipeOfflineLearning();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["offline-course-library"] }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.resetQueries({ queryKey: ["offline-course-library"] }),
+        queryClient.resetQueries({ queryKey: ["offline-course-bundle"] }),
+        queryClient.resetQueries({ queryKey: ["offline-course-progress"] }),
+      ]);
+    },
   });
 }

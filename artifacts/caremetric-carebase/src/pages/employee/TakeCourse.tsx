@@ -1016,6 +1016,7 @@ useEffect(() => {
 
               {currentBlock?.block_type === "scorm" && (
                 <StandardsRuntimePlayer
+                  key={`${assignmentId}:${currentBlock.id}`}
                   assignmentId={assignmentId!}
                   courseId={assignment?.course_id ?? course?.id ?? ""}
                   courseVersionId={assignment?.course_version_id ?? undefined}

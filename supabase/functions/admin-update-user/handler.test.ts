@@ -26,6 +26,18 @@ function makeRequest(body: unknown): Request {
   });
 }
 
+for (const body of [null, [], true, { note: "x".repeat(16_384) },
+  { user_id: PEER_ID, is_active: "false" }, { user_id: PEER_ID, password: 123456789 },
+  { user_id: PEER_ID, action: "reset_mfa", reason: {} }, { user_id: PEER_ID, email: [] }]) {
+  Deno.test(`admin-update-user rejects malformed or oversized identity fields ${JSON.stringify(body).slice(0, 90)}`, async () => {
+    const { handler, track } = makeHandler({ callerRole: "platform_admin", targetRole: "employee" });
+    const response = await handler(makeRequest(body));
+    assertEquals(response.status, body && typeof body === "object" && "note" in body ? 413 : 400);
+    assertEquals(track.authUpdates, []);
+    assertEquals(track.profileRpcArgs, []);
+  });
+}
+
 function chainable(result: { data: unknown; error: unknown }) {
   // deno-lint-ignore no-explicit-any
   const obj: any = {};

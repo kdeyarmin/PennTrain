@@ -42,7 +42,7 @@ const PAGE_SIZE = 15;
 // `canceled` is here because this page can now produce one (see the cancel action below). Without
 // it a cancelled assignment is unreachable from the filter bar -- it is excluded from every other
 // status, so the manager who just cancelled it has no way to find it again.
-const STATUS_OPTIONS = ["assigned", "in_progress", "completed", "overdue", "canceled"] as const;
+const STATUS_OPTIONS = ["assigned", "in_progress", "completed", "overdue", "paused", "canceled"] as const;
 
 /**
  * Both RPCs refuse a reason under 10 characters ("Say why ... -- at least a sentence",
@@ -183,7 +183,9 @@ export default function CourseAssignments() {
   // assignment would hide a control the database would have accepted.
 
   const { data: facilities } = useListFacilities();
-  const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees({ status: "active" });
+  // Historical assignments survive leave and termination. Keep those employees available for
+  // row labels and search; the new-assignment picker uses activeEmployees below.
+  const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees();
   const { data: courses } = useListCourses();
   const courseIds = useMemo(() => (courses ?? []).map(c => c.id), [courses]);
   const {
@@ -301,10 +303,10 @@ export default function CourseAssignments() {
     facilityToday(),
   ), [paginated]);
 
-  // Same eligibility gate as the single-row "Mark Complete" button -- not completed, version
+  // Shared eligibility gate for the single-row and bulk completion buttons -- open, version
   // metadata loaded, and not a comprehensive content_standard that requires learner evidence.
   const isEligibleForComplete = (a: CourseAssignment) => {
-    if (a.status === "completed") return false;
+    if (!(OPEN_ASSIGNMENT_STATUSES as readonly string[]).includes(a.status)) return false;
     const assignmentVersion = courseVersionById.get(a.course_version_id);
     const versionMetadataReady =
       !courseVersionsLoading && !courseVersionsError && !!assignmentVersion;
@@ -731,10 +733,6 @@ export default function CourseAssignments() {
                   {paginated.map(a => {
                     const emp = employeeById.get(a.employee_id);
                     const course = courseById.get(a.course_id);
-                    const assignmentVersion = courseVersionById.get(a.course_version_id);
-                    const versionMetadataReady =
-                      !courseVersionsLoading && !courseVersionsError && !!assignmentVersion;
-                    const requiresLearnerEvidence = assignmentVersion?.content_standard === "comprehensive";
                     const cert = certificateByAssignmentId.get(a.id);
                     const eligible = isEligibleForComplete(a);
                     // Only an assignment the index still counts as open can be granted an extra
@@ -799,9 +797,7 @@ export default function CourseAssignments() {
                               </Button>
                             )}
                             {canManage
-                              && a.status !== "completed"
-                              && versionMetadataReady
-                              && !requiresLearnerEvidence
+                              && eligible
                               && (
                               <Button
                                 variant="ghost"

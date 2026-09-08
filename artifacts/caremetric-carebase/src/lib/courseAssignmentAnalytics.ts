@@ -25,8 +25,13 @@ function daysUntil(date: string, today: string): number {
 
 export function summarizeCourseAssignmentAnalytics(assignments: CourseAssignmentAnalyticsRecord[], today: string): CourseAssignmentAnalyticsSummary {
   const completed = assignments.filter((assignment) => assignment.status === "completed" || !!assignment.completed_at).length;
-  const overdueAssignments = assignments.filter((assignment) => assignment.status === "overdue" || (!!assignment.due_date && daysUntil(assignment.due_date, today) < 0 && !assignment.completed_at));
-  const dueWithin7Days = assignments.filter((assignment) => {
+  // Canceled work is closed, and leave pauses the deadline. Both retain their old due date as
+  // history; treating that date alone as actionable sends managers to work that needs no follow-up.
+  const outstanding = assignments.filter((assignment) =>
+    ["assigned", "in_progress", "overdue"].includes(assignment.status) && !assignment.completed_at,
+  );
+  const overdueAssignments = outstanding.filter((assignment) => assignment.status === "overdue" || (!!assignment.due_date && daysUntil(assignment.due_date, today) < 0));
+  const dueWithin7Days = outstanding.filter((assignment) => {
     if (!assignment.due_date || assignment.completed_at) return false;
     const days = daysUntil(assignment.due_date, today);
     return days >= 0 && days <= 7;

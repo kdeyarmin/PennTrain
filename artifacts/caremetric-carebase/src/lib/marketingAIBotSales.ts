@@ -100,7 +100,7 @@ const BOT_INTENTS: BotIntent[] = [
     ],
     closer:
       "The easiest way to evaluate fit is to compare one of your current spreadsheet or binder processes against the CareBase workflow in a guided walkthrough.",
-    cta: { label: "Explore the live demo", href: "/demo" },
+    cta: { label: "Explore demo options", href: "/demo" },
   },
   {
     id: "role",
@@ -114,7 +114,7 @@ const BOT_INTENTS: BotIntent[] = [
     ],
     closer:
       "In a demo, ask to see the one screen or workflow that makes your own job measurably easier — and bring the colleagues who'd want to see theirs.",
-    cta: { label: "Explore the live demo", href: "/demo" },
+    cta: { label: "Explore demo options", href: "/demo" },
   },
   {
     id: "survey",

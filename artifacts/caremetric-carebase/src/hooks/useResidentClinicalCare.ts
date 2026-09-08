@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { CLINICAL_CHART_SUMMARY_KEY } from "./useClinicalObservations";
 
 export type ClinicalCarePlan = Tables<"clinical_care_plans">;
 export type ClinicalCarePlanGoal = Tables<"clinical_care_plan_goals">;
@@ -53,7 +54,10 @@ function useCareMutation<TInput>(runner: (input: TInput) => Promise<void>, resid
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: runner,
-    onSuccess: (_data, input) => queryClient.invalidateQueries({ queryKey: [CARE_KEY, residentIdOf(input)] }),
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: [...CLINICAL_CHART_SUMMARY_KEY, residentIdOf(input)] });
+      return queryClient.invalidateQueries({ queryKey: [CARE_KEY, residentIdOf(input)] });
+    },
   });
 }
 
@@ -62,18 +66,24 @@ export function useSaveClinicalProgressNote() {
   return useMutation({
     mutationFn: async (input: {
       residentId: string; noteType: ProgressNoteType; body: string; authoredAt: string; noteId?: string;
+      carePlanId?: string | null; changeEventId?: string | null;
     }): Promise<string> => {
       const { data, error } = await supabase.rpc("save_clinical_progress_note", {
         p_resident_id: input.residentId,
         p_note_type: input.noteType,
         p_body: input.body,
         p_authored_at: input.authoredAt,
+        p_care_plan_id: input.carePlanId ?? undefined,
+        p_change_event_id: input.changeEventId ?? undefined,
         ...(input.noteId ? { p_note_id: input.noteId } : {}),
       });
       if (error) throw error;
       return data as string;
     },
-    onSuccess: (_data, input) => queryClient.invalidateQueries({ queryKey: [CARE_KEY, input.residentId] }),
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: [...CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
+      return queryClient.invalidateQueries({ queryKey: [CARE_KEY, input.residentId] });
+    },
   });
 }
 
