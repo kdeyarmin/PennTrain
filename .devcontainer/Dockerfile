@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
 # Keep Deno available without depending on an install script at container startup.
-FROM denoland/deno:bin-2.5.6 AS deno-bin
+FROM denoland/deno:bin-2.9.6 AS deno-bin
 
 # Include the Supabase CLI so migrations/functions can be exercised from the same dev container.
 FROM supabase/cli:v2.109.1 AS supabase-cli
 
-FROM node:24.15.0-bookworm
+FROM node:26.8.1-bookworm
 
 # Must match package.json "packageManager" / engines.pnpm and CI corepack prepare.
 ARG PNPM_VERSION=11.13.0
