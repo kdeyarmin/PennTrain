@@ -616,6 +616,14 @@ at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't t
 
 ## Limitations / manual steps remaining
 
+Deployment-setting verification on 2026-09-08 (BACKLOG K11):
+
+| Setting | Supported evidence | Remaining verification |
+| --- | --- | --- |
+| Required checks on `main` | The intended required check is `ci-result`. The repository ruleset list is empty, but the connection receives HTTP 403 reading classic branch protection. | Verify the classic rule requires `ci-result` only; an empty ruleset list does not prove the branch is unprotected. |
+| Production credentials and approvals | Scheduled dry run [34200865149](https://github.com/kdeyarmin/PennTrain/actions/runs/34200865149) started three seconds after creation, has no recorded environment approval, and passed secret-presence, project-link, migration-drift and function-presence checks. | This confirms an unattended successful run with usable `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`, but the connection cannot read their environment-versus-repository scope or the current required-reviewer setting. |
+| Deployment-stamp retention | [Run 34261253345](https://github.com/kdeyarmin/PennTrain/actions/runs/34261253345) was created `2026-09-08T18:08:23Z`; its deployment stamp expires `2026-12-07T18:08:23Z`, exactly 90 days later. The upload step does not override retention. | Effective 90-day retention is verified for this stamp. Keep sufficient retention for the deploy gate's last-50-run lookup when changing repository settings. |
+
 - Railway project creation, GitHub connection, and env var entry must be done in the Railway
   dashboard -- not scriptable from this repo.
 - Supabase Auth redirect URL and Site URL configuration must be set in the Supabase dashboard.
