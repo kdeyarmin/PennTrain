@@ -297,14 +297,47 @@ const ADVISORY_REQUEST_TIMEOUT_MS = 60_000;
 const ADVISORY_REQUEST_ATTEMPTS = 3;
 
 /**
- * Exit status for "the advisory database could not be reached", as distinct from 1, which
- * means "the audit ran and this change introduces a high or critical advisory".
+ * THE EXIT-STATUS CONTRACT. dependency-advisories.yml branches on these to decide which issue,
+ * if any, a failed run opens, so they are an interface and not an implementation detail:
  *
- * A number rather than a message, because the consumer is a workflow `if:` condition and
- * GitHub gives a step's exit code to bash but never to the expression language -- so the
- * workflow captures this into a step output and branches on it. See BACKLOG K2.
+ *   0  the audit ran and this change introduces nothing high or critical
+ *   1  the audit ran and it DOES -- the gate's own verdict, and the only status that may ever
+ *      produce a "main ships a vulnerability" alert
+ *   2  the audit did not run because this script failed: an unparseable lockfile, a bad flag,
+ *      a bug in here
+ *   3  the audit did not run because the advisory database was unreachable
+ *
+ * Splitting 2 out of 1 is the same fix as splitting 3 out of it, one step further. Until this
+ * existed the advisory verdict was itself an uncaught `throw`, which is exactly how every other
+ * failure leaves too -- so "17 packages are vulnerable" and "pnpm-lock.yaml has no `packages:`
+ * section" were indistinguishable to the caller, both exiting 1. A pnpm major that changes the
+ * lockfile shape (11 -> 12 is being advertised by pnpm itself) would therefore have opened
+ * `[deps] High or critical advisory affects main` and asserted a vulnerability that was never
+ * looked for. Caught by Copilot on PR #502; the transport half of the same bug was BACKLOG K2.
+ *
+ * Numbers rather than messages because the consumer is a workflow `if:`, and GitHub gives a
+ * step's exit code to bash but never to the expression language -- so the workflow captures it
+ * into a step output and branches on that. The workflow treats ONLY 1 as an advisory: any other
+ * non-zero status, including one this script does not define, reports "the audit could not run",
+ * which is the direction that cannot invent a security finding.
  */
+export const EXIT_ADVISORY_FOUND = 1;
+export const EXIT_UNEXPECTED = 2;
 export const EXIT_TRANSPORT_FAILURE = 3;
+
+// Registered here, before any top-level statement that can throw, so that every failure this
+// script does not handle explicitly leaves as a 2 rather than impersonating the verdict at 1.
+const failUnexpected = (error) => {
+  console.error(`\n${(error && error.stack) || error}`);
+  console.error(
+    `\nTHE AUDIT DID NOT RUN (exit ${EXIT_UNEXPECTED}). This script failed before it could reach ` +
+      "a verdict, so nothing here says anything about whether this repository's dependencies are " +
+      "vulnerable. Fix the failure above and re-run.",
+  );
+  process.exit(EXIT_UNEXPECTED);
+};
+process.on("uncaughtException", failUnexpected);
+process.on("unhandledRejection", failUnexpected);
 
 /** The advisory endpoint was unreachable or unparseable. Never means "a package is vulnerable". */
 export class AdvisoryTransportError extends Error {
@@ -486,7 +519,13 @@ function runSelfTest() {
   // which reads it to decide which issue -- if any -- this run opens, so a change to either
   // number breaks a security signal quietly. Asserted here rather than left to a reading.
   check("a transport failure has its own exit status", EXIT_TRANSPORT_FAILURE, 3);
-  check("a transport failure is not the advisory failure status", EXIT_TRANSPORT_FAILURE !== 1, true);
+  check("an unexpected failure has its own exit status", EXIT_UNEXPECTED, 2);
+  check("the advisory verdict is the only status that means 'vulnerable'", EXIT_ADVISORY_FOUND, 1);
+  check(
+    "all four statuses are distinct, which is the whole contract",
+    new Set([0, EXIT_ADVISORY_FOUND, EXIT_UNEXPECTED, EXIT_TRANSPORT_FAILURE]).size,
+    4,
+  );
   check(
     "a transport error is distinguishable from every other failure",
     [
@@ -672,8 +711,12 @@ if (totalHigh === 0 && lowOrModerate === 0) {
       `introduced by this change).`,
   );
 } else {
-  throw new Error(
-    `${introduced.length} high or critical ${introduced.length === 1 ? "vulnerability" : "vulnerabilities"} ` +
+  // An explicit exit, not a throw. This is the gate's VERDICT -- the one outcome entitled to say
+  // a vulnerability is present -- and it has to be distinguishable from this script merely
+  // falling over, which is what a throw would make it. See the exit-status contract above.
+  console.error(
+    `\n${introduced.length} high or critical ${introduced.length === 1 ? "vulnerability" : "vulnerabilities"} ` +
       `introduced by this change. Resolve before merging.`,
   );
+  process.exit(EXIT_ADVISORY_FOUND);
 }

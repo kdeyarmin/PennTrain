@@ -12,12 +12,20 @@ name: Dependency advisories
 # Daily, not weekly: the three advisories that prompted this landed within a week of each other,
 # and a week's delay on a high/critical in a healthcare product is too long to defend.
 #
-# TWO FAILURES, TWO ISSUES. "main ships a vulnerable package" and "the advisory database could
-# not be reached" are different facts and no longer leave by the same door. The audit script
-# exits 3 for the second (BACKLOG K2), this workflow captures that status, and the two open
-# differently-titled issues -- because on 2026-09-04 three registry timeouts, with nothing
-# audited at all, commented "Still failing" on the open advisory issue as though main shipped
-# the vulnerability. Both titles are closed automatically by the next run that resolves them
+# A VERDICT AND EVERYTHING ELSE. "main ships a vulnerable package" is one outcome; "the audit did
+# not run" is a different one, and it no longer leaves by the same door. The audit script defines
+# a strict exit-status contract (0 clean, 1 advisory found, 2 the script failed, 3 the registry was
+# unreachable) and this workflow captures that status, because GitHub hands a step's exit code to
+# bash but never to the expression language.
+#
+# Only status 1 opens the advisory issue. EVERY other non-zero status -- 2, 3, or one this script
+# does not define yet -- opens the differently-titled "could not run" issue instead, which states
+# in its first line that main was not audited. That asymmetry is the point: the failure mode being
+# designed against is a run asserting a vulnerability it never looked for. On 2026-09-04 three
+# registry timeouts did exactly that, commenting "Still failing" on the advisory issue with
+# nothing audited at all (BACKLOG K2), and a Copilot review of PR #502 found the same shape one
+# step further in -- an unparseable lockfile, which a pnpm major could produce, exited 1 like a
+# real finding. Both titles are closed automatically by the next run that resolves them
 # (BACKLOG K1); nothing here has to be retired by hand.
 
 on:
@@ -38,7 +46,7 @@ concurrency:
 
 env:
   ADVISORY_TITLE: "[deps] High or critical advisory affects main"
-  TRANSPORT_TITLE: "[deps] Advisory audit could not run"
+  NOT_AUDITED_TITLE: "[deps] Advisory audit could not run"
 
 jobs:
   audit-main:
@@ -62,11 +70,12 @@ jobs:
       # No --base: on main there is nothing to be "pre-existing" relative to, and strict is the
       # point of this job.
       #
-      # The exit status is captured rather than left to the step, because it is the only thing
-      # that distinguishes "found an advisory" (1) from "could not reach the registry" (3), and
-      # GitHub hands a step's exit code to bash but never to the expression language. Written to
-      # $GITHUB_OUTPUT before re-raising, so the outputs survive the failure the step then
-      # reports; `pipefail` keeps `tee` from masking the status on its way through.
+      # The exit status is captured rather than left to the step, because it is the only thing that
+      # distinguishes the gate's VERDICT (1, a real advisory) from the several ways the audit can
+      # fail to produce one (2 this script broke, 3 the registry was unreachable), and GitHub hands
+      # a step's exit code to bash but never to the expression language. Written to $GITHUB_OUTPUT
+      # before re-raising, so the outputs survive the failure the step then reports; `pipefail`
+      # keeps `tee` from masking the status on its way through.
       - name: Audit main against the live advisory database
         id: audit
         shell: bash
@@ -101,7 +110,7 @@ jobs:
       # despite the failed step, but only when the failure was THIS step's (on a checkout failure
       # `steps.audit.outcome` is `skipped`, not `failure`).
       - name: Report an advisory against main
-        if: ${{ failure() && steps.audit.outcome == 'failure' && steps.audit.outputs.status != '3' }}
+        if: ${{ failure() && steps.audit.outcome == 'failure' && steps.audit.outputs.status == '1' }}
         uses: ./.github/actions/reconcile-issue
         with:
           state: open
@@ -127,35 +136,46 @@ jobs:
             audits main clean.
 
       # The audit demonstrably ran, so a standing "could not run" issue is no longer true.
-      - name: Retire the transport alert once the audit has run
-        if: ${{ failure() && steps.audit.outcome == 'failure' && steps.audit.outputs.status != '3' }}
+      - name: Retire the not-audited alert once the audit has run
+        if: ${{ failure() && steps.audit.outcome == 'failure' && steps.audit.outputs.status == '1' }}
         uses: ./.github/actions/reconcile-issue
         with:
           state: closed
-          title: ${{ env.TRANSPORT_TITLE }}
+          title: ${{ env.NOT_AUDITED_TITLE }}
           close-comment: "The audit reached the advisory database and completed on this run:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-      # Exit 3: nothing was audited. Deliberately says nothing about whether main is vulnerable,
-      # and deliberately does NOT touch the advisory issue -- an outage is not evidence either way.
+      # Any non-zero status that is not the verdict: nothing was audited. Deliberately says nothing
+      # about whether main is vulnerable, and deliberately does NOT touch the advisory issue -- a
+      # run that did not look is evidence in neither direction. This is also the branch an exit
+      # status nobody has defined yet lands in, which is the safe place for one to land.
       - name: Report that the audit could not run
-        if: ${{ failure() && steps.audit.outcome == 'failure' && steps.audit.outputs.status == '3' }}
+        if: ${{ failure() && steps.audit.outcome == 'failure' && steps.audit.outputs.status != '1' }}
         uses: ./.github/actions/reconcile-issue
         with:
           state: open
-          title: ${{ env.TRANSPORT_TITLE }}
-          bump-comment: "Still unreachable:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          title: ${{ env.NOT_AUDITED_TITLE }}
+          bump-comment: "Still not running:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           body: |
-            The daily dependency audit could not reach the npm advisory database, so **main was not
-            audited**. This is not a finding about this repository's dependencies.
+            The daily dependency audit did not reach a verdict, so **main was not audited**. This is
+            not a finding about this repository's dependencies — it says the check did not run.
 
             - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            - Script: `scripts/check-dependencies.mjs` (exit status 3 — transport failure)
+            - Report: the run summary on that page carries the audit's own output, including the error.
+            - Script: `scripts/check-dependencies.mjs`
 
-            The audit retries three times before giving up, so this is a sustained outage of, or a
-            block between this runner and, `registry.npmjs.org` rather than a blip. Nothing needs
-            doing if the next daily run succeeds: this issue closes itself when it does. If it
-            persists for more than a day or two, the audit is not running and main is unwatched —
-            check whether the endpoint or its path has changed.
+            Two things land here, and the run log says which:
+
+            - **Exit 3 — the advisory database was unreachable.** The audit retries three times
+              before giving up, so this is a sustained outage of, or a block between this runner
+              and, `registry.npmjs.org` rather than a blip. Nothing needs doing if tomorrow's run
+              succeeds.
+            - **Exit 2 — the audit itself failed**, before it could look anything up: an
+              unparseable `pnpm-lock.yaml` (a pnpm major that changes the lockfile shape will do
+              this), a bad argument, or a bug in the script. This one does not fix itself, and
+              while it persists nothing is auditing main.
+
+            Either way this issue closes itself once a later run completes. If it persists for more
+            than a day or two, treat main as unwatched until it is fixed.
 
             Opened automatically by `dependency-advisories.yml`.
 
@@ -169,10 +189,10 @@ jobs:
           title: ${{ env.ADVISORY_TITLE }}
           close-comment: "The daily audit of main is clean — no high or critical advisory affects any package it ships:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-      - name: Retire the transport alert on a clean audit
+      - name: Retire the not-audited alert on a clean audit
         if: ${{ success() && steps.audit.outcome == 'success' }}
         uses: ./.github/actions/reconcile-issue
         with:
           state: closed
-          title: ${{ env.TRANSPORT_TITLE }}
+          title: ${{ env.NOT_AUDITED_TITLE }}
           close-comment: "The audit reached the advisory database and completed on this run:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

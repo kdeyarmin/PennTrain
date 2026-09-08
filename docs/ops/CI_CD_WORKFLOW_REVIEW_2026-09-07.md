@@ -364,6 +364,12 @@ they are decisions rather than implementations:
   a *differently titled* issue (`[deps] Advisory audit could not run`) that states in its first
   line that main was not audited, and that closes itself on the next clean audit. The false
   security signal is gone either way; this way the absence of an audit is not silent either.
+  A Copilot review of the pull request then found that this had been narrowed one case at a
+  time rather than settled: every failure that was not a transport failure still exited 1,
+  and the advisory verdict was itself an uncaught `throw`, so a lockfile a pnpm major had
+  reshaped would have opened the advisory issue. The script now defines a strict exit
+  contract (0/1/2/3) and the workflow treats only 1 as a finding — an undefined status
+  reports "could not run", the direction that cannot invent a vulnerability.
 - **K1 grew a shared component the plan did not call for.** Writing close-on-success three times
   meant writing dedup three times, and the three existing copies already disagreed with each other
   (`per_page: 30` in the deploy workflow, `50` in the two audits, and "not on the first page" read
