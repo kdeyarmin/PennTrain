@@ -45,7 +45,12 @@ releases).
 
 ---
 
-## 2. Inventory
+## 2. Inventory, as it stood when reviewed
+
+This table is the pipeline **before** this pass, because that is what the findings below are
+findings about. Section 2a records what it looks like afterwards — read that one if you want to
+know what is in the tree today. Keeping only the first would leave a review whose own inventory
+is wrong about the repository, which is finding K9 in miniature.
 
 | File | Trigger | Jobs | Purpose |
 | --- | --- | --- | --- |
@@ -72,6 +77,45 @@ Scripts the workflows depend on, and which workflow owns each:
 | `check-dhs-sources.mjs` | DHS | network to pa.gov |
 | `seed-course-video-placeholders.mjs` | CI `database` | loopback Supabase only (refuses anything else) |
 | `check:all` (twenty-odd static checks, typecheck, unit tests, `deno check`, builds, startup, bundle budget) | CI `application` | Deno 2.5.6 |
+
+### 2a. Inventory after this pass
+
+What is in the tree now, generated from the files rather than recalled. Five workflows, three
+composite actions, two Dependabot ecosystems.
+
+| File | Trigger | Jobs |
+| --- | --- | --- |
+| `ci.yml` (730 lines) | `pull_request`; `push` to `main` | `changes` → `application`, `database`, `migration-immutability`, `planning-registers`, `secret-scan` → `ci-result`; plus `main-branch-alert` (push to `main` only) |
+| `deploy-migrations.yml` (575) | `workflow_run` of CI; **nightly `41 7 * * *`**; `workflow_dispatch` | `deploy`, `notify-failure`, **`close-resolved`** |
+| `dependency-advisories.yml` (178) | daily `23 6 * * *`; dispatch | `audit-main` |
+| `dhs-source-freshness.yml` (143) | Mondays `17 13 * * 1`; dispatch | `official-source-health` |
+| **`secret-scan-history.yml`** (105) | Sundays `13 4 * * 0`; dispatch | `scan-history` |
+| `actions/reconcile-issue` | composite | opens/bumps or closes one automated issue, for all of the above |
+| `actions/setup-node-pnpm` | composite | now takes `install-filter` |
+| `actions/setup-supabase-cli` | composite | unchanged |
+| `dependabot.yml` | — | `github-actions` weekly (`/`, `/.github/actions/*`); **`docker` monthly** (`/.devcontainer`) |
+
+The four schedules are deliberately spread rather than stacked: 04:13 Sun, 06:23 daily, 07:41
+daily, 13:17 Mon. No two share a minute, so a slow runner queue never has three of them starting
+at once.
+
+Two checks joined `check:all`: `check-toolchain-pins.mjs` (K8) and `check-reconcile-issue.mjs`
+(K1's coverage). `.devcontainer/*` and `AGENTS.md` joined the CI path filter so the first of them
+runs on the diffs that can move a pin.
+
+Every automated issue this pipeline can raise, and what retires it:
+
+| Issue title | Raised by | Closed by |
+| --- | --- | --- |
+| `[deploy] Production migration/function deploy failed (<sha>)` | a failed deploy | any later run that deploys or verifies production cleanly (prefix match) |
+| `[deploy] Production drift check failed (<sha>)` | a failed nightly dry run | the same |
+| `[deps] High or critical advisory affects main` | the daily audit finding one | a later clean audit |
+| `[deps] Advisory audit could not run` | the registry being unreachable | any audit that completes |
+| `[dhs] PA DHS sources: a link failed or the human review is overdue` | the weekly check | a later clean check |
+| `[secrets] Full-history scan found a candidate secret` | the weekly history scan | a later clean scan |
+| `[ci] main is red, so the production deploy did not run` | a failed CI run on `main` | the next green push to `main` |
+
+---
 
 ---
 
@@ -404,8 +448,9 @@ Observations that did not rise to a finding but are worth having in one place.
 **`deploy-migrations.yml`**
 - The gate's `gh api` calls use `github.token` with `actions: read`; on a transient API failure
   the gate deploys rather than skips. Correct direction, and the warnings make it visible.
-- The `notify-failure` issue dedup reads only the first 30 open issues; with K1 in place that is
-  enough, and it was not enough on 2026-08-01..05.
+- The `notify-failure` issue dedup read only the first 30 open issues, which was not enough on
+  2026-08-01..05 when 28 were open at once. K1 replaced it with a paginated read in the shared
+  action, so every open issue is considered rather than the first page of them.
 - A `workflow_dispatch` from a branch other than `main` is skipped silently (both jobs `skipped`).
   A one-step job that fails with a message would be kinder to the operator; low value.
 - `timeout-minutes: 30` was hit once (I30) by a migration that saturated the database; that row
