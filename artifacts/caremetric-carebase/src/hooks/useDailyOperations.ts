@@ -202,6 +202,8 @@ export function useRecordShiftCallOff() {
       // (20260906280000), so the row lands in the manager's Time off queue and that queue is
       // stale the moment this succeeds.
       queryClient.invalidateQueries({ queryKey: ["workforce-self-service-queues"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-acuity-roster"] });
     },
   });
 }

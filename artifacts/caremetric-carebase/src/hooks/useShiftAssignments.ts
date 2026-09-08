@@ -111,6 +111,7 @@ export function useUpdateShiftAssignment() {
       queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
       queryClient.invalidateQueries({ queryKey: ["workforce-self-service-queues"] });
       queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-acuity-roster"] });
     },
   });
 }
