@@ -1,6 +1,13 @@
 begin;
 select plan(35);
 
+-- Invoke anon first: an authenticated call can warm a privileged PL/pgSQL expression plan.
+select set_config('request.jwt.claims','{"role":"anon"}',true);
+set local role anon;
+select lives_ok($$select public.enforce_request_impersonation_lifetime()$$,'anonymous public routes remain available');
+reset role;
+
+
 insert into public.organizations(id,name,slug,subscription_status)
 values ('d9000000-0000-4000-8000-000000000001','Lifetime Test','impersonation-lifetime-test','active');
 insert into auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,
@@ -121,10 +128,6 @@ select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 select is(public.current_impersonation_session_live(),true,'service role without impersonation remains unaffected');
 select lives_ok($$select public.enforce_request_impersonation_lifetime()$$,'service worker requests remain available');
-reset role;
-select set_config('request.jwt.claims','{"role":"anon"}',true);
-set local role anon;
-select lives_ok($$select public.enforce_request_impersonation_lifetime()$$,'anonymous public routes remain available');
 reset role;
 select is(has_function_privilege('anon','public.current_impersonation_session_live()','execute'),false,'anonymous callers cannot query the lifecycle helper');
 select ok((select count(*) from pg_policies where schemaname='public' and tablename='session_lock_events' and policyname='impersonation_session_lifetime' and permissive='RESTRICTIVE')=1,'lifetime restriction supplements existing policies');

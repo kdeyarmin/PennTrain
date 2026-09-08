@@ -156,7 +156,10 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if auth.uid() is not null and not public.current_impersonation_session_live() then
+  -- A separate branch prevents a cold anonymous request from preparing an expression
+  -- containing a helper it cannot execute. Boolean AND alone still checks that privilege.
+  if auth.uid() is null then return; end if;
+  if not public.current_impersonation_session_live() then
     raise exception 'The impersonation session has expired or ended' using errcode = '42501';
   end if;
 end;
