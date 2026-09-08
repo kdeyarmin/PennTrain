@@ -17,6 +17,7 @@ import {
   useListShiftAssignments, useCreateShiftAssignment, useUpdateShiftAssignment, useDeleteShiftAssignment,
   type ShiftAssignmentWithDetails,
 } from "@/hooks/useShiftAssignments";
+import { useRecordShiftCallOff } from "@/hooks/useDailyOperations";
 import {
   useCreateScheduleEligibilityOverride,
   usePreviewShiftAssignmentCandidates,
@@ -46,6 +47,11 @@ import { enumerateDatesIso, formatDateLabel, formatTimeLabel } from "@/lib/sched
 import { facilityDateTimeLocalToUtcIso, addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 import { summarizeScheduleAnalytics, summarizeStaffingRatios, summarizeMedAdminCoverage } from "@/lib/scheduleAnalytics";
 import { QueryError } from "@/components/QueryState";
+import {
+  publishedShiftCallOffRequiresRpc,
+  SHIFT_CALL_OFF_CATEGORIES,
+  shiftCallOffReasonIsReady,
+} from "@/lib/shiftCallOff";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -191,6 +197,7 @@ export default function ScheduleDetail() {
   const createAssignment = useCreateShiftAssignment();
   const updateAssignment = useUpdateShiftAssignment();
   const deleteAssignment = useDeleteShiftAssignment();
+  const recordCallOff = useRecordShiftCallOff();
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [addTarget, setAddTarget] = useState<{ unitId: string | null; date: string } | null>(null);
@@ -216,6 +223,9 @@ export default function ScheduleDetail() {
   // updateAssignment.isPending, which reflects the shared mutation instance and would also flip
   // true while the edit-shift modal's own Save is in flight) so only that one badge shows "…".
   const [quickStatusId, setQuickStatusId] = useState<string | null>(null);
+  const [callOffTarget, setCallOffTarget] = useState<ShiftAssignmentWithDetails | null>(null);
+  const [callOffCategory, setCallOffCategory] = useState("illness");
+  const [callOffReason, setCallOffReason] = useState("");
   const [residentsInHouse, setResidentsInHouse] = useState(0);
   const [targetPpd, setTargetPpd] = useState(2.0);
   const [minimumStaffPerDay, setMinimumStaffPerDay] = useState(2);
@@ -444,22 +454,56 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
   }
 
   // Cycles a single shift's status without opening the full edit modal -- the common case is a
-  // status-only change (called off, confirmed, etc.), and this uses the same update mutation the
-  // modal's Save button calls, just with a smaller payload. Notes/unit/time changes still require
-  // the full modal.
+  // status-only change (confirmed, completed, no-show). Called-off on a published schedule is not a
+  // status PATCH: it has to go through record_shift_call_off so the absence, the unfilled-shift
+  // work item and the open-shift opportunity are created together. A draft still uses the direct
+  // update -- nobody has been shown those shifts.
   function handleQuickStatusChange(assignment: ShiftAssignmentWithDetails, status: string) {
     if (status === assignment.status || quickStatusId) return;
+    if (status === "called_off" && publishedShiftCallOffRequiresRpc(schedule?.status)) {
+      setCallOffCategory("illness");
+      setCallOffReason("");
+      setCallOffTarget(assignment);
+      return;
+    }
     setQuickStatusId(assignment.id);
     updateAssignment.mutate(
       { id: assignment.id, status },
       {
         onSuccess: () => {
           const label = SHIFT_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
-          toast({ title: `Marked as ${label}`, variant: "success" });
+          toast({
+            title: `Marked as ${label}`,
+            description:
+              status === "no_show" && publishedShiftCallOffRequiresRpc(schedule?.status)
+                ? "If the shift has not ended, coverage work is in the queue and the opening is posted."
+                : undefined,
+            variant: "success",
+          });
         },
         onError: (e: Error) => toast({ title: "Couldn't update status", description: e.message, variant: "destructive" }),
         onSettled: () => setQuickStatusId(null),
       }
+    );
+  }
+
+  function handleRecordCallOff() {
+    if (!callOffTarget || !shiftCallOffReasonIsReady(callOffReason)) return;
+    setQuickStatusId(callOffTarget.id);
+    recordCallOff.mutate(
+      { shiftAssignmentId: callOffTarget.id, category: callOffCategory, reason: callOffReason.trim() },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Call-off recorded",
+            description: "Coverage work is in the queue and the opening is posted for eligible staff to claim.",
+            variant: "success",
+          });
+          setCallOffTarget(null);
+        },
+        onError: (e: Error) => toast({ title: "Couldn't record call-off", description: e.message, variant: "destructive" }),
+        onSettled: () => setQuickStatusId(null),
+      },
     );
   }
 
@@ -1215,6 +1259,54 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
               <Button onClick={handleEditSave} disabled={updateAssignment.isPending}>Save</Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!callOffTarget} onOpenChange={(open) => { if (!open) setCallOffTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record call-off</DialogTitle>
+            <DialogDescription>
+              {callOffTarget
+                ? `${callOffTarget.employees?.first_name ?? ""} ${callOffTarget.employees?.last_name ?? ""} · ${formatDateLabel(callOffTarget.shift_date)}`
+                : "This posts the opening so eligible staff can claim it and opens coverage work."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Calling off a published shift is not a status mark. It files the absence, opens an unfilled-shift work item, and posts the opening for eligible staff to claim.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor={`${__fieldIds}-call-off-category`}>Category</Label>
+              <Select value={callOffCategory} onValueChange={setCallOffCategory}>
+                <SelectTrigger id={`${__fieldIds}-call-off-category`}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SHIFT_CALL_OFF_CATEGORIES.map((category) => (
+                    <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${__fieldIds}-call-off-reason`}>Reason</Label>
+              <Textarea
+                id={`${__fieldIds}-call-off-reason`}
+                rows={3}
+                value={callOffReason}
+                onChange={(e) => setCallOffReason(e.target.value)}
+                placeholder="Why this shift is uncovered"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCallOffTarget(null)}>Cancel</Button>
+            <Button
+              onClick={handleRecordCallOff}
+              disabled={!shiftCallOffReasonIsReady(callOffReason) || recordCallOff.isPending}
+            >
+              {recordCallOff.isPending ? "Recording..." : "Record call-off"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

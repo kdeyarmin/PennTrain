@@ -5,6 +5,7 @@ import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
 import { MAX_IMPORT_BODY_BYTES, readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+import { stripEmployeeLifecycleFromImportUpdate } from "../_shared/employeeImportLifecycle.ts";
 
 
 function json(req: Request, body: unknown, status = 200) {
@@ -346,6 +347,16 @@ Deno.serve(async (req: Request) => {
       } else {
         warnings.push("Existing employee matched and will be updated.");
       }
+    }
+    // J118 locked these on the edit form; the CSV update path still sent them. The trigger
+    // refuses a real change, so a title-fix re-import that also carried status failed mid-apply.
+    // Create still writes them. The ledger records the stripped payload so a stranded-job
+    // replay cannot resurrect the columns.
+    if (existingEmployee && action === "update") {
+      const stripped = stripEmployeeLifecycleFromImportUpdate(updatePayload, existingEmployee);
+      for (const key of Object.keys(updatePayload)) delete updatePayload[key];
+      Object.assign(updatePayload, stripped.payload);
+      warnings.push(...stripped.warnings);
     }
     // The ledger must hold what the apply path writes: the durable worker replays
     // normalizedRow verbatim when it rescues a stranded job, so an update row records the

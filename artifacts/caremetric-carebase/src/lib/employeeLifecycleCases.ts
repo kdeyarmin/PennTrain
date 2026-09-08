@@ -80,6 +80,10 @@ export function defaultLifecycleTransition(status: string | null | undefined): E
   return "leave";
 }
 
+export function lifecycleWizardHref(employeeId: string, status?: string | null): string {
+  return `/app/employee-lifecycle?employee=${employeeId}&transition=${defaultLifecycleTransition(status)}`;
+}
+
 /**
  * Readable text for the codes `preview_employee_lifecycle_transition` returns in `reasons`.
  *

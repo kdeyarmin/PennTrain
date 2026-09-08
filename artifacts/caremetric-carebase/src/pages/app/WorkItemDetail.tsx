@@ -41,6 +41,7 @@ import {
   useWorkItemEvidenceUrl,
 } from "@/hooks/useWorkItems";
 import {
+  canDirectCloseWorkItem,
   sourceRouteForWorkItem,
   WORK_ITEM_PRIORITIES,
   WORK_ITEM_PRIORITY_LABELS,
@@ -140,8 +141,14 @@ export default function WorkItemDetail() {
     const states = isManager
       ? ["open", "in_progress", "blocked", "pending_approval", "closed", "canceled"]
       : ["in_progress", "blocked", "pending_approval"];
-    return states.filter(state => state !== work.state && !(state === "closed" && work.template?.approval_required));
-  }, [isManager, work]);
+    const canClose = canDirectCloseWorkItem({
+      approvalRequired: work.template?.approval_required,
+      activityReady,
+      missingEvidenceCount: missingEvidence.length,
+      blockingDependencyCount: blockingDependencies.length,
+    });
+    return states.filter(state => state !== work.state && !(state === "closed" && !canClose));
+  }, [activityReady, blockingDependencies.length, isManager, missingEvidence.length, work]);
 
   const notifyError = (title: string) => (error: Error) =>
     toast({ title, description: error.message, variant: "destructive" });

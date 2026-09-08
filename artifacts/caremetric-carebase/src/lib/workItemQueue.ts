@@ -78,6 +78,24 @@ export function isWorkItemOpen(item: WorkItem): boolean {
   return item.state !== "closed" && item.state !== "canceled";
 }
 
+/**
+ * Direct "Change status → Closed" is offered when the template does not require
+ * approval. The RPC still refuses if required evidence or blocking dependencies are
+ * missing -- the same gates the Approve path already rendered. Hide Closed until
+ * those are satisfied so the select does not lead into a toast.
+ */
+export function canDirectCloseWorkItem(input: {
+  approvalRequired: boolean | null | undefined;
+  activityReady: boolean;
+  missingEvidenceCount: number;
+  blockingDependencyCount: number;
+}): boolean {
+  if (input.approvalRequired) return false;
+  return input.activityReady
+    && input.missingEvidenceCount === 0
+    && input.blockingDependencyCount === 0;
+}
+
 export function isWorkItemOverdue(item: WorkItem, now = new Date()): boolean {
   return isWorkItemOpen(item) && new Date(item.due_at).getTime() < now.getTime();
 }

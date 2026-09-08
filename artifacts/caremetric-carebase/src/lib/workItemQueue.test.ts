@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Tables } from "@/lib/database.types";
 import {
+  canDirectCloseWorkItem,
   isWorkItemOverdue,
   sortWorkItems,
   sourceRouteForWorkItem,
@@ -153,6 +154,33 @@ describe("work item queue", () => {
       showSourceColumn: false,
       showOwnerColumn: false,
     });
+  });
+
+  it("hides direct close until evidence and blockers match the RPC", () => {
+    expect(canDirectCloseWorkItem({
+      approvalRequired: false,
+      activityReady: true,
+      missingEvidenceCount: 0,
+      blockingDependencyCount: 0,
+    })).toBe(true);
+    expect(canDirectCloseWorkItem({
+      approvalRequired: true,
+      activityReady: true,
+      missingEvidenceCount: 0,
+      blockingDependencyCount: 0,
+    })).toBe(false);
+    expect(canDirectCloseWorkItem({
+      approvalRequired: false,
+      activityReady: false,
+      missingEvidenceCount: 0,
+      blockingDependencyCount: 0,
+    })).toBe(false);
+    expect(canDirectCloseWorkItem({
+      approvalRequired: false,
+      activityReady: true,
+      missingEvidenceCount: 1,
+      blockingDependencyCount: 0,
+    })).toBe(false);
   });
 
   it("keeps manager work queue controls and columns available", () => {

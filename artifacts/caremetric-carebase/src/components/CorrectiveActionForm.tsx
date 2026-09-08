@@ -20,7 +20,7 @@ export type CorrectiveActionStatusValue = (typeof CORRECTIVE_ACTION_STATUSES)[nu
 // incident_alerts_and_compliance.sql) whenever an open/in_progress action's due_date has passed --
 // it isn't something a person should be able to assert by hand, so it's excluded from the editable
 // Select even though the badge below still has to render it correctly when the job has set it.
-const EDITABLE_STATUSES = CORRECTIVE_ACTION_STATUSES.filter((s) => s !== "overdue");
+const EDITABLE_STATUSES = CORRECTIVE_ACTION_STATUSES.filter((s) => s !== "overdue" && s !== "completed");
 
 // Byte-identical badge previously duplicated in IncidentDetail.tsx and ViolationDetail.tsx --
 // hoisted here next to the form that produces the status it renders.
@@ -196,8 +196,11 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
           <SelectTrigger className={`${inputCls} ${size === "sm" ? "w-28" : "w-36"} shrink-0`} aria-label="Corrective action status"><SelectValue /></SelectTrigger>
           <SelectContent>
             {EDITABLE_STATUSES.map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
-            {/* If the recalc job has already flagged this one overdue, keep it selectable so the
-                current value always has a matching option -- just not chooseable for any other row. */}
+            {/* Completion is recorded through VerifyCorrectiveActionDialog so verification
+                notes exist; offering "completed" here recreated the J13 trap. Keep the current
+                value selectable so an already-completed row can still have its description
+                edited. Overdue is the same shape for the recalc job. */}
+            {status === "completed" && <SelectItem value="completed">{humanize("completed")}</SelectItem>}
             {status === "overdue" && <SelectItem value="overdue">{humanize("overdue")}</SelectItem>}
           </SelectContent>
         </Select>

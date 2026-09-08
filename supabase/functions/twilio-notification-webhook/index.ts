@@ -8,7 +8,7 @@ import {
   sanitizeProviderDetail,
   sha256Hex,
 } from "../_shared/notificationDelivery.ts";
-import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
+import { resolveTwilioWebhookUrl } from "../_shared/twilioWebhookUrl.ts";
 
 const MAX_FORM_BYTES = 64 * 1024;
 
@@ -59,8 +59,12 @@ Deno.serve(async (req: Request) => {
 
   const form = new URLSearchParams(rawBody);
   const params = Object.fromEntries(form.entries());
+  const signedUrl = resolveTwilioWebhookUrl(
+    req.url,
+    Deno.env.get("TWILIO_NOTIFICATION_STATUS_CALLBACK_URL"),
+  );
   if (
-    !signature || !twilio.validateRequest(authToken, signature, req.url, params)
+    !signature || !twilio.validateRequest(authToken, signature, signedUrl, params)
   ) {
     console.warn("rejected Twilio notification webhook with invalid signature");
     return text("Forbidden", 403);

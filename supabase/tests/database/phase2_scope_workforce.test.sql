@@ -1,5 +1,5 @@
 begin;
-select plan(79);
+select plan(80);
 
 select has_table('public', 'enterprise_portfolios', 'enterprise portfolios exist');
 select has_table('public', 'enterprise_regions', 'enterprise regions exist');
@@ -423,6 +423,13 @@ select results_eq(
        (select status from public.schedules where id = '22000000-0000-4000-8000-000000000501') $$,
   $$ values ('called_off'::text, 'paused'::text, 'paused'::text, 'published'::text) $$,
   'leave calls off future shifts, pauses learning work, and preserves the schedule itself'
+);
+select is(
+  (select count(*)::bigint from public.open_shift_opportunities
+    where schedule_id = '22000000-0000-4000-8000-000000000501'
+      and status = 'open'),
+  1::bigint,
+  'leave on a published shift posts the opening a manager call-off would have posted'
 );
 select is(
   (select count(*)::integer

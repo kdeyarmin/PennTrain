@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useGetEmployee, useUpdateEmployee, useListEmployees } from "@/hooks/useEmployees";
 import { usePageTitle } from "@/lib/pageTitle";
-import { defaultLifecycleTransition } from "@/lib/employeeLifecycleCases";
+import { lifecycleWizardHref } from "@/lib/employeeLifecycleCases";
 import { useGetFacility, useListFacilities } from "@/hooks/useFacilities";
 import { EmployeeFormFields, EMPTY_EMPLOYEE_FORM, employeeToFormData, type EmpFormData } from "@/components/employees/EmployeeFormFields";
 import {
@@ -308,9 +308,6 @@ export default function EmployeeDetail() {
         job_title: empForm.jobTitle || "",
         department: empForm.department || null,
         employee_number: empForm.employeeNumber || null,
-        facility_id: empForm.facilityId,
-        hire_date: empForm.hireDate || null,
-        status: empForm.status,
         administers_medications: empForm.administersMedications,
         administers_insulin: empForm.administersInsulin,
         trainer_status: empForm.trainerStatus,
@@ -503,7 +500,7 @@ export default function EmployeeDetail() {
                 The Status field in the edit dialog is refused by a trigger, so this is the one
                 supported way to move somebody between employment states. */}
             <Button variant="outline" size="sm" asChild>
-              <Link href={`/app/employee-lifecycle?employee=${employee.id}&transition=${defaultLifecycleTransition(employee.status)}`}>
+              <Link href={lifecycleWizardHref(employee.id, employee.status)}>
                 <ArrowLeftRight className="mr-2 h-3.5 w-3.5" /> Start lifecycle case
               </Link>
             </Button>
@@ -1045,7 +1042,14 @@ export default function EmployeeDetail() {
       <Dialog open={showEditEmp} onOpenChange={o => { if (!o) { setShowEditEmp(false); setEmpForm(EMPTY_EMPLOYEE_FORM); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Employee</DialogTitle></DialogHeader>
-          <EmployeeFormFields form={empForm} onChange={field} facilities={facilities} facilityFieldMode="edit-fixed" />
+          <EmployeeFormFields
+            form={empForm}
+            onChange={field}
+            facilities={facilities}
+            facilityFieldMode="edit-fixed"
+            lockLifecycleFields
+            lifecycleHref={lifecycleWizardHref(employee.id, employee.status)}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditEmp(false)}>Cancel</Button>
             <Button onClick={handleEmpSave} disabled={updating}>{updating ? "Saving..." : "Save Changes"}</Button>

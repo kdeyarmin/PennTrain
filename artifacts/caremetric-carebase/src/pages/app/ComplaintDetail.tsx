@@ -15,6 +15,7 @@ import { useListProfiles } from "@/hooks/useProfiles";
 import { usePageTitle } from "@/lib/pageTitle";
 import { useToast } from "@/hooks/use-toast";
 import { COMPLAINT_STATUSES, humanizeComplaint } from "@/components/complaints/CreateComplaintDialog";
+import { complaintAppealComplete, complaintClosureReady } from "@/lib/complaintClosure";
 import { QueryError } from "@/components/QueryState";
 import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -116,6 +117,18 @@ export default function ComplaintDetail() {
       monitoringUntilElapsed = false;
     }
   }
+  const closureReady = complaintClosureReady({
+    acknowledgementRecorded: !!acknowledgement,
+    investigatorAssigned: investigator !== "none",
+    notesComplete: notes.trim().length >= 10,
+    findingsComplete: findings.trim().length >= 10,
+    writtenResponseRecorded: writtenResponse.trim().length >= 10 && !!writtenResponseDate,
+    appealComplete: complaintAppealComplete(appealAt, appealOutcome),
+    correctiveActionsComplete: openActions === null ? null : openActions.length === 0,
+    monitoringComplete: monitoringEntries === null
+      ? null
+      : (!monitoringRequired || (!!monitoringUntil && monitoringUntilElapsed && monitoringEntries > 0)),
+  });
 
   return (
     <div className="space-y-6">
@@ -131,6 +144,7 @@ export default function ComplaintDetail() {
           [!!acknowledgement, "Acknowledgement recorded"], [investigator !== "none", "Investigator assigned"],
           [notes.trim().length >= 10, "Investigation notes complete"], [findings.trim().length >= 10, "Findings complete"],
           [writtenResponse.trim().length >= 10 && !!writtenResponseDate, "Written response recorded"],
+          [complaintAppealComplete(appealAt, appealOutcome), "Appeal outcome recorded"],
           [openActions === null ? null : openActions.length === 0, "Corrective actions complete"],
           [monitoringEntries === null ? null : (!monitoringRequired || (!!monitoringUntil && monitoringUntilElapsed && monitoringEntries > 0)), "Nonretaliation monitoring complete"],
         ].map(([ready, label]) => <div key={String(label)} className="flex items-center gap-2">{ready === null ? <AlertTriangle className="h-4 w-4 text-muted-foreground" /> : ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-amber-600" />}<span className={ready === null ? "text-muted-foreground" : undefined}>{String(label)}{ready === null ? " (unavailable)" : ""}</span></div>)}
@@ -154,7 +168,7 @@ export default function ComplaintDetail() {
         <label className="flex items-center gap-2 text-sm sm:col-span-2"><Checkbox disabled={!canManage} checked={monitoringRequired} onCheckedChange={value => setMonitoringRequired(value === true)} />Nonretaliation monitoring required</label>
         {monitoringRequired && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-monitor-through`}>Monitor through</Label><Input id={`${__fieldIds}-monitor-through`} disabled={!canManage} type="datetime-local" value={monitoringUntil} onChange={event => setMonitoringUntil(event.target.value)} /></div>}
         {canManage && <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-reason-for-this-update`}>Reason for this update *</Label><Input id={`${__fieldIds}-reason-for-this-update`} value={reason} onChange={event => setReason(event.target.value)} placeholder="Document the decision or documentation added" /></div>}
-        {canManage && <div className="sm:col-span-2"><Button disabled={reason.trim().length < 5 || update.isPending} onClick={save}>{update.isPending ? "Saving..." : status === "closed" ? "Approve closure" : "Save case update"}</Button></div>}
+        {canManage && <div className="sm:col-span-2"><Button disabled={reason.trim().length < 5 || update.isPending || (status === "closed" && !closureReady)} onClick={save}>{update.isPending ? "Saving..." : status === "closed" ? "Approve closure" : "Save case update"}</Button></div>}
       </CardContent></Card>
 
       <div className="grid gap-4 xl:grid-cols-3">
