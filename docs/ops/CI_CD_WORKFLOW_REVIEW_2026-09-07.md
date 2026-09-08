@@ -325,6 +325,9 @@ they are decisions rather than implementations:
   (`per_page: 30` in the deploy workflow, `50` in the two audits, and "not on the first page" read
   as "not open"). Both halves now live in `.github/actions/reconcile-issue`, which paginates, so
   the answer to "when does this alert go away" is in one place for all four workflows.
+  Because that one place can now close issues on behalf of every alerting workflow, it also
+  gained the coverage none of them had: `scripts/check-reconcile-issue.mjs` runs the action's
+  real inline script against a mocked issues API in `check:all`.
 - **K8 had a consequence the finding did not anticipate.** Adding a pin-agreement check to
   `check:all` only helps if the check runs on the diffs that move a pin — and `.devcontainer/*`
   and `AGENTS.md` were in no path-filter group, so a Dependabot dev-container bump would have
