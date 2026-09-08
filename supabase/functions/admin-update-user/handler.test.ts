@@ -14,6 +14,7 @@ const ENV: Record<string, string> = {
 const getEnv = (name: string) => ENV[name];
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
+const DEMO_ORG_ID = "66666666-6666-4666-8666-666666666666";
 const CALLER_ID = "22222222-2222-4222-8222-222222222222";
 const PEER_ID = "33333333-3333-4333-8333-333333333333";
 
@@ -40,8 +41,9 @@ interface Tracking {
   profileRpcArgs: Record<string, unknown>[];
 }
 
-function makeHandler(opts: { callerRole: string; targetRole: string }) {
+function makeHandler(opts: { callerRole: string; targetRole: string; demoOrgIds?: string[] }) {
   const track: Tracking = { authUpdates: [], profileRpcArgs: [] };
+  const demoOrgIds = new Set(opts.demoOrgIds ?? []);
 
   const callerClient = {
     auth: { getUser: async () => ({ data: { user: { id: CALLER_ID } }, error: null }) },
@@ -52,7 +54,18 @@ function makeHandler(opts: { callerRole: string; targetRole: string }) {
           error: null,
         });
       }
-      if (table === "organizations") return chainable({ data: { is_demo: false }, error: null });
+      if (table === "organizations") {
+        return {
+          select: () => ({
+            eq: (_column: string, value: string) => ({
+              maybeSingle: async () => ({
+                data: { is_demo: demoOrgIds.has(value) },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       throw new Error(`unexpected caller table: ${table}`);
     },
     // requireFreshAal2's probe. True here so the tests exercise the authorization branch itself
@@ -153,4 +166,57 @@ Deno.test("admin-update-user keeps both fields available to a platform_admin", a
   assertEquals(track.authUpdates.length, 1);
   assertEquals(track.authUpdates[0].email, "moved@example.test");
   assertEquals(track.authUpdates[0].password, "a-new-password");
+});
+
+Deno.test("admin-update-user refuses a facility_manager entirely", async () => {
+  const { handler, track } = makeHandler({ callerRole: "facility_manager", targetRole: "employee" });
+
+  const response = await handler(makeRequest({ user_id: PEER_ID, role: "trainer" }));
+  const body = await response.json();
+
+  assertEquals(response.status, 403);
+  assertEquals(body.error, "not authorized to manage users");
+  assertEquals(track.authUpdates, []);
+  assertEquals(track.profileRpcArgs, []);
+});
+
+Deno.test("admin-update-user refuses reset_mfa from an org_admin", async () => {
+  const { handler, track } = makeHandler({ callerRole: "org_admin", targetRole: "facility_manager" });
+
+  const response = await handler(makeRequest({
+    action: "reset_mfa", user_id: PEER_ID, reason: "Lost phone, identified by facility callback",
+  }));
+  const body = await response.json();
+
+  assertEquals(response.status, 403);
+  assertEquals(body.error.includes("platform administrator"), true);
+  assertEquals(track.authUpdates, []);
+});
+
+Deno.test("admin-update-user refuses reset_mfa aimed at the caller's own account", async () => {
+  const { handler } = makeHandler({ callerRole: "platform_admin", targetRole: "org_admin" });
+
+  const response = await handler(makeRequest({
+    action: "reset_mfa", user_id: CALLER_ID, reason: "Lost phone, identified by facility callback",
+  }));
+  const body = await response.json();
+
+  assertEquals(response.status, 400);
+  assertEquals(body.error.includes("own factor"), true);
+});
+
+Deno.test("admin-update-user refuses a platform_admin moving a user into a demo tenant", async () => {
+  const { handler, track } = makeHandler({
+    callerRole: "platform_admin",
+    targetRole: "employee",
+    demoOrgIds: [DEMO_ORG_ID],
+  });
+
+  const response = await handler(makeRequest({ user_id: PEER_ID, organization_id: DEMO_ORG_ID }));
+  const body = await response.json();
+
+  assertEquals(response.status, 403);
+  assertEquals(body.error, "Demo workspaces cannot invite or provision users");
+  assertEquals(track.authUpdates, []);
+  assertEquals(track.profileRpcArgs, []);
 });

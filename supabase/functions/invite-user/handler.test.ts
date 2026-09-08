@@ -18,6 +18,7 @@ const ENV: Record<string, string> = {
 const getEnv = (name: string) => ENV[name];
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
+const DEMO_ORG_ID = "66666666-6666-4666-8666-666666666666";
 const CALLER_ID = "22222222-2222-4222-8222-222222222222";
 const INVITED_ID = "44444444-4444-4444-8444-444444444444";
 const EMPLOYEE_ID = "55555555-5555-4555-8555-555555555555";
@@ -47,19 +48,38 @@ interface RpcCall {
   args: Record<string, unknown>;
 }
 
-function makeHandler(opts: { employeeMatches?: unknown[] } = {}) {
+function makeHandler(opts: {
+  employeeMatches?: unknown[];
+  callerRole?: string;
+  callerOrgId?: string | null;
+  demoOrgIds?: string[];
+} = {}) {
   const rpcCalls: RpcCall[] = [];
+  const demoOrgIds = new Set(opts.demoOrgIds ?? []);
+  const callerRole = opts.callerRole ?? "org_admin";
+  const callerOrgId = opts.callerOrgId === undefined ? ORG_ID : opts.callerOrgId;
 
   const callerClient = {
     auth: { getUser: async () => ({ data: { user: { id: CALLER_ID } }, error: null }) },
     from: (table: string) => {
       if (table === "profiles") {
         return chainable({
-          data: { role: "org_admin", organization_id: ORG_ID, is_active: true },
+          data: { role: callerRole, organization_id: callerOrgId, is_active: true },
           error: null,
         });
       }
-      if (table === "organizations") return chainable({ data: { is_demo: false }, error: null });
+      if (table === "organizations") {
+        return {
+          select: () => ({
+            eq: (_column: string, value: string) => ({
+              maybeSingle: async () => ({
+                data: { is_demo: demoOrgIds.has(value) },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
       if (table === "employees") return chainable({ data: opts.employeeMatches ?? [], error: null });
       throw new Error(`unexpected caller table: ${table}`);
     },
@@ -140,5 +160,23 @@ Deno.test("invite-user does not provision when the employee already has portal a
   }));
 
   assertEquals(response.status, 409);
+  assertEquals(rpcCalls, []);
+});
+
+Deno.test("invite-user refuses a platform_admin inviting into a demo tenant", async () => {
+  const { handler, rpcCalls } = makeHandler({
+    callerRole: "platform_admin",
+    callerOrgId: null,
+    demoOrgIds: [DEMO_ORG_ID],
+  });
+
+  const response = await handler(makeRequest({
+    email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "facility_manager",
+    organization_id: DEMO_ORG_ID,
+  }));
+  const body = await response.json();
+
+  assertEquals(response.status, 403);
+  assertEquals(body.error, "Demo workspaces cannot invite or provision users");
   assertEquals(rpcCalls, []);
 });
