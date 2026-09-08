@@ -1,5 +1,5 @@
 begin;
-select plan(34);
+select plan(35);
 
 insert into public.organizations(id,name,slug,subscription_status)
 values ('d9000000-0000-4000-8000-000000000001','Lifetime Test','impersonation-lifetime-test','active');
@@ -137,5 +137,7 @@ select is((select count(*)::integer from pg_class c join pg_namespace n on n.oid
  and not exists (select 1 from pg_policy p where p.polrelid=c.oid
    and p.polname='impersonation_session_lifetime' and not p.polpermissive)),0,
  'every current public and object-storage RLS table enforces the impersonation lifetime');
+select is((select prosecdef from pg_proc where oid='public.enforce_request_impersonation_lifetime()'::regprocedure),false,
+ 'the public request guard needs no elevated owner privileges');
 select * from finish();
 rollback;

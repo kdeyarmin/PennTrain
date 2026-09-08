@@ -87,6 +87,6 @@
     "file": "20260908220014_enforce_impersonation_session_lifetime.sql",
     "rule": "anon-public-grant",
     "match": "public.enforce_request_impersonation_lifetime",
-    "rationale": "PostgREST runs its pre-request guard for anonymous public routes too. This no-argument void guard returns no user data, leaves anonymous traffic unchanged, and rejects an expired or ended authenticated impersonation context. SECURITY DEFINER with empty search_path is required to consult the service-only lifecycle table through the caller-scoped predicate. No table privileges are added."
+    "rationale": "PostgREST runs its pre-request guard for anonymous public routes too. This no-argument SECURITY INVOKER void guard returns no user data, leaves anonymous traffic unchanged, and rejects an expired or ended authenticated impersonation context through an already-authorized caller-scoped helper. No table privileges or anonymous SECURITY DEFINER surface are added."
   }
 ]

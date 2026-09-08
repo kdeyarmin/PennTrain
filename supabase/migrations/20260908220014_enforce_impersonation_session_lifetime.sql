@@ -148,10 +148,11 @@ $$;
 
 -- PostgREST invokes this before table requests AND SECURITY DEFINER RPCs. Anonymous requests
 -- are unchanged; the routine returns no data and permits only the caller's live support session.
+-- This wrapper needs no owner privileges: its authenticated caller can execute the scoped helper.
 create or replace function public.enforce_request_impersonation_lifetime()
 returns void
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 begin
