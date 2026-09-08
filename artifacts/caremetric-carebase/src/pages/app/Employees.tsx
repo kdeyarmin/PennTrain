@@ -6,7 +6,7 @@ import {
   type Employee, type EmployeeSortField,
 } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { defaultLifecycleTransition } from "@/lib/employeeLifecycleCases";
+import { lifecycleWizardHref } from "@/lib/employeeLifecycleCases";
 import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
 import { facilityScopedErrorText } from "@/lib/rlsErrors";
 import { useInviteUser } from "@/hooks/useProfiles";
@@ -238,8 +238,6 @@ export default function Employees() {
       job_title: form.jobTitle || "",
       department: form.department || null,
       employee_number: form.employeeNumber || null,
-      hire_date: form.hireDate || null,
-      status: form.status,
       administers_medications: form.administersMedications,
       administers_insulin: form.administersInsulin,
       trainer_status: form.trainerStatus,
@@ -249,7 +247,7 @@ export default function Employees() {
     };
     if (editEmp) {
       updateEmployee(
-        { id: editEmp.id, ...payload, facility_id: form.facilityId !== "none" ? form.facilityId : editEmp.facility_id },
+        { id: editEmp.id, ...payload },
         {
           onSuccess: () => { toast({ title: "Employee updated" }); setShowForm(false); setEditEmp(null); },
           onError: (e: Error) => toast({ title: "Failed to update employee", description: facilityScopedErrorText(e), variant: "destructive" }),
@@ -269,7 +267,13 @@ export default function Employees() {
         return;
       }
       createEmployee(
-        { ...payload, facility_id: form.facilityId, organization_id: organizationId },
+        {
+          ...payload,
+          hire_date: form.hireDate || null,
+          status: form.status,
+          facility_id: form.facilityId,
+          organization_id: organizationId,
+        },
         {
           onSuccess: (createdEmployee) => {
             if (!sendPortalInvite) {
@@ -590,7 +594,7 @@ export default function Employees() {
                               aria-label={`Start a lifecycle case for ${emp.first_name} ${emp.last_name}`}
                             >
                               <Link
-                                href={`/app/employee-lifecycle?employee=${emp.id}&transition=${defaultLifecycleTransition(emp.status)}`}
+                                href={lifecycleWizardHref(emp.id, emp.status)}
                                 onClick={e => e.stopPropagation()}
                               >
                                 <ArrowLeftRight className="h-3.5 w-3.5" />
@@ -640,6 +644,8 @@ export default function Employees() {
             onChange={field}
             facilities={assignableFacilities}
             facilityFieldMode={editEmp ? "edit-keep-current" : "create"}
+            lockLifecycleFields={!!editEmp}
+            lifecycleHref={editEmp ? lifecycleWizardHref(editEmp.id, editEmp.status) : undefined}
           />
           {!editEmp && (
             <div className="flex items-start gap-3 rounded-md border p-3">

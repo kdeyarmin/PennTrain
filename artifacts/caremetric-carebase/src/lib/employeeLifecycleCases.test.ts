@@ -9,6 +9,7 @@ import {
   lifecyclePreviewReasons,
   lifecycleTransitionAdmitsStatus,
   lifecycleTransitionEligibleStatuses,
+  lifecycleWizardHref,
   summarizeLifecyclePreview,
   transitionRequiresTargetFacility,
 } from "./employeeLifecycleCases";
@@ -83,6 +84,7 @@ describe("which employees a transition can be started for", () => {
     expect(defaultLifecycleTransition("terminated")).toBe("rehire");
     expect(defaultLifecycleTransition("on_leave")).toBe("return");
     expect(defaultLifecycleTransition("active")).toBe("leave");
+    expect(lifecycleWizardHref("emp-1", "terminated")).toBe("/app/employee-lifecycle?employee=emp-1&transition=rehire");
     for (const status of ["terminated", "on_leave", "active"]) {
       expect(lifecycleTransitionAdmitsStatus(defaultLifecycleTransition(status), status)).toBe(true);
     }

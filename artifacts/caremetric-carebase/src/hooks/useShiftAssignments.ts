@@ -106,6 +106,12 @@ export function useUpdateShiftAssignment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] });
+      // A published no-show posts coverage work and an open-shift opportunity (J122).
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
+      queryClient.invalidateQueries({ queryKey: ["workforce-self-service-queues"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-acuity-roster"] });
     },
   });
 }

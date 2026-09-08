@@ -1,5 +1,6 @@
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 import {
   phase2CheckoutTrialDays,
   phase2MeasuredBillingQuantity,
@@ -66,17 +67,13 @@ export function createCreateBillingSessionHandler({
   });
   const { data: { user }, error: userError } = await callerClient.auth.getUser();
   if (userError || !user) return json(req, { error: { code: "unauthorized" } }, 401);
-  const { data: assurance, error: assuranceError } = await callerClient.auth.mfa
-    .getAuthenticatorAssuranceLevel();
-  if (assuranceError || assurance?.currentLevel !== "aal2") {
-    return json(req, { error: { code: "aal2_required" } }, 403);
-  }
-  const { data: assuranceCurrent, error: freshnessError } = await callerClient.rpc(
-    "identity_assurance_is_current",
-    { p_operation: "billing_admin" },
-  );
-  if (freshnessError || assuranceCurrent !== true) {
-    return json(req, { error: { code: "fresh_aal2_required" } }, 403);
+  const assurance = await requireFreshAal2(callerClient, "billing_admin");
+  if (!assurance.ok) {
+    return json(
+      req,
+      { error: { code: assurance.status === 503 ? "billing_state_unavailable" : "fresh_aal2_required" } },
+      assurance.status,
+    );
   }
   const { data: profile, error: profileError } = await callerClient.from("profiles")
     .select("id, email, role, organization_id, is_active").eq("id", user.id).single();

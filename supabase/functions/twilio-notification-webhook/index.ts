@@ -9,6 +9,10 @@ import {
   sha256Hex,
 } from "../_shared/notificationDelivery.ts";
 import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
+import {
+  resolveSignedTwilioWebhookUrl,
+  twilioWebhookKind,
+} from "../_shared/twilioWebhookUrl.ts";
 
 const MAX_FORM_BYTES = 64 * 1024;
 
@@ -59,8 +63,14 @@ Deno.serve(async (req: Request) => {
 
   const form = new URLSearchParams(rawBody);
   const params = Object.fromEntries(form.entries());
+  const kind = twilioWebhookKind(req.url);
+  const signedUrl = resolveSignedTwilioWebhookUrl(
+    req.url,
+    Deno.env.get("TWILIO_NOTIFICATION_STATUS_CALLBACK_URL"),
+    Deno.env.get("TWILIO_NOTIFICATION_CONSENT_CALLBACK_URL"),
+  );
   if (
-    !signature || !twilio.validateRequest(authToken, signature, req.url, params)
+    !signature || !twilio.validateRequest(authToken, signature, signedUrl, params)
   ) {
     console.warn("rejected Twilio notification webhook with invalid signature");
     return text("Forbidden", 403);
@@ -76,12 +86,9 @@ Deno.serve(async (req: Request) => {
     return text("Webhook persistence is not configured", 503);
   }
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
-  const url = new URL(req.url);
-  const kind = url.searchParams.get("kind") ??
-    (url.searchParams.has("token") ? "status" : "consent");
 
   if (kind === "status") {
-    const callbackToken = url.searchParams.get("token");
+    const callbackToken = new URL(req.url).searchParams.get("token");
     const messageSid = form.get("MessageSid") ?? "";
     const mapping = mapTwilioStatus(form.get("MessageStatus"));
     if (!isUuid(callbackToken) || !messageSid || !mapping) {

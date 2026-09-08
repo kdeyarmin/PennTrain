@@ -197,10 +197,13 @@ export function useRecordShiftCallOff() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
       queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
       // A self-reported call-off now files a PENDING absence rather than approving itself
       // (20260906280000), so the row lands in the manager's Time off queue and that queue is
       // stale the moment this succeeds.
       queryClient.invalidateQueries({ queryKey: ["workforce-self-service-queues"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-acuity-roster"] });
     },
   });
 }

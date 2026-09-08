@@ -77,9 +77,16 @@ export interface EmployeeFormFieldsProps {
    *    where the field always already holds a real value.
    */
   facilityFieldMode: "create" | "edit-keep-current" | "edit-fixed";
+  /**
+   * Status, hire date and facility are lifecycle fields. `protect_employee_lifecycle_fields`
+   * refuses a direct update; offering them on edit sent every save into a 42501. Create still
+   * needs them. When locked, `lifecycleHref` is the way to change them.
+   */
+  lockLifecycleFields?: boolean;
+  lifecycleHref?: string;
 }
 
-export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMode }: EmployeeFormFieldsProps) {
+export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMode, lockLifecycleFields = false, lifecycleHref }: EmployeeFormFieldsProps) {
   const __fieldIds = useId();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
@@ -113,7 +120,7 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${__fieldIds}-facility`} className="text-[13px]">Facility{facilityFieldMode === "create" && " *"}</Label>
-        <Select value={form.facilityId} onValueChange={v => onChange("facilityId", v)}>
+        <Select value={form.facilityId} onValueChange={v => onChange("facilityId", v)} disabled={lockLifecycleFields}>
           <SelectTrigger id={`${__fieldIds}-facility`} className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
           <SelectContent>
             {facilityFieldMode === "edit-keep-current" && <SelectItem value="none">Keep current</SelectItem>}
@@ -132,7 +139,7 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${__fieldIds}-hire-date`} className="text-[13px]">Hire Date</Label>
-        <Input id={`${__fieldIds}-hire-date`} type="date" value={form.hireDate} onChange={e => onChange("hireDate", e.target.value)} className="h-9" />
+        <Input id={`${__fieldIds}-hire-date`} type="date" value={form.hireDate} onChange={e => onChange("hireDate", e.target.value)} className="h-9" disabled={lockLifecycleFields} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${__fieldIds}-scheduled-hours-week`} className="text-[13px]">Scheduled Hours / Week</Label>
@@ -158,7 +165,7 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${__fieldIds}-status`} className="text-[13px]">Status</Label>
-        <Select value={form.status} onValueChange={v => onChange("status", v as EmpFormData["status"])}>
+        <Select value={form.status} onValueChange={v => onChange("status", v as EmpFormData["status"])} disabled={lockLifecycleFields}>
           <SelectTrigger id={`${__fieldIds}-status`} className="h-9"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Active</SelectItem>
@@ -167,6 +174,15 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
             <SelectItem value="on_leave">On Leave</SelectItem>
           </SelectContent>
         </Select>
+        {lockLifecycleFields && (
+          <p className="text-xs text-muted-foreground">
+            Hire date, facility and employment status change through a{" "}
+            {lifecycleHref
+              ? <Link href={lifecycleHref} className="text-primary underline-offset-2 hover:underline">lifecycle case</Link>
+              : "lifecycle case"}
+            , not this form.
+          </p>
+        )}
       </div>
       <div className="col-span-full flex gap-6 pt-1">
         <label className="flex items-center gap-2.5 cursor-pointer">

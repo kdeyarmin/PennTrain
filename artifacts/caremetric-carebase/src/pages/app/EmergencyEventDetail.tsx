@@ -30,6 +30,13 @@ import {
 } from "@/hooks/useEmergencyOperations";
 import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
+import {
+  canCancelEmergencyEvent,
+  canCloseEmergencyEvent,
+  canCreateEmergencyCorrectiveWork,
+  canSaveEmergencyAfterAction,
+  canStabilizeEmergencyEvent,
+} from "@/lib/emergencyCommand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,6 +125,28 @@ export default function EmergencyEventDetail() {
     };
   }, [eventQuery.data?.residents]);
   const staffUnaccounted = (eventQuery.data?.staff ?? []).filter((row) => ["expected", "unaccounted"].includes(row.accountability_status)).length;
+  const canStabilize = canStabilizeEmergencyEvent({
+    reason: transitionReason,
+    residentUnaccounted: residentCounts.unaccounted,
+    staffUnaccounted,
+  });
+  const canClose = canCloseEmergencyEvent({
+    reason: transitionReason,
+    afterActionStatus: eventQuery.data?.review?.status,
+  });
+  const canCancel = canCancelEmergencyEvent(transitionReason);
+  const reviewReady = canSaveEmergencyAfterAction({
+    status: reviewStatus,
+    responseSummary,
+    strengths,
+    gaps,
+    correctivePlan,
+  });
+  const actionReady = canCreateEmergencyCorrectiveWork({
+    title: actionTitle,
+    ownerProfileId: actionOwner,
+    dueAt: actionDueAt ? facilityDateTimeLocalToUtcIso(actionDueAt) : "",
+  });
   const designatedNotified = (eventQuery.data?.communications ?? []).filter(
     (row) => row.audience === "designated_person" && ["sent", "confirmed"].includes(row.delivery_status),
   ).length;
@@ -191,24 +220,31 @@ export default function EmergencyEventDetail() {
     },
   );
 
-  const submitAction = () => addAction.mutate(
-    {
-      eventId: id,
+  const submitAction = () => {
+    if (!canCreateEmergencyCorrectiveWork({
       title: actionTitle,
-      description: actionDescription,
       ownerProfileId: actionOwner,
-      priority: actionPriority,
-      dueAt: actionDueAt ? facilityDateTimeLocalToUtcIso(actionDueAt) : new Date().toISOString(),
-    },
-    {
-      onSuccess: () => {
-        toast({ title: "Corrective work created" });
-        setActionTitle("");
-        setActionDescription("");
+      dueAt: actionDueAt ? facilityDateTimeLocalToUtcIso(actionDueAt) : "",
+    })) return;
+    addAction.mutate(
+      {
+        eventId: id,
+        title: actionTitle,
+        description: actionDescription,
+        ownerProfileId: actionOwner,
+        priority: actionPriority,
+        dueAt: facilityDateTimeLocalToUtcIso(actionDueAt),
       },
-      onError: mutationError("Could not create corrective work"),
-    },
-  );
+      {
+        onSuccess: () => {
+          toast({ title: "Corrective work created" });
+          setActionTitle("");
+          setActionDescription("");
+        },
+        onError: mutationError("Could not create corrective work"),
+      },
+    );
+  };
 
   const transitionTo = (targetStatus: string) => transition.mutate(
     { eventId: id, targetStatus, reason: transitionReason },
@@ -267,10 +303,10 @@ export default function EmergencyEventDetail() {
         <Card className="print:hidden">
           <CardHeader><CardTitle>Command transition</CardTitle><CardDescription>Stabilization requires every resident and staff member to be accounted for. Closure also requires approved after-action review.</CardDescription></CardHeader>
           <CardContent className="flex flex-wrap gap-2">
-            <Input className="min-w-[280px] flex-1" placeholder="Required transition reason" value={transitionReason} onChange={(e) => setTransitionReason(e.target.value)} />
-            {event.status === "active" && <Button disabled={!transitionReason} onClick={() => transitionTo("stabilized")}>Mark stabilized</Button>}
-            {event.status === "stabilized" && <Button disabled={!transitionReason} onClick={() => transitionTo("closed")}>Close after review</Button>}
-            <Button variant="destructive" disabled={!transitionReason} onClick={() => transitionTo("canceled")}>Cancel</Button>
+            <Input className="min-w-[280px] flex-1" placeholder="Required transition reason (at least 5 characters)" value={transitionReason} onChange={(e) => setTransitionReason(e.target.value)} />
+            {event.status === "active" && <Button disabled={!canStabilize} onClick={() => transitionTo("stabilized")}>Mark stabilized</Button>}
+            {event.status === "stabilized" && <Button disabled={!canClose} onClick={() => transitionTo("closed")}>Close after review</Button>}
+            <Button variant="destructive" disabled={!canCancel} onClick={() => transitionTo("canceled")}>Cancel</Button>
           </CardContent>
         </Card>
       )}
@@ -355,7 +391,7 @@ export default function EmergencyEventDetail() {
               <div className="space-y-1"><Label htmlFor={`${__fieldIds}-gaps-identified`}>Gaps identified</Label><Textarea id={`${__fieldIds}-gaps-identified`} value={gaps} onChange={(e) => setGaps(e.target.value)} readOnly={!canManage} /></div>
               <div className="space-y-1"><Label htmlFor={`${__fieldIds}-lessons-learned`}>Lessons learned</Label><Textarea id={`${__fieldIds}-lessons-learned`} value={lessons} onChange={(e) => setLessons(e.target.value)} readOnly={!canManage} /></div>
               <div className="space-y-1"><Label htmlFor={`${__fieldIds}-corrective-action-plan`}>Corrective-action plan</Label><Textarea id={`${__fieldIds}-corrective-action-plan`} value={correctivePlan} onChange={(e) => setCorrectivePlan(e.target.value)} readOnly={!canManage} /></div>
-              {canManage && <Button className="md:col-span-2 print:hidden" disabled={!responseSummary} onClick={submitReview}>Save / approve after-action review</Button>}
+              {canManage && <Button className="md:col-span-2 print:hidden" disabled={!reviewReady} onClick={submitReview}>Save / approve after-action review</Button>}
             </CardContent>
           </Card>
 
@@ -366,7 +402,7 @@ export default function EmergencyEventDetail() {
                 const workItem = action.work_item as { id: string; title: string; state: string; priority: string; due_at: string } | null;
                 return workItem && <div key={action.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3"><div><p className="font-medium">{workItem.title}</p><p className="text-xs text-muted-foreground">Due {new Date(workItem.due_at).toLocaleString()}</p></div><div className="flex gap-2"><Badge variant="outline">{human(workItem.priority)}</Badge><Badge>{human(workItem.state)}</Badge><Button asChild variant="outline" size="sm"><Link href={`/app/work/${workItem.id}`}>Open work item</Link></Button></div></div>;
               })}
-              {canManage && <div className="grid gap-2 border-t pt-3 md:grid-cols-2 print:hidden"><Input placeholder="Corrective action title" value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} /><Select value={actionOwner} onValueChange={setActionOwner}><SelectTrigger aria-label="Action owner"><SelectValue placeholder="Owner" /></SelectTrigger><SelectContent>{profiles.data?.filter((profile) => profile.is_active).map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select><Textarea className="md:col-span-2" placeholder="Description" value={actionDescription} onChange={(e) => setActionDescription(e.target.value)} /><Select value={actionPriority} onValueChange={setActionPriority}><SelectTrigger aria-label="Action priority"><SelectValue /></SelectTrigger><SelectContent>{["low","normal","high","urgent"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Input type="datetime-local" value={actionDueAt} onChange={(e) => setActionDueAt(e.target.value)} /><Button className="md:col-span-2" disabled={!actionTitle || !actionOwner} onClick={submitAction}>Create corrective work item</Button></div>}
+              {canManage && <div className="grid gap-2 border-t pt-3 md:grid-cols-2 print:hidden"><Input placeholder="Corrective action title" value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} /><Select value={actionOwner} onValueChange={setActionOwner}><SelectTrigger aria-label="Action owner"><SelectValue placeholder="Owner" /></SelectTrigger><SelectContent>{profiles.data?.filter((profile) => profile.is_active).map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select><Textarea className="md:col-span-2" placeholder="Description" value={actionDescription} onChange={(e) => setActionDescription(e.target.value)} /><Select value={actionPriority} onValueChange={setActionPriority}><SelectTrigger aria-label="Action priority"><SelectValue /></SelectTrigger><SelectContent>{["low","normal","high","urgent"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Input type="datetime-local" value={actionDueAt} onChange={(e) => setActionDueAt(e.target.value)} /><Button className="md:col-span-2" disabled={!actionReady} onClick={submitAction}>Create corrective work item</Button></div>}
             </CardContent>
           </Card>
         </TabsContent>

@@ -70,3 +70,10 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^sg9\.(other_live|retired_probe)$''']
 paths = ['''^supabase/tests/database/retired_feature_cannot_be_sold\.test\.sql$''']
+
+[[rules.allowlists]]
+description = "Ignore the non-secret Act 33 credential type used in the publish-coverage database test"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^act33_child_abuse$''']
+paths = ['''^supabase/tests/database/publish_posts_draft_coverage\.test\.sql$''']

@@ -185,7 +185,7 @@ export default function NotificationDeliveries() {
    * exactly like permanent failures here and were offered a Retry button -- which
    * `retry_notification_delivery` refused on every press, because it required
    * `final_outcome = 'failed'`. A control that can only produce an error toast, over a row nothing
-   * could ever clear, while every one of them counted (unbounded) toward the
+   * could ever clear, while every one of them counted toward the
    * phase1-synthetic-health check. The RPC now also accepts an ambiguous outcome finalized more
    * than six hours ago with no provider event since, and still refuses anything younger, so the
    * client applies the same six hours: the button appears exactly when it will work.
@@ -464,7 +464,7 @@ export default function NotificationDeliveries() {
                   ["Awaiting provider final", health.data?.awaitingFinal],
                   ["Delivered (24h)", health.data?.delivered24h],
                   ["Failed (24h)", health.data?.failed24h],
-                  ["Final outcome unknown", health.data?.unknown],
+                  ["Final outcome unknown (24h)", health.data?.unknown],
                   ["Signed provider events (24h)", health.data?.signedProviderEvents24h],
                 ] as const).map(([label, value]) => (
                   <div key={label} className="rounded-lg border p-3">
