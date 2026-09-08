@@ -37964,7 +37964,10 @@ export type Database = {
         Args: { p_effective_to?: string; p_grant_id: string; p_reason?: string }
         Returns: undefined
       }
-      enforce_request_impersonation_lifetime: { Args: never; Returns: undefined }
+      enforce_request_impersonation_lifetime: {
+        Args: never
+        Returns: undefined
+      }
       enqueue_critical_notification_delivery: {
         Args: {
           p_delivery_type: string

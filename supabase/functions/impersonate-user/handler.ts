@@ -76,6 +76,15 @@ export function createImpersonateUserHandler({
 
   const { action, target_user_id, reason } = body;
 
+  // A stale browser expects a redeemable magic-link hash. Refuse that protocol before
+  // creating any target credentials or context; only start_bound accepts bound tokens.
+  if (action === "start") {
+    return json(req, {
+      error: "This browser version is out of date. Refresh CareBase before starting impersonation.",
+      code: "client_update_required",
+    }, 409);
+  }
+
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
   const accessToken = authHeader.replace(/^Bearer\s+/i, "");
   const currentSessionId = jwtSessionId(accessToken);
@@ -96,7 +105,7 @@ export function createImpersonateUserHandler({
     callerProfile = profile;
   }
 
-  if (action === "start") {
+  if (action === "start_bound") {
     if (callerProfile?.role !== "platform_admin") {
       return json(req, { error: "not authorized to impersonate users" }, 403);
     }
@@ -355,6 +364,6 @@ export function createImpersonateUserHandler({
     return json(req, { success: true });
   }
 
-    return json(req, { error: "action must be one of start, bind, end" }, 400);
+    return json(req, { error: "action must be one of start_bound, bind, end" }, 400);
   };
 }

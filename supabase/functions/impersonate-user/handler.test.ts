@@ -37,6 +37,7 @@ function chainable(result: { data: unknown; error: unknown }) {
 }
 
 function makeHandler(opts: {
+  callerAuthenticated?: boolean;
   callerRole?: string;
   targetRole?: string;
   targetActive?: boolean;
@@ -54,7 +55,9 @@ function makeHandler(opts: {
   const revoked: string[] = [];
 
   const callerClient = {
-    auth: { getUser: async () => ({ data: { user: { id: CALLER_ID } }, error: null }) },
+    auth: { getUser: async () => opts.callerAuthenticated === false
+      ? { data: { user: null }, error: { message: "invalid session" } }
+      : { data: { user: { id: CALLER_ID } }, error: null } },
     from: (table: string) => {
       if (table === "profiles") {
         return chainable({
@@ -177,11 +180,46 @@ function makeHandler(opts: {
   };
 }
 
+Deno.test("impersonate-user rejects legacy start before creating credentials or context", async () => {
+  const { handler, generateLinkCalls, inserts, events, revoked } = makeHandler();
+  const response = await handler(makeRequest({
+    action: "start", target_user_id: TARGET_ID, reason: "support ticket",
+  }));
+  const body = await response.json();
+
+  assertEquals(response.status, 409);
+  assertEquals(body.code, "client_update_required");
+  assertEquals(body.error.includes("Refresh CareBase"), true);
+  assertEquals(body.session, undefined);
+  assertEquals(body.token_hash, undefined);
+  assertEquals(generateLinkCalls, []);
+  assertEquals(inserts, []);
+  assertEquals(events, []);
+  assertEquals(revoked, []);
+});
+
+for (const action of ["start", "start_bound"]) {
+  Deno.test(`impersonate-user authenticates ${action} before reporting protocol errors`, async () => {
+    const { handler, generateLinkCalls, inserts, events } = makeHandler({ callerAuthenticated: false });
+    const response = await handler(makeRequest({
+      action, target_user_id: TARGET_ID, reason: "support ticket",
+    }));
+    const body = await response.json();
+
+    assertEquals(response.status, 401);
+    assertEquals(body.error, "Invalid or expired session");
+    assertEquals(body.code, undefined);
+    assertEquals(generateLinkCalls, []);
+    assertEquals(inserts, []);
+    assertEquals(events, []);
+  });
+}
+
 Deno.test("impersonate-user refuses an org_admin starting impersonation", async () => {
   const { handler, generateLinkCalls } = makeHandler({ callerRole: "org_admin" });
 
   const response = await handler(makeRequest({
-    action: "start", target_user_id: TARGET_ID, reason: "support ticket",
+    action: "start_bound", target_user_id: TARGET_ID, reason: "support ticket",
   }));
   const body = await response.json();
 
@@ -194,7 +232,7 @@ Deno.test("impersonate-user refuses impersonating yourself", async () => {
   const { handler, generateLinkCalls } = makeHandler();
 
   const response = await handler(makeRequest({
-    action: "start", target_user_id: CALLER_ID, reason: "support ticket",
+    action: "start_bound", target_user_id: CALLER_ID, reason: "support ticket",
   }));
   const body = await response.json();
 
@@ -207,7 +245,7 @@ Deno.test("impersonate-user refuses impersonating another platform_admin", async
   const { handler, generateLinkCalls } = makeHandler({ targetRole: "platform_admin" });
 
   const response = await handler(makeRequest({
-    action: "start", target_user_id: ADMIN_ID, reason: "support ticket",
+    action: "start_bound", target_user_id: ADMIN_ID, reason: "support ticket",
   }));
   const body = await response.json();
 
@@ -220,7 +258,7 @@ Deno.test("impersonate-user refuses a deactivated target", async () => {
   const { handler, generateLinkCalls } = makeHandler({ targetActive: false });
 
   const response = await handler(makeRequest({
-    action: "start", target_user_id: TARGET_ID, reason: "support ticket",
+    action: "start_bound", target_user_id: TARGET_ID, reason: "support ticket",
   }));
   const body = await response.json();
 
@@ -236,7 +274,7 @@ Deno.test("impersonate-user refuses an invitee who has never signed in", async (
   });
 
   const response = await handler(makeRequest({
-    action: "start", target_user_id: TARGET_ID, reason: "support ticket",
+    action: "start_bound", target_user_id: TARGET_ID, reason: "support ticket",
   }));
   const body = await response.json();
 
@@ -245,11 +283,11 @@ Deno.test("impersonate-user refuses an invitee who has never signed in", async (
   assertEquals(generateLinkCalls, []);
 });
 
-Deno.test("impersonate-user starts a bounded session for a confirmed tenant user", async () => {
+Deno.test("impersonate-user start_bound returns only a bound session for a confirmed tenant user", async () => {
   const { handler, generateLinkCalls, inserts, events } = makeHandler();
 
   const response = await handler(makeRequest({
-    action: "start", target_user_id: TARGET_ID, reason: "Investigating a support ticket",
+    action: "start_bound", target_user_id: TARGET_ID, reason: "Investigating a support ticket",
   }));
   const body = await response.json();
 
@@ -269,7 +307,7 @@ for (const failure of ["exchangeError", "bindError", "boundRowMissing", "exchang
   Deno.test(`impersonate-user never returns usable credentials after ${failure}`, async () => {
     const { handler, revoked } = makeHandler(failure === "exchangedUserId"
       ? { exchangedUserId: ADMIN_ID } : { [failure]: true });
-    const response = await handler(makeRequest({ action: "start", target_user_id: TARGET_ID, reason: "support ticket" }));
+    const response = await handler(makeRequest({ action: "start_bound", target_user_id: TARGET_ID, reason: "support ticket" }));
     const body = await response.json();
     assertEquals(response.status, 500);
     assertEquals(body.session, undefined);
@@ -285,15 +323,15 @@ function tableMatches(row: { table: string }, name: string) {
 Deno.test("impersonate-user requires fresh MFA before minting a target credential", async () => {
   const { handler, generateLinkCalls, inserts } = makeHandler({ assurance: false });
   const response = await handler(makeRequest({
-    action: "start", target_user_id: TARGET_ID, reason: "support ticket",
+    action: "start_bound", target_user_id: TARGET_ID, reason: "support ticket",
   }));
   assertEquals(response.status, 403);
   assertEquals(generateLinkCalls, []);
   assertEquals(inserts, []);
 });
 
-for (const body of [null, [], "start", { action: "start", target_user_id: TARGET_ID, reason: 123 },
-  { action: "start", target_user_id: { id: TARGET_ID }, reason: "support ticket" },
+for (const body of [null, [], "start", { action: "start_bound", target_user_id: TARGET_ID, reason: 123 },
+  { action: "start_bound", target_user_id: { id: TARGET_ID }, reason: "support ticket" },
   { action: "bind", impersonation_id: {}, context_secret: "secret" },
   { action: "end", impersonation_id: "session-1", context_secret: [] }]) {
   Deno.test(`impersonate-user rejects malformed body ${JSON.stringify(body)}`, async () => {
@@ -308,7 +346,7 @@ for (const body of [null, [], "start", { action: "start", target_user_id: TARGET
 Deno.test("impersonate-user caps the request before creating an impersonation", async () => {
   const { handler, generateLinkCalls, inserts } = makeHandler();
   const response = await handler(makeRequest({
-    action: "start", target_user_id: TARGET_ID, reason: "a".repeat(16_384),
+    action: "start_bound", target_user_id: TARGET_ID, reason: "a".repeat(16_384),
   }));
   assertEquals(response.status, 413);
   assertEquals(generateLinkCalls, []);

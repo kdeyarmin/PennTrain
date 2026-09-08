@@ -472,8 +472,13 @@ Apply `20260908220014_enforce_impersonation_session_lifetime.sql` before releasi
 impersonation updates. Binding a support context now caps the target's actual Auth refresh session
 at the context deadline. The edge function exchanges and binds the target session before returning
 any usable credential; a client cannot skip binding by redeeming a returned magic-link hash.
-Deploy the updated edge function and frontend together because the start response now carries an
-already-bound session. The database also refuses an expired or ended impersonation's existing
+Deploy the updated edge function before the frontend. The frontend now requests `start_bound`,
+which returns an already-bound session. The updated edge function rejects a stale browser's legacy
+`start` action with HTTP 409 and a refresh-required message before creating a link, session, audit,
+or support context. If the frontend reaches an older edge deployment, its unknown `start_bound`
+action is refused before those side effects; starting impersonation resumes after the edge update.
+Existing `bind` and `end` actions remain compatible so active impersonations can still exit during
+the transition. The database also refuses an expired or ended impersonation's existing
 JWT through its shared authorization helpers, restrictive RLS policies, and a PostgREST pre-request
 hook. The frontend uses the server's deadline for its automatic return; that timer is a convenience,
 while the database enforces access even if the tab is suspended or closed.

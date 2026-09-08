@@ -11,7 +11,7 @@
  * Accepts either the Edge Function names (`SUPABASE_ANON_KEY`) or the CLI's
  * `status -o env` names (`ANON_KEY`, `SERVICE_ROLE_KEY`, `API_URL`).
  */
-import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { createCreateUserHandler } from "../supabase/functions/create-user/handler.ts";
 import { createInviteUserHandler } from "../supabase/functions/invite-user/handler.ts";
 import { createAdminUpdateUserHandler } from "../supabase/functions/admin-update-user/handler.ts";
@@ -100,7 +100,7 @@ function post(handler: (req: Request) => Promise<Response>, token: string, body:
   }));
 }
 
-async function enrollAal2(client: ReturnType<typeof createClient>) {
+async function enrollAal2(client: SupabaseClient) {
   const { data, error } = await client.auth.mfa.enroll({
     factorType: "totp",
     friendlyName: `user-fn-live ${Date.now()}`,
@@ -120,7 +120,7 @@ async function enrollAal2(client: ReturnType<typeof createClient>) {
 }
 
 async function createLogin(
-  admin: ReturnType<typeof createClient>,
+  admin: SupabaseClient,
   opts: { email: string; role: string; organizationId?: string | null },
 ) {
   const appMetadata: Record<string, string> = { role: opts.role };
@@ -432,7 +432,7 @@ async function main() {
   await expectStatus(
     "impersonate-user: org_admin cannot start",
     await post(impersonateUser, orgAdminToken, {
-      action: "start",
+      action: "start_bound",
       target_user_id: trainerId,
       reason: "support ticket review",
     }),
@@ -440,36 +440,53 @@ async function main() {
   );
 
   if (trainerId) {
+    await expectStatus(
+      "impersonate-user: stale browser must refresh before starting",
+      await post(impersonateUser, platformToken, {
+        action: "start",
+        target_user_id: trainerId,
+        reason: "stale browser support request",
+      }),
+      409,
+      (body) => {
+        if (body.code !== "client_update_required" || body.session || body.token_hash) {
+          throw new Error("legacy protocol must be refused without credentials");
+        }
+      },
+    );
     const started = await expectStatus(
       "impersonate-user: platform_admin starts a bounded session",
       await post(impersonateUser, platformToken, {
-        action: "start",
+        action: "start_bound",
         target_user_id: trainerId,
         reason: "Investigating a support ticket about training",
       }),
       200,
       (body) => {
-        if (!body.token_hash || !body.impersonation_id || !body.context_secret) {
+        const session = body.session as { access_token?: string; refresh_token?: string } | undefined;
+        if (!session?.access_token || !session.refresh_token || !body.impersonation_id || !body.context_secret) {
           throw new Error("incomplete start payload");
         }
+        if (body.token_hash) throw new Error("start must not return an unbound credential");
       },
     );
-    if (started.token_hash && started.impersonation_id && started.context_secret) {
+    const boundSession = started.session as { access_token?: string; refresh_token?: string } | undefined;
+    if (boundSession?.access_token && boundSession.refresh_token && started.impersonation_id && started.context_secret) {
       const targetClient = createClient(supabaseUrl, anonKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
-      const { error: otpError } = await targetClient.auth.verifyOtp({
-        token_hash: started.token_hash as string,
-        type: "magiclink",
+      const { error: sessionError } = await targetClient.auth.setSession({
+        access_token: boundSession.access_token,
+        refresh_token: boundSession.refresh_token,
       });
-      if (otpError) fail("impersonate-user verifyOtp", otpError);
+      if (sessionError) fail("impersonate-user setSession", sessionError);
       else {
         const { data: targetSession } = await targetClient.auth.getSession();
         const targetToken = targetSession.session?.access_token;
         if (!targetToken) fail("impersonate-user target session", "no access token");
         else {
           await expectStatus(
-            "impersonate-user: bind the impersonated Auth session",
+            "impersonate-user: repeated bind remains compatible for the bound Auth session",
             await post(impersonateUser, targetToken, {
               action: "bind",
               impersonation_id: started.impersonation_id,
@@ -494,7 +511,7 @@ async function main() {
   await expectStatus(
     "impersonate-user: cannot impersonate another platform_admin",
     await post(impersonateUser, platformToken, {
-      action: "start",
+      action: "start_bound",
       target_user_id: otherPlatformId,
       reason: "should be refused",
     }),
@@ -505,7 +522,7 @@ async function main() {
     await expectStatus(
       "impersonate-user: refuses an invitee who has never signed in",
       await post(impersonateUser, platformToken, {
-        action: "start",
+        action: "start_bound",
         target_user_id: invitedId,
         reason: "would mark the invite accepted",
       }),

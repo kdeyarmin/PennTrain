@@ -63,7 +63,7 @@ export function useStartImpersonation() {
       if (!sessionData.session) throw new Error("No active session");
 
       const { data, error } = await supabase.functions.invoke("impersonate-user", {
-        body: { action: "start", target_user_id: vars.targetUserId, reason: vars.reason },
+        body: { action: "start_bound", target_user_id: vars.targetUserId, reason: vars.reason },
       });
       if (error) throw error;
       if (!data?.session?.access_token || !data?.session?.refresh_token || !data?.target?.id
