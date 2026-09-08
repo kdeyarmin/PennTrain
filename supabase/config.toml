@@ -443,3 +443,8 @@ verify_jwt = false
 # Requires an active session (trainer / facility_manager / org_admin / platform_admin).
 [functions.accept-learning-package]
 verify_jwt = true
+
+# Asset GETs use the server-minted session nonce as an expiring, per-package capability.
+# The handler checks the nonce digest and live assignment/tenant/package on every request.
+[functions.learning-package-asset]
+verify_jwt = false

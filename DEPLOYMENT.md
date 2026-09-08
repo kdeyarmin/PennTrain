@@ -241,13 +241,12 @@ can see the whole workspace and lockfile.
      "timestamp": "2026-07-04T12:00:00.000Z"
    }
    ```
-   `/health` deliberately reports nothing about Supabase configuration or reachability: this server
-   never talks to Supabase itself (the browser does, using whatever `VITE_SUPABASE_URL`/
-   `VITE_SUPABASE_ANON_KEY` were baked into the bundle at build time), so a field derived from this
-   process's own env vars at request time could silently diverge from what the served bundle
-   actually contains (no rebuild on a runtime variable change, dummy build-time values, etc.) --
-   exactly the false assurance a healthcheck must not give. A green `/health` only means the Node
-   process is up; confirm Supabase connectivity by loading the app in a browser (step 8).
+   `/health` deliberately reports process liveness, not Supabase reachability. Application data
+   uses the browser's build-time `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`; the learning-package
+   proxy also uses `VITE_SUPABASE_URL` at server runtime. Keep the build/runtime project URL aligned.
+   A green `/health` only means the Node process is up; confirm Supabase connectivity by loading
+   the app in a browser (step 8), and verify an accepted package launches through its nested assets
+   after deploying `learning-package-asset`.
 
    The one deploy-shaped failure `/health` *does* catch is a missing bundle. Because the endpoint
    is answered by the server rather than by the build output, a deploy whose `dist/public` is
@@ -262,7 +261,7 @@ can see the whole workspace and lockfile.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API). **Build-time**: baked into the bundle; changes require a redeploy, not just a restart |
+| `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API). Required at **build time and server runtime**: baked into the bundle and used by the learning-package proxy; keep both values aligned. Changes require a redeploy, not just a restart |
 | `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate. **Build-time**, same caveat as above |
 | `VITE_TURNSTILE_SITE_KEY` | yes | Cloudflare Turnstile site key for `/signup`. **Build-time**, same redeploy caveat as other `VITE_` values |
 | `VITE_CLIENT_ERROR_REPORTING_ENABLED` | no | Build-time switch for PHI-scrubbed client error events. Reporting is enabled by default in production; set `false` only during an incident |
@@ -466,6 +465,25 @@ them from scratch:
   (`20260704053527_group_b_rls_policies.sql`)
 
 ## 7. Security notes
+
+### Support impersonation lifetime
+
+Apply `20260908220014_enforce_impersonation_session_lifetime.sql` before releasing the
+impersonation updates. Binding a support context now caps the target's actual Auth refresh session
+at the context deadline. The edge function exchanges and binds the target session before returning
+any usable credential; a client cannot skip binding by redeeming a returned magic-link hash.
+Deploy the updated edge function and frontend together because the start response now carries an
+already-bound session. The database also refuses an expired or ended impersonation's existing
+JWT through its shared authorization helpers, restrictive RLS policies, and a PostgREST pre-request
+hook. The frontend uses the server's deadline for its automatic return; that timer is a convenience,
+while the database enforces access even if the tab is suspended or closed.
+
+The migration installs `public.enforce_request_impersonation_lifetime` as
+`pgrst.db_pre_request` on `authenticator` and requests a config reload. It refuses to replace an
+unrelated pre-request hook: if an environment already has one, compose both checks before applying
+the migration. Verify normal authenticated and anonymous requests, an active support session, and
+the same JWT after expiry in a hosted release check. Already downloaded files and previously issued
+signed Storage URLs keep their independent lifetime; this control prevents new authorized requests.
 
 ### Fixes applied in this change (adversarial production audit)
 

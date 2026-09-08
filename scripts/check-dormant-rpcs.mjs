@@ -164,7 +164,15 @@ export function isCallSite(line, name) {
  * non-greedily and only for the forms that cannot contain one.
  */
 export function sqlCallSiteText(sql) {
-  return blankSqlStrings(stripSqlComments(sql))
+  const uncommented = stripSqlComments(sql);
+  const masked = blankSqlStrings(uncommented);
+  // PostgREST invokes this configured function on every request. Preserve only an actual
+  // authenticator role setting; a quoted error message or comment is never a hook binding.
+  const hookCalls = [...uncommented.matchAll(
+    /\balter\s+role\s+authenticator\s+set\s+pgrst\.db_pre_request\s*(?:=|to)\s*'public\.([a-z_][a-z0-9_]*)'\s*;/gi,
+  )].filter((match) => masked.slice(match.index, match.index + 5).toLowerCase() === "alter")
+    .map((match) => `\nperform public.${match[1]}();`).join("");
+  return (masked + hookCalls)
     // Statements that can never contain a call, removed entirely.
     .replace(/\b(grant|revoke)\b[\s\S]*?;/gi, " ")
     .replace(/\bcomment\s+on\s+function\b[\s\S]*?;/gi, " ")
@@ -176,6 +184,10 @@ export function sqlCallSiteText(sql) {
 
 if (process.argv.includes("--self-test")) {
   const cases = [
+    [() => sqlCallSiteText("alter role authenticator set pgrst.db_pre_request = 'public.request_guard';").includes("request_guard"), true],
+    [() => sqlCallSiteText("-- alter role authenticator set pgrst.db_pre_request = 'public.request_guard';").includes("request_guard"), false],
+    [() => sqlCallSiteText("raise exception 'alter role authenticator set pgrst.db_pre_request = ''public.request_guard'';';").includes("request_guard"), false],
+    [() => sqlCallSiteText("alter role unrelated_role set pgrst.db_pre_request = 'public.request_guard';").includes("request_guard"), false],
     [() => [...grantedToAuthenticated("grant execute on function public.foo(uuid) to authenticated;")], ["foo"]],
     [() => [...grantedToAuthenticated("grant execute on function public.a(uuid),\n public.b(text) to authenticated, service_role;")], ["a", "b"]],
     // Granted only to service_role is not a user-reachable RPC and is not this check's business.

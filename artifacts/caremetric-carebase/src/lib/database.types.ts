@@ -37818,6 +37818,7 @@ export type Database = {
         }
         Returns: string
       }
+      current_impersonation_session_live: { Args: never; Returns: boolean }
       current_org_id: { Args: never; Returns: string }
       current_profile_active: { Args: never; Returns: boolean }
       current_role: { Args: never; Returns: string }
@@ -37963,6 +37964,7 @@ export type Database = {
         Args: { p_effective_to?: string; p_grant_id: string; p_reason?: string }
         Returns: undefined
       }
+      enforce_request_impersonation_lifetime: { Args: never; Returns: undefined }
       enqueue_critical_notification_delivery: {
         Args: {
           p_delivery_type: string

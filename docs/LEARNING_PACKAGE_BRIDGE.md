@@ -9,6 +9,36 @@ All paths below are from the repo root.
 - Package adapter: `artifacts/caremetric-carebase/public/learning-runtime-bridge.js`, served at
   `/learning-runtime-bridge.js` (see the base-path note below)
 
+## Delivering an accepted package
+
+The player launches `/_learning-packages/<session>/<nonce>/<entry HTML>` under the app's
+configured base path. The Railway server (and the Vite development/preview middleware) proxies
+only this fixed route to `learning-package-asset`. The edge handler verifies the current nonce
+digest, session expiry, assignment, course version, accepted package and live owning profile on
+every asset request. Relaunch, quarantine, tenant suspension/cancellation and profile deactivation
+therefore also invalidate cached access. The capability expires with the runtime session (currently
+four hours); signing out or ending an impersonation alone does not shorten an already issued
+package capability. No host authentication credential is included in that capability.
+
+The handler reads individual members from the accepted private ZIP and checks its SHA-256 before
+serving it; existing accepted ZIPs need no backfill. Relative scripts, styles, data, media and HTML
+keep their original directory paths. It caps compressed archives at 50 MB, individual assets at
+50 MB, expanded contents at 100 MB and archives at 5,000 entries, before inflation; it keeps only
+one compressed archive cached for at most 60 seconds. Large/vendor package performance still
+requires representative validation.
+
+The proxy restores only allowlisted media types and sends a response-level CSP sandbox **without
+`allow-same-origin`**, even for direct navigation, plus `no-store`, `no-referrer` and `nosniff`.
+The PWA excludes these routes from both navigation and asset caches. Host cookies and user JWTs
+are never forwarded to content. Supabase's default Edge domain changes HTML to plain text, so the
+edge endpoint deliberately returns binary bytes; HTML is rendered only through the app proxy.
+
+Deploy the new `learning-package-asset` function with the frontend/server change and keep
+`VITE_SUPABASE_URL` configured at server runtime as well as build time. A static-only host must
+provide the equivalent proxy before enabling this player. No database or Storage migration is
+required for delivery. This fixes package asset delivery; it does not certify Storyline/Captivate
+integration or install their standard SCORM API adapters. Those remain B3 validation work.
+
 ## Why there is a handshake at all
 
 The package runs in an iframe sandboxed **without `allow-same-origin`** (`RUNTIME_FRAME_SANDBOX`).
@@ -131,6 +161,8 @@ Not covered, and worth doing before relying on the automatic flow in production:
   from Storyline/Captivate/etc. drives its own SCORM API surface; mapping that onto this bridge is
   a per-tool integration that has not been attempted yet. The fixture package exercises the
   contract, not any vendor's runtime.
-- **Delivery of the adapter to the frame.** The browser test serves it directly, so the network
-  path a real package would use is deliberately not under test — see the bundling note above for
-  why fetching it is the fragile option.
+- **Hosted delivery and vendor integration.** Edge-handler and real HTTP proxy tests cover archive
+  delivery and access controls. `learning-package-delivery-browser.spec.ts` adds response-sandbox,
+  relative-resource and direct-navigation checks, but still needs a supported browser/CI run in
+  this review environment. A representative accepted vendor ZIP must also be exercised after
+  deploying both halves of the delivery route.

@@ -1,11 +1,12 @@
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { impersonationActionAllowed } from "../_shared/impersonationLifecycle.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...corsHeadersForRequest(req) },
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...corsHeadersForRequest(req) },
   });
 }
 
@@ -63,25 +64,14 @@ export function createImpersonateUserHandler({
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
   if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
-  const { data: callerProfile, error: callerProfileError } = await callerClient
-    .from("profiles")
-    .select("role, organization_id, is_active")
-    .eq("id", callerUser.id)
-    .single();
-  if (callerProfileError || !callerProfile || !callerProfile.is_active) {
-    return json(req, { error: "Caller profile not found or inactive" }, 403);
-  }
-  let body: {
-    action?: string;
-    target_user_id?: string;
-    reason?: string;
-    impersonation_id?: string;
-    context_secret?: string;
-  };
+  let body: Record<string, unknown>;
   try {
-    body = await req.json();
-  } catch {
-    return json(req, { error: "Invalid JSON body" }, 400);
+    body = await readJsonBody(req);
+    if (Array.isArray(body)) return json(req, { error: "Invalid JSON body" }, 400);
+  } catch (error) {
+    return json(req, {
+      error: error instanceof RequestBodyError ? error.message : "Invalid JSON body",
+    }, error instanceof RequestBodyError ? error.status : 400);
   }
 
   const { action, target_user_id, reason } = body;
@@ -90,12 +80,30 @@ export function createImpersonateUserHandler({
   const accessToken = authHeader.replace(/^Bearer\s+/i, "");
   const currentSessionId = jwtSessionId(accessToken);
 
+  // Ending only reduces access and verifies the exact target/session/context secret below.
+  // Once the impersonation expires, its JWT can no longer read profiles through the Data API;
+  // requiring that read here would make the new server expiry gate prevent a safe exit.
+  let callerProfile: { role: string; organization_id: string | null; is_active: boolean } | null = null;
+  if (action !== "end") {
+    const { data: profile, error: profileError } = await callerClient
+      .from("profiles")
+      .select("role, organization_id, is_active")
+      .eq("id", callerUser.id)
+      .single();
+    if (profileError || !profile || !profile.is_active) {
+      return json(req, { error: "Caller profile not found or inactive" }, 403);
+    }
+    callerProfile = profile;
+  }
+
   if (action === "start") {
-    if (callerProfile.role !== "platform_admin") {
+    if (callerProfile?.role !== "platform_admin") {
       return json(req, { error: "not authorized to impersonate users" }, 403);
     }
-    if (!target_user_id) return json(req, { error: "target_user_id is required" }, 400);
-    if (!reason || reason.trim().length < 3) {
+    if (typeof target_user_id !== "string" || !target_user_id.trim()) {
+      return json(req, { error: "target_user_id is required" }, 400);
+    }
+    if (typeof reason !== "string" || reason.trim().length < 3) {
       return json(req, { error: "reason is required and must be at least 3 characters" }, 400);
     }
     if (target_user_id === callerUser.id) {
@@ -195,9 +203,47 @@ export function createImpersonateUserHandler({
       return json(req, { error: "Failed to create the bounded impersonation context; impersonation aborted." }, 500);
     }
 
+    // Exchange and bind on the server before returning any usable credential. Returning the
+    // magic-link hash lets a client redeem it and omit `bind`, creating an ordinary unbounded
+    // target session that the impersonation lifetime guards cannot identify.
+    const sessionClient = createClient(supabaseUrl, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: exchanged, error: exchangeError } = await sessionClient.auth.verifyOtp({
+      token_hash: tokenHash, type: "magiclink",
+    });
+    const targetSession = exchanged?.session;
+    if (exchangeError || !targetSession?.access_token || !targetSession?.refresh_token) {
+      return json(req, { error: "Failed to establish the impersonated Auth session" }, 500);
+    }
+    const targetSessionId = jwtSessionId(targetSession.access_token);
+    if (targetSession.user?.id !== target_user_id || !targetSessionId) {
+      await adminClient.auth.admin.signOut(targetSession.access_token, "local");
+      return json(req, { error: "The impersonated Auth session did not match the authorized target" }, 500);
+    }
+    const boundAt = new Date().toISOString();
+    const { data: bound, error: boundError } = await adminClient
+      .from("impersonation_sessions")
+      .update({ target_session_id: targetSessionId, bound_at: boundAt })
+      .eq("id", context.id)
+      .is("target_session_id", null)
+      .is("ended_at", null)
+      .gt("expires_at", boundAt)
+      .select("id")
+      .maybeSingle();
+    if (boundError || !bound) {
+      // No credential reaches the browser on this path, even if cleanup is unavailable.
+      const { error: revokeError } = await adminClient.auth.admin.signOut(targetSession.access_token, "local");
+      if (revokeError) console.error("impersonate-user: unreturned session cleanup failed");
+      return json(req, { error: "Failed to bind the impersonated Auth session; impersonation aborted." }, 500);
+    }
+
     return json(req, {
       success: true,
-      token_hash: tokenHash,
+      session: {
+        access_token: targetSession.access_token,
+        refresh_token: targetSession.refresh_token,
+      },
       impersonation_id: context.id,
       context_secret: contextSecret,
       expires_at: context.expires_at,
@@ -215,7 +261,8 @@ export function createImpersonateUserHandler({
   if (action === "bind" || action === "end") {
     const impersonationId = body.impersonation_id;
     const contextSecret = body.context_secret;
-    if (!impersonationId || !contextSecret || !currentSessionId) {
+    if (typeof impersonationId !== "string" || !impersonationId
+      || typeof contextSecret !== "string" || !contextSecret || !currentSessionId) {
       return json(req, { error: "A bounded impersonation context and Auth session are required" }, 400);
     }
     const { data: context, error: contextError } = await adminClient
@@ -244,12 +291,23 @@ export function createImpersonateUserHandler({
       if (context.target_session_id && context.target_session_id !== currentSessionId) {
         return json(req, { error: "Impersonation context is already bound to another session" }, 409);
       }
-      const { error: bindError } = await adminClient
+      // Retrying the same successful bind is harmless. A new bind must claim an unbound,
+      // live context atomically: the preceding SELECT can race another bind or an end.
+      if (context.target_session_id === currentSessionId) return json(req, { success: true });
+      const boundAt = new Date().toISOString();
+      const { data: boundContext, error: bindError } = await adminClient
         .from("impersonation_sessions")
-        .update({ target_session_id: currentSessionId, bound_at: new Date().toISOString() })
+        .update({ target_session_id: currentSessionId, bound_at: boundAt })
         .eq("id", context.id)
-        .is("ended_at", null);
+        .is("target_session_id", null)
+        .is("ended_at", null)
+        .gt("expires_at", boundAt)
+        .select("id")
+        .maybeSingle();
       if (bindError) return json(req, { error: "Failed to bind the impersonated Auth session" }, 500);
+      if (!boundContext) {
+        return json(req, { error: "Impersonation context changed or expired before the session was bound" }, 409);
+      }
       return json(req, { success: true });
     }
 

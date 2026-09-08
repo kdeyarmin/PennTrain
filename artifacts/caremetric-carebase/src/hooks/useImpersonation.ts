@@ -25,6 +25,8 @@ interface ImpersonationRecord {
   impersonationId?: string;
   contextSecret?: string;
   startedAt: string;
+  expiresAt?: string;
+  ended?: boolean;
 }
 
 function readImpersonationRecord(): ImpersonationRecord | null {
@@ -50,6 +52,7 @@ export function useImpersonationStatus() {
     isImpersonating: !!record,
     target: record?.target ?? null,
     startedAt: record?.startedAt ?? null,
+    expiresAt: record?.expiresAt ?? null,
   };
 }
 
@@ -63,7 +66,8 @@ export function useStartImpersonation() {
         body: { action: "start", target_user_id: vars.targetUserId, reason: vars.reason },
       });
       if (error) throw error;
-      if (!data?.token_hash || !data?.target?.id || !data?.impersonation_id || !data?.context_secret) {
+      if (!data?.session?.access_token || !data?.session?.refresh_token || !data?.target?.id
+        || !data?.impersonation_id || !data?.context_secret) {
         throw new Error("The impersonation service returned an incomplete session response");
       }
 
@@ -76,31 +80,18 @@ export function useStartImpersonation() {
         impersonationId: data.impersonation_id,
         contextSecret: data.context_secret,
         startedAt: new Date().toISOString(),
+        expiresAt: typeof data.expires_at === "string" ? data.expires_at : undefined,
       };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(record));
 
-      // Swaps the live session to the target user via their one-time magic-link token.
-      const { error: otpError } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: "magiclink" });
-      if (otpError) {
-        // The origin tokens are persisted before the swap so they cannot be lost if verifyOtp
+      // The server has already bound this session and capped its lifetime before returning it.
+      const { error: sessionError } = await supabase.auth.setSession(data.session);
+      if (sessionError) {
+        // The origin tokens are persisted before the swap so they cannot be lost if setSession
         // succeeds. If the swap fails, remove that provisional record or a refresh will falsely
         // present the still-admin session as an active impersonation session.
         sessionStorage.removeItem(STORAGE_KEY);
-        throw otpError;
-      }
-
-      const { error: bindError } = await supabase.functions.invoke("impersonate-user", {
-        body: {
-          action: "bind",
-          impersonation_id: record.impersonationId,
-          context_secret: record.contextSecret,
-        },
-      });
-      if (bindError) {
-        await supabase.auth.signOut({ scope: "local" });
-        await supabase.auth.setSession(record.originSession);
-        sessionStorage.removeItem(STORAGE_KEY);
-        throw new Error(`The impersonated session could not be bounded: ${bindError.message}`);
+        throw sessionError;
       }
 
       window.dispatchEvent(new Event(CHANGE_EVENT));
@@ -135,14 +126,20 @@ export function useStopImpersonation() {
       }
       // End while the target JWT is still active. The service verifies that this is the exact
       // bound Auth session and revokes its refresh session before the admin session is restored.
-      const { error: endError } = await supabase.functions.invoke("impersonate-user", {
-        body: {
-          action: "end",
-          impersonation_id: record.impersonationId,
-          context_secret: record.contextSecret,
-        },
-      });
-      if (endError) throw endError;
+      if (!record.ended) {
+        const { error: endError } = await supabase.functions.invoke("impersonate-user", {
+          body: {
+            action: "end",
+            impersonation_id: record.impersonationId,
+            context_secret: record.contextSecret,
+          },
+        });
+        if (endError) throw endError;
+        // A failed origin-session restore must retry only the restore: the target session is
+        // already revoked and the server correctly refuses ending the same context again.
+        record.ended = true;
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+      }
 
       const { error } = await supabase.auth.setSession({
         access_token: originSession.access_token,
@@ -154,7 +151,7 @@ export function useStopImpersonation() {
         // user with no way back and, because the banner renders off this same record, no longer
         // any indication that the session was an impersonation at all. Retaining it keeps "Exit
         // impersonation" retryable and keeps the amber banner up meanwhile. (Contrast the
-        // verifyOtp path in useStartImpersonation, which removes a merely PROVISIONAL record for
+        // setSession path in useStartImpersonation, which removes a merely PROVISIONAL record for
         // a swap that never happened.)
         throw error;
       }

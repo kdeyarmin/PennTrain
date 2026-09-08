@@ -54,7 +54,7 @@ export const GATE_MARKERS = {
   "webhook-signature": ["verifyPhase2StripeSignature", "verifySignature(", "validateRequest(", "new Webhook("],
   "api-credential": ["parsePhase2ApiCredential", "parseScimAuthorization"],
   "user-jwt": ["auth.getUser(", "getUser("],
-  "guest-token": ["unsubscribe_token", "p_token", "token_sha256", "UUID_RE"],
+  "guest-token": ["unsubscribe_token", "p_token", "token_sha256", "UUID_RE", "verifyPackageAssetNonce("],
   "turnstile": ["verifyTurnstile", "TURNSTILE"],
   // Deliberately reachable with no credential. Requires a rationale like every other entry, and is
   // the one gate with no marker to prove -- which is exactly why it must be written down.

@@ -208,5 +208,11 @@
       "guest-token"
     ],
     "rationale": "Surveyors and inspectors download packaged survey evidence with a per-grant token; no account. The token is validated via resolve_survey_packet_guest_token (service-role)."
+  },
+  "learning-package-asset": {
+    "gates": [
+      "guest-token"
+    ],
+    "rationale": "Each GET verifies the server-minted launch nonce against learning_runtime_sessions.launch_nonce_sha256, expiry, live owner profile and matching accepted package/assignment/tenant; the nonce is a per-session content capability, never a user JWT."
   }
 }

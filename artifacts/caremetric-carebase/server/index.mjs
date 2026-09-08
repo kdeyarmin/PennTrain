@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Production static file server for the CareMetric CareBase SPA, deployed to Railway.
 //
-// This app has no backend of its own -- the browser talks to Supabase directly
-// via supabase-js. This server exists only to (a) serve the built Vite bundle
-// with SPA fallback routing, and (b) expose GET /health for Railway's
-// healthcheck, since `vite preview` cannot do either safely in production.
+// The browser talks to Supabase directly for application data. This server serves the built
+// Vite bundle, provides /health, and proxies session-scoped learning package assets with mandatory
+// response sandboxing; uploaded content never receives application credentials.
 import { createServer } from "node:http";
+import { proxyLearningPackage } from "./learning-package-proxy.mjs";
 import { createReadStream } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
@@ -186,7 +186,8 @@ function sendText(res, status, body) {
   res.end(body);
 }
 
-// This server never talks to Supabase itself -- the browser does, using whatever
+// Application data uses the browser Supabase client; the narrow package proxy additionally uses
+// the runtime URL. The browser uses whatever
 // VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY were baked into the currently-served bundle at
 // build time. This process's own env vars at request time can silently diverge from that
 // (no rebuild on a runtime variable change, dummy build-time values, etc.), so /health
@@ -441,6 +442,9 @@ async function serveFile(filePath, req, res, { cacheControl }) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+
+    const packagePath = stripBasePath(url.pathname);
+    if (packagePath && await proxyLearningPackage(req, res, packagePath, { supabaseUrl: process.env.VITE_SUPABASE_URL })) return;
 
     if (req.method !== "GET" && req.method !== "HEAD") {
       sendText(res, 405, "Method Not Allowed");

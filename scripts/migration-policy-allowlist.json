@@ -82,5 +82,11 @@
     "rule": "anon-public-grant",
     "match": "public.respond_to_resident_agreement_guest",
     "rationale": "Re-grant of a pre-existing anon-executable guest RPC, unchanged in who may call it and NARROWED in what a refusal discloses. 20260905360000 had to drop and recreate the eight boolean/uuid guest RPCs to widen their return type to jsonb, and a dropped function takes its grants with it. The reason for the widening is the denial path, not the success path: a denied guest call must not raise, because PostgREST runs the whole RPC in one transaction and an exception discards the throttle counter and failed-token row the gate wrote on the way in -- which is why the throttle added in 20260905230000 recorded nothing at all for any denial. A denial now sets response.status 403 and returns a PostgREST-shaped error body, and a scalar return type cannot carry one: measured against postgrest-js, a 403 whose body is `false` or `null` arrives as a FALSY error with null data, which is a silent failure rather than a refusal. Each function stays SECURITY DEFINER with search_path pinned empty, still requires the same opaque token, and returns no more than it did before. BACKLOG.md I29."
+  },
+  {
+    "file": "20260908220014_enforce_impersonation_session_lifetime.sql",
+    "rule": "anon-public-grant",
+    "match": "public.enforce_request_impersonation_lifetime",
+    "rationale": "PostgREST runs its pre-request guard for anonymous public routes too. This no-argument void guard returns no user data, leaves anonymous traffic unchanged, and rejects an expired or ended authenticated impersonation context. SECURITY DEFINER with empty search_path is required to consult the service-only lifecycle table through the caller-scoped predicate. No table privileges are added."
   }
 ]
