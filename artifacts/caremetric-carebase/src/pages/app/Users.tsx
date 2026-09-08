@@ -817,7 +817,7 @@ export default function Users() {
                   <SelectTrigger id={`${__fieldIds}-organization`} className="h-9"><SelectValue placeholder="Select organization" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Select organization</SelectItem>
-                    {organizations?.map(o => (
+                    {organizations?.filter(o => !o.is_demo).map(o => (
                       <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
                     ))}
                   </SelectContent>

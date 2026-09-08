@@ -187,6 +187,23 @@ export function createAdminUpdateUserHandler({
       return json(req, { error: "not authorized to manage users" }, 403);
     }
 
+    // Same target-org lock as create-user/invite-user: a platform_admin has no caller
+    // organization_id, so the check above never fires for them. Moving someone into a public
+    // demo tenant is the same provisioning the Users page already refuses on create/invite.
+    if (typeof organization_id === "string" && organization_id) {
+      try {
+        if (await isDemoOrganization(callerClient, organization_id)) {
+          return json(req, { error: "Demo workspaces cannot invite or provision users" }, 403);
+        }
+      } catch (error) {
+        console.error(
+          "admin-update-user: target demo workspace check failed",
+          error instanceof Error ? error.message : error,
+        );
+        return json(req, { error: "Unable to verify demo workspace" }, 500);
+      }
+    }
+
     const assurance = await requireFreshAal2(callerClient, "identity_admin");
     if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
 

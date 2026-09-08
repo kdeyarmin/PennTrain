@@ -238,11 +238,20 @@ async function invokeEdgeFunction<TResponse>(functionName: string, body: object)
  *   { email, password, first_name, last_name, role, organization_id }
  *
  * The function calls `supabase.auth.admin.createUser({ email, password, email_confirm:
- * true, user_metadata: { first_name, last_name, role, organization_id } })` with the
- * service role key after verifying the caller's own role/org permit creating that role.
- * The `handle_new_user()` trigger then inserts the matching `profiles` row. `password`
- * here is a temporary password the admin sets directly; there is no separate "send
- * invite" flow in this shape -- the created user signs in with it and should be
+ * true, user_metadata: { first_name, last_name }, app_metadata: { role, organization_id } })`
+ * with the service role key after verifying the caller's own role/org permit creating that
+ * role. Role and organization_id MUST go in app_metadata -- that is the only field the
+ * public signup endpoint cannot set, and `handle_new_user()` is what reads them. Putting
+ * them in user_metadata would let anyone self-register as platform_admin.
+ *
+ * GoTrue writes app_metadata after the auth.users INSERT that fires handle_new_user,
+ * so the trigger still inserts the profile as employee / no organization. The function
+ * then calls `admin_update_profile()` with the intended role and organization -- the same
+ * compensation invite-user already had -- so the Users page "temporary password" path
+ * does not create an unscoped employee.
+ *
+ * `password` here is a temporary password the admin sets directly; there is no separate
+ * "send invite" flow in this shape -- the created user signs in with it and should be
  * prompted to change it (a forced-reset flag is not modeled yet).
  *
  * On success: 2xx with `{ success: true, user: { id, email } }`. On failure: non-2xx
