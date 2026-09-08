@@ -605,8 +605,19 @@ at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't t
 - Keep plain Supabase email signup disabled in Authentication -> Providers. Self-service signup
   should go through `signup-organization`, which enforces Turnstile, rate limits, and invite-email
   verification before the org_admin can set a password.
-- No linter (ESLint/Biome/etc.) is configured in this repo yet; CI now runs install, typecheck,
-  unit tests, Edge Function `deno check`, and production build. Add a linter separately if desired.
+- No linter (ESLint/Biome/etc.) is configured in this repo yet — `pnpm run typecheck` is the
+  static-analysis gate. What CI actually runs is much broader than that list used to say: a
+  path-filtered matrix of five jobs behind one aggregate `ci-result` check — the ~20 static checks,
+  self-tests, typecheck, unit tests, Edge Function `deno check`, both production builds, startup
+  and bundle-budget checks (`check:all`); a full migration replay on a local Supabase stack with
+  pgTAP, `db lint`, security/performance advisors, generated-types diff and the Playwright
+  journeys; migration immutability; the planning-register gate; and a per-push secret scan.
+  Add a linter separately if desired.
+- Repository-level automation the owner should know exists, all of it opening and closing its own
+  GitHub issues: nightly production drift check (`deploy-migrations.yml`, dry-run), daily
+  dependency advisory audit of `main`, weekly PA DHS source-freshness check, weekly full-history
+  secret scan, and a `[ci] main is red` alert that fires when a failed CI run on `main` means the
+  production deploy did not run.
 - `pnpm run db:migrate` requires `supabase login` + `supabase link --project-ref <ref>` to have been
   run once first (interactive, not scriptable).
 - `SENDGRID_API_KEY` must be set via `supabase secrets set` (step 1.4) for the training-reminder

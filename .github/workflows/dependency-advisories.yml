@@ -11,13 +11,29 @@ name: Dependency advisories
 #
 # Daily, not weekly: the three advisories that prompted this landed within a week of each other,
 # and a week's delay on a high/critical in a healthcare product is too long to defend.
+#
+# A VERDICT AND EVERYTHING ELSE. "main ships a vulnerable package" is one outcome; "the audit did
+# not run" is a different one, and it no longer leaves by the same door. The audit script defines
+# a strict exit-status contract (0 clean, 1 advisory found, 2 the script failed, 3 the registry was
+# unreachable) and this workflow captures that status, because GitHub hands a step's exit code to
+# bash but never to the expression language.
+#
+# Only status 1 opens the advisory issue. EVERY other non-zero status -- 2, 3, or one this script
+# does not define yet -- opens the differently-titled "could not run" issue instead, which states
+# in its first line that main was not audited. That asymmetry is the point: the failure mode being
+# designed against is a run asserting a vulnerability it never looked for. On 2026-09-04 three
+# registry timeouts did exactly that, commenting "Still failing" on the advisory issue with
+# nothing audited at all (BACKLOG K2), and a Copilot review of PR #502 found the same shape one
+# step further in -- an unparseable lockfile, which a pnpm major could produce, exited 1 like a
+# real finding. Both titles are closed automatically by the next run that resolves them
+# (BACKLOG K1); nothing here has to be retired by hand.
 
 on:
   schedule:
     - cron: "23 6 * * *"
   workflow_dispatch:
 
-# Read-only by default; the job below adds `issues: write` for its reporting step alone.
+# Read-only by default; the job below adds `issues: write` for its reporting steps alone.
 permissions:
   contents: read
 
@@ -27,6 +43,10 @@ permissions:
 concurrency:
   group: dependency-advisories
   cancel-in-progress: false
+
+env:
+  ADVISORY_TITLE: "[deps] High or critical advisory affects main"
+  NOT_AUDITED_TITLE: "[deps] Advisory audit could not run"
 
 jobs:
   audit-main:
@@ -49,68 +69,130 @@ jobs:
 
       # No --base: on main there is nothing to be "pre-existing" relative to, and strict is the
       # point of this job.
+      #
+      # The exit status is captured rather than left to the step, because it is the only thing that
+      # distinguishes the gate's VERDICT (1, a real advisory) from the several ways the audit can
+      # fail to produce one (2 this script broke, 3 the registry was unreachable), and GitHub hands
+      # a step's exit code to bash but never to the expression language. Written to $GITHUB_OUTPUT
+      # before re-raising, so the outputs survive the failure the step then reports; `pipefail`
+      # keeps `tee` from masking the status on its way through.
       - name: Audit main against the live advisory database
         id: audit
-        run: node scripts/check-dependencies.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          status=0
+          node scripts/check-dependencies.mjs 2>&1 | tee /tmp/dependency-audit.txt || status=$?
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          exit "${status}"
 
-      # Codex review finding: `failure()` alone is true after ANY earlier failed step, so a checkout
-      # problem, a broken classifier self-test, or an npm registry outage would open an issue
-      # asserting main ships a high/critical vulnerability. That is a false security signal, and a
-      # standing issue that gets bumped by unrelated infrastructure noise is worse than none --
-      # people stop believing it. Conditioned on the audit step's own outcome instead.
-      #
-      # Second Codex review finding, and the reason `failure()` is back alongside it: narrowing to
-      # the outcome ALONE meant this step never ran. GitHub wraps any `if:` containing no
-      # status-check function in an implicit `success()`, so the moment the audit step failed the
-      # condition became `success() && …` and the step was skipped -- in precisely the case it
-      # exists for. The daily audit went red and opened nothing. Both halves are needed: `failure()`
-      # to run at all after the failed step, the outcome test to make sure it was THIS step that
-      # failed (on a checkout failure `steps.audit.outcome` is `skipped`, not `failure`).
-      - name: Open or update issue on failure
-        if: ${{ failure() && steps.audit.outcome == 'failure' }}
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      # The audit's own report is what someone opening a failed run needs, and which of the two
+      # failure modes it was is legible from it at a glance.
+      - name: Publish the audit report to the run summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Dependency advisory audit (main, strict)"
+            echo
+            echo '```'
+            cat /tmp/dependency-audit.txt 2>/dev/null || echo "(the audit produced no output — it failed before running)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # BOTH halves of every condition below are load-bearing, and each one alone is a different
+      # bug. `failure()` alone is true after ANY earlier failed step, so a checkout problem, a
+      # broken classifier self-test, or an npm registry outage would open an issue asserting main
+      # ships a high/critical vulnerability. Narrowing to the outcome ALONE never runs at all:
+      # GitHub wraps any `if:` containing no status-check function in an implicit `success()`, so
+      # the moment the audit step fails the condition becomes `success() && …` and the step is
+      # skipped -- in precisely the case it exists for. Together they mean what was intended: run
+      # despite the failed step, but only when the failure was THIS step's (on a checkout failure
+      # `steps.audit.outcome` is `skipped`, not `failure`).
+      - name: Report an advisory against main
+        if: ${{ failure() && steps.audit.outcome == 'failure' && steps.audit.outputs.status == '1' }}
+        uses: ./.github/actions/reconcile-issue
         with:
-          script: |
-            const title = '[deps] High or critical advisory affects main';
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = [
-              'The daily dependency audit against main failed.',
-              '',
-              `- Run: ${runUrl}`,
-              '- Script: `scripts/check-dependencies.mjs` (strict: no `--base`)',
-              '',
-              'This means a package main already ships has a high or critical advisory. Pull requests',
-              'are NOT blocked by it — the PR-time gate only fails on advisories a branch introduces —',
-              'so this issue is the signal that it needs fixing.',
-              '',
-              'Usual fix: add or bump a `pnpm-workspace.yaml` override to the first patched version,',
-              'run `pnpm install --lockfile-only`, and confirm the lockfile actually re-resolves. Note',
-              'that a follow-up advisory often widens its range to swallow the previous override target,',
-              'so check what the existing override pins to before assuming it still helps.',
-              '',
-              'Opened automatically by `dependency-advisories.yml`. Close once main is green.',
-            ].join('\n');
+          state: open
+          title: ${{ env.ADVISORY_TITLE }}
+          bump-comment: "Still failing:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          body: |
+            The daily dependency audit against main failed.
 
-            const { data: open } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              per_page: 50,
-            });
-            const existing = open.find((i) => i.title === title);
-            if (existing) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: existing.number,
-                body: `Still failing:\n${runUrl}`,
-              });
-              return;
-            }
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - Report: the run summary on that page lists every package audited and every advisory found.
+            - Script: `scripts/check-dependencies.mjs` (strict: no `--base`)
 
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
-              body,
-            });
+            This means a package main already ships has a high or critical advisory. Pull requests
+            are NOT blocked by it — the PR-time gate only fails on advisories a branch introduces —
+            so this issue is the signal that it needs fixing.
+
+            Usual fix: add or bump a `pnpm-workspace.yaml` override to the first patched version,
+            run `pnpm install --lockfile-only`, and confirm the lockfile actually re-resolves. Note
+            that a follow-up advisory often widens its range to swallow the previous override target,
+            so check what the existing override pins to before assuming it still helps.
+
+            Opened automatically by `dependency-advisories.yml`. It closes itself once a later run
+            audits main clean.
+
+      # The audit demonstrably ran, so a standing "could not run" issue is no longer true.
+      - name: Retire the not-audited alert once the audit has run
+        if: ${{ failure() && steps.audit.outcome == 'failure' && steps.audit.outputs.status == '1' }}
+        uses: ./.github/actions/reconcile-issue
+        with:
+          state: closed
+          title: ${{ env.NOT_AUDITED_TITLE }}
+          close-comment: "The audit reached the advisory database and completed on this run:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      # Any non-zero status that is not the verdict: nothing was audited. Deliberately says nothing
+      # about whether main is vulnerable, and deliberately does NOT touch the advisory issue -- a
+      # run that did not look is evidence in neither direction. This is also the branch an exit
+      # status nobody has defined yet lands in, which is the safe place for one to land.
+      - name: Report that the audit could not run
+        if: ${{ failure() && steps.audit.outcome == 'failure' && steps.audit.outputs.status != '1' }}
+        uses: ./.github/actions/reconcile-issue
+        with:
+          state: open
+          title: ${{ env.NOT_AUDITED_TITLE }}
+          bump-comment: "Still not running:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          body: |
+            The daily dependency audit did not reach a verdict, so **main was not audited**. This is
+            not a finding about this repository's dependencies — it says the check did not run.
+
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - Report: the run summary on that page carries the audit's own output, including the error.
+            - Script: `scripts/check-dependencies.mjs`
+
+            Two things land here, and the run log says which:
+
+            - **Exit 3 — the advisory database was unreachable.** The audit retries three times
+              before giving up, so this is a sustained outage of, or a block between this runner
+              and, `registry.npmjs.org` rather than a blip. Nothing needs doing if tomorrow's run
+              succeeds.
+            - **Exit 2 — the audit itself failed**, before it could look anything up: an
+              unparseable `pnpm-lock.yaml` (a pnpm major that changes the lockfile shape will do
+              this), a bad argument, or a bug in the script. This one does not fix itself, and
+              while it persists nothing is auditing main.
+
+            Either way this issue closes itself once a later run completes. If it persists for more
+            than a day or two, treat main as unwatched until it is fixed.
+
+            Opened automatically by `dependency-advisories.yml`.
+
+      # A clean audit resolves both alerts: main carries no high/critical advisory, and the
+      # database was plainly reachable.
+      - name: Retire both alerts on a clean audit
+        if: ${{ success() && steps.audit.outcome == 'success' }}
+        uses: ./.github/actions/reconcile-issue
+        with:
+          state: closed
+          title: ${{ env.ADVISORY_TITLE }}
+          close-comment: "The daily audit of main is clean — no high or critical advisory affects any package it ships:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Retire the not-audited alert on a clean audit
+        if: ${{ success() && steps.audit.outcome == 'success' }}
+        uses: ./.github/actions/reconcile-issue
+        with:
+          state: closed
+          title: ${{ env.NOT_AUDITED_TITLE }}
+          close-comment: "The audit reached the advisory database and completed on this run:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

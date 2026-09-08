@@ -8,6 +8,12 @@ inputs:
     description: Run `pnpm install --frozen-lockfile` after enabling pnpm
     required: false
     default: "true"
+  install-filter:
+    description: >
+      Optional `--filter` passed to the install, to bring in one workspace package instead of
+      all five. `.` selects the repository root alone.
+    required: false
+    default: ""
   pnpm-version:
     description: pnpm version passed to `corepack prepare`
     required: false
@@ -48,7 +54,20 @@ runs:
         restore-keys: |
           pnpm-store-${{ runner.os }}-
 
+    # `--filter` is opt-in and empty by default, so every existing caller installs the whole
+    # workspace exactly as before. deploy-migrations.yml passes `.` because the only thing it
+    # needs from node_modules is libpg-query, for the post-push drift check: measured here, that
+    # is 3 packages rather than 690, in a job that holds the production database password and
+    # Supabase access token. Fewer packages executing their lifecycle scripts next to those
+    # credentials is the point; the seconds saved are incidental. BACKLOG K7.
     - name: Install dependencies
       if: inputs.install-deps == 'true'
       shell: bash
-      run: pnpm install --frozen-lockfile
+      env:
+        INSTALL_FILTER: ${{ inputs.install-filter }}
+      run: |
+        if [ -n "${INSTALL_FILTER}" ]; then
+          pnpm install --frozen-lockfile --filter "${INSTALL_FILTER}"
+        else
+          pnpm install --frozen-lockfile
+        fi

@@ -134,9 +134,9 @@ jobs:
           # `.github/workflows/*` and `.github/actions/*` cover workflow and composite-action
           # changes so path-filter edits re-validate. Deliberately NOT a bare `.github/*`: that
           # also matched `.github/dependabot.yml` -- and would match any issue template or
-          # CODEOWNERS file added later -- so editing one booted the whole 45-minute `database`
-          # job, a local Supabase stack, 581 migrations and a Playwright suite, to validate a file
-          # no job reads.
+          # CODEOWNERS file added later -- so editing one booted the whole `database` job (a local
+          # Supabase stack, 681 migrations and the Playwright suite, about eight minutes) to
+          # validate a file no job reads.
           APP_PATTERNS=(
             "artifacts/*"
             "scripts/*"
@@ -162,6 +162,14 @@ jobs:
             "railpack.json"
             "tsconfig.base.json"
             ".nvmrc"
+            # check:all now asserts that the Node, pnpm, Supabase-CLI and Deno pins agree across
+            # every file that states one (check-toolchain-pins.mjs), and two of those files are
+            # not covered by anything above. Without them a Dependabot bump of a dev-container
+            # base image, or an edit to the agent runbook, would change a pin in a diff that runs
+            # no job able to notice the other copies now disagree -- which is the drift the check
+            # was added to catch, arriving through the path filter.
+            ".devcontainer/*"
+            "AGENTS.md"
           )
 
           # database → local Supabase stack, advisors, types drift, Playwright e2e
@@ -479,13 +487,23 @@ jobs:
   # changes without the register moving too — tests, fixtures, generated types, and docs
   # are exempt, so docs-only and test-only PRs never see it. Not path-filtered: the check
   # decides for itself whether the diff is register-affecting, and it takes seconds.
-  # Runs on pushes to main as well as pull requests, and that is not redundant. Gating
-  # only pull requests left main unprotected twice over: this job never fired for a direct
-  # push, and the tree-mode copy inside `application`'s check:all cannot help either
-  # because that job checks out shallow and the freshness rule skips itself when it cannot
-  # resolve the baseline commit. Four register-affecting commits reached main through that
-  # gap within hours of the check landing. Here the checkout is deep, so on main the tree
-  # mode runs for real and a drifted stamp turns the branch red.
+  # Runs on pushes to main as well as pull requests, and that is not redundant. Gating only
+  # pull requests left main unprotected twice over: this job never fired for a direct push,
+  # and the copy of the same check inside `application`'s check:all could not stand in for it
+  # -- that job is path-filtered, so on a diff that touches neither application code nor a
+  # migration it does not run at all. Four register-affecting commits reached main through
+  # that gap within hours of the check landing. This job is not path-filtered and checks out
+  # deep, so on main the tree mode runs for real and a drifted stamp turns the branch red.
+  #
+  # The two copies now agree about which mode they are in, which they did not always: the one
+  # inside check:all is invoked with no arguments, and it used to read that as tree mode even
+  # on a pull request -- walking the branch commit by commit and failing a PR that shipped a
+  # migration in one commit and re-verified the register in the next, which is conforming and
+  # which this job (whole-diff PR mode) passes. That was inert only while `application` checked
+  # out shallow; giving it `fetch-depth: 0` for the dependency gate's base comparison switched
+  # it on, and CI run 2055 went red on exactly that. The script now resolves its own mode from
+  # GITHUB_BASE_REF when no `--base` is passed. See scripts/check-planning-registers.mjs and
+  # BACKLOG K3.
   planning-registers:
     runs-on: ubuntu-latest
     # 10, not 5, because essentially all of it is clone time. The check itself runs in under a
@@ -535,12 +553,23 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full clone on purpose, and the one checkout here that must NOT be `filter: blob:none`:
-          # gitleaks reads the content of every historical blob, so a partial clone would refetch
-          # all of them one at a time instead of once in bulk -- strictly slower, same bytes.
+          # Full clone, and the one checkout here that is not `filter: blob:none`. The scan below
+          # runs gitleaks over `<base>^..<head>`, so it needs the commit BEFORE the push's first
+          # commit to exist locally, and it reads the blob content of everything in that range.
+          # `fetch-depth: 0` is the simple guarantee of both.
           fetch-depth: 0
 
-      - name: Scan repository history for committed secrets
+      # Scans THIS PUSH (or this pull request), not the repository's history -- verified against
+      # the pinned action's `src/index.js`, which sets a baseRef/headRef for `push` and
+      # `pull_request` and passes `--log-opts=--no-merges --first-parent <base>^..<head>`. That is
+      # the right scan to run here: it catches a secret in the commit that introduces it, which is
+      # the cheapest moment to catch one, and it costs seconds.
+      #
+      # History-wide coverage is a different scan and now has its own workflow --
+      # `.github/workflows/secret-scan-history.yml`, weekly, which is one of the only two events
+      # (schedule, workflow_dispatch) the action scans full history for. This step was previously
+      # named as though it did that job. It never has. BACKLOG K6.
+      - name: Scan this push for committed secrets
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -612,3 +641,99 @@ jobs:
           done
 
           echo "CI path-filtered matrix OK"
+
+  # A red main was the last silent path to the failure deploy-migrations.yml exists to close.
+  #
+  # When CI fails on a push to main, that workflow's `deploy` job evaluates its `if:` to false and
+  # both of its jobs report `skipped`. Nothing opens an issue, nothing comments, and any migration
+  # or edge function in that commit stays undeployed until somebody happens to push again -- eight
+  # of the last forty deploy runs were exactly this. GitHub does email the pusher, but a compliance
+  # product should not rest a production-deploy gap on whether one person reads a notification.
+  #
+  # Deliberately keyed on `ci-result` rather than on the individual jobs, because `ci-result` is
+  # already the exact predicate the deploy waits on: the run's conclusion. A `skipped` ci-result
+  # (the run was cancelled) is not success either, and the deploy does not fire then, so it opens
+  # the alert too. The per-job results are read only to say WHICH job was red in the body.
+  #
+  # This is the one job in this workflow with `issues: write`, and it runs no repository code.
+  # BACKLOG K5.
+  main-branch-alert:
+    # NEVER allowed to fail this workflow, and this is load-bearing rather than tidiness.
+    # `deploy-migrations.yml` gates the production deploy on `workflow_run.conclusion == 'success'`
+    # -- the conclusion of this whole run, not of `ci-result`. So without this line a transient
+    # Issues-API 5xx or a checkout blip in a job whose only purpose is to maintain an
+    # INFORMATIONAL issue would turn the run red and block a validated migration and edge-function
+    # deploy, while opening no alert at all (this job only alerts when `ci-result` failed, which it
+    # had not). A reporting path that can stop a deploy is worse than no reporting path. Raised by
+    # Codex on PR #502.
+    continue-on-error: true
+    needs:
+      - changes
+      - application
+      - database
+      - migration-immutability
+      - planning-registers
+      - secret-scan
+      - ci-result
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # Needed only so the local composite action below is on disk. Shallow: nothing here reads
+      # history, and this job must not become another full clone on every push to main.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compose the alert
+        id: alert
+        if: ${{ needs.ci-result.result != 'success' }}
+        shell: bash
+        env:
+          RESULTS: >-
+            changes=${{ needs.changes.result }}
+            application=${{ needs.application.result }}
+            database=${{ needs.database.result }}
+            migration-immutability=${{ needs.migration-immutability.result }}
+            planning-registers=${{ needs.planning-registers.result }}
+            secret-scan=${{ needs.secret-scan.result }}
+            ci-result=${{ needs.ci-result.result }}
+        run: |
+          set -euo pipefail
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          delimiter="BODY_$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+          {
+            echo "body<<${delimiter}"
+            echo "CI did not succeed on a push to \`main\`, so **\`deploy-migrations.yml\` did not run**."
+            echo ""
+            echo "Anything in this commit that reaches production through that workflow — a migration,"
+            echo "an edge function, a \`supabase/config.toml\` change — is still undeployed, and will stay"
+            echo "that way until a later push to main goes green. That is the failure the deploy workflow"
+            echo "was written to close, arriving through the one door it does not watch."
+            echo ""
+            echo "- Run: ${run_url}"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Job results: \`${RESULTS}\`"
+            echo ""
+            echo "Fix main, or revert the commit. This issue closes itself on the next green push to main,"
+            echo "which is also the push that deploys."
+            echo "${delimiter}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or bump the alert while main is red
+        if: ${{ needs.ci-result.result != 'success' }}
+        uses: ./.github/actions/reconcile-issue
+        with:
+          state: open
+          title: "[ci] main is red, so the production deploy did not run"
+          body: ${{ steps.alert.outputs.body }}
+          bump-comment: "Still red on `${{ github.sha }}` — the deploy did not run for this commit either:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Retire the alert once main is green again
+        if: ${{ needs.ci-result.result == 'success' }}
+        uses: ./.github/actions/reconcile-issue
+        with:
+          state: closed
+          title: "[ci] main is red, so the production deploy did not run"
+          close-comment: "main is green again on `${{ github.sha }}`, and this run's success is what triggers the deploy:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

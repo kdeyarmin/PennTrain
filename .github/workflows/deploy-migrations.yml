@@ -20,12 +20,28 @@ name: Deploy migrations
 #
 # Required repository variable (Settings -> Secrets and variables -> Actions -> Variables):
 #   SUPABASE_PROJECT_ID    -- project ref (fallback hardcoded below if unset, for first migrate)
+#
+# WHY THERE IS ALSO A NIGHTLY SCHEDULE. This workflow only ever looked at production when
+# something was merged, so the repo/remote relationship was unobserved between merges -- and the
+# two ways it goes wrong both surface as a FAILED DEPLOY of whatever merges next, which is the
+# worst moment to find out. On 2026-09-07 a migration applied to production out-of-band (through
+# the Management API) meant the next merge's `db push` refused to run at all: "Remote migration
+# versions not found in local migrations directory". That deploy carried unrelated edge-function
+# changes, and they sat undeployed for 34 minutes until the file recording the migration was
+# merged. The nightly run is the same job in dry-run mode: it pushes nothing and deploys nothing,
+# it just runs the two drift checks against production, so an orphan version, a pending
+# migration, or a missing function is reported on its own schedule rather than discovered by the
+# next person to merge. It also closes a stale deploy-failure issue once production is verifiably
+# back in sync. BACKLOG K4.
 
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
+  schedule:
+    # Nightly, offset from the other scheduled jobs so three runners are not started at once.
+    - cron: "41 7 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -45,8 +61,16 @@ permissions:
 
 # Never let two deploys run against the database at once; queue them instead of cancelling,
 # since cancelling a half-applied `db push` is worse than waiting.
+#
+# The nightly dry run gets its OWN group, and that is deliberate. It uses the `production`
+# environment because that is where the credentials live, so if that environment ever has a
+# required reviewer, a scheduled run sits waiting for approval -- and a run waiting on approval
+# holds its concurrency group. In one shared group that queued dry run would block a real deploy
+# behind a nightly read-only check nobody is watching for, which is far worse than what the
+# separate group risks: a dry run overlapping a deploy and reporting drift it caught mid-flight.
+# That false alarm closes itself on the next run; a blocked production deploy does not.
 concurrency:
-  group: deploy-migrations
+  group: deploy-migrations${{ github.event_name == 'schedule' && '-nightly' || '' }}
   cancel-in-progress: false
 
 jobs:
@@ -66,13 +90,19 @@ jobs:
     # That is a path from "open a PR" to "run `supabase db push` and deploy edge functions against
     # production" on unmerged, unreviewed code. Requiring the triggering run to be a `push` on this
     # repository closes it, because a fork PR is always `pull_request` from another repository.
+    #
+    # `schedule` is safe to admit here because a scheduled run is forced into dry-run mode by the
+    # DRY_RUN expression below: it runs the drift checks and never `db push`, `functions deploy`
+    # or the prune. GitHub only ever fires `schedule` on the default branch, so there is no ref
+    # for a caller to choose.
     if: >-
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_repository.full_name == github.repository) ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'schedule'
     environment: production
     # `actions: read` is load-bearing here and only here: the gate below queries this workflow's
     # own run and artifact history to decide whether this SHA was already deployed.
@@ -83,16 +113,27 @@ jobs:
       skipped: ${{ steps.gate.outputs.skip }}
       reason: ${{ steps.gate.outputs.reason }}
       deploy_sha: ${{ steps.gate.outputs.deploy_sha }}
+      # True only when this run actually pushed migrations and deployed functions. Read by
+      # `close-resolved`, which must not retire an alert on the strength of a dry run.
+      deployed: ${{ steps.deployed.outputs.deployed }}
+    # The two production credentials are deliberately NOT here. Job-level `env` is visible to
+    # every step, which put the database password and the Supabase access token in the
+    # environment of `pnpm install` -- hundreds of third-party packages and their lifecycle
+    # scripts -- and of the CLI's function bundler, neither of which has any use for them. They
+    # are attached below to the six steps that actually talk to Supabase. Nothing else in this
+    # job can read them. BACKLOG K7.
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       # Prefer repository/environment variable; fall back to the known prod ref so first
       # deploys keep working before the variable is created.
       SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID || 'xsqobvvreaovwibxwyvv' }}
       # Always the SHA we check out and deploy — NOT github.sha on workflow_run (which is the
       # tip of main at dispatch time and can lag/lead the validated commit).
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
+      # A scheduled run is ALWAYS a dry run: it exists to observe production, never to change it.
+      # Written as an explicit `||` of two conditions rather than a ternary, for the reason the
+      # prune step's own comment records -- GitHub's `A && B || C` returns C whenever B is falsy,
+      # and that has already produced one wrong answer in this file.
+      DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') || github.event_name == 'schedule' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -223,6 +264,14 @@ jobs:
             fi
           done
 
+          # The list above is every input that changes what a deploy DOES, and it was incomplete:
+          # the prune script and its manifest decide which functions get deleted from production,
+          # and the two composite actions pin the Supabase CLI and the Node/pnpm toolchain that
+          # runs the whole thing. A change to any of them with no migration or function alongside
+          # it would have found "no Supabase changes" and skipped. PREV_SHA usually covers it in
+          # practice, but "usually" is not what a short-circuit in front of a production deploy
+          # should rest on. BACKLOG K7.
+          #
           # A lookup that failed above leaves a hole in the history, and the hole is not harmless:
           # the newest run carrying a stamp may be one this loop could not read, in which case
           # PREV_SHA names an OLDER deploy and diffing against it can find no Supabase changes and
@@ -251,7 +300,11 @@ jobs:
                 scripts/check-migration-drift.mjs \
                 scripts/check-edge-function-drift.mjs \
                 scripts/stamp-edge-function-deploy.mjs \
-                .github/workflows/deploy-migrations.yml
+                scripts/prune-removed-edge-functions.mjs \
+                scripts/removed-edge-functions.json \
+                .github/workflows/deploy-migrations.yml \
+                .github/actions/setup-supabase-cli/action.yml \
+                .github/actions/setup-node-pnpm/action.yml
             ) || DIFF_STATUS=$?
             if [ "${DIFF_STATUS}" -ne 0 ]; then
               echo "::warning::Could not diff ${PREV_SHA}..${SHA} (git exit ${DIFF_STATUS}); deploying rather than skipping on an undetermined path check."
@@ -275,8 +328,13 @@ jobs:
         if: steps.gate.outputs.skip == 'true'
         run: echo "Skipping deploy (${{ steps.gate.outputs.reason }})"
 
+      # Root package only. The single thing this job needs from node_modules is libpg-query, for
+      # the post-push drift check; installing all five workspace packages ran 690 packages'
+      # lifecycle scripts in a job holding production credentials. See the composite action.
       - uses: ./.github/actions/setup-node-pnpm
         if: steps.gate.outputs.skip != 'true'
+        with:
+          install-filter: "."
 
       # Pin both the setup action and the CLI version to match the CI database job, so
       # push behavior reproduces what CI validated.
@@ -285,6 +343,9 @@ jobs:
 
       - name: Verify deploy secrets are configured
         if: steps.gate.outputs.skip != 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
             echo "::error::SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD repository/environment secrets must be set before this workflow can deploy. See MIGRATION_DEPLOYMENT_AUDIT.md."
@@ -298,6 +359,9 @@ jobs:
 
       - name: Link Supabase project
         if: steps.gate.outputs.skip != 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       # --include-all backfills any pending migration whose version sorts before one already
@@ -305,10 +369,18 @@ jobs:
       # would refuse it and leave drift, which the verify step below would then flag.
       - name: Push pending migrations
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase db push --include-all
 
+      # Runs on a dry run too, and that is the point of the nightly schedule: this is the check
+      # that reports a pending migration, an orphan version applied out-of-band, or a deployed
+      # file edited after the fact -- without changing anything.
       - name: Verify no migration drift remains
         if: steps.gate.outputs.skip != 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/check-migration-drift.mjs
 
       # Deploy every edge function with its supabase/config.toml settings (verify_jwt et al.)
@@ -316,6 +388,8 @@ jobs:
       # Presence drift is re-checked after deploy; a content stamp is archived for operators.
       - name: Deploy edge functions
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
 
       # `supabase functions deploy` only pushes what is in the tree -- it never removes a function
@@ -331,14 +405,20 @@ jobs:
       # delete anything. An `if:` condition cannot be got wrong that quietly.
       - name: Prune edge functions removed from the repository
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/prune-removed-edge-functions.mjs --apply
 
       - name: Report edge functions that would be pruned (dry run)
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/prune-removed-edge-functions.mjs
 
       - name: Verify edge function presence (no pending/orphan slugs)
         if: steps.gate.outputs.skip != 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/check-edge-function-drift.mjs
 
       - name: Stamp deployed function content digests
@@ -347,6 +427,13 @@ jobs:
           # Stamp must record the validated deploy SHA, not workflow_run tip-of-main.
           DEPLOY_SHA: ${{ env.DEPLOY_SHA }}
         run: node scripts/stamp-edge-function-deploy.mjs edge-function-deploy-stamp.json
+
+      # The last step of the real deploy path, and the only thing that may authorise closing a
+      # `[deploy]` alert. See close-resolved for why a green dry run is not enough.
+      - name: Record that production was actually changed
+        id: deployed
+        if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
+        run: echo "deployed=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload edge function deploy stamp
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
@@ -391,77 +478,120 @@ jobs:
     permissions:
       contents: read
       issues: write
+    env:
+      DEPLOY_SHA: ${{ needs.deploy.outputs.deploy_sha || github.event.workflow_run.head_sha || github.sha }}
+      DEPLOY_RESULT: ${{ needs.deploy.result }}
+      # A scheduled run (and a dispatched dry run) changes nothing, so its failure is a report
+      # about the state production is ALREADY in, not a broken deploy. Same job, different news,
+      # and the issue has to say which or the reader starts in the wrong place.
+      IS_DRY_RUN: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') }}
     steps:
-      - name: Open issue on deploy failure
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          DEPLOY_SHA: ${{ needs.deploy.outputs.deploy_sha || github.event.workflow_run.head_sha || github.sha }}
-          DEPLOY_RESULT: ${{ needs.deploy.result }}
+      # Needed only so the local composite action below is on disk. Shallow: nothing here reads
+      # history.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compose the alert
+        id: alert
+        shell: bash
+        run: |
+          set -euo pipefail
+          short="${DEPLOY_SHA:0:7}"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          if [ "${IS_DRY_RUN}" = "true" ]; then
+            title="[deploy] Production drift check failed (${short})"
+            lead="The drift check against production failed. **Nothing was pushed and nothing was deployed** — this is a report about the state production is already in."
+          else
+            title="[deploy] Production migration/function deploy failed (${short})"
+            lead="Deploy workflow ended with \`${DEPLOY_RESULT}\` for \`${DEPLOY_SHA}\`."
+          fi
+
+          # Randomised delimiter: the body is assembled here and nothing untrusted reaches it, but
+          # a fixed one is the kind of thing that stops being true later.
+          delimiter="BODY_$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+          {
+            echo "title=${title}"
+            echo "body<<${delimiter}"
+            echo "${lead}"
+            echo ""
+            echo "- Run: ${run_url}"
+            echo "- Event: ${GITHUB_EVENT_NAME}"
+            echo "- Result: \`${DEPLOY_RESULT}\`"
+            if [ "${IS_DRY_RUN}" = "true" ]; then
+              echo ""
+              echo "Two checks fail this run, and the log says which:"
+              echo ""
+              echo "- **\`check-migration-drift.mjs\`** — PENDING (a committed migration production does not have), ORPHAN (a version applied to production with no file here), or CONTENT (a deployed file edited after the fact). An ORPHAN is the urgent one: until the file recording it is committed, the next merge's \`supabase db push\` refuses to run at all, and that merge's edge functions do not deploy either."
+              echo "- **\`check-edge-function-drift.mjs\`** — a function exists on one side and not the other."
+            fi
+            if [ "${DEPLOY_RESULT}" = "cancelled" ]; then
+              echo ""
+              echo "**This deploy was cancelled, which has two very different causes — check which one:**"
+              echo "- *Superseded in the queue.* Another deploy for a newer commit was already waiting."
+              echo "  Harmless: the later run deploys these migrations too, and \`db push\` is idempotent."
+              echo "  The run above will show the job never started."
+              echo "- *Timed out mid-deploy.* The job hit \`timeout-minutes\` while running. Production may"
+              echo "  be part-way through a migration or function deploy — check the run log and the"
+              echo "  project before re-running."
+            fi
+            echo ""
+            echo "Opened automatically by \`deploy-migrations.yml\` (\`notify-failure\` job). It closes itself once a later run deploys, or verifies, this project cleanly."
+            echo "${delimiter}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or bump the deploy alert
+        uses: ./.github/actions/reconcile-issue
         with:
-          script: |
-            const short = (process.env.DEPLOY_SHA || 'unknown').slice(0, 7);
-            const result = process.env.DEPLOY_RESULT || 'unknown';
-            const title = `[deploy] Production migration/function deploy failed (${short})`;
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            // `cancelled` is the one result with a benign explanation, so say so here rather than
-            // suppressing the whole notification on a guess about what produced it. Two things
-            // reach this job as `cancelled`: a run superseded in the deploy concurrency queue
-            // (harmless -- a later run deploys the same migrations, and `db push` is idempotent)
-            // and a deploy that exceeded `timeout-minutes` mid-flight (not harmless at all).
-            const cancelledNote = result === 'cancelled'
-              ? [
-                  '',
-                  '**This deploy was cancelled, which has two very different causes — check which one:**',
-                  '- *Superseded in the queue.* Another deploy for a newer commit was already waiting.',
-                  '  Harmless: the later run deploys these migrations too, and `db push` is idempotent.',
-                  '  The run above will show the job never started.',
-                  '- *Timed out mid-deploy.* The job hit `timeout-minutes` while running. Production may',
-                  '  be part-way through a migration or function deploy — check the run log and the',
-                  '  project before re-running.',
-                ]
-              : [];
-            const body = [
-              `Deploy workflow ended with \`${result}\` for \`${process.env.DEPLOY_SHA}\`.`,
-              '',
-              `- Run: ${runUrl}`,
-              `- Event: ${context.eventName}`,
-              ...cancelledNote,
-              '',
-              'Opened automatically by `deploy-migrations.yml` (`notify-failure` job). Close after a successful re-run or a manual fix.',
-            ].join('\n');
+          state: open
+          title: ${{ steps.alert.outputs.title }}
+          labels: deploy-failure
+          body: ${{ steps.alert.outputs.body }}
+          bump-comment: "Another non-success for this SHA (result=`${{ needs.deploy.result }}`):\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-            const { data: open } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              per_page: 30,
-            });
-            const existing = open.find((i) => i.title === title || (i.title.includes(short) && i.title.startsWith('[deploy]')));
-            if (existing) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: existing.number,
-                body: `Another non-success for this SHA (result=${result}):\n${runUrl}`,
-              });
-              return;
-            }
+  # The other half of the alert, and the half that never existed: something has to retire these.
+  #
+  # Every `[deploy]` issue describes the same condition -- production is not what this repository
+  # says it should be -- so a run that reaches the end of the deploy path answers all of them at
+  # once, whatever SHA their titles carry. `supabase db push` is cumulative and `functions deploy`
+  # pushes every function, so a green deploy of a LATER commit deploys everything an earlier failed
+  # one was carrying; and the two drift checks then confirm, against the live project, that nothing
+  # is pending, orphaned or divergent. That is a stronger statement than any single issue's title.
+  #
+  # It does NOT run for a dry run, and that is a correction rather than a caution. The nightly was
+  # originally allowed to close these on the grounds that it runs both drift checks, so a green one
+  # proves production is in sync. That is true of MIGRATIONS -- `check-migration-drift.mjs` compares
+  # the md5 of the deployed statements -- and false of EDGE FUNCTIONS.
+  # `check-edge-function-drift.mjs` compares local and remote slug SETS only; the content digests it
+  # prints are never compared against anything remote, as its own header admits ("presence + stamp
+  # is the practical content gate"), because the deployed hash is not locally reproducible. So after
+  # a deploy that failed while updating an existing function, the slug is still present with the old
+  # bundle, the dry run passes, and closing here would retire the only alert saying production is
+  # running stale code. Raised by Codex on PR #502.
+  #
+  # A real deploy has no such gap: `supabase functions deploy` pushes every function, so reaching
+  # the end of that path makes production current by construction rather than by inference.
+  # `deployed` is set by the last step of that path, so the gate short-circuiting
+  # (same-sha-already-deployed, no Supabase changes) leaves it unset and closes nothing either.
+  close-resolved:
+    needs: deploy
+    # Housekeeping, and never the reason a deploy run goes red -- the same rule as
+    # `main-branch-alert` in ci.yml. Nothing gates on this workflow's conclusion today, but a red
+    # run against a successful deploy is a lie told to whoever reads the Actions list next.
+    continue-on-error: true
+    if: ${{ needs.deploy.result == 'success' && needs.deploy.outputs.deployed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-            try {
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title,
-                body,
-                labels: ['deploy-failure'],
-              });
-            } catch (err) {
-              // Label may not exist yet — create without labels.
-              core.warning(`Create with label failed (${err.message}); retrying without labels`);
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title,
-                body,
-              });
-            }
+      - name: Retire deploy alerts this run resolved
+        uses: ./.github/actions/reconcile-issue
+        with:
+          state: closed
+          title: "[deploy] Production migration/function deploy failed"
+          # Every `[deploy] …` title, including the per-SHA ones and the drift-check variant.
+          title-prefix: "[deploy] "
+          close-comment: "Deployed `${{ needs.deploy.outputs.deploy_sha }}` to production: every pending migration pushed, every edge function redeployed, and both drift checks clean afterwards. That supersedes whatever this issue was reporting.\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

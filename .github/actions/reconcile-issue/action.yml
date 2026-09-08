@@ -1,0 +1,170 @@
+name: Reconcile an automated issue
+description: >
+  Open (or bump) one automated issue for a failing check, or close the issues a passing
+  run has resolved. One implementation, so "when does this issue go away" is answered in
+  a single place for every workflow that opens one.
+
+# WHY THIS EXISTS. Three workflows open an issue when a check fails -- deploy-migrations.yml,
+# dependency-advisories.yml and dhs-source-freshness.yml -- and until now not one of them ever
+# closed one. Every alert this repository raises automatically had to be retired by hand, and the
+# cost was visible: 28 stale `[deploy]` issues accumulated between 2026-08-01 and 08-05 and were
+# closed in a batch a month later (BACKLOG I24), and two more sat open for deploys that a later
+# green run had already superseded. An alert that outlives the condition it describes is worse
+# than no alert, because the next real one arrives into a list nobody believes.
+#
+# The open half was already duplicated three times with three slightly different dedup rules. It
+# is here once, with the close half beside it, so the two can never drift apart. BACKLOG K1.
+
+inputs:
+  state:
+    description: '`open` to raise or bump the issue, `closed` to retire what this run resolved'
+    required: true
+  title:
+    description: Exact issue title. Matched exactly when opening; also matched when closing.
+    required: true
+  title-prefix:
+    description: >
+      When closing, also close every open issue whose title starts with this. For alerts whose
+      title carries a commit sha, so one green run retires the ones it superseded.
+    required: false
+    default: ""
+  body:
+    description: Issue body, used only when creating.
+    required: false
+    default: ""
+  bump-comment:
+    description: Comment posted when the issue is already open (the "still failing" note).
+    required: false
+    default: ""
+  close-comment:
+    description: Comment posted immediately before closing, saying what resolved it.
+    required: false
+    default: ""
+  labels:
+    description: Comma-separated labels applied on creation. Missing labels are not fatal.
+    required: false
+    default: ""
+  github-token:
+    description: "Token used for the issues API. Needs the `issues: write` permission."
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    # Same pinned SHA every workflow in this repository already runs for github-script.
+    - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        RECONCILE_STATE: ${{ inputs.state }}
+        RECONCILE_TITLE: ${{ inputs.title }}
+        RECONCILE_TITLE_PREFIX: ${{ inputs.title-prefix }}
+        RECONCILE_BODY: ${{ inputs.body }}
+        RECONCILE_BUMP_COMMENT: ${{ inputs.bump-comment }}
+        RECONCILE_CLOSE_COMMENT: ${{ inputs.close-comment }}
+        RECONCILE_LABELS: ${{ inputs.labels }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const state = process.env.RECONCILE_STATE;
+          const title = process.env.RECONCILE_TITLE;
+          const titlePrefix = process.env.RECONCILE_TITLE_PREFIX || "";
+          const owner = context.repo.owner;
+          const repo = context.repo.repo;
+
+          if (state !== "open" && state !== "closed") {
+            core.setFailed(`reconcile-issue: state must be 'open' or 'closed', got '${state}'`);
+            return;
+          }
+
+          // Paginated deliberately. The previous copies of this logic read `per_page: 30` (deploy)
+          // or `per_page: 50` (the two scheduled audits) and treated "not in that page" as "not
+          // open" -- which is how a second issue gets created for a condition that already has
+          // one, and exactly the state this repository was in when 28 deploy issues were open at
+          // once. Every open issue is considered, not the first page of them.
+          const open = await github.paginate(github.rest.issues.listForRepo, {
+            owner,
+            repo,
+            state: "open",
+            per_page: 100,
+          });
+          // Pull requests come back from the issues endpoint too, and closing one would be a very
+          // unwelcome surprise. Only real issues are candidates.
+          const issues = open.filter((issue) => !issue.pull_request);
+
+          if (state === "open") {
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              const body = process.env.RECONCILE_BUMP_COMMENT;
+              if (body) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: existing.number,
+                  body,
+                });
+              }
+              core.info(`Bumped #${existing.number}: ${title}`);
+              return;
+            }
+
+            const labels = process.env.RECONCILE_LABELS
+              .split(",")
+              .map((label) => label.trim())
+              .filter(Boolean);
+            const payload = { owner, repo, title, body: process.env.RECONCILE_BODY };
+            try {
+              const created = await github.rest.issues.create(
+                labels.length > 0 ? { ...payload, labels } : payload,
+              );
+              core.info(`Opened #${created.data.number}: ${title}`);
+            } catch (error) {
+              // A label that does not exist yet must not cost us the alert -- but that is the ONLY
+              // thing this retry is for, and it is not free. Retrying an identical request after a
+              // lost response is how one condition ends up with two issues, which is the failure
+              // this action exists to prevent. So it retries only when there were labels to drop
+              // (otherwise the second request is byte-identical to the first) and only when the
+              // rejection was a validation error, which is what GitHub returns for a label that
+              // does not exist. A 403, a 5xx or a dropped connection rethrows: the step goes red,
+              // which is visible, rather than quietly creating a duplicate. Raised by Codex on
+              // PR #502.
+              const isValidationError = error.status === 422;
+              if (labels.length === 0 || !isValidationError) throw error;
+              core.warning(
+                `Create with labels [${labels.join(", ")}] was rejected as invalid ` +
+                  `(${error.message}); retrying without them so the alert is still raised.`,
+              );
+              const created = await github.rest.issues.create(payload);
+              core.info(`Opened #${created.data.number}: ${title}`);
+            }
+            return;
+          }
+
+          const resolved = issues.filter(
+            (issue) => issue.title === title || (titlePrefix && issue.title.startsWith(titlePrefix)),
+          );
+          if (resolved.length === 0) {
+            core.info("Nothing to close.");
+            return;
+          }
+
+          const comment = process.env.RECONCILE_CLOSE_COMMENT;
+          for (const issue of resolved) {
+            if (comment) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body: comment,
+              });
+            }
+            // `completed`, not `not_planned`: the condition the issue described was actually
+            // resolved, and the closing comment says by which run.
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: issue.number,
+              state: "closed",
+              state_reason: "completed",
+            });
+            core.info(`Closed #${issue.number}: ${issue.title}`);
+          }

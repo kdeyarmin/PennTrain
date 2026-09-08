@@ -58,6 +58,19 @@ import { fileURLToPath } from "node:url";
 // --self-test runs only the pure classification/parsing fixtures (no git, no network).
 // Those fixtures also run at the start of every full invocation, mirroring
 // scripts/check-migration-immutability.mjs.
+//
+// WHICH MODE, AND WHY IT IS NOT JUST "--base OR NOT". Without `--base` this falls back to
+// `origin/$GITHUB_BASE_REF`, which GitHub sets on `pull_request` events and nowhere else --
+// the same rule scripts/check-migration-immutability.mjs's resolveBaseRef already applies.
+// That fallback is load-bearing for the copy of this check that runs inside `check:all`,
+// which passes no flags: without it, `check:all` evaluates TREE mode on a pull request,
+// walking `declared-stamp..HEAD` commit by commit and failing any single commit that shipped
+// register-affecting work without touching BACKLOG.md in that same commit. A PR that touches
+// a migration in one commit and re-verifies the register in the next is conforming -- the
+// dedicated `planning-registers` job passes it in PR mode -- and check:all failed it anyway.
+// That was inert only while the `application` job checked out shallow (the freshness rule
+// skips itself on a shallow clone); giving that job `fetch-depth: 0` for the dependency
+// gate's base comparison switched it on, and CI run 2055 went red on exactly this. BACKLOG K3.
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, "..");
@@ -133,6 +146,7 @@ const REGISTERS = [
   { path: "docs/ops/GO_LIVE_READINESS_REVIEW_PLAN.md", role: "reference" },
   { path: "docs/ops/PILOT_READINESS_PLAN.md", role: "reference" },
   { path: "docs/ops/RELEASE_READINESS_PLAN.md", role: "reference" },
+  { path: "docs/ops/CI_CD_WORKFLOW_REVIEW_2026-09-07.md", role: "reference" },
 ];
 
 // Root-level markdown whose name reads like a planning register. Anything matching this
@@ -320,6 +334,34 @@ const FIXTURES = [
     // A register edit alone is not drift and must not need a stamp bump to itself.
     "no drift: register only",
     () => commitIsDrift(["BACKLOG.md"]) === false,
+  ],
+
+  // resolveBaseRef -- the mode rule. The case that shipped wrong is the LAST one: no flag,
+  // on a pull request, which check:all's own invocation is.
+  ["base: explicit flag wins", () => resolveBaseRef(["--base", "origin/release"], {}) === "origin/release"],
+  [
+    "base: explicit flag wins over the environment",
+    () => resolveBaseRef(["--base", "origin/release"], { GITHUB_BASE_REF: "main" }) === "origin/release",
+  ],
+  ["base: no flag and no environment is tree mode", () => resolveBaseRef([], {}) === null],
+  [
+    "base: no flag off a pull request is still tree mode",
+    () => resolveBaseRef([], { GITHUB_REF: "refs/heads/main" }) === null,
+  ],
+  [
+    "base: no flag on a pull request is PR mode against the base branch",
+    () => resolveBaseRef([], { GITHUB_BASE_REF: "main" }) === "origin/main",
+  ],
+  [
+    "base: a flag with no value is rejected rather than silently ignored",
+    () => {
+      try {
+        resolveBaseRef(["--base"], {});
+        return false;
+      } catch {
+        return true;
+      }
+    },
   ],
 
   // parseStandingGaps
@@ -684,11 +726,33 @@ async function checkStandingGaps(today) {
 // Entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * The ref to diff against, or null for tree mode. See the header note on modes.
+ *
+ * Takes `env` rather than reading process.env so the fixtures can exercise the PR-detection
+ * rule itself, which is the half that was wrong: it is not enough for this to be right when
+ * someone passes the flag, because the invocation that broke was the one that passes nothing.
+ *
+ * An explicit `--base` always wins, so `check:all` on a developer's machine and the dedicated
+ * CI job both keep their current behaviour exactly.
+ */
+export function resolveBaseRef(argv, env = {}) {
+  const flagIndex = argv.indexOf("--base");
+  if (flagIndex !== -1) {
+    const value = argv[flagIndex + 1];
+    if (!value) throw new Error("--base requires a ref argument, e.g. --base origin/main");
+    return value;
+  }
+  // Set by GitHub on `pull_request` events only; absent on push, schedule, and locally, all
+  // of which genuinely want tree mode.
+  if (env.GITHUB_BASE_REF) return `origin/${env.GITHUB_BASE_REF}`;
+  return null;
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const selfTestOnly = argv.includes("--self-test");
-  const baseIndex = argv.indexOf("--base");
-  const baseRef = baseIndex >= 0 ? argv[baseIndex + 1] : null;
+  const baseRef = resolveBaseRef(argv, process.env);
 
   const fixtureCount = runFixtures();
   if (selfTestOnly) {

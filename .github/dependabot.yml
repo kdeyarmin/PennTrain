@@ -19,9 +19,10 @@ updates:
     # One PR for the week's action bumps instead of up to ten. These pins live in
     # `.github/workflows/*` and `.github/actions/*`, which the CI path filter treats as
     # application- AND database-affecting -- so each separate bump PR booted the full matrix,
-    # including the 45-minute `database` job with its local Supabase stack, 581 migrations and
-    # Playwright suite. Ten of those a week is most of a CI budget spent re-proving the same tree
-    # against near-identical diffs. Grouped, they are reviewed and validated once.
+    # including the `database` job with its local Supabase stack, 681 migrations and Playwright
+    # suite (about eight minutes, against a 45-minute timeout). Ten of those a week is a lot of a
+    # CI budget spent re-proving the same tree against near-identical diffs. Grouped, they are
+    # reviewed and validated once.
     groups:
       github-actions:
         patterns:
@@ -29,3 +30,46 @@ updates:
     labels:
       - dependencies
       - github-actions
+
+  # The dev container's three base images (node, denoland/deno, supabase/cli) are toolchain pins
+  # like any other, and until now nothing watched them -- so the container a developer builds
+  # could drift away from what CI runs without a single PR being opened. That drift is no longer
+  # silent (`check:toolchain-pins` fails on it, and `.devcontainer/*` is in the CI path filter so
+  # the check actually runs on these PRs), but a bump that fails that check is still a bump
+  # somebody has to notice; this way it arrives as a reviewable PR rather than as a surprise.
+  #
+  # Monthly, not weekly: these images move slowly, and a bump here is never urgent -- the dev
+  # container is not a deployment artifact. Grouped for the same reason the actions are.
+  - package-ecosystem: docker
+    directory: /.devcontainer
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      devcontainer-images:
+        patterns:
+          - "*"
+    labels:
+      - dependencies
+      - devcontainer
+
+# NPM IS DELIBERATELY NOT LISTED, and this is the decision rather than an omission.
+#
+# What would be gained: routine version bumps for ~690 locked packages arrive as PRs instead of
+# being done by hand. What is already covered without it: security is handled by
+# `scripts/check-dependencies.mjs`, which audits the live npm advisory database on every pull
+# request and again daily against main (`dependency-advisories.yml`), and which fails on a
+# high/critical a branch introduces -- Dependabot would not find those sooner. Supply-chain
+# timing is handled by `minimumReleaseAge: 1440` in pnpm-workspace.yaml, which refuses any
+# release under 24 hours old.
+#
+# What it would cost: `package.json` and `pnpm-lock.yaml` are in BOTH path-filter groups in
+# ci.yml, so every npm PR boots the full matrix including the local Supabase stack and the
+# Playwright suite. With one person reviewing, a queue of dependency PRs is not throughput; it is
+# a queue of things to skim and merge, which is how an unreviewed lockfile change gets in.
+# Version resolution is also non-trivial here: this workspace pins shared versions through a pnpm
+# `catalog:`, and a bump has to move the catalog entry rather than a package's own dependency
+# range for the pin to mean anything.
+#
+# Revisit if the daily audit starts finding advisories that a routine bump cadence would have
+# stayed ahead of -- that is the evidence that would change this answer. BACKLOG K8.

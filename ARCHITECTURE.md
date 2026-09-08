@@ -187,9 +187,24 @@ login identities.
 - `pnpm --filter @workspace/caremetric-carebase run dev` — run the frontend dev server
 - `pnpm --filter @workspace/caremetric-carebase run build` — production build
 - `pnpm run typecheck` — typecheck all workspace packages
-- Schema changes go through `mcp__Supabase__apply_migration`, then the exact same SQL is written to
-  `supabase/migrations/<version>_<name>.sql` using the version number Supabase actually assigned (from
-  `mcp__Supabase__list_migrations`), so the Supabase GitHub integration's preview-branch deploys stay in sync.
+- **Schema changes are committed as a migration file and applied by the pipeline** — write
+  `supabase/migrations/<UTC timestamp>_<name>.sql`, open a pull request, and merging it is what
+  applies it: `.github/workflows/deploy-migrations.yml` runs `supabase db push --include-all`
+  against production once CI passes on `main`, then deploys the edge functions. Do not apply
+  schema to production by hand first. This used to read the other way round — apply through
+  `mcp__Supabase__apply_migration`, then write the file — and that ordering predates the deploy
+  workflow and now breaks it: between the apply and the merge of the file recording it,
+  production holds a version with no local file, and `supabase db push` refuses to run at all
+  ("Remote migration versions not found in local migrations directory"). Because `db push` is the
+  first production step of every deploy, the next merge to `main` then fails *before* its edge
+  functions deploy, whether or not that merge had anything to do with the schema. That happened on
+  2026-09-07 and cost 34 minutes of undeployed changes.
+- **If a migration must be applied out-of-band** — a genuine emergency, or a change only the
+  Management API can make — the file recording it, named with the version Supabase actually
+  assigned (`mcp__Supabase__list_migrations`), belongs in the *same* pull request as anything that
+  depends on it, and on `main` as fast as it can be got there. Until it lands, every deploy is
+  blocked. The nightly drift check in `deploy-migrations.yml` reports the gap as an ORPHAN version
+  rather than leaving it for the next merge to discover.
 
 ## Scheduling
 

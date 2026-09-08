@@ -1,11 +1,20 @@
 name: DHS source freshness
 
+# Two different things can turn this red, and the issue it opens now says which: a PA.gov document
+# moved or changed content-type, or the 45-day human re-read of those documents is overdue. The old
+# title ("check failed") was read as the first when it was usually the second. The failing lines
+# themselves go into the issue body, so the cause is legible without opening the run. BACKLOG K10.
+#
+# The clock also warns before it fails now: `check-dhs-sources.mjs` prints a WARN line inside the
+# last seven days, which on a weekly cadence guarantees at least one passing run carries the notice.
+# The issue closes itself on the next green run (BACKLOG K1).
+
 on:
   schedule:
     - cron: "17 13 * * 1"
   workflow_dispatch:
 
-# Read-only by default; the job below adds `issues: write` for its reporting step alone.
+# Read-only by default; the job below adds `issues: write` for its reporting steps alone.
 permissions:
   contents: read
 
@@ -15,6 +24,9 @@ permissions:
 concurrency:
   group: dhs-source-freshness
   cancel-in-progress: false
+
+env:
+  DHS_TITLE: "[dhs] PA DHS sources: a link failed or the human review is overdue"
 
 jobs:
   official-source-health:
@@ -40,14 +52,9 @@ jobs:
           node scripts/check-dhs-sources.mjs 2>&1 | tee /tmp/dhs-source-check.txt
 
       # The checker writes its report -- one `OK <status> <url>` line per source, `FAIL <url>: …`
-      # for anything unreachable, and both verification ages -- to stdout. That report is what
-      # someone opening a failed run actually needs, so it goes on the run summary page.
-      #
-      # This replaces an "Upload source-check summary" artifact that uploaded
-      # `src/lib/dhsFormsLibrary.ts`: a file this job never writes, already committed at the SHA
-      # being tested, and one `git show` away for anyone who wanted it. It was not a summary of
-      # anything -- the checker creates no files at all -- and it banked a copy for 30 days every
-      # week.
+      # for anything unreachable, `WARN …` when a review deadline is approaching, and both
+      # verification ages -- to stdout. That report is what someone opening a run actually needs,
+      # so it goes on the run summary page. On a GREEN run it is where the WARN line surfaces.
       - name: Publish source-check report to the run summary
         if: always()
         shell: bash
@@ -60,12 +67,42 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Lift the FAIL lines out of the report so the issue body leads with the actual cause. A dead
+      # PA.gov link and an overdue human re-read need completely different work, and reading
+      # "check failed" as the former when it was the latter cost a week on run 7.
+      #
+      # The heredoc delimiter is randomised because these lines contain remote content (URLs and
+      # HTTP errors from pa.gov); a fixed delimiter appearing inside one of them would let it
+      # forge further step outputs.
+      - name: Collect the failing lines for the issue body
+        id: failures
+        if: ${{ failure() && steps.check.outcome == 'failure' }}
+        shell: bash
+        run: |
+          # Written as a plain assignment rather than a `grep | sed || echo` pipeline. GitHub does
+          # run `shell: bash` steps with `-o pipefail`, so the pipeline form worked -- but it works
+          # only because of a default two layers away from this file, and a reviewer reading it
+          # cannot tell whether an empty `lines` output means "no failures" or "the fallback never
+          # fired". This form does not depend on the flag at all. (Codex read it the other way on
+          # PR #502; the premise was wrong, the fragility it points at was not.)
+          failing="$(grep -E '^FAIL ' /tmp/dhs-source-check.txt 2>/dev/null || true)"
+          if [ -z "${failing}" ]; then
+            failing="    (the check produced no FAIL line — it failed before reaching one, so read the run summary)"
+          else
+            failing="$(printf '%s\n' "${failing}" | sed 's/^/    /')"
+          fi
+          delimiter="FAILLINES_$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+          {
+            echo "lines<<${delimiter}"
+            printf '%s\n' "${failing}"
+            echo "${delimiter}"
+          } >> "$GITHUB_OUTPUT"
+
       # BOTH halves are load-bearing, and each one alone is a different bug.
       #
       # `failure()` alone was the original: true after ANY earlier failed step, so a checkout or
-      # setup-node hiccup opened an issue titled "Official PA DHS source freshness check failed"
-      # while every PA.gov source was fine. A standing compliance alert bumped by infrastructure
-      # noise is one people stop believing.
+      # setup-node hiccup opened an issue about PA.gov sources while every one of them was fine. A
+      # standing compliance alert bumped by infrastructure noise is one people stop believing.
       #
       # `steps.check.outcome == 'failure'` alone -- the first attempt at that fix -- never runs at
       # all. GitHub wraps any `if:` with no status-check function in an implicit `success()`, so
@@ -75,55 +112,43 @@ jobs:
       #
       # Together they mean what was intended: run despite the failed step, but only when the failure
       # was this check's own. If checkout fails, `steps.check.outcome` is `skipped`, not `failure`.
-      - name: Open or update issue on failure
+      - name: Report a failed source check
         if: ${{ failure() && steps.check.outcome == 'failure' }}
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        uses: ./.github/actions/reconcile-issue
         with:
-          script: |
-            const title = '[dhs] Official PA DHS source freshness check failed';
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = [
-              'The weekly DHS source freshness job failed.',
-              '',
-              `- Run: ${runUrl}`,
-              '- Per-source report: the run summary on that page lists every URL checked and which ones failed.',
-              '- Script: `scripts/check-dhs-sources.mjs`',
-              '- Typical causes: PA.gov link dead, content-type change, or `DHS_FORMS_LAST_VERIFIED` older than 45 days.',
-              '',
-              'Opened automatically by `dhs-source-freshness.yml`. Close after sources are re-verified and the workflow is green.',
-            ].join('\n');
+          state: open
+          title: ${{ env.DHS_TITLE }}
+          labels: dhs-source-stale
+          bump-comment: "Still failing:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          body: |
+            The weekly DHS source freshness job failed. What failed, verbatim from the check:
 
-            const { data: open } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              per_page: 50,
-            });
-            const existing = open.find((i) => i.title === title);
-            if (existing) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: existing.number,
-                body: `Still failing:\n${runUrl}`,
-              });
-              return;
-            }
+            ```
+            ${{ steps.failures.outputs.lines }}
+            ```
 
-            try {
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title,
-                body,
-                labels: ['dhs-source-stale'],
-              });
-            } catch (err) {
-              core.warning(`Create with label failed (${err.message}); retrying without labels`);
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title,
-                body,
-              });
-            }
+            Those lines say which of the two very different causes this is:
+
+            - **`… : HTTP …` or `… expected PDF but received …`** — a PA.gov document moved, was
+              withdrawn, or changed content-type. Find its new location, update
+              `artifacts/caremetric-carebase/src/lib/dhsFormsLibrary.ts`, and check whether the
+              document's *content* changed as well as its URL.
+            - **`Human source review is stale: …`** — every link is fine; the 45-day human re-read
+              is overdue. Run `node scripts/snapshot-dhs-sources.mjs` to see which documents
+              actually changed since the last digest, read those, then re-stamp
+              `DHS_FORMS_LAST_VERIFIED`. An unchanged digest is not an attestation.
+
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - Full per-source report: the run summary on that page lists every URL checked.
+            - Script: `scripts/check-dhs-sources.mjs`
+
+            Opened automatically by `dhs-source-freshness.yml`. It closes itself once a later run
+            finds every source reachable and both review stamps current.
+
+      - name: Retire the alert once sources and stamps are current
+        if: ${{ success() && steps.check.outcome == 'success' }}
+        uses: ./.github/actions/reconcile-issue
+        with:
+          state: closed
+          title: ${{ env.DHS_TITLE }}
+          close-comment: "Every PA DHS source resolved and both review stamps are current on this run:\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
