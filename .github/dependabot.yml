@@ -35,8 +35,30 @@ updates:
   # like any other, and until now nothing watched them -- so the container a developer builds
   # could drift away from what CI runs without a single PR being opened. That drift is no longer
   # silent (`check:toolchain-pins` fails on it, and `.devcontainer/*` is in the CI path filter so
-  # the check actually runs on these PRs), but a bump that fails that check is still a bump
-  # somebody has to notice; this way it arrives as a reviewable PR rather than as a surprise.
+  # the check actually runs on these PRs).
+  #
+  # EVERY PR FROM THIS ECOSYSTEM ARRIVES RED, AND THAT IS THE SHAPE OF IT RATHER THAN A DEFECT.
+  # All three `FROM` lines in `.devcontainer/Dockerfile` are MIRRORS of pins whose canonical copy
+  # lives elsewhere -- `.node-version` for Node, `.github/workflows/ci.yml` for Deno,
+  # `.github/actions/setup-supabase-cli/action.yml` for the CLI. Dependabot only ever edits the
+  # Dockerfile, so it can only ever produce half a bump, and `check:toolchain-pins` is doing its
+  # job when it says so. Read these PRs as PROPOSALS -- "a newer image exists" -- and never as a
+  # change that is ready to merge.
+  #
+  # TO COMPLETE ONE: run `pnpm run check:toolchain-pins`. Its output names every file still on the
+  # old version, and that list is the worklist. It is longer than the diff suggests: a Node bump
+  # also moves `.node-version`, `.nvmrc`, `package.json` engines and `AGENTS.md`; a Deno bump also
+  # moves `ci.yml`, `scripts/setup-codex-cloud.sh` and `AGENTS.md`. Move them in the same PR and
+  # it goes green.
+  #
+  # A MAJOR bump is a toolchain migration, not an image bump, and deserves its own reviewed PR
+  # rather than a merge of Dependabot's branch. Check https://github.com/nodejs/Release first so
+  # the move lands LTS-to-LTS instead of onto the Current line. #503 was closed on exactly that
+  # reasoning -- the right bump, seven weeks early: Node 26 enters LTS 2026-10-28, and taking it
+  # in September would have put the production build on Current until then.
+  #
+  # None of this was stated when #502 added the watcher and the check in the same pass, so the
+  # first monthly PR read as a broken check rather than as an incomplete bump. BACKLOG K13.
   #
   # Monthly, not weekly: these images move slowly, and a bump here is never urgent -- the dev
   # container is not a deployment artifact. Grouped for the same reason the actions are.
