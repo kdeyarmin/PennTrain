@@ -79,11 +79,22 @@ jobs:
         if: ${{ failure() && steps.check.outcome == 'failure' }}
         shell: bash
         run: |
+          # Written as a plain assignment rather than a `grep | sed || echo` pipeline. GitHub does
+          # run `shell: bash` steps with `-o pipefail`, so the pipeline form worked -- but it works
+          # only because of a default two layers away from this file, and a reviewer reading it
+          # cannot tell whether an empty `lines` output means "no failures" or "the fallback never
+          # fired". This form does not depend on the flag at all. (Codex read it the other way on
+          # PR #502; the premise was wrong, the fragility it points at was not.)
+          failing="$(grep -E '^FAIL ' /tmp/dhs-source-check.txt 2>/dev/null || true)"
+          if [ -z "${failing}" ]; then
+            failing="    (the check produced no FAIL line — it failed before reaching one, so read the run summary)"
+          else
+            failing="$(printf '%s\n' "${failing}" | sed 's/^/    /')"
+          fi
           delimiter="FAILLINES_$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
           {
             echo "lines<<${delimiter}"
-            grep -E '^FAIL ' /tmp/dhs-source-check.txt 2>/dev/null | sed 's/^/    /' \
-              || echo "    (no FAIL lines captured — see the run summary)"
+            printf '%s\n' "${failing}"
             echo "${delimiter}"
           } >> "$GITHUB_OUTPUT"
 

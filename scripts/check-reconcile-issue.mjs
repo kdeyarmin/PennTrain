@@ -67,7 +67,7 @@ export function extractScriptBlock(yamlText) {
 }
 
 /** A recording stand-in for the `github`, `core` and `context` github-script provides. */
-function harness(source, { issues, failCreateWithLabels = false }) {
+function harness(source, { issues, failCreateWithLabels = false, createErrorStatus = 422, failFirstCreate = false }) {
   const calls = { created: [], comments: [], updates: [], failed: null, warnings: [] };
   const github = {
     paginate: async () => issues,
@@ -78,8 +78,16 @@ function harness(source, { issues, failCreateWithLabels = false }) {
           calls.comments.push({ number: o.issue_number, body: o.body });
         },
         create: async (o) => {
-          if (o.labels && failCreateWithLabels) throw new Error("label does not exist");
+          // `failFirstCreate` models the case the retry is actually dangerous in: the request
+          // SUCCEEDED server-side and only its response was lost. A retry then creates a second
+          // issue for one condition. Recording the attempt before throwing is what makes that
+          // visible to the assertions.
           calls.created.push({ title: o.title, labels: o.labels ?? null });
+          if ((o.labels && failCreateWithLabels) || (failFirstCreate && calls.created.length === 1)) {
+            const error = new Error("create rejected");
+            error.status = createErrorStatus;
+            throw error;
+          }
           return { data: { number: 999 } };
         },
         update: async (o) => {
@@ -174,7 +182,28 @@ const CASES = [
     name: "a label that does not exist yet does not cost us the alert",
     env: { RECONCILE_STATE: "open", RECONCILE_TITLE: "[ci] fresh", RECONCILE_BODY: "b", RECONCILE_LABELS: "missing" },
     options: { failCreateWithLabels: true },
-    assert: (c) => c.created.length === 1 && c.created[0].labels === null && c.warnings.length === 1,
+    assert: (c) =>
+      c.created.length === 2 && c.created[0].labels !== null && c.created[1].labels === null &&
+      c.warnings.length === 1,
+  },
+  {
+    // The retry exists for a rejected label and nothing else. Repeating a request that had no
+    // labels cannot succeed where the first failed, and if the first actually created the issue
+    // and only its response was lost, the retry is how one condition gets two issues.
+    name: "an unlabelled create is never retried, so a lost response cannot duplicate the alert",
+    env: { RECONCILE_STATE: "open", RECONCILE_TITLE: "[ci] unlabelled", RECONCILE_BODY: "b" },
+    options: { failFirstCreate: true, createErrorStatus: 502 },
+    expectThrows: true,
+    // Exactly one attempt. The old code retried here and would have made a second issue for a
+    // condition that already had one -- the failure this whole action exists to prevent.
+    assert: (c) => c.created.length === 1,
+  },
+  {
+    name: "a labelled create failing for a non-label reason is not retried either",
+    env: { RECONCILE_STATE: "open", RECONCILE_TITLE: "[ci] server error", RECONCILE_BODY: "b", RECONCILE_LABELS: "x" },
+    options: { failCreateWithLabels: true, createErrorStatus: 500 },
+    expectThrows: true,
+    assert: (c) => c.created.length === 1 && c.warnings.length === 0,
   },
   {
     name: "closed by prefix retires every alert for that condition",
@@ -262,15 +291,25 @@ async function main() {
       issues: OPEN_ISSUES,
       ...(testCase.options ?? {}),
     });
+    let threw = false;
     try {
       await withEnv(testCase.env, invoke);
-      if (!testCase.assert(calls)) {
-        failures += 1;
-        console.error(`✗ ${testCase.name}\n    calls: ${JSON.stringify(calls)}`);
-      }
     } catch (error) {
+      threw = true;
+      if (!testCase.expectThrows) {
+        failures += 1;
+        console.error(`✗ ${testCase.name} threw unexpectedly: ${error.message}`);
+        continue;
+      }
+    }
+    if (testCase.expectThrows && !threw) {
       failures += 1;
-      console.error(`✗ ${testCase.name} threw: ${error.message}`);
+      console.error(`✗ ${testCase.name} should have propagated the error and did not`);
+      continue;
+    }
+    if (!testCase.assert(calls)) {
+      failures += 1;
+      console.error(`✗ ${testCase.name}\n    calls: ${JSON.stringify(calls)}`);
     }
   }
 

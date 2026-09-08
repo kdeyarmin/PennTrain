@@ -384,6 +384,14 @@ they are decisions rather than implementations:
   changed a pin in a diff that booted no job able to notice. Both were added to `APP_PATTERNS` in
   the same change.
 
+A further round came from the automated reviewers on the pull request, and it is recorded as
+K12 rather than folded in silently: two P1s in code this pass had just added — a reporting
+job that could block the production deploy, and a dry run that could retire the alert saying
+production runs stale edge functions — plus the K2 false-signal shape reappearing in the new
+secret-scan workflow, a retry that could duplicate an alert, and one report whose premise was
+wrong. Four of the five are the same defect class this pass was written to close, which is
+the useful thing to know about it.
+
 Each block's gate was met by something other than reading the diff: the K3 regression was
 reproduced in a scratch worktree and shown to fail before the fix and pass after; K2's exit path
 was exercised end-to-end against an unreachable endpoint; K7's filtered install was measured (3

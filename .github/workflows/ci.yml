@@ -658,6 +658,15 @@ jobs:
   # This is the one job in this workflow with `issues: write`, and it runs no repository code.
   # BACKLOG K5.
   main-branch-alert:
+    # NEVER allowed to fail this workflow, and this is load-bearing rather than tidiness.
+    # `deploy-migrations.yml` gates the production deploy on `workflow_run.conclusion == 'success'`
+    # -- the conclusion of this whole run, not of `ci-result`. So without this line a transient
+    # Issues-API 5xx or a checkout blip in a job whose only purpose is to maintain an
+    # INFORMATIONAL issue would turn the run red and block a validated migration and edge-function
+    # deploy, while opening no alert at all (this job only alerts when `ci-result` failed, which it
+    # had not). A reporting path that can stop a deploy is worse than no reporting path. Raised by
+    # Codex on PR #502.
+    continue-on-error: true
     needs:
       - changes
       - application

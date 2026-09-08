@@ -113,6 +113,9 @@ jobs:
       skipped: ${{ steps.gate.outputs.skip }}
       reason: ${{ steps.gate.outputs.reason }}
       deploy_sha: ${{ steps.gate.outputs.deploy_sha }}
+      # True only when this run actually pushed migrations and deployed functions. Read by
+      # `close-resolved`, which must not retire an alert on the strength of a dry run.
+      deployed: ${{ steps.deployed.outputs.deployed }}
     # The two production credentials are deliberately NOT here. Job-level `env` is visible to
     # every step, which put the database password and the Supabase access token in the
     # environment of `pnpm install` -- hundreds of third-party packages and their lifecycle
@@ -425,6 +428,13 @@ jobs:
           DEPLOY_SHA: ${{ env.DEPLOY_SHA }}
         run: node scripts/stamp-edge-function-deploy.mjs edge-function-deploy-stamp.json
 
+      # The last step of the real deploy path, and the only thing that may authorise closing a
+      # `[deploy]` alert. See close-resolved for why a green dry run is not enough.
+      - name: Record that production was actually changed
+        id: deployed
+        if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
+        run: echo "deployed=true" >> "$GITHUB_OUTPUT"
+
       - name: Upload edge function deploy stamp
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -547,16 +557,28 @@ jobs:
   # one was carrying; and the two drift checks then confirm, against the live project, that nothing
   # is pending, orphaned or divergent. That is a stronger statement than any single issue's title.
   #
-  # It runs for the nightly dry run too, and deliberately: a dry run pushes nothing, but it does
-  # run both drift checks, so a green one is direct evidence that production is in sync. That is
-  # exactly what a stale `[deploy]` issue is asserting is not the case.
+  # It does NOT run for a dry run, and that is a correction rather than a caution. The nightly was
+  # originally allowed to close these on the grounds that it runs both drift checks, so a green one
+  # proves production is in sync. That is true of MIGRATIONS -- `check-migration-drift.mjs` compares
+  # the md5 of the deployed statements -- and false of EDGE FUNCTIONS.
+  # `check-edge-function-drift.mjs` compares local and remote slug SETS only; the content digests it
+  # prints are never compared against anything remote, as its own header admits ("presence + stamp
+  # is the practical content gate"), because the deployed hash is not locally reproducible. So after
+  # a deploy that failed while updating an existing function, the slug is still present with the old
+  # bundle, the dry run passes, and closing here would retire the only alert saying production is
+  # running stale code. Raised by Codex on PR #502.
   #
-  # `skipped != 'true'` is the guard that keeps this honest. When the gate short-circuits
-  # (same-sha-already-deployed, or no Supabase changes since the last deploy) the job succeeds
-  # without running either drift check, so it has verified nothing and closes nothing.
+  # A real deploy has no such gap: `supabase functions deploy` pushes every function, so reaching
+  # the end of that path makes production current by construction rather than by inference.
+  # `deployed` is set by the last step of that path, so the gate short-circuiting
+  # (same-sha-already-deployed, no Supabase changes) leaves it unset and closes nothing either.
   close-resolved:
     needs: deploy
-    if: ${{ needs.deploy.result == 'success' && needs.deploy.outputs.skipped != 'true' }}
+    # Housekeeping, and never the reason a deploy run goes red -- the same rule as
+    # `main-branch-alert` in ci.yml. Nothing gates on this workflow's conclusion today, but a red
+    # run against a successful deploy is a lie told to whoever reads the Actions list next.
+    continue-on-error: true
+    if: ${{ needs.deploy.result == 'success' && needs.deploy.outputs.deployed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -572,4 +594,4 @@ jobs:
           title: "[deploy] Production migration/function deploy failed"
           # Every `[deploy] …` title, including the per-SHA ones and the drift-check variant.
           title-prefix: "[deploy] "
-          close-comment: "Production is in sync with `${{ needs.deploy.outputs.deploy_sha }}`: the migration chain and the edge-function set both verified clean on this run, which supersedes whatever this issue was reporting.\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          close-comment: "Deployed `${{ needs.deploy.outputs.deploy_sha }}` to production: every pending migration pushed, every edge function redeployed, and both drift checks clean afterwards. That supersedes whatever this issue was reporting.\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

@@ -118,8 +118,21 @@ runs:
               );
               core.info(`Opened #${created.data.number}: ${title}`);
             } catch (error) {
-              // A label that does not exist yet must not cost us the alert.
-              core.warning(`Create with labels failed (${error.message}); retrying without labels`);
+              // A label that does not exist yet must not cost us the alert -- but that is the ONLY
+              // thing this retry is for, and it is not free. Retrying an identical request after a
+              // lost response is how one condition ends up with two issues, which is the failure
+              // this action exists to prevent. So it retries only when there were labels to drop
+              // (otherwise the second request is byte-identical to the first) and only when the
+              // rejection was a validation error, which is what GitHub returns for a label that
+              // does not exist. A 403, a 5xx or a dropped connection rethrows: the step goes red,
+              // which is visible, rather than quietly creating a duplicate. Raised by Codex on
+              // PR #502.
+              const isValidationError = error.status === 422;
+              if (labels.length === 0 || !isValidationError) throw error;
+              core.warning(
+                `Create with labels [${labels.join(", ")}] was rejected as invalid ` +
+                  `(${error.message}); retrying without them so the alert is still raised.`,
+              );
               const created = await github.rest.issues.create(payload);
               core.info(`Opened #${created.data.number}: ${title}`);
             }
