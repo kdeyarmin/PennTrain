@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { invokeProviderFunction } from "@/lib/providerFunctions";
 import { BillingSessionError } from "@/lib/billingErrors";
 import { privilegedFailureMessage } from "@/lib/edgeFunctionErrors";
 
@@ -252,10 +253,11 @@ export interface BillingSessionResponse {
 
 export function useCreateBillingSession() {
   return useMutation({
+    retry: false,
     mutationFn: async (
       request: BillingSessionRequest,
     ): Promise<BillingSessionResponse> => {
-      const { data, error } = await supabase.functions.invoke(
+      const { data, error } = await invokeProviderFunction(
         "create-billing-session",
         { body: request },
       );

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), invoke: vi.fn(), listFactors: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), invoke: vi.fn(), listFactors: vi.fn(), getSession: vi.fn(), fetch: vi.fn() }));
 vi.mock("./supabase", () => ({ supabase: {
-  rpc: mocks.rpc, functions: { invoke: mocks.invoke }, auth: { mfa: { listFactors: mocks.listFactors } },
+  rpc: mocks.rpc, functions: { invoke: mocks.invoke }, auth: { getSession: mocks.getSession, mfa: { listFactors: mocks.listFactors } },
 } }));
 
 import {
@@ -22,14 +22,22 @@ const nativeFactor: MfaFactor = { id: "totp", factor_type: "totp", status: "veri
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv("VITE_PROVIDER_RUNTIME", undefined);
+  vi.stubEnv("BASE_URL", "/");
+  vi.stubGlobal("fetch", mocks.fetch);
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-09-09T12:10:00Z"));
   mocks.rpc.mockResolvedValue({ data: status, error: null });
   mocks.invoke.mockResolvedValue({ data: { smsAvailable: true }, error: null });
   mocks.listFactors.mockResolvedValue({ data: { all: [nativeFactor] }, error: null });
+  mocks.getSession.mockResolvedValue({ data: { session: { access_token: "current-user-session" } }, error: null });
 });
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 describe("authoritative MFA status", () => {
   it("rejects malformed, missing and undated SMS assurance instead of treating it as success", () => {
@@ -82,6 +90,32 @@ describe("authoritative MFA status", () => {
 });
 
 describe("SMS challenges", () => {
+  it("routes Railway SMS verification through the authenticated app server and still checks database attestation", async () => {
+    vi.stubEnv("VITE_PROVIDER_RUNTIME", "railway");
+    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ verified: true }), {
+      headers: { "Content-Type": "application/json" },
+    }));
+    await expect(verifySmsMfaCode("challenge", "123456")).resolves.toBeUndefined();
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith("/api/providers/sms-mfa", expect.objectContaining({
+      body: JSON.stringify({ action: "verify", challengeId: "challenge", code: "123456" }),
+      headers: { "Content-Type": "application/json", Authorization: "Bearer current-user-session" },
+    }));
+    expect(mocks.rpc).toHaveBeenCalledWith("get_my_mfa_status");
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+
+  it("retains actionable MFA error copy from a Railway refusal", async () => {
+    vi.stubEnv("VITE_PROVIDER_RUNTIME", "railway");
+    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      code: "fresh_password_required", error: "private provider detail",
+    }), { status: 403, headers: { "Content-Type": "application/json" } }));
+    const error = await sendSmsMfaCode("+15551234567").catch((value: unknown) => value);
+    expect(describeMfaError(error)).toMatch(/Sign out and sign in again with your password/);
+    expect(describeMfaError(error)).not.toContain("private provider detail");
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+
   it("sends no browser-supplied destination for an enrolled factor", async () => {
     mocks.invoke.mockResolvedValueOnce({ data: { challengeId: "challenge", maskedPhone: smsFactor.maskedPhone, expiresAt }, error: null });
     await sendSmsMfaCode();

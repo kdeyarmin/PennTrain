@@ -1,11 +1,14 @@
 #!/usr/bin/env node
-// Production static file server for the CareMetric CareBase SPA, deployed to Railway.
+// Production server for the CareMetric CareBase SPA and opt-in provider routes on Railway.
 //
 // The browser talks to Supabase directly for application data. This server serves the built
-// Vite bundle, provides /health, and proxies session-scoped learning package assets with mandatory
+// Vite bundle, provides /health, runs configured billing/SMS handlers, and proxies learning package assets with mandatory
 // response sandboxing; uploaded content never receives application credentials.
 import { createServer } from "node:http";
 import { proxyLearningPackage } from "./learning-package-proxy.mjs";
+import { createProviderHandlers } from "./provider-handlers.mjs";
+import { createProviderRouter } from "./provider-router.mjs";
+import { createProviderBuildManifest, validateProviderRuntime } from "./provider-runtime-config.mjs";
 import { createReadStream } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
@@ -23,6 +26,20 @@ const ASSET_ARCHIVE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 // "::" binds dual-stack (IPv6 + IPv4-mapped) -- Railway's docs recommend it so the
 // service works on both current (IPv4+IPv6) and legacy (IPv6-only) private networks.
 const HOST = process.env.HOST || "::";
+
+let providerManifest;
+try {
+  providerManifest = JSON.parse(await readFile(resolve(__dirname, "../dist/provider-runtime.json"), "utf8"));
+} catch (error) {
+  // Older static-only build fixtures have no manifest. They may not activate provider routes.
+  if (error?.code !== "ENOENT" || process.env.VITE_PROVIDER_RUNTIME === "railway") throw error;
+  providerManifest = createProviderBuildManifest({ VITE_PROVIDER_RUNTIME: "supabase" });
+}
+const providerRuntime = validateProviderRuntime(providerManifest);
+const routeProviderRequest = createProviderRouter({
+  handlers: createProviderHandlers(), enabled: providerRuntime.enabled,
+  publicOrigin: process.env.PUBLIC_APP_URL || "https://cmcarebase.com",
+});
 
 // Must mirror vite.config.ts's `basePath = process.env.BASE_PATH ?? "/"` exactly -- that's what
 // Vite prefixes every emitted asset URL with at build time, so this server has to strip the same
@@ -198,6 +215,7 @@ async function handleHealth(_req, res) {
   const body = JSON.stringify({
     status: "ok",
     service: "caremetric-carebase",
+    providerRuntime: providerRuntime.enabled ? "railway" : "supabase",
     timestamp: new Date().toISOString(),
   });
   res.writeHead(200, {
@@ -444,6 +462,9 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
     const packagePath = stripBasePath(url.pathname);
+    // Cron and the dedicated Stripe endpoint keep their stable root URLs even if the SPA
+    // is served under a base path. Browser calls may use that same base path.
+    if (await routeProviderRequest(req, res, packagePath ?? url.pathname)) return;
     if (packagePath && await proxyLearningPackage(req, res, packagePath, { supabaseUrl: process.env.VITE_SUPABASE_URL })) return;
 
     if (req.method !== "GET" && req.method !== "HEAD") {

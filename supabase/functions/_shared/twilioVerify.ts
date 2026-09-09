@@ -11,8 +11,11 @@ export type VerifyReply = {
 };
 
 export class SmsProviderError extends Error {
-  constructor(public readonly rateLimited = false) {
+  readonly rateLimited: boolean;
+
+  constructor(rateLimited = false) {
     super(rateLimited ? "Please wait before requesting another code." : "Text verification is temporarily unavailable. Try again later.");
+    this.rateLimited = rateLimited;
   }
 }
 

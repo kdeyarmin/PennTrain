@@ -5,6 +5,7 @@ import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 import { writeFileSync } from "fs";
 import { proxyLearningPackage } from "./server/learning-package-proxy.mjs";
+import { createProviderBuildManifest } from "./server/provider-runtime-config.mjs";
 
 // Opt-in bundle composition dump for scripts/check-bundle-budget.mjs investigations.
 // `BUNDLE_ANALYZE=/abs/path.json pnpm build` writes, per emitted JS chunk, the rendered
@@ -57,6 +58,10 @@ const basePath = process.env.BASE_PATH ?? "/";
 const CENTRAL_SUPPORT_HUB_ORIGIN = "https://support-hub-web-production.up.railway.app";
 
 export default defineConfig(({ command, mode }) => {
+  const providerManifest = createProviderBuildManifest(loadEnv(mode, import.meta.dirname, "VITE_"));
+  if (providerManifest.runtime === "railway" && !/^\/(?:[A-Za-z0-9_-]+\/)*$/.test(basePath)) {
+    throw new Error("Railway provider BASE_PATH must be / or a root-relative path of plain segments ending in /.");
+  }
   // Fail production builds loudly when the Supabase vars are missing: they are baked into
   // the bundle at build time, and without them the shipped SPA throws at module init (blank
   // page) while /health still returns 200 -- a broken deploy that Railway would call healthy.
@@ -188,6 +193,14 @@ export default defineConfig(({ command, mode }) => {
   return {
     base: basePath,
     plugins: [
+      {
+        name: "provider-runtime-manifest",
+        apply: "build",
+        writeBundle() {
+          // Server-only build metadata lives outside the publicly served directory.
+          writeFileSync(path.resolve(import.meta.dirname, "dist/provider-runtime.json"), JSON.stringify(providerManifest));
+        },
+      },
       packageDeliveryPlugin,
       react(),
       tailwindcss(),

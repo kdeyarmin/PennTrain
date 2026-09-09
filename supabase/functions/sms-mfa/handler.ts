@@ -14,12 +14,6 @@ type Dependencies = {
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function json(req: Request, value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), { status, headers: {
-    ...corsHeadersForRequest(req), "Content-Type": "application/json", "Cache-Control": "no-store",
-  } });
-}
-
 /** Decode only AFTER Auth has verified the entire bearer. Never accept identity from the body. */
 function verifiedSession(token: string, userId: string): { sessionId: string; nativeAal2: boolean } | null {
   try {
@@ -40,7 +34,14 @@ function stringField(data: Record<string, unknown>, name: string): string {
 }
 
 class StateError extends Error {
-  constructor(readonly code: string, readonly hint = "") { super("MFA state request rejected"); }
+  readonly code: string;
+  readonly hint: string;
+
+  constructor(code: string, hint = "") {
+    super("MFA state request rejected");
+    this.code = code;
+    this.hint = hint;
+  }
 }
 async function rpc(client: Client, name: string, args?: Record<string, unknown>): Promise<unknown> {
   const result = await client.rpc(name, args);
@@ -49,8 +50,14 @@ async function rpc(client: Client, name: string, args?: Record<string, unknown>)
 }
 
 export function createSmsMfaHandler({ createClient, getEnv = (name) => Deno.env.get(name), fetcher = fetch }: Dependencies) {
+  function json(req: Request, value: unknown, status = 200): Response {
+    return new Response(JSON.stringify(value), { status, headers: {
+      ...corsHeadersForRequest(req, { getEnv }), "Content-Type": "application/json", "Cache-Control": "no-store",
+    } });
+  }
+
   return async (req: Request): Promise<Response> => {
-    if (req.method === "OPTIONS") return corsPreflightResponse(req);
+    if (req.method === "OPTIONS") return corsPreflightResponse(req, { getEnv });
     if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
     const authorization = req.headers.get("Authorization") ?? "";
     if (!/^Bearer\s+\S+$/i.test(authorization)) return json(req, { error: "Sign in to continue." }, 401);

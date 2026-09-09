@@ -4,8 +4,10 @@
 
 CareMetric CareBase (formerly "PA MedTrack") is a multi-tenant SaaS management platform for personal care homes, assisted living residences, and adjacent long-term-care providers. It tracks facility operations, employee compliance, resident assessments, incidents, inspections, scheduling, credentials, medication administration training, annual practicums, training hours, documents, alerts, audit evidence, and survey-ready compliance reporting, plus an integrated training layer for training content, quizzes, certificates, training plans, live classes, and competency checklists.
 
-The app is built directly on Supabase: Postgres + Row-Level Security, Supabase Auth, Supabase Storage, and Edge
-Functions. There is no separate backend API server — the React frontend talks to Supabase directly via `supabase-js`.
+The app uses Supabase for Postgres + Row-Level Security, Auth, Storage, and Edge Functions.
+The React frontend accesses application data through `supabase-js`. Its Railway Node server also
+supports four opt-in provider routes, described below, while Supabase remains the database and
+identity authority.
 
 ## Product modules
 
@@ -16,13 +18,15 @@ router and restrictive Postgres RLS policies.
 
 ## Architecture
 
-pnpm workspace monorepo. Single frontend package (`artifacts/caremetric-carebase`) plus a design mockup sandbox; all
-backend logic lives in the Supabase project (`xsqobvvreaovwibxwyvv`, named **"CM Train"** in the Supabase
-dashboard -- this document called it "CM CareBase" until 2026-09-05, which matches nothing you can search for).
+pnpm workspace monorepo. The product package (`artifacts/caremetric-carebase`) includes the frontend
+and its Railway Node server. The Supabase project is `xsqobvvreaovwibxwyvv`, named **"CM Train"**
+in the dashboard. Provider handler source stays under `supabase/functions/` and can run through
+the Railway adapter; migrations, database assurance, Auth, Storage, and other Edge Functions
+remain in Supabase.
 
 ### Packages
 
-- `artifacts/caremetric-carebase` — React + Vite frontend, talks to Supabase directly (no API server)
+- `artifacts/caremetric-carebase` — React + Vite frontend and Railway Node server with optional provider routes
 - `artifacts/mockup-sandbox` — Canvas/design mockup sandbox
 - `supabase/migrations/` — every schema/RLS/function/storage change, applied in order
 - `supabase/functions/` — Edge Functions (Deno)
@@ -31,7 +35,7 @@ dashboard -- this document called it "CM CareBase" until 2026-09-05, which match
 
 - **Monorepo**: pnpm workspaces
 - **Frontend**: React 19, Vite 7, Tailwind CSS v4, shadcn/ui, Wouter routing, TanStack Query
-- **Backend**: Supabase (Postgres 17, Auth, Storage, Edge Functions, `pg_cron`)
+- **Backend**: Supabase (Postgres 17, Auth, Storage, Edge Functions, `pg_cron`), plus optional Railway provider handlers
 - **Data access**: `supabase-js` directly from the frontend; hand-written TanStack Query hooks per domain in
   `src/hooks/*.ts` (no codegen layer — the query builder is already typed via generated `database.types.ts`)
 - **Auth**: Supabase Auth (GoTrue). Every account is provisioned server-side via a trusted Edge Function: an admin
@@ -41,9 +45,39 @@ dashboard -- this document called it "CM CareBase" until 2026-09-05, which match
   even if enabled, confers no organization/role by itself (see the trust-boundary fix in
   `20260704180244_fix_handle_new_user_trust_boundary.sql`)
 - **Authorization**: Row-Level Security on every table, plus a handful of `SECURITY DEFINER` RPCs for atomic
-  multi-row operations, plus Edge Functions for anything needing the service-role key or outbound HTTP
+  multi-row operations, plus trusted server handlers for service-role access and outbound HTTP
 - **Product modules**: typed package/organization entitlements (`modules.train`, `modules.carebase`) intersected
   with an optional deployment allow-list; restrictive module policies compose with existing tenant/role RLS
+
+### Railway provider runtime (opt-in)
+
+`VITE_PROVIDER_RUNTIME=railway` selects same-origin browser requests for `sms-mfa` and
+`create-billing-session`. The Node server exposes these four exact routes:
+
+| Route | Caller and authorization |
+| --- | --- |
+| `/api/providers/sms-mfa` | Browser's current Supabase Bearer session; existing SMS enrollment, verification, and session-assurance checks |
+| `/api/providers/create-billing-session` | Browser's current Supabase Bearer session; existing organization, role, and MFA checks |
+| `/api/providers/stripe-billing-webhook` | Stripe; signature checked against this endpoint's own signing secret and unchanged raw request body |
+| `/api/providers/sync-billing-quantities` | Authenticated worker request; existing cron shared-secret gate and durable job tracking |
+
+The adapter reuses the existing handlers and their database/RLS contracts. Provider credentials and
+the same CM Train project's service-role key are server variables in Railway. The browser sends its
+own Auth token, never a service-role key or provider credential. Calls are bounded, do not follow
+redirects, and do not automatically retry or fall back to the other runtime.
+
+The separate, nonsecret Supabase setting `BILLING_RUNTIME=railway` makes the existing
+`sync-billing-quantities` Edge URL forward authorized cron and manual-dispatch requests to the fixed
+production Railway route. It preserves the existing scheduler, correlation IDs, and job records;
+it does not copy Stripe or Twilio credentials into Supabase. It is restricted to the CM Train
+production project and must be enabled only after Railway is ready.
+
+Both switches default to Supabase behavior when unset or explicitly `supabase`; blank and other
+values fail closed. The build validates public configuration and emits `dist/provider-runtime.json`
+outside public assets. Railway-mode startup validates required server settings and the matching
+Supabase project, so a restart cannot silently switch a frontend built for the other runtime. This mode does not move the other
+Edge Functions, notification delivery, or the voice gateway. See
+[deployment configuration and rollback](DEPLOYMENT.md#railway-provider-runtime-opt-in).
 
 ## Roles
 
@@ -113,8 +147,7 @@ design against a boundary that is not there.
 
 ## Edge Functions
 
-**73 of them**, not the ten this section used to list (BACKLOG.md I25). A partial list read as a complete one,
-which is worse than no list: it implied that anything absent did not exist. The authoritative enumeration is
+The authoritative enumeration is
 `supabase/functions/*/`; `supabase/config.toml` records which ones the API gateway lets through unauthenticated
 (`verify_jwt = false`), and **`scripts/edge-function-auth.json` names the inbound gate each of those enforces
 itself** -- that file is the one to read before adding a function, and `check:edge-function-auth` fails a build
@@ -246,6 +279,8 @@ Tenancy/identity: `organizations`, `organization_settings`, `facilities`, `profi
 ## Important Files
 
 - `artifacts/caremetric-carebase/src/lib/supabase.ts` — Supabase client setup
+- `artifacts/caremetric-carebase/src/lib/providerFunctions.ts` — controlled browser runtime selection for SMS MFA and billing sessions
+- `artifacts/caremetric-carebase/server/provider-router.mjs` — bounded Node adapter for the four optional provider routes
 - `artifacts/caremetric-carebase/src/lib/auth.tsx` — auth context (Supabase session + profile)
 - `artifacts/caremetric-carebase/src/lib/viewingOrg.tsx` — platform_admin "Viewing as Org X" UX-only context
 - `artifacts/caremetric-carebase/src/App.tsx` — frontend router with role-based access
