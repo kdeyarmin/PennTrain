@@ -214,5 +214,11 @@
       "guest-token"
     ],
     "rationale": "Each GET verifies the server-minted launch nonce against learning_runtime_sessions.launch_nonce_sha256, expiry, live owner profile and matching accepted package/assignment/tenant; the nonce is a per-session content capability, never a user JWT."
+  },
+  "sms-mfa": {
+    "gates": [
+      "user-jwt"
+    ],
+    "rationale": "Auth verifies the bearer before any provider call. Service-only RPCs validate live session, factor ownership, enrollment assurance and rate limits; only bound Twilio approval grants app MFA."
   }
 }

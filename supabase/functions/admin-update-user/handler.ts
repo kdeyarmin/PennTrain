@@ -278,6 +278,33 @@ export function createAdminUpdateUserHandler({
       }
       const factors = factorList?.factors ?? [];
 
+      const { error: revokeError } = await callerClient.rpc("revoke_identity_sessions", {
+        p_profile_id: user_id,
+        p_reason: `MFA reset: ${trimmedReason}`,
+        p_source: "administrator",
+        p_external_request_id: null,
+        p_deactivate_profile: false,
+      });
+      if (revokeError) {
+        return json(req, {
+          error: publicError("session revocation failed before factor reset", correlationId, revokeError,
+            "This user's existing sessions could not be signed out; no factors were removed"),
+          correlationId,
+        }, 500);
+      }
+
+      const { data: smsRemoved, error: smsResetError } = await adminClient.rpc("reset_sms_mfa_factor", {
+        p_profile_id: user_id,
+        p_actor_profile_id: callerUser.id,
+        p_reason: trimmedReason,
+      });
+      if (smsResetError || typeof smsRemoved !== "number") {
+        return json(req, {
+          error: "The user was signed out, but text-message verification could not be reset. Retry the reset.",
+          correlationId,
+        }, 500);
+      }
+
       const removed: string[] = [];
       for (const factor of factors) {
         const { error: deleteError } = await adminClient.auth.admin.mfa.deleteFactor({
@@ -296,21 +323,6 @@ export function createAdminUpdateUserHandler({
         removed.push(factor.id);
       }
 
-      const { error: revokeError } = await callerClient.rpc("revoke_identity_sessions", {
-        p_profile_id: user_id,
-        p_reason: `MFA reset: ${trimmedReason}`,
-        p_source: "administrator",
-        p_external_request_id: null,
-        p_deactivate_profile: false,
-      });
-      if (revokeError) {
-        return json(req, {
-          error: publicError("session revocation failed after factor reset", correlationId, revokeError,
-            "The factors were removed but this user's existing sessions could not be signed out"),
-          correlationId,
-        }, 500);
-      }
-
       const { error: auditError } = await adminClient.from("audit_logs").insert({
         organization_id: targetProfile.organization_id,
         actor_profile_id: callerUser.id,
@@ -318,7 +330,7 @@ export function createAdminUpdateUserHandler({
         entity_id: user_id,
         action: "mfa_reset",
         reason: trimmedReason,
-        new_values: { removed_factor_ids: removed, factor_count: removed.length },
+        new_values: { removed_factor_ids: removed, factor_count: removed.length + smsRemoved, sms_factor_count: smsRemoved },
       });
       // The factors are already gone; a missing audit row is a reportable failure, not a silent one.
       if (auditError) {
@@ -334,7 +346,7 @@ export function createAdminUpdateUserHandler({
         removed_factor_ids: removed,
         // The account is now single-factor. MfaPolicyGate will require re-enrolment on the target's
         // next sign-in wherever the organization's policy demands a factor.
-        requires_reenrolment: removed.length > 0,
+        requires_reenrolment: removed.length + smsRemoved > 0,
       });
     }
 

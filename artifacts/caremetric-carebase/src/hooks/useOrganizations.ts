@@ -1,3 +1,4 @@
+import { getMfaStatus, mfaStatusIsVerified } from "@/lib/mfaSecurity";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
@@ -70,6 +71,17 @@ export function useMyOrganizationAccessible(organizationId: string | null | unde
     queryKey: ["organizations", "self-check", organizationId],
     queryFn: async () => {
       const { data, error } = await supabase.from("organizations").select("id").eq("id", organizationId!).maybeSingle();
+      const awaitingSms = error?.code === "42501" && error.hint === "mfa_required";
+      if (error && !awaitingSms) throw error;
+      if (!data) {
+        // The SMS floor deliberately hides organization data before verification. Confirm the
+        // security state before interpreting the same absence as a suspended subscription.
+        // PostgREST may deny the request before RLS can return an empty result; defer that
+        // explicit MFA denial too, instead of retrying it throughout a normal SMS sign-in.
+        const security = await getMfaStatus();
+        if (security.accountAccessible === false) return false;
+        if (security.smsRequired && !mfaStatusIsVerified(security)) return null;
+      }
       if (error) throw error;
       return !!data;
     },

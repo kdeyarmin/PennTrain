@@ -257,6 +257,55 @@ can see the whole workspace and lockfile.
    working deploy live. The startup log line is `Refusing to start: ... index.html is missing`;
    if a deploy fails its healthcheck, check the deploy logs for it before anything else.
 
+### Twilio SMS MFA (no Supabase phone-MFA add-on)
+
+SMS MFA uses `sms-mfa` and Twilio Verify directly. Supabase remains the primary
+sign-in provider; the app records a short-lived proof for the exact Auth session
+and checks it in the shared database assurance guard. It never writes or fabricates
+Supabase's `aal2` JWT claim. Native TOTP remains available for accounts without
+an app SMS factor. Once an account enrolls SMS, SMS proof takes precedence over
+native factors, including factors enrolled directly through the Auth API. The SMS
+requirement survives administrator recovery; native factors cannot become a
+backdoor while SMS is awaiting re-enrollment. Restrictive RLS, storage policies
+and the existing PostgREST request hook enforce SMS proof on direct data/API
+access. Only the caller’s own profile and the exact account-security/lock
+bootstrap RPCs remain reachable before verification.
+
+Deployment order is required: apply the reviewed migration (after PR #507's
+release migrations), deploy `sms-mfa` and the updated `admin-update-user` and
+`impersonate-user`, then deploy the frontend. The new frontend fails closed if
+`get_my_mfa_status` is unavailable. Do not turn on the Supabase Advanced MFA Phone
+add-on or configure a Supabase phone-auth SMS hook for this implementation.
+
+Reuse the existing Twilio account credentials in Edge Function secrets:
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, plus a dedicated
+`TWILIO_VERIFY_SERVICE_SID` (`VA...`). A notification Messaging Service SID
+(`MG...`) is a different resource. Create/reuse a Verify Service with six-digit
+codes, SMS enabled, Fraud Guard enabled and the permitted destination countries.
+Never put these credentials in Railway's `VITE_*` variables. The screen discovers
+SMS availability from the configured Edge Function; no build-time SMS flag is
+needed. Missing provider configuration leaves native TOTP usable.
+
+Twilio Verify usage charges still apply: its public pricing on 2026-09-09 lists
+$0.05 per successful verification plus channel fees. See
+[Twilio Verify pricing](https://www.twilio.com/en-us/verify/pricing). This avoids
+the Supabase paid phone-MFA add-on; ordinary existing Supabase usage limits remain.
+
+First enrollment requires a recent password sign-in; accounts with an existing
+verified method must prove that method first. Replacing an SMS number requires
+both a recent password sign-in and the current SMS proof. Self-service removal
+is not offered: losing the phone uses the platform administrator's audited MFA
+reset, which revokes sessions and removes both native and app factors. No OTP
+or provider secret is stored in the app database or emitted in application logs;
+only the saved phone, bound provider verification reference and verification
+metadata are retained in the private schema. UI factor lists show masked numbers.
+
+Release verification must include an actual SMS send and approved check with the
+owner, wrong/expired code, resend limits, a fresh sign-in, idle lock/unlock, phone
+replacement and administrator recovery. Automated fixtures cannot certify carrier
+delivery. No Twilio resources, secrets, paid Supabase add-ons or production
+settings were changed during source implementation.
+
 ### Environment variables to set on the Railway service
 
 | Variable | Required | Notes |
@@ -268,7 +317,6 @@ can see the whole workspace and lockfile.
 | `VITE_RELEASE_ID` | recommended | Build-time release identifier, normally `RAILWAY_GIT_COMMIT_SHA`, attached to client error events |
 | `VITE_CENTRAL_SUPPORT_HUB_URL` | no | Optional build-time pin for the first-party Support Hub. Leave unset to use `https://support-hub-web-production.up.railway.app`, or set exactly that origin. Any other configured origin fails the build and the browser launcher fails closed. |
 | `VITE_DEMO_ACCOUNTS_JSON` | no | Optional JSON array powering the self-serve sandbox at `/demo` (the "Live demo" links). Leave unset in production unless public demo access is intentionally enabled. See "Public demo sandbox" below |
-| `VITE_MFA_SMS_ENABLED` | no | Build-time switch that offers SMS text-message codes alongside authenticator apps on `/account/security`. Set `true` **only** once the Supabase project has the paid "Advanced MFA Phone" add-on enabled and an SMS provider configured under Authentication -> Phone; otherwise Auth rejects phone enrollment. Text messages are billed per message by the SMS provider |
 | `VITE_CAREMETRIC_MODULES` | no | Comma-separated build-time product allow-list. Leave unset for a universal build, use `train` for a standalone CareMetric Train deployment, or `carebase` for the full CareBase deployment (which includes Train). Runtime organization entitlements are still authoritative. |
 | `NODE_ENV` | no | Railpack already sets `production`; setting it yourself is harmless |
 | `PORT` | no | Railway injects this automatically; the server reads it |

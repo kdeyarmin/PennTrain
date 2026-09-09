@@ -165,7 +165,7 @@ export function createImpersonateUserHandler({
       entity_type: "impersonation",
       entity_id: target_user_id,
       action: "impersonation_authorized",
-      new_values: { reason: reason.trim(), target_email: targetProfile.email, assurance: "aal2" },
+      new_values: { reason: reason.trim(), target_email: targetProfile.email, assurance: "current_identity_mfa" },
     });
     if (authorizationAuditError) {
       return json(req, { error: "Failed to record authorization documentation; impersonation aborted." }, 500);

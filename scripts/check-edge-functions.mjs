@@ -12,7 +12,7 @@ import { spawn } from "node:child_process";
 // deleting it would drop the count below the floor.
 // Whenever a function gains its first runtime test, RAISE this floor to the new count in
 // the same PR so coverage can only ratchet up. Never lower it.
-const RUNTIME_TEST_FLOOR = 16;
+const RUNTIME_TEST_FLOOR = 17;
 
 async function findEntrypoints(dir) {
   const entries = await readdir(dir, { withFileTypes: true });

@@ -12,14 +12,21 @@ import { supabase } from "@/lib/supabase";
 import { clearLocalSessionState } from "@/lib/auth";
 import {
   describeMfaError,
-  isSmsMfaEnabled,
   maskMfaPhone,
   mfaFactorLabel,
   normalizeMfaPhone,
-  toMfaFactors,
   type MfaFactor,
   type MfaFactorType,
 } from "@/lib/mfaFactors";
+import {
+  loadMfaSecurityState as fetchMfaSecurityState,
+  invalidateMfaDependentQueries,
+  mfaStatusIsVerified,
+  sendSmsMfaCode,
+  verifySmsMfaCode,
+  usableMfaFactors,
+  type MfaStatus,
+} from "@/lib/mfaSecurity";
 import { sanitizePostLoginPath } from "@/lib/loginRedirect";
 import { ArrowLeft, ArrowRight, CheckCircle2, KeyRound, Loader2, LockKeyhole, MessageSquare, ShieldCheck, Trash2 } from "lucide-react";
 
@@ -29,11 +36,6 @@ type Enrollment = {
   qrCode?: string;
   secret?: string;
   phone?: string;
-};
-
-type Assurance = {
-  currentLevel: string | null;
-  nextLevel: string | null;
 };
 
 /** A phone factor can only be verified against a challenge that actually sent a code. */
@@ -47,7 +49,7 @@ export default function MfaSettings() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const search = useSearch();
-  const smsAvailable = isSmsMfaEnabled();
+  const [smsAvailable, setSmsAvailable] = useState(false);
   // BACKLOG J74 (P3, identity). This page was a dead end: whether you arrived from the header
   // menu, the sidebar, or the MFA wall standing in front of a deep link, there was no control on
   // it that went anywhere. MfaPolicyGate now forwards the blocked route as ?next=; everything else
@@ -59,7 +61,8 @@ export default function MfaSettings() {
   }, [search]);
   const hasDeepLink = returnPath !== "/";
   const [factors, setFactors] = useState<MfaFactor[]>([]);
-  const [assurance, setAssurance] = useState<Assurance>({ currentLevel: null, nextLevel: null });
+  const [status, setStatus] = useState<MfaStatus | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [challenge, setChallenge] = useState<PendingChallenge | null>(null);
   const [selectedFactorId, setSelectedFactorId] = useState<string | null>(null);
@@ -69,26 +72,20 @@ export default function MfaSettings() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const loadSecurityState = useCallback(async () => {
-    const [factorResult, assuranceResult] = await Promise.all([
-      supabase.auth.mfa.listFactors(),
-      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
-    ]);
-
-    if (factorResult.error) throw factorResult.error;
-    if (assuranceResult.error) throw assuranceResult.error;
-
-    // `all` is the only list that includes still-unverified factors -- `totp` and
-    // `phone` are pre-filtered to verified ones, and an enrollment in progress has
-    // to stay visible until its code is confirmed.
-    const allFactors = toMfaFactors(factorResult.data.all);
-    setFactors(allFactors);
-    setAssurance({
-      currentLevel: assuranceResult.data.currentLevel,
-      nextLevel: assuranceResult.data.nextLevel,
+    const result = await fetchMfaSecurityState().catch((error: unknown) => {
+      setStatus(null);
+      setLoadError(describeMfaError(error));
+      throw error;
     });
+    const allFactors = result.factors;
+    setFactors(allFactors);
+    setStatus(result.status);
+    setSmsAvailable(result.smsAvailable);
+    setLoadError(null);
     setSelectedFactorId((current) => {
-      if (current && allFactors.some((factor) => factor.id === current)) return current;
-      return allFactors.find((factor) => factor.status === "verified")?.id ?? null;
+      const usable = usableMfaFactors(allFactors, result.status);
+      if (current && (!result.status.smsRequired ? allFactors : usable).some((factor) => factor.id === current)) return current;
+      return usable[0]?.id ?? null;
     });
   }, []);
 
@@ -97,6 +94,7 @@ export default function MfaSettings() {
     loadSecurityState()
       .catch((error) => {
         if (!cancelled) {
+          setLoadError(describeMfaError(error));
           toast({
             variant: "destructive",
             title: "Couldn't load account security",
@@ -112,9 +110,18 @@ export default function MfaSettings() {
     };
   }, [loadSecurityState, toast]);
 
+  useEffect(() => {
+    if (!status?.verified || !status.expiresAt) return;
+    const expire = () => setStatus((current) => current ? { ...current, verified: false } : null);
+    const delay = Date.parse(status.expiresAt) - Date.now();
+    if (delay <= 0) { expire(); return; }
+    const timer = window.setTimeout(expire, Math.min(delay + 1, 2_147_483_647));
+    return () => window.clearTimeout(timer);
+  }, [status?.verified, status?.expiresAt]);
+
   const verifiedFactors = useMemo(
-    () => factors.filter((factor) => factor.status === "verified"),
-    [factors],
+    () => status ? usableMfaFactors(factors, status) : [],
+    [factors, status],
   );
 
   const activeFactor = useMemo(() => {
@@ -123,11 +130,12 @@ export default function MfaSettings() {
   }, [enrollment?.factorId, factors, selectedFactorId]);
 
   const activeFactorType: MfaFactorType = enrollment?.factorType ?? activeFactor?.factor_type ?? "totp";
-  const isPhoneFlow = activeFactorType === "phone";
+  const isPhoneFlow = activeFactorType === "phone" || activeFactorType === "sms";
   /** SMS codes only exist once a challenge has been issued for the factor in play. */
   const awaitingSms = isPhoneFlow && challenge?.factorId !== (enrollment?.factorId ?? selectedFactorId);
 
   const beginTotpEnrollment = async () => {
+    if (status?.smsRequired) return;
     setBusyAction("enroll");
     try {
       const totpCount = factors.filter((factor) => factor.factor_type === "totp").length;
@@ -171,17 +179,14 @@ export default function MfaSettings() {
 
     setBusyAction("enroll");
     try {
-      const { data, error } = await supabase.auth.mfa.enroll({
-        factorType: "phone",
-        friendlyName: `Text message ${maskMfaPhone(phone)}`,
-        phone,
-      });
-      if (error) throw error;
-      setEnrollment({ factorId: data.id, factorType: "phone", phone });
-      setSelectedFactorId(data.id);
+      const sent = await sendSmsMfaCode(phone);
+      // Pending enrollment has no reusable factor until the server verifies this session's code.
+      const pendingId = `sms-enrollment:${sent.challengeId}`;
+      setEnrollment({ factorId: pendingId, factorType: "sms", phone: sent.maskedPhone });
+      setSelectedFactorId(pendingId);
+      setChallenge({ factorId: pendingId, challengeId: sent.challengeId });
       setCode("");
-      await loadSecurityState();
-      await sendSmsCode(data.id);
+      toast({ title: "Verification code sent", description: `Enter the code sent to ${sent.maskedPhone}.` });
     } catch (error) {
       toast({
         variant: "destructive",
@@ -198,9 +203,16 @@ export default function MfaSettings() {
     const wasBusy = busyAction;
     if (!wasBusy) setBusyAction("send-code");
     try {
-      const { data, error } = await supabase.auth.mfa.challenge({ factorId, channel: "sms" });
-      if (error) throw error;
-      setChallenge({ factorId, challengeId: data.id });
+      const factor = factors.find((candidate) => candidate.id === factorId);
+      if (factor?.factor_type === "phone") {
+        const { data, error } = await supabase.auth.mfa.challenge({ factorId, channel: "sms" });
+        if (error) throw error;
+        setChallenge({ factorId, challengeId: data.id });
+      } else {
+        // Existing factors never accept a destination supplied by this browser.
+        const sent = await sendSmsMfaCode(enrollment?.factorId === factorId ? normalizeMfaPhone(phoneEntry ?? "") ?? undefined : undefined);
+        setChallenge({ factorId, challengeId: sent.challengeId });
+      }
       setCode("");
       toast({
         title: "Verification code sent",
@@ -236,12 +248,12 @@ export default function MfaSettings() {
         if (challenge?.factorId !== factorId) {
           throw new Error("Request a new text-message code before verifying.");
         }
-        const { error } = await supabase.auth.mfa.verify({
-          factorId,
-          challengeId: challenge.challengeId,
-          code: code.trim(),
-        });
-        if (error) throw error;
+        if (activeFactorType === "sms") {
+          await verifySmsMfaCode(challenge.challengeId, code.trim());
+        } else {
+          const { error } = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.challengeId, code: code.trim() });
+          if (error) throw error;
+        }
       } else {
         const { error } = await supabase.auth.mfa.challengeAndVerify({
           factorId,
@@ -249,17 +261,19 @@ export default function MfaSettings() {
         });
         if (error) throw error;
       }
-      const { error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) throw refreshError;
+      if (activeFactorType !== "sms") {
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) throw refreshError;
+      }
       setEnrollment(null);
       setChallenge(null);
       setPhoneEntry(null);
       setCode("");
+      await invalidateMfaDependentQueries(queryClient);
       await loadSecurityState();
-      await queryClient.invalidateQueries({ queryKey: ["my_mfa_policy"] });
       toast({
         title: isPhoneFlow ? "Phone verified" : "Authenticator verified",
-        description: "This session now meets the AAL2 security requirement.",
+        description: "This session now meets the multi-factor security requirement.",
       });
     } catch (error) {
       toast({
@@ -275,24 +289,22 @@ export default function MfaSettings() {
   const removeFactor = async (factorId: string) => {
     setBusyAction(`remove:${factorId}`);
     try {
+      const factor = factors.find((candidate) => candidate.id === factorId);
+      if (factor?.factor_type === "sms" || status?.smsRequired) return;
       const { error } = await supabase.auth.mfa.unenroll({ factorId });
       if (error) throw error;
-      // Unenrollment does not retroactively change the JWT's `aal` claim. Refresh
-      // immediately so removing the last verified factor also removes AAL2
-      // privileges now, not when the access token happens to expire.
+      // Native removal requires a new JWT; it is offered only for accounts without app SMS.
       const { error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) {
         await supabase.auth.signOut();
-        // Same teardown as every other sign-out: a forced one still has to drop the impersonation
-        // record, the query cache, and the cached Supabase responses.
         await clearLocalSessionState();
         throw new Error("The factor was removed, but session assurance could not be refreshed. You were signed out for safety.");
       }
       if (enrollment?.factorId === factorId) setEnrollment(null);
       if (challenge?.factorId === factorId) setChallenge(null);
       setCode("");
+      await invalidateMfaDependentQueries(queryClient);
       await loadSecurityState();
-      await queryClient.invalidateQueries({ queryKey: ["my_mfa_policy"] });
       toast({ title: "Factor removed" });
     } catch (error) {
       toast({
@@ -306,12 +318,13 @@ export default function MfaSettings() {
   };
 
   const selectFactorForStepUp = (factor: MfaFactor) => {
+    if (status?.smsRequired && factor.factor_type !== "sms") return;
     setSelectedFactorId(factor.id);
     setEnrollment(null);
     setChallenge(null);
     setPhoneEntry(null);
     setCode("");
-    if (factor.factor_type === "phone") void sendSmsCode(factor.id);
+    if (factor.factor_type === "phone" || factor.factor_type === "sms") void sendSmsCode(factor.id);
   };
 
   if (loading) {
@@ -322,9 +335,12 @@ export default function MfaSettings() {
     );
   }
 
-  const showCodeForm = enrollment || (verifiedFactors.length > 0 && assurance.currentLevel !== "aal2");
+  if (loadError || !status) {
+    return <Alert variant="destructive"><AlertTitle>Account security unavailable</AlertTitle><AlertDescription>{loadError ?? "The verification status could not be confirmed."}</AlertDescription><Button className="mt-3" onClick={() => { setLoading(true); void loadSecurityState().catch((error) => setLoadError(describeMfaError(error))).finally(() => setLoading(false)); }}>Retry</Button></Alert>;
+  }
 
-  const verifiedHere = assurance.currentLevel === "aal2";
+  const verifiedHere = mfaStatusIsVerified(status);
+  const showCodeForm = enrollment || (verifiedFactors.length > 0 && !verifiedHere);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -342,19 +358,21 @@ export default function MfaSettings() {
         <p className="text-sm font-medium text-primary">Account security</p>
         <h1 className="text-3xl font-bold tracking-tight">Multi-factor authentication</h1>
         <p className="mt-2 text-muted-foreground">
-          {smsAvailable
-            ? "Protect privileged actions with a one-time code from your authenticator app or a text message."
-            : "Protect privileged actions with a time-based one-time password from your authenticator app."}
+          {status.smsRequired
+            ? "Protect your account with a one-time code sent to your mobile number."
+            : smsAvailable
+              ? "Protect privileged actions with a one-time code from your authenticator app or a text message."
+              : "Protect privileged actions with a time-based one-time password from your authenticator app."}
         </p>
       </div>
 
       <Alert>
-        {assurance.currentLevel === "aal2" ? <CheckCircle2 className="h-4 w-4" /> : <LockKeyhole className="h-4 w-4" />}
-        <AlertTitle>{assurance.currentLevel === "aal2" ? "Session verified at AAL2" : "Additional verification required"}</AlertTitle>
+        {verifiedHere ? <CheckCircle2 className="h-4 w-4" /> : <LockKeyhole className="h-4 w-4" />}
+        <AlertTitle>{verifiedHere ? "Session verified" : "Additional verification required"}</AlertTitle>
         <AlertDescription>
-          {assurance.currentLevel === "aal2"
+          {verifiedHere
             ? "This browser session can perform protected enterprise administration actions."
-            : assurance.nextLevel === "aal2"
+            : status.hasVerifiedFactor
               ? "Verify an enrolled factor before performing protected enterprise administration actions."
               : "Enroll a factor to enable protected enterprise administration actions."}
         </AlertDescription>
@@ -368,11 +386,15 @@ export default function MfaSettings() {
         ) : null}
       </Alert>
 
+      {status.smsRequired && !smsAvailable ? (
+        <Alert><AlertTitle>Text-message service unavailable</AlertTitle><AlertDescription>CareBase could not confirm that text-message verification is available. Retry this page or contact your administrator.</AlertDescription><Button className="mt-3" variant="outline" onClick={() => void loadSecurityState().catch(() => undefined)}>Retry</Button></Alert>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" /> Verification methods</CardTitle>
-            <CardDescription>Each verified factor can be used to elevate a signed-in session to AAL2.</CardDescription>
+            <CardDescription>Each verified method can protect a signed-in session.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {factors.length === 0 ? (
@@ -382,19 +404,19 @@ export default function MfaSettings() {
             ) : (
               factors.map((factor) => (
                 <div key={factor.id} className="flex items-center gap-3 rounded-lg border p-4">
-                  {factor.factor_type === "phone"
+                  {(factor.factor_type === "phone" || factor.factor_type === "sms")
                     ? <MessageSquare className="h-5 w-5 text-muted-foreground" />
                     : <KeyRound className="h-5 w-5 text-muted-foreground" />}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{mfaFactorLabel(factor)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {factor.factor_type === "phone" ? "Text message" : "Authenticator app"}
+                      {(factor.factor_type === "phone" || factor.factor_type === "sms") ? "Text message" : "Authenticator app"}
                       {" · Added "}
                       {new Date(factor.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <Badge variant={factor.status === "verified" ? "default" : "outline"}>{factor.status}</Badge>
-                  {factor.status === "verified" && assurance.currentLevel !== "aal2" ? (
+                  <Badge variant={factor.status === "verified" && (!status.smsRequired || factor.factor_type === "sms") ? "default" : "outline"}>{status.smsRequired && factor.factor_type !== "sms" ? "Not in use" : factor.status}</Badge>
+                  {factor.status === "verified" && !verifiedHere && (!status.smsRequired || factor.factor_type === "sms") ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -402,9 +424,10 @@ export default function MfaSettings() {
                       disabled={busyAction !== null}
                       onClick={() => selectFactorForStepUp(factor)}
                     >
-                      {factor.factor_type === "phone" ? "Text me a code" : "Verify"}
+                      {(factor.factor_type === "phone" || factor.factor_type === "sms") ? "Text me a code" : "Verify"}
                     </Button>
                   ) : null}
+                  {!status.smsRequired ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -417,12 +440,15 @@ export default function MfaSettings() {
                       ? <Loader2 className="h-4 w-4 animate-spin" />
                       : <Trash2 className="h-4 w-4" />}
                   </Button>
+                  ) : null}
                 </div>
               ))
             )}
 
+            {status.smsRequired && status.smsFactors.length === 0 ? <p className="text-sm text-muted-foreground">Your text-message method was reset. Add a mobile number to restore access.</p> : null}
+            {status.smsFactors.length > 0 ? <p className="text-sm text-muted-foreground">Text-message verification is active for this account. Verify a text code to continue. Contact your administrator if you lose access to this number.</p> : null}
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled={busyAction !== null || !!enrollment} onClick={() => void beginTotpEnrollment()}>
+              <Button type="button" variant="outline" disabled={busyAction !== null || !!enrollment || status.smsRequired} onClick={() => void beginTotpEnrollment()}>
                 {busyAction === "enroll" && phoneEntry === null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
                 Add authenticator app
               </Button>
@@ -438,7 +464,7 @@ export default function MfaSettings() {
                   }}
                 >
                   <MessageSquare className="mr-2 h-4 w-4" />
-                  Add text message (SMS)
+                  {status.smsFactors.length ? "Change mobile number" : "Add text message (SMS)"}
                 </Button>
               ) : null}
             </div>
@@ -452,6 +478,8 @@ export default function MfaSettings() {
                 }}
               >
                 <div className="space-y-2">
+                  {status.smsRequired && status.smsFactors.length === 0 ? <p className="text-sm text-muted-foreground">Your text-message method was reset. Add a mobile number to restore access.</p> : null}
+            {status.smsFactors.length > 0 ? <p className="text-sm text-muted-foreground">Verify your current text-message method and sign in recently with your password before changing this number.</p> : null}
                   <Label htmlFor="mfa-phone">Mobile number</Label>
                   <Input
                     id="mfa-phone"
@@ -464,7 +492,7 @@ export default function MfaSettings() {
                     disabled={busyAction !== null}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Standard message rates apply. Codes are sent only when you sign in to a protected workspace.
+                    By requesting a code, you agree to receive account security text messages at this number. Message and data rates may apply.
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -486,7 +514,7 @@ export default function MfaSettings() {
             <CardTitle>{enrollment ? "Finish enrollment" : "Verify this session"}</CardTitle>
             <CardDescription>
               {enrollment
-                ? enrollment.factorType === "phone"
+                ? enrollment.factorType !== "totp"
                   ? `Enter the code we texted to ${maskMfaPhone(enrollment.phone)}.`
                   : "Scan the QR code, then enter the current code."
                 : "Enter a code from a verified method."}
@@ -505,7 +533,7 @@ export default function MfaSettings() {
               </div>
             ) : verifiedFactors.length === 0 && !enrollment ? (
               <p className="text-sm text-muted-foreground">Add a verification method to begin.</p>
-            ) : assurance.currentLevel === "aal2" ? (
+            ) : verifiedHere && !enrollment ? (
               <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">
                 This session is already verified. You may return to the enterprise control plane.
               </div>
@@ -540,6 +568,9 @@ export default function MfaSettings() {
                   {busyAction === "verify" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isPhoneFlow ? "Verify text message code" : "Verify authenticator"}
                 </Button>
+                {enrollment?.factorType === "sms" ? (
+                  <Button type="button" variant="ghost" className="w-full" disabled={busyAction !== null} onClick={() => { setEnrollment(null); setChallenge(null); setSelectedFactorId(null); setCode(""); setPhoneEntry(""); }}>Use a different number</Button>
+                ) : null}
                 {isPhoneFlow && selectedFactorId ? (
                   <Button
                     type="button"

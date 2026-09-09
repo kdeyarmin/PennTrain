@@ -9,7 +9,7 @@ export type PrivilegedIdentityResult =
   | { ok: true }
   | { ok: false; status: 401 | 403 | 503; error: string };
 
-/** Require both an AAL2 JWT and the repository's freshness window for an operation. */
+/** Require server-verified MFA (native or session-bound SMS) and the operation's freshness window. */
 export async function requireFreshAal2(
   client: PrivilegedIdentityClient,
   operation = "identity_admin",
