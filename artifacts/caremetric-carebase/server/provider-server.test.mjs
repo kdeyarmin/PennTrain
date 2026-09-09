@@ -196,6 +196,22 @@ test("actual server supports browser BASE_PATH while keeping root cron and webho
   assert.equal((await request(server, "/")).status, 404);
 });
 
+for (const basePath of ["/api/", "/api/providers/"]) {
+  test(`actual server preserves provider routing when BASE_PATH overlaps ${basePath}`, { timeout: 20_000 }, async (t) => {
+    const server = await launch(t, { basePath });
+    // With /api/providers/, the raw browser URL looks like an unknown root
+    // endpoint. The valid base-prefixed route must still reach its handler.
+    await assertRejectedRoutes(server, basePath.slice(0, -1));
+    const app = await request(server, basePath);
+    assert.equal(app.status, 200);
+    assert.match(app.body, /App fixture/);
+    const unknown = await request(server, `${basePath}api/providers/unknown`, { method: "POST", body: "{}" });
+    assert.equal(unknown.status, 404);
+    assert.deepEqual(JSON.parse(unknown.body), { error: { code: "provider_route_not_found" } });
+    await server.assertNoProviderFetch();
+  });
+}
+
 test("actual Railway startup fails before listening when a required server secret is absent", { timeout: 20_000 }, async (t) => {
   const server = await launch(t, { envOverrides: { TWILIO_AUTH_TOKEN: undefined }, expectStartup: false });
   const result = await deadline(server.exited, "startup rejection");

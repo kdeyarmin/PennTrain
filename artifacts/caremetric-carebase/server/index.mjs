@@ -36,8 +36,10 @@ try {
   providerManifest = createProviderBuildManifest({ VITE_PROVIDER_RUNTIME: "supabase" });
 }
 const providerRuntime = validateProviderRuntime(providerManifest);
+const providerHandlers = createProviderHandlers();
+const rootProviderPaths = new Set([...providerHandlers.keys()].map((name) => `/api/providers/${name}`));
 const routeProviderRequest = createProviderRouter({
-  handlers: createProviderHandlers(), enabled: providerRuntime.enabled,
+  handlers: providerHandlers, enabled: providerRuntime.enabled,
   publicOrigin: process.env.PUBLIC_APP_URL || "https://cmcarebase.com",
 });
 
@@ -462,9 +464,11 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
     const packagePath = stripBasePath(url.pathname);
-    // Cron and the dedicated Stripe endpoint keep their stable root URLs even if the SPA
-    // is served under a base path. Browser calls may use that same base path.
-    if (await routeProviderRequest(req, res, packagePath ?? url.pathname)) return;
+    // Recognized root endpoints keep their stable URLs even when BASE_PATH overlaps
+    // /api/providers/. An unknown raw path may instead be a valid base-prefixed
+    // browser endpoint, so it must be resolved after stripping the app base.
+    const providerPath = rootProviderPaths.has(url.pathname) ? url.pathname : packagePath ?? url.pathname;
+    if (await routeProviderRequest(req, res, providerPath)) return;
     if (packagePath && await proxyLearningPackage(req, res, packagePath, { supabaseUrl: process.env.VITE_SUPABASE_URL })) return;
 
     if (req.method !== "GET" && req.method !== "HEAD") {

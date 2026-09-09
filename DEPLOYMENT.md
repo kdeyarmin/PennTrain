@@ -350,6 +350,10 @@ Roll out in this order:
    scheduled billing job and operator-triggered dispatch through the unchanged Edge URL, including
    their correlation IDs and durable job results. The forwarder authenticates each request and
    sends it once; an ambiguous timeout must be reconciled against its job record before retrying.
+   Lost, truncated or invalid responses after dispatch report an unknown outcome. The manual
+   dispatcher preserves the run for its worker to finish; an HTTP failure alone cannot mark
+   provider work failed. The System Jobs page refreshes the existing run and never retries the
+   dispatch automatically. Confirmed pre-dispatch configuration failures remain failures.
 6. Complete actual SMS enrollment/send/verify and the security scenarios below, then Checkout,
    Customer Portal, webhook reconciliation, and billing quantity checks in `BILLING_MODEL.md`.
    Passing unit tests or seeing required variable names cannot replace these live checks.

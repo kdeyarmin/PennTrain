@@ -4,12 +4,14 @@ import { createServer, request as httpRequest } from "node:http";
 import { createProviderRouter } from "./provider-router.mjs";
 
 async function setup(t, handler, options = {}) {
+  const { onRequest, ...routerOptions } = options;
   const router = createProviderRouter({
     enabled: true,
     handlers: new Map(["sms-mfa", "create-billing-session", "stripe-billing-webhook", "sync-billing-quantities"].map((name) => [name, handler])),
-    ...options,
+    ...routerOptions,
   });
   const server = createServer(async (req, res) => {
+    onRequest?.(req);
     if (!await router(req, res, new URL(req.url, "http://localhost").pathname)) {
       res.writeHead(418); res.end("outside provider router");
     }
@@ -116,4 +118,87 @@ test("concurrency is bounded while an accepted handler owns a request", async (t
   await started;
   assert.equal((await rawRequest(`${url}/api/providers/sms-mfa`)).status, 503);
   release(); assert.equal((await first).status, 200);
+});
+
+test("sixteen incomplete unauthenticated bodies do not occupy provider execution slots", async (t) => {
+  const arrivals = Array.from({ length: 16 }, () => Promise.withResolvers());
+  const calls = [];
+  let settledBodies = 0;
+  const url = await setup(t, (req) => {
+    assert.equal(req.headers.get("authorization"), "Bearer completed-request");
+    calls.push(req.url);
+    return Response.json({ ok: true });
+  }, {
+    bodyTimeoutMs: 1_000,
+    onRequest(req) {
+      const id = req.headers["x-test-slow-body"];
+      if (id !== undefined) req.once("data", () => arrivals[Number(id)].resolve());
+    },
+  });
+  const slow = arrivals.map((_, id) => rawRequest(`${url}/api/providers/sms-mfa`, {
+    headers: { "x-test-slow-body": String(id) }, chunks: ["{"], end: false,
+  }).then((result) => { settledBodies++; return result; }));
+  await Promise.all(arrivals.map(({ promise }) => promise));
+  assert.equal(calls.length, 0);
+  for (const name of ["sms-mfa", "stripe-billing-webhook", "sync-billing-quantities"]) {
+    const result = await rawRequest(`${url}/api/providers/${name}`, {
+      headers: { authorization: "Bearer completed-request" }, chunks: ["{}"],
+    });
+    assert.equal(result.status, 200);
+  }
+  assert.equal(calls.length, 3);
+  assert.equal(settledBodies, 0, "provider calls must finish while all sixteen slow bodies are still pending");
+  assert.deepEqual((await Promise.all(slow)).map(({ status }) => status), Array(16).fill(408));
+});
+
+test("bounded ingress sheds only incomplete bodies while execution capacity and timeout cleanup remain intact", async (t) => {
+  const arrivals = Array.from({ length: 5 }, () => Promise.withResolvers());
+  const entered = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  let calls = 0;
+  const url = await setup(t, async () => {
+    calls++;
+    if (calls === 1) { entered.resolve(); await release.promise; }
+    return Response.json({ ok: true });
+  }, {
+    bodyTimeoutMs: 1_000, maxConcurrent: 1, maxPendingBodies: 2,
+    onRequest(req) {
+      const id = req.headers["x-test-slow-body"];
+      if (id !== undefined) req.once("data", () => arrivals[Number(id)].resolve());
+    },
+  });
+  const slow = (id) => rawRequest(`${url}/api/providers/sms-mfa`, {
+    headers: { "x-test-slow-body": String(id) }, chunks: ["{"], end: false,
+  });
+  const first = slow(0);
+  const second = slow(1);
+  await Promise.all(arrivals.slice(0, 2).map(({ promise }) => promise));
+
+  // The complete newcomer gets through a saturated ingress pool, shedding its oldest body.
+  const executing = rawRequest(`${url}/api/providers/sms-mfa`, { chunks: ["{}"] });
+  await entered.promise;
+  assert.equal((await first).status, 503);
+  assert.equal(calls, 1);
+
+  // Further ingress pressure can evict incomplete bodies, but cannot cancel the executing job.
+  const third = slow(2);
+  await arrivals[2].promise;
+  const fourth = slow(3);
+  await arrivals[3].promise;
+  assert.equal((await second).status, 503);
+  const busy = await rawRequest(`${url}/api/providers/sms-mfa`, { chunks: ["{}"] });
+  assert.equal(busy.status, 503);
+  assert.equal((await third).status, 503);
+  assert.equal(calls, 1);
+  release.resolve();
+  assert.equal((await executing).status, 200);
+
+  // Timeout releases the remaining incomplete body. A later incomplete/complete pair fits
+  // together without evicting either request or losing the execution slot to a stale count.
+  assert.equal((await fourth).status, 408);
+  const fifth = slow(4);
+  await arrivals[4].promise;
+  assert.equal((await rawRequest(`${url}/api/providers/sms-mfa`, { chunks: ["{}"] })).status, 200);
+  assert.equal(calls, 2);
+  assert.equal((await fifth).status, 408);
 });

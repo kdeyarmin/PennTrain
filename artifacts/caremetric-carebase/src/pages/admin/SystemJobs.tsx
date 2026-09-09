@@ -220,7 +220,7 @@ export default function SystemJobs() {
       toast({ title: replayRunId ? "Replay started" : "Job started", description: job.display_name });
     } catch (error) {
       toast({
-        title: "Job did not start",
+        title: "Job request not confirmed",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });

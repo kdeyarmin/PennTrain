@@ -83,18 +83,31 @@ function useRefreshSystemJobs() {
 export function useRunSystemJob() {
   const refresh = useRefreshSystemJobs();
   return useMutation({
+    // A lost dispatch response can still leave a running worker. Never repeat the mutation.
+    retry: false,
     mutationFn: async (input: { jobKey: string; reason: string; replayRunId?: string }) => {
-      const { data, error } = await supabase.functions.invoke("run-system-job", {
-        body: {
-          jobKey: input.jobKey,
-          reason: input.reason,
-          replayRunId: input.replayRunId,
-        },
-      });
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase.functions.invoke("run-system-job", {
+          body: {
+            jobKey: input.jobKey,
+            reason: input.reason,
+            replayRunId: input.replayRunId,
+          },
+        });
+        if (error) throw error;
+        if (input.jobKey === "billing-quantity-sync" && data?.success !== true) {
+          throw new Error("Billing dispatch was not confirmed");
+        }
+        return data;
+      } catch (error) {
+        if (input.jobKey === "billing-quantity-sync") {
+          throw new Error("The billing run's outcome could not be confirmed. Refresh this page and check the existing run before trying again.");
+        }
+        throw error;
+      }
     },
-    onSuccess: refresh,
+    // A nonterminal dispatch error still created a durable run that the operator must see.
+    onSettled: refresh,
   });
 }
 
