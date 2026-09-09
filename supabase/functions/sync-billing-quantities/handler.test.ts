@@ -322,7 +322,7 @@ Deno.test("sync-billing-quantities runs on its own default randomUUID/nowMs", as
     createClient: () => ({
       rpc: async (name: string) => {
         if (name === "claim_system_job_execution") {
-          return { data: [{ run_id: "run-default", should_execute: false }], error: null };
+          return { data: [{ run_id: "run-default", should_execute: false, existing_status: "succeeded" }], error: null };
         }
         return { data: null, error: null };
       },
@@ -345,4 +345,35 @@ Deno.test("sync-billing-quantities runs on its own default randomUUID/nowMs", as
   // Produced by the default randomUUID rather than a header.
   assertEquals(typeof body.correlationId, "string");
   assertEquals((body.correlationId ?? "").length > 0, true);
+});
+
+Deno.test("sync-billing-quantities never reports an active replay as completed", async () => {
+  for (const existingStatus of ["running", "queued", undefined, "succeeded"]) {
+    let claims = 0;
+    const handler = createSyncBillingQuantitiesHandler({
+      createClient: () => ({
+        rpc: async (name: string) => {
+          assertEquals(name, "claim_system_job_execution");
+          claims++;
+          return { data: [{ run_id: "run-replay", should_execute: false, existing_status: existingStatus }], error: null };
+        },
+        from: () => { throw new Error("An unclaimed replay must not query subscriptions"); },
+      }),
+      getEnv: () => "test-configured",
+      requireCron: () => null,
+      stripeGet: () => { throw new Error("An unclaimed replay must not read Stripe"); },
+      stripePost: () => { throw new Error("An unclaimed replay must not mutate Stripe"); },
+    });
+    const response = await handler(new Request("https://example.test", {
+      method: "POST", headers: { "x-correlation-id": "replay-correlation" }, body: "{}",
+    }));
+    const result = await response.json();
+    assertEquals(response.status, existingStatus === "succeeded" ? 200 : 502);
+    assertEquals(result.success, existingStatus === "succeeded" ? true : undefined);
+    assertEquals(result.dispatchOutcome, existingStatus === "succeeded" ? undefined : "unknown");
+    assertEquals(result.runId, "run-replay");
+    assertEquals(result.correlationId, "replay-correlation");
+    assertEquals(result.replayed, true);
+    assertEquals(claims, 1);
+  }
 });

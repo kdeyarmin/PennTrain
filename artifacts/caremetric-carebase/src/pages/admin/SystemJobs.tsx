@@ -7,6 +7,7 @@ import {
   useSetSystemJobKillSwitch,
   useSystemJobRecoveryState,
   useSystemJobs,
+  SystemJobDispatchRejectedError,
   type FailedBillingEvent,
   type SystemJobStatus,
 } from "@/hooks/useSystemJobs";
@@ -220,7 +221,7 @@ export default function SystemJobs() {
       toast({ title: replayRunId ? "Replay started" : "Job started", description: job.display_name });
     } catch (error) {
       toast({
-        title: "Job request not confirmed",
+        title: error instanceof SystemJobDispatchRejectedError ? "Billing dispatch rejected" : "Job request not confirmed",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });

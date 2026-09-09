@@ -199,6 +199,33 @@ Deno.test("billing runtime preserves cron and manual dispatch identity while dro
   }
 });
 
+Deno.test("billing runtime forwards the bounded correlation ID consistently", async () => {
+  const oversizedId = "c".repeat(500);
+  const boundedId = oversizedId.slice(0, 200);
+  const { handler } = fixture({
+    fetcher: async (_input, init) => {
+      assertEquals(new Headers(init?.headers).get("x-correlation-id"), boundedId);
+      return response({ success: true, runId: RUN_ID, correlationId: boundedId });
+    },
+  });
+  const result = await handler(request({ "X-Correlation-Id": oversizedId }));
+  assertEquals((await result.json()).correlationId, boundedId);
+});
+
+Deno.test("billing runtime preserves bounded unknown worker outcomes for reconciliation", async () => {
+  for (const error of ["job_finalization_unconfirmed", "job_execution_unconfirmed"]) {
+    const { handler } = fixture({
+      fetcher: async () => response({
+        error, dispatchOutcome: "unknown", runId: RUN_ID, correlationId: CORRELATION_ID,
+        message: "private provider diagnostic", secret: "test-only-private-value",
+      }, 502),
+    });
+    const result = await handler(request());
+    assertEquals(result.status, 502);
+    assertEquals(await result.json(), { error, dispatchOutcome: "unknown", runId: RUN_ID, correlationId: CORRELATION_ID });
+  }
+});
+
 Deno.test("billing runtime enforces both declared and streaming request limits", async () => {
   for (
     const req of [

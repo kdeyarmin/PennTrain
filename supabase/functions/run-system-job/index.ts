@@ -205,8 +205,9 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const queueCall = body.replayRunId
-    ? callerClient.rpc("replay_system_job_dead_letter", {
+    ? callerClient.rpc("replay_system_job_dead_letter_for_job", {
       p_run_id: body.replayRunId,
+      p_job_key: body.jobKey,
       p_reason: reason,
     })
     : callerClient.rpc("request_system_job_rerun", {
@@ -262,6 +263,16 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!cronSecret) {
+    if (edgeTarget.functionName === "sync-billing-quantities") {
+      // A canonical replay can already be running. Missing configuration on this
+      // attempt cannot authorize a failed terminal state for the shared run.
+      return json(req, {
+        error: "Internal billing dispatch authentication is not configured; check the existing run",
+        dispatchOutcome: "not_started",
+        runId: queued.run_id,
+        correlationId: queued.correlation_id,
+      }, 503);
+    }
     await adminClient.rpc("finish_system_job", {
       p_run_id: queued.run_id,
       p_status: "failed",
@@ -286,19 +297,6 @@ Deno.serve(async (req: Request) => {
       correlationId: queued.correlation_id,
       body: edgeTarget.body,
       signal: req.signal,
-      finishNotStarted: async () => {
-        const { error } = await adminClient.rpc("finish_system_job", {
-          p_run_id: queued.run_id,
-          p_status: "failed",
-          p_attempted_count: 0,
-          p_succeeded_count: 0,
-          p_failed_count: 1,
-          p_result: { dispatchStarted: false },
-          p_error_code: "manual_dispatch_not_started",
-          p_error_message: "The billing worker rejected dispatch before execution",
-        });
-        if (error) throw new Error("Run finalization could not be confirmed");
-      },
     });
     return json(req, dispatched.body, dispatched.status);
   }

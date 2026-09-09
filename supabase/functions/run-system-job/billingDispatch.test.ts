@@ -1,7 +1,4 @@
-import {
-  deepStrictEqual as assertEquals,
-  rejects as assertRejects,
-} from "node:assert/strict";
+import { deepStrictEqual as assertEquals } from "node:assert/strict";
 import { createBillingRuntimeHandler } from "../sync-billing-quantities/forwarding.ts";
 import { createSyncBillingQuantitiesHandler } from "../sync-billing-quantities/handler.ts";
 import { dispatchBillingSystemJob } from "./billingDispatch.ts";
@@ -32,19 +29,34 @@ function deferred<T>() {
 }
 
 // This model enforces finish_system_job's actual queued/running -> terminal rule
-// (20260711162509, lines 737-741). The real billing handler adopts and finishes it.
-function lateWorker() {
+// (20260711162509, lines 737-741). SQL failures arrive in Supabase's error envelope,
+// not as thrown JavaScript errors. The real billing handler adopts and finishes it.
+function lateWorker(
+  finalization:
+    | "normal"
+    | "rpc_error"
+    | "transport_before"
+    | "transport_after" = "normal",
+) {
   const state = { status: "queued", failedFinishes: 0, succeededFinishes: 0 };
+  const finishAttempts: string[] = [];
   const claimed = deferred<void>();
   const release = deferred<void>();
   const finish = (status: string) => {
     if (!["queued", "running"].includes(state.status)) {
-      if (state.status === status) return;
-      throw new Error("System job already finished differently");
+      if (state.status === status) return { data: null, error: null };
+      return {
+        data: null,
+        error: {
+          code: "55000",
+          message: "System job already finished differently",
+        },
+      };
     }
     state.status = status;
     if (status === "failed") state.failedFinishes++;
     if (status === "succeeded") state.succeededFinishes++;
+    return { data: null, error: null };
   };
   type EmptySubscriptionsQuery = {
     select: () => EmptySubscriptionsQuery;
@@ -81,8 +93,21 @@ function lateWorker() {
         }
         assertEquals(name, "finish_system_job");
         assertEquals(args.p_run_id, RUN_ID);
-        finish(String(args.p_status));
-        return { data: null, error: null };
+        finishAttempts.push(String(args.p_status));
+        if (finalization === "rpc_error") {
+          return {
+            data: null,
+            error: { code: "XX000", message: "test-private-database-error" },
+          };
+        }
+        if (finalization === "transport_before") {
+          throw new Error("test-private-transport-error");
+        }
+        const result = finish(String(args.p_status));
+        if (finalization === "transport_after") {
+          throw new Error("test-private-response-lost-after-commit");
+        }
+        return result;
       },
     }),
     getEnv: (name) => ENV[name],
@@ -94,12 +119,11 @@ function lateWorker() {
       throw new Error("No subscriptions: no provider request is expected");
     },
   });
-  return { handler, state, claimed, release, finish };
+  return { handler, state, claimed, release, finish, finishAttempts };
 }
 
 function dispatch(
   fetcher: typeof fetch,
-  finishNotStarted: () => Promise<void>,
   timeoutMs?: number,
 ) {
   return dispatchBillingSystemJob({
@@ -110,7 +134,6 @@ function dispatch(
     body: { batchSize: 50, maxRuntimeMs: 110000 },
     signal: new AbortController().signal,
     fetcher,
-    finishNotStarted,
     timeoutMs,
   });
 }
@@ -129,7 +152,6 @@ Deno.test("lost Railway responses leave the real adopted billing run completable
     const worker = lateWorker();
     let workerResponse!: Promise<Response>;
     let railwayAttempts = 0;
-    let dispatcherFinishes = 0;
     const forwarding = createBillingRuntimeHandler({
       supabaseHandler: () => {
         throw new Error("No fallback permitted");
@@ -176,17 +198,12 @@ Deno.test("lost Railway responses leave the real adopted billing run completable
     });
     const result = await dispatch(
       (input, init) => Promise.resolve(forwarding(new Request(input, init))),
-      async () => {
-        dispatcherFinishes++;
-        worker.finish("failed");
-      },
     );
     assertEquals(result.status, 502);
     assertEquals(result.body.dispatchOutcome, "unknown");
     assertEquals(result.body.runId, RUN_ID);
     assertEquals(result.body.correlationId, CORRELATION_ID);
     assertEquals(result.body.success, undefined);
-    assertEquals(dispatcherFinishes, 0);
     assertEquals(worker.state.status, "running");
     worker.release.resolve();
     assertEquals((await workerResponse).status, 200);
@@ -199,7 +216,7 @@ Deno.test("lost Railway responses leave the real adopted billing run completable
   }
 });
 
-Deno.test("negative control reproduces the old dispatcher terminal conflict", async () => {
+Deno.test("a conflicting terminal row returns an RPC error envelope and never false worker success", async () => {
   const worker = lateWorker();
   const running = worker.handler(
     new Request("https://example.test", {
@@ -213,10 +230,19 @@ Deno.test("negative control reproduces the old dispatcher terminal conflict", as
   );
   await worker.claimed.promise;
   // This is the removed fallback: HTTP 502 -> finish_system_job(..., 'failed').
-  worker.finish("failed");
+  assertEquals(worker.finish("failed").error, null);
   worker.release.resolve();
-  await assertRejects(running, /System job already finished differently/);
+  const response = await running;
+  assertEquals(response.status, 502);
+  assertEquals(await response.json(), {
+    error: "job_finalization_unconfirmed",
+    dispatchOutcome: "unknown",
+    runId: RUN_ID,
+    correlationId: CORRELATION_ID,
+  });
   assertEquals(worker.state.failedFinishes, 1);
+  assertEquals(worker.state.succeededFinishes, 0);
+  assertEquals(worker.finishAttempts, ["succeeded"]);
 });
 
 Deno.test("direct dispatcher fetch, timeout and response-read failures never finalize the adopted run", async () => {
@@ -254,8 +280,6 @@ Deno.test("direct dispatcher fetch, timeout and response-read failures never fin
       return new Response("{", {
         headers: { "content-type": "application/json" },
       });
-    }, async () => {
-      worker.finish("failed");
     }, failure === "timeout" ? 5 : 1000);
     assertEquals(result.status, 502);
     assertEquals(result.body.dispatchOutcome, "unknown");
@@ -270,8 +294,19 @@ Deno.test("direct dispatcher fetch, timeout and response-read failures never fin
   }
 });
 
-Deno.test("verified pre-forward rejection still finalizes the queued run", async () => {
-  let finalized = 0;
+Deno.test("verified pre-forward rejection leaves an already-running canonical replay completable", async () => {
+  const worker = lateWorker();
+  const running = worker.handler(
+    new Request("https://example.test", {
+      method: "POST",
+      headers: {
+        "x-correlation-id": CORRELATION_ID,
+        "x-request-id": `manual:${RUN_ID}`,
+      },
+      body: "{}",
+    }),
+  );
+  await worker.claimed.promise;
   let attempted = 0;
   const forwarding = createBillingRuntimeHandler({
     supabaseHandler: () => {
@@ -285,14 +320,18 @@ Deno.test("verified pre-forward rejection still finalizes the queued run", async
   });
   const result = await dispatch(
     (input, init) => Promise.resolve(forwarding(new Request(input, init))),
-    async () => {
-      finalized++;
-    },
   );
   assertEquals(result.status, 502);
   assertEquals(result.body.dispatchOutcome, "not_started");
-  assertEquals(finalized, 1);
   assertEquals(attempted, 0);
+  assertEquals(worker.state.status, "running");
+  worker.release.resolve();
+  assertEquals((await running).status, 200);
+  assertEquals(worker.state, {
+    status: "succeeded",
+    failedFinishes: 0,
+    succeededFinishes: 1,
+  });
 });
 
 Deno.test("arbitrary not-started markers cannot terminalize a run", async () => {
@@ -324,17 +363,12 @@ Deno.test("arbitrary not-started markers cannot terminalize a run", async () => 
       },
     ]
   ) {
-    let finalized = 0;
-    const result = await dispatch(async () => json(value, 502), async () => {
-      finalized++;
-    });
+    const result = await dispatch(async () => json(value, 502));
     assertEquals(result.body.dispatchOutcome, "unknown");
-    assertEquals(finalized, 0);
   }
 });
 
 Deno.test("only matching confirmed worker success is reported as successful dispatch", async () => {
-  let finalized = 0;
   for (const success of [true, false]) {
     const result = await dispatch(
       async () =>
@@ -342,12 +376,50 @@ Deno.test("only matching confirmed worker success is reported as successful disp
           { success, runId: RUN_ID, correlationId: CORRELATION_ID },
           success ? 200 : 502,
         ),
-      async () => {
-        finalized++;
-      },
     );
     assertEquals(result.status, success ? 200 : 502);
     assertEquals(result.body.success, success ? true : undefined);
   }
-  assertEquals(finalized, 0);
+});
+
+Deno.test("billing worker finalization errors remain unconfirmed without leaking diagnostics or retrying", async () => {
+  for (
+    const failure of [
+      "rpc_error",
+      "transport_before",
+      "transport_after",
+    ] as const
+  ) {
+    const worker = lateWorker(failure);
+    const running = worker.handler(
+      new Request("https://example.test", {
+        method: "POST",
+        headers: {
+          "x-correlation-id": CORRELATION_ID,
+          "x-request-id": `manual:${RUN_ID}`,
+        },
+        body: "{}",
+      }),
+    );
+    await worker.claimed.promise;
+    worker.release.resolve();
+    const response = await running;
+    assertEquals(response.status, 502);
+    assertEquals(await response.clone().json(), {
+      error: "job_finalization_unconfirmed",
+      dispatchOutcome: "unknown",
+      runId: RUN_ID,
+      correlationId: CORRELATION_ID,
+    });
+    assertEquals(worker.finishAttempts, ["succeeded"]);
+    assertEquals(worker.state.failedFinishes, 0);
+    assertEquals(
+      worker.state.status,
+      failure === "transport_after" ? "succeeded" : "running",
+    );
+    const result = await dispatch(async () => response);
+    assertEquals(result.status, 502);
+    assertEquals(result.body.dispatchOutcome, "unknown");
+    assertEquals(result.body.success, undefined);
+  }
 });

@@ -352,8 +352,11 @@ Roll out in this order:
    sends it once; an ambiguous timeout must be reconciled against its job record before retrying.
    Lost, truncated or invalid responses after dispatch report an unknown outcome. The manual
    dispatcher preserves the run for its worker to finish; an HTTP failure alone cannot mark
-   provider work failed. The System Jobs page refreshes the existing run and never retries the
-   dispatch automatically. Confirmed pre-dispatch configuration failures remain failures.
+   provider work failed. Even a rejected attempt may refer to an already-running canonical
+   replay, so billing dispatch never finalizes the shared run. The worker reports success only
+   after its final status is confirmed in the database. The System Jobs page distinguishes
+   rejected attempts from unknown outcomes, refreshes the existing run and never retries
+   automatically. Replays must match their original job before they are queued or dispatched.
 6. Complete actual SMS enrollment/send/verify and the security scenarios below, then Checkout,
    Customer Portal, webhook reconciliation, and billing quantity checks in `BILLING_MODEL.md`.
    Passing unit tests or seeing required variable names cannot replace these live checks.

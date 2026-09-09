@@ -193,6 +193,15 @@ export function createSyncBillingQuantitiesHandler({
   const job = Array.isArray(jobRows) ? jobRows[0] : jobRows;
   if (jobError || !job?.run_id) return json({ error: "job_tracking_failed", correlationId }, 500);
   if (!job.should_execute) {
+    if (job.existing_status !== "succeeded") {
+      return json({
+        error: "job_execution_unconfirmed",
+        dispatchOutcome: "unknown",
+        replayed: true,
+        runId: job.run_id,
+        correlationId,
+      }, 502);
+    }
     return json({ success: true, replayed: true, runId: job.run_id, correlationId });
   }
 
@@ -614,18 +623,33 @@ export function createSyncBillingQuantitiesHandler({
     prorationBehavior: "none",
     correlationId,
   };
-  await admin.rpc("finish_system_job", {
-    p_run_id: job.run_id,
-    p_status: terminalStatus,
-    p_attempted_count: attempted,
-    p_succeeded_count: succeeded,
-    p_failed_count: failedCount,
-    p_result: result,
-    p_error_code: terminalStatus === "succeeded" ? null : "billing_quantity_sync_incomplete",
-    p_error_message: terminalStatus === "succeeded"
-      ? null
-      : "One or more subscription quantities require operator attention",
-  });
+  const finalizationUnconfirmed = () => json({
+    error: "job_finalization_unconfirmed",
+    dispatchOutcome: "unknown",
+    runId: job.run_id,
+    correlationId,
+  }, 502);
+  try {
+    const { error: finishError } = await admin.rpc("finish_system_job", {
+      p_run_id: job.run_id,
+      p_status: terminalStatus,
+      p_attempted_count: attempted,
+      p_succeeded_count: succeeded,
+      p_failed_count: failedCount,
+      p_result: result,
+      p_error_code: terminalStatus === "succeeded" ? null : "billing_quantity_sync_incomplete",
+      p_error_message: terminalStatus === "succeeded"
+        ? null
+        : "One or more subscription quantities require operator attention",
+    });
+    // Supabase reports SQL conflicts as an error value; it does not normally throw.
+    // Provider work can already be complete even though durable finalization is not
+    // confirmed. Do not announce success, retry, or overwrite a terminal run here.
+    if (finishError) return finalizationUnconfirmed();
+  } catch {
+    // A lost finalization response may follow a successful database commit.
+    return finalizationUnconfirmed();
+  }
 
   return json({ success: terminalStatus !== "failed", runId: job.run_id, ...result }, terminalStatus === "failed" ? 502 : 200);
   };

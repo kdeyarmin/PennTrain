@@ -17,6 +17,8 @@ const ERROR_CODES = new Set([
   "billing_sync_not_configured",
   "invalid_json",
   "job_tracking_failed",
+  "job_finalization_unconfirmed",
+  "job_execution_unconfirmed",
   "subscription_read_failed",
   "subscription_item_read_failed",
   "billing_price_read_failed",
@@ -54,11 +56,19 @@ function projectResult(
   status: number,
 ): Record<string, unknown> {
   if (typeof value.success !== "boolean") {
-    return {
+    const result: Record<string, unknown> = {
       error: typeof value.error === "string" && ERROR_CODES.has(value.error)
         ? value.error
         : "billing_runtime_worker_failed",
     };
+    if (value.dispatchOutcome === "unknown") {
+      result.dispatchOutcome = "unknown";
+      if (typeof value.runId === "string" && UUID.test(value.runId)) result.runId = value.runId;
+      if (typeof value.correlationId === "string" && (
+        UUID.test(value.correlationId) || value.correlationId === req.headers.get("x-correlation-id")?.slice(0, 200)
+      )) result.correlationId = value.correlationId;
+    }
+    return result;
   }
   const result: Record<string, unknown> = {
     success: value.success && status === 200,
@@ -208,7 +218,7 @@ export function createBillingRuntimeHandler({
         "X-CareMetric-Cron-Secret": cronSecret,
         "X-Correlation-Id": correlationId,
       });
-      for (const name of ["X-Correlation-Id", "X-Request-Id"]) {
+      for (const name of ["X-Request-Id"]) {
         const value = req.headers.get(name);
         if (value !== null) headers.set(name, value);
       }

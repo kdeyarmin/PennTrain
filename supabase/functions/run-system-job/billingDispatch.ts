@@ -19,7 +19,6 @@ export interface BillingDispatchDependencies {
   runId: string;
   correlationId: string;
   body: Record<string, unknown>;
-  finishNotStarted: () => Promise<void>;
   signal: AbortSignal;
   fetcher?: typeof fetch;
   timeoutMs?: number;
@@ -34,7 +33,6 @@ export async function dispatchBillingSystemJob({
   runId,
   correlationId,
   body,
-  finishNotStarted,
   signal: callerSignal,
   fetcher = fetch,
   timeoutMs = 185_000,
@@ -86,11 +84,12 @@ export async function dispatchBillingSystemJob({
         typeof result.error !== "string" ||
         NOT_STARTED_STATUS[result.error] !== response.status
       ) return unknown();
-      await finishNotStarted();
+      // A replay may refer to a worker already running before this attempt.
+      // Rejecting this dispatch never grants ownership of that shared run.
       return {
         status: 502,
         body: {
-          error: "Billing worker was not started",
+          error: "This billing dispatch was rejected before sending; check the existing run",
           dispatchOutcome: "not_started",
           runId,
           correlationId,
