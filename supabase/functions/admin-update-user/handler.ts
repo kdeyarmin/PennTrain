@@ -141,6 +141,18 @@ export function createAdminUpdateUserHandler({
       return json(req, { error: "password must be at least 8 characters" }, 400);
     }
 
+    const callerRole = callerProfile.role as string;
+    const callerOrgId = callerProfile.organization_id as string | null;
+
+    if (!["platform_admin", "org_admin"].includes(callerRole)) {
+      return json(req, { error: "not authorized to manage users" }, 403);
+    }
+
+    // Own-profile bootstrap is available before SMS MFA. Check assurance before any
+    // service-role target lookup so account existence and role cannot be probed first.
+    const assurance = await requireFreshAal2(callerClient, "identity_admin");
+    if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
+
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: targetProfile, error: targetError } = await adminClient
@@ -149,9 +161,6 @@ export function createAdminUpdateUserHandler({
       .eq("id", user_id)
       .single();
     if (targetError || !targetProfile) return json(req, { error: "target user not found" }, 404);
-
-    const callerRole = callerProfile.role as string;
-    const callerOrgId = callerProfile.organization_id as string | null;
 
     try {
       if (await isDemoOrganization(callerClient, callerOrgId)) {
@@ -222,9 +231,6 @@ export function createAdminUpdateUserHandler({
         return json(req, { error: "Unable to verify demo workspace" }, 500);
       }
     }
-
-    const assurance = await requireFreshAal2(callerClient, "identity_admin");
-    if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
 
     // Lost-device MFA recovery (BACKLOG.md I8).
     //

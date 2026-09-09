@@ -1,8 +1,8 @@
 // End-user JWT verification against the owning app's Supabase project.
 //
 // Same semantics as the repo's edge functions (auth.getUser() + a
-// profiles.role/is_active allowlist check under RLS), implemented with
-// plain fetch against Supabase's REST surface so the gateway carries no
+// profiles.role/is_active allowlist check and server-side SMS MFA proof),
+// implemented with plain fetch against Supabase's REST surface so the gateway carries no
 // supabase-js dependency and tests can stub one function. Verification is
 // revocation-aware (GoTrue checks the session server-side) and runs once
 // per session creation — never per audio frame.
@@ -107,6 +107,44 @@ export async function verifyAppUser(
     !allowedRoles.includes(profile.role)
   ) {
     return { ok: false, failure: { status: 403, code: "role_not_allowed" } };
+  }
+
+  // Own-profile reads remain available before SMS verification so the app
+  // can render its sign-in gate. They do not authorize a charged voice
+  // session, including for platform staff with no organization. Ask the
+  // database under this exact caller token; JWT aal2 alone cannot prove
+  // app-managed SMS MFA, and service-role credentials would bypass it.
+  try {
+    const mfaRes = await fetchImpl(
+      `${supabaseUrl}/rest/v1/rpc/current_sms_mfa_satisfied`,
+      {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: "{}",
+      },
+    );
+    // The PostgREST pre-request hook can refuse an unverified SMS session
+    // before the RPC runs. A missing migration or unhealthy API also denies
+    // access, but is reported as an auth-service failure.
+    if (mfaRes.status === 401 || mfaRes.status === 403) {
+      return { ok: false, failure: { status: 403, code: "mfa_required" } };
+    }
+    if (!mfaRes.ok) {
+      return { ok: false, failure: { status: 502, code: "auth_unreachable" } };
+    }
+    const satisfied: unknown = await mfaRes.json();
+    if (satisfied === false) {
+      return { ok: false, failure: { status: 403, code: "mfa_required" } };
+    }
+    if (satisfied !== true) {
+      return { ok: false, failure: { status: 502, code: "auth_unreachable" } };
+    }
+  } catch {
+    return { ok: false, failure: { status: 502, code: "auth_unreachable" } };
   }
 
   const organizationId =

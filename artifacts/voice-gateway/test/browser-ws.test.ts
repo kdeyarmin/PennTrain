@@ -23,7 +23,7 @@ const TEST_APP: AppDefinition = {
   auth: {
     supabaseUrl: SUPABASE_URL,
     anonKey: "anon-key",
-    allowedRoles: ["facility_manager"],
+    allowedRoles: ["facility_manager", "platform_admin"],
   },
   allowedOrigins: ["http://localhost:5173"],
   toolCallbackUrl: TOOLS_URL,
@@ -62,7 +62,13 @@ interface FetchLogEntry {
   body: unknown;
 }
 
-function makeFetchStub(opts?: { role?: string; isActive?: boolean }) {
+function makeFetchStub(opts?: {
+  role?: string;
+  isActive?: boolean;
+  organizationId?: string;
+  smsSatisfied?: boolean;
+  orgAiAllowed?: boolean;
+}) {
   const toolCalls: FetchLogEntry[] = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = String(input);
@@ -79,7 +85,14 @@ function makeFetchStub(opts?: { role?: string; isActive?: boolean }) {
       return Response.json({
         role: opts?.role ?? "facility_manager",
         is_active: opts?.isActive ?? true,
+        organization_id: opts?.organizationId ?? null,
       });
+    }
+    if (url === `${SUPABASE_URL}/rest/v1/rpc/current_sms_mfa_satisfied`) {
+      return Response.json(opts?.smsSatisfied ?? true);
+    }
+    if (url === `${SUPABASE_URL}/rest/v1/rpc/org_ai_allowed`) {
+      return Response.json(opts?.orgAiAllowed ?? true);
     }
     if (url === TOOLS_URL) {
       toolCalls.push({
@@ -389,6 +402,9 @@ describe("gateway session flow", () => {
       if (url.startsWith(`${SUPABASE_URL}/rest/v1/profiles`)) {
         return Response.json({ role: "facility_manager", is_active: true });
       }
+      if (url === `${SUPABASE_URL}/rest/v1/rpc/current_sms_mfa_satisfied`) {
+        return Response.json(true);
+      }
       throw new Error(`Unexpected fetch: ${url}`);
     };
   }
@@ -431,6 +447,9 @@ describe("gateway session flow", () => {
       if (url.startsWith(`${SUPABASE_URL}/rest/v1/profiles`)) {
         return Response.json({ role: "facility_manager", is_active: true });
       }
+      if (url === `${SUPABASE_URL}/rest/v1/rpc/current_sms_mfa_satisfied`) {
+        return Response.json(true);
+      }
       if (url === TOOLS_URL) return new Response("{}", { status: 401 });
       throw new Error(`Unexpected fetch: ${url}`);
     };
@@ -465,6 +484,30 @@ describe("gateway session flow", () => {
     expect(((await res.json()) as { error: string }).error).toBe(
       "role_not_allowed",
     );
+  });
+
+  it("refuses a voice session for platform staff without current SMS proof", async () => {
+    const { fetchImpl } = makeFetchStub({ role: "platform_admin", smsSatisfied: false });
+    const sockets: FakeRealtimeSocket[] = [];
+    const base = await startServer({ fetchImpl, sockets });
+    const res = await createSession(base);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "mfa_required" });
+    expect(sockets).toHaveLength(0);
+  });
+
+  it("allows platform staff without an organization after server MFA approval", async () => {
+    const { fetchImpl } = makeFetchStub({ role: "platform_admin", smsSatisfied: true });
+    const base = await startServer({ fetchImpl, sockets: [] });
+    expect((await createSession(base)).status).toBe(201);
+  });
+
+  it("still enforces the organization AI policy after server MFA approval", async () => {
+    const { fetchImpl } = makeFetchStub({ organizationId: "org-1", orgAiAllowed: false });
+    const base = await startServer({ fetchImpl, sockets: [] });
+    const res = await createSession(base);
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "org_ai_disabled" });
   });
 
   it("rejects disallowed origins", async () => {

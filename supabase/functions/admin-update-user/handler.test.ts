@@ -49,6 +49,7 @@ function chainable(result: { data: unknown; error: unknown }) {
 }
 
 interface Tracking {
+  targetReads: string[];
   authUpdates: Record<string, unknown>[];
   profileRpcArgs: Record<string, unknown>[];
   assuranceCalls: Record<string, unknown>[];
@@ -73,7 +74,7 @@ function makeHandler(opts: {
   smsResetError?: boolean;
 }) {
   const track: Tracking = {
-    authUpdates: [], profileRpcArgs: [], assuranceCalls: [], listedFactorUsers: [],
+    targetReads: [], authUpdates: [], profileRpcArgs: [], assuranceCalls: [], listedFactorUsers: [],
     revokedSessions: [], smsResets: [], deletedFactors: [], auditRows: [], resetEvents: [],
   };
   const demoOrgIds = new Set(opts.demoOrgIds ?? []);
@@ -146,6 +147,7 @@ function makeHandler(opts: {
     },
     from: (table: string) => {
       if (table === "profiles") {
+        track.targetReads.push("profile");
         return chainable({
           data: { id: PEER_ID, role: opts.targetRole, organization_id: ORG_ID },
           error: null,
@@ -383,6 +385,7 @@ for (const refusal of [
     const response = await handler(makeRequest({ action: "reset_mfa", user_id: PEER_ID, reason: RESET_REASON }));
 
     assertEquals(response.status, refusal.status);
+    assertEquals(track.targetReads, [], "MFA denial must precede service-role target metadata");
     assertEquals(track.listedFactorUsers, []);
     assertEquals(track.resetEvents, []);
     assertEquals(track.authUpdates, []);

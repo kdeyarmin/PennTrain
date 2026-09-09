@@ -44,11 +44,13 @@ function makeHandler(opts: {
   emailConfirmedAt?: string | null;
   lastSignInAt?: string | null;
   assurance?: boolean;
+  assuranceError?: boolean;
   bindError?: boolean;
   boundRowMissing?: boolean;
   exchangeError?: boolean;
   exchangedUserId?: string;
 } = {}) {
+  const targetReads: string[] = [];
   const generateLinkCalls: unknown[] = [];
   const inserts: Array<{ table: string; row: Record<string, unknown> }> = [];
   const events: string[] = [];
@@ -71,13 +73,15 @@ function makeHandler(opts: {
       }
       throw new Error(`unexpected caller table: ${table}`);
     },
-    rpc: async () => ({ data: opts.assurance ?? true, error: null }),
+    rpc: async () => ({ data: opts.assurance ?? true, error: opts.assuranceError ? { message: "unavailable" } : null }),
   };
 
   const adminClient = {
     auth: {
       admin: {
-        getUserById: async () => ({
+        getUserById: async () => {
+          targetReads.push("auth");
+          return ({
           data: {
             user: {
               id: TARGET_ID,
@@ -90,7 +94,8 @@ function makeHandler(opts: {
             },
           },
           error: null,
-        }),
+          });
+        },
         generateLink: async (args: unknown) => {
           generateLinkCalls.push(args);
           return {
@@ -103,6 +108,7 @@ function makeHandler(opts: {
     },
     from: (table: string) => {
       if (table === "profiles") {
+        targetReads.push("profile");
         return chainable({
           data: {
             id: TARGET_ID,
@@ -173,6 +179,7 @@ function makeHandler(opts: {
   };
   return {
     handler: createImpersonateUserHandler({ createClient, getEnv }),
+    targetReads,
     generateLinkCalls,
     inserts,
     events,
@@ -480,3 +487,18 @@ Deno.test("impersonate-user can revoke an expired context without reading the no
   assertEquals(revoked, [{ token: testAccessToken(), scope: "local" }]);
   assertEquals((auditRows[0].new_values as Record<string, unknown>).ended_after_expiry, true);
 });
+
+for (const failure of [{ assurance: false }, { assuranceError: true }]) {
+  Deno.test(`impersonate-user hides target metadata when current MFA ${"assuranceError" in failure ? "is unavailable" : "is missing"}`, async () => {
+    const { handler, targetReads, generateLinkCalls, inserts } = makeHandler({
+      ...failure, targetActive: false, emailConfirmedAt: null, lastSignInAt: null,
+    });
+    const response = await handler(makeRequest({
+      action: "start_bound", target_user_id: TARGET_ID, reason: "support ticket",
+    }));
+    assertEquals(response.status, "assuranceError" in failure ? 503 : 403);
+    assertEquals(targetReads, []);
+    assertEquals(generateLinkCalls, []);
+    assertEquals(inserts, []);
+  });
+}

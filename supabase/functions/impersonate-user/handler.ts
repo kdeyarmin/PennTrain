@@ -119,6 +119,10 @@ export function createImpersonateUserHandler({
       return json(req, { error: "cannot impersonate yourself" }, 400);
     }
 
+    // Require current MFA before exposing target existence, role or invitation state.
+    const assurance = await requireFreshAal2(callerClient, "identity_admin");
+    if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
+
     const { data: targetProfile, error: targetError } = await adminClient
       .from("profiles")
       .select("id, email, role, organization_id, is_active, first_name, last_name")
@@ -154,9 +158,6 @@ export function createImpersonateUserHandler({
           + "step into. Impersonating them would mark the invitation as accepted on their behalf.",
       }, 409);
     }
-
-    const assurance = await requireFreshAal2(callerClient, "identity_admin");
-    if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
 
     // Authorization evidence must exist before a bearer credential is minted.
     const { error: authorizationAuditError } = await adminClient.from("audit_logs").insert({

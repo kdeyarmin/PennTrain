@@ -272,8 +272,11 @@ access. Only the caller’s own profile and the exact account-security/lock
 bootstrap RPCs remain reachable before verification.
 
 Deployment order is required: apply the reviewed migration (after PR #507's
-release migrations), deploy `sms-mfa` and the updated `admin-update-user` and
-`impersonate-user`, then deploy the frontend. The new frontend fails closed if
+release migrations), deploy `sms-mfa` and the updated `admin-update-user`,
+`impersonate-user`, `process-credential-renewals`, `push-subscriptions`,
+`capture-product-event` and `list-heygen-options`, then deploy the frontend and
+voice gateway. These backend routes check the caller’s SMS proof before service-role
+access, vendor work or a realtime session. The new frontend fails closed if
 `get_my_mfa_status` is unavailable. Do not turn on the Supabase Advanced MFA Phone
 add-on or configure a Supabase phone-auth SMS hook for this implementation.
 
