@@ -83,7 +83,7 @@ begin
   v_checkout_previous_package_id uuid;
   v_was_placeholder boolean := false;
   v_plan_recovery boolean := false;
-  v_had_validated_plan boolean := false;
+  v_terminal_survivor_found boolean := false;
   v_preserve_subscription_items boolean := false;$new$;
   if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
     raise exception 'Stripe processor declarations no longer match the plan recovery patch';
@@ -159,13 +159,6 @@ begin
         where s.organization_id = v_org_id and s.stripe_subscription_id = v_object->>'id'
           and s.is_provider_placeholder and s.provider_status = 'plan_reconciliation_failed'
       ) into v_plan_recovery;
-      select exists (
-        select 1 from public.billing_subscriptions s
-        join public.billing_subscription_items i on i.subscription_id = s.id
-        join public.package_billing_prices bp on bp.stripe_price_id = i.stripe_price_id
-        where s.organization_id = v_org_id and s.stripe_subscription_id = v_object->>'id'
-          and not s.is_provider_placeholder
-      ) into v_had_validated_plan;
       if exists (
         select 1 from public.billing_subscriptions s$new$;
   if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
@@ -195,16 +188,27 @@ begin
               select survivor.package_id into v_package_id
               from app_private.stripe_surviving_subscription_package(
                 v_org_id, v_account_id, v_object->>'id') survivor;
-              if not found then
+              v_terminal_survivor_found := found;
+              if not v_terminal_survivor_found then
                 v_package_id := v_checkout_previous_package_id;
               end if;
               update public.billing_subscriptions set package_id = v_package_id
               where id = v_subscription_pk;
               update public.organizations o
               set package_id = v_package_id,
-                  plan_name = (select p.name from public.packages p where p.id = v_package_id),
+                  plan_name = case when v_terminal_survivor_found and v_package_id is null
+                    then o.plan_name else (select p.name from public.packages p where p.id = v_package_id) end,
                   updated_at = now()
               where o.id = v_org_id;
+            elsif exists (
+              select 1 from public.billing_accounts a
+              where a.id = v_account_id and a.organization_id = v_org_id
+                and a.billing_state = 'comped' and a.state_source = 'manual_comp'
+                and (a.comped_until is null or a.comped_until > now())
+            ) then
+              -- Preserve separate histories: the operator's current comp tier
+              -- and the terminated subscription's prior validated package.
+              v_package_id := null;
             else
               -- A repeated terminal receipt must not turn a package retained
               -- during placeholder termination into authoritative price history.
@@ -269,9 +273,18 @@ begin
             exception when sqlstate 'P0B01' then
               -- Keep normal mapped-plan changes during grace/dunning. Only an
               -- unresolvable restrictive snapshot falls back to plan history.
-              if v_had_validated_plan and v_provider_status in ('paused', 'unpaid', 'past_due') then
+              -- Pre-migration authoritative rows may have no mapped items; their
+              -- missing price history must not suppress a signed restriction.
+              if v_was_placeholder is false and v_provider_status in ('paused', 'unpaid', 'past_due') then
                 v_preserve_subscription_items := true;
-                select coalesce(s.package_id, o.package_id) into v_package_id
+                -- An unresolved restriction validates no new pricing. Preserve
+                -- the current independent comp separately from provider history.
+                select case when exists (
+                  select 1 from public.billing_accounts a
+                  where a.id = v_account_id and a.organization_id = v_org_id
+                    and a.billing_state = 'comped' and a.state_source = 'manual_comp'
+                    and (a.comped_until is null or a.comped_until > now())
+                ) then null::uuid else coalesce(s.package_id, o.package_id) end into v_package_id
                 from public.billing_subscriptions s
                 join public.organizations o on o.id = s.organization_id
                 where s.id = v_subscription_pk;
@@ -613,28 +626,46 @@ begin
       and s.billing_state in ('trial', 'active', 'grace')
       and (s.current_period_end is null or s.current_period_end > p_as_of)$old$;
   v_new := $new$    where s.organization_id = v_org_id
-      and (s.billing_state in ('trial', 'active', 'grace') or (
-        not s.is_provider_placeholder
-        and s.provider_status not in ('canceled', 'incomplete_expired')
-        and exists (
-          select 1 from public.billing_accounts a
-          join lateral (
-            select e.event_created_at, e.event_id
-            from app_private.stripe_billing_events e
-            where e.organization_id = s.organization_id and e.processing_status = 'applied'
-              and e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
-              and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
-                           e.payload #>> '{data,object,subscription}') = s.stripe_subscription_id
-            order by e.event_created_at desc,
-                     app_private.stripe_event_received_at(e.event_id) desc, e.event_id
-            limit 1
-          ) payment on true
-          where a.id = s.billing_account_id and a.organization_id = s.organization_id
-            and (payment.event_created_at, app_private.stripe_event_received_at(payment.event_id))
-                > (s.provider_event_created_at, app_private.stripe_event_received_at(s.provider_event_id))
-        )
-      ))
-      and (s.current_period_end is null or s.current_period_end > p_as_of)$new$;
+      and not s.is_provider_placeholder
+      and s.provider_status not in ('canceled', 'incomplete_expired')
+      and (s.current_period_end is null or s.current_period_end > p_as_of)
+      and exists (
+        select 1 from public.billing_accounts a
+        left join lateral (
+          select e.event_type, e.event_id, e.event_created_at
+          from app_private.stripe_billing_events e
+          where e.organization_id = s.organization_id and e.processing_status = 'applied'
+            and e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
+            and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
+                         e.payload #>> '{data,object,subscription}') = s.stripe_subscription_id
+          order by e.event_created_at desc, app_private.stripe_event_received_at(e.event_id) desc, e.event_id
+          limit 1
+        ) payment on true
+        where a.id = s.billing_account_id and a.organization_id = s.organization_id
+          and case
+            when (payment.event_created_at, app_private.stripe_event_received_at(payment.event_id))
+                 > (s.provider_event_created_at, app_private.stripe_event_received_at(s.provider_event_id))
+              then payment.event_type <> 'invoice.payment_failed'
+                or payment.event_created_at + interval '7 days' > p_as_of
+                or (
+                  v_billing_state = 'past_due' and a.billing_state in ('grace', 'past_due')
+                  and a.provider_event_id = payment.event_id
+                  and a.grace_ends_at = payment.event_created_at + interval '7 days'
+                  and a.grace_ends_at <= p_as_of
+                )
+            when s.billing_state = 'active' then true
+            when s.billing_state = 'trial' then s.trial_ends_at is null or s.trial_ends_at > p_as_of
+            when s.billing_state = 'grace'
+              then s.provider_event_created_at + interval '7 days' > p_as_of
+                or (
+                  v_billing_state = 'past_due' and a.billing_state in ('grace', 'past_due')
+                  and a.provider_event_id = s.provider_event_id
+                  and a.grace_ends_at = s.provider_event_created_at + interval '7 days'
+                  and a.grace_ends_at <= p_as_of
+                )
+            else false
+          end
+      )$new$;
   if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
     raise exception 'Stripe seat entitlement filter no longer matches the payment ordering patch';
   end if;
