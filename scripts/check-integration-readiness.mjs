@@ -189,6 +189,9 @@ export async function runReadinessReport({ env = process.env, fetcher = fetch, w
     await write("integration-readiness.json", `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
     await write("integration-readiness.md", markdown, { mode: 0o600 });
     if (env.GITHUB_STEP_SUMMARY) await append(env.GITHUB_STEP_SUMMARY, markdown);
+    // Emit the same closed projection in job logs so operators can read the report
+    // even when their artifact download client cannot materialize the ZIP.
+    log(markdown);
     log(`Integration configuration report: ${report.reportStatus}. See integration-readiness artifact; live delivery remains unverified.`);
     // Observation failures are distinct from observed missing/disabled configuration. The
     // workflow tolerates this exit status so an optional report cannot stop a deployment.
