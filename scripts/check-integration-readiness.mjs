@@ -169,7 +169,7 @@ export function renderReadinessMarkdown(report) {
     "## Production Supabase Edge Functions and Auth configuration evidence", "",
     `Report: **${report.reportStatus}**. This read-only report does not send messages, create resources, change configuration or verify live delivery.`, "",
     "A listed secret proves only that its name exists. Optional overrides can be absent; credentials, webhook registration, matching signing keys and provider account readiness still require separate verification.", "",
-    "This scope excludes frontend and voice-gateway environment variables, tenant-managed integration credentials and provider dashboards.", "",
+    "This scope excludes Railway provider/server, frontend and voice-gateway environment variables, tenant-managed integration credentials and provider dashboards. In Railway provider mode, absent Supabase Stripe/SMS names do not establish missing Railway credentials.", "",
     "| Observation | Status | Reason |", "| --- | --- | --- |",
     ...["secrets", "auth"].map((name) => `| ${name} | ${report.observations[name].status} | ${report.observations[name].reason ?? "—"} |`), "",
     "| App environment name (allowlist only) | Present |", "| --- | --- |",

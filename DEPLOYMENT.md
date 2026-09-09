@@ -1,8 +1,9 @@
 # Deployment: Railway + Supabase
 
-CareMetric CareBase's backend (Postgres, Auth, Storage, RLS, Edge Functions) already lives entirely in
-Supabase -- see `ARCHITECTURE.md` and `README.md` for the architecture. This document covers the piece that
-was missing: running the frontend in production on **Railway**, and how the two systems fit together.
+CareMetric CareBase uses Supabase for Postgres, Auth, Storage, RLS, and Edge Functions.
+Railway serves the frontend and supports an opt-in runtime for SMS MFA and billing providers.
+This document explains configuration, credential placement, and rollout for both runtimes;
+see `ARCHITECTURE.md` and `README.md` for the architecture.
 
 > **Production URL**: the public domain is **https://cmcarebase.com**, a custom domain
 > attached to the Railway service. The previously documented
@@ -13,28 +14,25 @@ was missing: running the frontend in production on **Railway**, and how the two 
 
 ## Architecture at a glance
 
-```
-Browser  --https-->  Railway (Node server, static SPA build)
-Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
-```
-
 - **Railway** hosts and runs `artifacts/caremetric-carebase` -- a static Vite/React build served by a small
-  Node process (`artifacts/caremetric-carebase/server/index.mjs`). There is no API layer on Railway; the
-  browser talks to Supabase directly via `supabase-js`. The server serves precompressed (brotli/
+  Node process (`artifacts/caremetric-carebase/server/index.mjs`), the learning-package proxy, and
+  four optional `/api/providers/` routes for SMS MFA and billing. Application data still uses
+  Supabase directly via `supabase-js`. The server serves precompressed (brotli/
   gzip) assets generated at build time by `server/precompress.mjs` (Railway's proxy does not
   compress for you), sends baseline security headers (nosniff, frame denial, HSTS,
   Referrer-Policy), binds dual-stack `::`, tunes keep-alive above the proxy's idle window, and
   drains in-flight requests on SIGTERM.
-- **Supabase** ("CM CareBase" project) is the source of truth for everything else: schema, migrations,
+- **Supabase** ("CM Train" project) is the source of truth for schema, migrations,
   RLS policies, Auth (GoTrue), Storage buckets, and Edge Functions (`create-user`,
   `admin-update-user`, `bulk-import-employees`, `generate-compliance-binder`,
   `generate-course-video`, `check-course-video-status`, `list-heygen-options`).
 - Railway does **not** run Postgres and does **not** proxy database traffic -- the app never opens a
-  direct Postgres connection; every read/write goes through PostgREST/RLS or a Supabase Edge Function.
+  direct Postgres connection. Browser data requests retain PostgREST/RLS; trusted provider handlers
+  reuse their existing Supabase clients and authorization checks.
 
 ## 1. Supabase project setup
 
-1. You already have a Supabase project for this app (project ref `xsqobvvreaovwibxwyvv`, "CM CareBase",
+1. You already have a Supabase project for this app (project ref `xsqobvvreaovwibxwyvv`, "CM Train",
    Postgres 17, region `us-west-2`). For a new environment (e.g. a staging project), create a project
    at https://supabase.com/dashboard and note its project ref, URL, and API keys.
 2. Apply every migration in `supabase/migrations/` in filename order:
@@ -52,7 +50,10 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    Note: merges to `main` deploy functions automatically — the `Deploy migrations` workflow
    (`.github/workflows/deploy-migrations.yml`) runs `supabase functions deploy` after `db push`
    once CI passes, so the manual command is only needed for first-time setup or hotfixes.
-4. Set Edge Function secrets (these run on Supabase's infrastructure, never on Railway):
+4. Configure credentials where their consuming handlers run. The example below covers functions
+   that remain on Supabase, including Auth mail and notification delivery. In Railway provider
+   mode, keep Stripe and SMS MFA credentials in Railway server variables using the table below;
+   do not copy them into Supabase for those four routes.
    ```bash
    npx supabase secrets set HEYGEN_API_KEY=... \
      ANTHROPIC_API_KEY=... \
@@ -60,10 +61,6 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      SENDGRID_API_KEY=... \
      NOTIFICATION_FROM_EMAIL='CareMetric CareBase <notifications@cmcarebase.com>' \
      SEND_EMAIL_HOOK_SECRET='v1,whsec_...' \
-     TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM_NUMBER=... \
-     TWILIO_VERIFY_SERVICE_SID=... \
-     STRIPE_SECRET_KEY=... STRIPE_BILLING_WEBHOOK_SECRET=... \
-     STRIPE_BILLING_PORTAL_CONFIGURATION_ID=... \
      WEB_PUSH_VAPID_PUBLIC_KEY=... WEB_PUSH_VAPID_PRIVATE_KEY=... \
      WEB_PUSH_VAPID_SUBJECT='mailto:security@cmcarebase.com' \
      CRON_SHARED_SECRET=... \
@@ -89,14 +86,18 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    ```
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected into Edge
    Functions automatically by Supabase -- you do not set those secrets yourself.
+   That automatic injection applies only to Supabase-hosted handlers. Railway provider mode
+   requires the same project's service-role key in Railway's server environment.
    `SENDGRID_API_KEY`/`NOTIFICATION_FROM_EMAIL` are read by both `dispatch-notifications`
    (training due/expired reminders, escalations, the Monday digest) and `send-auth-email`
    (signup, invite, recovery, magic-link, email-change, and reauthentication messages).
    `SEND_EMAIL_HOOK_SECRET` must match the Supabase Auth Send Email hook signing secret.
    Local-only `supabase/config.toml` hook tests require the same secret base64-encoded as
    `SEND_EMAIL_HOOK_SECRET_BASE64`, because the CLI config field expects base64 hook secrets.
+   Supabase notification SMS, if enabled, separately consumes `TWILIO_ACCOUNT_SID`,
+   `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM_NUMBER` in its existing Edge runtime.
    `TWILIO_VERIFY_SERVICE_SID` is the separate `VA...` service for SMS MFA; it is not a notification
-   sender or the paid Supabase Phone MFA add-on. The notification `TWILIO_*` trio is only for SMS;
+   sender or the paid Supabase Phone MFA add-on. The notification Twilio variables are only for SMS;
    each notification channel is skipped (not failed) if its credentials
    aren't set, so SMS can be added later without breaking email. Create the SendGrid API key with **Mail Send** scope only,
    and verify the `NOTIFICATION_FROM_EMAIL` sender identity (Single Sender Verification or a
@@ -245,9 +246,9 @@ can see the whole workspace and lockfile.
    `startCommand`, Railpack's Vite-SPA auto-detection (serving via Caddy) is overridden and the
    custom Node server is used -- keep `startCommand` in place, or set `RAILPACK_NO_SPA=1` to make
    that explicit.
-3. Add the environment variables below (Service -> Variables) **before the first deploy**. Do
-   **not** paste real secrets into any file in this repo -- only into Railway's variable UI.
-   **Important:** the two `VITE_` variables are baked into the JS bundle at build time, not read
+3. Add the environment variables below (Service -> Variables) **before the first deploy**.
+   Keep secrets in Railway's server environment or an ignored local environment file; never commit
+   credential values. **Important:** `VITE_*` variables are baked into the JS bundle at build time, not read
    at runtime. If they are missing the build now fails loudly (guard in `vite.config.ts`); if you
    change them later, trigger a redeploy (which rebuilds) -- merely restarting the service ships
    the old bundle, and `/health` has no way to detect that (see step 5 below).
@@ -260,17 +261,19 @@ can see the whole workspace and lockfile.
    {
      "status": "ok",
      "service": "caremetric-carebase",
+     "providerRuntime": "supabase",
      "timestamp": "2026-07-04T12:00:00.000Z"
    }
    ```
    `/health` deliberately reports process liveness, not Supabase reachability. Application data
    uses the browser's build-time `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`; the learning-package
    proxy also uses `VITE_SUPABASE_URL` at server runtime. Keep the build/runtime project URL aligned.
-   A green `/health` only means the Node process is up; confirm Supabase connectivity by loading
+   `providerRuntime` reports the validated build's selected mode (`supabase` or `railway`), not
+   successful provider access. Confirm Supabase connectivity by loading
    the app in a browser (step 8), and verify an accepted package launches through its nested assets
    after deploying `learning-package-asset`.
 
-   The one deploy-shaped failure `/health` *does* catch is a missing bundle. Because the endpoint
+   Startup also rejects a missing bundle. Because the endpoint
    is answered by the server rather than by the build output, a deploy whose `dist/public` is
    missing or partial (interrupted build, wrong Root Directory, a start that never ran a build)
    would otherwise return a green `/health` while every real request 500s -- and Railway would
@@ -278,6 +281,87 @@ can see the whole workspace and lockfile.
    exits non-zero if it is absent, so the healthcheck fails and Railway keeps the previous,
    working deploy live. The startup log line is `Refusing to start: ... index.html is missing`;
    if a deploy fails its healthcheck, check the deploy logs for it before anything else.
+
+### Railway provider runtime (opt-in)
+
+The code supports running four existing handlers in the Railway Node server. This is an opt-in
+deployment path, not evidence that production cutover or live provider checks have completed.
+It reuses the existing authentication, database assurance, webhook verification, and job tracking.
+Other Edge Functions, Auth mail, notification providers, and the voice gateway retain their
+current runtimes and configuration.
+
+| Railway route | Consumer |
+| --- | --- |
+| `/api/providers/sms-mfa` | Browser SMS status, send, and verify requests with the current Supabase Bearer session |
+| `/api/providers/create-billing-session` | Browser Checkout and Customer Portal requests with the current Supabase Bearer session |
+| `/api/providers/stripe-billing-webhook` | Dedicated PennTrain Stripe endpoint, authenticated by its own signing secret |
+| `/api/providers/sync-billing-quantities` | Existing billing cron/manual dispatch through the authenticated Supabase forwarder |
+
+Browser requests use only these exact same-origin paths, under the built `BASE_PATH` where
+applicable. They omit cookies, refuse redirects, and never retry a mutation or fall back to
+Supabase after a failure. `BASE_PATH` in Railway mode must be `/` or slash-terminated segments
+containing letters, digits, `_`, or `-`. Production's billing forwarder is fixed to
+`https://cmcarebase.com/api/providers/sync-billing-quantities` and to project
+`xsqobvvreaovwibxwyvv`; do not enable that forwarder in staging. The Node server keeps these
+root provider URLs available even when the SPA uses a `BASE_PATH` prefix.
+
+| Setting | Location in Railway provider mode | Requirement |
+| --- | --- | --- |
+| `VITE_PROVIDER_RUNTIME` | Railway build and service variable; nonsecret | `railway` opts in. Unset or `supabase` preserves the existing SDK/runtime behavior. Blank or another value fails closed. Rebuild after a change. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Railway server variable | Required; must belong to CM Train `xsqobvvreaovwibxwyvv`, the same project as the frontend. A key from another Railway app's Supabase project is not interchangeable. |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Railway server variables | Required; server aliases fall back to `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. The server URL must match the built frontend project. The browser still needs its two `VITE_` values at build time. |
+| `STRIPE_SECRET_KEY` | Railway server variable | Required; same Stripe account as the launch prices and dedicated PennTrain portal configuration. |
+| `STRIPE_BILLING_WEBHOOK_SECRET` | Railway server variable | Required; signing secret for the dedicated PennTrain endpoint at this runtime's webhook URL. Do not reuse another application's endpoint secret. |
+| `STRIPE_BILLING_PORTAL_CONFIGURATION_ID` | Railway server variable | Required; explicit PennTrain `bpc_...` configuration. |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | Railway server variables | Required; reuse the intended existing Twilio account credentials. |
+| `TWILIO_VERIFY_SERVICE_SID` | Railway server variable | Required; the account's SMS Verify `VA...` service, not a Messaging Service `MG...` ID. |
+| `CRON_SHARED_SECRET` | Railway server variable and existing Supabase Edge/Vault configuration | Required; must match the existing Edge secret and Vault `cron_shared_secret` used by scheduled and manual dispatch. This cutover does not rotate it. |
+| `BILLING_RUNTIME` | Supabase Edge environment; nonsecret | Set `railway` only after Railway is ready. Unset or `supabase` executes the existing Edge worker. Blank or another value fails closed. |
+| `PUBLIC_APP_URL`, `BILLING_RETURN_URL_ORIGINS` | Railway server variables; nonsecret | Use the canonical `https://cmcarebase.com` and exact approved return origins; existing safe defaults apply if omitted. |
+
+Provider credentials and the service-role key must never receive a `VITE_` prefix. A connected
+account or a redacted list of variable names does not prove that the selected runtime has usable
+credentials. Ignored local environment files remain local; Git does not deploy their contents.
+
+The build validates the mode, `BASE_PATH`, and public Supabase configuration, then writes only
+mode/project metadata to `dist/provider-runtime.json`, outside the public asset directory.
+Required server secrets are validated at startup, not during the frontend build. Railway-mode
+startup refuses a missing/invalid manifest, a conflicting configured mode, missing server settings,
+or a different Supabase project. Legacy builds without a manifest can remain in Supabase mode.
+Validation checks configuration presence and consistency, not provider validity.
+`/health` reports the validated `providerRuntime` and does not expose credentials.
+
+Roll out in this order:
+
+1. Prepare the existing provider credentials and the correct CM Train service-role key in Railway's
+   server variables. Keep the existing cron secret consistent. Prepare the dedicated PennTrain
+   portal configuration and webhook with delivery disabled; install that webhook's own signing
+   secret in Railway. Do not alter the other application's Base44 webhook.
+2. Deploy the reviewed code with both runtime switches unset or `supabase`. The Railway provider
+   routes remain inactive. Keep existing database MFA/RLS enforcement enabled.
+3. Set Railway `VITE_PROVIDER_RUNTIME=railway` and rebuild. All required server variables must pass
+   startup validation. Verify the deployed `/health` reports `providerRuntime: "railway"`
+   and the app uses the authenticated same-origin SMS/billing routes.
+4. Enable delivery to the dedicated Stripe webhook only after its matching signing secret is
+   installed and the Railway handler is ready. Its production URL is
+   `https://cmcarebase.com/api/providers/stripe-billing-webhook`. Confirm signature rejection for
+   invalid requests and a supported signed event's durable processing receipt before Checkout.
+5. Set only the nonsecret Supabase flag `BILLING_RUNTIME=railway`. Validate both the existing
+   scheduled billing job and operator-triggered dispatch through the unchanged Edge URL, including
+   their correlation IDs and durable job results. The forwarder authenticates each request and
+   sends it once; an ambiguous timeout must be reconciled against its job record before retrying.
+6. Complete actual SMS enrollment/send/verify and the security scenarios below, then Checkout,
+   Customer Portal, webhook reconciliation, and billing quantity checks in `BILLING_MODEL.md`.
+   Passing unit tests or seeing required variable names cannot replace these live checks.
+
+For rollback, first set Supabase `BILLING_RUNTIME=supabase` (or unset it) so dispatch stops
+forwarding to Railway. Then restore the prior Railway build/mode, rebuilding with
+`VITE_PROVIDER_RUNTIME=supabase` if necessary, and reconcile the dedicated webhook URL and
+signing secret with the selected handler runtime before enabling delivery there. Restore only a
+previously verified runtime configuration; changing a flag does not provision missing Supabase
+provider credentials. If that older runtime was unconfigured, SMS/billing remain unavailable
+until a working configuration is restored. Never clear SMS factors, session assurance, RLS,
+or database MFA requirements as part of runtime rollback.
 
 ### Twilio SMS MFA (no Supabase phone-MFA add-on)
 
@@ -302,15 +386,16 @@ access, vendor work or a realtime session. The new frontend fails closed if
 `get_my_mfa_status` is unavailable. Do not turn on the Supabase Advanced MFA Phone
 add-on or configure a Supabase phone-auth SMS hook for this implementation.
 
-Reuse the existing Twilio account credentials in Edge Function secrets:
+Reuse the existing Twilio account credentials in the selected handler runtime:
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, plus a dedicated
 `TWILIO_VERIFY_SERVICE_SID` (`VA...`). A notification Messaging Service SID
 (`MG...`) is a different resource. Create/reuse a Verify Service with six-digit
 codes, SMS enabled, Fraud Guard enabled and the permitted destination countries.
-Never put these credentials in Railway's `VITE_*` variables. The screen discovers
-SMS availability from the configured Edge Function; no build-time SMS flag is
-needed. Missing provider configuration leaves native TOTP usable for accounts
-that have not enrolled SMS; SMS accounts retain their verification requirement.
+For Railway provider mode, use Railway's server variables; for the existing Supabase mode,
+use Edge Function secrets. Never put these credentials in `VITE_*` variables. The screen discovers
+SMS availability from the selected handler. `VITE_PROVIDER_RUNTIME` selects that transport;
+there is no separate flag that can grant SMS verification. An unavailable handler leaves native
+TOTP usable for accounts that have not enrolled SMS; SMS accounts retain their verification requirement.
 
 Twilio Verify usage charges still apply: its public pricing on 2026-09-09 lists
 $0.05 per successful verification plus channel fees. See
@@ -339,6 +424,7 @@ settings were changed during source implementation.
 | `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API). Required at **build time and server runtime**: baked into the bundle and used by the learning-package proxy; keep both values aligned. Changes require a redeploy, not just a restart |
 | `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate. **Build-time**, same caveat as above |
 | `VITE_TURNSTILE_SITE_KEY` | yes | Cloudflare Turnstile site key for `/signup`. **Build-time**, same redeploy caveat as other `VITE_` values |
+| `VITE_PROVIDER_RUNTIME` | no | Explicit `railway` enables the four provider routes and requires the server settings in the table above. Unset or `supabase` keeps compatibility mode; blank/invalid values are rejected. Rebuild after a change. |
 | `VITE_CLIENT_ERROR_REPORTING_ENABLED` | no | Build-time switch for PHI-scrubbed client error events. Reporting is enabled by default in production; set `false` only during an incident |
 | `VITE_RELEASE_ID` | recommended | Build-time release identifier, normally `RAILWAY_GIT_COMMIT_SHA`, attached to client error events |
 | `VITE_CENTRAL_SUPPORT_HUB_URL` | no | Optional build-time pin for the first-party Support Hub. Leave unset to use `https://support-hub-web-production.up.railway.app`, or set exactly that origin. Any other configured origin fails the build and the browser launcher fails closed. |
@@ -451,17 +537,20 @@ takes over -- an interruption for those users only, while deploys stay zero-down
 service stays scalable. Choose the volume when long-lived open tabs matter more than
 release-time availability; skip it when they don't.
 
-Never set `NPM_CONFIG_PRODUCTION=true` on this service: every dependency of the app (including
-`vite` itself) lives in `devDependencies`, and that variable makes pnpm skip them at install,
+Never set `NPM_CONFIG_PRODUCTION=true` on this service: the app's build tooling (including
+`vite` itself) lives in `devDependencies`, and that variable makes pnpm skip it at install,
 emptying the build. (The buildCommand passes `--prod=false` explicitly to defend against it, and
 Railpack itself sets `NPM_CONFIG_PRODUCTION=false`; for the same reason, never set
 `RAILPACK_PRUNE_DEPS=1`.)
 
 Not needed for this repo (and intentionally left out of `.env.example` -- see the comments there for
 why): `DATABASE_URL`, `NEXT_PUBLIC_*` (this is Vite, not Next.js), `SESSION_SECRET`/`AUTH_SECRET`
-(Supabase Auth owns session state, no server-side session here). `SUPABASE_SERVICE_ROLE_KEY` must never be set on the
-Railway service -- it belongs only in Supabase Edge Function secrets, alongside `SENDGRID_API_KEY`
-and `TWILIO_*` (see step 4 below) -- none of these are Railway variables.
+(Supabase Auth owns session state; the Node server does not issue a separate login session).
+`SUPABASE_SERVICE_ROLE_KEY`, Stripe, and SMS MFA credentials are required Railway server variables
+when Railway provider mode is selected. Supabase-hosted notification and Auth-mail handlers keep
+their existing credentials in their own runtime. Credential placement follows the consuming
+handler; the prohibition is on committing secrets or embedding them in browser-visible `VITE_*`
+values, not on keeping server secrets in Railway.
 
 ## 3. Local development
 
@@ -672,23 +761,18 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 
 ## 8. Verifying the deployment
 
-Every successful trusted production deployment (including no-op and nightly checks) now produces an `integration-readiness-<SHA>` artifact, job summary and job-log table. The log table is exactly the same sanitized Markdown, so operators can read it even when artifact ZIP downloads are unavailable. It reports only allowlisted Supabase Edge secret-name presence and selected Auth configuration booleans. It never outputs secret values or digests, never sends a message or changes provider settings, and cannot block a deployment. Missing API access is reported as unknown. Names being present is not proof that credentials are valid or that delivery works; the report excludes the separately configured frontend, voice gateway and tenant integration credentials.
+Every successful trusted production deployment (including no-op and nightly checks) now produces an `integration-readiness-<SHA>` artifact, job summary and job-log table. The log table is exactly the same sanitized Markdown, so operators can read it even when artifact ZIP downloads are unavailable. It reports only allowlisted Supabase Edge secret-name presence and selected Auth configuration booleans. It never outputs secret values or digests, never sends a message or changes provider settings, and cannot block a deployment. Missing API access is reported as unknown. Names being present is not proof that credentials are valid or that delivery works; the report excludes Railway server variables, the separately configured frontend, voice gateway and tenant integration credentials. In Railway provider mode, missing Stripe/Twilio names in this Supabase-only report are not a reason to copy those credentials into Supabase. Validate the selected runtime and actual provider flows separately.
 
 ```bash
 curl -s https://cmcarebase.com/health | jq
 ```
 
-Expect `status: "ok"` -- that only confirms the Node process is up and serving requests, nothing
-about Supabase. `/health` intentionally can't tell you whether the served bundle has working
-`VITE_` values (see step 5), so the real verification is to load the app in a browser and confirm
-the login page renders (a blank page means the bundle was built without the `VITE_` vars) --
-after changing `VITE_` variables, redeploy (rebuild); a mere restart ships the old bundle and a
-green `/health` would not reveal that.
-
-Remember that `/health` reflects the **server process env**, while the SPA uses values **baked in
-at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't trust a green
-`/health` after a mere restart. Then load the app in a browser and confirm the login page renders
-(a blank page means the bundle was built without the `VITE_` vars).
+Expect `status: "ok"` and the intended `providerRuntime` (`supabase` or `railway`). This confirms
+process liveness and the selected build/runtime configuration, not Supabase reachability or valid
+provider credentials. Load the app and verify login, protected data access, and the selected
+provider routes. Rebuild after changing browser `VITE_*` configuration. Railway provider startup
+rejects mode/project mismatches, but it cannot certify live Checkout, carrier delivery, or webhook
+reconciliation; complete the checks in the provider rollout section.
 
 ## Limitations / manual steps remaining
 

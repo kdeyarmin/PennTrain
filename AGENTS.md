@@ -27,6 +27,9 @@ Instructions for Codex cloud and other AI coding agents working in this reposito
 - Run commands from the repository root unless a task explicitly targets a workspace package.
 - Use pnpm through Corepack. Do not use npm or yarn for installs.
 - Keep app, scripts, Supabase functions, and shared packages aligned when changing cross-cutting behavior.
+- The production Node server supports an opt-in Railway runtime for SMS MFA and Stripe billing.
+  It imports the existing shared handlers; keep their TypeScript erasable under Node 24 and inject
+  runtime environment/fetch dependencies. Server credentials must never receive a `VITE_` prefix.
 
 ## Commands
 
@@ -123,8 +126,9 @@ running things in this environment.
   `beforeAll`, which fails the first test of a serial file and skips the rest.
   The seeded demo logins' `demo123` is a different thing and is not subject to
   that rule -- it is written straight into `auth.users` by `seed.sql`.
-- **Local backend = local Supabase**: the SPA has no API server of its own; it
-  talks to Supabase directly. From the repo root run
+- **Default local backend = local Supabase**: with `VITE_PROVIDER_RUNTIME` unset,
+  the SPA talks to Supabase directly. The opt-in Railway SMS/billing routes and their
+  server configuration are documented in `DEPLOYMENT.md`. From the repo root run
   `npx --yes supabase@2.109.1 start` (applies all migrations, no demo data:
   `[db.seed] enabled = false` in `supabase/config.toml`, so the same single pass
   serves CI and local work instead of `start` seeding and every automated path

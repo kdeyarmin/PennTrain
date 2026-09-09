@@ -9,10 +9,13 @@ documents, alerts, audit evidence, and survey-ready compliance reporting, alongs
 integrated training layer (courses, quizzes, certificates, training plans, live classes,
 competency checklists).
 
-It's built directly on Supabase — Postgres with Row-Level Security, Auth, Storage, and
-Edge Functions — with no separate backend API server; the React frontend talks to
-Supabase directly. For the full technical picture (roles, the RLS/authorization model,
-storage buckets, Edge Functions, database schema), see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+It uses Supabase for Postgres with Row-Level Security, Auth, Storage, and Edge Functions.
+The React frontend accesses application data through Supabase directly. The Railway Node
+server serves the app and supports an opt-in runtime for SMS MFA, billing sessions,
+Stripe webhooks, and billing quantity synchronization; those handlers reuse the existing
+authorization and database logic, with provider credentials held in Railway server variables.
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the technical picture and
+**[DEPLOYMENT.md](DEPLOYMENT.md#railway-provider-runtime-opt-in)** for configuration and rollout.
 
 ## Layout
 
@@ -20,8 +23,8 @@ A pnpm workspace monorepo:
 
 | Path | Contents |
 | --- | --- |
-| `artifacts/caremetric-carebase/` | The product — React + Vite frontend |
-| `supabase/` | Every migration, RLS policy, and Edge Function — the actual backend |
+| `artifacts/caremetric-carebase/` | React + Vite frontend, Node server, and optional Railway provider routes |
+| `supabase/` | Database migrations, RLS policies, Edge Functions, and shared provider handlers |
 | `docs/` | Design, ops, and audit reference material |
 
 A few other things live at the repo root worth knowing about: `artifacts/mockup-sandbox`

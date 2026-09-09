@@ -132,8 +132,9 @@ export async function phase2StripePost(
   secretKey: string,
   values: Record<string, StripeFormValue>,
   idempotencyKey?: string,
+  fetcher: typeof fetch = fetch,
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
-  const response = await fetch(`https://api.stripe.com${path}`, {
+  const response = await fetcher(`https://api.stripe.com${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${secretKey}`,
@@ -151,8 +152,9 @@ export async function phase2StripePost(
 export async function phase2StripeGet(
   path: string,
   secretKey: string,
+  fetcher: typeof fetch = fetch,
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
-  const response = await fetch(`https://api.stripe.com${path}`, {
+  const response = await fetcher(`https://api.stripe.com${path}`, {
     headers: {
       Authorization: `Bearer ${secretKey}`,
       "Stripe-Version": STRIPE_API_VERSION,

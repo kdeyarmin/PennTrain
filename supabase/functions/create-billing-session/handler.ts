@@ -31,16 +31,6 @@ export interface CreateBillingSessionDependencies {
   nowIso?: () => string;
 }
 
-function json(req: Request, body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      ...corsHeadersForRequest(req, { headers: CORS_HEADERS }),
-    },
-  });
-}
-
 export function createCreateBillingSessionHandler({
   createClient,
   stripePost,
@@ -48,9 +38,19 @@ export function createCreateBillingSessionHandler({
   randomUUID = () => crypto.randomUUID(),
   nowIso = () => new Date().toISOString(),
 }: CreateBillingSessionDependencies) {
+  function json(req: Request, body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeadersForRequest(req, { headers: CORS_HEADERS, getEnv }),
+      },
+    });
+  }
+
   return async (req: Request): Promise<Response> => {
 
-  if (req.method === "OPTIONS") return corsPreflightResponse(req, { headers: "authorization, x-client-info, apikey, content-type, idempotency-key, x-correlation-id, x-request-id" });
+  if (req.method === "OPTIONS") return corsPreflightResponse(req, { headers: CORS_HEADERS, getEnv });
   if (req.method !== "POST") return json(req, { error: { code: "method_not_allowed" } }, 405);
 
   const supabaseUrl = getEnv("SUPABASE_URL");

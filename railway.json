@@ -5,6 +5,11 @@
     "buildCommand": "pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run test && pnpm --filter @workspace/caremetric-carebase run build && node scripts/check-bundle-budget.mjs",
     "watchPatterns": [
       "artifacts/caremetric-carebase/**",
+      "supabase/functions/_shared/**",
+      "supabase/functions/sms-mfa/**",
+      "supabase/functions/create-billing-session/**",
+      "supabase/functions/stripe-billing-webhook/**",
+      "supabase/functions/sync-billing-quantities/**",
       "package.json",
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",

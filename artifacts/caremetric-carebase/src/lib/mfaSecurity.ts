@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { supabase } from "./supabase";
+import { invokeProviderFunction } from "./providerFunctions";
 import { toMfaFactors, type MfaFactor } from "./mfaFactors";
 
 export interface MfaStatus {
@@ -62,7 +63,7 @@ export async function getMfaStatus(): Promise<MfaStatus> {
 }
 
 async function smsMfaRequest(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const { data, error } = await supabase.functions.invoke("sms-mfa", { body });
+  const { data, error } = await invokeProviderFunction("sms-mfa", { body });
   if (error) {
     // FunctionsHttpError keeps the structured backend error on its Response. Never display
     // provider response bodies, phone numbers, or credentials as a generic transport error.
