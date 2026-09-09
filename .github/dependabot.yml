@@ -45,17 +45,36 @@ updates:
   # job when it says so. Read these PRs as PROPOSALS -- "a newer image exists" -- and never as a
   # change that is ready to merge.
   #
-  # TO COMPLETE ONE: run `pnpm run check:toolchain-pins`. Its output names every file still on the
-  # old version, and that list is the worklist. It is longer than the diff suggests: a Node bump
-  # also moves `.node-version`, `.nvmrc`, `package.json` engines and `AGENTS.md`; a Deno bump also
-  # moves `ci.yml`, `scripts/setup-codex-cloud.sh` and `AGENTS.md`. Move them in the same PR and
-  # it goes green.
+  # TO COMPLETE ONE, DO NOT TREAT THE CHECK'S OUTPUT AS THE WORKLIST -- it is narrower than it
+  # looks. `compareMirrors` reports a mirror only when it DISAGREES with the canonical, so a
+  # Dependabot PR that moved the Dockerfile alone prints one line per tool naming the Dockerfile
+  # and the canonical it now contradicts. Every other mirror is still on the OLD version and
+  # therefore still agrees with the canonical, so the check says nothing about it. Reproduced
+  # against #503's exact diff: it named `.devcontainer/Dockerfile` and `.node-version`, and was
+  # silent on `.nvmrc`, `package.json` and `AGENTS.md` -- all three of which must move too.
+  # Raised by Codex on PR #506.
+  #
+  # The full worklist, which is the thing to actually work from:
+  #   Node          -- .node-version (canonical), .nvmrc, package.json engines, AGENTS.md
+  #   Deno          -- .github/workflows/ci.yml (canonical), scripts/setup-codex-cloud.sh, AGENTS.md
+  #   Supabase CLI  -- .github/actions/setup-supabase-cli/action.yml (canonical), package.json,
+  #                    scripts/check-database-types.mjs, AGENTS.md
+  # ...plus `.devcontainer/Dockerfile` in every case, being the file Dependabot already moved. Move
+  # the whole set in one PR, then re-run the check to confirm agreement.
   #
   # A MAJOR bump is a toolchain migration, not an image bump, and deserves its own reviewed PR
-  # rather than a merge of Dependabot's branch. Check https://github.com/nodejs/Release first so
-  # the move lands LTS-to-LTS instead of onto the Current line. #503 was closed on exactly that
-  # reasoning -- the right bump, seven weeks early: Node 26 enters LTS 2026-10-28, and taking it
-  # in September would have put the production build on Current until then.
+  # rather than a merge of Dependabot's branch -- and moving the pins is not automatically enough
+  # to make one green. This repository activates pnpm with `corepack enable` in BOTH
+  # `.github/actions/setup-node-pnpm/action.yml` and `.devcontainer/Dockerfile` without installing
+  # it, so it depends on corepack shipping inside the Node image. That still holds through Node 26
+  # -- the v25.6.0 changelog updates corepack to 0.34.6, and neither the v25 nor the v26 changelog
+  # records a removal -- but it is exactly the sort of assumption a major bump can invalidate, so
+  # verify it rather than inherit it. (Codex raised this on #506 believing corepack was already
+  # gone as of Node 25; the premise was wrong, the caution was not.) Check
+  # https://github.com/nodejs/Release as well, so the move lands LTS-to-LTS rather than onto the
+  # Current line. #503 was closed on that reasoning -- the right bump, seven weeks early: Node 26
+  # enters LTS 2026-10-28, and taking it in September would have put the production build on
+  # Current until then.
   #
   # None of this was stated when #502 added the watcher and the check in the same pass, so the
   # first monthly PR read as a broken check rather than as an incomplete bump. BACKLOG K13.
