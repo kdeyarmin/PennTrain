@@ -1030,6 +1030,7 @@ export type Database = {
           billing_state: string
           cancel_at_period_end: boolean
           canceled_at: string | null
+          checkout_previous_package_id: string | null
           created_at: string
           current_period_end: string | null
           current_period_start: string | null
@@ -1053,6 +1054,7 @@ export type Database = {
           billing_state: string
           cancel_at_period_end?: boolean
           canceled_at?: string | null
+          checkout_previous_package_id?: string | null
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
@@ -1076,6 +1078,7 @@ export type Database = {
           billing_state?: string
           cancel_at_period_end?: boolean
           canceled_at?: string | null
+          checkout_previous_package_id?: string | null
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
@@ -1100,6 +1103,13 @@ export type Database = {
             columns: ["billing_account_id"]
             isOneToOne: false
             referencedRelation: "billing_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_subscriptions_checkout_previous_package_id_fkey"
+            columns: ["checkout_previous_package_id"]
+            isOneToOne: false
+            referencedRelation: "packages"
             referencedColumns: ["id"]
           },
           {

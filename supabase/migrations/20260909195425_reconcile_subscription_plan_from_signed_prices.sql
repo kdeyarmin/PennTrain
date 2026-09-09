@@ -2,6 +2,13 @@
 -- copied from the original Checkout. Reconcile the purchased package from the
 -- signed current items so an upgrade/downgrade also changes app entitlements.
 -- Keep the existing freshness guard, tenant binding and failed-event receipt.
+-- Retain the independent package that existed before a provisional Checkout.
+-- A missing value on an older placeholder is deliberately an unknown prior tier.
+alter table public.billing_subscriptions
+  add column checkout_previous_package_id uuid references public.packages(id) on delete restrict;
+comment on column public.billing_subscriptions.checkout_previous_package_id is
+  'Package before the initial provisional Checkout stamp; never replaced by repeated Checkout. NULL also represents older placeholders with no trustworthy provenance.';
+
 do $migration$
 declare
   v_definition text;
@@ -13,11 +20,50 @@ begin
 
   v_old := $old$  v_admin record;$old$;
   v_new := $new$  v_admin record;
+  v_checkout_previous_package_id uuid;
   v_plan_recovery boolean := false;
   v_had_validated_plan boolean := false;
   v_preserve_subscription_items boolean := false;$new$;
   if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
     raise exception 'Stripe processor declarations no longer match the plan recovery patch';
+  end if;
+  v_definition := replace(v_definition, v_old, v_new);
+
+  v_old := $old$      v_package_id := app_private.try_uuid(v_object #>> '{metadata,package_id}');
+      v_subscription_id := nullif(coalesce($old$;
+  v_new := $new$      -- Capture the actual independent tier immediately before this
+      -- Checkout. The insert below stores it only on initial placeholder creation;
+      -- a duplicate Checkout cannot replace it with the provisional tier.
+      select s.checkout_previous_package_id into v_checkout_previous_package_id
+      from public.organizations o
+      join public.billing_subscriptions s on s.organization_id = o.id
+        and s.is_provider_placeholder and s.package_id is not distinct from o.package_id
+      where o.id = v_org_id
+      order by s.created_at, s.id limit 1;
+      if not found then
+        select o.package_id into v_checkout_previous_package_id
+        from public.organizations o where o.id = v_org_id;
+      end if;
+      v_package_id := app_private.try_uuid(v_object #>> '{metadata,package_id}');
+      v_subscription_id := nullif(coalesce($new$;
+  if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
+    raise exception 'Checkout package provenance capture no longer matches';
+  end if;
+  v_definition := replace(v_definition, v_old, v_new);
+
+  v_old := $old$          provider_event_created_at, provider_event_id, is_provider_placeholder
+        ) values (
+          v_org_id, v_account_id, v_package_id, v_subscription_id,
+          v_provider_status, v_state, 1,
+          p_event_created_at, p_event_id, true$old$;
+  v_new := $new$          provider_event_created_at, provider_event_id, is_provider_placeholder,
+          checkout_previous_package_id
+        ) values (
+          v_org_id, v_account_id, v_package_id, v_subscription_id,
+          v_provider_status, v_state, 1,
+          p_event_created_at, p_event_id, true, v_checkout_previous_package_id$new$;
+  if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
+    raise exception 'Checkout placeholder insert no longer matches provenance capture';
   end if;
   v_definition := replace(v_definition, v_old, v_new);
 
@@ -207,17 +253,26 @@ begin
           v_invoice record;
           v_override_invoice boolean := false;
         begin
-          -- Payment receipts remain authoritative during quarantine even though
-          -- they cannot promote account access then. Read the latest accepted
-          -- receipt for this subscription, not only the account's event pointer.
-          select e.event_type, e.event_created_at, e.event_id into v_invoice
+          -- Failed plan validation does not invalidate signed restrictive
+          -- status. During recovery, merge its latest applicable receipt with
+          -- payment evidence, using the original event clock for grace.
+          select e.event_type, e.event_created_at, e.event_id,
+                 e.payload #>> '{data,object,status}' as provider_status into v_invoice
           from app_private.stripe_billing_events e
-          where e.organization_id = v_org_id and e.processing_status = 'applied'
-            and ((v_plan_recovery and v_provider_status not in ('canceled', 'incomplete_expired')) or e.event_id = (
-              select a.provider_event_id from public.billing_accounts a where a.id = v_account_id))
-            and e.event_type in ('invoice.payment_failed', 'invoice.payment_succeeded', 'invoice.paid')
-            and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
-                         e.payload #>> '{data,object,subscription}') = v_object->>'id'
+          where e.organization_id = v_org_id
+            and (
+              (e.processing_status = 'applied'
+                and e.event_type in ('invoice.payment_failed', 'invoice.payment_succeeded', 'invoice.paid')
+                and ((v_plan_recovery and v_provider_status not in ('canceled', 'incomplete_expired')) or e.event_id = (
+                  select a.provider_event_id from public.billing_accounts a where a.id = v_account_id))
+                and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
+                             e.payload #>> '{data,object,subscription}') = v_object->>'id')
+              or (v_plan_recovery and v_provider_status not in ('canceled', 'incomplete_expired')
+                and e.processing_status = 'failed' and e.processing_error like '[P0B01]%'
+                and e.event_type like 'customer.subscription.%'
+                and e.payload #>> '{data,object,id}' = v_object->>'id'
+                and e.payload #>> '{data,object,status}' in ('past_due', 'unpaid', 'paused'))
+            )
             and (e.event_created_at, app_private.stripe_event_received_at(e.event_id))
                 > (p_event_created_at, app_private.stripe_event_received_at(p_event_id))
           order by e.event_created_at desc, e.signature_verified_at desc, e.event_id
@@ -226,12 +281,27 @@ begin
             or v_provider_status in ('canceled', 'incomplete_expired'));
           if v_override_invoice and v_plan_recovery
              and v_provider_status not in ('canceled', 'incomplete_expired') then
-            -- Preserve a newer payment failure and its original grace clock;
-            -- recovery of the plan must not erase that billing evidence.
-            v_account_state := case when v_invoice.event_type = 'invoice.payment_failed' then
-              case when v_invoice.event_created_at + interval '7 days' > now() then 'grace' else 'past_due' end
-              else 'active' end;
-            v_account_provider_status := case when v_invoice.event_type = 'invoice.payment_failed' then 'past_due' else 'active' end;
+            if v_invoice.event_type like 'customer.subscription.%' then
+              v_account_provider_status := v_invoice.provider_status;
+              v_account_state := case v_invoice.provider_status
+                when 'paused' then 'suspended'
+                when 'unpaid' then 'past_due'
+                when 'past_due' then case
+                  when v_invoice.event_created_at + interval '7 days' > now() then 'grace' else 'past_due' end
+              end;
+              -- Keep recovered items/package, but retain the later signed
+              -- restrictive status as this subscription's freshness boundary.
+              update public.billing_subscriptions
+              set provider_status = v_account_provider_status, billing_state = v_account_state,
+                  provider_event_created_at = v_invoice.event_created_at,
+                  provider_event_id = v_invoice.event_id
+              where id = v_subscription_pk;
+            else
+              v_account_state := case when v_invoice.event_type = 'invoice.payment_failed' then
+                case when v_invoice.event_created_at + interval '7 days' > now() then 'grace' else 'past_due' end
+                else 'active' end;
+              v_account_provider_status := case when v_invoice.event_type = 'invoice.payment_failed' then 'past_due' else 'active' end;
+            end if;
             v_account_event_created_at := v_invoice.event_created_at;
             v_account_event_id := v_invoice.event_id;
           end if;
@@ -322,17 +392,30 @@ begin
             v_account_id := null;
           end if;
           if v_account_id is not null then
+            -- This invalid subscription may precede its own Checkout while an
+            -- earlier provisional Checkout still supplies the current org tier.
+            select s.checkout_previous_package_id into v_checkout_previous_package_id
+            from public.organizations o
+            join public.billing_subscriptions s on s.organization_id = o.id
+              and s.is_provider_placeholder and s.package_id is not distinct from o.package_id
+            where o.id = v_org_id
+            order by s.created_at, s.id limit 1;
+            if not found then
+              select o.package_id into v_checkout_previous_package_id
+              from public.organizations o where o.id = v_org_id;
+            end if;
             -- Persist a quarantined placeholder even before Checkout arrives.
             -- Its later metadata and invoices cannot create a provisional grant;
             -- a validated subscription snapshot can still recover the row.
             insert into public.billing_subscriptions (
               organization_id, billing_account_id, package_id, stripe_subscription_id,
               provider_status, billing_state, seat_quantity,
-              provider_event_created_at, provider_event_id, is_provider_placeholder
+              provider_event_created_at, provider_event_id, is_provider_placeholder,
+              checkout_previous_package_id
             ) values (
               v_org_id, v_account_id, (select o.package_id from public.organizations o where o.id = v_org_id),
               v_object->>'id', 'plan_reconciliation_failed', 'suspended', 1,
-              p_event_created_at, p_event_id, true
+              p_event_created_at, p_event_id, true, v_checkout_previous_package_id
             )
             on conflict (stripe_subscription_id) do update
             set billing_state = 'suspended', provider_status = 'plan_reconciliation_failed', updated_at = now()
@@ -373,6 +456,18 @@ begin
                     updated_at = now()
                 where o.id = v_org_id;
               else
+                -- The comp itself is independent, but a rejected provisional
+                -- package is not. Restore captured provenance, including NULL
+                -- when an older placeholder has no trustworthy prior package.
+                update public.organizations o
+                set package_id = s.checkout_previous_package_id,
+                    plan_name = (select p.name from public.packages p where p.id = s.checkout_previous_package_id),
+                    updated_at = now()
+                from public.billing_subscriptions s
+                where o.id = v_org_id and s.organization_id = o.id
+                  and s.billing_account_id = v_account_id
+                  and s.stripe_subscription_id = v_object->>'id'
+                  and s.is_provider_placeholder;
                 -- Keep prior account event ordering: a later valid snapshot
                 -- may legitimately predate the rejected event and must recover.
                 update public.billing_accounts a
@@ -406,3 +501,41 @@ begin
   execute replace(v_definition, v_old, v_new);
 end
 $migration$;
+
+-- Payment receipts can restore access while the subscription retains its older
+-- restrictive provider snapshot. Keep that chronology intact: derive purchased
+-- seat eligibility from the same newer, matching account evidence as access.
+do $seat_cap_migration$
+declare
+  v_definition text;
+  v_old text;
+  v_new text;
+begin
+  v_definition := pg_get_functiondef(
+    'public.get_effective_entitlements(uuid,timestamptz)'::regprocedure);
+  v_old := $old$    where s.organization_id = v_org_id
+      and s.billing_state in ('trial', 'active', 'grace')
+      and (s.current_period_end is null or s.current_period_end > p_as_of)$old$;
+  v_new := $new$    where s.organization_id = v_org_id
+      and (s.billing_state in ('trial', 'active', 'grace') or (
+        not s.is_provider_placeholder
+        and s.provider_status not in ('canceled', 'incomplete_expired')
+        and exists (
+          select 1 from public.billing_accounts a
+          join app_private.stripe_billing_events e on e.event_id = a.provider_event_id
+          where a.id = s.billing_account_id and a.organization_id = s.organization_id
+            and e.organization_id = s.organization_id and e.processing_status = 'applied'
+            and e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
+            and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
+                         e.payload #>> '{data,object,subscription}') = s.stripe_subscription_id
+            and (e.event_created_at, app_private.stripe_event_received_at(e.event_id))
+                > (s.provider_event_created_at, app_private.stripe_event_received_at(s.provider_event_id))
+        )
+      ))
+      and (s.current_period_end is null or s.current_period_end > p_as_of)$new$;
+  if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
+    raise exception 'Stripe seat entitlement filter no longer matches the payment ordering patch';
+  end if;
+  execute replace(v_definition, v_old, v_new);
+end
+$seat_cap_migration$;

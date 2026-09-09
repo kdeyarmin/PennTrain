@@ -2,7 +2,7 @@
 -- real receipt processor and entitlement resolver, including rejected and stale
 -- deliveries, rather than updating local package rows as a test substitute.
 begin;
-select plan(207);
+select plan(300);
 
 insert into public.feature_definitions (feature_key, display_name, value_type, default_value)
 values ('portal.care_access', 'Portal plan test care access', 'boolean', 'false'::jsonb);
@@ -317,6 +317,17 @@ select results_eq($$ select billing_state, state_source from public.billing_acco
   where organization_id = 'ea000000-0000-4000-8000-000000000016' $$,
   $$ values ('comped'::text, 'manual_comp'::text) $$, 'an independent manual comp survives placeholder quarantine');
 
+select results_eq($$ select o.package_id, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'ea000000-0000-4000-8000-000000000016' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, now() + interval '1 day') $$,
+  'quarantine restores the pre-Checkout package without shortening the independent comp');
+select results_eq($$ select entitlement_value, is_entitled from public.get_effective_entitlements(
+  'ea000000-0000-4000-8000-000000000016', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('10'::jsonb, true) $$, 'the original comped Train allowance remains usable');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000016', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'the rejected higher package is unavailable during the comp');
+
+
 -- Reverse delivery order: an invoice with a newer provider timestamp can arrive
 -- before cancellation or first plan validation. It cannot retain invalid access.
 select ok((select was_applied from pg_temp.portal_event('evt_portalReverseActive', 16, array['price_portalCareMonth'])),
@@ -380,7 +391,7 @@ set local role service_role;
 select ok(not (select was_applied from pg_temp.portal_event('evt_portalCompExpiryRejected', 30, array['price_unrecognized'],
   p_org => 'ea000000-0000-4000-8000-000000000018')), 'the invalid plan is rejected without revoking the manual comp');
 select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000018', clock_timestamp())
-  where feature_key = 'portal.care_access'), true, 'an unexpired manual comp still grants its independent access');
+  where feature_key = 'portal.care_access'), false, 'an independent comp cannot retain the rejected higher Checkout tier');
 select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000018', clock_timestamp() + interval '2 days')
   where feature_key = 'portal.care_access'), false, 'expired comp cannot reveal the rejected placeholder as active provider state');
 select ok((select was_applied from pg_temp.portal_event('evt_portalCompExpiryRecovered', 20, array['price_portalCareMonth'],
@@ -708,6 +719,357 @@ select results_eq($$ select billing_state, provider_event_id from public.billing
   where organization_id = 'ea000000-0000-4000-8000-000000000028' $$,
   $$ values ('active'::text, 'evt_portalOtherPaymentPaid'::text) $$,
   'terminal quarantine recovery cannot override newer evidence for another valid subscription');
+
+
+-- Failure-before-Checkout must inherit the same independent provenance when
+-- another unvalidated Checkout already supplies the organization tier.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('ea000000-0000-4000-8000-000000000036', 'Portal reverse chained comp org', 'portal-reverse-chained-comp-org', 'trial', 'ea000000-0000-4000-8000-000000000001');
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'ea000000-0000-4000-8000-000000000036';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalReverseChainCheckoutA', 'ea000000-0000-4000-8000-000000000036',
+  'ea000000-0000-4000-8000-000000000002')), 'the reversed chain begins with an unvalidated higher Checkout');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalReverseChainRejectedB', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000036', p_subscription_suffix => 'Second')), 'second-plan rejection can arrive before its own Checkout');
+select results_eq($$ select o.package_id, a.billing_state, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'ea000000-0000-4000-8000-000000000036' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, now() + interval '1 day') $$,
+  'failure-before-second-Checkout inherits the first Checkout independent lower comp');
+select is((select checkout_previous_package_id from public.billing_subscriptions
+  where stripe_subscription_id = 'sub_portalea000000000040008000000000000036Second'),
+  'ea000000-0000-4000-8000-000000000001'::uuid, 'reverse-order quarantine stores trustworthy original provenance');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalReverseChainCheckoutB', 'ea000000-0000-4000-8000-000000000036',
+  'ea000000-0000-4000-8000-000000000002', 'Second')), 'the rejected second subscription can later receive Checkout');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000036', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'late second Checkout cannot launder the first provisional tier into comped access');
+
+-- Package provenance must survive repeat Checkout and must not select a
+-- historical canceled tier ahead of an independently chosen current comp.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values
+  ('ea000000-0000-4000-8000-000000000030', 'Portal provenance comp org', 'portal-provenance-comp-org', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('ea000000-0000-4000-8000-000000000031', 'Portal legacy provenance org', 'portal-legacy-provenance-org', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('ea000000-0000-4000-8000-000000000032', 'Portal chained provenance org', 'portal-chained-provenance-org', 'trial', 'ea000000-0000-4000-8000-000000000001');
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_event('evt_portalCompHistoricalCare', 1, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000030')), 'the provenance case has a historical higher subscription');
+select ok((select was_applied from pg_temp.portal_event('evt_portalCompHistoricalCanceled', 2, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000030', p_status => 'canceled')), 'the historical higher subscription is canceled');
+reset role;
+update public.organizations set package_id = 'ea000000-0000-4000-8000-000000000001' where id = 'ea000000-0000-4000-8000-000000000030';
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'ea000000-0000-4000-8000-000000000030';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalCompNewCheckout', 'ea000000-0000-4000-8000-000000000030',
+  'ea000000-0000-4000-8000-000000000002', 'Second')), 'new Checkout provisionally claims the higher tier during a lower independent comp');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalCompRepeatedCheckout', 'ea000000-0000-4000-8000-000000000030',
+  'ea000000-0000-4000-8000-000000000002', 'Second')), 'a repeated Checkout is accepted without replacing original provenance');
+select is((select checkout_previous_package_id from public.billing_subscriptions
+  where stripe_subscription_id = 'sub_portalea000000000040008000000000000030Second'),
+  'ea000000-0000-4000-8000-000000000001'::uuid, 'provenance records the actual pre-Checkout lower tier, not canceled history or a repeated provisional stamp');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalCompNewRejected', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000030', p_subscription_suffix => 'Second')), 'invalid higher pricing is rejected during the lower comp');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'ea000000-0000-4000-8000-000000000030' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
+  'failed reconciliation preserves the actual lower comp and its expiry despite historical higher billing');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000030', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'comp cannot restore the rejected higher entitlement from historical billing');
+
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalLegacyProvenanceCheckout', 'ea000000-0000-4000-8000-000000000031',
+  'ea000000-0000-4000-8000-000000000002')), 'the legacy placeholder fixture starts with higher provisional Checkout');
+reset role;
+-- Simulate a placeholder created before the provenance column existed.
+update public.billing_subscriptions set checkout_previous_package_id = null where organization_id = 'ea000000-0000-4000-8000-000000000031';
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = null
+where organization_id = 'ea000000-0000-4000-8000-000000000031';
+set local role service_role;
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalLegacyProvenanceRejected', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000031')), 'invalid legacy placeholder pricing is rejected without inventing a prior package');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'ea000000-0000-4000-8000-000000000031' $$,
+  $$ values (null::uuid, 'comped'::text, 'manual_comp'::text, null::timestamptz) $$,
+  'unknown pre-migration provenance clears only the unvalidated tier while retaining the indefinite independent comp');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000031', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'an indefinite comp cannot keep the legacy placeholder unvalidated CareBase tier');
+
+reset role;
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = null
+where organization_id = 'ea000000-0000-4000-8000-000000000032';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalChainCheckoutA', 'ea000000-0000-4000-8000-000000000032',
+  'ea000000-0000-4000-8000-000000000002')), 'the first unvalidated Checkout provisionally stamps a higher tier');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalChainCheckoutB', 'ea000000-0000-4000-8000-000000000032',
+  'ea000000-0000-4000-8000-000000000002', 'Second')), 'a second unvalidated Checkout inherits the currently stamped first Checkout provenance');
+select is((select checkout_previous_package_id from public.billing_subscriptions
+  where stripe_subscription_id = 'sub_portalea000000000040008000000000000032Second'),
+  'ea000000-0000-4000-8000-000000000001'::uuid, 'a second provisional subscription cannot launder the first provisional tier into trusted provenance');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalChainRejectedB', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000032', p_subscription_suffix => 'Second')), 'the second unvalidated plan is rejected');
+select results_eq($$ select o.package_id, a.billing_state from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'ea000000-0000-4000-8000-000000000032' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text) $$,
+  'rejection restores the lower independent comp through a chain of two unvalidated Checkouts');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000032', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'chained provisional Checkout cannot preserve rejected higher access');
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('ea000000-0000-4000-8000-000000000033', 'Portal restrictive recovery 33', 'portal-restrictive-recovery-33', 'trial', 'ea000000-0000-4000-8000-000000000001');
+set local role service_role;
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalRestriction33Failed', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000033', p_status => 'past_due')), 'first past_due snapshot is quarantined when its plan is unknown');
+select ok((select was_applied from pg_temp.portal_event('evt_portalRestriction33Recovered', 20, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000033')), 'older valid prices recover the plan without erasing newer past_due evidence');
+select results_eq($$ select provider_status, billing_state, provider_event_id, is_provider_placeholder from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000033' $$,
+  $$ values ('past_due'::text, 'grace'::text, 'evt_portalRestriction33Failed'::text, false) $$,
+  'validated items retain the newer past_due subscription receipt as their freshness boundary');
+select results_eq($$ select provider_state, billing_state, provider_event_id from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000033' $$,
+  $$ values ('past_due'::text, 'grace'::text, 'evt_portalRestriction33Failed'::text) $$,
+  'account recovery honors the original newer past_due status');
+select results_eq($$ select was_applied, was_stale from pg_temp.portal_event('evt_portalRestriction33StillOlder', 25, array['price_portalCareYear'], p_org => 'ea000000-0000-4000-8000-000000000033') $$,
+  $$ values (false, true) $$, 'another older active snapshot cannot erase the recovered past_due boundary');
+
+select is((select grace_ends_at from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000033'),
+  date_trunc('second', now()) - interval '30 seconds' + interval '7 days', 'recovered past-due status retains its original grace deadline');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000033', clock_timestamp() + interval '8 days')
+  where feature_key = 'portal.care_access'), false, 'failed restrictive receipt recovery cannot grant indefinite access after grace');
+
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalRestriction33NewPaid', 'ea000000-0000-4000-8000-000000000033', p_sequence => 40)),
+  'a genuinely newer successful payment can restore access after recovered past_due evidence');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000033'), 'active',
+  'new successful payment supersedes the older recovered restrictive evidence');
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('ea000000-0000-4000-8000-000000000034', 'Portal restrictive recovery 34', 'portal-restrictive-recovery-34', 'trial', 'ea000000-0000-4000-8000-000000000001');
+set local role service_role;
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalRestriction34Failed', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000034', p_status => 'unpaid')), 'first unpaid snapshot is quarantined when its plan is unknown');
+select ok((select was_applied from pg_temp.portal_event('evt_portalRestriction34Recovered', 20, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000034')), 'older valid prices recover the plan without erasing newer unpaid evidence');
+select results_eq($$ select provider_status, billing_state, provider_event_id, is_provider_placeholder from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000034' $$,
+  $$ values ('unpaid'::text, 'past_due'::text, 'evt_portalRestriction34Failed'::text, false) $$,
+  'validated items retain the newer unpaid subscription receipt as their freshness boundary');
+select results_eq($$ select provider_state, billing_state, provider_event_id from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000034' $$,
+  $$ values ('unpaid'::text, 'past_due'::text, 'evt_portalRestriction34Failed'::text) $$,
+  'account recovery honors the original newer unpaid status');
+select results_eq($$ select was_applied, was_stale from pg_temp.portal_event('evt_portalRestriction34StillOlder', 25, array['price_portalCareYear'], p_org => 'ea000000-0000-4000-8000-000000000034') $$,
+  $$ values (false, true) $$, 'another older active snapshot cannot erase the recovered unpaid boundary');
+
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000034', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'recovered unpaid state does not confer access');
+
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalRestriction34NewPaid', 'ea000000-0000-4000-8000-000000000034', p_sequence => 40)),
+  'a genuinely newer successful payment can restore access after recovered unpaid evidence');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000034'), 'active',
+  'new successful payment supersedes the older recovered restrictive evidence');
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('ea000000-0000-4000-8000-000000000035', 'Portal restrictive recovery 35', 'portal-restrictive-recovery-35', 'trial', 'ea000000-0000-4000-8000-000000000001');
+set local role service_role;
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalRestriction35Failed', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000035', p_status => 'paused')), 'first paused snapshot is quarantined when its plan is unknown');
+select ok((select was_applied from pg_temp.portal_event('evt_portalRestriction35Recovered', 20, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000035')), 'older valid prices recover the plan without erasing newer paused evidence');
+select results_eq($$ select provider_status, billing_state, provider_event_id, is_provider_placeholder from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000035' $$,
+  $$ values ('paused'::text, 'suspended'::text, 'evt_portalRestriction35Failed'::text, false) $$,
+  'validated items retain the newer paused subscription receipt as their freshness boundary');
+select results_eq($$ select provider_state, billing_state, provider_event_id from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000035' $$,
+  $$ values ('paused'::text, 'suspended'::text, 'evt_portalRestriction35Failed'::text) $$,
+  'account recovery honors the original newer paused status');
+select results_eq($$ select was_applied, was_stale from pg_temp.portal_event('evt_portalRestriction35StillOlder', 25, array['price_portalCareYear'], p_org => 'ea000000-0000-4000-8000-000000000035') $$,
+  $$ values (false, true) $$, 'another older active snapshot cannot erase the recovered paused boundary');
+
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000035', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'recovered paused state does not confer access');
+
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalRestriction35NewPaid', 'ea000000-0000-4000-8000-000000000035', p_sequence => 40)),
+  'a genuinely newer successful payment can restore access after recovered paused evidence');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000035'), 'active',
+  'new successful payment supersedes the older recovered restrictive evidence');
+-- A mapped historical seat plan must keep its purchased cap
+-- when newer payment evidence restores access past an older provider snapshot.
+reset role;
+insert into public.packages (id, name, learner_limit, facility_limit, features)
+values ('eaff0000-0000-4000-8000-000000000001', 'Portal legacy seat contract', 100, 10, '{}'::jsonb);
+insert into public.package_billing_prices (
+  package_id, stripe_price_id, recurring_interval, billing_metric, pricing_model,
+  base_amount_cents, unit_amount_cents, minimum_quantity, maximum_quantity, is_seat_based
+) values (
+  'eaff0000-0000-4000-8000-000000000001', 'price_portalLegacySeats', 'month', 'active_learner', 'per_unit',
+  0, 1000, 1, 100, true
+);
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values
+  ('eaff0000-0000-4000-8000-000000000101', 'Portal seats paid before unpaid', 'portal-seats-paid-before-unpaid', 'trial', 'eaff0000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000102', 'Portal seats paid before pause', 'portal-seats-paid-before-pause', 'trial', 'eaff0000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000103', 'Portal seats unpaid before paid', 'portal-seats-unpaid-before-paid', 'trial', 'eaff0000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000104', 'Portal seats pause before paid', 'portal-seats-pause-before-paid', 'trial', 'eaff0000-0000-4000-8000-000000000001');
+
+-- Invoice fixtures already accept these sub_portal identifiers. Mutations still
+-- go through the real processor; only signed-event-shaped input is constructed.
+create function pg_temp.portal_seat_event(
+  p_event text, p_sequence integer, p_org uuid, p_status text default 'active',
+  p_known_price boolean default true, p_event_type text default 'customer.subscription.updated'
+)
+returns table (was_duplicate boolean, was_applied boolean, was_stale boolean,
+               resolved_organization_id uuid, canonical_state text)
+language sql set search_path = ''
+as $fixture$
+  select * from public.process_stripe_billing_event(
+    p_event, p_event_type, date_trunc('second', now()) - interval '1 minute' + p_sequence * interval '1 second',
+    jsonb_build_object('data', jsonb_build_object('object', jsonb_build_object(
+      'id', 'sub_portal' || replace(p_org::text, '-', ''),
+      'customer', 'cus_portal' || replace(p_org::text, '-', ''),
+      'status', p_status,
+      'metadata', jsonb_build_object('organization_id', p_org, 'package_id', 'eaff0000-0000-4000-8000-000000000001'),
+      'items', jsonb_build_object('has_more', false, 'data', jsonb_build_array(jsonb_build_object(
+        'id', 'si_portal' || replace(p_org::text, '-', '') || '1',
+        'quantity', case when p_known_price then 7 else 99 end,
+        'current_period_start', extract(epoch from now())::bigint,
+        'current_period_end', extract(epoch from now() + interval '1 year')::bigint,
+        'price', jsonb_build_object('id', case when p_known_price then 'price_portalLegacySeats' else 'price_unrecognized' end)
+      )))
+    ))), md5(p_event) || md5(p_event), p_event
+  );
+$fixture$;
+set local role service_role;
+
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat101Initial', 1, 'eaff0000-0000-4000-8000-000000000101')),
+  'seat case 101 begins with an authoritative mapped seven-seat subscription');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000101', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true) $$,
+  'seat case 101 initially caps its hundred-seat package at seven purchased seats');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeat101Paid', 'eaff0000-0000-4000-8000-000000000101',
+  p_event_type => 'invoice.paid', p_sequence => 40)), 'seat case 101 accepts its newer successful invoice');
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat101Restrictive', 10, 'eaff0000-0000-4000-8000-000000000101', 'unpaid', false)),
+  'seat case 101 accepts the older unpaid snapshot while retaining validated item history');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000101', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true) $$,
+  'seat case 101 preserves seven purchased seats after payment despite the older unpaid snapshot');
+select results_eq($$ select s.billing_state, s.provider_status, s.provider_event_id, a.provider_event_id
+  from public.billing_subscriptions s join public.billing_accounts a on a.id = s.billing_account_id
+  where s.organization_id = 'eaff0000-0000-4000-8000-000000000101' $$,
+  $$ values ('past_due'::text, 'unpaid'::text, 'evt_portalSeat101Restrictive'::text, 'evt_portalSeat101Paid'::text) $$,
+  'seat case 101 retains independent subscription and payment chronology');
+select is(public.has_effective_entitlement('eaff0000-0000-4000-8000-000000000101', 'limits.learners', 8, clock_timestamp()), false,
+  'seat case 101 cannot use an eighth seat through the quantity-aware entitlement consumer');
+
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat102Initial', 1, 'eaff0000-0000-4000-8000-000000000102')),
+  'seat case 102 begins with an authoritative mapped seven-seat subscription');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000102', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true) $$,
+  'seat case 102 initially caps its hundred-seat package at seven purchased seats');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeat102Paid', 'eaff0000-0000-4000-8000-000000000102',
+  p_event_type => 'invoice.payment_succeeded', p_sequence => 40)), 'seat case 102 accepts its newer successful invoice');
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat102Restrictive', 10, 'eaff0000-0000-4000-8000-000000000102', 'paused', false)),
+  'seat case 102 accepts the older paused snapshot while retaining validated item history');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000102', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true) $$,
+  'seat case 102 preserves seven purchased seats after payment despite the older paused snapshot');
+select results_eq($$ select s.billing_state, s.provider_status, s.provider_event_id, a.provider_event_id
+  from public.billing_subscriptions s join public.billing_accounts a on a.id = s.billing_account_id
+  where s.organization_id = 'eaff0000-0000-4000-8000-000000000102' $$,
+  $$ values ('suspended'::text, 'paused'::text, 'evt_portalSeat102Restrictive'::text, 'evt_portalSeat102Paid'::text) $$,
+  'seat case 102 retains independent subscription and payment chronology');
+select is(public.has_effective_entitlement('eaff0000-0000-4000-8000-000000000102', 'limits.learners', 8, clock_timestamp()), false,
+  'seat case 102 cannot use an eighth seat through the quantity-aware entitlement consumer');
+
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat103Initial', 1, 'eaff0000-0000-4000-8000-000000000103')),
+  'seat case 103 begins with an authoritative mapped seven-seat subscription');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000103', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true) $$,
+  'seat case 103 initially caps its hundred-seat package at seven purchased seats');
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat103Restrictive', 10, 'eaff0000-0000-4000-8000-000000000103', 'unpaid', false)),
+  'seat case 103 accepts the older unpaid snapshot while retaining validated item history');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeat103Paid', 'eaff0000-0000-4000-8000-000000000103',
+  p_event_type => 'invoice.paid', p_sequence => 40)), 'seat case 103 accepts its newer successful invoice');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000103', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true) $$,
+  'seat case 103 preserves seven purchased seats after payment despite the older unpaid snapshot');
+select results_eq($$ select s.billing_state, s.provider_status, s.provider_event_id, a.provider_event_id
+  from public.billing_subscriptions s join public.billing_accounts a on a.id = s.billing_account_id
+  where s.organization_id = 'eaff0000-0000-4000-8000-000000000103' $$,
+  $$ values ('past_due'::text, 'unpaid'::text, 'evt_portalSeat103Restrictive'::text, 'evt_portalSeat103Paid'::text) $$,
+  'seat case 103 retains independent subscription and payment chronology');
+select is(public.has_effective_entitlement('eaff0000-0000-4000-8000-000000000103', 'limits.learners', 8, clock_timestamp()), false,
+  'seat case 103 cannot use an eighth seat through the quantity-aware entitlement consumer');
+
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat104Initial', 1, 'eaff0000-0000-4000-8000-000000000104')),
+  'seat case 104 begins with an authoritative mapped seven-seat subscription');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000104', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true) $$,
+  'seat case 104 initially caps its hundred-seat package at seven purchased seats');
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat104Restrictive', 10, 'eaff0000-0000-4000-8000-000000000104', 'paused', false)),
+  'seat case 104 accepts the older paused snapshot while retaining validated item history');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeat104Paid', 'eaff0000-0000-4000-8000-000000000104',
+  p_event_type => 'invoice.payment_succeeded', p_sequence => 40)), 'seat case 104 accepts its newer successful invoice');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000104', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true) $$,
+  'seat case 104 preserves seven purchased seats after payment despite the older paused snapshot');
+select results_eq($$ select s.billing_state, s.provider_status, s.provider_event_id, a.provider_event_id
+  from public.billing_subscriptions s join public.billing_accounts a on a.id = s.billing_account_id
+  where s.organization_id = 'eaff0000-0000-4000-8000-000000000104' $$,
+  $$ values ('suspended'::text, 'paused'::text, 'evt_portalSeat104Restrictive'::text, 'evt_portalSeat104Paid'::text) $$,
+  'seat case 104 retains independent subscription and payment chronology');
+select is(public.has_effective_entitlement('eaff0000-0000-4000-8000-000000000104', 'limits.learners', 8, clock_timestamp()), false,
+  'seat case 104 cannot use an eighth seat through the quantity-aware entitlement consumer');
+
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeatGraceFailed', 'eaff0000-0000-4000-8000-000000000104',
+  p_event_type => 'invoice.payment_failed', p_sequence => 50)), 'a newer seat-plan payment failure starts its ordinary grace period');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000104', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'grace'::text, true) $$,
+  'grace preserves the seven-seat cap despite the older paused snapshot');
+select is(public.has_effective_entitlement('eaff0000-0000-4000-8000-000000000104', 'limits.learners', 8, clock_timestamp()), false,
+  'grace does not provide unpurchased seats');
+select results_eq($$ select entitlement_value, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000104', clock_timestamp() + interval '8 days')
+  where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'past_due'::text, false) $$,
+  'keeping the purchased seat cap cannot extend access beyond the original grace deadline');
+select results_eq($$ select provider_event_id, grace_ends_at from public.billing_accounts
+  where organization_id = 'eaff0000-0000-4000-8000-000000000104' $$,
+  $$ values ('evt_portalSeatGraceFailed'::text, date_trunc('second', now()) - interval '10 seconds' + interval '7 days') $$,
+  'seat entitlement reads preserve the original failure receipt and grace clock');
+
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat101Terminal', 60, 'eaff0000-0000-4000-8000-000000000101', 'canceled', false,
+  'customer.subscription.deleted')), 'newer canceled evidence still ends the legacy seat subscription');
+select is(public.has_effective_entitlement('eaff0000-0000-4000-8000-000000000101', 'limits.learners', 1, clock_timestamp()), false,
+  'a terminated seat subscription provides no quantity entitlement');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeat101AfterTerminalPaid', 'eaff0000-0000-4000-8000-000000000101', p_sequence => 62)),
+  'a successful invoice received after canceled remains durable without promoting access');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000101', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('100'::jsonb, 'package'::text, 'canceled'::text, false) $$,
+  'terminal evidence excludes its retained seat items and prevents later payment from restoring access');
+
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeat102Terminal', 60, 'eaff0000-0000-4000-8000-000000000102', 'incomplete_expired', false,
+  'customer.subscription.updated')), 'newer incomplete_expired evidence still ends the legacy seat subscription');
+select is(public.has_effective_entitlement('eaff0000-0000-4000-8000-000000000102', 'limits.learners', 1, clock_timestamp()), false,
+  'a terminated seat subscription provides no quantity entitlement');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeat102AfterTerminalPaid', 'eaff0000-0000-4000-8000-000000000102', p_sequence => 62)),
+  'a successful invoice received after incomplete_expired remains durable without promoting access');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000102', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('100'::jsonb, 'package'::text, 'canceled'::text, false) $$,
+  'terminal evidence excludes its retained seat items and prevents later payment from restoring access');
 
 select * from finish();
 rollback;
