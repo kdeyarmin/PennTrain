@@ -68,6 +68,10 @@ insert into public.session_lock_events(id,profile_id,organization_id,route_path,
 values ('da000000-0000-4000-8000-000000000301','da000000-0000-4000-8000-000000000011','da000000-0000-4000-8000-000000000001',
  '/me/courses','manual',now(),now(),'synthetic-closed-session');
 insert into storage.buckets(id,name,"public") values ('sms-mfa-security-test','sms-mfa-security-test',false);
+-- Storage's existing restrictive module policy rejects unclassified buckets. Classify this
+-- rolled-back fixture so the verified-session assertion tests an otherwise-authorized object.
+insert into app_private.product_module_storage_buckets(bucket_id,module_key)
+values ('sms-mfa-security-test','core');
 insert into storage.objects(id,bucket_id,name) values ('da000000-0000-4000-8000-000000000302','sms-mfa-security-test','protected-test-object.txt');
 create function public.sms_mfa_test_definer_probe() returns integer language sql security definer set search_path='' as $$
  select count(*)::integer from public.profiles;

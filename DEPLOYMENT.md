@@ -284,7 +284,8 @@ Reuse the existing Twilio account credentials in Edge Function secrets:
 codes, SMS enabled, Fraud Guard enabled and the permitted destination countries.
 Never put these credentials in Railway's `VITE_*` variables. The screen discovers
 SMS availability from the configured Edge Function; no build-time SMS flag is
-needed. Missing provider configuration leaves native TOTP usable.
+needed. Missing provider configuration leaves native TOTP usable for accounts
+that have not enrolled SMS; SMS accounts retain their verification requirement.
 
 Twilio Verify usage charges still apply: its public pricing on 2026-09-09 lists
 $0.05 per successful verification plus channel fees. See
