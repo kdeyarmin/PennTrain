@@ -125,16 +125,21 @@ function lateWorker(
 function dispatch(
   fetcher: typeof fetch,
   timeoutMs?: number,
+  options: {
+    cronSecret?: string;
+    finishRejectedNewRun?: () => Promise<{ error: unknown }>;
+  } = {},
 ) {
   return dispatchBillingSystemJob({
     url: `${ENV.SUPABASE_URL}/functions/v1/sync-billing-quantities`,
-    cronSecret: ENV.CRON_SHARED_SECRET,
+    cronSecret: options.cronSecret ?? ENV.CRON_SHARED_SECRET,
     runId: RUN_ID,
     correlationId: CORRELATION_ID,
     body: { batchSize: 50, maxRuntimeMs: 110000 },
     signal: new AbortController().signal,
     fetcher,
     timeoutMs,
+    finishRejectedNewRun: options.finishRejectedNewRun,
   });
 }
 
@@ -198,6 +203,8 @@ Deno.test("lost Railway responses leave the real adopted billing run completable
     });
     const result = await dispatch(
       (input, init) => Promise.resolve(forwarding(new Request(input, init))),
+      undefined,
+      { finishRejectedNewRun: async () => worker.finish("failed") },
     );
     assertEquals(result.status, 502);
     assertEquals(result.body.dispatchOutcome, "unknown");
@@ -249,38 +256,44 @@ Deno.test("direct dispatcher fetch, timeout and response-read failures never fin
   for (const failure of ["throw", "timeout", "read", "malformed", "html"]) {
     const worker = lateWorker();
     let running!: Promise<Response>;
-    const result = await dispatch(async (input, init) => {
-      running = worker.handler(new Request(input, init));
-      await worker.claimed.promise;
-      if (failure === "throw") {
-        throw new Error("Connection closed after dispatch");
-      }
-      if (failure === "timeout") {
-        return await new Promise<Response>((_, reject) => {
-          init?.signal?.addEventListener(
-            "abort",
-            () => reject(new Error("Timeout")),
-            { once: true },
+    const result = await dispatch(
+      async (input, init) => {
+        running = worker.handler(new Request(input, init));
+        await worker.claimed.promise;
+        if (failure === "throw") {
+          throw new Error("Connection closed after dispatch");
+        }
+        if (failure === "timeout") {
+          return await new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener(
+              "abort",
+              () => reject(new Error("Timeout")),
+              { once: true },
+            );
+          });
+        }
+        if (failure === "read") {
+          return new Response(
+            new ReadableStream({
+              start(c) {
+                c.error(new Error("Truncated stream"));
+              },
+            }),
+            { headers: { "content-type": "application/json" } },
           );
+        }
+        if (failure === "html") {
+          return new Response("<html>upstream error</html>");
+        }
+        return new Response("{", {
+          headers: { "content-type": "application/json" },
         });
-      }
-      if (failure === "read") {
-        return new Response(
-          new ReadableStream({
-            start(c) {
-              c.error(new Error("Truncated stream"));
-            },
-          }),
-          { headers: { "content-type": "application/json" } },
-        );
-      }
-      if (failure === "html") {
-        return new Response("<html>upstream error</html>");
-      }
-      return new Response("{", {
-        headers: { "content-type": "application/json" },
-      });
-    }, failure === "timeout" ? 5 : 1000);
+      },
+      failure === "timeout" ? 5 : 1000,
+      {
+        finishRejectedNewRun: async () => worker.finish("failed"),
+      },
+    );
     assertEquals(result.status, 502);
     assertEquals(result.body.dispatchOutcome, "unknown");
     assertEquals(worker.state.status, "running");
@@ -363,8 +376,15 @@ Deno.test("arbitrary not-started markers cannot terminalize a run", async () => 
       },
     ]
   ) {
-    const result = await dispatch(async () => json(value, 502));
+    let cleanupAttempts = 0;
+    const result = await dispatch(async () => json(value, 502), undefined, {
+      finishRejectedNewRun: async () => {
+        cleanupAttempts++;
+        return { error: null };
+      },
+    });
     assertEquals(result.body.dispatchOutcome, "unknown");
+    assertEquals(cleanupAttempts, 0);
   }
 });
 
@@ -421,5 +441,117 @@ Deno.test("billing worker finalization errors remain unconfirmed without leaking
     assertEquals(result.status, 502);
     assertEquals(result.body.dispatchOutcome, "unknown");
     assertEquals(result.body.success, undefined);
+  }
+});
+
+Deno.test("verified rejection and missing cron close only fresh owned queued runs", async () => {
+  for (const missingCron of [false, true]) {
+    const ledger = lateWorker();
+    let dispatchAttempts = 0;
+    let cleanupAttempts = 0;
+    const result = await dispatch(
+      async () => {
+        dispatchAttempts++;
+        return json({
+          error: "billing_runtime_invalid",
+          dispatchOutcome: "not_started",
+          runId: RUN_ID,
+          correlationId: CORRELATION_ID,
+        }, 503);
+      },
+      undefined,
+      {
+        cronSecret: missingCron ? "" : ENV.CRON_SHARED_SECRET,
+        finishRejectedNewRun: async () => {
+          cleanupAttempts++;
+          return ledger.finish("failed");
+        },
+      },
+    );
+    assertEquals(result.status, missingCron ? 503 : 502);
+    assertEquals(result.body.dispatchOutcome, "not_started");
+    assertEquals(result.body.success, undefined);
+    assertEquals(dispatchAttempts, missingCron ? 0 : 1);
+    assertEquals(cleanupAttempts, 1);
+    assertEquals(ledger.state, {
+      status: "failed",
+      failedFinishes: 1,
+      succeededFinishes: 0,
+    });
+  }
+});
+
+Deno.test("rejected canonical replays stay unchanged for queued running and succeeded rows", async () => {
+  for (const status of ["queued", "running", "succeeded"]) {
+    for (const missingCron of [false, true]) {
+      const ledger = lateWorker();
+      ledger.state.status = status;
+      const before = { ...ledger.state };
+      let dispatchAttempts = 0;
+      const result = await dispatch(
+        async () => {
+          dispatchAttempts++;
+          return json({
+            error: "billing_runtime_invalid",
+            dispatchOutcome: "not_started",
+            runId: RUN_ID,
+            correlationId: CORRELATION_ID,
+          }, 503);
+        },
+        undefined,
+        { cronSecret: missingCron ? "" : ENV.CRON_SHARED_SECRET },
+      );
+      assertEquals(result.body.dispatchOutcome, "not_started");
+      assertEquals(result.body.success, undefined);
+      assertEquals(dispatchAttempts, missingCron ? 0 : 1);
+      assertEquals(ledger.state, before);
+      assertEquals(ledger.finishAttempts, []);
+    }
+  }
+});
+
+Deno.test("fresh rejection cleanup RPC errors and lost responses remain unknown without retry", async () => {
+  for (const missingCron of [false, true]) {
+    for (
+      const failure of ["rpc_error", "transport_before", "transport_after"]
+    ) {
+      const ledger = lateWorker();
+      let cleanupAttempts = 0;
+      const result = await dispatch(
+        async () =>
+          json({
+            error: "billing_runtime_invalid",
+            dispatchOutcome: "not_started",
+            runId: RUN_ID,
+            correlationId: CORRELATION_ID,
+          }, 503),
+        undefined,
+        {
+          cronSecret: missingCron ? "" : ENV.CRON_SHARED_SECRET,
+          finishRejectedNewRun: async () => {
+            cleanupAttempts++;
+            if (failure === "rpc_error") {
+              return {
+                data: null,
+                error: { code: "XX000", message: "private cleanup diagnostic" },
+              };
+            }
+            if (failure === "transport_after") ledger.finish("failed");
+            throw new Error("private cleanup transport diagnostic");
+          },
+        },
+      );
+      assertEquals(result.status, 502);
+      assertEquals(result.body.dispatchOutcome, "unknown");
+      assertEquals(result.body.runId, RUN_ID);
+      assertEquals(result.body.correlationId, CORRELATION_ID);
+      assertEquals(result.body.success, undefined);
+      assertEquals(JSON.stringify(result.body).includes("private"), false);
+      assertEquals(cleanupAttempts, 1);
+      assertEquals(
+        ledger.state.status,
+        failure === "transport_after" ? "failed" : "queued",
+      );
+    }
   }
 });

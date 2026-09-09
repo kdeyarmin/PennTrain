@@ -212,6 +212,30 @@ for (const basePath of ["/api/", "/api/providers/"]) {
   });
 }
 
+test("a SPA base matching a provider endpoint serves GET and HEAD while preserving provider methods", { timeout: 20_000 }, async (t) => {
+  const basePath = "/api/providers/sms-mfa/";
+  const server = await launch(t, { basePath });
+  for (const path of [basePath.slice(0, -1), basePath]) {
+    for (const method of ["GET", "HEAD"]) {
+      const response = await request(server, path, { method });
+      assert.equal(response.status, 200, `${method} ${path}`);
+      assert.match(response.headers["content-type"], /^text\/html/);
+      if (method === "GET") assert.match(response.body, /App fixture/);
+      else assert.equal(response.body, "");
+    }
+  }
+  const provider = await request(server, "/api/providers/sms-mfa", { method: "POST", body: "{}" });
+  assert.equal(provider.status, 401);
+  assert.deepEqual(JSON.parse(provider.body), { error: "Sign in to continue." });
+  const preflight = await request(server, "/api/providers/sms-mfa", {
+    method: "OPTIONS", headers: { origin: "https://cmcarebase.com" },
+  });
+  assert.equal(preflight.status, 200);
+  assert.equal(preflight.headers["access-control-allow-origin"], "https://cmcarebase.com");
+  await assertRejectedRoutes(server, basePath.slice(0, -1));
+  await server.assertNoProviderFetch();
+});
+
 test("actual Railway startup fails before listening when a required server secret is absent", { timeout: 20_000 }, async (t) => {
   const server = await launch(t, { envOverrides: { TWILIO_AUTH_TOKEN: undefined }, expectStartup: false });
   const result = await deadline(server.exited, "startup rejection");

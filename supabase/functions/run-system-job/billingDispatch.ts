@@ -19,6 +19,8 @@ export interface BillingDispatchDependencies {
   runId: string;
   correlationId: string;
   body: Record<string, unknown>;
+  // Supplied only by the server's fresh request_system_job_rerun path, never replay.
+  finishRejectedNewRun?: () => Promise<{ error: unknown }>;
   signal: AbortSignal;
   fetcher?: typeof fetch;
   timeoutMs?: number;
@@ -33,6 +35,7 @@ export async function dispatchBillingSystemJob({
   runId,
   correlationId,
   body,
+  finishRejectedNewRun,
   signal: callerSignal,
   fetcher = fetch,
   timeoutMs = 185_000,
@@ -47,6 +50,30 @@ export async function dispatchBillingSystemJob({
       correlationId,
     },
   });
+  const rejected = async (status: number): Promise<DispatchResponse> => {
+    if (finishRejectedNewRun) {
+      try {
+        const result = await finishRejectedNewRun();
+        if (!result || result.error) return unknown();
+      } catch {
+        // Cleanup may have committed before its response was lost. Never retry it.
+        return unknown();
+      }
+    }
+    return {
+      status,
+      body: {
+        error:
+          "This billing dispatch was rejected before sending; check the existing run",
+        dispatchOutcome: "not_started",
+        runId,
+        correlationId,
+      },
+    };
+  };
+  // No request can be sent. Only a newly-created run belongs to this attempt;
+  // a canonical replay may already be queued, running, or complete elsewhere.
+  if (!cronSecret) return await rejected(503);
   const controller = new AbortController();
   const signal = AbortSignal.any([callerSignal, controller.signal]);
   const limit = Number.isFinite(timeoutMs)
@@ -84,17 +111,7 @@ export async function dispatchBillingSystemJob({
         typeof result.error !== "string" ||
         NOT_STARTED_STATUS[result.error] !== response.status
       ) return unknown();
-      // A replay may refer to a worker already running before this attempt.
-      // Rejecting this dispatch never grants ownership of that shared run.
-      return {
-        status: 502,
-        body: {
-          error: "This billing dispatch was rejected before sending; check the existing run",
-          dispatchOutcome: "not_started",
-          runId,
-          correlationId,
-        },
-      };
+      return await rejected(502);
     }
     if (result.dispatchOutcome === "unknown") return unknown();
     if (response.status === 200 && result.success === true) {

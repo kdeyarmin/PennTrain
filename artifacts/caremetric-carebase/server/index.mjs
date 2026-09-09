@@ -468,7 +468,10 @@ const server = createServer(async (req, res) => {
     // /api/providers/. An unknown raw path may instead be a valid base-prefixed
     // browser endpoint, so it must be resolved after stripping the app base.
     const providerPath = rootProviderPaths.has(url.pathname) ? url.pathname : packagePath ?? url.pathname;
-    if (await routeProviderRequest(req, res, providerPath)) return;
+    // A configured SPA root can itself have a provider's name. Reading that root
+    // serves the app; POST/OPTIONS still use the provider's normal method guards.
+    const readingAppRoot = packagePath === "/" && (req.method === "GET" || req.method === "HEAD");
+    if (!readingAppRoot && await routeProviderRequest(req, res, providerPath)) return;
     if (packagePath && await proxyLearningPackage(req, res, packagePath, { supabaseUrl: process.env.VITE_SUPABASE_URL })) return;
 
     if (req.method !== "GET" && req.method !== "HEAD") {
