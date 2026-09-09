@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 import { writeFileSync } from "fs";
+import { proxyLearningPackage } from "./server/learning-package-proxy.mjs";
 
 // Opt-in bundle composition dump for scripts/check-bundle-budget.mjs investigations.
 // `BUNDLE_ANALYZE=/abs/path.json pnpm build` writes, per emitted JS chunk, the rendered
@@ -165,9 +166,29 @@ export default defineConfig(({ command, mode }) => {
     }
   }
 
+  const packageEnv = loadEnv(mode, import.meta.dirname, "VITE_");
+  const packageDeliveryPlugin: Plugin = {
+    name: "learning-package-delivery",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const raw = req.url ?? "/";
+        const scoped = basePath === "/" ? raw : raw.startsWith(basePath) ? `/${raw.slice(basePath.length)}` : raw;
+        void proxyLearningPackage(req, res, scoped, { supabaseUrl: packageEnv.VITE_SUPABASE_URL }).then((handled) => { if (!handled) next(); }, next);
+      });
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const raw = req.url ?? "/";
+        const scoped = basePath === "/" ? raw : raw.startsWith(basePath) ? `/${raw.slice(basePath.length)}` : raw;
+        void proxyLearningPackage(req, res, scoped, { supabaseUrl: packageEnv.VITE_SUPABASE_URL }).then((handled) => { if (!handled) next(); }, next);
+      });
+    },
+  };
+
   return {
     base: basePath,
     plugins: [
+      packageDeliveryPlugin,
       react(),
       tailwindcss(),
       bundleAnalyzePlugin(),
@@ -230,8 +251,8 @@ export default defineConfig(({ command, mode }) => {
           ],
           runtimeCaching: [
             {
-              urlPattern: ({ request, sameOrigin }) =>
-                sameOrigin && request.mode === "navigate",
+              urlPattern: ({ request, sameOrigin, url }) =>
+                sameOrigin && !url.pathname.includes("/_learning-packages/") && request.mode === "navigate",
               handler: "NetworkFirst",
               options: {
                 cacheName: "app-navigation",
@@ -244,8 +265,8 @@ export default defineConfig(({ command, mode }) => {
               // user actually visits each page, so repeat visits and brief signal drops on
               // mobile still get a fast/resilient load without eagerly downloading every role's
               // pages for every visitor.
-              urlPattern: ({ request, sameOrigin }) =>
-                sameOrigin && (request.destination === "script" || request.destination === "style"),
+              urlPattern: ({ request, sameOrigin, url }) =>
+                sameOrigin && !url.pathname.includes("/_learning-packages/") && (request.destination === "script" || request.destination === "style"),
               handler: "StaleWhileRevalidate",
               options: {
                 cacheName: "app-chunks",

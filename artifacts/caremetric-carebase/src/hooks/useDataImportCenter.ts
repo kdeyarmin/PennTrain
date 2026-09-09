@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { escapeLikePattern } from "@/lib/utils";
 import {
@@ -13,6 +13,28 @@ export interface DataImportJobFilters {
   search?: string;
   page?: number;
   pageSize?: number;
+}
+
+// Import processors write the same records as their individual editor screens. Refresh those
+// views too, including after a later chunk fails and earlier chunks have already been applied.
+const IMPORT_DATA_KEYS: Record<ImportDomain, string[][]> = {
+  employees: [["employees"], ["training_records"], ["shift_assignments"], ["qualified-workforce"], ["workforce-retention-metrics"]],
+  training_records: [["training_records"], ["training_hour_buckets"], ["alerts"]],
+  credentials: [["employee_credentials"], ["employee_required_items"]],
+  residents: [["residents"], ["resident-360"], ["resident-timeline"], ["resident-administrative-master"], ["admissions"]],
+  resident_contacts: [["resident-administrative-master"], ["resident-360"], ["resident-timeline"]],
+  rooms: [["admissions", "beds"]],
+  assessments: [["resident_assessment_forms"], ["resident_compliance_items"], ["resident_compliance_items_all"], ["resident-360"], ["resident-timeline"]],
+  incidents: [["incidents"], ["resident-360"], ["work-items"], ["alerts"]],
+};
+
+async function refreshImportedData(client: QueryClient, domain: string) {
+  const keys = IMPORT_DATA_KEYS[domain as ImportDomain] ?? [];
+  await Promise.all([
+    ...keys.map((queryKey) => client.invalidateQueries({ queryKey })),
+    client.invalidateQueries({ queryKey: ["organization_setup"] }),
+    client.invalidateQueries({ queryKey: ["org_dashboard_summary"] }),
+  ]);
 }
 
 export function useDataImportJobs(filters: DataImportJobFilters = {}) {
@@ -116,7 +138,7 @@ export function useCancelImportJob() {
 export function useImportJobAction(action: "finalize" | "rollback") {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (jobId: string) => {
+    mutationFn: async ({ jobId }: { jobId: string; domain: string }) => {
       if (action === "finalize") {
         const { data, error } = await supabase.rpc("finalize_data_import_job", { p_job_id: jobId });
         if (error) throw error;
@@ -132,7 +154,13 @@ export function useImportJobAction(action: "finalize" | "rollback") {
       if (fallback.error) throw fallback.error;
       return fallback.data;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: ["data-import-jobs"] }),
+    onSettled: async (_data, _error, variables) => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["data-import-jobs"] }),
+        client.invalidateQueries({ queryKey: ["data-import-rows", variables.jobId] }),
+        ...(action === "rollback" ? [refreshImportedData(client, variables.domain)] : []),
+      ]);
+    },
   });
 }
 
@@ -229,7 +257,12 @@ export function useRunDomainImport() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: runImportChunks,
-    onSuccess: () => client.invalidateQueries({ queryKey: ["data-import-jobs"] }),
+    onSettled: async (_data, _error, variables) => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["data-import-jobs"] }),
+        client.invalidateQueries({ queryKey: ["data-import-rows"] }),
+        ...(variables.mode === "apply" ? [refreshImportedData(client, variables.domain)] : []),
+      ]);
+    },
   });
 }
-

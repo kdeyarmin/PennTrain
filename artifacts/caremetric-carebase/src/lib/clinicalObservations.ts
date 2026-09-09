@@ -23,6 +23,45 @@ export const OBSERVATION_ORDER: ObservationType[] = [
   "blood_glucose", "pain_score", "o2_flow", "weight", "height", "bmi", "custom",
 ];
 
+export interface ObservationFormValues {
+  observationType: ObservationType;
+  valueNumeric: string;
+  valueSecondary: string;
+  valueText: string;
+  customLabel: string;
+}
+
+/** Only visible inputs can satisfy the form or become charted values. */
+export function hasObservationFormValue(input: ObservationFormValues): boolean {
+  return input.observationType === "custom"
+    ? Boolean(input.customLabel.trim() && (input.valueNumeric.trim() || input.valueText.trim()))
+    : Boolean(input.valueNumeric.trim());
+}
+
+/** Shared by the manager and caregiver charts so their entry rules cannot drift. */
+export function parseObservationFormValues(input: ObservationFormValues) {
+  const custom = input.observationType === "custom";
+  const valueText = custom ? input.valueText.trim() || null : null;
+  const customLabel = custom ? input.customLabel.trim() || null : null;
+  if (custom && !customLabel) throw new Error("Enter a label for the custom observation.");
+  if (!hasObservationFormValue(input)) {
+    throw new Error(custom ? "Enter a numeric or text value." : "Enter a numeric reading.");
+  }
+  const parseNumber = (value: string): number | null => {
+    if (!value.trim()) return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) throw new Error("Enter a valid number.");
+    return parsed;
+  };
+  return {
+    valueNumeric: parseNumber(input.valueNumeric),
+    valueSecondary: OBSERVATION_CONFIG[input.observationType].secondaryLabel
+      ? parseNumber(input.valueSecondary) : null,
+    valueText,
+    customLabel,
+  };
+}
+
 /**
  * The readings a direct-care employee actually takes at the bedside, in the order they are usually
  * taken. These get one-tap buttons on the caregiver surface; everything else stays behind the full

@@ -28,6 +28,7 @@ Deno.test("capture-product-event validates the telemetry allowlists", async () =
   const handler = createCaptureProductEventHandler({
     createClient: (_url: string, _key: string, _options?: Record<string, unknown>) => ({
       auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
+      rpc: async () => ({ data: true, error: null }),
       from: () => profileQuery,
     }),
     getEnv: (name) => ({
@@ -56,6 +57,7 @@ Deno.test("capture-product-event records a sanitized event through the real hand
   // Service-role path only uses `.from().insert()`; include a stub `auth` so the
   // mock still satisfies the strict ClientFactory return type used by the handler.
   const admin = {
+    rpc: async () => ({ data: null, error: null }),
     auth: {
       getUser: async () => ({ data: { user: null }, error: { message: "service role" } }),
     },
@@ -80,6 +82,7 @@ Deno.test("capture-product-event records a sanitized event through the real hand
       if (callCount === 1) {
         return {
           auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
+      rpc: async () => ({ data: true, error: null }),
           from: (_table: string) => profileQuery,
         };
       }
@@ -113,3 +116,30 @@ Deno.test("capture-product-event records a sanitized event through the real hand
   assertEquals(inserted.value?.occurred_at, "2026-07-17T02:59:00.000Z");
   assertMatch(String(inserted.value?.session_hash), /^[0-9a-f]{64}$/);
 });
+
+for (const error of [null, { code: "42501" }]) {
+  Deno.test(`capture-product-event blocks unverified SMS before service insert (${error?.code ?? "false"})`, async () => {
+    let privilegedClientCreated = false;
+    const handler = createCaptureProductEventHandler({
+      createClient: (_url, key, options) => {
+        if (key !== "anon-key") privilegedClientCreated = true;
+        assertEquals(options, { global: { headers: { Authorization: "Bearer user-jwt" } } });
+        return {
+          auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
+          rpc: async (name) => {
+            assertEquals(name, "current_sms_mfa_satisfied");
+            return { data: false, error };
+          },
+          from: () => { throw new Error("unverified session must stop before profile or privileged data access"); },
+        };
+      },
+      getEnv: (name) => ({ SUPABASE_URL: "https://project.test", SUPABASE_ANON_KEY: "anon-key", SUPABASE_SERVICE_ROLE_KEY: "service-key" })[name],
+    });
+    const response = await handler(new Request("https://function.test", {
+      method: "POST", headers: { Authorization: "Bearer user-jwt" },
+      body: JSON.stringify({ eventName: "report_exported" }),
+    }));
+    assertEquals(response.status, 403);
+    assertEquals(privilegedClientCreated, false);
+  });
+}

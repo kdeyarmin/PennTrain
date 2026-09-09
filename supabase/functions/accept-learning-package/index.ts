@@ -1,7 +1,8 @@
 // @ts-nocheck -- fflate npm module causes Deno type errors
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
-import { strFromU8, strToU8, unzipSync, zipSync } from "npm:fflate@0.8.3";
+import { strFromU8, strToU8, zipSync } from "npm:fflate@0.8.3";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { readPackageArchive } from "../_shared/learningPackageArchive.ts";
 import { LEARNING_RUNTIME_BRIDGE_SOURCE } from "../_shared/learningPackageBridge.ts";
 
 /** Relative path segment for the adapter inside the package zip (placed alongside the HTML). */
@@ -126,7 +127,7 @@ Deno.serve(async (req: Request) => {
   // 3. Unzip
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(zipBytesOriginal);
+    files = readPackageArchive(zipBytesOriginal);
   } catch (e) {
     return json(req, { error: `Zip parse error: ${e instanceof Error ? e.message : String(e)}` }, 422);
   }

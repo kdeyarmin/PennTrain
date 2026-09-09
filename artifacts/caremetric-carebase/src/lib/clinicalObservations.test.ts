@@ -5,14 +5,66 @@ import {
   OBSERVATION_ORDER,
   abnormalBadge,
   filterResidentOptions,
+  hasObservationFormValue,
   observationTitle,
   observationValue,
+  parseObservationFormValues,
   summaryVitalTitle,
   summaryVitalValue,
   titleCase,
   type ClinicalChartResidentOption,
   type SummaryVital,
+  type ObservationFormValues,
 } from "./clinicalObservations";
+
+describe("observation entry across manager and caregiver charts", () => {
+  const form = (overrides: Partial<ObservationFormValues> = {}): ObservationFormValues => ({
+    observationType: "blood_pressure", valueNumeric: "120", valueSecondary: "80",
+    valueText: "", customLabel: "", ...overrides,
+  });
+
+  it("does not chart hidden custom text as a numeric vital after switching types", () => {
+    const input = form({ valueNumeric: "", valueSecondary: "", valueText: "Awake", customLabel: "Alertness" });
+    expect(hasObservationFormValue(input)).toBe(false);
+    expect(() => parseObservationFormValues(input)).toThrow("Enter a numeric reading");
+  });
+
+  it("drops hidden custom fields when a numeric reading is entered", () => {
+    expect(parseObservationFormValues(form({ valueText: "Awake", customLabel: "Alertness" }))).toEqual({
+      valueNumeric: 120, valueSecondary: 80, valueText: null, customLabel: null,
+    });
+  });
+
+  it("ignores a hidden secondary value for types that have no secondary input", () => {
+    expect(parseObservationFormValues(form({ observationType: "heart_rate", valueNumeric: "72" })).valueSecondary).toBeNull();
+  });
+
+  it.each(["not a number", "Infinity", "-Infinity", "1e309"])("rejects a non-finite primary reading: %s", (valueNumeric) => {
+    expect(() => parseObservationFormValues(form({ valueNumeric }))).toThrow("Enter a valid number");
+  });
+
+  it.each(["not a number", "Infinity", "1e309"])("rejects a malformed diastolic reading instead of serializing it to null: %s", (valueSecondary) => {
+    expect(() => parseObservationFormValues(form({ valueSecondary }))).toThrow("Enter a valid number");
+  });
+
+  it("keeps a valid zero reading", () => {
+    const input = form({ observationType: "pain_score", valueNumeric: "0", valueSecondary: "" });
+    expect(hasObservationFormValue(input)).toBe(true);
+    expect(parseObservationFormValues(input).valueNumeric).toBe(0);
+  });
+
+  it("accepts labeled custom narrative observations without a numeric value", () => {
+    const input = form({ observationType: "custom", valueNumeric: "", valueText: " Awake ", customLabel: " Alertness " });
+    expect(hasObservationFormValue(input)).toBe(true);
+    expect(parseObservationFormValues(input)).toEqual({ valueNumeric: null, valueSecondary: null, valueText: "Awake", customLabel: "Alertness" });
+  });
+
+  it("requires a custom label", () => {
+    const input = form({ observationType: "custom" });
+    expect(hasObservationFormValue(input)).toBe(false);
+    expect(() => parseObservationFormValues(input)).toThrow("Enter a label");
+  });
+});
 
 function observation(overrides: Partial<ClinicalObservation> = {}): ClinicalObservation {
   return {

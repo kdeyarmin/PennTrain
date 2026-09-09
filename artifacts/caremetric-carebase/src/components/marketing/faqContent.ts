@@ -195,10 +195,10 @@ export const FAQS: MarketingFaq[] = [
     category: "Getting started",
     question: "Can a new organization start immediately?",
     answer:
-      "Yes. Self-serve signup creates your organization with a name, admin contact, and password — no sales call — and you can start entering employees and records the same day under the free trial. Prefer to click around first? Open the live demo sandbox with sample PA facility data.",
+      "Yes. Self-serve signup creates your organization with a name, admin contact, and password — no sales call — and you can start entering employees and records the same day under the free trial. Prefer to click around first? Explore demo options or request a workspace with sample PA facility data.",
     links: [
       { label: "Start free trial", href: "/signup" },
-      { label: "Explore live demo", href: "/demo" },
+      { label: "Explore demo options", href: "/demo" },
     ],
   },
   {

@@ -107,9 +107,13 @@ export default function Demo() {
 
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] ring-1 ring-primary/10 backdrop-blur-sm">
           <CardHeader className="pb-4 text-center">
-            <h1 className="text-2xl font-semibold leading-none tracking-tight">Explore the CareBase demo</h1>
+            <h1 className="text-2xl font-semibold leading-none tracking-tight">
+              {accounts.length > 0 ? "Explore the CareBase demo" : "Request a CareBase demo"}
+            </h1>
             <CardDescription>
-              Choose a role to enter a working demo with synthetic Sunrise Healthcare data.
+              {accounts.length > 0
+                ? "Choose a role to enter a working demo with synthetic Sunrise Healthcare data."
+                : "Request access to a workspace with fictional facility data, or start your own free trial."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -149,10 +153,10 @@ export default function Demo() {
               <DemoRequestForm />
             )}
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs leading-relaxed text-amber-950">
+            {accounts.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs leading-relaxed text-amber-950">
               This is a shared sandbox whose starter data is restored periodically. Use only fictional information and never enter real
               resident, employee, or health data.
-            </div>
+            </div>}
 
             <div className="flex flex-col items-center justify-between gap-3 border-t pt-4 sm:flex-row">
               <p className="text-center text-[13px] text-muted-foreground sm:text-left">
@@ -169,7 +173,9 @@ export default function Demo() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
-          Demo data only &mdash; changes here don&apos;t affect any real facility.
+          {accounts.length > 0
+            ? "Demo data only — changes here don't affect any real facility."
+            : "Use the request form for contact details only. Do not include resident or health information."}
         </p>
       </main>
     </div>

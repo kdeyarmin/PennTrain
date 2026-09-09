@@ -35943,6 +35943,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      activate_sms_mfa_challenge: {
+        Args: {
+          p_challenge_id: string
+          p_profile_id: string
+          p_session_id: string
+          p_verification_sid: string
+        }
+        Returns: undefined
+      }
       activate_survey_day: {
         Args: { p_facility_id: string }
         Returns: {
@@ -37196,6 +37205,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      complete_sms_mfa_check: {
+        Args: {
+          p_approved: boolean
+          p_attempt_id: string
+          p_challenge_id: string
+          p_profile_id: string
+          p_session_id: string
+        }
+        Returns: Json
+      }
       complete_survey_rehearsal: {
         Args: { p_notes?: string; p_rehearsal_id: string }
         Returns: Json
@@ -37818,10 +37837,12 @@ export type Database = {
         }
         Returns: string
       }
+      current_impersonation_session_live: { Args: never; Returns: boolean }
       current_org_id: { Args: never; Returns: string }
       current_profile_active: { Args: never; Returns: boolean }
       current_role: { Args: never; Returns: string }
       current_session_unlocked: { Args: never; Returns: boolean }
+      current_sms_mfa_satisfied: { Args: never; Returns: boolean }
       current_training_audience_status: {
         Args: { p_employee_id: string; p_training_type_id: string }
         Returns: string
@@ -37961,6 +37982,10 @@ export type Database = {
       }
       end_enterprise_role_grant: {
         Args: { p_effective_to?: string; p_grant_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      enforce_request_impersonation_lifetime: {
+        Args: never
         Returns: undefined
       }
       enqueue_critical_notification_delivery: {
@@ -38590,6 +38615,7 @@ export type Database = {
       }
       get_move_in_guest_workspace: { Args: { p_token: string }; Returns: Json }
       get_my_mfa_policy: { Args: never; Returns: Json }
+      get_my_mfa_status: { Args: never; Returns: Json }
       get_my_shift_workspace: { Args: never; Returns: Json }
       get_notification_delivery_evidence: {
         Args: { p_delivery_id: string }
@@ -40085,6 +40111,15 @@ export type Database = {
         }
         Returns: Json
       }
+      prepare_sms_mfa_challenge: {
+        Args: {
+          p_native_aal2?: boolean
+          p_phone?: string
+          p_profile_id: string
+          p_session_id: string
+        }
+        Returns: Json
+      }
       preview_employee_lifecycle_transition: {
         Args: {
           p_effective_on?: string
@@ -41271,7 +41306,23 @@ export type Database = {
         }
         Returns: string
       }
+      reserve_sms_mfa_check: {
+        Args: {
+          p_challenge_id: string
+          p_profile_id: string
+          p_session_id: string
+        }
+        Returns: Json
+      }
       reset_organization_sandbox: { Args: never; Returns: Json }
+      reset_sms_mfa_factor: {
+        Args: {
+          p_actor_profile_id: string
+          p_profile_id: string
+          p_reason: string
+        }
+        Returns: number
+      }
       resolve_fhir_integration_exception: {
         Args: {
           p_exception_id: string

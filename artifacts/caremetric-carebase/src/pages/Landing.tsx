@@ -401,7 +401,7 @@ const FAQS: Faq[] = [
   {
     question: "How fast can we start?",
     answer:
-      "Same day. Self-serve signup creates your organization; CSV import onboards a full roster in minutes. Prefer to click first? Open the live demo sandbox — no call required.",
+      "Same day. Self-serve signup creates your organization; CSV import onboards a full roster in minutes. Prefer to click first? Explore the demo options or request a workspace with fictional facility data.",
   },
 ];
 
@@ -676,14 +676,14 @@ export default function Landing() {
                 <Link href="/signup">Start a Free Trial</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="border-white/30 bg-white/[0.06] font-bold text-white hover:bg-white/15" data-testid="button-hero-demo">
-                <Link href="/demo">Explore the live demo</Link>
+                <Link href="/demo">Explore demo options</Link>
               </Button>
             </Reveal>
             <Suspense fallback={null}>
               <HeroOverviewVideo />
             </Suspense>
             <Reveal delay={0.18}>
-              <p className="text-[13px] text-white/75">Fully self-service — log into a sandbox or start your own {MARKETING_TRIAL_DAYS}-day trial, no phone call. <Link href="/how-it-works" className="font-semibold text-[#b9e4ff] hover:text-white hover:underline">See how it works →</Link></p>
+              <p className="text-[13px] text-white/75">Start your own {MARKETING_TRIAL_DAYS}-day trial online, or request a demo workspace. <Link href="/how-it-works" className="font-semibold text-[#b9e4ff] hover:text-white hover:underline">See how it works →</Link></p>
             </Reveal>
           </div>
 
@@ -970,7 +970,7 @@ export default function Landing() {
               <CheckLine>Optional: a roster CSV for bulk import</CheckLine>
             </div>
             <Button asChild size="lg" className="bg-[#1b6fc2] font-bold text-white hover:bg-[#14548f]"><Link href="/signup">Create your organization — free for {MARKETING_TRIAL_DAYS} days</Link></Button>
-            <Link href="/demo" className="text-center text-[13px] font-semibold text-[#1b6fc2] hover:underline" data-testid="link-start-demo">Prefer to look around first? Explore the live demo — no signup needed →</Link>
+            <Link href="/demo" className="text-center text-[13px] font-semibold text-[#1b6fc2] hover:underline" data-testid="link-start-demo">Prefer to look around first? Explore demo options →</Link>
             <div className={`text-center text-xs ${aaMutedText}`}>Flat monthly pricing · cancel in-app, export everything · <Link href="/privacy" className="text-[#1b6fc2] hover:underline">Privacy</Link></div>
           </Reveal>
         </div>

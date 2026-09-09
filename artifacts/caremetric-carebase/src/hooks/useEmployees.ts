@@ -46,20 +46,29 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
   return useQuery({
     queryKey: ["employees", filters],
     queryFn: async () => {
-      let query = supabase.from("employees").select("*").order("last_name");
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.statuses?.length) query = query.in("status", [...filters.statuses]);
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      if (filters.administersMedications !== undefined) {
-        query = query.eq("administers_medications", filters.administersMedications);
+      // A roster used for bulk assignments, searches, and exports must include staff past
+      // PostgREST's per-response cap. A unique tie-breaker keeps same-surname staff on one page.
+      const pageSize = 1000;
+      const rows: Employee[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from("employees").select("*").order("last_name")
+          .order("id", { ascending: true }).range(from, from + pageSize - 1);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.statuses?.length) query = query.in("status", [...filters.statuses]);
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        if (filters.administersMedications !== undefined) {
+          query = query.eq("administers_medications", filters.administersMedications);
+        }
+        if (filters.trainerStatus !== undefined) {
+          query = query.eq("trainer_status", filters.trainerStatus);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
       }
-      if (filters.trainerStatus !== undefined) {
-        query = query.eq("trainer_status", filters.trainerStatus);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      return rows;
     },
     enabled: options.enabled,
   });
@@ -120,6 +129,9 @@ export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.administersMedications !== undefined) {
         query = query.eq("administers_medications", filters.administersMedications);
+      }
+      if (filters.trainerStatus !== undefined) {
+        query = query.eq("trainer_status", filters.trainerStatus);
       }
       const search = filters.search?.trim();
       if (search) {

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import {
   type AssessmentType,
   type ClinicalCarePlanGoal,
@@ -48,7 +49,12 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
   const __fieldIds = useId();
   const care = useResidentClinicalCare(residentId, "Resident care documentation");
   const { toast } = useToast();
+  const { user } = useAuth();
+  // Retraction alone requires manager access in assert_clinical_contributor; ordinary charting
+  // (including draft edits, signatures and amendments) is also available to caregivers.
+  const canRetract = canChart && ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
 
+  const [editingNote, setEditingNote] = useState<ClinicalProgressNote | null>(null);
   const [noteType, setNoteType] = useState<ProgressNoteType>("nursing");
   const [noteBody, setNoteBody] = useState("");
   const saveNote = useSaveClinicalProgressNote();
@@ -89,16 +95,49 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
     return map;
   }, [care.data?.goals]);
 
+  const clearNoteComposer = () => {
+    setEditingNote(null);
+    setNoteType("nursing");
+    setNoteBody("");
+  };
+
+  const signSavedNote = async (noteId: string) => {
+    try {
+      await signNote.mutateAsync({ residentId, noteId });
+      toast({ title: "Progress note signed" });
+    } catch (error) {
+      // A lost response can mean the signature actually landed; refresh before offering a retry.
+      void care.refetch();
+      toast({
+        title: "Draft saved; signature could not be completed",
+        description: `${error instanceof Error ? error.message : String(error)} Review the saved note below before trying Sign note again.`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const submitNote = async (sign: boolean) => {
     if (noteBody.trim().length < 1) return;
+    let noteId: string;
     try {
-      const noteId = await saveNote.mutateAsync({ residentId, noteType, body: noteBody.trim(), authoredAt: new Date().toISOString() });
-      if (sign && noteId) await signNote.mutateAsync({ residentId, noteId });
-      setNoteBody("");
-      toast({ title: sign ? "Progress note signed" : "Draft note saved" });
+      noteId = await saveNote.mutateAsync({
+        residentId, noteType, body: noteBody.trim(),
+        authoredAt: editingNote?.authored_at ?? new Date().toISOString(),
+        ...(editingNote ? {
+          noteId: editingNote.id,
+          carePlanId: editingNote.care_plan_id,
+          changeEventId: editingNote.change_event_id,
+        } : {}),
+      });
     } catch (error) {
       toast({ title: "Note could not be saved", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      return;
     }
+    // The first write has committed even if signing fails. Clear the composer now so a retry
+    // cannot create another note; the saved draft's Edit and Sign actions resume this record.
+    clearNoteComposer();
+    if (sign) await signSavedNote(noteId);
+    else toast({ title: "Draft note saved" });
   };
 
   const submitAmend = async () => {
@@ -115,7 +154,7 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
   const submitAssessment = async () => {
     if (assessmentType === "custom" && assessmentLabel.trim().length < 1) return;
     const score = assessmentScore.trim() === "" ? null : Number(assessmentScore);
-    if (score != null && Number.isNaN(score)) { toast({ title: "Enter a valid score", variant: "destructive" }); return; }
+    if (score != null && !Number.isFinite(score)) { toast({ title: "Enter a valid score", variant: "destructive" }); return; }
     try {
       await recordAssessment.mutateAsync({
         residentId, assessmentType, assessedAt: new Date().toISOString(),
@@ -167,20 +206,21 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
       <TabsContent value="notes" className="space-y-3">
         {canChart && (
           <Card>
-            <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><NotebookPen className="h-4 w-4" />New progress note</CardTitle></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><NotebookPen className="h-4 w-4" />{editingNote ? "Edit draft progress note" : "New progress note"}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="w-48 space-y-1"><Label htmlFor={`${__fieldIds}-note-type`}>Note type</Label>
-                  <Select value={noteType} onValueChange={(value) => setNoteType(value as ProgressNoteType)}>
+                  <Select value={noteType} disabled={saveNote.isPending || signNote.isPending} onValueChange={(value) => setNoteType(value as ProgressNoteType)}>
                     <SelectTrigger id={`${__fieldIds}-note-type`}><SelectValue /></SelectTrigger>
                     <SelectContent>{NOTE_TYPES.map((type) => <SelectItem key={type} value={type}>{human(type)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>
-              <Textarea value={noteBody} onChange={(event) => setNoteBody(event.target.value)} placeholder="Document the observation or care provided…" rows={4} />
+              <Textarea value={noteBody} disabled={saveNote.isPending || signNote.isPending} onChange={(event) => setNoteBody(event.target.value)} placeholder="Document the observation or care provided…" rows={4} />
               <div className="flex gap-2">
-                <Button variant="outline" disabled={saveNote.isPending || noteBody.trim().length < 1} onClick={() => void submitNote(false)}>Save draft</Button>
+                <Button variant="outline" disabled={saveNote.isPending || signNote.isPending || noteBody.trim().length < 1} onClick={() => void submitNote(false)}>Save draft</Button>
                 <Button disabled={saveNote.isPending || signNote.isPending || noteBody.trim().length < 1} onClick={() => void submitNote(true)}><Lock className="mr-2 h-4 w-4" />Save &amp; sign</Button>
+                {editingNote && <Button variant="ghost" disabled={saveNote.isPending || signNote.isPending} onClick={clearNoteComposer}>Cancel editing</Button>}
               </div>
             </CardContent>
           </Card>
@@ -195,13 +235,21 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
                     <Badge variant="outline">{human(note.note_type)}</Badge>
                     <Badge variant={noteBadgeVariant(note.status)}>{human(note.status)}</Badge>
                   </div>
+                  {canChart && note.status === "draft" && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={saveNote.isPending || signNote.isPending || Boolean(noteBody.trim())} onClick={() => {
+                        setEditingNote(note); setNoteType(note.note_type as ProgressNoteType); setNoteBody(note.body);
+                      }}>Edit draft</Button>
+                      <Button size="sm" variant="outline" disabled={saveNote.isPending || signNote.isPending || editingNote?.id === note.id} onClick={() => void signSavedNote(note.id)}><Lock className="mr-1 h-3.5 w-3.5" />Sign note</Button>
+                    </div>
+                  )}
                   {canChart && (note.status === "signed" || note.status === "amended") && (
                     <Button size="sm" variant="ghost" onClick={() => { setAmending(note); setAmendReason(""); setAmendBody(note.body); }}><FilePenLine className="mr-1 h-3.5 w-3.5" />Amend</Button>
                   )}
                   {/* Amend corrects what a note says; this says the note should not exist at all --
                       charted on the wrong resident, most often. The server keeps the prior body in
                       a version row rather than deleting anything. */}
-                  {canChart && note.status !== "entered_in_error" && (
+                  {canRetract && note.status !== "entered_in_error" && (
                     <Button
                       size="sm"
                       variant="ghost"

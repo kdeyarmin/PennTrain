@@ -23,7 +23,7 @@ const IMPERSONATION_SOFT_TIMEOUT_MS = 30 * 60 * 1000;
 function ImpersonationBanner() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const { isImpersonating, target, startedAt } = useImpersonationStatus();
+  const { isImpersonating, target, startedAt, expiresAt } = useImpersonationStatus();
   const { mutate: stopImpersonation, isPending: stopping } = useStopImpersonation();
 
   const handleExit = () => {
@@ -35,8 +35,10 @@ function ImpersonationBanner() {
 
   useEffect(() => {
     if (!isImpersonating || !startedAt) return;
-    const elapsed = Date.now() - new Date(startedAt).getTime();
-    const remaining = IMPERSONATION_SOFT_TIMEOUT_MS - elapsed;
+    const serverExpiry = expiresAt ? Date.parse(expiresAt) : NaN;
+    const deadline = Number.isFinite(serverExpiry)
+      ? serverExpiry : new Date(startedAt).getTime() + IMPERSONATION_SOFT_TIMEOUT_MS;
+    const remaining = deadline - Date.now();
     if (remaining <= 0) {
       handleExit();
       return;
@@ -44,7 +46,7 @@ function ImpersonationBanner() {
     const timer = setTimeout(handleExit, remaining);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isImpersonating, startedAt]);
+  }, [isImpersonating, startedAt, expiresAt]);
 
   if (!isImpersonating || !target) return null;
 

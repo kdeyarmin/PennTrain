@@ -169,15 +169,16 @@ export function useIngestXapiStatement() {
   });
 }
 
-/** Best-effort signed URL for the package object (zip or entry asset). */
-export async function createPackageContentSignedUrl(
-  bucket: string,
-  path: string,
-  expiresIn = 3600,
-): Promise<string | null> {
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+/** The runtime capability authorizes one accepted package; ZIPs are never iframe documents. */
+export function createPackageContentUrl(launch: LaunchSession): string {
+  if (!/^[0-9a-f-]{36}$/.test(launch.sessionId) || !/^[0-9a-f]{64}$/.test(launch.launchNonce ?? "")) {
+    throw new Error("Package launch credentials are missing. Relaunch the course.");
+  }
+  const path = launch.entryPoint;
+  if (!path || path.split("/").some((part) => !part || part === "." || part === ".." || /[\\\x00-\x1f]/.test(part))) {
+    throw new Error("Package entry point is invalid. Contact your trainer.");
+  }
+  return `${import.meta.env.BASE_URL}_learning-packages/${launch.sessionId}/${launch.launchNonce}/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 export function useAdminLearningPackages(courseVersionId?: string | null) {

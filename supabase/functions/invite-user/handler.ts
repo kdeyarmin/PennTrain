@@ -2,6 +2,7 @@ import { resolveAppRedirect } from "../_shared/appRedirect.ts";
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 import { isDemoOrganization } from "../_shared/demoTenant.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -96,9 +97,12 @@ export function createInviteUserHandler({
       redirect_to?: string;
     };
     try {
-      body = await req.json();
-    } catch {
-      return json(req, { error: "Invalid JSON body" }, 400);
+      body = await readJsonBody(req);
+      if (Array.isArray(body)) return json(req, { error: "Invalid JSON body" }, 400);
+    } catch (error) {
+      return json(req, {
+        error: error instanceof RequestBodyError ? error.message : "Invalid JSON body",
+      }, error instanceof RequestBodyError ? error.status : 400);
     }
 
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : undefined;

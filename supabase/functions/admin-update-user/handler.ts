@@ -1,6 +1,7 @@
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 import { isDemoOrganization } from "../_shared/demoTenant.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -97,7 +98,7 @@ export function createAdminUpdateUserHandler({
       reason?: string;
       user_id?: string;
       role?: string;
-      organization_id?: string;
+      organization_id?: string | null;
       is_active?: boolean;
       email?: string;
       first_name?: string;
@@ -105,9 +106,27 @@ export function createAdminUpdateUserHandler({
       password?: string;
     };
     try {
-      body = await req.json();
-    } catch {
-      return json(req, { error: "Invalid JSON body" }, 400);
+      body = await readJsonBody(req);
+      if (Array.isArray(body)) return json(req, { error: "Invalid JSON body" }, 400);
+    } catch (error) {
+      return json(req, {
+        error: error instanceof RequestBodyError ? error.message : "Invalid JSON body",
+      }, error instanceof RequestBodyError ? error.status : 400);
+    }
+
+    // Do not let JSON coercion change the meaning of an identity update (for example,
+    // the string "false" is truthy in JavaScript but becomes false in a boolean SQL field).
+    for (const key of ["action", "reason", "user_id", "role", "email", "first_name", "last_name", "password"] as const) {
+      if (body[key] !== undefined && typeof body[key] !== "string") {
+        return json(req, { error: `${key} must be a string` }, 400);
+      }
+    }
+    if (body.organization_id !== undefined && body.organization_id !== null
+      && typeof body.organization_id !== "string") {
+      return json(req, { error: "organization_id must be a string or null" }, 400);
+    }
+    if (body.is_active !== undefined && typeof body.is_active !== "boolean") {
+      return json(req, { error: "is_active must be a boolean" }, 400);
     }
 
     const { action, reason, user_id, role, organization_id, is_active, email, first_name, last_name, password } = body;
@@ -122,6 +141,18 @@ export function createAdminUpdateUserHandler({
       return json(req, { error: "password must be at least 8 characters" }, 400);
     }
 
+    const callerRole = callerProfile.role as string;
+    const callerOrgId = callerProfile.organization_id as string | null;
+
+    if (!["platform_admin", "org_admin"].includes(callerRole)) {
+      return json(req, { error: "not authorized to manage users" }, 403);
+    }
+
+    // Own-profile bootstrap is available before SMS MFA. Check assurance before any
+    // service-role target lookup so account existence and role cannot be probed first.
+    const assurance = await requireFreshAal2(callerClient, "identity_admin");
+    if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
+
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: targetProfile, error: targetError } = await adminClient
@@ -130,9 +161,6 @@ export function createAdminUpdateUserHandler({
       .eq("id", user_id)
       .single();
     if (targetError || !targetProfile) return json(req, { error: "target user not found" }, 404);
-
-    const callerRole = callerProfile.role as string;
-    const callerOrgId = callerProfile.organization_id as string | null;
 
     try {
       if (await isDemoOrganization(callerClient, callerOrgId)) {
@@ -204,9 +232,6 @@ export function createAdminUpdateUserHandler({
       }
     }
 
-    const assurance = await requireFreshAal2(callerClient, "identity_admin");
-    if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
-
     // Lost-device MFA recovery (BACKLOG.md I8).
     //
     // Nothing in the product could remove an enrolled factor. get_identity_control_plane READS
@@ -259,6 +284,33 @@ export function createAdminUpdateUserHandler({
       }
       const factors = factorList?.factors ?? [];
 
+      const { error: revokeError } = await callerClient.rpc("revoke_identity_sessions", {
+        p_profile_id: user_id,
+        p_reason: `MFA reset: ${trimmedReason}`,
+        p_source: "administrator",
+        p_external_request_id: null,
+        p_deactivate_profile: false,
+      });
+      if (revokeError) {
+        return json(req, {
+          error: publicError("session revocation failed before factor reset", correlationId, revokeError,
+            "This user's existing sessions could not be signed out; no factors were removed"),
+          correlationId,
+        }, 500);
+      }
+
+      const { data: smsRemoved, error: smsResetError } = await adminClient.rpc("reset_sms_mfa_factor", {
+        p_profile_id: user_id,
+        p_actor_profile_id: callerUser.id,
+        p_reason: trimmedReason,
+      });
+      if (smsResetError || typeof smsRemoved !== "number") {
+        return json(req, {
+          error: "The user was signed out, but text-message verification could not be reset. Retry the reset.",
+          correlationId,
+        }, 500);
+      }
+
       const removed: string[] = [];
       for (const factor of factors) {
         const { error: deleteError } = await adminClient.auth.admin.mfa.deleteFactor({
@@ -277,21 +329,6 @@ export function createAdminUpdateUserHandler({
         removed.push(factor.id);
       }
 
-      const { error: revokeError } = await callerClient.rpc("revoke_identity_sessions", {
-        p_profile_id: user_id,
-        p_reason: `MFA reset: ${trimmedReason}`,
-        p_source: "administrator",
-        p_external_request_id: null,
-        p_deactivate_profile: false,
-      });
-      if (revokeError) {
-        return json(req, {
-          error: publicError("session revocation failed after factor reset", correlationId, revokeError,
-            "The factors were removed but this user's existing sessions could not be signed out"),
-          correlationId,
-        }, 500);
-      }
-
       const { error: auditError } = await adminClient.from("audit_logs").insert({
         organization_id: targetProfile.organization_id,
         actor_profile_id: callerUser.id,
@@ -299,7 +336,7 @@ export function createAdminUpdateUserHandler({
         entity_id: user_id,
         action: "mfa_reset",
         reason: trimmedReason,
-        new_values: { removed_factor_ids: removed, factor_count: removed.length },
+        new_values: { removed_factor_ids: removed, factor_count: removed.length + smsRemoved, sms_factor_count: smsRemoved },
       });
       // The factors are already gone; a missing audit row is a reportable failure, not a silent one.
       if (auditError) {
@@ -315,7 +352,7 @@ export function createAdminUpdateUserHandler({
         removed_factor_ids: removed,
         // The account is now single-factor. MfaPolicyGate will require re-enrolment on the target's
         // next sign-in wherever the organization's policy demands a factor.
-        requires_reenrolment: removed.length > 0,
+        requires_reenrolment: removed.length + smsRemoved > 0,
       });
     }
 

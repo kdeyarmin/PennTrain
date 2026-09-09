@@ -223,6 +223,9 @@ const fetchStub: typeof fetch = async (input, init) => {
   if (url.startsWith(`${SUPABASE_URL}/rest/v1/profiles`)) {
     return Response.json({ role: "facility_manager", is_active: true });
   }
+  if (url === `${SUPABASE_URL}/rest/v1/rpc/current_sms_mfa_satisfied`) {
+    return Response.json(true);
+  }
   throw new Error(`Unexpected fetch: ${url}`);
 };
 

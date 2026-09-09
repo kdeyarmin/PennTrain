@@ -1,3 +1,4 @@
+import { requireSmsMfaFloor, type SmsMfaFloorClient } from "../_shared/smsMfaFloor.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 const EVENTS = new Set([
@@ -11,7 +12,7 @@ const PROPERTY_KEYS = new Set([
   "deviceClass", "offline", "entryPoint",
 ]);
 
-type ClientFactory = (url: string, key: string, options?: Record<string, unknown>) => {
+type ClientFactory = (url: string, key: string, options?: Record<string, unknown>) => SmsMfaFloorClient & {
   auth: { getUser: () => Promise<{ data: { user: { id: string } | null }; error: { message: string } | null }> };
   from: (table: string) => {
     select: (cols: string) => {
@@ -76,6 +77,8 @@ export function createCaptureProductEventHandler({
     const caller = createClient(url, anon, { global: { headers: { Authorization: auth } } });
     const { data: { user }, error: userError } = await caller.auth.getUser();
     if (userError || !user) return json(req, { error: "Invalid or expired session" }, 401);
+    const assurance = await requireSmsMfaFloor(caller);
+    if (!assurance.ok) return json(req, { error: assurance.error, code: assurance.code }, assurance.status);
 
     const { data: profile } = await caller
       .from("profiles")

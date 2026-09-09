@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { QueryError } from "@/components/QueryState";
 import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
 import { useOfflineCourseBundle, useOfflineProgress, useQueueOfflineProgress, useRemoveOfflineCourse, useSyncOfflineProgress } from "@/hooks/useOfflineLearning";
 import { useToast } from "@/hooks/use-toast";
@@ -99,17 +100,15 @@ export default function OfflineCourse() {
   // progress to settle before claiming the resume.
   useEffect(() => {
     if (!assignmentId || !blocks.length || resumedAssignmentId === assignmentId) return;
-    if (progress.isLoading) return;
+    if (progress.isLoading || progress.isError) return;
     const savedPercent = progress.data?.percentComplete ?? 0;
-    if (savedPercent > 0) {
-      const approxIndex = Math.min(
+    const approxIndex = savedPercent > 0 ? Math.min(
         blocks.length - 1,
         Math.max(0, Math.round((savedPercent / 100) * blocks.length) - 1),
-      );
-      setStepIndex(approxIndex);
-    }
+      ) : 0;
+    setStepIndex(approxIndex);
     setResumedAssignmentId(assignmentId);
-  }, [assignmentId, blocks.length, progress.isLoading, progress.data?.percentComplete, resumedAssignmentId]);
+  }, [assignmentId, blocks.length, progress.isLoading, progress.isError, progress.data?.percentComplete, resumedAssignmentId]);
 
   const recordProgress = async (nextIndex: number) => {
     if (!bundle || !blocks.length) return;
@@ -126,13 +125,24 @@ export default function OfflineCourse() {
         // there (BACKLOG.md J74, Train).
         lastBlockId: blocks[nextIndex]?.id ?? null,
       });
-      if (navigator.onLine) reportSyncOutcome(await syncProgress.mutateAsync(assignmentId));
     } catch (error) {
       toast({
-        title: navigator.onLine ? "Progress is still stored on this device" : "Progress saved for later sync",
-        description: error instanceof Error ? error.message : "Reconnect to synchronize this checkpoint.",
-        variant: navigator.onLine ? "destructive" : "default",
+        title: "Progress could not be saved on this device",
+        description: error instanceof Error ? error.message : "Stay on this page and retry saving the checkpoint.",
+        variant: "destructive",
       });
+      return;
+    }
+    if (navigator.onLine) {
+      try {
+        reportSyncOutcome(await syncProgress.mutateAsync(assignmentId));
+      } catch (error) {
+        toast({
+          title: "Progress is stored on this device; synchronization failed",
+          description: error instanceof Error ? error.message : "Reconnect to synchronize this checkpoint.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -174,6 +184,12 @@ export default function OfflineCourse() {
   }
   if (offlineBundle.isError || !bundle || !record) {
     return <Card><CardHeader><CardTitle>Offline course unavailable</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">{offlineBundle.error instanceof Error ? offlineBundle.error.message : "This course is not stored on this device."}</p><Button asChild><Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" />Return to My Training</Link></Button></CardContent></Card>;
+  }
+  if (progress.isError) {
+    return <QueryError what="your saved offline progress" error={progress.error} onRetry={() => void progress.refetch()} />;
+  }
+  if (progress.isLoading || (blocks.length > 0 && resumedAssignmentId !== assignmentId)) {
+    return <p role="status" className="text-sm text-muted-foreground">Loading your saved offline progress…</p>;
   }
 
   return (

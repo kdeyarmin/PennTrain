@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { KeyRound, Loader2, LockKeyhole, LogOut, ShieldCheck } from "lucide-react";
@@ -11,7 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { PRIVILEGED_SESSION_EXPIRED_MESSAGE } from "@/lib/edgeFunctionErrors";
+import { describeMfaError, mfaFactorLabel } from "@/lib/mfaFactors";
+import { finishIdleSessionUnlock, invalidateMfaDependentQueries, getMfaStatus, loadMfaSecurityState, mfaStatusIsVerified, sendSmsMfaCode, verifySmsMfaCode, usableMfaFactors } from "@/lib/mfaSecurity";
 import { sanitizePostLoginPath } from "@/lib/loginRedirect";
+
+// The outer policy gate preserves an already-mounted page while its opaque idle-lock overlay
+// completes password + MFA. Server policies continue denying reads/writes throughout that lock.
+const IdleVerificationContext = createContext<(active: boolean) => void>(() => undefined);
 
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart", "wheel"] as const;
 
@@ -50,6 +56,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   const signOut = useSignOut();
   const settings = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const [locked, setLocked] = useState(false);
+  const setVerificationOverlayActive = useContext(IdleVerificationContext);
   const [password, setPassword] = useState("");
   const [unlocking, setUnlocking] = useState(false);
   const [lockEventId, setLockEventId] = useState<string | null>(null);
@@ -67,8 +74,9 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!persistedLock.data) return;
     setLockEventId(persistedLock.data);
+    setVerificationOverlayActive(true);
     setLocked(true);
-  }, [persistedLock.data]);
+  }, [persistedLock.data, setVerificationOverlayActive]);
 
   const isKiosk = location.includes("/kiosk") || location.startsWith("/checkin/");
   const timeoutMinutes = isKiosk
@@ -77,13 +85,14 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
 
   const lock = useCallback(() => {
     if (locked || !user) return;
+    setVerificationOverlayActive(true);
     setLocked(true);
     setPassword("");
     void supabase.rpc("record_idle_session_lock", {
       p_route_path: location,
       p_lock_reason: isKiosk ? "kiosk_timeout" : "idle_timeout",
     }).then(({ data }) => { if (typeof data === "string") setLockEventId(data); });
-  }, [isKiosk, location, locked, user]);
+  }, [isKiosk, location, locked, user, setVerificationOverlayActive]);
 
   useEffect(() => {
     const markActivity = () => { if (!locked) lastActivity.current = Date.now(); };
@@ -102,13 +111,14 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   // true again, and every RLS-scoped read under this overlay depends on it), then let the MFA gate
   // above re-read the policy against the session we have just finished raising back to AAL2.
   const finishUnlock = async () => {
-    if (lockEventId) await supabase.rpc("record_idle_session_unlock", { p_lock_event_id: lockEventId });
+    await finishIdleSessionUnlock(lockEventId);
     // This one is no longer swept by the SIGNED_IN cache clear (see markIdleUnlockSignIn), so it
     // has to be refreshed explicitly -- a remount reading the stale lock id back out of the cache
     // would re-lock a session that is now demonstrably unlocked.
     await queryClient.invalidateQueries({ queryKey: ["current_idle_session_lock"] });
-    await queryClient.invalidateQueries({ queryKey: ["my_mfa_policy"] });
+    await invalidateMfaDependentQueries(queryClient);
     setLocked(false);
+    setVerificationOverlayActive(false);
     setLockEventId(null);
     setPassword("");
     setStepUpFactors(null);
@@ -134,54 +144,46 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signInWithPassword({ email: user.email, password });
       if (error) throw error;
 
-      // signInWithPassword mints a NEW session, and a new session is AAL1 no matter what the old
-      // one held. `nextLevel` is the account's own bar: aal2 means a verified factor exists, so
-      // the session that was locked was aal2 and this one has to get back there before the
-      // overlay comes down -- otherwise the unlock silently downgrades the session while
-      // MfaPolicyGate, reading its cached answer, keeps the workspace open.
-      const { data: assurance, error: assuranceError } = await supabase.auth.mfa
-        .getAuthenticatorAssuranceLevel();
-      if (assuranceError) throw assuranceError;
-      if (assurance?.nextLevel === "aal2" && assurance.currentLevel !== "aal2") {
-        const { data: factorData, error: factorError } = await supabase.auth.mfa.listFactors();
-        if (factorError) throw factorError;
-        const verified = (factorData?.all ?? [])
-          .filter((factor) => factor.status === "verified")
-          .map((factor) => ({
-            id: factor.id,
-            factorType: factor.factor_type,
-            friendlyName: factor.friendly_name ?? null,
-          }));
-        if (verified.length > 0) {
-          setStepUpFactors(verified);
-          setStepUpFactorId(verified[0].id);
-          setStepUpChallengeId(null);
-          setStepUpCode("");
-          setPassword("");
-          return;
-        }
+      // A password creates a new Auth session. Native AAL and app SMS attestations belong to
+      // the previous session, so neither may be carried through this lock overlay.
+      const security = await loadMfaSecurityState();
+      if (security.status.hasVerifiedFactor && !mfaStatusIsVerified(security.status)) {
+        const verified = usableMfaFactors(security.factors, security.status)
+          .map((factor) => ({ id: factor.id, factorType: factor.factor_type, friendlyName: mfaFactorLabel(factor) }));
+        if (verified.length === 0) throw new Error("No usable verification method could be loaded. Sign out and try again.");
+        setStepUpFactors(verified);
+        setStepUpFactorId(verified[0].id);
+        setStepUpChallengeId(null);
+        setStepUpCode("");
+        setPassword("");
+        return;
       }
       await finishUnlock();
     } catch (error) {
-      toast({ title: "Could not unlock session", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      toast({ title: "Could not unlock session", description: describeMfaError(error), variant: "destructive" });
     } finally {
       setUnlocking(false);
     }
   };
 
   const selectedStepUpFactor = stepUpFactors?.find((factor) => factor.id === stepUpFactorId) ?? null;
-  const isPhoneStepUp = selectedStepUpFactor?.factorType === "phone";
+  const isPhoneStepUp = selectedStepUpFactor?.factorType === "phone" || selectedStepUpFactor?.factorType === "sms";
 
   const sendStepUpCode = async () => {
     if (!stepUpFactorId) return;
     setUnlocking(true);
     try {
-      const { data, error } = await supabase.auth.mfa.challenge({ factorId: stepUpFactorId });
-      if (error) throw error;
-      setStepUpChallengeId(data.id);
+      if (selectedStepUpFactor?.factorType === "sms") {
+        const challenge = await sendSmsMfaCode();
+        setStepUpChallengeId(challenge.challengeId);
+      } else {
+        const { data, error } = await supabase.auth.mfa.challenge({ factorId: stepUpFactorId, channel: "sms" });
+        if (error) throw error;
+        setStepUpChallengeId(data.id);
+      }
       toast({ title: "Code sent", description: "Enter the 6-digit code from the text message." });
     } catch (error) {
-      toast({ title: "Could not send a code", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      toast({ title: "Could not send a code", description: describeMfaError(error), variant: "destructive" });
     } finally {
       setUnlocking(false);
     }
@@ -194,23 +196,27 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
     try {
       if (isPhoneStepUp) {
         if (!stepUpChallengeId) throw new Error("Request a new text-message code before verifying.");
-        const { error } = await supabase.auth.mfa.verify({
-          factorId: stepUpFactorId, challengeId: stepUpChallengeId, code: stepUpCode.trim(),
-        });
-        if (error) throw error;
+        if (selectedStepUpFactor?.factorType === "sms") {
+          await verifySmsMfaCode(stepUpChallengeId, stepUpCode.trim());
+        } else {
+          const { error } = await supabase.auth.mfa.verify({
+            factorId: stepUpFactorId, challengeId: stepUpChallengeId, code: stepUpCode.trim(),
+          });
+          if (error) throw error;
+        }
       } else {
         const { error } = await supabase.auth.mfa.challengeAndVerify({
           factorId: stepUpFactorId, code: stepUpCode.trim(),
         });
         if (error) throw error;
       }
-      // Same reason MfaSettings refreshes here: the `aal` claim is minted into the access token,
-      // so without this the session is verified and the JWT still says aal1.
-      const { error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) throw refreshError;
+      if (selectedStepUpFactor?.factorType !== "sms") {
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) throw refreshError;
+      }
       await finishUnlock();
     } catch (error) {
-      toast({ title: "Verification failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      toast({ title: "Verification failed", description: describeMfaError(error), variant: "destructive" });
     } finally {
       setUnlocking(false);
     }
@@ -271,7 +277,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
                     >
                       {stepUpFactors.map((factor) => (
                         <option key={factor.id} value={factor.id}>
-                          {factor.friendlyName ?? (factor.factorType === "phone" ? "Text message" : "Authenticator app")}
+                          {factor.friendlyName ?? (factor.factorType === "phone" || factor.factorType === "sms" ? "Text message" : "Authenticator app")}
                         </option>
                       ))}
                     </select>
@@ -302,6 +308,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
 }
 
 export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
+  const [verificationOverlayActive, setVerificationOverlayActive] = useState(false);
   const [location] = useLocation();
   const signOut = useSignOut();
   const policy = useQuery({
@@ -309,11 +316,11 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
     queryFn: async () => {
       const [
         { data: requirement, error: requirementError },
-        { data: assurance, error: assuranceError },
+        verification,
         { data: assuranceIsCurrent, error: freshnessError },
       ] = await Promise.all([
         supabase.rpc("get_my_mfa_policy"),
-        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+        getMfaStatus(),
         // Granted to `authenticated` (20260711200637), and the same call the Edge Functions make
         // through _shared/privilegedIdentity.ts. It answers true whenever the operation does not
         // require AAL2 for this caller at all, so asking it costs nothing for an unprivileged
@@ -321,11 +328,10 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
         supabase.rpc("identity_assurance_is_current", { p_operation: "identity_admin" }),
       ]);
       if (requirementError) throw requirementError;
-      if (assuranceError) throw assuranceError;
       if (freshnessError) throw freshnessError;
       return {
         requirement: requirement as { required: boolean; maxSessionMinutes?: number },
-        assurance,
+        verification,
         assuranceIsCurrent: assuranceIsCurrent === true,
       };
     },
@@ -333,12 +339,23 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
     // The privileged window closes on a clock, not on an action, so the shell has to look again
     // to be able to say so. Paused while the tab is hidden (react-query's default), and both RPCs
     // are single-row reads.
-    refetchInterval: 5 * 60_000,
+    refetchInterval: 60_000,
   });
+
+  const [clock, setClock] = useState(Date.now);
+  const verificationDeadline = policy.data?.verification.expiresAt;
+  useEffect(() => {
+    if (!verificationDeadline) return;
+    const delay = Date.parse(verificationDeadline) - Date.now();
+    if (delay <= 0) { setClock(Date.now()); return; }
+    const timer = window.setTimeout(() => setClock(Date.now()), Math.min(delay + 1, 2_147_483_647));
+    return () => window.clearTimeout(timer);
+  }, [verificationDeadline]);
 
   // Enrollment and step-up live on this route; the gate must never block it, including while the
   // policy query is still loading or has failed.
-  if (location === "/account/security") return children;
+  const protectedChildren = <IdleVerificationContext.Provider value={setVerificationOverlayActive}>{children}</IdleVerificationContext.Provider>;
+  if (location === "/account/security" || verificationOverlayActive) return protectedChildren;
 
   // BACKLOG J74 (P3, identity). The wall used to hand the user a bare /account/security link, so a
   // deep link that had already survived the login round-trip (Login.tsx honours ?next=) died here:
@@ -387,7 +404,8 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const mustVerify = policy.data?.requirement.required && policy.data.assurance.currentLevel !== "aal2";
+  const mustVerify = !!policy.data && (policy.data.requirement.required || policy.data.verification.smsRequired)
+    && !mfaStatusIsVerified(policy.data.verification, Math.max(clock, Date.now()));
 
   // The gate's blind spot, and the reason `maxSessionMinutes` sat on this type unread: the JWT
   // really is aal2, so `mustVerify` is false and the workspace opens -- while every RPC guarded by
@@ -419,13 +437,13 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!mustVerify) return children;
+  if (!mustVerify) return protectedChildren;
   return (
     <div className="min-h-screen grid place-items-center bg-background px-4">
       {/* A real heading role: CardTitle renders a div, which left this full-screen gate invisible to
           assistive tech (and to any instrumentation that asks "did a page render") -- a signed-in
           admin's first screen deserves to announce itself. */}
-      <Card className="w-full max-w-lg"><CardHeader className="text-center"><ShieldCheck className="mx-auto mb-2 h-10 w-10 text-primary" /><CardTitle role="heading" aria-level={1}>Multi-factor verification required</CardTitle><CardDescription>Your organization requires administrators and managers to use a second verification step. Enroll or verify a factor -- an authenticator app, or a code texted to your phone -- before opening protected workspaces.</CardDescription></CardHeader><CardContent className="flex flex-col gap-2"><Button asChild><Link href={accountSecurityHref}>Open account security</Link></Button><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></CardContent></Card>
+      <Card className="w-full max-w-lg"><CardHeader className="text-center"><ShieldCheck className="mx-auto mb-2 h-10 w-10 text-primary" /><CardTitle role="heading" aria-level={1}>Multi-factor verification required</CardTitle><CardDescription>{policy.data?.verification.smsRequired ? "Your account uses text-message verification. Enter a code sent to your mobile number before opening protected workspaces." : "Your organization requires a second verification step. Open account security to enroll or verify an available method before opening protected workspaces."}</CardDescription></CardHeader><CardContent className="flex flex-col gap-2"><Button asChild><Link href={accountSecurityHref}>Open account security</Link></Button><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></CardContent></Card>
     </div>
   );
 }

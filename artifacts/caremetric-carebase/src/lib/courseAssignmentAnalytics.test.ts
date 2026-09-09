@@ -15,6 +15,26 @@ describe("summarizeCourseAssignmentAnalytics", () => {
     expect(summary).toMatchObject({ total: 4, completed: 1, overdue: 2, inProgress: 1, dueWithin7Days: 1, completionRate: 25 });
     expect(summary.oldestOverdueAssignmentId).toBe("old-overdue");
   });
+
+  it("does not chase canceled or paused assignments because their historical due date has passed", () => {
+    const summary = summarizeCourseAssignmentAnalytics([
+      { id: "canceled-old", status: "canceled", due_date: "2026-01-01", completed_at: null },
+      { id: "paused-old", status: "paused", due_date: "2026-02-01", completed_at: null },
+      { id: "completed-no-timestamp", status: "completed", due_date: "2026-03-01", completed_at: null },
+      { id: "open-overdue", status: "assigned", due_date: "2026-07-01", completed_at: null },
+    ], "2026-07-10");
+    expect(summary.overdue).toBe(1);
+    expect(summary.oldestOverdueAssignmentId).toBe("open-overdue");
+  });
+
+  it("does not count canceled or paused assignments as due soon", () => {
+    const summary = summarizeCourseAssignmentAnalytics([
+      { id: "canceled-soon", status: "canceled", due_date: "2026-07-15", completed_at: null },
+      { id: "paused-soon", status: "paused", due_date: "2026-07-15", completed_at: null },
+      { id: "open-soon", status: "in_progress", due_date: "2026-07-15", completed_at: null },
+    ], "2026-07-10");
+    expect(summary.dueWithin7Days).toBe(1);
+  });
 });
 
 /**

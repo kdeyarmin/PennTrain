@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   describeMfaError,
-  isSmsMfaEnabled,
   maskMfaPhone,
   mfaFactorLabel,
   normalizeMfaPhone,
@@ -34,19 +33,6 @@ describe("toMfaFactors", () => {
   it("treats a missing list as no factors", () => {
     expect(toMfaFactors(undefined)).toEqual([]);
     expect(toMfaFactors(null)).toEqual([]);
-  });
-});
-
-describe("isSmsMfaEnabled", () => {
-  it("stays off unless the deployment opts in explicitly", () => {
-    for (const value of [undefined, "", "false", "0", "yes", false]) {
-      expect(isSmsMfaEnabled(value), String(value)).toBe(false);
-    }
-  });
-
-  it("accepts the string Vite actually injects and a real boolean", () => {
-    expect(isSmsMfaEnabled("true")).toBe(true);
-    expect(isSmsMfaEnabled(true)).toBe(true);
   });
 });
 
@@ -97,7 +83,8 @@ describe("mfaFactorLabel", () => {
 describe("describeMfaError", () => {
   it("explains a project that never enabled phone factors", () => {
     const copy = describeMfaError({ code: "mfa_phone_enroll_not_enabled", message: "MFA enroll is disabled for phone" });
-    expect(copy).toMatch(/Advanced MFA Phone/);
+    expect(copy).toMatch(/legacy text-message method is unavailable/i);
+    expect(copy).not.toMatch(/Advanced MFA Phone/);
     expect(copy).not.toMatch(/disabled for phone/);
   });
 

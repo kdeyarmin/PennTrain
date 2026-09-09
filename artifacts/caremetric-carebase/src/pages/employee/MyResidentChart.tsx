@@ -35,9 +35,11 @@ import {
   OBSERVATION_ORDER,
   QUICK_OBSERVATION_TYPES,
   abnormalBadge,
+  hasObservationFormValue,
   isCriticalFlag,
   observationTitle,
   observationValue,
+  parseObservationFormValues,
   summaryVitalTitle,
   summaryVitalValue,
 } from "@/lib/clinicalObservations";
@@ -83,6 +85,7 @@ export default function MyResidentChart() {
 
   const config = OBSERVATION_CONFIG[observationType];
   const isCustom = observationType === "custom";
+  const formValues = { observationType, valueNumeric, valueSecondary, valueText, customLabel };
 
   const chooseType = (next: ObservationType) => {
     setObservationType(next);
@@ -115,14 +118,11 @@ export default function MyResidentChart() {
 
   const submitObservation = async () => {
     if (!id) return;
-    const numeric = valueNumeric.trim() === "" ? null : Number(valueNumeric);
-    if (numeric != null && Number.isNaN(numeric)) {
-      toast({ title: "Enter a valid number", variant: "destructive" });
-      return;
-    }
-    const secondary = valueSecondary.trim() === "" ? null : Number(valueSecondary);
-    if (secondary != null && Number.isNaN(secondary)) {
-      toast({ title: "Enter a valid number", variant: "destructive" });
+    let values: ReturnType<typeof parseObservationFormValues>;
+    try {
+      values = parseObservationFormValues(formValues);
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Enter a valid reading", variant: "destructive" });
       return;
     }
     // A datetime-local input can be cleared to "", and new Date("").toISOString() throws a
@@ -155,13 +155,8 @@ export default function MyResidentChart() {
           : residentName,
         observationType,
         observedAt: observedAtIso,
-        valueNumeric: numeric,
-        valueSecondary: secondary,
-        // Gated on isCustom for the same reason customLabel is: free text is only ever an input for
-        // the custom type, so sending it for a known one could only carry a stale value.
-        valueText: isCustom ? valueText.trim() || null : null,
+        ...values,
         unit: unit.trim() || null,
-        customLabel: isCustom ? customLabel.trim() || null : null,
         loincCode: config.loinc ?? null,
         note: note.trim() || null,
       });
@@ -405,7 +400,7 @@ export default function MyResidentChart() {
 
         {id && (
           <TabsContent value="care">
-            <ResidentCareDocumentation residentId={id} canChart />
+            <ResidentCareDocumentation key={id} residentId={id} canChart />
           </TabsContent>
         )}
       </Tabs>
@@ -504,12 +499,7 @@ export default function MyResidentChart() {
               className="h-12"
               disabled={
                 saveOffline.isPending || syncOffline.isPending
-                // A known observation type needs a number; only `custom` may be satisfied by text.
-                // Reading valueText here for every type let a hidden leftover enable the button.
-                || (isCustom
-                  ? valueNumeric.trim() === "" && valueText.trim() === ""
-                  : valueNumeric.trim() === "")
-                || (isCustom && customLabel.trim() === "")
+                || !hasObservationFormValue(formValues)
               }
               onClick={() => void submitObservation()}
             >

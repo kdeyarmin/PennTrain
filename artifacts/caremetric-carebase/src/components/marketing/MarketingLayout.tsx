@@ -294,7 +294,7 @@ function MarketingHeader() {
                 className="text-sm font-semibold text-foreground/70 hover:text-foreground"
                 data-testid="link-demo"
               >
-                Live demo
+                Demo
               </Link>
               <Link
                 href="/login"
@@ -382,7 +382,7 @@ function MarketingHeader() {
                 <>
                   <Button asChild variant="outline" className="w-full">
                     <Link href="/demo" onClick={() => setMenuOpen(false)}>
-                      Explore the live demo
+                      Explore demo options
                     </Link>
                   </Button>
                   <Button asChild variant="outline" className="w-full">
@@ -436,7 +436,7 @@ function MarketingFooter() {
             <NavAnchorLink href="/#pricing" className={footerLink}>Pricing</NavAnchorLink>
             <Link href="/faq" className={footerLink}>FAQ</Link>
             <Link href="/security" className={footerLink}>Security</Link>
-            <Link href="/demo" className={footerLink}>Live demo</Link>
+            <Link href="/demo" className={footerLink}>Demo</Link>
             <Link href="/about" className={footerLink}>About CareBase</Link>
             <a href="https://caremetric.ai" target="_blank" rel="noreferrer" className={footerLink}>CareMetric AI</a>
             <a href="https://cmbreathe.com" target="_blank" rel="noreferrer" className={footerLink}>CareMetric Breathe</a>

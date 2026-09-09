@@ -22,7 +22,7 @@ export type ObservationType =
 export type ObservationAmendmentType = "correction" | "entered_in_error" | "note";
 
 const CLINICAL_OBSERVATIONS_KEY = "clinical-observations";
-const CLINICAL_CHART_SUMMARY_KEY = "clinical-chart-summary";
+export const CLINICAL_CHART_SUMMARY_KEY = ["clinical-chart-summary"] as const;
 
 /** Consolidated face-sheet returned by the get_resident_clinical_chart RPC. */
 export interface ClinicalChartSummary {
@@ -120,7 +120,7 @@ export function useRecordClinicalObservation() {
     // stale -- showing the previous reading after a record, or a value that was just retracted.
     onSuccess: (_data, input) => {
       void queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] });
-      void queryClient.invalidateQueries({ queryKey: [CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
+      void queryClient.invalidateQueries({ queryKey: [...CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
     },
   });
 }
@@ -154,7 +154,7 @@ export function useAmendClinicalObservation() {
     // stale -- showing the previous reading after a record, or a value that was just retracted.
     onSuccess: (_data, input) => {
       void queryClient.invalidateQueries({ queryKey: [CLINICAL_OBSERVATIONS_KEY, input.residentId] });
-      void queryClient.invalidateQueries({ queryKey: [CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
+      void queryClient.invalidateQueries({ queryKey: [...CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
     },
   });
 }
@@ -182,7 +182,7 @@ export function useAmendClinicalObservation() {
  */
 export function useResidentClinicalChartSummary(residentId: string | undefined, reason?: string) {
   return useQuery({
-    queryKey: [CLINICAL_CHART_SUMMARY_KEY, residentId, reason ?? null],
+    queryKey: [...CLINICAL_CHART_SUMMARY_KEY, residentId, reason ?? null],
     enabled: Boolean(residentId),
     queryFn: async (): Promise<ClinicalChartSummary> => {
       const { data, error } = await supabase.rpc("get_resident_clinical_chart", {
@@ -277,7 +277,7 @@ export function useSetResidentClinicalDataConsent() {
     onSuccess: (_data, input) => {
       void queryClient.invalidateQueries({ queryKey: ["residents"] });
       void queryClient.invalidateQueries({ queryKey: ["residents", input.residentId] });
-      void queryClient.invalidateQueries({ queryKey: [CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
+      void queryClient.invalidateQueries({ queryKey: [...CLINICAL_CHART_SUMMARY_KEY, input.residentId] });
     },
   });
 }

@@ -35,8 +35,10 @@ import {
   OBSERVATION_CONFIG,
   OBSERVATION_ORDER,
   abnormalBadge,
+  hasObservationFormValue,
   observationTitle,
   observationValue,
+  parseObservationFormValues,
   summaryVitalTitle,
   summaryVitalValue,
   titleCase,
@@ -111,11 +113,16 @@ export default function ResidentClinicalChart() {
 
   const config = OBSERVATION_CONFIG[observationType];
   const isCustom = observationType === "custom";
+  const formValues = { observationType, valueNumeric, valueSecondary, valueText, customLabel };
 
   const chooseType = (next: ObservationType) => {
     setObservationType(next);
     setUnit(OBSERVATION_CONFIG[next].unit === "{score}" ? "" : OBSERVATION_CONFIG[next].unit);
     setValueSecondary("");
+    if (next !== "custom") {
+      setValueText("");
+      setCustomLabel("");
+    }
   };
 
   const resetRecordForm = () => {
@@ -127,21 +134,14 @@ export default function ResidentClinicalChart() {
 
   const submitObservation = async () => {
     if (!id) return;
-    const numeric = valueNumeric.trim() === "" ? null : Number(valueNumeric);
-    if (numeric != null && Number.isNaN(numeric)) {
-      toast({ title: "Enter a valid number", variant: "destructive" });
-      return;
-    }
     try {
+      const values = parseObservationFormValues(formValues);
       await record.mutateAsync({
         residentId: id,
         observationType,
         observedAt: facilityDateTimeLocalToUtcIso(observedAt),
-        valueNumeric: numeric,
-        valueSecondary: valueSecondary.trim() === "" ? null : Number(valueSecondary),
-        valueText: valueText.trim() || null,
+        ...values,
         unit: unit.trim() || null,
-        customLabel: isCustom ? customLabel.trim() || null : null,
         loincCode: config.loinc ?? null,
         note: note.trim() || null,
       });
@@ -596,7 +596,7 @@ export default function ResidentClinicalChart() {
 
         {id && (
           <TabsContent value="care">
-            <ResidentCareDocumentation residentId={id} canChart={canChart} />
+            <ResidentCareDocumentation key={id} residentId={id} canChart={canChart} />
           </TabsContent>
         )}
       </Tabs>
@@ -658,7 +658,7 @@ export default function ResidentClinicalChart() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRecordOpen(false)}>Cancel</Button>
             <Button
-              disabled={record.isPending || (valueNumeric.trim() === "" && valueText.trim() === "") || (isCustom && customLabel.trim() === "")}
+              disabled={record.isPending || !hasObservationFormValue(formValues)}
               onClick={() => void submitObservation()}
             >
               {record.isPending ? "Saving…" : "Record"}

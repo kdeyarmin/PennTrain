@@ -43,7 +43,8 @@ export default function MyCourses() {
   const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   // Gate on a resolved employee id, not just pass it through as a filter -- for a role that's
   // never self-enrolled before (org_admin/auditor/platform_admin pre-ensure_employee_record),
   // there is no employees row yet, and an undefined employeeId would otherwise fetch every
@@ -70,7 +71,8 @@ export default function MyCourses() {
     () => (courses ?? []).map(c => c.current_version_id).filter((id): id is string => !!id),
     [courses],
   );
-  const { data: currentVersions, isLoading: currentVersionsLoading } = useListCourseVersionsByIds(currentVersionIds);
+  const currentVersionsQuery = useListCourseVersionsByIds(currentVersionIds);
+  const { data: currentVersions, isLoading: currentVersionsLoading } = currentVersionsQuery;
   const { mutate: selfEnroll, isPending: enrolling, variables: enrollingCourseId } = useSelfEnrollCourse();
   const offlineLibrary = useOfflineCourseLibrary();
   const downloadOffline = useDownloadCourseForOffline();
@@ -166,7 +168,9 @@ export default function MyCourses() {
             </SelectContent>
           </Select>
 
-          {assignmentsError ? (
+          {employeeQuery.isError ? (
+            <QueryError what="your training profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />
+          ) : assignmentsError ? (
             <QueryError what="your assigned training" error={assignmentsErrorDetail} onRetry={() => refetchAssignments()} />
           ) : isLoading ? (
             <div className="space-y-2">
@@ -191,7 +195,7 @@ export default function MyCourses() {
                 const course = courseById.get(a.course_id);
                 // Urgency only matters while the work is still open -- a completed training item's old
                 // due date shouldn't shout "overdue."
-                const dueDistance = a.status !== "completed" ? formatDueDistance(a.due_date) : null;
+                const dueDistance = !isClosedCourseAssignmentStatus(a.status) ? formatDueDistance(a.due_date) : null;
                 const daysLeft = facilityDaysUntil(a.due_date);
                 const dueTone =
                   daysLeft !== null && daysLeft < 0
@@ -236,6 +240,8 @@ export default function MyCourses() {
         <CardContent className="space-y-2">
           {coursesError ? (
             <QueryError what="available training" error={coursesErrorDetail} onRetry={() => refetchCourses()} />
+          ) : currentVersionsQuery.isError ? (
+            <QueryError what="available training versions" error={currentVersionsQuery.error} onRetry={() => void currentVersionsQuery.refetch()} />
           ) : coursesReadyLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}

@@ -32,6 +32,15 @@ function makeRequest(body: unknown): Request {
   });
 }
 
+for (const body of [null, [], true, { note: "x".repeat(16_384) }]) {
+  Deno.test(`invite-user rejects malformed or oversized JSON ${typeof body}`, async () => {
+    const { handler, rpcCalls } = makeHandler();
+    const response = await handler(makeRequest(body));
+    assertEquals(response.status, body && typeof body === "object" && "note" in body ? 413 : 400);
+    assertEquals(rpcCalls, []);
+  });
+}
+
 function chainable(result: { data: unknown; error: unknown }) {
   // deno-lint-ignore no-explicit-any
   const obj: any = {};

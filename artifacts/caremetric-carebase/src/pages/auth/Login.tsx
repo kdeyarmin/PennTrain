@@ -200,7 +200,7 @@ export default function Login() {
             <p className="mt-2 text-center text-[13px] text-muted-foreground">
               Just exploring?{" "}
               <Link href="/demo" className="font-medium text-primary hover:text-primary/80">
-                Try a demo account
+                Explore demo options
               </Link>
             </p>
           </CardContent>

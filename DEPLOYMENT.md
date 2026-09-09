@@ -241,13 +241,12 @@ can see the whole workspace and lockfile.
      "timestamp": "2026-07-04T12:00:00.000Z"
    }
    ```
-   `/health` deliberately reports nothing about Supabase configuration or reachability: this server
-   never talks to Supabase itself (the browser does, using whatever `VITE_SUPABASE_URL`/
-   `VITE_SUPABASE_ANON_KEY` were baked into the bundle at build time), so a field derived from this
-   process's own env vars at request time could silently diverge from what the served bundle
-   actually contains (no rebuild on a runtime variable change, dummy build-time values, etc.) --
-   exactly the false assurance a healthcheck must not give. A green `/health` only means the Node
-   process is up; confirm Supabase connectivity by loading the app in a browser (step 8).
+   `/health` deliberately reports process liveness, not Supabase reachability. Application data
+   uses the browser's build-time `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`; the learning-package
+   proxy also uses `VITE_SUPABASE_URL` at server runtime. Keep the build/runtime project URL aligned.
+   A green `/health` only means the Node process is up; confirm Supabase connectivity by loading
+   the app in a browser (step 8), and verify an accepted package launches through its nested assets
+   after deploying `learning-package-asset`.
 
    The one deploy-shaped failure `/health` *does* catch is a missing bundle. Because the endpoint
    is answered by the server rather than by the build output, a deploy whose `dist/public` is
@@ -258,18 +257,70 @@ can see the whole workspace and lockfile.
    working deploy live. The startup log line is `Refusing to start: ... index.html is missing`;
    if a deploy fails its healthcheck, check the deploy logs for it before anything else.
 
+### Twilio SMS MFA (no Supabase phone-MFA add-on)
+
+SMS MFA uses `sms-mfa` and Twilio Verify directly. Supabase remains the primary
+sign-in provider; the app records a short-lived proof for the exact Auth session
+and checks it in the shared database assurance guard. It never writes or fabricates
+Supabase's `aal2` JWT claim. Native TOTP remains available for accounts without
+an app SMS factor. Once an account enrolls SMS, SMS proof takes precedence over
+native factors, including factors enrolled directly through the Auth API. The SMS
+requirement survives administrator recovery; native factors cannot become a
+backdoor while SMS is awaiting re-enrollment. Restrictive RLS, storage policies
+and the existing PostgREST request hook enforce SMS proof on direct data/API
+access. Only the caller’s own profile and the exact account-security/lock
+bootstrap RPCs remain reachable before verification.
+
+Deployment order is required: apply the reviewed migration (after PR #507's
+release migrations), deploy `sms-mfa` and the updated `admin-update-user`,
+`impersonate-user`, `process-credential-renewals`, `push-subscriptions`,
+`capture-product-event` and `list-heygen-options`, then deploy the frontend and
+voice gateway. These backend routes check the caller’s SMS proof before service-role
+access, vendor work or a realtime session. The new frontend fails closed if
+`get_my_mfa_status` is unavailable. Do not turn on the Supabase Advanced MFA Phone
+add-on or configure a Supabase phone-auth SMS hook for this implementation.
+
+Reuse the existing Twilio account credentials in Edge Function secrets:
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, plus a dedicated
+`TWILIO_VERIFY_SERVICE_SID` (`VA...`). A notification Messaging Service SID
+(`MG...`) is a different resource. Create/reuse a Verify Service with six-digit
+codes, SMS enabled, Fraud Guard enabled and the permitted destination countries.
+Never put these credentials in Railway's `VITE_*` variables. The screen discovers
+SMS availability from the configured Edge Function; no build-time SMS flag is
+needed. Missing provider configuration leaves native TOTP usable for accounts
+that have not enrolled SMS; SMS accounts retain their verification requirement.
+
+Twilio Verify usage charges still apply: its public pricing on 2026-09-09 lists
+$0.05 per successful verification plus channel fees. See
+[Twilio Verify pricing](https://www.twilio.com/en-us/verify/pricing). This avoids
+the Supabase paid phone-MFA add-on; ordinary existing Supabase usage limits remain.
+
+First enrollment requires a recent password sign-in; accounts with an existing
+verified method must prove that method first. Replacing an SMS number requires
+both a recent password sign-in and the current SMS proof. Self-service removal
+is not offered: losing the phone uses the platform administrator's audited MFA
+reset, which revokes sessions and removes both native and app factors. No OTP
+or provider secret is stored in the app database or emitted in application logs;
+only the saved phone, bound provider verification reference and verification
+metadata are retained in the private schema. UI factor lists show masked numbers.
+
+Release verification must include an actual SMS send and approved check with the
+owner, wrong/expired code, resend limits, a fresh sign-in, idle lock/unlock, phone
+replacement and administrator recovery. Automated fixtures cannot certify carrier
+delivery. No Twilio resources, secrets, paid Supabase add-ons or production
+settings were changed during source implementation.
+
 ### Environment variables to set on the Railway service
 
 | Variable | Required | Notes |
 |---|---|---|
-| `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API). **Build-time**: baked into the bundle; changes require a redeploy, not just a restart |
+| `VITE_SUPABASE_URL` | yes | Supabase project URL (Project Settings -> API). Required at **build time and server runtime**: baked into the bundle and used by the learning-package proxy; keep both values aligned. Changes require a redeploy, not just a restart |
 | `VITE_SUPABASE_ANON_KEY` | yes | anon/publishable key -- safe for the browser, RLS is the real gate. **Build-time**, same caveat as above |
 | `VITE_TURNSTILE_SITE_KEY` | yes | Cloudflare Turnstile site key for `/signup`. **Build-time**, same redeploy caveat as other `VITE_` values |
 | `VITE_CLIENT_ERROR_REPORTING_ENABLED` | no | Build-time switch for PHI-scrubbed client error events. Reporting is enabled by default in production; set `false` only during an incident |
 | `VITE_RELEASE_ID` | recommended | Build-time release identifier, normally `RAILWAY_GIT_COMMIT_SHA`, attached to client error events |
 | `VITE_CENTRAL_SUPPORT_HUB_URL` | no | Optional build-time pin for the first-party Support Hub. Leave unset to use `https://support-hub-web-production.up.railway.app`, or set exactly that origin. Any other configured origin fails the build and the browser launcher fails closed. |
 | `VITE_DEMO_ACCOUNTS_JSON` | no | Optional JSON array powering the self-serve sandbox at `/demo` (the "Live demo" links). Leave unset in production unless public demo access is intentionally enabled. See "Public demo sandbox" below |
-| `VITE_MFA_SMS_ENABLED` | no | Build-time switch that offers SMS text-message codes alongside authenticator apps on `/account/security`. Set `true` **only** once the Supabase project has the paid "Advanced MFA Phone" add-on enabled and an SMS provider configured under Authentication -> Phone; otherwise Auth rejects phone enrollment. Text messages are billed per message by the SMS provider |
 | `VITE_CAREMETRIC_MODULES` | no | Comma-separated build-time product allow-list. Leave unset for a universal build, use `train` for a standalone CareMetric Train deployment, or `carebase` for the full CareBase deployment (which includes Train). Runtime organization entitlements are still authoritative. |
 | `NODE_ENV` | no | Railpack already sets `production`; setting it yourself is harmless |
 | `PORT` | no | Railway injects this automatically; the server reads it |
@@ -467,6 +518,30 @@ them from scratch:
 
 ## 7. Security notes
 
+### Support impersonation lifetime
+
+Apply `20260908220014_enforce_impersonation_session_lifetime.sql` before releasing the
+impersonation updates. Binding a support context now caps the target's actual Auth refresh session
+at the context deadline. The edge function exchanges and binds the target session before returning
+any usable credential; a client cannot skip binding by redeeming a returned magic-link hash.
+Deploy the updated edge function before the frontend. The frontend now requests `start_bound`,
+which returns an already-bound session. The updated edge function rejects a stale browser's legacy
+`start` action with HTTP 409 and a refresh-required message before creating a link, session, audit,
+or support context. If the frontend reaches an older edge deployment, its unknown `start_bound`
+action is refused before those side effects; starting impersonation resumes after the edge update.
+Existing `bind` and `end` actions remain compatible so active impersonations can still exit during
+the transition. The database also refuses an expired or ended impersonation's existing
+JWT through its shared authorization helpers, restrictive RLS policies, and a PostgREST pre-request
+hook. The frontend uses the server's deadline for its automatic return; that timer is a convenience,
+while the database enforces access even if the tab is suspended or closed.
+
+The migration installs `public.enforce_request_impersonation_lifetime` as
+`pgrst.db_pre_request` on `authenticator` and requests a config reload. It refuses to replace an
+unrelated pre-request hook: if an environment already has one, compose both checks before applying
+the migration. Verify normal authenticated and anonymous requests, an active support session, and
+the same JWT after expiry in a hosted release check. Already downloaded files and previously issued
+signed Storage URLs keep their independent lifetime; this control prevents new authorized requests.
+
 ### Fixes applied in this change (adversarial production audit)
 
 A follow-up audit of this Railway/Supabase wiring, run against the live project, surfaced and fixed
@@ -592,6 +667,14 @@ at build time** -- after changing `VITE_` variables, redeploy (rebuild); don't t
 (a blank page means the bundle was built without the `VITE_` vars).
 
 ## Limitations / manual steps remaining
+
+Deployment-setting verification on 2026-09-08 (BACKLOG K11):
+
+| Setting | Supported evidence | Remaining verification |
+| --- | --- | --- |
+| Required checks on `main` | The intended required check is `ci-result`. The repository ruleset list is empty, but the connection receives HTTP 403 reading classic branch protection. | Verify the classic rule requires `ci-result` only; an empty ruleset list does not prove the branch is unprotected. |
+| Production credentials and approvals | Scheduled dry run [34200865149](https://github.com/kdeyarmin/PennTrain/actions/runs/34200865149) started three seconds after creation, has no recorded environment approval, and passed secret-presence, project-link, migration-drift and function-presence checks. | This confirms an unattended successful run with usable `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`, but the connection cannot read their environment-versus-repository scope or the current required-reviewer setting. |
+| Deployment-stamp retention | [Run 34261253345](https://github.com/kdeyarmin/PennTrain/actions/runs/34261253345) was created `2026-09-08T18:08:23Z`; its deployment stamp expires `2026-12-07T18:08:23Z`, exactly 90 days later. The upload step does not override retention. | Effective 90-day retention is verified for this stamp. Keep sufficient retention for the deploy gate's last-50-run lookup when changing repository settings. |
 
 - Railway project creation, GitHub connection, and env var entry must be done in the Railway
   dashboard -- not scriptable from this repo.

@@ -327,6 +327,8 @@ interface PagedReportData extends ParsedReport {
 
 interface ActiveReportRequest {
   report: ReportDef;
+  facilityId: string;
+  facilityName?: string;
   employeeId?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -618,14 +620,16 @@ export default function Reports() {
       dateFromOverride?: string,
       dateToOverride?: string,
       pageOffset = 0,
+      facilityIdOverride?: string,
     ) => {
       const requestId = ++latestViewRequestId.current;
       setReportLoadingId(report.id);
       try {
         const effectiveFrom = (dateFromOverride !== undefined ? dateFromOverride : dateFrom) || undefined;
         const effectiveTo = (dateToOverride !== undefined ? dateToOverride : dateTo) || undefined;
+        const effectiveFacilityId = facilityIdOverride ?? facilityId;
         const parsed = await requestReportPage(report, {
-          facilityId,
+          facilityId: effectiveFacilityId,
           employeeId: employeeIdOverride,
           dateFrom: effectiveFrom,
           dateTo: effectiveTo,
@@ -634,7 +638,14 @@ export default function Reports() {
         });
         if (requestId !== latestViewRequestId.current) return;
         setActiveReport(report);
-        setActiveReportRequest({ report, employeeId: employeeIdOverride, dateFrom: effectiveFrom, dateTo: effectiveTo });
+        setActiveReportRequest({
+          report,
+          facilityId: effectiveFacilityId,
+          facilityName: effectiveFacilityId === "all" ? undefined : facilities.find((facility) => facility.id === effectiveFacilityId)?.name,
+          employeeId: employeeIdOverride,
+          dateFrom: effectiveFrom,
+          dateTo: effectiveTo,
+        });
         setReportData(parsed);
         setPendingReport(null);
       } catch (err) {
@@ -648,11 +659,11 @@ export default function Reports() {
         if (requestId === latestViewRequestId.current) setReportLoadingId(null);
       }
     },
-    [dateFrom, dateTo, facilityId, toast]
+    [dateFrom, dateTo, facilityId, facilities, toast]
   );
 
   const exportCsv = useCallback(
-    async (report: ReportDef, employeeIdOverride?: string, dateFromOverride?: string, dateToOverride?: string) => {
+    async (report: ReportDef, employeeIdOverride?: string, dateFromOverride?: string, dateToOverride?: string, facilityIdOverride?: string) => {
       setExportingReportId(report.id);
       try {
         const effectiveFrom = (dateFromOverride !== undefined ? dateFromOverride : dateFrom) || undefined;
@@ -663,7 +674,7 @@ export default function Reports() {
         let totalRows = 0;
         do {
           const page = await requestReportPage(report, {
-            facilityId,
+            facilityId: facilityIdOverride ?? facilityId,
             employeeId: employeeIdOverride,
             dateFrom: effectiveFrom,
             dateTo: effectiveTo,
@@ -733,7 +744,9 @@ export default function Reports() {
       setPendingReport(report);
       return;
     }
-    void viewReport(report, undefined, effFrom, effTo);
+    // React batches the picker updates above. Pass the saved facility explicitly so the first
+    // request does not use the previous render's facility and then label those rows as this view.
+    void viewReport(report, undefined, effFrom, effTo, 0, config.facilityId ?? "all");
   };
 
   const handleDeleteView = (definitionId: string, name: string) => {
@@ -799,8 +812,9 @@ export default function Reports() {
     void exportCsv(
       activeReportRequest.report,
       activeReportRequest.employeeId,
-      activeReportRequest.dateFrom,
-      activeReportRequest.dateTo,
+      activeReportRequest.dateFrom ?? "",
+      activeReportRequest.dateTo ?? "",
+      activeReportRequest.facilityId,
     );
   };
 
@@ -809,9 +823,10 @@ export default function Reports() {
     void viewReport(
       activeReportRequest.report,
       activeReportRequest.employeeId,
-      activeReportRequest.dateFrom,
-      activeReportRequest.dateTo,
+      activeReportRequest.dateFrom ?? "",
+      activeReportRequest.dateTo ?? "",
       nextOffset,
+      activeReportRequest.facilityId,
     );
   };
 
@@ -821,7 +836,7 @@ export default function Reports() {
     // since (BACKLOG.md J80).
     const scopeLines = reportScopeLines({
       reportId: activeReport.id,
-      facilityName,
+      facilityName: activeReportRequest?.facilityName,
       dateFrom: activeReportRequest?.dateFrom,
       dateTo: activeReportRequest?.dateTo,
       dateFieldLabel: REPORT_DATE_FIELD_LABEL[activeReport.id] ?? null,
@@ -835,7 +850,7 @@ export default function Reports() {
           category={activeReport.category}
           requiredBy={activeReport.requiredBy}
           generatedAt={reportData.generatedAt}
-          facilityName={facilityName}
+          facilityName={activeReportRequest?.facilityName}
           headers={reportData.headers}
           rows={reportData.rows}
           summaryCards={reportData.summaryCards}

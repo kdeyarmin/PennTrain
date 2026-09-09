@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, BookOpen, CheckCircle2, ExternalLink, Loader2, Play, RefreshCw } from "lucide-react";
+import { AlertTriangle, BookOpen, Loader2, Play, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import {
-  createPackageContentSignedUrl,
+  createPackageContentUrl,
   useAcceptedLearningPackages,
   useAssignmentPackageCompleted,
   useCommitLearningRuntimeState,
@@ -40,8 +41,7 @@ interface StandardsRuntimePlayerProps {
  *
  * - Starts a governed session via start_learning_runtime_session.
  * - Listens for fixed-schema postMessage commits from a sandboxed package frame.
- * - Also exposes explicit progress/complete actions so packages without a working
- *   content origin still produce server-side commits and xAPI statements.
+ * - Completion comes from the package; a failed launch cannot manufacture training evidence.
  */
 export function StandardsRuntimePlayer({
   assignmentId,
@@ -69,6 +69,8 @@ export function StandardsRuntimePlayer({
   const [completedInSession, setCompletedInSession] = useState(false);
   const completed = completedInSession || priorCompletion.data === true;
   const [status, setStatus] = useState<string>("Ready to launch");
+  const [launching, setLaunching] = useState(false);
+  const launchingRef = useRef(false);
   const sequenceRef = useRef(1);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // Commits must reach the server one at a time. commit_learning_runtime_state requires
@@ -170,8 +172,18 @@ export function StandardsRuntimePlayer({
   }, [applyCommit]);
 
   const handleLaunch = async () => {
+    if (launchingRef.current) return;
+    launchingRef.current = true;
+    setLaunching(true);
+    // Disconnect the old frame and finish its queued writes before the server chooses the next
+    // sequence number. Relaunching over an in-flight commit otherwise leaves the new session
+    // one sequence behind, making all subsequent progress fail.
+    setLaunch(null);
+    setContentUrl(null);
+    clearHandshakeTimer();
     setStatus("Starting session…");
     try {
+      await commitQueueRef.current;
       const next = await startSession.mutateAsync({
         assignmentId,
         packageId: packages.data?.[0]?.id,
@@ -187,9 +199,9 @@ export function StandardsRuntimePlayer({
       setHandshakeState("idle");
       setHandshakeError(null);
       await pushXapi(next, XAPI_VERBS.initialized);
-      const signed = await createPackageContentSignedUrl(next.storageBucket, next.storagePath);
+      const signed = createPackageContentUrl(next);
       setContentUrl(signed);
-      setStatus(signed ? "Package ready" : "Session active (package content URL unavailable — use manual progress)");
+      setStatus(signed ? "Package ready" : "Package content could not be loaded. Relaunch to try again or contact your trainer.");
     } catch (err) {
       setStatus("Launch failed");
       toast({
@@ -197,6 +209,9 @@ export function StandardsRuntimePlayer({
         description: err instanceof Error ? err.message : String(err),
         variant: "destructive",
       });
+    } finally {
+      launchingRef.current = false;
+      setLaunching(false);
     }
   };
 
@@ -271,6 +286,10 @@ export function StandardsRuntimePlayer({
     );
   }
 
+  if (packages.isError) {
+    return <QueryError what="this interactive training package" error={packages.error} onRetry={() => void packages.refetch()} />;
+  }
+
   if (!hasPackage) {
     return <>{fallback ?? null}</>;
   }
@@ -287,20 +306,13 @@ export function StandardsRuntimePlayer({
         </div>
         <div className="flex flex-wrap gap-2">
           {!launch ? (
-            <Button size="sm" onClick={() => void handleLaunch()} disabled={startSession.isPending}>
-              {startSession.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+            <Button size="sm" onClick={() => void handleLaunch()} disabled={launching}>
+              {launching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
               Launch
             </Button>
           ) : (
-            <Button size="sm" variant="outline" onClick={() => void handleLaunch()} disabled={startSession.isPending}>
+            <Button size="sm" variant="outline" onClick={() => void handleLaunch()} disabled={launching}>
               <RefreshCw className="mr-2 h-4 w-4" /> Relaunch
-            </Button>
-          )}
-          {contentUrl && (
-            <Button size="sm" variant="outline" asChild>
-              <a href={contentUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="mr-2 h-4 w-4" /> Open package file
-              </a>
             </Button>
           )}
         </div>
@@ -338,13 +350,13 @@ export function StandardsRuntimePlayer({
                     size="sm"
                     variant="outline"
                     onClick={() => void handleLaunch()}
-                    disabled={startSession.isPending}
+                    disabled={launching}
                   >
                     <RefreshCw className="mr-2 h-3.5 w-3.5" /> Relaunch
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  You can still use Save progress / Mark package complete below — those writes go through the governed server path.
+                  Completion is recorded when the package reports it. If reconnecting does not work, contact your trainer before continuing.
                 </p>
               </AlertDescription>
             </Alert>
@@ -363,6 +375,7 @@ export function StandardsRuntimePlayer({
               ref={iframeRef}
               title="Learning package"
               src={contentUrl}
+              referrerPolicy="no-referrer"
               className="h-[min(70vh,520px)] w-full rounded-md border bg-background"
               sandbox={RUNTIME_FRAME_SANDBOX}
               // Push the launch credentials as soon as the document is up. A package that registers
@@ -374,30 +387,8 @@ export function StandardsRuntimePlayer({
             />
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={commitState.isPending || completed}
-              onClick={() => void enqueueCommit(launch, { progress: Math.min(1, (progress + 25) / 100), completionStatus: "incomplete" }, "manual-progress")}
-            >
-              Save progress
-            </Button>
-            <Button
-              size="sm"
-              disabled={commitState.isPending || completed}
-              onClick={() => void enqueueCommit(launch, { progress: 1, completionStatus: "completed", successStatus: "passed" }, "manual-complete")}
-            >
-              {completed ? (
-                <><CheckCircle2 className="mr-2 h-4 w-4" /> Completed</>
-              ) : (
-                "Mark package complete"
-              )}
-            </Button>
-          </div>
           <p className="text-xs text-muted-foreground">
-            Progress is committed server-side through the governed runtime. Packages that post SCORM/xAPI
-            messages are recorded automatically; otherwise use the buttons above.
+            Keep the package open here while training. Progress and completion are recorded automatically from the package.
           </p>
           <p className="text-xs text-muted-foreground">
             {completed

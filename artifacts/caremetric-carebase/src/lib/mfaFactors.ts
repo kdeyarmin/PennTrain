@@ -1,15 +1,10 @@
 /**
- * Multi-factor authentication factor helpers.
- *
- * Supabase Auth supports two second factors that both raise a session to the
- * `aal2` claim our privileged RLS policies and `assert_phase2_aal2()` checks
- * require: a TOTP authenticator app, and a one-time code delivered by SMS
- * ("phone" factors). The SMS option is a paid Supabase add-on ("Advanced MFA
- * Phone") that also needs an SMS provider configured on the Auth project, so
- * the UI only offers it where the deployment has actually turned it on.
+ * Native authenticator factors and CareBase SMS verification methods.
+ * SMS is verified by the app through Twilio and a server-side, session-bound
+ * attestation. It does not change Supabase's native AAL claim.
  */
 
-export type MfaFactorType = "totp" | "phone";
+export type MfaFactorType = "totp" | "phone" | "sms";
 
 export type MfaFactor = {
   id: string;
@@ -51,19 +46,6 @@ export function toMfaFactors(raw: readonly unknown[] | null | undefined): MfaFac
 }
 
 /**
- * Whether this deployment advertises SMS codes as an enrollment option.
- *
- * Defaults to off: a project without the Advanced MFA Phone add-on rejects
- * phone enrollment outright, and an option that always errors is worse than
- * no option at all.
- */
-export function isSmsMfaEnabled(
-  flag: unknown = import.meta.env.VITE_MFA_SMS_ENABLED,
-): boolean {
-  return flag === true || flag === "true";
-}
-
-/**
  * Normalize an operator-typed phone number to the E.164 form Supabase Auth and
  * Twilio both require. Follows the same rules as `normalizeSmsRecipient` in the
  * notification delivery edge function, with one tightening: a number the user
@@ -97,7 +79,7 @@ export function maskMfaPhone(phone: string | null | undefined): string {
 
 export function mfaFactorLabel(factor: MfaFactor): string {
   if (factor.friendly_name) return factor.friendly_name;
-  return factor.factor_type === "phone" ? maskMfaPhone(factor.phone) : "Authenticator app";
+  return factor.factor_type === "phone" || factor.factor_type === "sms" ? maskMfaPhone(factor.phone) : "Authenticator app";
 }
 
 /**
@@ -113,13 +95,30 @@ export function describeMfaError(error: unknown): string {
 
   switch (code) {
     case "mfa_phone_enroll_not_enabled":
-      return "Text-message verification isn't enabled on this Supabase project yet. An administrator must turn on the Advanced MFA Phone add-on and configure the SMS provider.";
+      return "This legacy text-message method is unavailable. Add a CareBase text-message method or use an authenticator app.";
     case "mfa_phone_verify_not_enabled":
-      return "Text-message verification is no longer enabled on this Supabase project. Use an authenticator app, or ask an administrator to re-enable phone factors.";
+      return "This legacy text-message method is unavailable. Use your CareBase text-message method or an authenticator app.";
+    case "fresh_password_required":
+      return "Sign out and sign in again with your password before changing your verification methods.";
+    case "mfa_required":
+    case "fresh_mfa_required":
+      return "Verify an existing method before changing your verification methods.";
+    case "sms_unavailable":
+    case "sms_mfa_not_configured":
+    case "sms_not_configured":
+      return "Text-message verification is not configured yet. Use an authenticator app or contact your administrator.";
+    case "challenge_expired":
+    case "challenge_invalid":
+      return "That code has expired or was already used. Request a new code.";
+    case "sms_rate_limited":
+    case "rate_limited":
     case "over_sms_send_rate_limit":
       return "Too many codes were requested for this number. Wait a minute before asking for another one.";
+    case "delivery_failed":
     case "sms_send_failed":
       return "The verification code could not be sent. Check that the number can receive SMS, then try again.";
+    case "verification_failed":
+    case "invalid_code":
     case "mfa_verification_failed":
       return "That code didn't match. Request a new one and try again.";
     default:
