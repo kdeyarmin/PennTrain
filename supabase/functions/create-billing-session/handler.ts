@@ -130,6 +130,11 @@ export function createCreateBillingSessionHandler({
   if (!(["checkout", "portal"] as string[]).includes(action)) {
     return json(req, { error: { code: "invalid_action" } }, 400);
   }
+  // An API key alone can create a payable subscription whose events cannot
+  // reconcile locally. Keep new checkout closed until its signing secret is set.
+  if (action === "checkout" && !(getEnv("STRIPE_BILLING_WEBHOOK_SECRET") ?? "").trim()) {
+    return json(req, { error: { code: "billing_not_configured" } }, 503);
+  }
 
   // Return URLs are validated against configured origins only; the request
   // Origin header is caller-controlled and must not extend the allowlist.
@@ -141,8 +146,13 @@ export function createCreateBillingSessionHandler({
     ],
   );
   const admin = createClient(supabaseUrl, serviceRoleKey);
-  const { data: account } = await admin.from("billing_accounts")
+  const { data: account, error: accountError } = await admin.from("billing_accounts")
     .select("id, stripe_customer_id, billing_state").eq("organization_id", organizationId).maybeSingle();
+  // A failed lookup is not a new customer. Checkout must not create another
+  // Stripe customer when the existing customer's database row is unavailable.
+  if (accountError) {
+    return json(req, { error: { code: "billing_state_unavailable" } }, 503);
+  }
   const correlationId = (req.headers.get("x-correlation-id") || randomUUID()).slice(0, 200);
   const requestId = (req.headers.get("x-request-id") || randomUUID()).slice(0, 200);
   const suppliedIdempotency = req.headers.get("idempotency-key") || body.idempotencyKey;
@@ -162,10 +172,16 @@ export function createCreateBillingSessionHandler({
     if (!returnUrl || !validatePhase2BillingReturnUrl(returnUrl, configuredOrigins)) {
       return json(req, { error: { code: "invalid_return_url" } }, 400);
     }
+    // This Stripe account serves multiple applications. Never let a missing
+    // PennTrain configuration fall back to another application's default portal.
+    const portalConfigurationId = (getEnv("STRIPE_BILLING_PORTAL_CONFIGURATION_ID") ?? "").trim();
+    if (!/^bpc_[A-Za-z0-9]+$/.test(portalConfigurationId)) {
+      return json(req, { error: { code: "billing_not_configured" } }, 503);
+    }
     stripeResult = await stripePost(
       "/v1/billing_portal/sessions",
       stripeSecretKey,
-      { customer: account.stripe_customer_id, return_url: returnUrl },
+      { customer: account.stripe_customer_id, return_url: returnUrl, configuration: portalConfigurationId },
       idempotencyKey,
     );
     kind = "portal";

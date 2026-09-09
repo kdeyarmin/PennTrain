@@ -2,6 +2,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { pollAndResolveHeygenVideo, type HeygenJobState } from "../_shared/heygenPolling.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -34,6 +35,8 @@ Deno.serve(async (req: Request) => {
 
   const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
   if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
+  const assurance = await requireFreshAal2(callerClient, "integration_admin");
+  if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
 
   const { data: callerProfile, error: callerProfileError } = await callerClient
     .from("profiles")
@@ -57,20 +60,19 @@ Deno.serve(async (req: Request) => {
 
   const { data: block, error: blockError } = await callerClient
     .from("course_blocks")
-    .select("id, organization_id, body")
+    .select("id, organization_id, course_version_id, block_type, title, body, video_url")
     .eq("id", body.course_block_id)
     .single();
   if (blockError || !block) return json(req, { error: "course block not found" }, 404);
 
   const job = (block.body as { heygen?: HeygenJobState } | null)?.heygen;
-  if (!job?.video_id) return json(req, { error: "no pending video generation for this block" }, 400);
+  if (!job?.video_id && !job?.attempt_id) return json(req, { error: "no pending video generation for this block" }, 400);
 
-  // Only the storage upload step needs service-role privileges (writing into the course-videos
-  // bucket); all course_blocks writes still go through the caller's own RLS-scoped client, same
-  // as before this was extracted into the shared module.
+  // Caller scope and MFA are established above. Only the narrow CAS resolver can attach the
+  // matching render; this also permits an already-started render to finish after publication.
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  const result = await pollAndResolveHeygenVideo(callerClient, adminClient, block, heygenApiKey);
+  const result = await pollAndResolveHeygenVideo(adminClient, block, heygenApiKey);
 
   if (result.status === "error") {
     return json(req, { error: result.error ?? "failed to check HeyGen video status" }, 502);
@@ -78,6 +80,7 @@ Deno.serve(async (req: Request) => {
   if (result.status === "no_job") {
     return json(req, { error: result.error ?? "no pending video generation for this block" }, 400);
   }
+  if (result.status === "stale") return json(req, { error: result.error }, 409);
   if (result.status === "completed") {
     return result.video_url
       ? json(req, { success: true, status: "completed", video_url: result.video_url })

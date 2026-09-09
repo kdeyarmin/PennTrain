@@ -26,6 +26,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { coursesListPath } from "@/lib/courseRoutes";
+import { courseVideoGenerationJob, hasPendingCourseVideoGeneration } from "@/lib/courseVideoGeneration";
 import { textBodyContent, videoTranscriptContent } from "./course-detail/helpers";
 import { EMPTY_BLOCK_FORM, NO_TRAINING_TYPE, type BlockFormState, type CourseFormState, type QuizFormState } from "./course-detail/types";
 import { useBulkVideoGeneration } from "./course-detail/useBulkVideoGeneration";
@@ -574,15 +575,22 @@ export default function CourseDetail() {
   // --- AI avatar video generation (HeyGen), for an existing 'video' block ---
   const [videoGenBlock, setVideoGenBlock] = useState<CourseBlock | null>(null);
   const [videoGenForm, setVideoGenForm] = useState({ avatarId: "", voiceId: "", script: "" });
+  const videoGenRequestId = useRef("");
+  const videoGenRequestTitle = useRef<string | undefined>(undefined);
   const { data: heygenOptions, isLoading: heygenOptionsLoading } = useListHeygenOptions(!!videoGenBlock);
   const preferredHeygenAvatar = heygenOptions?.avatars.find(a => a.is_ai_twin) ?? heygenOptions?.avatars[0];
-  const preferredHeygenVoice = heygenOptions?.voices.find(v => /english|en[-_ ]?us|en[-_ ]?gb/i.test(`${v.language ?? ""} ${v.name ?? ""}`)) ?? heygenOptions?.voices[0];
+  const preferredHeygenVoice = heygenOptions?.voices.find(v => v.voice_id === preferredHeygenAvatar?.default_voice_id)
+    ?? heygenOptions?.voices.find(v => /english|en[-_ ]?us|en[-_ ]?gb/i.test(`${v.language ?? ""} ${v.name ?? ""}`)) ?? heygenOptions?.voices[0];
   const { mutate: generateVideo, isPending: generatingVideo } = useGenerateCourseVideo();
   const { mutate: checkVideoStatus, isPending: checkingVideoStatus } = useCheckCourseVideoStatus();
 
   const openVideoGen = (block: CourseBlock) => {
+    const pending = hasPendingCourseVideoGeneration(block.body) ? courseVideoGenerationJob(block.body) : undefined;
+    videoGenRequestId.current = pending?.attempt_id ?? crypto.randomUUID();
+    videoGenRequestTitle.current = pending?.title ?? block.title ?? undefined;
     setVideoGenBlock(block);
-    setVideoGenForm({ avatarId: "", voiceId: "", script: (block.body as { script?: string } | null)?.script ?? "" });
+    setVideoGenForm({ avatarId: pending?.avatar_id ?? "", voiceId: pending?.voice_id ?? "",
+      script: pending?.script ?? (block.body as { script?: string } | null)?.script ?? "" });
   };
 
   useEffect(() => {
@@ -623,11 +631,14 @@ export default function CourseDetail() {
     }
     generateVideo(
       {
+        requestId: videoGenRequestId.current,
         courseBlockId: videoGenBlock.id,
         avatarId: videoGenForm.avatarId,
         voiceId: videoGenForm.voiceId,
         script: videoGenForm.script.trim(),
-        title: videoGenBlock.title ?? undefined,
+        title: videoGenRequestTitle.current,
+        replaceExisting: Boolean(videoGenBlock.video_url),
+        expectedVideoUrl: videoGenBlock.video_url,
       },
       {
         onSuccess: () => {
@@ -885,6 +896,7 @@ export default function CourseDetail() {
         heygenOptionsLoading={heygenOptionsLoading}
         onGenerate={handleGenerateVideo}
         generatingVideo={generatingVideo}
+        replacingVideo={Boolean(videoGenBlock?.video_url)}
         fieldIds={__fieldIds}
       />
 

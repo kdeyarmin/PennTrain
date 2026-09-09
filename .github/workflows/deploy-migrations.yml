@@ -120,7 +120,7 @@ jobs:
     # every step, which put the database password and the Supabase access token in the
     # environment of `pnpm install` -- hundreds of third-party packages and their lifecycle
     # scripts -- and of the CLI's function bundler, neither of which has any use for them. They
-    # are attached below to the six steps that actually talk to Supabase. Nothing else in this
+    # are attached below only to the steps that actually talk to Supabase. Nothing else in this
     # job can read them. BACKLOG K7.
     env:
       # Prefer repository/environment variable; fall back to the known prod ref so first
@@ -443,6 +443,37 @@ jobs:
           # with the commit that was actually deployed.
           name: edge-function-deploy-stamp-${{ env.DEPLOY_SHA }}
           path: edge-function-deploy-stamp.json
+
+      # A dependency-free GET-only observation after backend success, including a successful
+      # no-op or nightly drift check. Deliberately independent of gate.outputs.skip: an app-only
+      # release must still reveal missing integration configuration. No provider request, paid
+      # resource or Auth mutation is made, and the production token exists only in this step.
+      # Missing/unavailable configuration is evidence for operators, not a deployment gate.
+      - name: Report integration configuration readiness
+        id: integration_readiness
+        if: success()
+        continue-on-error: true
+        timeout-minutes: 1
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/check-integration-readiness.mjs
+
+      - name: Upload integration configuration evidence
+        id: integration_readiness_artifact
+        if: ${{ !cancelled() && steps.integration_readiness.outcome != 'skipped' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-readiness-${{ env.DEPLOY_SHA }}
+          path: |
+            integration-readiness.json
+            integration-readiness.md
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve integration observation failure separately from deployment
+        if: ${{ !cancelled() && (steps.integration_readiness.outcome == 'failure' || steps.integration_readiness_artifact.outcome == 'failure') }}
+        run: echo "::warning::Integration configuration evidence is incomplete or could not be archived. Review the report step and artifact; this optional observation does not change the backend deployment result."
 
   # Survives job timeouts/cancellations of `deploy` (in-job `if: failure()` does not run
   # when the job is cancelled by timeout-minutes) -- hence the check on `needs.deploy.result`
