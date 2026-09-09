@@ -20,14 +20,18 @@ function request(
   headers: Record<string, string> = {},
   body = '{ "batchSize": 50, "maxRuntimeMs": 110000 }',
 ): Request {
+  const requestHeaders = new Headers({
+    "x-caremetric-cron-secret": ENV.CRON_SHARED_SECRET,
+    "x-correlation-id": CORRELATION_ID,
+  });
+  for (const [name, value] of Object.entries(headers)) {
+    requestHeaders.set(name, value);
+  }
   return new Request(
     "https://xsqobvvreaovwibxwyvv.supabase.co/functions/v1/sync-billing-quantities",
     {
       method: "POST",
-      headers: {
-        "x-caremetric-cron-secret": ENV.CRON_SHARED_SECRET,
-        ...headers,
-      },
+      headers: requestHeaders,
       body,
     },
   );
@@ -195,6 +199,33 @@ Deno.test("billing runtime preserves cron and manual dispatch identity while dro
   }
 });
 
+Deno.test("billing runtime forwards the bounded correlation ID consistently", async () => {
+  const oversizedId = "c".repeat(500);
+  const boundedId = oversizedId.slice(0, 200);
+  const { handler } = fixture({
+    fetcher: async (_input, init) => {
+      assertEquals(new Headers(init?.headers).get("x-correlation-id"), boundedId);
+      return response({ success: true, runId: RUN_ID, correlationId: boundedId });
+    },
+  });
+  const result = await handler(request({ "X-Correlation-Id": oversizedId }));
+  assertEquals((await result.json()).correlationId, boundedId);
+});
+
+Deno.test("billing runtime preserves bounded unknown worker outcomes for reconciliation", async () => {
+  for (const error of ["job_finalization_unconfirmed", "job_execution_unconfirmed"]) {
+    const { handler } = fixture({
+      fetcher: async () => response({
+        error, dispatchOutcome: "unknown", runId: RUN_ID, correlationId: CORRELATION_ID,
+        message: "private provider diagnostic", secret: "test-only-private-value",
+      }, 502),
+    });
+    const result = await handler(request());
+    assertEquals(result.status, 502);
+    assertEquals(await result.json(), { error, dispatchOutcome: "unknown", runId: RUN_ID, correlationId: CORRELATION_ID });
+  }
+});
+
 Deno.test("billing runtime enforces both declared and streaming request limits", async () => {
   for (
     const req of [
@@ -282,9 +313,9 @@ Deno.test("billing runtime rejects redirects, SPA HTML, invalid JSON, and false 
       }),
       response(null),
       response([]),
-    response({ error: "wrong-endpoint" }),
-    response({ success: false }),
-    response({ success: true }),
+      response({ error: "wrong-endpoint" }),
+      response({ success: false }),
+      response({ success: true }),
     ]
   ) {
     const { handler, state } = fixture({
@@ -294,6 +325,8 @@ Deno.test("billing runtime rejects redirects, SPA HTML, invalid JSON, and false 
     assertEquals(result.status, 502);
     assertEquals(await result.json(), {
       error: "billing_runtime_invalid_response",
+      dispatchOutcome: "unknown",
+      correlationId: CORRELATION_ID,
     });
     assertEquals(result.headers.get("location"), null);
     assertEquals(state.fetched, 1);
@@ -329,6 +362,8 @@ Deno.test("billing runtime transport failures never retry, fall back, or expose 
   });
   assertEquals(await (await handler(request())).json(), {
     error: "billing_runtime_unavailable",
+    dispatchOutcome: "unknown",
+    correlationId: CORRELATION_ID,
   });
   assertEquals(state.fetched, 1);
   assertEquals(state.delegated, 0);
@@ -348,6 +383,8 @@ Deno.test("billing runtime aborts a timed-out dispatch without a second attempt"
   });
   assertEquals(await (await handler(request())).json(), {
     error: "billing_runtime_timeout",
+    dispatchOutcome: "unknown",
+    correlationId: CORRELATION_ID,
   });
   assertEquals(aborted, true);
   assertEquals(state.fetched, 1);
@@ -358,7 +395,10 @@ Deno.test("billing runtime also bounds a stalled request-body stream", async () 
   let cancelled = false;
   const req = new Request("https://example.test", {
     method: "POST",
-    headers: { "x-caremetric-cron-secret": ENV.CRON_SHARED_SECRET },
+    headers: {
+      "x-caremetric-cron-secret": ENV.CRON_SHARED_SECRET,
+      "x-correlation-id": CORRELATION_ID,
+    },
     body: new ReadableStream({
       cancel() {
         cancelled = true;
@@ -368,6 +408,8 @@ Deno.test("billing runtime also bounds a stalled request-body stream", async () 
   const { handler, state } = fixture({ timeoutMs: 5 });
   assertEquals(await (await handler(req)).json(), {
     error: "billing_runtime_timeout",
+    dispatchOutcome: "not_started",
+    correlationId: CORRELATION_ID,
   });
   assertEquals(cancelled, true);
   assertEquals(state.fetched + state.delegated, 0);
@@ -380,6 +422,8 @@ Deno.test("billing runtime honors caller cancellation before starting provider w
   const { handler, state } = fixture();
   assertEquals(await (await handler(req)).json(), {
     error: "billing_runtime_timeout",
+    dispatchOutcome: "not_started",
+    correlationId: CORRELATION_ID,
   });
   assertEquals(state.fetched + state.delegated, 0);
 });

@@ -41176,6 +41176,13 @@ export type Database = {
           run_id: string
         }[]
       }
+      replay_system_job_dead_letter_for_job: {
+        Args: { p_job_key: string; p_reason: string; p_run_id: string }
+        Returns: {
+          correlation_id: string
+          run_id: string
+        }[]
+      }
       reply_resident_portal_message: {
         Args: { p_body: string; p_grant_id: string }
         Returns: string

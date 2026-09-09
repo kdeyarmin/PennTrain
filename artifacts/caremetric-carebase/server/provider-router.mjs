@@ -28,16 +28,25 @@ function fail(req, res, status, code) {
   res.end(JSON.stringify({ error: { code } }));
 }
 
-function readBody(req, limit, signal) {
+function readBody(req, limit, signal, onSettled) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let bytes = 0;
+    let settled = false;
     const cleanup = () => {
       req.removeListener("data", onData); req.removeListener("end", onEnd);
       req.removeListener("error", onError); req.removeListener("aborted", onAbort);
       signal.removeEventListener("abort", onAbort);
     };
-    const finish = (error) => { cleanup(); error ? reject(error) : resolve(Buffer.concat(chunks, bytes)); };
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      // Release ingress synchronously, before resolving the body promise. A completed
+      // request must never be selected for eviction while it waits to run its handler.
+      onSettled();
+      error ? reject(error) : resolve(Buffer.concat(chunks, bytes));
+    };
     const onData = (chunk) => {
       bytes += chunk.length;
       if (bytes > limit) { req.pause(); finish(new InputError(413, "payload_too_large")); }
@@ -45,7 +54,10 @@ function readBody(req, limit, signal) {
     };
     const onEnd = () => finish();
     const onError = () => finish(new InputError(400, "invalid_request"));
-    const onAbort = () => { req.pause(); finish(new InputError(408, "request_timeout")); };
+    const onAbort = () => {
+      req.pause();
+      finish(signal.reason instanceof InputError ? signal.reason : new InputError(408, "request_timeout"));
+    };
     if (signal.aborted) { onAbort(); return; }
     req.on("data", onData); req.once("end", onEnd); req.once("error", onError);
     req.once("aborted", onAbort); signal.addEventListener("abort", onAbort, { once: true });
@@ -79,8 +91,13 @@ async function responseBody(response, signal) {
 export function createProviderRouter({
   handlers, enabled = false, publicOrigin = "https://cmcarebase.com",
   bodyTimeoutMs = 10_000, handlerTimeoutMs = 150_000, maxConcurrent = 16,
+  maxPendingBodies = 32,
 }) {
   const origin = new URL(publicOrigin).origin;
+  if (!Number.isSafeInteger(maxPendingBodies) || maxPendingBodies < 1) {
+    throw new Error("maxPendingBodies must be a positive safe integer");
+  }
+  const pendingBodies = new Map();
   let active = 0;
   return async (req, res, pathname) => {
     if (!pathname?.startsWith(PREFIX)) return false;
@@ -91,7 +108,6 @@ export function createProviderRouter({
     if (req.method !== "POST" && !(route.browser && req.method === "OPTIONS")) {
       fail(req, res, 405, "method_not_allowed"); return true;
     }
-    if (active >= maxConcurrent) { fail(req, res, 503, "provider_runtime_busy"); return true; }
     const length = req.headers["content-length"];
     if (length !== undefined && (!/^\d+$/.test(length) || Number(length) > route.bytes)) {
       fail(req, res, 413, "payload_too_large"); return true;
@@ -101,16 +117,28 @@ export function createProviderRouter({
     }
     const handler = handlers.get(name);
     if (!handler) { fail(req, res, 503, "provider_runtime_unavailable"); return true; }
-    active += 1;
     const controller = new AbortController();
+    // Slow uploads own bounded ingress capacity, never provider execution capacity.
+    // Shed the oldest incomplete body under pressure so stalled uploads cannot keep
+    // every new complete request outside the execution pool until their timeouts.
+    if (pendingBodies.size >= maxPendingBodies) {
+      const oldest = pendingBodies.keys().next().value;
+      pendingBodies.delete(oldest);
+      oldest.abort(new InputError(503, "provider_runtime_busy"));
+    }
+    pendingBodies.set(controller, true);
+    let executing = false;
     const disconnect = () => { if (!res.writableFinished) controller.abort(); };
     req.once("aborted", disconnect); res.once("close", disconnect);
     let timer = setTimeout(() => controller.abort(), bodyTimeoutMs);
     timer.unref?.();
     try {
-      const body = await readBody(req, route.bytes, controller.signal);
+      const body = await readBody(req, route.bytes, controller.signal, () => pendingBodies.delete(controller));
       clearTimeout(timer);
       controller.signal.throwIfAborted();
+      if (active >= maxConcurrent) throw new InputError(503, "provider_runtime_busy");
+      active += 1;
+      executing = true;
       const headers = new Headers();
       // Only headers consumed by these handlers cross the adapter. No cookies, proxy headers,
       // service credentials from arbitrary input, or hop-by-hop headers are forwarded.
@@ -153,7 +181,9 @@ export function createProviderRouter({
       fail(req, res, error instanceof InputError ? error.status : 502,
         error instanceof InputError ? error.code : "provider_request_failed");
     } finally {
-      clearTimeout(timer); active -= 1;
+      clearTimeout(timer);
+      pendingBodies.delete(controller);
+      if (executing) active -= 1;
       req.removeListener("aborted", disconnect); res.removeListener("close", disconnect);
     }
     return true;

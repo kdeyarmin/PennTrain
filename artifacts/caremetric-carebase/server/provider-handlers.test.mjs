@@ -191,28 +191,33 @@ test("billing still requires fresh server-verified MFA before reading profile or
 });
 
 test("cron uses the injected secret and retains durable duplicate-run behavior", async () => {
-  const calls = [];
-  const map = handlers({ createClient: (_url, key, options) => {
-    assert.equal(key, ENV.SUPABASE_SERVICE_ROLE_KEY);
-    assertServerClient(options);
-    return { rpc: async (name, args) => {
-      calls.push({ name, args });
-      return { data: { run_id: "run-1", should_execute: false }, error: null };
-    } };
-  } });
-  const handler = map.get("sync-billing-quantities");
-  assert.equal((await handler(request({}, { headers: { "x-caremetric-cron-secret": "wrong" } }))).status, 401);
-  assert.deepEqual(calls, []);
-  const response = await handler(request({}, { headers: {
-    "x-caremetric-cron-secret": ENV.CRON_SHARED_SECRET,
-    "x-correlation-id": "same-run", origin: "https://cmcarebase.com",
-  } }));
-  assert.equal(response.status, 200);
-  assert.equal((await response.json()).replayed, true);
-  assert.equal(response.headers.get("access-control-allow-origin"), null);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].name, "claim_system_job_execution");
-  assert.equal(calls[0].args.p_correlation_id, "same-run");
+  for (const existingStatus of ["succeeded", "running", undefined]) {
+    const calls = [];
+    const map = handlers({ createClient: (_url, key, options) => {
+      assert.equal(key, ENV.SUPABASE_SERVICE_ROLE_KEY);
+      assertServerClient(options);
+      return { rpc: async (name, args) => {
+        calls.push({ name, args });
+        return { data: { run_id: "run-1", should_execute: false, existing_status: existingStatus }, error: null };
+      } };
+    } });
+    const handler = map.get("sync-billing-quantities");
+    assert.equal((await handler(request({}, { headers: { "x-caremetric-cron-secret": "wrong" } }))).status, 401);
+    assert.deepEqual(calls, []);
+    const response = await handler(request({}, { headers: {
+      "x-caremetric-cron-secret": ENV.CRON_SHARED_SECRET,
+      "x-correlation-id": "same-run", origin: "https://cmcarebase.com",
+    } }));
+    assert.equal(response.status, existingStatus === "succeeded" ? 200 : 502);
+    const result = await response.json();
+    assert.equal(result.replayed, true);
+    assert.equal(result.success, existingStatus === "succeeded" ? true : undefined);
+    assert.equal(result.dispatchOutcome, existingStatus === "succeeded" ? undefined : "unknown");
+    assert.equal(response.headers.get("access-control-allow-origin"), null);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].name, "claim_system_job_execution");
+    assert.equal(calls[0].args.p_correlation_id, "same-run");
+  }
 });
 
 test("real Stripe signature and hash cover the exact streamed UTF-8 bytes", async () => {

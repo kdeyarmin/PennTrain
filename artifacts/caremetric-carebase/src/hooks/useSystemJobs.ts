@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
 export interface SystemJobStatus {
@@ -80,21 +81,76 @@ function useRefreshSystemJobs() {
   return () => queryClient.invalidateQueries({ queryKey: JOB_QUERY_KEY });
 }
 
+export class SystemJobDispatchRejectedError extends Error {
+  constructor() {
+    super("This billing dispatch was rejected before sending. Check the existing run and service configuration before trying again.");
+    this.name = "SystemJobDispatchRejectedError";
+  }
+}
+
+async function isConfirmedDispatchRejection(error: unknown): Promise<boolean> {
+  if (!(error instanceof FunctionsHttpError) || !(error.context instanceof Response)) return false;
+  const response = error.context;
+  if (response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json" || !response.body) return false;
+  const reader = response.body.getReader();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), 1000); }),
+      (async () => {
+        const decoder = new TextDecoder();
+        let text = "";
+        let bytes = 0;
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          bytes += chunk.value.byteLength;
+          if (bytes > 8192) return false;
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+        const value: unknown = JSON.parse(text + decoder.decode());
+        return typeof value === "object" && value !== null && !Array.isArray(value)
+          && "dispatchOutcome" in value && value.dispatchOutcome === "not_started";
+      })(),
+    ]);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+    void reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}
+
 export function useRunSystemJob() {
   const refresh = useRefreshSystemJobs();
   return useMutation({
+    // A lost dispatch response can still leave a running worker. Never repeat the mutation.
+    retry: false,
     mutationFn: async (input: { jobKey: string; reason: string; replayRunId?: string }) => {
-      const { data, error } = await supabase.functions.invoke("run-system-job", {
-        body: {
-          jobKey: input.jobKey,
-          reason: input.reason,
-          replayRunId: input.replayRunId,
-        },
-      });
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase.functions.invoke("run-system-job", {
+          body: {
+            jobKey: input.jobKey,
+            reason: input.reason,
+            replayRunId: input.replayRunId,
+          },
+        });
+        if (error) throw error;
+        if (input.jobKey === "billing-quantity-sync" && data?.success !== true) {
+          throw new Error("Billing dispatch was not confirmed");
+        }
+        return data;
+      } catch (error) {
+        if (input.jobKey === "billing-quantity-sync") {
+          if (await isConfirmedDispatchRejection(error)) throw new SystemJobDispatchRejectedError();
+          throw new Error("The billing run's outcome could not be confirmed. Refresh this page and check the existing run before trying again.");
+        }
+        throw error;
+      }
     },
-    onSuccess: refresh,
+    // A nonterminal dispatch error still created a durable run that the operator must see.
+    onSettled: refresh,
   });
 }
 

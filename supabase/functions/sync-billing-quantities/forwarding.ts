@@ -17,6 +17,8 @@ const ERROR_CODES = new Set([
   "billing_sync_not_configured",
   "invalid_json",
   "job_tracking_failed",
+  "job_finalization_unconfirmed",
+  "job_execution_unconfirmed",
   "subscription_read_failed",
   "subscription_item_read_failed",
   "billing_price_read_failed",
@@ -48,24 +50,25 @@ export interface BillingRuntimeDependencies {
 
 class BodyTooLarge extends Error {}
 
-function json(error: string, status: number): Response {
-  return new Response(JSON.stringify({ error }), {
-    status,
-    headers: RESPONSE_HEADERS,
-  });
-}
-
 function projectResult(
   value: Record<string, unknown>,
   req: Request,
   status: number,
 ): Record<string, unknown> {
   if (typeof value.success !== "boolean") {
-    return {
+    const result: Record<string, unknown> = {
       error: typeof value.error === "string" && ERROR_CODES.has(value.error)
         ? value.error
         : "billing_runtime_worker_failed",
     };
+    if (value.dispatchOutcome === "unknown") {
+      result.dispatchOutcome = "unknown";
+      if (typeof value.runId === "string" && UUID.test(value.runId)) result.runId = value.runId;
+      if (typeof value.correlationId === "string" && (
+        UUID.test(value.correlationId) || value.correlationId === req.headers.get("x-correlation-id")?.slice(0, 200)
+      )) result.correlationId = value.correlationId;
+    }
+    return result;
   }
   const result: Record<string, unknown> = {
     success: value.success && status === 200,
@@ -90,7 +93,7 @@ function projectResult(
   return result;
 }
 
-async function readBoundedBody(
+export async function readBoundedBody(
   message: Request | Response,
   maxBytes: number,
   signal: AbortSignal,
@@ -149,20 +152,48 @@ export function createBillingRuntimeHandler({
   timeoutMs = FORWARD_TIMEOUT_MS,
 }: BillingRuntimeDependencies): Handler {
   return async (req: Request): Promise<Response> => {
+    let correlationId = req.headers.get("x-correlation-id")?.slice(0, 200);
+    const requestId = req.headers.get("x-request-id") ?? "";
+    const manualRunId =
+      requestId.startsWith("manual:") && UUID.test(requestId.slice(7))
+        ? requestId.slice(7)
+        : undefined;
+    const fail = (
+      error: string,
+      status: number,
+      dispatchOutcome: "not_started" | "unknown" = "not_started",
+    ) =>
+      new Response(
+        JSON.stringify({
+          error,
+          dispatchOutcome,
+          ...(correlationId ? { correlationId } : {}),
+          ...(manualRunId ? { runId: manualRunId } : {}),
+        }),
+        { status, headers: RESPONSE_HEADERS },
+      );
     const runtime = getEnv("BILLING_RUNTIME");
     if (runtime === undefined || runtime === "supabase") {
       return await supabaseHandler(req);
     }
-    if (runtime !== "railway") return json("billing_runtime_invalid", 503);
+    if (runtime !== "railway") return fail("billing_runtime_invalid", 503);
 
     // The fixed production destination must never receive staging cron credentials.
     if (getEnv("SUPABASE_URL") !== PRODUCTION_SUPABASE_URL) {
-      return json("billing_runtime_project_mismatch", 503);
+      return fail("billing_runtime_project_mismatch", 503);
     }
     // Explicit empty fallback avoids requireCronRequest reading a different/global env.
     const cronSecret = getEnv("CRON_SHARED_SECRET") ?? "";
     const authError = requireCronRequest(req, RESPONSE_HEADERS, cronSecret);
-    if (authError) return authError;
+    if (authError) {
+      const code = authError.status === 401
+        ? "billing_runtime_unauthorized"
+        : authError.status === 405
+        ? "billing_runtime_method_not_allowed"
+        : "billing_runtime_cron_not_configured";
+      return fail(code, authError.status);
+    }
+    correlationId ||= crypto.randomUUID();
 
     const controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, req.signal]);
@@ -170,13 +201,14 @@ export function createBillingRuntimeHandler({
       ? Math.max(1, Math.min(timeoutMs, FORWARD_TIMEOUT_MS))
       : FORWARD_TIMEOUT_MS;
     const timer = setTimeout(() => controller.abort(), limit);
+    let dispatchAttempted = false;
     try {
       let body: Uint8Array<ArrayBuffer>;
       try {
         body = await readBoundedBody(req, MAX_REQUEST_BYTES, signal);
       } catch (error) {
         if (error instanceof BodyTooLarge) {
-          return json("payload_too_large", 413);
+          return fail("payload_too_large", 413);
         }
         throw error;
       }
@@ -184,12 +216,14 @@ export function createBillingRuntimeHandler({
       const headers = new Headers({
         "Content-Type": "application/json",
         "X-CareMetric-Cron-Secret": cronSecret,
+        "X-Correlation-Id": correlationId,
       });
-      for (const name of ["X-Correlation-Id", "X-Request-Id"]) {
+      for (const name of ["X-Request-Id"]) {
         const value = req.headers.get(name);
         if (value !== null) headers.set(name, value);
       }
       signal.throwIfAborted();
+      dispatchAttempted = true;
       const response = await fetcher(RAILWAY_SYNC_URL, {
         method: "POST",
         headers,
@@ -200,7 +234,7 @@ export function createBillingRuntimeHandler({
       // Also reject redirects from injected transports; never forward a Location header.
       if (response.status >= 300 && response.status < 400) {
         void response.body?.cancel().catch(() => {});
-        return json("billing_runtime_invalid_response", 502);
+        return fail("billing_runtime_invalid_response", 502, "unknown");
       }
       const responseBody = await readBoundedBody(
         response,
@@ -210,7 +244,7 @@ export function createBillingRuntimeHandler({
       const contentType = response.headers.get("content-type")?.split(";")[0]
         .trim().toLowerCase();
       if (contentType !== "application/json") {
-        return json("billing_runtime_invalid_response", 502);
+        return fail("billing_runtime_invalid_response", 502, "unknown");
       }
       let parsed: Record<string, unknown>;
       try {
@@ -220,18 +254,18 @@ export function createBillingRuntimeHandler({
         if (
           value === null || typeof value !== "object" || Array.isArray(value)
         ) {
-          return json("billing_runtime_invalid_response", 502);
+          return fail("billing_runtime_invalid_response", 502, "unknown");
         }
         parsed = value as Record<string, unknown>;
       } catch {
-        return json("billing_runtime_invalid_response", 502);
+        return fail("billing_runtime_invalid_response", 502, "unknown");
       }
       if (
         response.status === 200 &&
         (parsed.success !== true || typeof parsed.runId !== "string" ||
           !UUID.test(parsed.runId))
       ) {
-        return json("billing_runtime_invalid_response", 502);
+        return fail("billing_runtime_invalid_response", 502, "unknown");
       }
       const status =
         [200, 400, 401, 403, 405, 413, 429, 500, 502, 503, 504].includes(
@@ -246,11 +280,12 @@ export function createBillingRuntimeHandler({
     } catch {
       // A transport timeout does not prove the worker made no changes. Preserve its
       // correlation ID and durable result; never retry or execute the Supabase handler.
-      return json(
+      return fail(
         signal.aborted
           ? "billing_runtime_timeout"
           : "billing_runtime_unavailable",
         502,
+        dispatchAttempted ? "unknown" : "not_started",
       );
     } finally {
       clearTimeout(timer);

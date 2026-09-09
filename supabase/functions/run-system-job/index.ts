@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { dispatchBillingSystemJob } from "./billingDispatch.ts";
 
 const EDGE_JOBS: Record<
   string,
@@ -204,8 +205,9 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const queueCall = body.replayRunId
-    ? callerClient.rpc("replay_system_job_dead_letter", {
+    ? callerClient.rpc("replay_system_job_dead_letter_for_job", {
       p_run_id: body.replayRunId,
+      p_job_key: body.jobKey,
       p_reason: reason,
     })
     : callerClient.rpc("request_system_job_rerun", {
@@ -258,6 +260,33 @@ Deno.serve(async (req: Request) => {
       correlationId: queued.correlation_id,
       result: data,
     });
+  }
+
+  if (edgeTarget.functionName === "sync-billing-quantities") {
+    const dispatched = await dispatchBillingSystemJob({
+      url: `${supabaseUrl}/functions/v1/${edgeTarget.functionName}`,
+      cronSecret: cronSecret ?? "",
+      runId: queued.run_id,
+      correlationId: queued.correlation_id,
+      body: edgeTarget.body,
+      signal: req.signal,
+      // This matches the queue-creation branch above. The replay RPC can return
+      // an existing canonical run, which this dispatch must never finalize.
+      finishRejectedNewRun: body.replayRunId ? undefined : async () => {
+        const { error } = await adminClient.rpc("finish_system_job", {
+          p_run_id: queued.run_id,
+          p_status: "failed",
+          p_attempted_count: 0,
+          p_succeeded_count: 0,
+          p_failed_count: 1,
+          p_result: { dispatchStarted: false },
+          p_error_code: "manual_dispatch_not_started",
+          p_error_message: "The new billing job was rejected before execution",
+        });
+        return { error };
+      },
+    });
+    return json(req, dispatched.body, dispatched.status);
   }
 
   if (!cronSecret) {
