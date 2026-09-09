@@ -119,6 +119,18 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    "/reset-password"` (not `/login`), and Supabase Auth silently falls back to the bare Site URL --
    no error shown anywhere -- when `redirect_to` isn't an allowlisted match, which strands the user on
    the marketing/login page instead of the password-set form after they click a legitimate reset link.
+   The trusted successful push-CI deployment now reconciles these two nonsecret Auth URL fields
+   for CM Train (`xsqobvvreaovwibxwyvv`) with `scripts/reconcile-production-auth-urls.mjs --apply`.
+   It sets the canonical Site URL and appends the exact production root and `/reset-password`
+   redirects, preserving the existing allowlist text and every other Auth setting. It adds no
+   wildcards, changes no MFA/provider configuration, and makes no credential copies. Manual
+   dispatches, nightly runs and dry runs do not apply this repair. The script is read-only by
+   default; successful push-CI runs reconcile even when the backend deployment is a no-op, so
+   a prior manual backend stamp cannot suppress a missing Auth URL repair. It
+   refuses any other project. An independent readback must match before the deploy
+   can be recorded successful. Do not edit Auth URLs concurrently with this step: the API has
+   no documented atomic compare-and-set; detected concurrent changes abort, uncertain writes
+   are reported without retry, and no automatic rollback overwrites later operator edits.
 6. **Route Supabase Auth's own mail through SendGrid too.** Step 4 above wires SendGrid
    into both application notification mail and the `send-auth-email` Edge Function, but the
    Supabase Auth dashboard hook must be enabled so password-reset, invite, email-change,
