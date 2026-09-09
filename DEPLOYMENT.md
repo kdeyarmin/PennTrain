@@ -660,7 +660,7 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 
 ## 8. Verifying the deployment
 
-Every successful trusted production deployment (including no-op and nightly checks) now produces an `integration-readiness-<SHA>` artifact and job summary. It reports only allowlisted Supabase Edge secret-name presence and selected Auth configuration booleans. It never outputs secret values or digests, never sends a message or changes provider settings, and cannot block a deployment. Missing API access is reported as unknown. Names being present is not proof that credentials are valid or that delivery works; the report excludes the separately configured frontend, voice gateway and tenant integration credentials.
+Every successful trusted production deployment (including no-op and nightly checks) now produces an `integration-readiness-<SHA>` artifact, job summary and job-log table. The log table is exactly the same sanitized Markdown, so operators can read it even when artifact ZIP downloads are unavailable. It reports only allowlisted Supabase Edge secret-name presence and selected Auth configuration booleans. It never outputs secret values or digests, never sends a message or changes provider settings, and cannot block a deployment. Missing API access is reported as unknown. Names being present is not proof that credentials are valid or that delivery works; the report excludes the separately configured frontend, voice gateway and tenant integration credentials.
 
 ```bash
 curl -s https://cmcarebase.com/health | jq

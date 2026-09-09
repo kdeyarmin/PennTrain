@@ -209,6 +209,12 @@ test("CLI artifacts, summary and console output never include private sentinels"
   assertPrivate(writes);
   assertPrivate(logs);
   assert.equal(JSON.parse(writes[0][1]).liveDeliveryVerified, false);
+  assert.equal(logs[0], writes[1][1], "Job logs must contain exactly the sanitized Markdown artifact");
+  assert.match(logs[0], /\| TWILIO_ACCOUNT_SID \| Yes \|/);
+  assert.match(logs[0], /\| TWILIO_VERIFY_SERVICE_SID \| No \|/);
+  assert.match(logs[0], /\| STRIPE_BILLING_PORTAL_CONFIGURATION_ID \| Yes \|/);
+  assert.match(logs[0], /\| Send Email hook is enabled \| Yes \|/);
+  assert.match(logs[0], /\| Supabase native phone MFA enrollment is enabled \| No \|/);
 });
 
 test("CLI produces an incomplete artifact for unavailable observations and a distinct exit code", async () => {
