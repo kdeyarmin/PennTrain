@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { CourseBlock } from "@/hooks/useCourses";
+import { edgeFunctionError } from "@/lib/edgeFunctionErrors";
 
 export interface HeygenAvatar {
   id: string;
@@ -11,6 +12,7 @@ export interface HeygenAvatar {
   avatar_type?: string | null;
   group_name?: string | null;
   is_ai_twin?: boolean;
+  default_voice_id?: string | null;
 }
 
 export interface HeygenVoice {
@@ -42,31 +44,37 @@ export function useListHeygenOptions(enabled: boolean) {
 }
 
 export interface GenerateCourseVideoPayload {
+  requestId: string;
   courseBlockId: string;
   avatarId: string;
   voiceId: string;
   script: string;
   title?: string;
+  replaceExisting?: boolean;
+  expectedVideoUrl?: string | null;
 }
 
 export function useGenerateCourseVideo() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ courseBlockId, avatarId, voiceId, script, title }: GenerateCourseVideoPayload) => {
+    mutationFn: async ({ requestId, courseBlockId, avatarId, voiceId, script, title, replaceExisting, expectedVideoUrl }: GenerateCourseVideoPayload) => {
       const { data, error } = await supabase.functions.invoke<{ success?: boolean; video_id?: string; status?: string; error?: string }>(
         "generate-course-video",
-        { body: { course_block_id: courseBlockId, avatar_id: avatarId, voice_id: voiceId, script, title } },
+        { body: { request_id: requestId, course_block_id: courseBlockId, avatar_id: avatarId, voice_id: voiceId, script, title,
+          replace_existing: replaceExisting === true, expected_video_url: expectedVideoUrl ?? null } },
       );
-      if (error) throw error;
+      if (error) throw await edgeFunctionError(error) ?? error;
       if (!data || data.success === false) throw new Error(data?.error ?? "Failed to start video generation");
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course_blocks"] }),
+    // Ambiguous submissions still create a durable pending attempt; show its state even when
+    // the provider HTTP response is lost. The next click retains the same request identity.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["course_blocks"] }),
   });
 }
 
 export interface CheckCourseVideoStatusResult {
-  status: "pending" | "processing" | "completed" | "failed";
+  status: "pending" | "processing" | "completed" | "failed" | "submitting" | "unknown" | "reconciliation_required";
   video_url?: string;
   error?: string;
 }
@@ -78,7 +86,7 @@ export function useCheckCourseVideoStatus() {
       const { data, error } = await supabase.functions.invoke<
         { success?: boolean; status?: string; video_url?: string; error?: string }
       >("check-course-video-status", { body: { course_block_id: courseBlockId } });
-      if (error) throw error;
+      if (error) throw await edgeFunctionError(error) ?? error;
       if (!data || data.success === false) throw new Error(data?.error ?? "Failed to check video status");
       return { status: data.status as CheckCourseVideoStatusResult["status"], video_url: data.video_url, error: data.error };
     },

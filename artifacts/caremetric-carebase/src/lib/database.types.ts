@@ -36821,6 +36821,16 @@ export type Database = {
           run_id: string
         }[]
       }
+      claim_course_video_generation: {
+        Args: {
+          p_block_id: string
+          p_expected_video_url?: string
+          p_payload: Json
+          p_replace_existing?: boolean
+          p_request_id: string
+        }
+        Returns: Json
+      }
       claim_credential_renewal_submissions: {
         Args: { p_limit?: number }
         Returns: {
@@ -38251,6 +38261,16 @@ export type Database = {
           p_run_id: string
         }
         Returns: boolean
+      }
+      finish_course_video_submission: {
+        Args: {
+          p_attempt_id: string
+          p_error?: string
+          p_lease_id: string
+          p_outcome: string
+          p_video_id?: string
+        }
+        Returns: Json
       }
       finish_document_analyzer_job: {
         Args: {
@@ -41322,6 +41342,18 @@ export type Database = {
           p_reason: string
         }
         Returns: number
+      }
+      resolve_course_video_generation: {
+        Args: {
+          p_attempt_id: string
+          p_block_id: string
+          p_error?: string
+          p_expected_source: Json
+          p_status: string
+          p_video_id: string
+          p_video_url?: string
+        }
+        Returns: Json
       }
       resolve_fhir_integration_exception: {
         Args: {

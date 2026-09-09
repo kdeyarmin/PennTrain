@@ -32,6 +32,10 @@ const BATCH_SIZE = 50;
 interface PollableCourseBlock {
   id: string;
   organization_id: string | null;
+  course_version_id: string;
+  block_type: string;
+  title: string | null;
+  video_url: string | null;
   body: (Record<string, unknown> & { heygen?: HeygenJobState }) | null;
 }
 
@@ -111,7 +115,7 @@ Deno.serve(async (req: Request) => {
   // NULL, not true, so those rows never match.
   const { data: pending, error: fetchError } = await adminClient
     .from("course_blocks")
-    .select("id, organization_id, body")
+    .select("id, organization_id, course_version_id, block_type, title, body, video_url")
     .eq("block_type", "video")
     .not("body->heygen->>status", "in", "(completed,failed)")
     .limit(BATCH_SIZE);
@@ -153,10 +157,8 @@ Deno.serve(async (req: Request) => {
     try {
       const result = await pollAndResolveHeygenVideo(
         adminClient,
-        adminClient,
         block,
         heygenApiKey,
-        true,
       );
       let outcome = result.status;
       // Age out permanently-stalled jobs: a deleted/expired video_id errors on every poll, and an
@@ -170,16 +172,16 @@ Deno.serve(async (req: Request) => {
         outcome !== "completed" && outcome !== "failed" && outcome !== "no_job" &&
         isHeygenJobAgedOut(block.body?.heygen)
       ) {
-        outcome = (await failAgedOutHeygenJob(adminClient, block, true)).status;
+        outcome = (await failAgedOutHeygenJob(adminClient, block)).status;
       }
       if (outcome === "completed") completed++;
-      else if (outcome === "failed" || outcome === "error") failed++;
+      else if (outcome === "failed" || outcome === "error" || outcome === "stale") failed++;
       else stillProcessing++;
     } catch {
       // A thrown poll (network-level failure) also writes nothing; age out here too so a
       // permanently unreachable job still terminates once it exceeds the render window.
       if (isHeygenJobAgedOut(block.body?.heygen)) {
-        await failAgedOutHeygenJob(adminClient, block, true).catch(() => {});
+        await failAgedOutHeygenJob(adminClient, block).catch(() => {});
       }
       failed++;
     }

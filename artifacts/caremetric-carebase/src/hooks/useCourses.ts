@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import { cloneCourseVideoBody } from "@/lib/courseVideoGeneration";
 
 export type Course = Tables<"courses">;
 export type CourseInsert = TablesInsert<"courses">;
@@ -254,7 +255,7 @@ export function useCloneCourseVersion() {
           organization_id: b.organization_id,
           block_type: b.block_type,
           title: b.title,
-          body: b.body,
+          body: b.block_type === "video" ? cloneCourseVideoBody(b.body) : b.body,
           video_url: b.video_url,
           document_id: b.document_id,
           sort_order: b.sort_order,

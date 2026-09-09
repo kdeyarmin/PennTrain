@@ -1,0 +1,184 @@
+import type { createClient as SupabaseCreateClient } from "jsr:@supabase/supabase-js@2.48.1";
+import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import {
+  parsePhase2ApiCredential,
+  phase2CommandContract,
+  phase2IntegrationHeaders,
+  phase2IntegrationSha256,
+} from "../_shared/phase2Integration.ts";
+import { mapFhirBundle } from "../_shared/fhirMapping.ts";
+import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
+
+// fhir.bundle.import is a registered per-command contract: the versioned command inbox requires
+// its submissions to carry the command's registered schema version, not the global baseline.
+const FHIR_BUNDLE_CONTRACT = phase2CommandContract("fhir.bundle.import");
+
+// FHIR R4 ingestion endpoint. Accepts a FHIR Bundle (or single resource), maps the supported
+// medication resources into normalized records, and submits them through the existing versioned
+// command inbox (fhir.bundle.import). Read-only boundary: CareBase never writes back to the
+// source. Mirrors integration-api's credential auth, rate limiting, and command envelope.
+
+const MAX_BODY_BYTES = 512 * 1024;
+
+function response(
+  req: Request,
+  body: unknown,
+  status: number,
+  correlationId: string,
+  rate?: { limit: number; remaining: number; resetAt: string },
+): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeadersForRequest(req, { headers: "authorization, content-type, idempotency-key, x-correlation-id, x-request-id, x-fhir-source-id", methods: "POST, OPTIONS" }), ...phase2IntegrationHeaders(correlationId, rate) },
+  });
+}
+
+export function createFhirIngestHandler({
+  createClient,
+  getEnv = (name: string) => Deno.env.get(name),
+}: {
+  createClient: typeof SupabaseCreateClient;
+  getEnv?: (name: string) => string | undefined;
+}) {
+  return async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") return corsPreflightResponse(req, { headers: "authorization, content-type, idempotency-key, x-correlation-id, x-request-id, x-fhir-source-id", methods: "POST, OPTIONS" });
+  const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
+  const url = new URL(req.url);
+  if (!url.pathname.endsWith("/v1/fhir/bundle") || req.method !== "POST") {
+    return response(req, { error: { code: "route_not_found" }, meta: { correlationId } }, 404, correlationId);
+  }
+
+  const plaintextKey = parsePhase2ApiCredential(req.headers.get("authorization"));
+  if (!plaintextKey) {
+    return response(req, { error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
+  }
+  const supabaseUrl = getEnv("SUPABASE_URL");
+  const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) {
+    return response(req, { error: { code: "service_not_configured" }, meta: { correlationId } }, 503, correlationId);
+  }
+  const admin = createClient(supabaseUrl, serviceRoleKey);
+  const { data: authRows, error: authError } = await admin.rpc("authenticate_integration_api_credential", {
+    p_secret_sha256: await phase2IntegrationSha256(plaintextKey),
+    p_required_scope: "commands:write",
+    p_correlation_id: correlationId,
+  });
+  // A failed authenticate RPC is a service fault, not a dead credential: answering 401 makes
+  // partner clients treat a healthy key as revoked (and page someone) whenever the DB hiccups.
+  // 503 tells them to retry; 401 stays reserved for a credential the RPC actually rejected.
+  if (authError) {
+    return response(req, { error: { code: "authentication_unavailable" }, meta: { correlationId } }, 503, correlationId);
+  }
+  const credential = Array.isArray(authRows) ? authRows[0] : authRows;
+  if (!credential) {
+    return response(req, { error: { code: "unauthorized" }, meta: { correlationId } }, 401, correlationId);
+  }
+  const { data: rateRows, error: rateError } = await admin.rpc("consume_integration_rate_limit", {
+    p_credential_id: credential.credential_id,
+    p_cost: 1,
+  });
+  const rateRow = Array.isArray(rateRows) ? rateRows[0] : rateRows;
+  if (rateError || !rateRow) {
+    return response(req, { error: { code: "rate_limit_unavailable" }, meta: { correlationId } }, 503, correlationId);
+  }
+  const rate = {
+    limit: credential.rate_limit_per_minute as number,
+    remaining: rateRow.remaining as number,
+    resetAt: rateRow.reset_at as string,
+  };
+  if (!rateRow.allowed) {
+    return response(req, { error: { code: "rate_limit_exceeded" }, meta: { correlationId } }, 429, correlationId, rate);
+  }
+
+  const sourceId = req.headers.get("x-fhir-source-id") ?? url.searchParams.get("source_id") ?? "";
+  if (!/^[0-9a-f-]{36}$/i.test(sourceId)) {
+    return response(req, { error: { code: "missing_source_id" }, meta: { correlationId } }, 400, correlationId, rate);
+  }
+  const idempotencyKey = req.headers.get("idempotency-key") ?? "";
+  if (idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+    return response(req, { error: { code: "invalid_idempotency_key" }, meta: { correlationId } }, 400, correlationId, rate);
+  }
+
+  let rawBody: string;
+  try {
+    rawBody = await readTextBody(req, MAX_BODY_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return response(req, { error: { code: "payload_too_large" }, meta: { correlationId } }, 413, correlationId, rate);
+    }
+    throw error;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    return response(req, { error: { code: "invalid_json" }, meta: { correlationId } }, 400, correlationId, rate);
+  }
+  // Valid JSON may still be null, an array or a scalar rather than a FHIR resource.
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return response(req, { error: { code: "invalid_fhir_resource" }, meta: { correlationId } }, 400, correlationId, rate);
+  }
+  const bundle = parsed as Record<string, unknown>;
+  if (typeof bundle.resourceType !== "string") {
+    return response(req, { error: { code: "invalid_fhir_resource" }, meta: { correlationId } }, 400, correlationId, rate);
+  }
+
+  const mapped = mapFhirBundle(bundle, new Date().toISOString());
+  const supportedCount = mapped.medicationRequests.length + mapped.medicationAdministrations.length +
+    mapped.allergies.length + mapped.conditions.length + mapped.serviceRequests.length +
+    mapped.documentReferences.length;
+  if (supportedCount === 0) {
+    return response(req, {
+      error: { code: "no_supported_resources" },
+      meta: { correlationId, unsupported: mapped.unsupported },
+    }, 422, correlationId, rate);
+  }
+
+  const payload = {
+    sourceId,
+    medicationRequests: mapped.medicationRequests,
+    medicationAdministrations: mapped.medicationAdministrations,
+    allergies: mapped.allergies,
+    conditions: mapped.conditions,
+    serviceRequests: mapped.serviceRequests,
+    documentReferences: mapped.documentReferences,
+  };
+  const { data: commandRows, error: commandError } = await admin.rpc("accept_integration_command", {
+    p_credential_id: credential.credential_id,
+    p_idempotency_key: idempotencyKey,
+    // Bind the request fingerprint to the target source too: one credential can serve multiple
+    // FHIR sources, so the same Bundle body replayed for a different x-fhir-source-id must not
+    // collide with the first source's command (sourceId comes from the header, not rawBody).
+    p_request_sha256: await phase2IntegrationSha256(`${sourceId}\n${rawBody}`),
+    p_command_type: "fhir.bundle.import",
+    p_schema_version: FHIR_BUNDLE_CONTRACT.schemaVersion,
+    p_payload: payload,
+    p_correlation_id: correlationId,
+  });
+  if (commandError) {
+    const conflict = commandError.code === "23505";
+    return response(req, {
+      error: { code: conflict ? "idempotency_conflict" : "command_rejected" },
+      meta: { schemaVersion: FHIR_BUNDLE_CONTRACT.schemaVersion, correlationId },
+    }, conflict ? 409 : 422, correlationId, rate);
+  }
+  const command = Array.isArray(commandRows) ? commandRows[0] : commandRows;
+  return response(req, {
+    data: {
+      commandId: command.command_id,
+      status: command.command_status,
+      duplicate: command.was_duplicate,
+      mapped: {
+        medicationRequests: mapped.medicationRequests.length,
+        medicationAdministrations: mapped.medicationAdministrations.length,
+        allergies: mapped.allergies.length,
+        conditions: mapped.conditions.length,
+        serviceRequests: mapped.serviceRequests.length,
+        documentReferences: mapped.documentReferences.length,
+        unsupported: mapped.unsupported.length,
+      },
+    },
+    meta: { schemaVersion: FHIR_BUNDLE_CONTRACT.schemaVersion, correlationId: command.correlation_id },
+  }, command.was_duplicate ? 200 : 202, correlationId, rate);
+  };
+}

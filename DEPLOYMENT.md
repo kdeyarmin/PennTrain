@@ -61,6 +61,9 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
      NOTIFICATION_FROM_EMAIL='CareMetric CareBase <notifications@cmcarebase.com>' \
      SEND_EMAIL_HOOK_SECRET='v1,whsec_...' \
      TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_FROM_NUMBER=... \
+     TWILIO_VERIFY_SERVICE_SID=... \
+     STRIPE_SECRET_KEY=... STRIPE_BILLING_WEBHOOK_SECRET=... \
+     STRIPE_BILLING_PORTAL_CONFIGURATION_ID=... \
      WEB_PUSH_VAPID_PUBLIC_KEY=... WEB_PUSH_VAPID_PRIVATE_KEY=... \
      WEB_PUSH_VAPID_SUBJECT='mailto:security@cmcarebase.com' \
      CRON_SHARED_SECRET=... \
@@ -92,11 +95,18 @@ Browser  --https-->  Supabase (Postgres + RLS, Auth, Storage, Edge Functions)
    `SEND_EMAIL_HOOK_SECRET` must match the Supabase Auth Send Email hook signing secret.
    Local-only `supabase/config.toml` hook tests require the same secret base64-encoded as
    `SEND_EMAIL_HOOK_SECRET_BASE64`, because the CLI config field expects base64 hook secrets.
-   The `TWILIO_*` trio is only for SMS; each channel is skipped (not failed) if its credentials
+   `TWILIO_VERIFY_SERVICE_SID` is the separate `VA...` service for SMS MFA; it is not a notification
+   sender or the paid Supabase Phone MFA add-on. The notification `TWILIO_*` trio is only for SMS;
+   each notification channel is skipped (not failed) if its credentials
    aren't set, so SMS can be added later without breaking email. Create the SendGrid API key with **Mail Send** scope only,
    and verify the `NOTIFICATION_FROM_EMAIL` sender identity (Single Sender Verification or a
    verified domain) in the SendGrid dashboard first -- SendGrid rejects sends from an unverified
    `from` address.
+   The Stripe key, webhook signing secret and PennTrain-specific portal configuration must belong
+   to the account owning the launch prices. Production uses `acct_19pJ0MCEZXcVOdjd`; see
+   `BILLING_MODEL.md` for the four mappings and launch verification order. Configure and verify
+   the dedicated webhook before enabling Checkout. Manage billing requires an explicit `bpc_...`
+   portal configuration so another application's default configuration is never selected.
    Generate one VAPID key pair for each environment and keep the private key only in Supabase
    Edge Function secrets. `push-subscriptions` returns the public key to authenticated browsers;
    `dispatch-notifications` uses the same pair to sign provider requests. Rotating the pair
@@ -650,6 +660,8 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 
 ## 8. Verifying the deployment
 
+Every successful trusted production deployment (including no-op and nightly checks) now produces an `integration-readiness-<SHA>` artifact and job summary. It reports only allowlisted Supabase Edge secret-name presence and selected Auth configuration booleans. It never outputs secret values or digests, never sends a message or changes provider settings, and cannot block a deployment. Missing API access is reported as unknown. Names being present is not proof that credentials are valid or that delivery works; the report excludes the separately configured frontend, voice gateway and tenant integration credentials.
+
 ```bash
 curl -s https://cmcarebase.com/health | jq
 ```
@@ -706,4 +718,4 @@ Deployment-setting verification on 2026-09-08 (BACKLOG K11):
 - `SENDGRID_API_KEY` must be set via `supabase secrets set` (step 1.4) for the training-reminder
   emails `dispatch-notifications` sends to actually go out -- without it, those deliveries are
   logged as `skipped` rather than failing loudly. Routing Supabase Auth's own password-reset/
-  email-change mail through SendGrid too (step 1.6) is a separate, optional dashboard setting.
+  email-change mail through SendGrid too requires the hosted Send Email hook and matching signing configuration in step 1.6; setting the Edge Function key alone does not change Auth delivery.

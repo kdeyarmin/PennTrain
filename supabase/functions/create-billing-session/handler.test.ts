@@ -6,6 +6,7 @@ const ENV = {
   SUPABASE_ANON_KEY: "anon",
   SUPABASE_SERVICE_ROLE_KEY: "service",
   STRIPE_SECRET_KEY: "sk_test",
+  STRIPE_BILLING_WEBHOOK_SECRET: "whsec_test",
   BILLING_RETURN_URL_ORIGINS: "https://app.caremetric.test",
 };
 
@@ -34,6 +35,60 @@ function chain(result: unknown) {
   return api;
 }
 
+Deno.test("create-billing-session stops checkout and portal when customer lookup fails", async () => {
+  for (const action of ["checkout", "portal"] as const) {
+    let stripeCalls = 0;
+    const handler = createCreateBillingSessionHandler({
+      createClient: () => ({
+        auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
+        rpc: async () => ({ data: true, error: null }),
+        from: (table: string) => {
+          if (table === "profiles") return chain({
+            data: {
+              id: "user-1",
+              email: "admin@example.test",
+              role: "org_admin",
+              organization_id: "22222222-2222-4222-8222-222222222222",
+              is_active: true,
+            },
+            error: null,
+          });
+          if (table === "billing_accounts") return chain({
+            data: null,
+            error: { code: "57014", message: "statement timeout" },
+          });
+          if (table === "package_billing_prices") return chain({
+            data: {
+              stripe_price_id: "price_flat_carebase",
+              billing_metric: "flat",
+              pricing_model: "flat",
+              packages: { trial_days: 0 },
+            },
+            error: null,
+          });
+          if (table === "organizations") return chain({ data: { trial_ends_at: null }, error: null });
+          return chain({ data: null, error: null });
+        },
+      }),
+      stripePost: async () => {
+        stripeCalls += 1;
+        return { ok: true, status: 200, data: { id: "cs_1", url: "https://checkout.stripe.test/session" } };
+      },
+      getEnv: (name) => ENV[name as keyof typeof ENV],
+    });
+    const response = await handler(baseRequest({
+      action,
+      packageId: "33333333-3333-4333-8333-333333333333",
+      successUrl: "https://app.caremetric.test/app/billing?billing=success",
+      cancelUrl: "https://app.caremetric.test/app/billing?billing=cancelled",
+      returnUrl: "https://app.caremetric.test/app/billing",
+    }));
+    assertEquals(response.status, 503, action);
+    assertEquals((await response.json()).error.code, "billing_state_unavailable", action);
+    assertEquals(stripeCalls, 0, action);
+  }
+});
+
 Deno.test("create-billing-session rejects unauthenticated and non-POST traffic", async () => {
   const handler = createCreateBillingSessionHandler({
     createClient: () => {
@@ -47,6 +102,94 @@ Deno.test("create-billing-session rejects unauthenticated and non-POST traffic",
     (await handler(new Request("https://example.test", { method: "POST", body: "{}" }))).status,
     401,
   );
+});
+
+Deno.test("create-billing-session requires its own server-configured Stripe portal", async () => {
+  for (const configuration of [undefined, "", "invalid", " bpc_penntrainconfigured "]) {
+    const stripeCalls: Array<Record<string, unknown>> = [];
+    const handler = createCreateBillingSessionHandler({
+      createClient: () => ({
+        auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
+        rpc: async () => ({ data: true, error: null }),
+        from: (table: string) => table === "profiles"
+          ? chain({ data: {
+            id: "user-1", role: "org_admin", is_active: true,
+            organization_id: "22222222-2222-4222-8222-222222222222",
+          }, error: null })
+          : table === "billing_accounts"
+          ? chain({ data: { id: "ba-1", stripe_customer_id: "cus_existing" }, error: null })
+          : chain({ data: null, error: null }),
+      }),
+      stripePost: async (_path, _secret, values) => {
+        stripeCalls.push(values);
+        return { ok: true, status: 200, data: { id: "bps_1", url: "https://billing.stripe.test/session" } };
+      },
+      getEnv: (name) => name === "STRIPE_BILLING_PORTAL_CONFIGURATION_ID"
+        ? configuration
+        : name === "STRIPE_BILLING_WEBHOOK_SECRET"
+        ? undefined // Existing customers can manage billing during webhook setup repair.
+        : ENV[name as keyof typeof ENV],
+    });
+    const response = await handler(baseRequest({
+      action: "portal",
+      returnUrl: "https://app.caremetric.test/app/billing",
+      // Browser input must not select another application's portal settings.
+      configuration: "bpc_otherapp",
+    }));
+    if (configuration?.trim() === "bpc_penntrainconfigured") {
+      assertEquals(response.status, 200);
+      assertEquals(stripeCalls, [{
+        customer: "cus_existing",
+        return_url: "https://app.caremetric.test/app/billing",
+        configuration: "bpc_penntrainconfigured",
+      }]);
+    } else {
+      assertEquals(response.status, 503);
+      assertEquals((await response.json()).error.code, "billing_not_configured");
+      assertEquals(stripeCalls.length, 0);
+    }
+  }
+});
+
+Deno.test("create-billing-session refuses new checkout without webhook reconciliation configured", async () => {
+  for (const webhookSecret of [undefined, "", "  ", "whsec_configured"]) {
+    let stripeCalls = 0;
+    const handler = createCreateBillingSessionHandler({
+      createClient: () => ({
+        auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
+        rpc: async () => ({ data: true, error: null }),
+        from: (table: string) => {
+          if (table === "profiles") return chain({ data: {
+            id: "user-1", role: "org_admin", is_active: true,
+            organization_id: "22222222-2222-4222-8222-222222222222",
+          }, error: null });
+          if (table === "package_billing_prices") return chain({ data: {
+            stripe_price_id: "price_flat_carebase", billing_metric: "flat",
+            pricing_model: "flat", packages: { trial_days: 0 },
+          }, error: null });
+          if (table === "organizations") return chain({ data: { trial_ends_at: null }, error: null });
+          return chain({ data: null, error: null });
+        },
+      }),
+      stripePost: async () => {
+        stripeCalls += 1;
+        return { ok: true, status: 200, data: { id: "cs_new", url: "https://checkout.stripe.test/session" } };
+      },
+      getEnv: (name) => name === "STRIPE_BILLING_WEBHOOK_SECRET"
+        ? webhookSecret
+        : ENV[name as keyof typeof ENV],
+    });
+    const response = await handler(baseRequest({
+      // The default action is checkout and must be protected too.
+      packageId: "33333333-3333-4333-8333-333333333333",
+      successUrl: "https://app.caremetric.test/app/billing?billing=success",
+      cancelUrl: "https://app.caremetric.test/app/billing?billing=cancelled",
+      webhookSecret: "whsec_browser_cannot_configure_server",
+    }));
+    assertEquals(response.status, webhookSecret?.trim() ? 200 : 503);
+    assertEquals(stripeCalls, webhookSecret?.trim() ? 1 : 0);
+    if (!webhookSecret?.trim()) assertEquals((await response.json()).error.code, "billing_not_configured");
+  }
 });
 
 Deno.test("create-billing-session requires current identity assurance before checkout", async () => {
@@ -516,4 +659,3 @@ Deno.test("create-billing-session honors PUBLIC_APP_URL when billing origins are
   assertEquals(response.status, 200);
   assertEquals((await response.json()).data.sessionId, "cs_test_public");
 });
-

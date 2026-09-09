@@ -133,6 +133,8 @@ export function ContentBlocksCard({
                         if (job.status === "failed") {
                           return <p className="text-xs text-destructive mt-1">AI generation failed: {job.error ?? "unknown error"}</p>;
                         }
+                        if (job.status === "reconciliation_required") return <p className="text-xs text-destructive mt-1">Submission unconfirmed. Contact support before starting another render.</p>;
+                        if (job.status === "unknown" || job.status === "submitting") return <p className="text-xs text-muted-foreground mt-1">Confirming video submission. Retry Generate after 45 seconds to resume the same request.</p>;
                         return <p className="text-xs text-muted-foreground mt-1 italic">AI avatar video generating…</p>;
                       })()}
                     </>

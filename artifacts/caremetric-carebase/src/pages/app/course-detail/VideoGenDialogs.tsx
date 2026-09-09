@@ -23,6 +23,7 @@ export function VideoGenDialog({
   heygenOptionsLoading,
   onGenerate,
   generatingVideo,
+  replacingVideo,
   fieldIds,
 }: {
   open: boolean;
@@ -34,6 +35,7 @@ export function VideoGenDialog({
   heygenOptionsLoading: boolean;
   onGenerate: () => void;
   generatingVideo: boolean;
+  replacingVideo: boolean;
   fieldIds: string;
 }) {
   return (
@@ -45,6 +47,7 @@ export function VideoGenDialog({
             Generates a talking-avatar video from a script. If your HeyGen account has an AI Twin, it is sorted first
             and preselected so high-quality course videos can be created with one click.
           </p>
+          {replacingVideo && <p className="text-xs text-muted-foreground">The current video stays available until its replacement finishes successfully.</p>}
           <div className="space-y-1">
             <Label htmlFor={`${fieldIds}-avatar`}>Avatar *</Label>
             <Select value={videoGenForm.avatarId} onValueChange={v => setVideoGenForm(f => ({ ...f, avatarId: v }))} disabled={heygenOptionsLoading}>
@@ -79,7 +82,7 @@ export function VideoGenDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button onClick={onGenerate} disabled={generatingVideo}>{generatingVideo ? "Starting..." : "Generate Video"}</Button>
+          <Button onClick={onGenerate} disabled={generatingVideo}>{generatingVideo ? "Starting..." : replacingVideo ? "Replace Video" : "Generate Video"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -88,6 +91,7 @@ export function VideoGenDialog({
 
 const BULK_STATUS_META: Record<BulkVideoGenStatus, { label: string; className: string }> = {
   queued: { label: "Queued", className: "bg-secondary text-secondary-foreground" },
+  confirming: { label: "Confirming submission", className: "bg-warning/10 text-warning" },
   processing: { label: "Processing", className: "bg-info text-info-foreground" },
   completed: { label: "Completed", className: "bg-success text-success-foreground" },
   failed: { label: "Failed", className: "bg-destructive text-destructive-foreground" },
