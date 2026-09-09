@@ -2,7 +2,7 @@
 -- real receipt processor and entitlement resolver, including rejected and stale
 -- deliveries, rather than updating local package rows as a test substitute.
 begin;
-select plan(369);
+select plan(383);
 
 insert into public.feature_definitions (feature_key, display_name, value_type, default_value)
 values ('portal.care_access', 'Portal plan test care access', 'boolean', 'false'::jsonb);
@@ -1399,6 +1399,63 @@ select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.pro
   'a terminal row without authoritative items cannot restamp its earlier copied higher package over the current independent comp');
 select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000040', clock_timestamp())
   where feature_key = 'portal.care_access'), false, 'repeated terminal receipts cannot launder copied package history into higher comped access');
+
+-- Retain quantity constraint semantics separately from account access expiry.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('eaff0000-0000-4000-8000-000000000301', 'Portal sibling seat receipts', 'portal-sibling-seat-receipts', 'trial', 'eaff0000-0000-4000-8000-000000000001');
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeatSiblingAInitial', 1,
+  'eaff0000-0000-4000-8000-000000000301')), 'seat sibling A starts with seven authoritative purchased seats');
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeatSiblingAPaused', 10,
+  'eaff0000-0000-4000-8000-000000000301', 'paused', false)), 'seat sibling A records restrictive status while retaining its validated items');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeatSiblingAPaid',
+  'eaff0000-0000-4000-8000-000000000301', p_sequence => 40)), 'newer payment restores access for seat sibling A');
+select ok((select was_applied from pg_temp.portal_event('evt_portalSeatSiblingBActive', 50, array['price_portalLegacySeats'],
+  p_org => 'eaff0000-0000-4000-8000-000000000301', p_subscription_suffix => 'Second')),
+  'seat sibling B supplies one seat and occupies the newer account event pointer');
+select results_eq($$ select e.entitlement_value, e.entitlement_source, e.billing_state, e.is_entitled, a.provider_event_id
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000301', clock_timestamp()) e
+  join public.billing_accounts a on a.organization_id = 'eaff0000-0000-4000-8000-000000000301'
+  where e.feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true, 'evt_portalSeatSiblingBActive'::text) $$,
+  'a sibling current account pointer cannot erase A matching newer payment and seven-seat cap');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeatSiblingANewerFailure',
+  'eaff0000-0000-4000-8000-000000000301', p_event_type => 'invoice.payment_failed', p_sequence => 60)),
+  'a later A failure supersedes its earlier successful payment');
+select results_eq($$ select e.entitlement_value, e.billing_state, e.is_entitled, a.provider_event_id, a.grace_ends_at
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000301', clock_timestamp()) e
+  join public.billing_accounts a on a.organization_id = 'eaff0000-0000-4000-8000-000000000301'
+  where e.feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'grace'::text, true, 'evt_portalSeatSiblingANewerFailure'::text,
+             date_trunc('second', now()) + interval '7 days') $$,
+  'newest A failure retains its quantity constraint during the original account grace');
+select results_eq($$ select entitlement_value, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000301', clock_timestamp() + interval '8 days')
+  where feature_key = 'limits.learners' $$,
+  $$ values ('7'::jsonb, 'past_due'::text, false) $$,
+  'older A success cannot override the later failure account expiry while its numerical seat cap remains visible');
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeatSiblingANewPause', 70,
+  'eaff0000-0000-4000-8000-000000000301', 'paused', false)), 'genuinely newer A pause supersedes both earlier A payment outcomes');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeatSiblingBPaid',
+  'eaff0000-0000-4000-8000-000000000301', p_subscription_suffix => 'Second', p_sequence => 80)),
+  'B newer payment restores account access without validating A older payment history');
+select results_eq($$ select e.entitlement_value, e.entitlement_source, e.billing_state, e.is_entitled, a.provider_event_id
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000301', clock_timestamp()) e
+  join public.billing_accounts a on a.organization_id = 'eaff0000-0000-4000-8000-000000000301'
+  where e.feature_key = 'limits.learners' $$,
+  $$ values ('1'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true, 'evt_portalSeatSiblingBPaid'::text) $$,
+  'only B one seat remains eligible when A subscription status is newer than all A invoices');
+select ok((select was_applied from pg_temp.portal_seat_event('evt_portalSeatSiblingATerminal', 90,
+  'eaff0000-0000-4000-8000-000000000301', 'canceled', false, 'customer.subscription.deleted')),
+  'terminal A evidence is retained after payment and pause history');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSeatSiblingBPaidAfterTerminal',
+  'eaff0000-0000-4000-8000-000000000301', p_subscription_suffix => 'Second', p_sequence => 100)),
+  'B can subsequently provide its own account payment evidence');
+select results_eq($$ select entitlement_value, entitlement_source, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000301', clock_timestamp()) where feature_key = 'limits.learners' $$,
+  $$ values ('1'::jsonb, 'package+stripe_seat_cap'::text, 'active'::text, true) $$,
+  'retained terminal A item history cannot increase the surviving B seat cap');
 
 select * from finish();
 rollback;

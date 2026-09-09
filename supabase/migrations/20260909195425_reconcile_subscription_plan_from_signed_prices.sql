@@ -597,7 +597,10 @@ $migration$;
 
 -- Payment receipts can restore access while the subscription retains its older
 -- restrictive provider snapshot. Keep that chronology intact: derive purchased
--- seat eligibility from the same newer, matching account evidence as access.
+-- seat eligibility from each subscription’s newer payment receipt history.
+-- A sibling event may occupy the account pointer without erasing paid seats.
+-- This numeric cap does not grant access; canonical account state still controls
+-- grace expiry, and the existing p_as_of period boundary remains unchanged.
 do $seat_cap_migration$
 declare
   v_definition text;
@@ -615,13 +618,19 @@ begin
         and s.provider_status not in ('canceled', 'incomplete_expired')
         and exists (
           select 1 from public.billing_accounts a
-          join app_private.stripe_billing_events e on e.event_id = a.provider_event_id
+          join lateral (
+            select e.event_created_at, e.event_id
+            from app_private.stripe_billing_events e
+            where e.organization_id = s.organization_id and e.processing_status = 'applied'
+              and e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
+              and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
+                           e.payload #>> '{data,object,subscription}') = s.stripe_subscription_id
+            order by e.event_created_at desc,
+                     app_private.stripe_event_received_at(e.event_id) desc, e.event_id
+            limit 1
+          ) payment on true
           where a.id = s.billing_account_id and a.organization_id = s.organization_id
-            and e.organization_id = s.organization_id and e.processing_status = 'applied'
-            and e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
-            and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
-                         e.payload #>> '{data,object,subscription}') = s.stripe_subscription_id
-            and (e.event_created_at, app_private.stripe_event_received_at(e.event_id))
+            and (payment.event_created_at, app_private.stripe_event_received_at(payment.event_id))
                 > (s.provider_event_created_at, app_private.stripe_event_received_at(s.provider_event_id))
         )
       ))
