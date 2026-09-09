@@ -9,6 +9,66 @@ alter table public.billing_subscriptions
 comment on column public.billing_subscriptions.checkout_previous_package_id is
   'Package before the initial provisional Checkout stamp; never replaced by repeated Checkout. NULL also represents older placeholders with no trustworthy provenance.';
 
+-- Resolve only a currently entitled, authoritative surviving subscription.
+-- Status and invoice clocks remain separate; the latest matching invoice for
+-- each subscription wins over its older status, even if a sibling receipt now
+-- occupies the account event pointer.
+create or replace function app_private.stripe_surviving_subscription_package(
+  p_organization_id uuid,
+  p_billing_account_id uuid,
+  p_exclude_subscription_id text
+)
+returns table (package_id uuid)
+language sql
+stable
+security invoker
+set search_path = ''
+as $function$
+  select s.package_id
+  from public.billing_subscriptions s
+  join public.billing_accounts a on a.id = s.billing_account_id and a.organization_id = s.organization_id
+  left join lateral (
+    select e.event_type, e.event_created_at, e.event_id
+    from app_private.stripe_billing_events e
+    where e.organization_id = s.organization_id and e.processing_status = 'applied'
+      and e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
+      and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
+                   e.payload #>> '{data,object,subscription}') = s.stripe_subscription_id
+      and (e.event_created_at, app_private.stripe_event_received_at(e.event_id))
+          > (s.provider_event_created_at, app_private.stripe_event_received_at(s.provider_event_id))
+    order by e.event_created_at desc, app_private.stripe_event_received_at(e.event_id) desc, e.event_id
+    limit 1
+  ) payment on true
+  where s.organization_id = p_organization_id
+    and s.billing_account_id = p_billing_account_id
+    and not s.is_provider_placeholder
+    and s.provider_status not in ('canceled', 'incomplete_expired')
+    and (p_exclude_subscription_id is null or s.stripe_subscription_id <> p_exclude_subscription_id)
+    and case
+      when payment.event_id is not null then case
+        -- Dunning grace intentionally extends past the old paid period. Its
+        -- original invoice deadline is the authority, including when expired.
+        when payment.event_type = 'invoice.payment_failed'
+          then payment.event_created_at + interval '7 days' > now()
+        else s.current_period_end is null or s.current_period_end > now()
+      end
+      when s.billing_state = 'active'
+        then s.current_period_end is null or s.current_period_end > now()
+      when s.billing_state = 'trial'
+        then (s.trial_ends_at is null or s.trial_ends_at > now())
+          and (s.current_period_end is null or s.current_period_end > now())
+      when s.billing_state = 'grace'
+        then s.provider_event_created_at + interval '7 days' > now()
+      else false
+    end
+  order by s.provider_event_created_at desc,
+           app_private.stripe_event_received_at(s.provider_event_id) desc, s.id
+  limit 1;
+$function$;
+
+revoke all on function app_private.stripe_surviving_subscription_package(uuid, uuid, text)
+  from public, anon, authenticated, service_role;
+
 do $migration$
 declare
   v_definition text;
@@ -21,6 +81,7 @@ begin
   v_old := $old$  v_admin record;$old$;
   v_new := $new$  v_admin record;
   v_checkout_previous_package_id uuid;
+  v_was_placeholder boolean := false;
   v_plan_recovery boolean := false;
   v_had_validated_plan boolean := false;
   v_preserve_subscription_items boolean := false;$new$;
@@ -89,6 +150,10 @@ begin
       -- In particular, stale Checkout metadata must not fail an otherwise valid
       -- mapped-price change before its authoritative item prices are considered.
       v_package_id := null;
+      select s.is_provider_placeholder, s.checkout_previous_package_id
+      into v_was_placeholder, v_checkout_previous_package_id
+      from public.billing_subscriptions s
+      where s.organization_id = v_org_id and s.stripe_subscription_id = v_object->>'id';
       select exists (
         select 1 from public.billing_subscriptions s
         where s.organization_id = v_org_id and s.stripe_subscription_id = v_object->>'id'
@@ -123,10 +188,37 @@ begin
           -- history; price validation must not undo authoritative termination.
           if v_provider_status in ('canceled', 'incomplete_expired') then
             v_preserve_subscription_items := true;
-            select coalesce(s.package_id, o.package_id) into v_package_id
-            from public.billing_subscriptions s
-            join public.organizations o on o.id = s.organization_id
-            where s.id = v_subscription_pk;
+            if v_was_placeholder then
+              -- Termination validates no provisional Checkout tier. Preserve the
+              -- independent comp, using original provenance just as quarantine
+              -- does; NULL provenance must clear an unknown historical claim.
+              select survivor.package_id into v_package_id
+              from app_private.stripe_surviving_subscription_package(
+                v_org_id, v_account_id, v_object->>'id') survivor;
+              if not found then
+                v_package_id := v_checkout_previous_package_id;
+              end if;
+              update public.billing_subscriptions set package_id = v_package_id
+              where id = v_subscription_pk;
+              update public.organizations o
+              set package_id = v_package_id,
+                  plan_name = (select p.name from public.packages p where p.id = v_package_id),
+                  updated_at = now()
+              where o.id = v_org_id;
+            else
+              -- A repeated terminal receipt must not turn a package retained
+              -- during placeholder termination into authoritative price history.
+              -- Only persisted items establish a previously validated contract,
+              -- including legitimate custom prices outside the managed catalog.
+              select case when exists (
+                select 1 from public.billing_subscription_items i
+                where i.subscription_id = s.id and i.organization_id = s.organization_id
+              ) then coalesce(s.package_id, o.package_id) else o.package_id end
+              into v_package_id
+              from public.billing_subscriptions s
+              join public.organizations o on o.id = s.organization_id
+              where s.id = v_subscription_pk;
+            end if;
           else
             begin
               if jsonb_typeof(v_items) <> 'array'
@@ -426,29 +518,9 @@ begin
             if v_count > 0 then
               -- Another valid subscription must keep its own package, not the
               -- higher metadata package from a rejected second Checkout.
-              select s.package_id into v_package_id
-              from public.billing_subscriptions s
-              where s.organization_id = v_org_id and not s.is_provider_placeholder
-                and (s.billing_state in ('trial', 'active', 'grace') or (
-                  -- A newer invoice can restore paid/grace access without
-                  -- rewriting an older unpaid/paused subscription snapshot.
-                  -- Preserve that account evidence and its existing grace clock.
-                  s.provider_status not in ('canceled', 'incomplete_expired')
-                  and exists (
-                    select 1 from public.billing_accounts a
-                    join app_private.stripe_billing_events e on e.event_id = a.provider_event_id
-                    where a.id = v_account_id and e.organization_id = v_org_id
-                      and e.processing_status = 'applied'
-                      and e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
-                      and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
-                                   e.payload #>> '{data,object,subscription}') = s.stripe_subscription_id
-                      and (e.event_created_at, app_private.stripe_event_received_at(e.event_id))
-                          > (s.provider_event_created_at, app_private.stripe_event_received_at(s.provider_event_id))
-                  )
-                ))
-              order by s.provider_event_created_at desc,
-                       app_private.stripe_event_received_at(s.provider_event_id) desc, s.id
-              limit 1;
+              select survivor.package_id into v_package_id
+              from app_private.stripe_surviving_subscription_package(
+                v_org_id, v_account_id, v_object->>'id') survivor;
               if found then
                 update public.organizations o
                 set package_id = v_package_id,
@@ -485,7 +557,28 @@ begin
                       when a.billing_state = 'comped' and (a.comped_until is null or a.comped_until > now()) then a.suspension_reason
                       else 'Stripe subscription plan could not be reconciled.' end,
                     updated_at = now()
-                where a.id = v_account_id;
+                where a.id = v_account_id
+                  and (
+                    a.billing_state = 'grace' and a.provider_state = 'past_due'
+                    and a.grace_ends_at is not null and a.grace_ends_at <= now()
+                    and exists (
+                      select 1
+                      from app_private.stripe_billing_events e
+                      join public.billing_subscriptions s
+                        on s.organization_id = a.organization_id and s.billing_account_id = a.id
+                        and s.stripe_subscription_id = coalesce(
+                          e.payload #>> '{data,object,parent,subscription_details,subscription}',
+                          e.payload #>> '{data,object,subscription}')
+                      where e.event_id = a.provider_event_id and e.organization_id = a.organization_id
+                        and e.processing_status = 'applied' and e.event_type = 'invoice.payment_failed'
+                        and not s.is_provider_placeholder
+                        and s.provider_status not in ('canceled', 'incomplete_expired')
+                        and s.stripe_subscription_id <> v_object->>'id'
+                        and a.grace_ends_at = e.event_created_at + interval '7 days'
+                        and (e.event_created_at, app_private.stripe_event_received_at(e.event_id))
+                            > (s.provider_event_created_at, app_private.stripe_event_received_at(s.provider_event_id))
+                    )
+                  ) is not true;
               end if;
               update public.organizations o
               set subscription_status = (select a.billing_state from public.billing_accounts a where a.id = v_account_id),

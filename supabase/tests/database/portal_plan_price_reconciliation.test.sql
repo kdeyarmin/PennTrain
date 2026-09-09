@@ -2,7 +2,7 @@
 -- real receipt processor and entitlement resolver, including rejected and stale
 -- deliveries, rather than updating local package rows as a test substitute.
 begin;
-select plan(300);
+select plan(369);
 
 insert into public.feature_definitions (feature_key, display_name, value_type, default_value)
 values ('portal.care_access', 'Portal plan test care access', 'boolean', 'false'::jsonb);
@@ -1070,6 +1070,335 @@ select results_eq($$ select entitlement_value, entitlement_source, billing_state
   from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000102', clock_timestamp()) where feature_key = 'limits.learners' $$,
   $$ values ('100'::jsonb, 'package'::text, 'canceled'::text, false) $$,
   'terminal evidence excludes its retained seat items and prevents later payment from restoring access');
+
+
+-- A first terminal snapshot must revoke provisional tiers even while comped.
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('ea000000-0000-4000-8000-000000000037', 'Portal terminal comp 37', 'portal-terminal-comp-37', 'trial', 'ea000000-0000-4000-8000-000000000001');
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'ea000000-0000-4000-8000-000000000037';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalTerminalComp37Checkout', 'ea000000-0000-4000-8000-000000000037', 'ea000000-0000-4000-8000-000000000002')),
+  'terminal comp 37 starts with provisional higher Checkout');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalTerminalComp37Ended', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000037', p_status => 'canceled', p_event_type => 'customer.subscription.deleted')),
+  'first terminal canceled snapshot still applies to the provisional subscription');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'ea000000-0000-4000-8000-000000000037' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
+  'terminal comp 37 retains only original trustworthy provenance and the independent comp');
+select results_eq($$ select package_id, provider_status, billing_state, is_provider_placeholder from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000037' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'canceled'::text, 'canceled'::text, false) $$,
+  'terminal comp 37 does not turn provisional pricing into validated subscription history');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000037', clock_timestamp()) where feature_key = 'portal.care_access'),
+  false, 'terminal comp 37 no longer grants the canceled Checkout higher tier');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalTerminalComp37LaterPaid', 'ea000000-0000-4000-8000-000000000037', p_sequence => 40)),
+  'terminal comp 37 still records a later invoice');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000037', clock_timestamp()) where feature_key = 'portal.care_access'),
+  false, 'a paid invoice cannot reopen terminal comp 37 unvalidated tier');
+
+select results_eq($$ select entitlement_value, is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000037', clock_timestamp())
+  where feature_key = 'limits.learners' $$,
+  $$ values ('10'::jsonb, true) $$, 'terminal comp 37 keeps the original lower allowance available');
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('ea000000-0000-4000-8000-000000000038', 'Portal terminal comp 38', 'portal-terminal-comp-38', 'trial', 'ea000000-0000-4000-8000-000000000001');
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'ea000000-0000-4000-8000-000000000038';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalTerminalComp38Checkout', 'ea000000-0000-4000-8000-000000000038', 'ea000000-0000-4000-8000-000000000002')),
+  'terminal comp 38 starts with provisional higher Checkout');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalTerminalComp38Ended', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000038', p_status => 'incomplete_expired', p_event_type => 'customer.subscription.deleted')),
+  'first terminal incomplete_expired snapshot still applies to the provisional subscription');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'ea000000-0000-4000-8000-000000000038' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
+  'terminal comp 38 retains only original trustworthy provenance and the independent comp');
+select results_eq($$ select package_id, provider_status, billing_state, is_provider_placeholder from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000038' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'incomplete_expired'::text, 'canceled'::text, false) $$,
+  'terminal comp 38 does not turn provisional pricing into validated subscription history');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000038', clock_timestamp()) where feature_key = 'portal.care_access'),
+  false, 'terminal comp 38 no longer grants the canceled Checkout higher tier');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalTerminalComp38LaterPaid', 'ea000000-0000-4000-8000-000000000038', p_sequence => 40)),
+  'terminal comp 38 still records a later invoice');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000038', clock_timestamp()) where feature_key = 'portal.care_access'),
+  false, 'a paid invoice cannot reopen terminal comp 38 unvalidated tier');
+
+select results_eq($$ select entitlement_value, is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000038', clock_timestamp())
+  where feature_key = 'limits.learners' $$,
+  $$ values ('10'::jsonb, true) $$, 'terminal comp 38 keeps the original lower allowance available');
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('ea000000-0000-4000-8000-000000000039', 'Portal terminal comp 39', 'portal-terminal-comp-39', 'trial', 'ea000000-0000-4000-8000-000000000001');
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = null::timestamptz
+where organization_id = 'ea000000-0000-4000-8000-000000000039';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalTerminalComp39Checkout', 'ea000000-0000-4000-8000-000000000039', 'ea000000-0000-4000-8000-000000000002')),
+  'terminal comp 39 starts with provisional higher Checkout');
+reset role;
+update public.billing_subscriptions set checkout_previous_package_id = null where organization_id = 'ea000000-0000-4000-8000-000000000039';
+set local role service_role;
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalTerminalComp39Ended', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000039', p_status => 'canceled', p_event_type => 'customer.subscription.deleted')),
+  'first terminal canceled snapshot still applies to the provisional subscription');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'ea000000-0000-4000-8000-000000000039' $$,
+  $$ values (null::uuid, 'comped'::text, 'manual_comp'::text, null::timestamptz) $$,
+  'terminal comp 39 retains only original trustworthy provenance and the independent comp');
+select results_eq($$ select package_id, provider_status, billing_state, is_provider_placeholder from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000039' $$,
+  $$ values (null::uuid, 'canceled'::text, 'canceled'::text, false) $$,
+  'terminal comp 39 does not turn provisional pricing into validated subscription history');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000039', clock_timestamp()) where feature_key = 'portal.care_access'),
+  false, 'terminal comp 39 no longer grants the canceled Checkout higher tier');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalTerminalComp39LaterPaid', 'ea000000-0000-4000-8000-000000000039', p_sequence => 40)),
+  'terminal comp 39 still records a later invoice');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000039', clock_timestamp()) where feature_key = 'portal.care_access'),
+  false, 'a paid invoice cannot reopen terminal comp 39 unvalidated tier');
+
+
+-- A terminal provisional subscription must not undo a different subscription
+-- that legitimately validated a higher package after the provisional Checkout.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('ea000000-0000-4000-8000-000000000040', 'Portal terminal sibling org', 'portal-terminal-sibling-org', 'trial', 'ea000000-0000-4000-8000-000000000001');
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'ea000000-0000-4000-8000-000000000040';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalTerminalSiblingCheckoutB', 'ea000000-0000-4000-8000-000000000040',
+  'ea000000-0000-4000-8000-000000000002', 'Second')), 'terminal sibling B starts with Checkout provenance from the lower comp');
+select ok((select was_applied from pg_temp.portal_event('evt_portalTerminalSiblingValidA', 40, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000040')), 'another subscription A then validates the higher package');
+select ok((select was_applied from pg_temp.portal_event('evt_portalTerminalSiblingCanceledB', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000040', p_subscription_suffix => 'Second', p_status => 'canceled')),
+  'the provisional B cancellation is delivered after newer A validation');
+select results_eq($$ select o.package_id, a.billing_state, a.provider_state, a.provider_event_id, a.comped_until
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  where o.id = 'ea000000-0000-4000-8000-000000000040' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'comped'::text, 'active'::text,
+             'evt_portalTerminalSiblingValidA'::text, now() + interval '1 day') $$,
+  'B termination preserves the current validated A package, newer provider evidence, and independent comp');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000040', clock_timestamp())
+  where feature_key = 'portal.care_access'), true, 'the legitimate higher subscription remains usable after provisional sibling cancellation');
+
+
+-- The private survivor helper distinguishes no row from a valid legacy NULL
+-- package and remains callable only inside the trusted processor context.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('eaff0000-0000-4000-8000-000000000206', 'Portal null survivor package', 'portal-null-survivor-package', 'trial', null);
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_event('evt_portalNullSurvivorPackage', 1, array['price_legacyUnmapped'],
+  p_metadata_package => null, p_org => 'eaff0000-0000-4000-8000-000000000206')),
+  'a legitimate legacy subscription can have an authoritative NULL package');
+reset role;
+select results_eq($$ select package_id from app_private.stripe_surviving_subscription_package(
+  'eaff0000-0000-4000-8000-000000000206', (select id from public.billing_accounts
+    where organization_id = 'eaff0000-0000-4000-8000-000000000206'), null) $$,
+  $$ values (null::uuid) $$, 'a surviving NULL-package subscription produces a row, distinct from no survivor');
+select ok(not has_function_privilege('anon', 'app_private.stripe_surviving_subscription_package(uuid,uuid,text)', 'execute')
+  and not has_function_privilege('authenticated', 'app_private.stripe_surviving_subscription_package(uuid,uuid,text)', 'execute')
+  and not has_function_privilege('service_role', 'app_private.stripe_surviving_subscription_package(uuid,uuid,text)', 'execute'),
+  'the private survivor helper grants no direct caller access');
+set local role service_role;
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values
+  ('eaff0000-0000-4000-8000-000000000201', 'Expired survivor trial', 'portal-expired-survivor-trial', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000202', 'Expired survivor period', 'portal-expired-survivor-period', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000203', 'Expired survivor invoice grace', 'portal-expired-survivor-invoice-grace', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000204', 'Current survivor invoice grace', 'portal-current-survivor-invoice-grace', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000205', 'Sibling survivor invoice history', 'portal-sibling-survivor-invoice-history', 'trial', 'ea000000-0000-4000-8000-000000000001');
+create function pg_temp.portal_expiry_event(
+  p_event text, p_sequence integer, p_org uuid, p_status text,
+  p_period_end timestamptz, p_trial_end timestamptz default null, p_suffix text default ''
+)
+returns table (was_duplicate boolean, was_applied boolean, was_stale boolean,
+               resolved_organization_id uuid, canonical_state text)
+language sql set search_path = ''
+as $fixture$
+  select * from public.process_stripe_billing_event(
+    p_event, 'customer.subscription.updated', date_trunc('second', now()) - interval '1 minute' + p_sequence * interval '1 second',
+    jsonb_build_object('data', jsonb_build_object('object', jsonb_build_object(
+      'id', 'sub_portal' || replace(p_org::text, '-', '') || p_suffix,
+      'customer', 'cus_portal' || replace(p_org::text, '-', ''),
+      'status', p_status, 'trial_end', extract(epoch from p_trial_end)::bigint,
+      'metadata', jsonb_build_object('organization_id', p_org, 'package_id', 'ea000000-0000-4000-8000-000000000002'),
+      'items', jsonb_build_object('has_more', false, 'data', jsonb_build_array(jsonb_build_object(
+        'id', 'si_portal' || replace(p_org::text, '-', '') || p_suffix || '1', 'quantity', 1,
+        'current_period_start', extract(epoch from now() - interval '10 days')::bigint,
+        'current_period_end', extract(epoch from p_period_end)::bigint,
+        'price', jsonb_build_object('id', 'price_portalCareMonth')
+      )))
+    ))), md5(p_event) || md5(p_event), p_event
+  );
+$fixture$;
+set local role service_role;
+
+select ok((select was_applied from pg_temp.portal_expiry_event('evt_portalSurvivor201Historical', 1, 'eaff0000-0000-4000-8000-000000000201', 'trialing',
+  now() + interval '1 year', now() - interval '1 day')), 'survivor case 201 has authoritative historical CareBase subscription state');
+reset role;
+-- The operator independently selected a lower, still-current manual comp.
+update public.organizations set package_id = 'ea000000-0000-4000-8000-000000000001' where id = 'eaff0000-0000-4000-8000-000000000201';
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'eaff0000-0000-4000-8000-000000000201';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalSurvivor201Checkout', 'eaff0000-0000-4000-8000-000000000201',
+  'ea000000-0000-4000-8000-000000000002', 'Second')), 'survivor case 201 receives a new provisional higher Checkout');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalSurvivor201Rejected', 57, array['price_unrecognized'],
+  p_org => 'eaff0000-0000-4000-8000-000000000201', p_subscription_suffix => 'Second')), 'survivor case 201 rejects the unvalidated second plan');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000201' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
+  'survivor case 201 keeps the independent lower comp instead of restoring expired higher billing history');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000201', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'survivor case 201 cannot regain CareBase through expired history');
+select results_eq($$ select provider_status, provider_event_id, package_id from public.billing_subscriptions
+  where stripe_subscription_id = 'sub_portaleaff0000000040008000000000000201' $$,
+  $$ values ('trialing'::text, 'evt_portalSurvivor201Historical'::text, 'ea000000-0000-4000-8000-000000000002'::uuid) $$,
+  'survivor case 201 preserves historical provider evidence without using it as a current grant');
+
+select ok((select was_applied from pg_temp.portal_expiry_event('evt_portalSurvivor202Historical', 1, 'eaff0000-0000-4000-8000-000000000202', 'active',
+  now() - interval '1 day', null)), 'survivor case 202 has authoritative historical CareBase subscription state');
+reset role;
+-- The operator independently selected a lower, still-current manual comp.
+update public.organizations set package_id = 'ea000000-0000-4000-8000-000000000001' where id = 'eaff0000-0000-4000-8000-000000000202';
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'eaff0000-0000-4000-8000-000000000202';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalSurvivor202Checkout', 'eaff0000-0000-4000-8000-000000000202',
+  'ea000000-0000-4000-8000-000000000002', 'Second')), 'survivor case 202 receives a new provisional higher Checkout');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalSurvivor202Rejected', 57, array['price_unrecognized'],
+  p_org => 'eaff0000-0000-4000-8000-000000000202', p_subscription_suffix => 'Second')), 'survivor case 202 rejects the unvalidated second plan');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000202' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
+  'survivor case 202 keeps the independent lower comp instead of restoring expired higher billing history');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000202', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'survivor case 202 cannot regain CareBase through expired history');
+select results_eq($$ select provider_status, provider_event_id, package_id from public.billing_subscriptions
+  where stripe_subscription_id = 'sub_portaleaff0000000040008000000000000202' $$,
+  $$ values ('active'::text, 'evt_portalSurvivor202Historical'::text, 'ea000000-0000-4000-8000-000000000002'::uuid) $$,
+  'survivor case 202 preserves historical provider evidence without using it as a current grant');
+
+select ok((select was_applied from pg_temp.portal_expiry_event('evt_portalSurvivor203Historical', -777600, 'eaff0000-0000-4000-8000-000000000203', 'active',
+  now() + interval '1 year', null)), 'survivor case 203 has authoritative historical CareBase subscription state');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSurvivor203ExpiredFailure', 'eaff0000-0000-4000-8000-000000000203',
+  p_event_type => 'invoice.payment_failed', p_sequence => -691200)), 'a newer historical failure has an already expired grace deadline');
+reset role;
+-- The operator independently selected a lower, still-current manual comp.
+update public.organizations set package_id = 'ea000000-0000-4000-8000-000000000001' where id = 'eaff0000-0000-4000-8000-000000000203';
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'eaff0000-0000-4000-8000-000000000203';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalSurvivor203Checkout', 'eaff0000-0000-4000-8000-000000000203',
+  'ea000000-0000-4000-8000-000000000002', 'Second')), 'survivor case 203 receives a new provisional higher Checkout');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalSurvivor203Rejected', 57, array['price_unrecognized'],
+  p_org => 'eaff0000-0000-4000-8000-000000000203', p_subscription_suffix => 'Second')), 'survivor case 203 rejects the unvalidated second plan');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000203' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
+  'survivor case 203 keeps the independent lower comp instead of restoring expired higher billing history');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000203', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'survivor case 203 cannot regain CareBase through expired history');
+select results_eq($$ select provider_status, provider_event_id, package_id from public.billing_subscriptions
+  where stripe_subscription_id = 'sub_portaleaff0000000040008000000000000203' $$,
+  $$ values ('active'::text, 'evt_portalSurvivor203Historical'::text, 'ea000000-0000-4000-8000-000000000002'::uuid) $$,
+  'survivor case 203 preserves historical provider evidence without using it as a current grant');
+
+-- A current failure grants the existing seven-day grace even if the previous
+-- paid period ended. Its newer evidence must take precedence over period expiry.
+select ok((select was_applied from pg_temp.portal_expiry_event('evt_portalSurvivor204Historical', -172800,
+  'eaff0000-0000-4000-8000-000000000204', 'active', now() - interval '1 day')),
+  'current-grace survivor has a historical paid period that has ended');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSurvivor204CurrentFailure',
+  'eaff0000-0000-4000-8000-000000000204', p_event_type => 'invoice.payment_failed', p_sequence => 50)),
+  'a newer invoice failure starts the original current grace deadline');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalSurvivor204Checkout',
+  'eaff0000-0000-4000-8000-000000000204', 'ea000000-0000-4000-8000-000000000001', 'Second')),
+  'a second Checkout provisionally stamps another tier during current invoice grace');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalSurvivor204Rejected', 57, array['price_unrecognized'],
+  p_org => 'eaff0000-0000-4000-8000-000000000204', p_subscription_suffix => 'Second')),
+  'the second plan is rejected without ending the valid first plan current grace');
+select results_eq($$ select o.package_id, a.billing_state, a.provider_event_id, a.grace_ends_at from public.organizations o
+  join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000204' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'grace'::text, 'evt_portalSurvivor204CurrentFailure'::text,
+             date_trunc('second', now()) - interval '10 seconds' + interval '7 days') $$,
+  'the current invoice grace survives the ended paid period and keeps its original package and deadline');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000204', clock_timestamp())
+  where feature_key = 'portal.care_access'), true, 'current first-plan invoice grace keeps CareBase usable');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000204', clock_timestamp() + interval '8 days')
+  where feature_key = 'portal.care_access'), false, 'preserving a current grace survivor never extends its original expiry');
+
+-- A sibling receipt can occupy the account pointer without erasing the first
+-- subscription's own newer expired failure. Evaluate each history separately.
+select ok((select was_applied from pg_temp.portal_expiry_event('evt_portalSurvivor205First', -777600,
+  'eaff0000-0000-4000-8000-000000000205', 'active', now() + interval '1 year')),
+  'the sibling case starts with an old active higher subscription');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSurvivor205FirstFailed',
+  'eaff0000-0000-4000-8000-000000000205', p_event_type => 'invoice.payment_failed', p_sequence => -691200)),
+  'the first subscription has newer failure evidence whose grace expired');
+select ok((select was_applied from pg_temp.portal_expiry_event('evt_portalSurvivor205Second', -604800,
+  'eaff0000-0000-4000-8000-000000000205', 'active', now() - interval '1 day', p_suffix => 'Second')),
+  'a sibling subscription also has historical higher pricing and an expired paid period');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalSurvivor205SecondPaid',
+  'eaff0000-0000-4000-8000-000000000205', p_subscription_suffix => 'Second', p_sequence => -518400)),
+  'the sibling successful invoice now occupies the account pointer');
+reset role;
+update public.organizations set package_id = 'ea000000-0000-4000-8000-000000000001'
+where id = 'eaff0000-0000-4000-8000-000000000205';
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'eaff0000-0000-4000-8000-000000000205';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalSurvivor205Checkout',
+  'eaff0000-0000-4000-8000-000000000205', 'ea000000-0000-4000-8000-000000000002', 'Third')),
+  'a third Checkout provisionally claims the higher tier during the independent lower comp');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalSurvivor205Rejected', 57, array['price_unrecognized'],
+  p_org => 'eaff0000-0000-4000-8000-000000000205', p_subscription_suffix => 'Third')),
+  'invalid third-plan pricing is rejected');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until, a.provider_event_id
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  where o.id = 'eaff0000-0000-4000-8000-000000000205' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'manual_comp'::text,
+             now() + interval '1 day', 'evt_portalSurvivor205SecondPaid'::text) $$,
+  'a current sibling invoice pointer cannot hide the first subscription expired failure or the sibling expired period');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000205', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'neither expired subscription can overwrite the independent lower comp');
+
+-- A distinct updated/deleted terminal pair for B may
+-- arrive around later valid sibling state and an independent operator comp.
+select ok((select was_applied from pg_temp.portal_event('evt_portalTerminalSiblingEndedA', 50, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000040', p_status => 'canceled', p_event_type => 'customer.subscription.deleted')),
+  'the legitimate sibling A can subsequently end after B first terminated');
+reset role;
+update public.organizations set package_id = 'ea000000-0000-4000-8000-000000000001'
+where id = 'ea000000-0000-4000-8000-000000000040';
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'ea000000-0000-4000-8000-000000000040';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_event('evt_portalTerminalSiblingDeletedBAgain', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000040', p_subscription_suffix => 'Second',
+  p_status => 'canceled', p_event_type => 'customer.subscription.deleted')),
+  'a distinct delayed B terminal receipt is accepted by its own receipt ordering');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.provider_event_id, a.comped_until
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  where o.id = 'ea000000-0000-4000-8000-000000000040' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'manual_comp'::text,
+             'evt_portalTerminalSiblingEndedA'::text, now() + interval '1 day') $$,
+  'a terminal row without authoritative items cannot restamp its earlier copied higher package over the current independent comp');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000040', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'repeated terminal receipts cannot launder copied package history into higher comped access');
 
 select * from finish();
 rollback;
