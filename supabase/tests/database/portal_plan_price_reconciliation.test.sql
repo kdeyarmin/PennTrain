@@ -2,7 +2,7 @@
 -- real receipt processor and entitlement resolver, including rejected and stale
 -- deliveries, rather than updating local package rows as a test substitute.
 begin;
-select plan(114);
+select plan(207);
 
 insert into public.feature_definitions (feature_key, display_name, value_type, default_value)
 values ('portal.care_access', 'Portal plan test care access', 'boolean', 'false'::jsonb);
@@ -100,13 +100,13 @@ as $fixture$
 $fixture$;
 
 create function pg_temp.portal_invoice(p_event text, p_org uuid, p_subscription_suffix text default '',
-                                      p_event_type text default 'invoice.paid')
+                                      p_event_type text default 'invoice.paid', p_sequence integer default 40)
 returns table (was_duplicate boolean, was_applied boolean, was_stale boolean,
                resolved_organization_id uuid, canonical_state text)
 language sql set search_path = ''
 as $fixture$
   select * from public.process_stripe_billing_event(
-    p_event, p_event_type, date_trunc('second', now()) - interval '20 seconds',
+    p_event, p_event_type, date_trunc('second', now()) - interval '1 minute' + p_sequence * interval '1 second',
     jsonb_build_object('data', jsonb_build_object('object', jsonb_build_object(
       'id', 'in_' || replace(p_event, '_', ''), 'customer', 'cus_portal' || replace(p_org::text, '-', ''),
       'parent', jsonb_build_object('subscription_details', jsonb_build_object(
@@ -199,8 +199,10 @@ select is((select package_id from public.organizations where slug = 'portal-plan
 
 select ok(not (select was_applied from pg_temp.portal_event('evt_portalUnknownFirst', 1, array['price_unrecognized'],
   p_org => 'ea000000-0000-4000-8000-000000000013')), 'a first app subscription also requires a recognized price');
-select is((select count(*)::integer from public.billing_subscriptions where organization_id = 'ea000000-0000-4000-8000-000000000013'),
-  0, 'a rejected first subscription does not leave a partial row');
+select results_eq($$ select is_provider_placeholder, billing_state, provider_status from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000013' $$,
+  $$ values (true, 'suspended'::text, 'plan_reconciliation_failed'::text) $$,
+  'a rejected first subscription leaves a recoverable quarantine without granting access');
 
 select ok((select was_applied from pg_temp.portal_event('evt_portalLegacy', 1, array['price_customLegacy'],
   'ea000000-0000-4000-8000-000000000003', 'ea000000-0000-4000-8000-000000000012')),
@@ -417,6 +419,295 @@ select is((select billing_state from public.billing_accounts where organization_
   'suspended', 'payment cannot reopen an unvalidated past-due placeholder');
 select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000020', clock_timestamp())
   where feature_key = 'portal.care_access'), false, 'unvalidated grace followed by payment cannot grant indefinite higher access');
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values
+  ('ea000000-0000-4000-8000-000000000021', 'Portal reverse no-account org', 'portal-reverse-no-account-org', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('ea000000-0000-4000-8000-000000000022', 'Portal reverse trial org', 'portal-reverse-trial-org', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('ea000000-0000-4000-8000-000000000023', 'Portal reverse duplicate org', 'portal-reverse-duplicate-org', 'trial', 'ea000000-0000-4000-8000-000000000001');
+-- Organization creation normally makes a NULL-customer trial account. Delete
+-- only this isolated fixture's account to exercise the first-upsert rollback.
+delete from public.billing_accounts
+where organization_id = 'ea000000-0000-4000-8000-000000000021';
+set local role service_role;
+
+-- Failure arrives before both Checkout and the first persistent account row.
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalNoAccountRejected', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000021')), 'a first invalid snapshot remains rejected when no billing account existed');
+select results_eq($$ select stripe_customer_id, billing_state from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000021' $$,
+  $$ values ('cus_portalea000000000040008000000000000021'::text, 'suspended'::text) $$,
+  'the failed first snapshot persists only the correctly bound suspended account');
+select results_eq($$ select is_provider_placeholder, billing_state, provider_status from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000021' $$,
+  $$ values (true, 'suspended'::text, 'plan_reconciliation_failed'::text) $$,
+  'failure creates a durable quarantine before any Checkout placeholder exists');
+select is((select processing_status from app_private.stripe_billing_events where event_id = 'evt_portalNoAccountRejected'),
+  'failed', 'creating quarantine preserves the original durable failed receipt');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalNoAccountCheckout',
+  'ea000000-0000-4000-8000-000000000021', 'ea000000-0000-4000-8000-000000000002')),
+  'a late paid Checkout is still durably processed');
+select results_eq($$ select a.billing_state, o.subscription_status, o.package_id
+  from public.billing_accounts a join public.organizations o on o.id = a.organization_id
+  where o.id = 'ea000000-0000-4000-8000-000000000021' $$,
+  $$ values ('suspended'::text, 'suspended'::text, 'ea000000-0000-4000-8000-000000000001'::uuid) $$,
+  'late Checkout cannot activate or change the package of the rejected first plan');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalNoAccountPaid', 'ea000000-0000-4000-8000-000000000021')),
+  'a later paid invoice is durably recorded after failure and Checkout');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000021'),
+  'suspended', 'invoice payment cannot activate an unvalidated reverse-order plan');
+select ok((select was_applied from pg_temp.portal_event('evt_portalNoAccountRecovered', 20, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000021')), 'a valid older snapshot can recover the reverse-order quarantine');
+select results_eq($$ select is_provider_placeholder, billing_state, package_id from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000021' $$,
+  $$ values (false, 'active'::text, 'ea000000-0000-4000-8000-000000000002'::uuid) $$,
+  'recovery produces one authoritative subscription with its purchased package');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000021', clock_timestamp())
+  where feature_key = 'portal.care_access'), true, 'only the validated recovery grants the purchased higher access');
+
+-- The ordinary signup account exists, but its first customer binding is rolled
+-- back by failed price validation. An intervening invoice must remain blocked.
+select results_eq($$ select stripe_customer_id, billing_state from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000022' $$,
+  $$ values (null::text, 'trial'::text) $$, 'normal signup begins with a NULL-bound trial account');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalTrialFirstRejected', 30,
+  array['price_portalTrainMonth', 'price_portalCareMonth'], p_org => 'ea000000-0000-4000-8000-000000000022')),
+  'ambiguous prices fail before the normal trial account receives Checkout');
+select results_eq($$ select stripe_customer_id, billing_state from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000022' $$,
+  $$ values ('cus_portalea000000000040008000000000000022'::text, 'suspended'::text) $$,
+  'quarantine safely binds the existing NULL-customer account after rollback');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalTrialFirstPaid', 'ea000000-0000-4000-8000-000000000022')),
+  'an invoice arriving between rejection and Checkout is recorded');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000022'),
+  'suspended', 'the intervening paid invoice cannot confer access before Checkout');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalTrialFirstCheckout',
+  'ea000000-0000-4000-8000-000000000022', 'ea000000-0000-4000-8000-000000000002')),
+  'Checkout can arrive after both rejection and invoice payment');
+select results_eq($$ select a.billing_state, o.package_id from public.billing_accounts a
+  join public.organizations o on o.id = a.organization_id
+  where o.id = 'ea000000-0000-4000-8000-000000000022' $$,
+  $$ values ('suspended'::text, 'ea000000-0000-4000-8000-000000000001'::uuid) $$,
+  'late Checkout leaves the ordinary trial account quarantined on its original package');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000022', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'reversed webhook delivery never grants unvalidated CareBase access');
+select ok((select was_applied from pg_temp.portal_event('evt_portalTrialFirstRecovered', 20, array['price_portalCareYear'],
+  p_org => 'ea000000-0000-4000-8000-000000000022')), 'a valid annual plan also recovers the existing-account quarantine');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000022'),
+  'active', 'validated recovery reactivates the original account');
+
+-- A legitimate lower subscription must survive a rejected second subscription
+-- and its later Checkout metadata claiming higher access.
+select ok((select was_applied from pg_temp.portal_event('evt_portalReverseOtherValid', 1, array['price_portalTrainMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000023')), 'the reverse duplicate case starts with an authoritative lower plan');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalReverseOtherRejected', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000023', p_subscription_suffix => 'Second')),
+  'an invalid second subscription is rejected before its Checkout arrives');
+select results_eq($$ select a.billing_state, o.package_id from public.billing_accounts a
+  join public.organizations o on o.id = a.organization_id
+  where o.id = 'ea000000-0000-4000-8000-000000000023' $$,
+  $$ values ('active'::text, 'ea000000-0000-4000-8000-000000000001'::uuid) $$,
+  'the valid other subscription retains its active lower package');
+select results_eq($$ select is_provider_placeholder, billing_state, provider_status from public.billing_subscriptions
+  where stripe_subscription_id = 'sub_portalea000000000040008000000000000023Second' $$,
+  $$ values (true, 'suspended'::text, 'plan_reconciliation_failed'::text) $$,
+  'only the invalid second subscription receives durable quarantine');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalReverseOtherCheckout',
+  'ea000000-0000-4000-8000-000000000023', 'ea000000-0000-4000-8000-000000000002', 'Second')),
+  'the rejected second subscription can receive its delayed higher-package Checkout');
+select is((select package_id from public.organizations where id = 'ea000000-0000-4000-8000-000000000023'),
+  'ea000000-0000-4000-8000-000000000001'::uuid, 'rejected second Checkout metadata cannot replace the valid lower package');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000023', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'the valid first plan cannot expose the rejected second Checkout higher entitlement');
+select is((select stripe_price_id from public.billing_subscription_items where organization_id = 'ea000000-0000-4000-8000-000000000023'),
+  'price_portalTrainMonth', 'quarantining the second subscription preserves the valid first items');
+select ok((select was_applied from pg_temp.portal_event('evt_portalReverseOtherRecovered', 20, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000023', p_subscription_suffix => 'Second')),
+  'an older valid snapshot can reconcile the quarantined second subscription');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000023', clock_timestamp())
+  where feature_key = 'portal.care_access'), true, 'validated second-subscription recovery can grant the higher purchased plan');
+select is((select count(*)::integer from public.billing_subscriptions
+  where organization_id = 'ea000000-0000-4000-8000-000000000023' and not is_provider_placeholder),
+  2, 'recovery retains both real subscriptions for duplicate billing reconciliation');
+
+-- Invoice and subscription delivery order must not reverse newer payment
+-- evidence. Each fixture uses the real receipt processor and entitlement read.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values
+  ('ea000000-0000-4000-8000-000000000024', 'Portal payment ordering org', 'portal-payment-ordering-org', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('ea000000-0000-4000-8000-000000000025', 'Portal quarantined failure org', 'portal-quarantined-failure-org', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('ea000000-0000-4000-8000-000000000026', 'Portal quarantined paid org', 'portal-quarantined-paid-org', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('ea000000-0000-4000-8000-000000000027', 'Portal quarantined old payment org', 'portal-quarantined-old-payment-org', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('ea000000-0000-4000-8000-000000000028', 'Portal other payment org', 'portal-other-payment-org', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('ea000000-0000-4000-8000-000000000029', 'Portal expired other payment org', 'portal-expired-other-payment-org', 'trial', 'ea000000-0000-4000-8000-000000000001');
+set local role service_role;
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalPaymentOrderActive', 1, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000024')), 'payment ordering starts with a validated subscription');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalPaymentOrderPaid', 'ea000000-0000-4000-8000-000000000024')),
+  'a newer successful payment is delivered before restrictive snapshots');
+select ok((select was_applied from pg_temp.portal_event('evt_portalOldPastDue', 2, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000024', p_status => 'past_due')), 'the older past-due subscription snapshot is recorded');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000024'),
+  'active', 'an older past-due snapshot cannot replace newer successful payment');
+select ok((select was_applied from pg_temp.portal_event('evt_portalOldUnpaid', 3, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000024', p_status => 'unpaid')), 'the older unpaid snapshot is recorded');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000024'),
+  'active', 'an older unpaid snapshot cannot revoke access after newer successful payment');
+select ok((select was_applied from pg_temp.portal_event('evt_portalOldPaused', 4, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000024', p_status => 'paused')), 'the older paused snapshot is recorded');
+select results_eq($$ select billing_state, provider_event_id, grace_ends_at from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000024' $$,
+  $$ values ('active'::text, 'evt_portalPaymentOrderPaid'::text, null::timestamptz) $$,
+  'older restrictive snapshots preserve the successful payment pointer and do not create dunning grace');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000024', clock_timestamp())
+  where feature_key = 'portal.care_access'), true, 'newer payment preserves purchased access regardless of delivery order');
+select ok((select was_applied from pg_temp.portal_event('evt_portalNewUnpaid', 50, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000024', p_status => 'unpaid')), 'a genuinely newer unpaid snapshot still takes effect');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000024'),
+  'past_due', 'newer unpaid status retains the existing nonentitled policy');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalNewUnpaidPaid', 'ea000000-0000-4000-8000-000000000024',
+  p_sequence => 52)), 'a newer paid invoice is accepted after the unpaid snapshot');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000024'),
+  'active', 'newer payment also restores access when delivered after unpaid status');
+select ok((select was_applied from pg_temp.portal_event('evt_portalNewPaused', 54, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000024', p_status => 'paused')), 'a genuinely newer paused snapshot takes effect');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000024'),
+  'suspended', 'pause still suspends the account when newer than payment evidence');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalNewPausedPaid', 'ea000000-0000-4000-8000-000000000024',
+  p_event_type => 'invoice.payment_succeeded', p_sequence => 56)), 'a newer payment_succeeded invoice is accepted after pause');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000024'),
+  'active', 'successful payment after pause has the same outcome as reversed delivery');
+
+-- Quarantining another subscription must preserve this newer payment even
+-- though the first subscription still carries its older paused snapshot.
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalPaidThenInvalidSecond', 57, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000024', p_subscription_suffix => 'Second')),
+  'an invalid second plan is rejected after payment restored the first plan');
+select results_eq($$ select billing_state, provider_event_id, grace_ends_at from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000024' $$,
+  $$ values ('active'::text, 'evt_portalNewPausedPaid'::text, null::timestamptz) $$,
+  'second-plan quarantine preserves the first plan newer successful payment');
+select is((select package_id from public.organizations where id = 'ea000000-0000-4000-8000-000000000024'),
+  'ea000000-0000-4000-8000-000000000002'::uuid, 'the paid first plan retains its validated CareBase package');
+select results_eq($$ select is_provider_placeholder, billing_state, provider_status from public.billing_subscriptions
+  where stripe_subscription_id = 'sub_portalea000000000040008000000000000024Second' $$,
+  $$ values (true, 'suspended'::text, 'plan_reconciliation_failed'::text) $$,
+  'only the invalid second subscription is quarantined after payment recovery');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000024', clock_timestamp())
+  where feature_key = 'portal.care_access'), true, 'the paid first plan remains usable while its invalid second plan is quarantined');
+
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalFirstPlanNewFailure', 'ea000000-0000-4000-8000-000000000024',
+  p_event_type => 'invoice.payment_failed', p_sequence => 58)), 'a newer first-plan failure starts its ordinary grace period');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalGraceThenInvalidThird', 59, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000024', p_subscription_suffix => 'Third')),
+  'an invalid third plan is rejected while the first plan has newer invoice grace');
+select results_eq($$ select billing_state, provider_state, provider_event_id, grace_ends_at from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000024' $$,
+  $$ values ('grace'::text, 'past_due'::text, 'evt_portalFirstPlanNewFailure'::text,
+             date_trunc('second', now()) - interval '2 seconds' + interval '7 days') $$,
+  'third-plan quarantine preserves the first failure and its original grace deadline');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000024', clock_timestamp())
+  where feature_key = 'portal.care_access'), true, 'the first plan retains access during its original grace period');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000024', clock_timestamp() + interval '8 days')
+  where feature_key = 'portal.care_access'), false, 'preserving another plan payment evidence does not extend its grace entitlement');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalExpiredFirstValid', -777600, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000029')), 'the expired-grace case starts with an older valid first plan');
+select ok((select was_applied from pg_temp.portal_event('evt_portalExpiredFirstPaused', -777599, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000029', p_status => 'paused')), 'the older first-plan pause is recorded');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalExpiredFirstFailure', 'ea000000-0000-4000-8000-000000000029',
+  p_event_type => 'invoice.payment_failed', p_sequence => -691200)), 'a newer first-plan failure whose grace has expired is accepted');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalExpiredInvalidSecond', 57, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000029', p_subscription_suffix => 'Second')),
+  'an invalid second plan is rejected after the first plan grace has already expired');
+select results_eq($$ select billing_state, provider_state, provider_event_id, grace_ends_at from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000029' $$,
+  $$ values ('grace'::text, 'past_due'::text, 'evt_portalExpiredFirstFailure'::text,
+             date_trunc('second', now()) - interval '1 day 1 minute') $$,
+  'quarantine preserves expired payment evidence without restarting its grace clock');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000029', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'an already expired first-plan grace remains nonentitled after second-plan quarantine');
+
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalDuringFailureCheckout',
+  'ea000000-0000-4000-8000-000000000025', 'ea000000-0000-4000-8000-000000000002')),
+  'the during-quarantine failure case starts with a provisional plan');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalDuringFailurePriorPaid', 'ea000000-0000-4000-8000-000000000025',
+  p_sequence => 5)), 'an earlier successful payment establishes the old account pointer');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalDuringFailureRejected', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000025')), 'invalid pricing quarantines the previously paid placeholder');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalDuringFailureFailed', 'ea000000-0000-4000-8000-000000000025',
+  p_event_type => 'invoice.payment_failed')), 'a newer failure is durably accepted during quarantine');
+select is((select billing_state from public.billing_accounts where organization_id = 'ea000000-0000-4000-8000-000000000025'),
+  'suspended', 'failure evidence does not turn quarantine into entitled grace before plan validation');
+select ok((select was_applied from pg_temp.portal_event('evt_portalDuringFailureRecovered', 20, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000025')), 'an older valid snapshot recovers the plan after the failure');
+select results_eq($$ select billing_state, provider_state, provider_event_id, grace_ends_at from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000025' $$,
+  $$ values ('grace'::text, 'past_due'::text, 'evt_portalDuringFailureFailed'::text,
+             date_trunc('second', now()) - interval '20 seconds' + interval '7 days') $$,
+  'recovery retains the failure received during quarantine and its original grace deadline');
+select is((select is_entitled from public.get_effective_entitlements('ea000000-0000-4000-8000-000000000025', clock_timestamp() + interval '8 days')
+  where feature_key = 'portal.care_access'), false, 'a quarantined payment failure cannot become indefinite paid access after recovery');
+
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalDuringPaidRejected', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000026')), 'first invalid pricing starts the payment-recovery quarantine');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalDuringPaidFailed', 'ea000000-0000-4000-8000-000000000026',
+  p_event_type => 'invoice.payment_failed')), 'failure is accepted while the first plan remains quarantined');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalDuringPaidSuccess', 'ea000000-0000-4000-8000-000000000026',
+  p_event_type => 'invoice.payment_succeeded', p_sequence => 45)), 'newer success is also retained while quarantined');
+select ok((select was_applied from pg_temp.portal_event('evt_portalDuringPaidRecovered', 20, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000026')), 'valid pricing recovers after both payment outcomes');
+select results_eq($$ select billing_state, provider_event_id, grace_ends_at from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000026' $$,
+  $$ values ('active'::text, 'evt_portalDuringPaidSuccess'::text, null::timestamptz) $$,
+  'the latest successful invoice supersedes the quarantined failure during recovery');
+
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalDuringOldPaidRejected', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000027')), 'the reversed invoice-order case starts quarantined');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalDuringOldPaidFailed', 'ea000000-0000-4000-8000-000000000027',
+  p_event_type => 'invoice.payment_failed', p_sequence => 45)), 'a newer failure is delivered first during quarantine');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalDuringOldPaidSuccess', 'ea000000-0000-4000-8000-000000000027')),
+  'an older success from another invoice is delivered afterward');
+select ok((select was_applied from pg_temp.portal_event('evt_portalDuringOldPaidRecovered', 20, array['price_portalCareMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000027')), 'valid pricing recovers after reversed invoice delivery');
+select results_eq($$ select billing_state, provider_event_id, grace_ends_at from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000027' $$,
+  $$ values ('grace'::text, 'evt_portalDuringOldPaidFailed'::text,
+             date_trunc('second', now()) - interval '15 seconds' + interval '7 days') $$,
+  'payment creation time wins over reversed arrival when recovering quarantine');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalOtherPaymentValid', 1, array['price_portalTrainMonth'],
+  p_org => 'ea000000-0000-4000-8000-000000000028')), 'an existing valid subscription precedes a quarantined second plan');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalOtherPaymentPaid', 'ea000000-0000-4000-8000-000000000028',
+  p_sequence => 55)), 'the existing subscription has newer successful account evidence');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalOtherPaymentRejected', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000028', p_subscription_suffix => 'Second')),
+  'the invalid second subscription is independently quarantined');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalOtherPaymentFailed', 'ea000000-0000-4000-8000-000000000028',
+  'Second', 'invoice.payment_failed')), 'the second plan records an older failure during quarantine');
+select ok((select was_applied from pg_temp.portal_event('evt_portalOtherPaymentRecovered', 20, array['price_portalTrainYear'],
+  p_org => 'ea000000-0000-4000-8000-000000000028', p_subscription_suffix => 'Second')),
+  'the second plan can validate without rewriting newer first-subscription evidence');
+select results_eq($$ select billing_state, provider_event_id, grace_ends_at from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000028' $$,
+  $$ values ('active'::text, 'evt_portalOtherPaymentPaid'::text, null::timestamptz) $$,
+  'quarantine recovery cannot override a newer account event for another valid subscription');
+
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalOtherTerminalRejected', 30, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000028', p_subscription_suffix => 'Third')),
+  'a third invalid subscription is quarantined for terminal recovery ordering');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalOtherTerminalFailed', 'ea000000-0000-4000-8000-000000000028',
+  'Third', 'invoice.payment_failed')), 'the terminal quarantine records its own historical payment failure');
+select ok((select was_applied from pg_temp.portal_event('evt_portalOtherPaymentCanceled', 19, array['price_unrecognized'],
+  p_org => 'ea000000-0000-4000-8000-000000000028', p_subscription_suffix => 'Third', p_status => 'canceled')),
+  'a quarantined third subscription can terminate without promoting historical invoices');
+select results_eq($$ select billing_state, provider_event_id from public.billing_accounts
+  where organization_id = 'ea000000-0000-4000-8000-000000000028' $$,
+  $$ values ('active'::text, 'evt_portalOtherPaymentPaid'::text) $$,
+  'terminal quarantine recovery cannot override newer evidence for another valid subscription');
 
 select * from finish();
 rollback;

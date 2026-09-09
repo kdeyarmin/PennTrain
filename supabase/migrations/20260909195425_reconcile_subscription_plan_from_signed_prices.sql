@@ -28,7 +28,7 @@ begin
   v_new := $new$      if v_package_id is not null and not exists (
         select 1 from public.billing_subscriptions s
         where s.stripe_subscription_id = v_subscription_id
-          and not s.is_provider_placeholder
+          and (not s.is_provider_placeholder or s.provider_status = 'plan_reconciliation_failed')
       ) then
         update public.organizations o$new$;
   if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
@@ -207,22 +207,25 @@ begin
           v_invoice record;
           v_override_invoice boolean := false;
         begin
-          -- An invoice can be delivered first even though its timestamp is
-          -- later than the subscription snapshot. It cannot prevent cancellation
-          -- or validated placeholder recovery for that same subscription.
+          -- Payment receipts remain authoritative during quarantine even though
+          -- they cannot promote account access then. Read the latest accepted
+          -- receipt for this subscription, not only the account's event pointer.
           select e.event_type, e.event_created_at, e.event_id into v_invoice
-          from public.billing_accounts a
-          join app_private.stripe_billing_events e on e.event_id = a.provider_event_id
-          where a.id = v_account_id
+          from app_private.stripe_billing_events e
+          where e.organization_id = v_org_id and e.processing_status = 'applied'
+            and ((v_plan_recovery and v_provider_status not in ('canceled', 'incomplete_expired')) or e.event_id = (
+              select a.provider_event_id from public.billing_accounts a where a.id = v_account_id))
             and e.event_type in ('invoice.payment_failed', 'invoice.payment_succeeded', 'invoice.paid')
             and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
                          e.payload #>> '{data,object,subscription}') = v_object->>'id'
             and (e.event_created_at, app_private.stripe_event_received_at(e.event_id))
-                > (p_event_created_at, app_private.stripe_event_received_at(p_event_id));
+                > (p_event_created_at, app_private.stripe_event_received_at(p_event_id))
+          order by e.event_created_at desc, e.signature_verified_at desc, e.event_id
+          limit 1;
           v_override_invoice := found and (v_plan_recovery
-            or v_provider_status in ('canceled', 'incomplete_expired', 'paused', 'unpaid', 'past_due'));
+            or v_provider_status in ('canceled', 'incomplete_expired'));
           if v_override_invoice and v_plan_recovery
-             and v_provider_status not in ('canceled', 'incomplete_expired', 'paused', 'unpaid', 'past_due') then
+             and v_provider_status not in ('canceled', 'incomplete_expired') then
             -- Preserve a newer payment failure and its original grace clock;
             -- recovery of the plan must not erase that billing evidence.
             v_account_state := case when v_invoice.event_type = 'invoice.payment_failed' then
@@ -258,7 +261,10 @@ begin
             provider_event_id = v_account_event_id,
             updated_at = now()
           where a.id = v_account_id
-            and (v_override_invoice or a.provider_event_created_at is null
+            and ((v_override_invoice and (
+                  v_provider_status in ('canceled', 'incomplete_expired')
+                  or a.provider_event_id = v_account_event_id))
+              or a.provider_event_created_at is null
               or (v_account_event_created_at, app_private.stripe_event_received_at(v_account_event_id))
                 > (a.provider_event_created_at, app_private.stripe_event_received_at(a.provider_event_id)));
         end;$new$;
@@ -276,7 +282,7 @@ begin
            select 1 from public.billing_subscriptions s
            where s.organization_id = v_org_id
              and ((s.is_provider_placeholder and s.provider_status = 'plan_reconciliation_failed')
-                  or s.provider_status in ('canceled', 'incomplete_expired', 'paused', 'unpaid'))
+                  or s.provider_status in ('canceled', 'incomplete_expired'))
              and (v_subscription_id is null or s.stripe_subscription_id = v_subscription_id)
          ) then$new$;
   if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
@@ -292,19 +298,47 @@ begin
   v_new := $new$      if sqlstate in ('42501', '22023', '22P02', '22003', '23502', '23514', 'P0B01') then
         if sqlstate = 'P0B01' and v_applied and p_event_type like 'customer.subscription.%' then
           perform set_config('app.privileged_write', 'on', true);
-          -- Match the processor's account -> subscription lock order and
-          -- recheck binding after rollback released the earlier locks.
-          perform 1 from public.billing_accounts a
-          where a.id = v_account_id and a.organization_id = v_org_id
-            and (v_customer_id is null or a.stripe_customer_id = v_customer_id)
-          for update;
-          if found then
-            update public.billing_subscriptions s
-            set billing_state = 'suspended', provider_status = 'plan_reconciliation_failed',
+          -- Recheck binding and reacquire account -> subscription locks after
+          -- rollback. The first event may have created both rows inside the
+          -- rolled-back block, or bound an existing account's NULL customer.
+          if not exists (
+            select 1 from public.billing_accounts a
+            where a.stripe_customer_id = v_customer_id and a.organization_id <> v_org_id
+          ) and not exists (
+            select 1 from public.billing_subscriptions s
+            where s.stripe_subscription_id = v_object->>'id' and s.organization_id <> v_org_id
+          ) then
+            insert into public.billing_accounts (
+              organization_id, stripe_customer_id, billing_state, provider_state, state_source
+            ) values (v_org_id, v_customer_id, 'trial', 'uninitialized', 'stripe')
+            on conflict (organization_id) do update
+            set stripe_customer_id = coalesce(public.billing_accounts.stripe_customer_id, excluded.stripe_customer_id),
                 updated_at = now()
-            where s.organization_id = v_org_id and s.billing_account_id = v_account_id
-              and s.stripe_subscription_id = v_object->>'id'
-              and s.is_provider_placeholder;
+            where public.billing_accounts.stripe_customer_id is null
+               or excluded.stripe_customer_id is null
+               or public.billing_accounts.stripe_customer_id = excluded.stripe_customer_id
+            returning id into v_account_id;
+          else
+            v_account_id := null;
+          end if;
+          if v_account_id is not null then
+            -- Persist a quarantined placeholder even before Checkout arrives.
+            -- Its later metadata and invoices cannot create a provisional grant;
+            -- a validated subscription snapshot can still recover the row.
+            insert into public.billing_subscriptions (
+              organization_id, billing_account_id, package_id, stripe_subscription_id,
+              provider_status, billing_state, seat_quantity,
+              provider_event_created_at, provider_event_id, is_provider_placeholder
+            ) values (
+              v_org_id, v_account_id, (select o.package_id from public.organizations o where o.id = v_org_id),
+              v_object->>'id', 'plan_reconciliation_failed', 'suspended', 1,
+              p_event_created_at, p_event_id, true
+            )
+            on conflict (stripe_subscription_id) do update
+            set billing_state = 'suspended', provider_status = 'plan_reconciliation_failed', updated_at = now()
+            where public.billing_subscriptions.organization_id = excluded.organization_id
+              and public.billing_subscriptions.billing_account_id = excluded.billing_account_id
+              and public.billing_subscriptions.is_provider_placeholder;
             get diagnostics v_count = row_count;
             if v_count > 0 then
               -- Another valid subscription must keep its own package, not the
@@ -312,7 +346,23 @@ begin
               select s.package_id into v_package_id
               from public.billing_subscriptions s
               where s.organization_id = v_org_id and not s.is_provider_placeholder
-                and s.billing_state in ('trial', 'active', 'grace')
+                and (s.billing_state in ('trial', 'active', 'grace') or (
+                  -- A newer invoice can restore paid/grace access without
+                  -- rewriting an older unpaid/paused subscription snapshot.
+                  -- Preserve that account evidence and its existing grace clock.
+                  s.provider_status not in ('canceled', 'incomplete_expired')
+                  and exists (
+                    select 1 from public.billing_accounts a
+                    join app_private.stripe_billing_events e on e.event_id = a.provider_event_id
+                    where a.id = v_account_id and e.organization_id = v_org_id
+                      and e.processing_status = 'applied'
+                      and e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
+                      and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
+                                   e.payload #>> '{data,object,subscription}') = s.stripe_subscription_id
+                      and (e.event_created_at, app_private.stripe_event_received_at(e.event_id))
+                          > (s.provider_event_created_at, app_private.stripe_event_received_at(s.provider_event_id))
+                  )
+                ))
               order by s.provider_event_created_at desc,
                        app_private.stripe_event_received_at(s.provider_event_id) desc, s.id
               limit 1;
