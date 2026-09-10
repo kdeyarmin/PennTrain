@@ -205,13 +205,13 @@ export function createSyncBillingQuantitiesHandler({
     return json({ success: true, replayed: true, runId: job.run_id, correlationId });
   }
 
-  const { data: subscriptionData, error: subscriptionError } = await admin
-    .from("billing_subscriptions")
-    .select("id, organization_id, current_period_start, current_period_end, quantity_sync_checked_at")
-    .in("billing_state", ["trial", "active", "grace", "past_due"])
-    .order("quantity_sync_checked_at", { ascending: true, nullsFirst: true })
-    .order("current_period_end", { ascending: true, nullsFirst: true })
-    .limit(batchSize);
+  // A newer payment can restore management eligibility while the subscription
+  // retains an older paused provider snapshot. Resolve that evidence in the
+  // database, before applying the batch limit or scheduling quantity work.
+  const { data: subscriptionData, error: subscriptionError } = await admin.rpc(
+    "get_managed_billing_subscriptions",
+    { p_organization_id: null, p_limit: batchSize, p_for_quantity_sync: true },
+  );
   if (subscriptionError) {
     await admin.rpc("finish_system_job", {
       p_run_id: job.run_id,

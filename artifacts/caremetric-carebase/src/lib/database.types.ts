@@ -1031,6 +1031,7 @@ export type Database = {
           cancel_at_period_end: boolean
           canceled_at: string | null
           checkout_previous_package_id: string | null
+          checkout_previous_plan_name: string | null
           created_at: string
           current_period_end: string | null
           current_period_start: string | null
@@ -1055,6 +1056,7 @@ export type Database = {
           cancel_at_period_end?: boolean
           canceled_at?: string | null
           checkout_previous_package_id?: string | null
+          checkout_previous_plan_name?: string | null
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
@@ -1079,6 +1081,7 @@ export type Database = {
           cancel_at_period_end?: boolean
           canceled_at?: string | null
           checkout_previous_package_id?: string | null
+          checkout_previous_plan_name?: string | null
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
@@ -38642,6 +38645,44 @@ export type Database = {
       get_integration_control_plane: {
         Args: { p_organization_id?: string }
         Returns: Json
+      }
+      get_managed_billing_subscriptions: {
+        Args: {
+          p_for_quantity_sync?: boolean
+          p_limit?: number
+          p_organization_id?: string
+        }
+        Returns: {
+          billing_account_id: string
+          billing_state: string
+          cancel_at_period_end: boolean
+          canceled_at: string | null
+          checkout_previous_package_id: string | null
+          checkout_previous_plan_name: string | null
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          is_provider_placeholder: boolean
+          organization_id: string
+          package_id: string | null
+          provider_event_created_at: string
+          provider_event_id: string
+          provider_status: string
+          quantity_sync_checked_at: string | null
+          quantity_sync_error_code: string | null
+          quantity_sync_status: string
+          seat_quantity: number
+          stripe_subscription_id: string
+          trial_ends_at: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "billing_subscriptions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_move_in_guest_workspace: { Args: { p_token: string }; Returns: Json }
       get_my_mfa_policy: { Args: never; Returns: Json }

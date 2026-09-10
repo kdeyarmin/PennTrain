@@ -200,6 +200,14 @@ Deno.test("sync-billing-quantities marks flat items already at qty 1 as unchange
         if (name === "claim_system_job_execution") {
           return { data: [{ run_id: "run-1", should_execute: true }], error: null };
         }
+        if (name === "get_managed_billing_subscriptions") {
+          return { data: [{
+            id: "sub-1", organization_id: "org-1",
+            current_period_start: "2026-07-01T00:00:00.000Z",
+            current_period_end: "2026-08-01T00:00:00.000Z",
+            quantity_sync_checked_at: null,
+          }], error: null };
+        }
         if (name === "finish_system_job") {
           finished.push(args ?? {});
           return { data: null, error: null };
@@ -224,18 +232,6 @@ Deno.test("sync-billing-quantities marks flat items already at qty 1 as unchange
           Object.assign(q, result);
           return q;
         };
-        if (table === "billing_subscriptions") {
-          return makeQuery({
-            data: [{
-              id: "sub-1",
-              organization_id: "org-1",
-              current_period_start: "2026-07-01T00:00:00.000Z",
-              current_period_end: "2026-08-01T00:00:00.000Z",
-              quantity_sync_checked_at: null,
-            }],
-            error: null,
-          });
-        }
         if (table === "billing_subscription_items") {
           return makeQuery({
             data: [{
@@ -376,4 +372,106 @@ Deno.test("sync-billing-quantities never reports an active replay as completed",
     assertEquals(result.replayed, true);
     assertEquals(claims, 1);
   }
+});
+
+Deno.test("sync-billing-quantities synchronizes a payment-backed paused subscription selected by the database", async () => {
+  const subscription = {
+    id: "sub-paid-paused", organization_id: "org-1", billing_state: "suspended",
+    provider_status: "paused", current_period_start: "2026-07-01T00:00:00.000Z",
+    current_period_end: "2026-08-01T00:00:00.000Z", quantity_sync_checked_at: null,
+  };
+  const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const providerCalls: Array<{ path: string; values: Record<string, unknown> }> = [];
+  const updates: Array<{ table: string; values: Record<string, unknown> }> = [];
+  const operation = { id: "operation-1", status: "pending", attempts: 1, updated_at: null };
+  const handler = createSyncBillingQuantitiesHandler({
+    createClient: () => ({
+      rpc: async (name: string, args: Record<string, unknown> = {}) => {
+        rpcCalls.push({ name, args });
+        if (name === "claim_system_job_execution") {
+          return { data: [{ run_id: "run-paid-paused", should_execute: true }], error: null };
+        }
+        if (name === "get_managed_billing_subscriptions") {
+          return { data: [subscription], error: null };
+        }
+        return { data: null, error: null };
+      },
+      from: (table: string) => {
+        let isUpdate = false;
+        const result = () => {
+          if (isUpdate) return { data: [{ id: "saved-row" }], error: null };
+          if (table === "billing_subscriptions") throw new Error("Raw subscription status must not select candidates");
+          if (table === "billing_subscription_items") return { data: [{
+            id: "item-1", organization_id: "org-1", quantity: 3,
+            stripe_price_id: "price-flat", stripe_subscription_item_id: "si_paid_paused",
+            subscription_id: subscription.id,
+          }], error: null };
+          if (table === "package_billing_prices") return { data: [{
+            stripe_price_id: "price-flat", billing_metric: "flat", pricing_model: "flat",
+            minimum_quantity: 1, maximum_quantity: 1,
+          }], error: null };
+          return { data: operation, error: null };
+        };
+        const query = {
+          select: () => query,
+          in: () => query,
+          eq: () => query,
+          insert: () => query,
+          update: (values: Record<string, unknown>) => {
+            isUpdate = true;
+            updates.push({ table, values });
+            return query;
+          },
+          single: async () => result(),
+          then: (resolve: (value: unknown) => unknown) => resolve(result()),
+        };
+        return query;
+      },
+    }),
+    stripePost: async (path, _secretKey, values) => {
+      providerCalls.push({ path, values });
+      return { ok: true, status: 200, data: { id: "si_paid_paused", quantity: 1 } };
+    },
+    stripeGet: async () => { throw new Error("A fresh operation needs no stale-success verification"); },
+    getEnv: (name) => name === "SUPABASE_URL" ? "https://project.test" : "test-secret",
+    requireCron: () => null,
+  });
+  const response = await handler(new Request("https://example.test", {
+    method: "POST", body: JSON.stringify({ batchSize: 500 }),
+  }));
+  assertEquals(response.status, 200);
+  const body = await response.json();
+  assertEquals(body.updated, 1);
+  assertEquals(body.syncedSubscriptions, 1);
+  assertEquals(rpcCalls.find((call) => call.name === "get_managed_billing_subscriptions")?.args,
+    { p_organization_id: null, p_limit: 50, p_for_quantity_sync: true });
+  assertEquals(providerCalls, [{ path: "/v1/subscription_items/si_paid_paused", values: { quantity: 1, proration_behavior: "none" } }]);
+  assertEquals(updates.some((entry) => entry.table === "billing_subscription_items" && entry.values.quantity === 1), true);
+  assertEquals(updates.some((entry) => entry.table === "billing_subscriptions" && entry.values.quantity_sync_status === "synced"), true);
+  assertEquals(updates.some((entry) => "billing_state" in entry.values || "provider_status" in entry.values), false);
+});
+
+Deno.test("sync-billing-quantities stops before Stripe when managed-subscription evidence cannot be read", async () => {
+  const finishes: Array<Record<string, unknown>> = [];
+  const handler = createSyncBillingQuantitiesHandler({
+    createClient: () => ({
+      rpc: async (name: string, args: Record<string, unknown> = {}) => {
+        if (name === "claim_system_job_execution") return { data: [{ run_id: "run-read-failed", should_execute: true }], error: null };
+        if (name === "get_managed_billing_subscriptions") return { data: null, error: { message: "unavailable" } };
+        if (name === "finish_system_job") finishes.push(args);
+        return { data: null, error: null };
+      },
+      from: () => { throw new Error("No raw-status fallback is allowed"); },
+    }),
+    stripePost: async () => { throw new Error("Unknown eligibility must not change Stripe quantities"); },
+    stripeGet: async () => { throw new Error("Unknown eligibility must not read Stripe quantities"); },
+    getEnv: (name) => name === "SUPABASE_URL" ? "https://project.test" : "test-secret",
+    requireCron: () => null,
+  });
+  const response = await handler(new Request("https://example.test", { method: "POST", body: "{}" }));
+  assertEquals(response.status, 500);
+  assertEquals((await response.json()).error, "subscription_read_failed");
+  assertEquals(finishes.length, 1);
+  assertEquals(finishes[0].p_error_code, "subscription_read_failed");
+  assertEquals(finishes[0].p_attempted_count, 0);
 });

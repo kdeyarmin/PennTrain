@@ -2,7 +2,7 @@
 -- real receipt processor and entitlement resolver, including rejected and stale
 -- deliveries, rather than updating local package rows as a test substitute.
 begin;
-select plan(433);
+select plan(532);
 
 insert into public.feature_definitions (feature_key, display_name, value_type, default_value)
 values ('portal.care_access', 'Portal plan test care access', 'boolean', 'false'::jsonb);
@@ -783,7 +783,7 @@ select ok((select was_applied from pg_temp.portal_checkout('evt_portalLegacyProv
   'ea000000-0000-4000-8000-000000000002')), 'the legacy placeholder fixture starts with higher provisional Checkout');
 reset role;
 -- Simulate a placeholder created before the provenance column existed.
-update public.billing_subscriptions set checkout_previous_package_id = null where organization_id = 'ea000000-0000-4000-8000-000000000031';
+update public.billing_subscriptions set checkout_previous_package_id = null, checkout_previous_plan_name = null where organization_id = 'ea000000-0000-4000-8000-000000000031';
 update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = null
 where organization_id = 'ea000000-0000-4000-8000-000000000031';
 set local role service_role;
@@ -1145,7 +1145,7 @@ set local role service_role;
 select ok((select was_applied from pg_temp.portal_checkout('evt_portalTerminalComp39Checkout', 'ea000000-0000-4000-8000-000000000039', 'ea000000-0000-4000-8000-000000000002')),
   'terminal comp 39 starts with provisional higher Checkout');
 reset role;
-update public.billing_subscriptions set checkout_previous_package_id = null where organization_id = 'ea000000-0000-4000-8000-000000000039';
+update public.billing_subscriptions set checkout_previous_package_id = null, checkout_previous_plan_name = null where organization_id = 'ea000000-0000-4000-8000-000000000039';
 set local role service_role;
 
 select ok((select was_applied from pg_temp.portal_event('evt_portalTerminalComp39Ended', 30, array['price_unrecognized'],
@@ -1693,6 +1693,518 @@ select results_eq($$ select s.package_id, s.billing_state, i.stripe_price_id
 select is((select is_entitled from public.get_effective_entitlements('eafa0000-0000-4000-8000-000000000402', clock_timestamp())
   where feature_key = 'portal.care_access'), false,
   'the indefinite comp uses the current package selection instead of canceled historical pricing');
+
+-- An independent catalog comp is not evidence that an unrelated legacy
+-- subscription uses managed Stripe prices. Its own metadata/history still is.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id) values
+  ('eaff0000-0000-4000-8000-000000000601', 'Portal custom subscription during comp', 'portal-custom-subscription-during-comp', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000602', 'Portal managed subscription during comp', 'portal-managed-subscription-during-comp', 'trial', 'ea000000-0000-4000-8000-000000000001');
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id in ('eaff0000-0000-4000-8000-000000000601', 'eaff0000-0000-4000-8000-000000000602');
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_event('evt_portalCompCustomAuthoritative', 10, array['price_compCustomLegacy'],
+  p_metadata_package => 'ea000000-0000-4000-8000-000000000003', p_org => 'eaff0000-0000-4000-8000-000000000601')),
+  'a legitimate custom provider contract validates independently of the current catalog comp');
+select results_eq($$ select s.package_id, s.is_provider_placeholder, s.provider_status, a.billing_state, a.state_source, a.comped_until
+  from public.billing_subscriptions s join public.billing_accounts a on a.id = s.billing_account_id
+  where s.organization_id = 'eaff0000-0000-4000-8000-000000000601' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000003'::uuid, false, 'active'::text, 'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
+  'custom provider history is recorded while the original comp state and deadline remain intact');
+select results_eq($$ select entitlement_value, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000601', clock_timestamp() + interval '2 days')
+  where feature_key = 'limits.learners' $$,
+  $$ values ('20'::jsonb, 'active'::text, true) $$,
+  'the paying custom contract remains usable after the temporary independent comp expires');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalCompManagedRejected', 10, array['price_compUnknownManaged'],
+  p_metadata_package => 'ea000000-0000-4000-8000-000000000002', p_org => 'eaff0000-0000-4000-8000-000000000602')),
+  'managed provider metadata still requires mapped prices even during an independent comp');
+select results_eq($$ select o.package_id, a.billing_state, s.provider_status, s.is_provider_placeholder
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  join public.billing_subscriptions s on s.billing_account_id = a.id
+  where o.id = 'eaff0000-0000-4000-8000-000000000602' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'plan_reconciliation_failed'::text, true) $$,
+  'an invalid managed contract remains quarantined while preserving the independent lower comp');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000602', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'excluding comp provenance cannot grant an unresolved higher catalog tier');
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id, plan_name)
+values
+  ('eafa0000-0000-4000-8000-000000000501', 'Terminal custom label provenance', 'portal-terminal-custom-label-provenance', 'trial', null, 'Negotiated terminal contract'),
+  ('eafa0000-0000-4000-8000-000000000502', 'Quarantine custom label provenance', 'portal-quarantine-custom-label-provenance', 'trial', null, 'Negotiated quarantine contract'),
+  ('eafa0000-0000-4000-8000-000000000503', 'Reverse custom label provenance', 'portal-reverse-custom-label-provenance', 'trial', null, 'Negotiated reverse contract');
+set local role service_role;
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalLabel501ValidA', 40, array['price_legacyUnmapped'],
+  p_metadata_package => null, p_org => 'eafa0000-0000-4000-8000-000000000501')),
+  'the custom contract is authoritative before the separate provisional Checkout');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalLabel501CheckoutB',
+  'eafa0000-0000-4000-8000-000000000501', 'ea000000-0000-4000-8000-000000000002', 'Second')),
+  'ordinary non-NULL Checkout provisionally overwrites the custom contract label');
+select results_eq($$ select o.package_id, o.plan_name, s.checkout_previous_package_id, s.checkout_previous_plan_name
+  from public.organizations o join public.billing_subscriptions s on s.organization_id = o.id
+  where o.id = 'eafa0000-0000-4000-8000-000000000501' and s.stripe_subscription_id like '%Second' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'Portal test CareBase'::text,
+    null::uuid, 'Negotiated terminal contract'::text) $$,
+  'Checkout overwrites the visible label while preserving the actual prior custom label');
+select ok((select was_applied from pg_temp.portal_event('evt_portalLabel501CanceledB', 30, array['price_unrecognized'],
+  p_org => 'eafa0000-0000-4000-8000-000000000501', p_subscription_suffix => 'Second', p_status => 'canceled')),
+  'the provisional sibling terminates without validating its catalog label');
+select results_eq($$ select o.package_id, o.plan_name from public.organizations o
+  where o.id = 'eafa0000-0000-4000-8000-000000000501' $$,
+  $$ values (null::uuid, 'Negotiated terminal contract'::text) $$,
+  'terminal reconciliation restores the actual prior custom contract label after a real overwrite');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalLabel502ValidA', 40, array['price_legacyUnmapped'],
+  p_metadata_package => null, p_org => 'eafa0000-0000-4000-8000-000000000502')),
+  'the quarantine case also has an authoritative custom NULL-package survivor');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalLabel502CheckoutB',
+  'eafa0000-0000-4000-8000-000000000502', 'ea000000-0000-4000-8000-000000000002', 'Second')),
+  'the first provisional Checkout overwrites the quarantine custom label');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalLabel502CheckoutBAgain',
+  'eafa0000-0000-4000-8000-000000000502', 'ea000000-0000-4000-8000-000000000002', 'Second')),
+  'a repeated Checkout cannot replace the original label provenance');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalLabel502CheckoutC',
+  'eafa0000-0000-4000-8000-000000000502', 'ea000000-0000-4000-8000-000000000001', 'Third')),
+  'a second distinct provisional Checkout inherits the first original label');
+select results_eq($$ select s.checkout_previous_package_id, s.checkout_previous_plan_name
+  from public.billing_subscriptions s where s.organization_id = 'eafa0000-0000-4000-8000-000000000502'
+    and s.is_provider_placeholder order by s.stripe_subscription_id $$,
+  $$ values (null::uuid, 'Negotiated quarantine contract'::text),
+            (null::uuid, 'Negotiated quarantine contract'::text) $$,
+  'repeated and chained Checkout preserve the custom label instead of either provisional catalog label');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalLabel502RejectedC', 30, array['price_unrecognized'],
+  p_org => 'eafa0000-0000-4000-8000-000000000502', p_subscription_suffix => 'Third')),
+  'the latest provisional plan is rejected without validating its package or label');
+select results_eq($$ select o.package_id, o.plan_name from public.organizations o
+  where o.id = 'eafa0000-0000-4000-8000-000000000502' $$,
+  $$ values (null::uuid, 'Negotiated quarantine contract'::text) $$,
+  'quarantine restores the actual custom survivor label through the provisional chain');
+
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalLabel503CheckoutA',
+  'eafa0000-0000-4000-8000-000000000503', 'ea000000-0000-4000-8000-000000000002')),
+  'the reverse-order case begins with a provisional catalog overwrite');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalLabel503RejectedB', 30, array['price_unrecognized'],
+  p_org => 'eafa0000-0000-4000-8000-000000000503', p_subscription_suffix => 'Second')),
+  'a different plan can fail before its own Checkout arrives');
+select results_eq($$ select s.checkout_previous_package_id, s.checkout_previous_plan_name
+  from public.billing_subscriptions s where s.organization_id = 'eafa0000-0000-4000-8000-000000000503'
+    and s.stripe_subscription_id like '%Second' $$,
+  $$ values (null::uuid, 'Negotiated reverse contract'::text) $$,
+  'failure-before-Checkout inherits trustworthy original label provenance from the existing provisional stamp');
+select results_eq($$ select o.package_id, o.plan_name from public.organizations o
+  where o.id = 'eafa0000-0000-4000-8000-000000000503' $$,
+  $$ values (null::uuid, 'Negotiated reverse contract'::text) $$,
+  'fallback without a validated survivor restores known custom provenance rather than the failed catalog label');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalLabel503LateCheckoutB',
+  'eafa0000-0000-4000-8000-000000000503', 'ea000000-0000-4000-8000-000000000002', 'Second')),
+  'the rejected subscription can receive its delayed Checkout without claiming the label again');
+select results_eq($$ select s.checkout_previous_package_id, s.checkout_previous_plan_name
+  from public.billing_subscriptions s where s.organization_id = 'eafa0000-0000-4000-8000-000000000503'
+    and s.stripe_subscription_id like '%Second' $$,
+  $$ values (null::uuid, 'Negotiated reverse contract'::text) $$,
+  'delayed Checkout preserves the provenance captured by the first failed receipt');
+select is((select plan_name from public.organizations where id = 'eafa0000-0000-4000-8000-000000000503'),
+  'Negotiated reverse contract', 'delayed Checkout leaves the restored custom label intact');
+
+-- Management selection reads status and payment clocks independently. These
+-- fixtures deliberately retain restrictive snapshots beside later receipts.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id) values
+  ('eaff0000-0000-4000-8000-000000000701', 'Managed billing reads A', 'portal-managed-billing-a', 'active', 'ea000000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000702', 'Managed billing reads B', 'portal-managed-billing-b', 'active', 'ea000000-0000-4000-8000-000000000001'),
+  ('eaff0000-0000-4000-8000-000000000703', 'Managed billing bounded batch', 'portal-managed-billing-batch', 'active', 'ea000000-0000-4000-8000-000000000001');
+
+create temporary table managed_billing_fixture (
+  suffix text, billing_state text, provider_status text, placeholder boolean,
+  invoice_status text, invoice_type text, snapshot_sequence integer, invoice_sequence integer,
+  invoice_org uuid default 'eaff0000-0000-4000-8000-000000000701',
+  invoice_subscription_suffix text
+) on commit drop;
+insert into managed_billing_fixture (suffix, billing_state, provider_status, placeholder,
+  invoice_status, invoice_type, snapshot_sequence, invoice_sequence) values
+  ('Active', 'active', 'active', false, null, null, 1, null),
+  ('Trial', 'trial', 'trialing', false, null, null, 2, null),
+  ('Grace', 'grace', 'past_due', false, null, null, 3, null),
+  ('PastDue', 'past_due', 'past_due', false, null, null, 4, null),
+  ('PaidUnpaid', 'suspended', 'unpaid', false, 'applied', 'invoice.paid', 5, 25),
+  ('PaidPaused', 'suspended', 'paused', false, 'applied', 'invoice.payment_succeeded', 6, 26),
+  ('FailedPaused', 'suspended', 'paused', false, 'applied', 'invoice.payment_failed', 7, 27),
+  ('NoReceipt', 'suspended', 'unpaid', false, null, null, 8, null),
+  ('Rejected', 'suspended', 'paused', false, 'failed', 'invoice.paid', 9, 29),
+  ('Stale', 'suspended', 'paused', false, 'stale', 'invoice.paid', 10, 30),
+  ('Ignored', 'suspended', 'paused', false, 'ignored', 'invoice.paid', 11, 31),
+  ('OldReceipt', 'suspended', 'paused', false, 'applied', 'invoice.paid', 32, 12),
+  ('Placeholder', 'active', 'active', true, 'applied', 'invoice.paid', 13, 33),
+  ('Canceled', 'canceled', 'canceled', false, 'applied', 'invoice.paid', 14, 34),
+  ('IncompleteExpired', 'canceled', 'incomplete_expired', false, 'applied', 'invoice.paid', 15, 35),
+  ('ForeignReceipt', 'suspended', 'unpaid', false, 'applied', 'invoice.paid', 16, 36),
+  ('SiblingReceipt', 'suspended', 'paused', false, 'applied', 'invoice.paid', 17, 37);
+update managed_billing_fixture set invoice_org = 'eaff0000-0000-4000-8000-000000000702' where suffix = 'ForeignReceipt';
+update managed_billing_fixture set invoice_subscription_suffix = 'Active' where suffix = 'SiblingReceipt';
+
+insert into public.billing_subscriptions (
+  organization_id, billing_account_id, package_id, stripe_subscription_id,
+  billing_state, provider_status, is_provider_placeholder, provider_event_created_at,
+  provider_event_id, current_period_end, trial_ends_at, created_at, quantity_sync_checked_at
+)
+select a.organization_id, a.id, 'ea000000-0000-4000-8000-000000000001', 'sub_managed701' || f.suffix,
+  f.billing_state, f.provider_status, f.placeholder,
+  date_trunc('second', now()) - interval '20 days' + f.snapshot_sequence * interval '1 second',
+  'evt_managed701Snapshot' || f.suffix, now() - interval '15 days', now() - interval '15 days',
+  now() - interval '1 day' + f.snapshot_sequence * interval '1 second',
+  case when f.suffix in ('PaidUnpaid', 'PaidPaused') then null else now() end
+from managed_billing_fixture f cross join public.billing_accounts a
+where a.organization_id = 'eaff0000-0000-4000-8000-000000000701';
+
+insert into app_private.stripe_billing_events (
+  event_id, event_type, event_created_at, payload_sha256, payload, organization_id,
+  processing_status, correlation_id, signature_verified_at
+)
+select 'evt_managed701Invoice' || f.suffix, f.invoice_type,
+  date_trunc('second', now()) - interval '20 days' + f.invoice_sequence * interval '1 second',
+  repeat('a', 64), jsonb_build_object('data', jsonb_build_object('object', jsonb_build_object(
+    'parent', jsonb_build_object('subscription_details', jsonb_build_object(
+      'subscription', 'sub_managed701' || coalesce(f.invoice_subscription_suffix, f.suffix)))
+  ))), f.invoice_org, f.invoice_status, 'managed-billing-regression', now()
+from managed_billing_fixture f where f.invoice_status is not null;
+-- Older provider payload shape is still matched by the same subscription id.
+update app_private.stripe_billing_events
+set payload = jsonb_build_object('data', jsonb_build_object('object',
+  jsonb_build_object('subscription', 'sub_managed701PaidUnpaid')))
+where event_id = 'evt_managed701InvoicePaidUnpaid';
+-- Fairness ordering must prefer the earliest period among never-checked rows.
+update public.billing_subscriptions set current_period_end = null
+where stripe_subscription_id = 'sub_managed701PaidPaused';
+
+insert into public.billing_subscriptions (
+  organization_id, billing_account_id, stripe_subscription_id, billing_state,
+  provider_status, provider_event_created_at, provider_event_id, created_at,
+  quantity_sync_checked_at
+)
+select a.organization_id, a.id, 'sub_managed702Active', 'active', 'active', now(),
+  'evt_managed702Snapshot', now() + interval '1 day', now() - interval '100 years'
+from public.billing_accounts a where a.organization_id = 'eaff0000-0000-4000-8000-000000000702';
+
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+set local role service_role;
+select results_eq($$ select stripe_subscription_id from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701') order by stripe_subscription_id $$,
+  $$ values ('sub_managed701Active'::text), ('sub_managed701FailedPaused'), ('sub_managed701Grace'), ('sub_managed701PaidPaused'), ('sub_managed701PaidUnpaid'), ('sub_managed701PastDue'), ('sub_managed701Trial') $$,
+  'management retains original states and later per-sub payment evidence while excluding stale, failed, foreign, placeholder, and terminal evidence');
+select is((select billing_state from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701') where stripe_subscription_id = 'sub_managed701PaidUnpaid'), 'suspended',
+  'the read model retains the signed restrictive snapshot rather than mutating its billing state');
+select ok(exists(select 1 from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701') where stripe_subscription_id = 'sub_managed701FailedPaused'),
+  'expired invoice grace remains manageable even though its payment failure no longer grants access');
+select results_eq($$ select stripe_subscription_id from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701', 1, false) $$,
+  $$ values ('sub_managed701FailedPaused'::text) $$,
+  'the UI selects the newest managed subscription by creation time');
+select results_eq($$ select stripe_subscription_id from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701', 2, true) $$,
+  $$ values ('sub_managed701PaidPaused'::text), ('sub_managed701PaidUnpaid'::text) $$,
+  'worker fairness schedules never-checked subscriptions before checked rows and null periods first');
+select is((select count(*)::integer from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701', 0)), 1,
+  'the server clamps a zero management limit to one');
+select is((select count(*)::integer from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701', -3)), 1,
+  'the server clamps a negative management limit to one');
+select is((select count(*)::integer from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701', null)), 7,
+  'a null limit uses the bounded default');
+select ok(exists(select 1 from public.get_managed_billing_subscriptions(null, 50, true)
+  where organization_id <> 'eaff0000-0000-4000-8000-000000000701'),
+  'the service worker can scan other organizations using its existing oldest-checked fairness order');
+
+reset role;
+insert into public.billing_subscriptions (
+  organization_id, billing_account_id, stripe_subscription_id, billing_state,
+  provider_status, provider_event_created_at, provider_event_id
+)
+select a.organization_id, a.id, 'sub_managed703Batch' || n, 'active', 'active', now(), 'evt_managed703Snapshot' || n
+from public.billing_accounts a cross join generate_series(1, 51) n
+where a.organization_id = 'eaff0000-0000-4000-8000-000000000703';
+set local role service_role;
+select is((select count(*)::integer from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000703', 10000)), 50,
+  'oversized management batches are bounded to fifty on the server');
+
+-- The definer may inspect private receipts only after the exact tenant billing
+-- read policy succeeds; normal users may never opt into a cross-tenant scan.
+reset role;
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+)
+select '00000000-0000-0000-0000-000000000000', v.id, 'authenticated', 'authenticated',
+  v.email, 'x', now(), '{}'::jsonb, '{}'::jsonb, now(), now(), '', '', '', '', '', '', false, false
+from (values
+  ('eaff0000-0000-4000-8000-000000000711'::uuid, 'managed-admin-a@test.local'),
+  ('eaff0000-0000-4000-8000-000000000712'::uuid, 'managed-employee-a@test.local'),
+  ('eaff0000-0000-4000-8000-000000000713'::uuid, 'managed-platform@test.local')
+) v(id, email);
+select set_config('app.privileged_write', 'on', true);
+insert into public.profiles (id, organization_id, email, first_name, last_name, role, is_active) values
+  ('eaff0000-0000-4000-8000-000000000711', 'eaff0000-0000-4000-8000-000000000701', 'managed-admin-a@test.local', 'Managed', 'Admin', 'org_admin', true),
+  ('eaff0000-0000-4000-8000-000000000712', 'eaff0000-0000-4000-8000-000000000701', 'managed-employee-a@test.local', 'Managed', 'Employee', 'employee', true),
+  ('eaff0000-0000-4000-8000-000000000713', null, 'managed-platform@test.local', 'Managed', 'Platform', 'platform_admin', true)
+on conflict (id) do update set organization_id = excluded.organization_id, role = excluded.role, is_active = excluded.is_active;
+select set_config('app.privileged_write', 'off', true);
+create function pg_temp.managed_billing_act_as(p_profile_id uuid)
+returns void language plpgsql as $fixture$
+begin
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', p_profile_id, 'role', 'authenticated',
+    'aal', 'aal2', 'iat', extract(epoch from now())::bigint)::text, true);
+  set local role authenticated;
+end;
+$fixture$;
+
+select pg_temp.managed_billing_act_as('eaff0000-0000-4000-8000-000000000711');
+select is((select count(*)::integer from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701')), 7,
+  'the organization administrator can read its own recovered managed subscriptions');
+select throws_ok($$ select * from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000702') $$,
+  '42501', 'Billing subscriptions are outside caller scope', 'an organization administrator cannot read another tenant');
+select throws_ok($$ select * from public.get_managed_billing_subscriptions() $$,
+  '42501', 'Billing subscriptions are outside caller scope', 'an organization administrator must provide an explicit organization');
+select throws_ok($$ select * from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701', 50, true) $$,
+  '42501', 'Billing subscriptions are outside caller scope', 'tenant administrators cannot opt into the worker scan mode');
+select throws_ok($$ select * from app_private.stripe_billing_events $$, '42501', null,
+  'the managed billing RPC does not expose the private signed event table');
+
+reset role;
+select pg_temp.managed_billing_act_as('eaff0000-0000-4000-8000-000000000712');
+select throws_ok($$ select * from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701') $$,
+  '42501', 'Billing subscriptions are outside caller scope', 'same-organization membership alone does not grant billing read access');
+reset role;
+insert into public.role_templates (id, organization_id, code, name)
+values ('eaff0000-0000-4000-8000-000000000790', 'eaff0000-0000-4000-8000-000000000701', 'managed_billing_reader', 'Managed billing reader');
+insert into public.role_template_permissions (role_template_id, permission_key)
+values ('eaff0000-0000-4000-8000-000000000790', 'billing.account.read');
+insert into public.enterprise_scope_memberships (profile_id, scope_type, organization_id, effective_from)
+select 'eaff0000-0000-4000-8000-000000000712', 'organization', 'eaff0000-0000-4000-8000-000000000701', now()
+where not exists (select 1 from public.enterprise_scope_memberships where profile_id = 'eaff0000-0000-4000-8000-000000000712'
+  and scope_type = 'organization' and organization_id = 'eaff0000-0000-4000-8000-000000000701'
+  and effective_from <= now() and (effective_to is null or effective_to > now()));
+insert into public.enterprise_access_grants (membership_id, role_template_id, effective_from)
+select m.id, 'eaff0000-0000-4000-8000-000000000790', now()
+from public.enterprise_scope_memberships m where m.profile_id = 'eaff0000-0000-4000-8000-000000000712'
+  and m.scope_type = 'organization' and m.organization_id = 'eaff0000-0000-4000-8000-000000000701'
+  and m.effective_from <= now() and (m.effective_to is null or m.effective_to > now());
+select pg_temp.managed_billing_act_as('eaff0000-0000-4000-8000-000000000712');
+select is((select count(*)::integer from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701')), 7,
+  'an explicit effective billing.account.read grant permits the same tenant read as the table policy');
+select throws_ok($$ select * from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000702') $$,
+  '42501', 'Billing subscriptions are outside caller scope', 'a custom billing read grant remains tenant scoped');
+
+reset role;
+select pg_temp.managed_billing_act_as('eaff0000-0000-4000-8000-000000000713');
+select is((select count(*)::integer from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000702')), 1,
+  'a platform administrator can manage an explicitly selected other organization');
+select throws_ok($$ select * from public.get_managed_billing_subscriptions(null, 50, false) $$,
+  '42501', 'Billing subscriptions are outside caller scope', 'platform administrators also provide an explicit organization for UI reads');
+select throws_ok($$ select * from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000702', 50, true) $$,
+  '42501', 'Billing subscriptions are outside caller scope', 'worker mode remains restricted to service credentials');
+reset role;
+select set_config('request.jwt.claims', '{"role":"authenticated"}', true);
+set local role authenticated;
+select throws_ok($$ select * from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000701') $$,
+  '42501', 'Billing subscriptions are outside caller scope', 'an authenticated role without a user identity cannot read tenant billing');
+reset role;
+select ok(not has_function_privilege('anon', 'public.get_managed_billing_subscriptions(uuid,integer,boolean)', 'execute')
+  and has_function_privilege('authenticated', 'public.get_managed_billing_subscriptions(uuid,integer,boolean)', 'execute')
+  and has_function_privilege('service_role', 'public.get_managed_billing_subscriptions(uuid,integer,boolean)', 'execute'),
+  'managed billing RPC execution is granted only to authenticated and service roles');
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+set local role service_role;
+
+-- Also exercise the actual webhook transition behind the consumer regression.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('eaff0000-0000-4000-8000-000000000704', 'Managed billing actual recovery', 'portal-managed-billing-recovery', 'trial', 'ea000000-0000-4000-8000-000000000001');
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_event('evt_portalManaged704Paused', 1, array['price_portalTrainMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000704', p_status => 'paused')),
+  'the real processor records the restrictive paused subscription snapshot');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalManaged704Paid', 'eaff0000-0000-4000-8000-000000000704', p_sequence => 2)),
+  'a later signed invoice restores the actual account without rewriting the paused snapshot');
+select results_eq($$ select provider_status, billing_state, is_provider_placeholder, package_id
+  from public.get_managed_billing_subscriptions('eaff0000-0000-4000-8000-000000000704', 1, false) $$,
+  $$ values ('paused'::text, 'suspended'::text, false, 'ea000000-0000-4000-8000-000000000001'::uuid) $$,
+  'both billing consumers can discover the actual paid recovery despite its retained restrictive snapshot');
+
+-- chronology, including both plan directions and same-subscription invoice order.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values
+ ('eaff0000-0000-4000-8000-000000000501', 'Mapped older Train sibling', 'portal-mapped-older-train-sibling', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+ ('eaff0000-0000-4000-8000-000000000502', 'Mapped older Care sibling', 'portal-mapped-older-care-sibling', 'trial', 'ea000000-0000-4000-8000-000000000001');
+set local role service_role;
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalMappedClock501AInitial', 1, array['price_portalTrainMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000501')), 'mapped clock 501 starts with authoritative subscription A');
+select ok((select was_applied from pg_temp.portal_event('evt_portalMappedClock501BCurrent', 50, array['price_portalCareMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000501', p_subscription_suffix => 'Second')), 'mapped clock 501 receives newer subscription B pricing');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalMappedClock501BPaid', 'eaff0000-0000-4000-8000-000000000501',
+  p_subscription_suffix => 'Second', p_sequence => 60)), 'mapped clock 501 account now belongs to newer B payment evidence');
+select ok((select was_applied from pg_temp.portal_event('evt_portalMappedClock501ADelayed', 20, array['price_portalTrainYear'],
+  p_org => 'eaff0000-0000-4000-8000-000000000501')), 'mapped clock 501 still records the delayed authoritative A plan snapshot');
+select results_eq($$ select o.package_id, a.billing_state, a.provider_event_id
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000501' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'active'::text, 'evt_portalMappedClock501BPaid'::text) $$,
+  'mapped clock 501 retains B current package and account evidence despite newer history for A');
+select results_eq($$ select s.package_id, s.provider_event_id, i.stripe_price_id from public.billing_subscriptions s
+  join public.billing_subscription_items i on i.subscription_id = s.id and i.organization_id = s.organization_id
+  where s.stripe_subscription_id = 'sub_portaleaff0000000040008000000000000501' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'evt_portalMappedClock501ADelayed'::text, 'price_portalTrainYear'::text) $$,
+  'mapped clock 501 preserves A own updated package and price for provider reconciliation');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000501', clock_timestamp())
+  where feature_key = 'portal.care_access'), true, 'mapped clock 501 exposes exactly the plan owned by newer B account evidence');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalMappedClock502AInitial', 1, array['price_portalCareMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000502')), 'mapped clock 502 starts with authoritative subscription A');
+select ok((select was_applied from pg_temp.portal_event('evt_portalMappedClock502BCurrent', 50, array['price_portalTrainMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000502', p_subscription_suffix => 'Second')), 'mapped clock 502 receives newer subscription B pricing');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalMappedClock502BPaid', 'eaff0000-0000-4000-8000-000000000502',
+  p_subscription_suffix => 'Second', p_sequence => 60)), 'mapped clock 502 account now belongs to newer B payment evidence');
+select ok((select was_applied from pg_temp.portal_event('evt_portalMappedClock502ADelayed', 20, array['price_portalCareYear'],
+  p_org => 'eaff0000-0000-4000-8000-000000000502')), 'mapped clock 502 still records the delayed authoritative A plan snapshot');
+select results_eq($$ select o.package_id, a.billing_state, a.provider_event_id
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000502' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'active'::text, 'evt_portalMappedClock502BPaid'::text) $$,
+  'mapped clock 502 retains B current package and account evidence despite newer history for A');
+select results_eq($$ select s.package_id, s.provider_event_id, i.stripe_price_id from public.billing_subscriptions s
+  join public.billing_subscription_items i on i.subscription_id = s.id and i.organization_id = s.organization_id
+  where s.stripe_subscription_id = 'sub_portaleaff0000000040008000000000000502' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'evt_portalMappedClock502ADelayed'::text, 'price_portalCareYear'::text) $$,
+  'mapped clock 502 preserves A own updated package and price for provider reconciliation');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000502', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'mapped clock 502 exposes exactly the plan owned by newer B account evidence');
+
+-- A delayed mapped snapshot remains authoritative when the newer account event
+-- is this SAME subscription's invoice, rather than another subscription's event.
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalMappedClock501ANewPaid',
+  'eaff0000-0000-4000-8000-000000000501', p_sequence => 70)), 'A can later become the current paying subscription');
+select ok((select was_applied from pg_temp.portal_event('evt_portalMappedClock501AOwnInvoiceDelayed', 30, array['price_portalTrainMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000501')), 'A price snapshot can arrive behind its own newer successful invoice');
+select results_eq($$ select o.package_id, a.billing_state, a.provider_event_id
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  where o.id = 'eaff0000-0000-4000-8000-000000000501' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'active'::text, 'evt_portalMappedClock501ANewPaid'::text) $$,
+  'same-subscription invoice ordering does not suppress its authoritative mapped plan change');
+select is((select is_entitled from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000501', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'the legitimate current A Train plan cannot retain historical B CareBase entitlement');
+
+-- Every case proves Checkout actually changed the package before reconciliation.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id, plan_name)
+values
+ ('eaff0000-0000-4000-8000-000000000503', 'Clock companion B before Checkout', 'portal-clock-companion-before', 'trial', 'ea000000-0000-4000-8000-000000000001', 'Portal test Train'),
+ ('eaff0000-0000-4000-8000-000000000504', 'Clock companion B after Checkout', 'portal-clock-companion-after', 'trial', 'ea000000-0000-4000-8000-000000000001', 'Portal test Train'),
+ ('eaff0000-0000-4000-8000-000000000505', 'Clock companion custom contract', 'portal-clock-companion-custom', 'trial', null, 'Independent custom contract'),
+ ('eaff0000-0000-4000-8000-000000000506', 'Clock companion independent comp', 'portal-clock-companion-comp', 'trial', 'ea000000-0000-4000-8000-000000000001', 'Portal test Train');
+set local role service_role;
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalClockCompanion503BValid', 50, array['price_portalCareMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000503', p_subscription_suffix => 'Second')), 'companion 503 starts with authoritative B pricing');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalClockCompanion503BPaid', 'eaff0000-0000-4000-8000-000000000503',
+  p_subscription_suffix => 'Second', p_sequence => 60)), 'companion 503 B payment owns the current account clock');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalClockCompanion503ACheckout', 'eaff0000-0000-4000-8000-000000000503',
+  'ea000000-0000-4000-8000-000000000001')), 'companion 503 receives an earlier provisional A Checkout');
+select results_eq($$ select package_id, plan_name from public.organizations where id = 'eaff0000-0000-4000-8000-000000000503' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'Portal test Train'::text) $$,
+  'companion 503 genuinely exercises a provisional package and label overwrite');
+select ok((select was_applied from pg_temp.portal_event('evt_portalClockCompanion503AMapped', 20, array['price_portalTrainYear'],
+  p_org => 'eaff0000-0000-4000-8000-000000000503')), 'companion 503 accepts A delayed mapped history without losing B current authority');
+select results_eq($$ select o.package_id, o.plan_name, a.billing_state, a.provider_event_id
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000503' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'Portal test CareBase'::text, 'active'::text, 'evt_portalClockCompanion503BPaid'::text) $$,
+  'companion 503 restores exact account-owned pricing or the independent comp including NULL/custom-label provenance');
+select results_eq($$ select s.package_id, s.provider_event_id, i.stripe_price_id from public.billing_subscriptions s
+  join public.billing_subscription_items i on i.subscription_id = s.id and i.organization_id = s.organization_id
+  where s.stripe_subscription_id = 'sub_portaleaff0000000040008000000000000503' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'evt_portalClockCompanion503AMapped'::text, 'price_portalTrainYear'::text) $$,
+  'companion 503 retains A own signed package and item history independently');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalClockCompanion504BValid', 10, array['price_portalCareMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000504', p_subscription_suffix => 'Second')), 'companion 504 starts with authoritative B pricing');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalClockCompanion504ACheckout', 'eaff0000-0000-4000-8000-000000000504',
+  'ea000000-0000-4000-8000-000000000001')), 'companion 504 receives an earlier provisional A Checkout');
+select results_eq($$ select package_id, plan_name from public.organizations where id = 'eaff0000-0000-4000-8000-000000000504' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'Portal test Train'::text) $$,
+  'companion 504 genuinely exercises a provisional package and label overwrite');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalClockCompanion504BPaid', 'eaff0000-0000-4000-8000-000000000504',
+  p_subscription_suffix => 'Second', p_sequence => 60)), 'companion 504 B payment owns the current account clock');
+select ok((select was_applied from pg_temp.portal_event('evt_portalClockCompanion504AMapped', 20, array['price_portalTrainYear'],
+  p_org => 'eaff0000-0000-4000-8000-000000000504')), 'companion 504 accepts A delayed mapped history without losing B current authority');
+select results_eq($$ select o.package_id, o.plan_name, a.billing_state, a.provider_event_id
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000504' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'Portal test CareBase'::text, 'active'::text, 'evt_portalClockCompanion504BPaid'::text) $$,
+  'companion 504 restores exact account-owned pricing or the independent comp including NULL/custom-label provenance');
+select results_eq($$ select s.package_id, s.provider_event_id, i.stripe_price_id from public.billing_subscriptions s
+  join public.billing_subscription_items i on i.subscription_id = s.id and i.organization_id = s.organization_id
+  where s.stripe_subscription_id = 'sub_portaleaff0000000040008000000000000504' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'evt_portalClockCompanion504AMapped'::text, 'price_portalTrainYear'::text) $$,
+  'companion 504 retains A own signed package and item history independently');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalClockCompanion505BValid', 50, array['price_legacyUnmapped'],
+  p_org => 'eaff0000-0000-4000-8000-000000000505', p_subscription_suffix => 'Second', p_metadata_package => null)), 'companion 505 starts with authoritative B pricing');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalClockCompanion505BPaid', 'eaff0000-0000-4000-8000-000000000505',
+  p_subscription_suffix => 'Second', p_sequence => 60)), 'companion 505 B payment owns the current account clock');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalClockCompanion505ACheckout', 'eaff0000-0000-4000-8000-000000000505',
+  'ea000000-0000-4000-8000-000000000001')), 'companion 505 receives an earlier provisional A Checkout');
+select results_eq($$ select package_id, plan_name from public.organizations where id = 'eaff0000-0000-4000-8000-000000000505' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'Portal test Train'::text) $$,
+  'companion 505 genuinely exercises a provisional package and label overwrite');
+select ok((select was_applied from pg_temp.portal_event('evt_portalClockCompanion505AMapped', 20, array['price_portalTrainYear'],
+  p_org => 'eaff0000-0000-4000-8000-000000000505')), 'companion 505 accepts A delayed mapped history without losing B current authority');
+select results_eq($$ select o.package_id, o.plan_name, a.billing_state, a.provider_event_id
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000505' $$,
+  $$ values (null::uuid, 'Independent custom contract'::text, 'active'::text, 'evt_portalClockCompanion505BPaid'::text) $$,
+  'companion 505 restores exact account-owned pricing or the independent comp including NULL/custom-label provenance');
+select results_eq($$ select s.package_id, s.provider_event_id, i.stripe_price_id from public.billing_subscriptions s
+  join public.billing_subscription_items i on i.subscription_id = s.id and i.organization_id = s.organization_id
+  where s.stripe_subscription_id = 'sub_portaleaff0000000040008000000000000505' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'evt_portalClockCompanion505AMapped'::text, 'price_portalTrainYear'::text) $$,
+  'companion 505 retains A own signed package and item history independently');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalClockCompanion506BValid', 10, array['price_portalCareMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000506', p_subscription_suffix => 'Second')), 'companion 506 starts with authoritative B pricing');
+reset role;
+update public.organizations set package_id = 'ea000000-0000-4000-8000-000000000001', plan_name = 'Independent training agreement'
+where id = 'eaff0000-0000-4000-8000-000000000506';
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp', comped_until = now() + interval '1 day'
+where organization_id = 'eaff0000-0000-4000-8000-000000000506';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalClockCompanion506ACheckout', 'eaff0000-0000-4000-8000-000000000506',
+  'ea000000-0000-4000-8000-000000000002')), 'companion 506 receives an earlier provisional A Checkout');
+select results_eq($$ select package_id, plan_name from public.organizations where id = 'eaff0000-0000-4000-8000-000000000506' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'Portal test CareBase'::text) $$,
+  'companion 506 genuinely exercises a provisional package and label overwrite');
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalClockCompanion506BPaid', 'eaff0000-0000-4000-8000-000000000506',
+  p_subscription_suffix => 'Second', p_sequence => 60)), 'companion 506 B payment owns the current account clock');
+select ok((select was_applied from pg_temp.portal_event('evt_portalClockCompanion506AMapped', 20, array['price_portalCareYear'],
+  p_org => 'eaff0000-0000-4000-8000-000000000506')), 'companion 506 accepts A delayed mapped history without losing B current authority');
+select results_eq($$ select o.package_id, o.plan_name, a.billing_state, a.provider_event_id
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id where o.id = 'eaff0000-0000-4000-8000-000000000506' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'Independent training agreement'::text, 'comped'::text, 'evt_portalClockCompanion506BPaid'::text) $$,
+  'companion 506 restores exact account-owned pricing or the independent comp including NULL/custom-label provenance');
+select results_eq($$ select s.package_id, s.provider_event_id, i.stripe_price_id from public.billing_subscriptions s
+  join public.billing_subscription_items i on i.subscription_id = s.id and i.organization_id = s.organization_id
+  where s.stripe_subscription_id = 'sub_portaleaff0000000040008000000000000506' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'evt_portalClockCompanion506AMapped'::text, 'price_portalCareYear'::text) $$,
+  'companion 506 retains A own signed package and item history independently');
+
+-- Once the operator selects another independent tier, later A history may not
+-- replace it with the earlier Checkout's captured package or with sibling B.
+reset role;
+update public.organizations set package_id = 'ea000000-0000-4000-8000-000000000003', plan_name = 'Later independent agreement'
+where id = 'eaff0000-0000-4000-8000-000000000506';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_event('evt_portalClockCompanion506ALaterMapped', 30, array['price_portalCareMonth'],
+  p_org => 'eaff0000-0000-4000-8000-000000000506')), 'a later own-row A snapshot can be accepted behind B current account evidence');
+select results_eq($$ select o.package_id, o.plan_name, a.billing_state, a.state_source, a.comped_until
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  where o.id = 'eaff0000-0000-4000-8000-000000000506' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000003'::uuid, 'Later independent agreement'::text,
+             'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
+  'same-comp later operator choices survive both historical Checkout provenance and sibling package correction');
 
 select * from finish();
 rollback;

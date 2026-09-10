@@ -5,9 +5,12 @@
 -- Retain the independent package that existed before a provisional Checkout.
 -- A missing value on an older placeholder is deliberately an unknown prior tier.
 alter table public.billing_subscriptions
-  add column checkout_previous_package_id uuid references public.packages(id) on delete restrict;
+  add column checkout_previous_package_id uuid references public.packages(id) on delete restrict,
+  add column checkout_previous_plan_name text;
 comment on column public.billing_subscriptions.checkout_previous_package_id is
   'Package before the initial provisional Checkout stamp; never replaced by repeated Checkout. NULL also represents older placeholders with no trustworthy provenance.';
+comment on column public.billing_subscriptions.checkout_previous_plan_name is
+  'Plan label before the initial provisional Checkout stamp, including NULL-package custom contracts; repeated Checkout and quarantine conflicts preserve the captured label.';
 
 -- Resolve only a currently entitled, authoritative surviving subscription.
 -- Status and invoice clocks remain separate; the latest matching invoice for
@@ -81,6 +84,8 @@ begin
   v_old := $old$  v_admin record;$old$;
   v_new := $new$  v_admin record;
   v_checkout_previous_package_id uuid;
+  v_checkout_previous_plan_name text;
+  v_prior_placeholder_package_id uuid;
   v_was_placeholder boolean := false;
   v_plan_recovery boolean := false;
   v_terminal_survivor_found boolean := false;
@@ -95,14 +100,16 @@ begin
   v_new := $new$      -- Capture the actual independent tier immediately before this
       -- Checkout. The insert below stores it only on initial placeholder creation;
       -- a duplicate Checkout cannot replace it with the provisional tier.
-      select s.checkout_previous_package_id into v_checkout_previous_package_id
+      select s.checkout_previous_package_id, s.checkout_previous_plan_name
+      into v_checkout_previous_package_id, v_checkout_previous_plan_name
       from public.organizations o
       join public.billing_subscriptions s on s.organization_id = o.id
         and s.is_provider_placeholder and s.package_id is not distinct from o.package_id
       where o.id = v_org_id
       order by s.created_at, s.id limit 1;
       if not found then
-        select o.package_id into v_checkout_previous_package_id
+        select o.package_id, o.plan_name
+        into v_checkout_previous_package_id, v_checkout_previous_plan_name
         from public.organizations o where o.id = v_org_id;
       end if;
       v_package_id := app_private.try_uuid(v_object #>> '{metadata,package_id}');
@@ -118,11 +125,11 @@ begin
           v_provider_status, v_state, 1,
           p_event_created_at, p_event_id, true$old$;
   v_new := $new$          provider_event_created_at, provider_event_id, is_provider_placeholder,
-          checkout_previous_package_id
+          checkout_previous_package_id, checkout_previous_plan_name
         ) values (
           v_org_id, v_account_id, v_package_id, v_subscription_id,
           v_provider_status, v_state, 1,
-          p_event_created_at, p_event_id, true, v_checkout_previous_package_id$new$;
+          p_event_created_at, p_event_id, true, v_checkout_previous_package_id, v_checkout_previous_plan_name$new$;
   if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
     raise exception 'Checkout placeholder insert no longer matches provenance capture';
   end if;
@@ -150,8 +157,8 @@ begin
       -- In particular, stale Checkout metadata must not fail an otherwise valid
       -- mapped-price change before its authoritative item prices are considered.
       v_package_id := null;
-      select s.is_provider_placeholder, s.checkout_previous_package_id
-      into v_was_placeholder, v_checkout_previous_package_id
+      select s.is_provider_placeholder, s.checkout_previous_package_id, s.checkout_previous_plan_name, s.package_id
+      into v_was_placeholder, v_checkout_previous_package_id, v_checkout_previous_plan_name, v_prior_placeholder_package_id
       from public.billing_subscriptions s
       where s.organization_id = v_org_id and s.stripe_subscription_id = v_object->>'id';
       select exists (
@@ -196,8 +203,10 @@ begin
               where id = v_subscription_pk;
               update public.organizations o
               set package_id = v_package_id,
-                  plan_name = case when v_terminal_survivor_found and v_package_id is null
-                    then o.plan_name else (select p.name from public.packages p where p.id = v_package_id) end,
+                  plan_name = case
+                    when v_package_id is not null then (select p.name from public.packages p where p.id = v_package_id)
+                    when v_checkout_previous_package_id is null then v_checkout_previous_plan_name
+                    else null end,
                   updated_at = now()
               where o.id = v_org_id;
             elsif exists (
@@ -249,7 +258,12 @@ begin
                   bp.package_id = app_private.try_uuid(v_object #>> '{metadata,package_id}')
                   or bp.package_id = (select s.package_id from public.billing_subscriptions s
                                      where s.id = v_subscription_pk)
-                  or bp.package_id = (select o.package_id from public.organizations o where o.id = v_org_id)
+                  or (bp.package_id = (select o.package_id from public.organizations o where o.id = v_org_id)
+                    and not exists (
+                      select 1 from public.billing_accounts a
+                      where a.id = v_account_id and a.organization_id = v_org_id
+                        and a.state_source = 'manual_comp'
+                    ))
                   or exists (select 1 from public.billing_subscription_items i
                              where i.subscription_id = v_subscription_pk and i.stripe_price_id = bp.stripe_price_id)
                 )
@@ -448,6 +462,89 @@ begin
   end if;
   v_definition := replace(v_definition, v_old, v_new);
 
+  -- Reconcile only the organization from its newest account-bound subscription;
+  -- an older sibling still retains its own authoritative package/item history.
+  v_old := $old$        update public.organizations o
+        set package_id = coalesce(v_package_id, o.package_id),
+            plan_name = coalesce((select p.name from public.packages p where p.id = v_package_id), o.plan_name),
+            subscription_status = (select a.billing_state from public.billing_accounts a where a.id = v_account_id),
+            updated_at = now()
+        where o.id = v_org_id;$old$;
+  v_new := $new$        declare
+          v_account_owner record;
+          v_restore_provisional boolean;
+        begin
+          select a.billing_state, a.state_source, a.comped_until,
+                 sibling.id as subscription_pk, sibling.package_id
+          into v_account_owner
+          from public.billing_accounts a
+          left join app_private.stripe_billing_events e
+            on e.event_id = a.provider_event_id and e.organization_id = a.organization_id
+          left join lateral (
+            select case
+              when e.event_type like 'customer.subscription.%' then e.payload #>> '{data,object,id}'
+              when e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
+                then coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
+                              e.payload #>> '{data,object,subscription}')
+            end as subscription_id
+          ) owner_ref on true
+          left join public.billing_subscriptions sibling
+            on sibling.stripe_subscription_id = owner_ref.subscription_id
+            and sibling.organization_id = a.organization_id and sibling.billing_account_id = a.id
+            and not sibling.is_provider_placeholder
+            and sibling.provider_status not in ('canceled', 'incomplete_expired')
+          where a.id = v_account_id and a.organization_id = v_org_id
+            and (a.provider_event_created_at, app_private.stripe_event_received_at(a.provider_event_id))
+                > (p_event_created_at, app_private.stripe_event_received_at(p_event_id))
+            and owner_ref.subscription_id is distinct from v_object->>'id';
+
+          if found then
+            -- A live independent comp outranks provider package history. Repair
+            -- only A's still-visible provisional stamp; preserve later operator
+            -- changes to the independent package or its custom label.
+            v_restore_provisional := coalesce(v_was_placeholder, false) and exists (
+              select 1 from public.organizations o
+              where o.id = v_org_id and o.package_id is not distinct from v_prior_placeholder_package_id
+                and o.plan_name is not distinct from (
+                  select p.name from public.packages p where p.id = v_prior_placeholder_package_id)
+            );
+            if (v_account_owner.billing_state = 'comped' and v_account_owner.state_source = 'manual_comp'
+                and (v_account_owner.comped_until is null or v_account_owner.comped_until > now()))
+               or v_account_owner.subscription_pk is null then
+              update public.organizations o
+              set package_id = case when v_restore_provisional then v_checkout_previous_package_id else o.package_id end,
+                  plan_name = case when v_restore_provisional then v_checkout_previous_plan_name else o.plan_name end,
+                  subscription_status = (select a.billing_state from public.billing_accounts a where a.id = v_account_id),
+                  updated_at = now()
+              where o.id = v_org_id;
+            else
+              update public.organizations o
+              set package_id = v_account_owner.package_id,
+                  plan_name = case
+                    when v_account_owner.package_id is not null then (
+                      select p.name from public.packages p where p.id = v_account_owner.package_id)
+                    when v_was_placeholder and v_checkout_previous_package_id is null then v_checkout_previous_plan_name
+                    else o.plan_name end,
+                  subscription_status = (select a.billing_state from public.billing_accounts a where a.id = v_account_id),
+                  updated_at = now()
+              where o.id = v_org_id;
+            end if;
+          else
+            -- Same-subscription newer invoices do not suppress the authoritative
+            -- mapped snapshot; the existing null/custom behavior remains intact.
+            update public.organizations o
+            set package_id = coalesce(v_package_id, o.package_id),
+                plan_name = coalesce((select p.name from public.packages p where p.id = v_package_id), o.plan_name),
+                subscription_status = (select a.billing_state from public.billing_accounts a where a.id = v_account_id),
+                updated_at = now()
+            where o.id = v_org_id;
+          end if;
+        end;$new$;
+  if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
+    raise exception 'Stripe organization package stamp no longer matches the account ownership patch';
+  end if;
+  v_definition := replace(v_definition, v_old, v_new);
+
   -- A paid invoice does not validate the application plan that a quarantined
   -- Checkout placeholder claimed. Store the invoice but wait for a valid
   -- subscription snapshot before allowing that placeholder's account access.
@@ -499,14 +596,16 @@ begin
           if v_account_id is not null then
             -- This invalid subscription may precede its own Checkout while an
             -- earlier provisional Checkout still supplies the current org tier.
-            select s.checkout_previous_package_id into v_checkout_previous_package_id
+            select s.checkout_previous_package_id, s.checkout_previous_plan_name
+            into v_checkout_previous_package_id, v_checkout_previous_plan_name
             from public.organizations o
             join public.billing_subscriptions s on s.organization_id = o.id
               and s.is_provider_placeholder and s.package_id is not distinct from o.package_id
             where o.id = v_org_id
             order by s.created_at, s.id limit 1;
             if not found then
-              select o.package_id into v_checkout_previous_package_id
+              select o.package_id, o.plan_name
+              into v_checkout_previous_package_id, v_checkout_previous_plan_name
               from public.organizations o where o.id = v_org_id;
             end if;
             -- Persist a quarantined placeholder even before Checkout arrives.
@@ -516,11 +615,11 @@ begin
               organization_id, billing_account_id, package_id, stripe_subscription_id,
               provider_status, billing_state, seat_quantity,
               provider_event_created_at, provider_event_id, is_provider_placeholder,
-              checkout_previous_package_id
+              checkout_previous_package_id, checkout_previous_plan_name
             ) values (
               v_org_id, v_account_id, (select o.package_id from public.organizations o where o.id = v_org_id),
               v_object->>'id', 'plan_reconciliation_failed', 'suspended', 1,
-              p_event_created_at, p_event_id, true, v_checkout_previous_package_id
+              p_event_created_at, p_event_id, true, v_checkout_previous_package_id, v_checkout_previous_plan_name
             )
             on conflict (stripe_subscription_id) do update
             set billing_state = 'suspended', provider_status = 'plan_reconciliation_failed', updated_at = now()
@@ -529,6 +628,13 @@ begin
               and public.billing_subscriptions.is_provider_placeholder;
             get diagnostics v_count = row_count;
             if v_count > 0 then
+              -- A conflict retains the original capture, which can differ from
+              -- the current provisional tier used for this attempted insert.
+              select s.checkout_previous_package_id, s.checkout_previous_plan_name
+              into v_checkout_previous_package_id, v_checkout_previous_plan_name
+              from public.billing_subscriptions s
+              where s.organization_id = v_org_id and s.billing_account_id = v_account_id
+                and s.stripe_subscription_id = v_object->>'id' and s.is_provider_placeholder;
               -- Another valid subscription must keep its own package, not the
               -- higher metadata package from a rejected second Checkout.
               select survivor.package_id into v_package_id
@@ -537,7 +643,10 @@ begin
               if found then
                 update public.organizations o
                 set package_id = v_package_id,
-                    plan_name = coalesce((select p.name from public.packages p where p.id = v_package_id), o.plan_name),
+                    plan_name = case
+                      when v_package_id is not null then (select p.name from public.packages p where p.id = v_package_id)
+                      when v_checkout_previous_package_id is null then v_checkout_previous_plan_name
+                      else null end,
                     updated_at = now()
                 where o.id = v_org_id;
               else
@@ -546,7 +655,8 @@ begin
                 -- when an older placeholder has no trustworthy prior package.
                 update public.organizations o
                 set package_id = s.checkout_previous_package_id,
-                    plan_name = (select p.name from public.packages p where p.id = s.checkout_previous_package_id),
+                    plan_name = case when s.checkout_previous_package_id is null then s.checkout_previous_plan_name
+                      else (select p.name from public.packages p where p.id = s.checkout_previous_package_id) end,
                     updated_at = now()
                 from public.billing_subscriptions s
                 where o.id = v_org_id and s.organization_id = o.id
@@ -672,3 +782,81 @@ begin
   execute replace(v_definition, v_old, v_new);
 end
 $seat_cap_migration$;
+
+-- Billing management follows durable per-subscription payment evidence, while
+-- entitlement evaluation separately decides whether access has expired.
+create or replace function public.get_managed_billing_subscriptions(
+  p_organization_id uuid default null,
+  p_limit integer default 50,
+  p_for_quantity_sync boolean default false
+)
+returns setof public.billing_subscriptions
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $function$
+declare
+  v_service_role boolean := coalesce(auth.jwt() ->> 'role', '') = 'service_role';
+  v_for_quantity_sync boolean := coalesce(p_for_quantity_sync, false);
+  v_limit integer := greatest(1, least(coalesce(p_limit, 50), 50));
+begin
+  -- This function reads private signed receipts, so preserve the table's exact
+  -- tenant read policy before entering the SECURITY DEFINER query. A worker's
+  -- cross-tenant scan and scheduling order are reserved for the service role.
+  if not v_service_role then
+    if auth.uid() is null or p_organization_id is null or v_for_quantity_sync then
+      raise exception 'Billing subscriptions are outside caller scope' using errcode = '42501';
+    end if;
+    if not coalesce(
+      public.is_platform_admin()
+      or (
+        p_organization_id = public.current_org_id()
+        and (
+          public.current_role() = 'org_admin'
+          or public.has_effective_permission('billing.account.read', 'organization', p_organization_id, now())
+        )
+      ), false
+    ) then
+      raise exception 'Billing subscriptions are outside caller scope' using errcode = '42501';
+    end if;
+  end if;
+
+  return query
+  select s.*
+  from public.billing_subscriptions s
+  join public.billing_accounts a
+    on a.id = s.billing_account_id and a.organization_id = s.organization_id
+  left join lateral (
+    select e.event_id
+    from app_private.stripe_billing_events e
+    where e.organization_id = s.organization_id
+      and e.processing_status = 'applied'
+      and e.event_type in ('invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed')
+      and coalesce(e.payload #>> '{data,object,parent,subscription_details,subscription}',
+                   e.payload #>> '{data,object,subscription}') = s.stripe_subscription_id
+      and (e.event_created_at, app_private.stripe_event_received_at(e.event_id))
+          > (s.provider_event_created_at, app_private.stripe_event_received_at(s.provider_event_id))
+    order by e.event_created_at desc, app_private.stripe_event_received_at(e.event_id) desc, e.event_id
+    limit 1
+  ) payment on true
+  where (p_organization_id is null or s.organization_id = p_organization_id)
+    and not s.is_provider_placeholder
+    and s.provider_status not in ('canceled', 'incomplete_expired')
+    and (
+      s.billing_state in ('trial', 'active', 'grace', 'past_due')
+      or (s.billing_state = 'suspended' and payment.event_id is not null)
+    )
+  order by
+    case when v_for_quantity_sync then s.quantity_sync_checked_at end asc nulls first,
+    case when v_for_quantity_sync then s.current_period_end end asc nulls first,
+    case when not v_for_quantity_sync then s.created_at end desc,
+    s.id
+  limit v_limit;
+end;
+$function$;
+
+revoke all on function public.get_managed_billing_subscriptions(uuid, integer, boolean)
+  from public, anon, authenticated, service_role;
+grant execute on function public.get_managed_billing_subscriptions(uuid, integer, boolean)
+  to authenticated, service_role;
