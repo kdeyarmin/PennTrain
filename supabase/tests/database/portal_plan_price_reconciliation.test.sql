@@ -2,7 +2,7 @@
 -- real receipt processor and entitlement resolver, including rejected and stale
 -- deliveries, rather than updating local package rows as a test substitute.
 begin;
-select plan(532);
+select plan(560);
 
 insert into public.feature_definitions (feature_key, display_name, value_type, default_value)
 values ('portal.care_access', 'Portal plan test care access', 'boolean', 'false'::jsonb);
@@ -2205,6 +2205,192 @@ select results_eq($$ select o.package_id, o.plan_name, a.billing_state, a.state_
   $$ values ('ea000000-0000-4000-8000-000000000003'::uuid, 'Later independent agreement'::text,
              'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
   'same-comp later operator choices survive both historical Checkout provenance and sibling package correction');
+
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values
+  ('eafa0000-0000-4000-8000-000000000601', 'Comp after provisional Checkout', 'portal-comp-after-provisional-checkout', 'trial', 'ea000000-0000-4000-8000-000000000001'),
+  ('eafa0000-0000-4000-8000-000000000602', 'Comp before provisional Checkout', 'portal-comp-before-provisional-checkout', 'trial', 'ea000000-0000-4000-8000-000000000001');
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+)
+values ('00000000-0000-0000-0000-000000000000', 'eafa0000-0000-4000-8000-000000000699',
+  'authenticated', 'authenticated', 'portal-comp-operator@test.local', 'x', now(),
+  '{}'::jsonb, '{}'::jsonb, now(), now(), '', '', '', '', '', '', false, false);
+select set_config('app.privileged_write', 'on', true);
+insert into public.profiles (id, organization_id, email, first_name, last_name, role, is_active)
+values ('eafa0000-0000-4000-8000-000000000699', null, 'portal-comp-operator@test.local', 'Portal', 'Operator', 'platform_admin', true)
+on conflict (id) do update set organization_id = excluded.organization_id,
+  email = excluded.email, first_name = excluded.first_name, last_name = excluded.last_name,
+  role = excluded.role, is_active = excluded.is_active;
+select set_config('app.privileged_write', 'off', true);
+set local role service_role;
+
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalManual601CheckoutA',
+  'eafa0000-0000-4000-8000-000000000601', 'ea000000-0000-4000-8000-000000000002')),
+  'first Checkout provisionally raises Train to CareBase before any manual comp');
+reset role;
+select set_config('request.jwt.claims', jsonb_build_object('sub', 'eafa0000-0000-4000-8000-000000000699',
+  'role', 'authenticated', 'aal', 'aal2', 'iat', extract(epoch from now())::bigint)::text, true);
+set local role authenticated;
+select lives_ok($$ select public.set_billing_account_override('eafa0000-0000-4000-8000-000000000601',
+  'comped', 'Independently grant the current CareBase tier', now() + interval '1 day') $$,
+  'the supported AAL2 operator RPC independently comps the same current CareBase package');
+reset role;
+select set_config('request.jwt.claims', '{}'::text, true);
+set local role service_role;
+select results_eq($$ select checkout_previous_package_id, checkout_previous_plan_name
+  from public.billing_subscriptions where organization_id = 'eafa0000-0000-4000-8000-000000000601' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'Portal test CareBase'::text) $$,
+  'the actual operator mutation refreshes the pending placeholder restoration provenance');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalManual601CheckoutB',
+  'eafa0000-0000-4000-8000-000000000601', 'ea000000-0000-4000-8000-000000000002', 'Second')),
+  'a second same-package Checkout can follow the independent comp');
+select is((select checkout_previous_package_id from public.billing_subscriptions
+  where organization_id = 'eafa0000-0000-4000-8000-000000000601' and stripe_subscription_id like '%Second'),
+  'ea000000-0000-4000-8000-000000000002'::uuid,
+  'the second Checkout inherits the new independent comp rather than the obsolete pre-first-Checkout Train tier');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalManual601RejectedB', 30, array['price_unrecognized'],
+  p_org => 'eafa0000-0000-4000-8000-000000000601', p_subscription_suffix => 'Second')),
+  'the second provisional contract is rejected');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  where o.id = 'eafa0000-0000-4000-8000-000000000601' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'comped'::text, 'manual_comp'::text, now() + interval '1 day') $$,
+  'rejection preserves the independently granted CareBase tier and original comp deadline');
+select is((select is_entitled from public.get_effective_entitlements('eafa0000-0000-4000-8000-000000000601', clock_timestamp())
+  where feature_key = 'portal.care_access'), true, 'the independent CareBase grant remains usable after rejection');
+select ok((select was_applied from pg_temp.portal_event('evt_portalManual601TerminalA', 40, array['price_unrecognized'],
+  p_org => 'eafa0000-0000-4000-8000-000000000601', p_status => 'canceled')),
+  'the original provisional subscription can subsequently terminate');
+select results_eq($$ select o.package_id, a.billing_state, a.comped_until
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  where o.id = 'eafa0000-0000-4000-8000-000000000601' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000002'::uuid, 'comped'::text, now() + interval '1 day') $$,
+  'termination of the original placeholder also retains the later independent grant');
+
+-- Control: a comp granted before either Checkout must not validate their later
+-- provisional higher tier merely because the account still says manual_comp.
+reset role;
+select set_config('request.jwt.claims', jsonb_build_object('sub', 'eafa0000-0000-4000-8000-000000000699',
+  'role', 'authenticated', 'aal', 'aal2', 'iat', extract(epoch from now())::bigint)::text, true);
+set local role authenticated;
+select lives_ok($$ select public.set_billing_account_override('eafa0000-0000-4000-8000-000000000602',
+  'comped', 'Grant Train before any provisional Checkout', null) $$,
+  'the same supported RPC grants an indefinite lower comp before Checkout');
+reset role;
+select set_config('request.jwt.claims', '{}'::text, true);
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalManual602CheckoutA',
+  'eafa0000-0000-4000-8000-000000000602', 'ea000000-0000-4000-8000-000000000002')),
+  'first Checkout provisionally raises the pre-existing lower comp');
+select ok((select was_applied from pg_temp.portal_checkout('evt_portalManual602CheckoutB',
+  'eafa0000-0000-4000-8000-000000000602', 'ea000000-0000-4000-8000-000000000002', 'Second')),
+  'second Checkout inherits only the original independent lower comp');
+select results_eq($$ select checkout_previous_package_id from public.billing_subscriptions
+  where organization_id = 'eafa0000-0000-4000-8000-000000000602' order by stripe_subscription_id $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid), ('ea000000-0000-4000-8000-000000000001'::uuid) $$,
+  'both provisional subscriptions retain lower provenance when the comp predates them');
+select ok(not (select was_applied from pg_temp.portal_event('evt_portalManual602RejectedB', 30, array['price_unrecognized'],
+  p_org => 'eafa0000-0000-4000-8000-000000000602', p_subscription_suffix => 'Second')),
+  'the second higher provisional plan is rejected under the old comp');
+select results_eq($$ select o.package_id, a.billing_state, a.state_source, a.comped_until
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  where o.id = 'eafa0000-0000-4000-8000-000000000602' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, 'manual_comp'::text, null::timestamptz) $$,
+  'rejection restores only the original Train grant when no new operator comp occurred');
+select is((select is_entitled from public.get_effective_entitlements('eafa0000-0000-4000-8000-000000000602', clock_timestamp())
+  where feature_key = 'portal.care_access'), false, 'an older lower comp cannot validate later higher provisional Checkout');
+select ok((select was_applied from pg_temp.portal_event('evt_portalManual602TerminalA', 40, array['price_unrecognized'],
+  p_org => 'eafa0000-0000-4000-8000-000000000602', p_status => 'incomplete_expired')),
+  'the original provisional subscription can expire under the pre-existing lower comp');
+select results_eq($$ select o.package_id, a.billing_state, a.comped_until
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  where o.id = 'eafa0000-0000-4000-8000-000000000602' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'comped'::text, null::timestamptz) $$,
+  'termination also retains only the original lower comp when it predates Checkout');
+
+-- A catalog package selected independently by an operator must not reclassify
+-- a custom provider contract when a later payment replaces manual_comp state.
+reset role;
+insert into public.organizations (id, name, slug, subscription_status, package_id)
+values ('eaff0000-0000-4000-8000-000000000801', 'Custom renewal after expired comp',
+  'portal-custom-renewal-after-expired-comp', 'trial', 'ea000000-0000-4000-8000-000000000003');
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_event('evt_portalExpiredComp801CustomInitial', 10,
+  array['price_expiredComp801CustomInitial'], p_metadata_package => 'ea000000-0000-4000-8000-000000000003',
+  p_org => 'eaff0000-0000-4000-8000-000000000801')),
+  'expired-comp renewal starts with an authoritative unmapped custom subscription');
+select results_eq($$ select o.package_id, s.package_id, s.is_provider_placeholder, i.stripe_price_id
+  from public.organizations o join public.billing_subscriptions s on s.organization_id = o.id
+  join public.billing_subscription_items i on i.subscription_id = s.id
+  where o.id = 'eaff0000-0000-4000-8000-000000000801' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000003'::uuid, 'ea000000-0000-4000-8000-000000000003'::uuid,
+             false, 'price_expiredComp801CustomInitial'::text) $$,
+  'custom pricing is validated independently before the operator assigns a catalog comp');
+
+reset role;
+update public.organizations set package_id = 'ea000000-0000-4000-8000-000000000001',
+  plan_name = 'Portal test Train', subscription_status = 'comped'
+where id = 'eaff0000-0000-4000-8000-000000000801';
+update public.billing_accounts set billing_state = 'comped', state_source = 'manual_comp',
+  comped_until = now() + interval '1 day'
+where organization_id = 'eaff0000-0000-4000-8000-000000000801';
+set local role service_role;
+select results_eq($$ select o.package_id, s.package_id, a.billing_state, a.state_source, a.comped_until > now()
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  join public.billing_subscriptions s on s.billing_account_id = a.id
+  where o.id = 'eaff0000-0000-4000-8000-000000000801' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'ea000000-0000-4000-8000-000000000003'::uuid,
+             'comped'::text, 'manual_comp'::text, true) $$,
+  'the operator comp changes the organization package without changing the custom provider contract');
+
+-- Advance only the independent comp deadline; use a real invoice to perform
+-- the consequential account state/source transition instead of simulating it.
+reset role;
+update public.billing_accounts set comped_until = now() - interval '1 second'
+where organization_id = 'eaff0000-0000-4000-8000-000000000801';
+set local role service_role;
+select ok((select was_applied from pg_temp.portal_invoice('evt_portalExpiredComp801Paid',
+  'eaff0000-0000-4000-8000-000000000801', p_sequence => 20)),
+  'a later custom-contract payment applies after the independent comp expires');
+select results_eq($$ select o.package_id, s.package_id, a.billing_state, a.state_source, a.comped_until,
+         a.provider_event_id, i.stripe_price_id
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  join public.billing_subscriptions s on s.billing_account_id = a.id
+  join public.billing_subscription_items i on i.subscription_id = s.id
+  where o.id = 'eaff0000-0000-4000-8000-000000000801' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000001'::uuid, 'ea000000-0000-4000-8000-000000000003'::uuid,
+             'active'::text, 'stripe'::text, null::timestamptz,
+             'evt_portalExpiredComp801Paid'::text, 'price_expiredComp801CustomInitial'::text) $$,
+  'payment replaces the comp state source while the independent catalog selection and custom history remain');
+
+select ok((select was_applied from pg_temp.portal_event('evt_portalExpiredComp801CustomRenewal', 30,
+  array['price_expiredComp801CustomRenewal'], p_metadata_package => 'ea000000-0000-4000-8000-000000000003',
+  p_org => 'eaff0000-0000-4000-8000-000000000801')),
+  'the next signed unmapped custom renewal is accepted after payment ends manual-comp provenance');
+select is((select processing_status from app_private.stripe_billing_events
+  where event_id = 'evt_portalExpiredComp801CustomRenewal'), 'applied',
+  'the legitimate custom renewal leaves an applied receipt instead of a catalog dead letter');
+select results_eq($$ select o.package_id, o.plan_name, s.package_id, s.is_provider_placeholder,
+         s.provider_event_id, i.stripe_price_id, a.billing_state, a.state_source
+  from public.organizations o join public.billing_accounts a on a.organization_id = o.id
+  join public.billing_subscriptions s on s.billing_account_id = a.id
+  join public.billing_subscription_items i on i.subscription_id = s.id
+  where o.id = 'eaff0000-0000-4000-8000-000000000801' $$,
+  $$ values ('ea000000-0000-4000-8000-000000000003'::uuid, 'Portal test legacy'::text,
+             'ea000000-0000-4000-8000-000000000003'::uuid, false,
+             'evt_portalExpiredComp801CustomRenewal'::text, 'price_expiredComp801CustomRenewal'::text,
+             'active'::text, 'stripe'::text) $$,
+  'the renewed custom contract advances pricing history and restores the provider-selected package');
+select results_eq($$ select entitlement_value, billing_state, is_entitled
+  from public.get_effective_entitlements('eaff0000-0000-4000-8000-000000000801', clock_timestamp())
+  where feature_key = 'limits.learners' $$,
+  $$ values ('20'::jsonb, 'active'::text, true) $$,
+  'custom renewal grants the contracted learner limit after the independent comp has ended');
 
 select * from finish();
 rollback;

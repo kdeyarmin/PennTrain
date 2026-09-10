@@ -2,15 +2,15 @@
 -- copied from the original Checkout. Reconcile the purchased package from the
 -- signed current items so an upgrade/downgrade also changes app entitlements.
 -- Keep the existing freshness guard, tenant binding and failed-event receipt.
--- Retain the independent package that existed before a provisional Checkout.
+-- Retain the independent package before Checkout or a later explicit comp grant.
 -- A missing value on an older placeholder is deliberately an unknown prior tier.
 alter table public.billing_subscriptions
   add column checkout_previous_package_id uuid references public.packages(id) on delete restrict,
   add column checkout_previous_plan_name text;
 comment on column public.billing_subscriptions.checkout_previous_package_id is
-  'Package before the initial provisional Checkout stamp; never replaced by repeated Checkout. NULL also represents older placeholders with no trustworthy provenance.';
+  'Independent package captured before initial Checkout or refreshed by a later explicit operator comp; repeated Checkout never replaces it. NULL also represents older placeholders with no trustworthy provenance.';
 comment on column public.billing_subscriptions.checkout_previous_plan_name is
-  'Plan label before the initial provisional Checkout stamp, including NULL-package custom contracts; repeated Checkout and quarantine conflicts preserve the captured label.';
+  'Independent plan label captured before initial Checkout or refreshed by a later explicit operator comp, including NULL-package custom contracts; repeated Checkout and quarantine conflicts preserve it.';
 
 -- Resolve only a currently entitled, authoritative surviving subscription.
 -- Status and invoice clocks remain separate; the latest matching invoice for
@@ -250,20 +250,16 @@ begin
               left join public.package_billing_prices bp on bp.stripe_price_id = item #>> '{price,id}';
 
               -- Legacy/custom subscriptions with no mapped package or historical
-              -- item retain their metadata contract. Once catalog-managed, an
-              -- unknown replacement cannot silently retain or invent a paid plan.
+              -- item retain their metadata contract. An independently selected
+              -- organization package is not provider pricing evidence, even after
+              -- an expired comp's state source changes on a later payment. Once
+              -- catalog-managed, an unknown replacement cannot invent a paid plan.
               select exists (
                 select 1 from public.package_billing_prices bp
                 where bp.stripe_price_id is not null and (
                   bp.package_id = app_private.try_uuid(v_object #>> '{metadata,package_id}')
                   or bp.package_id = (select s.package_id from public.billing_subscriptions s
                                      where s.id = v_subscription_pk)
-                  or (bp.package_id = (select o.package_id from public.organizations o where o.id = v_org_id)
-                    and not exists (
-                      select 1 from public.billing_accounts a
-                      where a.id = v_account_id and a.organization_id = v_org_id
-                        and a.state_source = 'manual_comp'
-                    ))
                   or exists (select 1 from public.billing_subscription_items i
                              where i.subscription_id = v_subscription_pk and i.stripe_price_id = bp.stripe_price_id)
                 )
@@ -785,6 +781,45 @@ begin
   execute replace(v_definition, v_old, v_new);
 end
 $seat_cap_migration$;
+
+-- This modifies the existing authorized writer and preserves its ACLs, AAL2
+-- check, platform-admin check, state mapping, expiry validation, and audit reason.
+do $manual_comp_provenance_migration$
+declare
+  v_definition text;
+  v_old text;
+  v_new text;
+begin
+  v_definition := pg_get_functiondef('public.set_billing_account_override(uuid,text,text,timestamptz)'::regprocedure);
+  v_old := $old$  update public.organizations
+  set subscription_status = v_state, updated_at = now()
+  where id = p_organization_id;$old$;
+  v_new := $new$  update public.organizations
+  set subscription_status = v_state, updated_at = now()
+  where id = p_organization_id;
+
+  if p_override_state = 'comped' then
+    -- This explicit operator grant makes the current organization tier
+    -- independent of every still-provisional Checkout. Store that authority at
+    -- the grant itself; provider receipts must never infer it from mutable state.
+    -- The account FOR UPDATE and organization UPDATE above hold the same locks
+    -- that serialize this grant against receipt processing and package changes.
+    update public.billing_subscriptions s
+    set checkout_previous_package_id = o.package_id,
+        checkout_previous_plan_name = o.plan_name,
+        updated_at = now()
+    from public.organizations o
+    where o.id = p_organization_id and s.organization_id = o.id
+      and s.billing_account_id = v_account.id and s.is_provider_placeholder
+      and (s.checkout_previous_package_id, s.checkout_previous_plan_name)
+        is distinct from (o.package_id, o.plan_name);
+  end if;$new$;
+  if (length(v_definition) - length(replace(v_definition, v_old, ''))) / length(v_old) <> 1 then
+    raise exception 'Billing override organization stamp no longer matches manual comp provenance patch';
+  end if;
+  execute replace(v_definition, v_old, v_new);
+end
+$manual_comp_provenance_migration$;
 
 -- Billing management follows durable per-subscription payment evidence, while
 -- entitlement evaluation separately decides whether access has expired.
