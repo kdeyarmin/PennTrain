@@ -392,6 +392,20 @@ secret-scan workflow, a retry that could duplicate an alert, and one report whos
 wrong. Four of the five are the same defect class this pass was written to close, which is
 the useful thing to know about it.
 
+K13 arrived the day after the pass shipped, from the first thing it enabled. #503 — Dependabot's
+opening dev-container bump — was red, correctly: `check-toolchain-pins` found the Node and Deno
+pins moved in the mirror and nowhere else. The part worth recording is that it could not have been
+anything else. All three `FROM` lines in that Dockerfile are mirrors, and Dependabot only ever
+edits that file, so every PR the newly-enabled `docker` ecosystem will ever open arrives red. The
+K8 bullet above anticipated that these bumps needed to *run* the pin check; it did not notice that
+they can never *pass* it. That is not the false-signal shape — the check is right, and the PR
+genuinely is half a change — but shipping a watcher and a gate in one pass without saying how they
+compose is the same inattention in a different register, which is why it is recorded rather than
+quietly fixed. The composition is now written into `dependabot.yml`, including the worklist for
+completing one of these PRs. #503 itself was closed rather than completed: Node 26 enters LTS on
+2026-10-28 and Node 24 drops to Maintenance eight days before that, so the bump is the right one
+about seven weeks early.
+
 Each block's gate was met by something other than reading the diff: the K3 regression was
 reproduced in a scratch worktree and shown to fail before the fix and pass after; K2's exit path
 was exercised end-to-end against an unreachable endpoint; K7's filtered install was measured (3
@@ -435,9 +449,10 @@ answers in `DEPLOYMENT.md` "Limitations / manual steps remaining".
 
 Not in this plan, deliberately: re-pinning the Supabase CLI (H19 explains why a bump is a
 migration-privilege event, not a version bump); replacing corepack with `pnpm/action-setup`
-(corepack ships with Node 24, which the engines pin holds to; revisit at Node 25); splitting the
-`database` job (at 8 minutes it is not the bottleneck it is described as); adding a linter (a
-separate decision, already recorded in `DEPLOYMENT.md`).
+(corepack ships with Node 24, which the engines pin holds to; revisit at the Node 26 move K13
+defers to 2026-10-28 -- Node 25 reached end of life on 2026-06-01 without this repository ever
+running it); splitting the `database` job (at 8 minutes it is not the bottleneck it is described
+as); adding a linter (a separate decision, already recorded in `DEPLOYMENT.md`).
 
 ---
 
