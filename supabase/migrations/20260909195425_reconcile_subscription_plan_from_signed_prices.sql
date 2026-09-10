@@ -502,7 +502,10 @@ begin
             -- A live independent comp outranks provider package history. Repair
             -- only A's still-visible provisional stamp; preserve later operator
             -- changes to the independent package or its custom label.
-            v_restore_provisional := coalesce(v_was_placeholder, false) and exists (
+            -- Terminal handling already restored its survivor or provenance;
+            -- that result is no longer an unvalidated provisional stamp.
+            v_restore_provisional := coalesce(v_was_placeholder, false)
+              and v_provider_status not in ('canceled', 'incomplete_expired') and exists (
               select 1 from public.organizations o
               where o.id = v_org_id and o.package_id is not distinct from v_prior_placeholder_package_id
                 and o.plan_name is not distinct from (
