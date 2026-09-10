@@ -58,26 +58,10 @@ function lateWorker(
     if (status === "succeeded") state.succeededFinishes++;
     return { data: null, error: null };
   };
-  type EmptySubscriptionsQuery = {
-    select: () => EmptySubscriptionsQuery;
-    in: () => EmptySubscriptionsQuery;
-    order: () => EmptySubscriptionsQuery;
-    limit: () => Promise<{ data: never[]; error: null }>;
-  };
-  const query: EmptySubscriptionsQuery = {
-    select: () => query,
-    in: () => query,
-    order: () => query,
-    limit: async () => {
-      await release.promise;
-      return { data: [], error: null };
-    },
-  };
   const handler = createSyncBillingQuantitiesHandler({
     createClient: () => ({
-      from: (table: string) => {
-        assertEquals(table, "billing_subscriptions");
-        return query;
+      from: () => {
+        throw new Error("Empty managed subscriptions require no table query");
       },
       rpc: async (name: string, args: Record<string, unknown>) => {
         if (name === "claim_system_job_execution") {
@@ -90,6 +74,15 @@ function lateWorker(
             data: [{ run_id: RUN_ID, should_execute: true }],
             error: null,
           };
+        }
+        if (name === "get_managed_billing_subscriptions") {
+          assertEquals(args, {
+            p_organization_id: null,
+            p_limit: 50,
+            p_for_quantity_sync: true,
+          });
+          await release.promise;
+          return { data: [], error: null };
         }
         assertEquals(name, "finish_system_job");
         assertEquals(args.p_run_id, RUN_ID);

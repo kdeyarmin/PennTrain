@@ -115,12 +115,11 @@ export function useOrganizationBillingAccount(organizationId: string | null | un
           .eq("organization_id", organizationId!)
           .maybeSingle(),
         supabase
-          .from("billing_subscriptions")
-          .select("id, billing_state, package_id, current_period_end, cancel_at_period_end, quantity_sync_checked_at, quantity_sync_status, quantity_sync_error_code")
-          .eq("organization_id", organizationId!)
-          .in("billing_state", ["trial", "active", "grace", "past_due"])
-          .order("created_at", { ascending: false })
-          .limit(1)
+          .rpc("get_managed_billing_subscriptions", {
+            p_organization_id: organizationId!,
+            p_limit: 1,
+            p_for_quantity_sync: false,
+          })
           .maybeSingle(),
       ]);
       if (accountResult.error) throw accountResult.error;
