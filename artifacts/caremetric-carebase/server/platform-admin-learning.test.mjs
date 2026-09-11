@@ -11,6 +11,9 @@ function fixture(overrides={}) {
   const calls=[]; const state={actor:{user_id:id(1),role:"platform_admin",aal:"aal2",session_id:id(3),session_started_at:"2026-09-11T14:00:00Z",assurance_expires_at:"2026-09-11T22:00:00Z"},user:{id:id(2)},profile:{id:id(2),role:"platform_admin",is_active:true},result:null,...overrides};
   const fetcher=async(input,init)=>{
     const url=new URL(String(input)); calls.push({url,body:init.body?JSON.parse(init.body):null}); assert.equal(init.redirect,"error");assert.ok(init.signal instanceof AbortSignal);
+    if(url.origin==='https://support-hub-web-production.up.railway.app') {
+      assert.equal(url.pathname,'/api/internal/learning/carebase/authorize');return json(state.actor);
+    }
     if(url.origin===env.HUB_SUPABASE_URL){assert.equal(url.pathname,"/rest/v1/rpc/authorize_platform_command");return json(state.actor);}
     if(url.pathname.startsWith("/auth/"))return json({user:state.user});
     if(url.pathname==="/rest/v1/profiles")return json([state.profile]);
@@ -26,7 +29,7 @@ test("source identity resolver projects only verified identifiers",async()=>{
   const f=fixture({result:{organizationId:id(4),employeeId:id(5),profileId:id(6),email:"private"}});
   const response=await f.handler(request({operation:"resolve_identity",organizationId:id(4),employeeId:id(5)}));
   assert.equal(response.status,200);assert.deepEqual(await response.json(),{organizationId:id(4),employeeId:id(5),profileId:id(6)});
-  assert.deepEqual(f.calls.at(-1).body,{p_actor_id:id(2),p_organization_id:id(4),p_employee_id:id(5)});
+  assert.deepEqual(f.calls.at(-1).body,{p_actor_id:id(2),p_authentication_method:'jwt_aal2',p_organization_id:id(4),p_employee_id:id(5)});
 });
 test("unknown operation fields cannot inject an actor or RPC",async()=>{
   const f=fixture();const response=await f.handler(request({operation:"list",limit:1,p_actor_id:id(99)}));
@@ -51,6 +54,18 @@ test("delivery batch is bounded and strips extra private fields",async()=>{
 });
 test("ACK forwards only actor/event/digest and sanitizes conflicts",async()=>{
   const f=fixture();let response=await f.handler(request({operation:"acknowledge",eventId:id(7),sourceDigest:"a".repeat(64)}));assert.equal(response.status,200);
-  assert.deepEqual(f.calls.at(-1).body,{p_actor_id:id(2),p_event_id:id(7),p_source_digest:"a".repeat(64)});
+  assert.deepEqual(f.calls.at(-1).body,{p_actor_id:id(2),p_authentication_method:'jwt_aal2',p_event_id:id(7),p_source_digest:"a".repeat(64)});
   f.state.rpcError="40001";response=await f.handler(request({operation:"acknowledge",eventId:id(7),sourceDigest:"a".repeat(64)}));assert.equal(response.status,409);assert.deepEqual(await response.json(),{error:{code:"conflict"}});
+});
+test("SMS uses the dedicated learning audience and records its actual method",async()=>{
+  const operation={operation:'acknowledge',eventId:id(7),sourceDigest:'a'.repeat(64)};
+  const f=fixture();f.state.actor={...f.state.actor,method:'sms',operation};delete f.state.actor.aal;
+  const response=await f.handler(request(operation,{Authorization:`Bearer cmh_${'x'.repeat(43)}`}));
+  assert.equal(response.status,200);assert.equal(f.calls.at(-1).body.p_authentication_method,'app_sms');
+  assert.equal(f.calls[0].url.pathname,'/api/internal/learning/carebase/authorize');
+});
+test("an SMS ticket for a different learning operation cannot mutate the outbox",async()=>{
+  const f=fixture();f.state.actor={...f.state.actor,method:'sms',operation:{operation:'list',limit:1}};delete f.state.actor.aal;
+  assert.equal((await f.handler(request({operation:'revoke',mappingId:id(7)},{Authorization:`Bearer cmh_${'x'.repeat(43)}`}))).status,403);
+  assert.equal(f.calls.length,1);
 });

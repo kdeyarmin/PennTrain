@@ -28,6 +28,13 @@ insert into public.course_blocks(id,course_version_id,organization_id,block_type
 insert into public.quizzes(id,course_block_id,organization_id,title,quiz_kind,passing_score_percent) values
   ('9e000000-0000-4000-8000-000000000011','9e000000-0000-4000-8000-000000000009',null,'Final examination','final_exam',80),
   ('9e000000-0000-4000-8000-000000000012','9e000000-0000-4000-8000-000000000010',null,'Knowledge check','knowledge_check',80);
+insert into public.quiz_questions(id,quiz_id,organization_id,question_text,question_type,sort_order) values
+  ('9e000000-0000-4000-8000-000000000013','9e000000-0000-4000-8000-000000000011',null,'Choose the synthetic examination answer.','single_choice',0),
+  ('9e000000-0000-4000-8000-000000000014','9e000000-0000-4000-8000-000000000012',null,'Choose the synthetic knowledge answer.','single_choice',0);
+insert into public.quiz_answers(question_id,organization_id,answer_text,is_correct,sort_order)
+select question_id,null,answer_text,is_correct,sort_order from
+  (values ('9e000000-0000-4000-8000-000000000013'::uuid),('9e000000-0000-4000-8000-000000000014'::uuid)) questions(question_id)
+  cross join (values ('Synthetic correct answer',true,0),('Synthetic distractor',false,1)) answers(answer_text,is_correct,sort_order);
 select set_config('app.privileged_write','on',true);
 update public.course_versions set status='published',published_at=now() where id='9e000000-0000-4000-8000-000000000008';
 update public.courses set status='published',current_version_id='9e000000-0000-4000-8000-000000000008' where id='9e000000-0000-4000-8000-000000000007';

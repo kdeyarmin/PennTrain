@@ -54,9 +54,10 @@ with snapshots as (
 select payload from snapshots;
 $source$;
 
-create function app_private.require_learning_bridge_actor(p_actor_id uuid) returns void
+create function app_private.require_learning_bridge_actor(p_actor_id uuid,p_authentication_method text default 'jwt_aal2') returns void
 language plpgsql stable security definer set search_path='' as $$
 begin
+  if p_authentication_method is null or p_authentication_method not in ('jwt_aal2','app_sms') then raise exception 'Verified authentication method required.' using errcode='42501'; end if;
   if not exists(select 1 from public.profiles p join auth.users u on u.id=p.id
     where p.id=p_actor_id and p.role='platform_admin' and p.is_active
       and not coalesce(u.is_anonymous,false) and u.deleted_at is null
@@ -140,6 +141,7 @@ revoke all on app_private.learning_source_policies,app_private.learning_receipt_
 -- Private command evidence contains identifiers only, never learner profile data.
 create table app_private.learning_receipt_command_audit (
   id uuid primary key default gen_random_uuid(), actor_id uuid not null,
+  authentication_method text not null check(authentication_method in ('jwt_aal2','app_sms')),
   action text not null check(action in ('provision','revoke','acknowledge','retract')),
   object_id uuid not null, created_at timestamptz not null default now()
 );
@@ -147,11 +149,11 @@ create index learning_receipt_command_audit_actor on app_private.learning_receip
 alter table app_private.learning_receipt_command_audit enable row level security;
 revoke all on app_private.learning_receipt_command_audit from public,anon,authenticated,service_role;
 
-create function public.resolve_learning_receipt_identity(p_actor_id uuid,p_organization_id uuid,p_employee_id uuid) returns jsonb
+create function public.resolve_learning_receipt_identity(p_actor_id uuid,p_organization_id uuid,p_employee_id uuid,p_authentication_method text default 'jwt_aal2') returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare result jsonb;
 begin
-  perform app_private.require_learning_bridge_actor(p_actor_id);
+  perform app_private.require_learning_bridge_actor(p_actor_id,p_authentication_method);
   select jsonb_build_object('organizationId',o.id,'employeeId',e.id,'profileId',p.id) into result
     from public.organizations o join public.employees e on e.organization_id=o.id
     join public.facilities f on f.id=e.facility_id and f.organization_id=o.id
@@ -165,12 +167,12 @@ $$;
 
 -- Called only by the server after Hub command authorization and native actor checks.
 create function public.provision_learning_receipt_mapping(p_actor_id uuid,p_mapping_id uuid,p_organization_id uuid,p_employee_id uuid,
-  p_hub_tenant_id uuid,p_hub_user_id uuid,p_course_id uuid,p_version_id uuid,p_source_revision text) returns jsonb
+  p_hub_tenant_id uuid,p_hub_user_id uuid,p_course_id uuid,p_version_id uuid,p_source_revision text,p_authentication_method text default 'jwt_aal2') returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare source_payload text; actual_hash text; prior app_private.learning_receipt_mappings%rowtype; identity jsonb;
 begin
-  perform app_private.require_learning_bridge_actor(p_actor_id);
-  identity:=public.resolve_learning_receipt_identity(p_actor_id,p_organization_id,p_employee_id);
+  perform app_private.require_learning_bridge_actor(p_actor_id,p_authentication_method);
+  identity:=public.resolve_learning_receipt_identity(p_actor_id,p_organization_id,p_employee_id,p_authentication_method);
   if p_mapping_id is null or p_hub_tenant_id is null or p_hub_user_id is null or not exists(
     select 1 from public.employees e join public.facilities f on f.id=e.facility_id
     where e.id=p_employee_id and e.organization_id=p_organization_id and f.organization_id=p_organization_id and e.status='active') then
@@ -198,18 +200,18 @@ begin
     values(actual_hash,p_course_id,p_version_id,source_payload) on conflict(revision) do nothing;
   insert into app_private.learning_receipt_mappings(id,organization_id,employee_id,native_profile_id,hub_tenant_id,hub_user_id,course_id,version_id,source_revision,created_by)
     values(p_mapping_id,p_organization_id,p_employee_id,(identity->>'profileId')::uuid,p_hub_tenant_id,p_hub_user_id,p_course_id,p_version_id,actual_hash,p_actor_id);
-  insert into app_private.learning_receipt_command_audit(actor_id,action,object_id) values(p_actor_id,'provision',p_mapping_id);
+  insert into app_private.learning_receipt_command_audit(actor_id,authentication_method,action,object_id) values(p_actor_id,p_authentication_method,'provision',p_mapping_id);
   return jsonb_build_object('mappingId',p_mapping_id,'sourceRevision',actual_hash,'active',true);
 end;
 $$;
 
-create function public.revoke_learning_receipt_mapping(p_actor_id uuid,p_mapping_id uuid) returns void
+create function public.revoke_learning_receipt_mapping(p_actor_id uuid,p_mapping_id uuid,p_authentication_method text default 'jwt_aal2') returns void
 language plpgsql security definer set search_path='' as $$
 begin
-  perform app_private.require_learning_bridge_actor(p_actor_id);
+  perform app_private.require_learning_bridge_actor(p_actor_id,p_authentication_method);
   update app_private.learning_receipt_mappings set active=false,revoked_at=coalesce(revoked_at,now()) where id=p_mapping_id;
   if not found then raise exception 'Mapping unavailable.' using errcode='22023'; end if;
-  insert into app_private.learning_receipt_command_audit(actor_id,action,object_id) values(p_actor_id,'revoke',p_mapping_id);
+  insert into app_private.learning_receipt_command_audit(actor_id,authentication_method,action,object_id) values(p_actor_id,p_authentication_method,'revoke',p_mapping_id);
   update app_private.learning_receipt_outbox o set state='quarantined',quarantine_reason='mapping_disabled'
     where o.state='pending' and o.kind='completed' and exists(select 1 from app_private.learning_assignment_bindings b
       where b.assignment_id=o.assignment_id and b.mapping_id=p_mapping_id);
@@ -315,10 +317,10 @@ $$;
 create constraint trigger capture_prospective_learning_completion after insert on public.certificates
 deferrable initially deferred for each row execute function app_private.capture_prospective_learning_completion();
 
-create function public.list_learning_receipt_outbox(p_actor_id uuid,p_limit integer default 20) returns jsonb
+create function public.list_learning_receipt_outbox(p_actor_id uuid,p_limit integer default 20,p_authentication_method text default 'jwt_aal2') returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 begin
-  perform app_private.require_learning_bridge_actor(p_actor_id);
+  perform app_private.require_learning_bridge_actor(p_actor_id,p_authentication_method);
   if p_limit is null or p_limit not between 1 and 25 then raise exception 'Invalid receipt limit.' using errcode='22023'; end if;
   return coalesce((select jsonb_agg(jsonb_build_object('eventId',s.id,'payload',s.payload,'sourceDigest',s.payload_sha256,
     'state',s.state,'reason',s.quarantine_reason) order by s.assignment_id,s.sequence) from
@@ -327,26 +329,26 @@ begin
 end;
 $$;
 
-create function public.acknowledge_learning_receipt(p_actor_id uuid,p_event_id uuid,p_source_digest text) returns void
+create function public.acknowledge_learning_receipt(p_actor_id uuid,p_event_id uuid,p_source_digest text,p_authentication_method text default 'jwt_aal2') returns void
 language plpgsql security definer set search_path='' as $$
 begin
-  perform app_private.require_learning_bridge_actor(p_actor_id);
+  perform app_private.require_learning_bridge_actor(p_actor_id,p_authentication_method);
   update app_private.learning_receipt_outbox o set state='delivered',delivered_at=coalesce(delivered_at,now())
     where o.id=p_event_id and o.payload_sha256=p_source_digest and o.state in ('pending','delivered')
       and exists(select 1 from app_private.learning_assignment_bindings b join app_private.learning_receipt_mappings m on m.id=b.mapping_id
         where b.assignment_id=o.assignment_id and (m.active or o.kind='retracted'));
   if not found then raise exception 'Receipt cannot be acknowledged.' using errcode='40001'; end if;
-  insert into app_private.learning_receipt_command_audit(actor_id,action,object_id) values(p_actor_id,'acknowledge',p_event_id);
+  insert into app_private.learning_receipt_command_audit(actor_id,authentication_method,action,object_id) values(p_actor_id,p_authentication_method,'acknowledge',p_event_id);
 end;
 $$;
 
 -- Retraction withdraws only central reporting evidence. It does not delete a
 -- native certificate, undo earned hours, or invent an unsupported native recall.
-create function public.retract_learning_receipt(p_actor_id uuid,p_assignment_id uuid,p_expected_sequence integer) returns uuid
+create function public.retract_learning_receipt(p_actor_id uuid,p_assignment_id uuid,p_expected_sequence integer,p_authentication_method text default 'jwt_aal2') returns uuid
 language plpgsql security definer set search_path='' as $$
 declare prior app_private.learning_receipt_outbox%rowtype; event_id uuid:=gen_random_uuid(); payload jsonb; serialized text;
 begin
-  perform app_private.require_learning_bridge_actor(p_actor_id);
+  perform app_private.require_learning_bridge_actor(p_actor_id,p_authentication_method);
   perform 1 from app_private.learning_completion_evidence where assignment_id=p_assignment_id for update;
   if not found then raise exception 'Bound completion unavailable.' using errcode='22023'; end if;
   select * into prior from app_private.learning_receipt_outbox where assignment_id=p_assignment_id order by sequence desc limit 1;
@@ -360,17 +362,17 @@ begin
     values(event_id,p_assignment_id,prior.sequence+1,'retracted',serialized,encode(extensions.digest(serialized,'sha256'),'hex'),
       case when prior.quarantine_reason in ('policy_drift','binding_identity_drift') then 'quarantined' else 'pending' end);
   update app_private.learning_receipt_outbox set quarantine_reason=prior.quarantine_reason where id=event_id and state='quarantined';
-  insert into app_private.learning_receipt_command_audit(actor_id,action,object_id) values(p_actor_id,'retract',event_id);
+  insert into app_private.learning_receipt_command_audit(actor_id,authentication_method,action,object_id) values(p_actor_id,p_authentication_method,'retract',event_id);
   return event_id;
 end;
 $$;
-revoke all on function app_private.learning_source_payload(uuid,uuid),app_private.require_learning_bridge_actor(uuid),
+revoke all on function app_private.learning_source_payload(uuid,uuid),app_private.require_learning_bridge_actor(uuid,text),
   app_private.bind_prospective_learning_assignment(),app_private.capture_prospective_learning_completion() from public,anon,authenticated,service_role;
-revoke all on function public.provision_learning_receipt_mapping(uuid,uuid,uuid,uuid,uuid,uuid,uuid,uuid,text),
-  public.resolve_learning_receipt_identity(uuid,uuid,uuid),
-  public.revoke_learning_receipt_mapping(uuid,uuid),public.list_learning_receipt_outbox(uuid,integer),
-  public.acknowledge_learning_receipt(uuid,uuid,text),public.retract_learning_receipt(uuid,uuid,integer) from public,anon,authenticated;
-grant execute on function public.provision_learning_receipt_mapping(uuid,uuid,uuid,uuid,uuid,uuid,uuid,uuid,text),
-  public.resolve_learning_receipt_identity(uuid,uuid,uuid),
-  public.revoke_learning_receipt_mapping(uuid,uuid),public.list_learning_receipt_outbox(uuid,integer),
-  public.acknowledge_learning_receipt(uuid,uuid,text),public.retract_learning_receipt(uuid,uuid,integer) to service_role;
+revoke all on function public.provision_learning_receipt_mapping(uuid,uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text),
+  public.resolve_learning_receipt_identity(uuid,uuid,uuid,text),
+  public.revoke_learning_receipt_mapping(uuid,uuid,text),public.list_learning_receipt_outbox(uuid,integer,text),
+  public.acknowledge_learning_receipt(uuid,uuid,text,text),public.retract_learning_receipt(uuid,uuid,integer,text) from public,anon,authenticated;
+grant execute on function public.provision_learning_receipt_mapping(uuid,uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text),
+  public.resolve_learning_receipt_identity(uuid,uuid,uuid,text),
+  public.revoke_learning_receipt_mapping(uuid,uuid,text),public.list_learning_receipt_outbox(uuid,integer,text),
+  public.acknowledge_learning_receipt(uuid,uuid,text,text),public.retract_learning_receipt(uuid,uuid,integer,text) to service_role;

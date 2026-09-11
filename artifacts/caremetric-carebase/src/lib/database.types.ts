@@ -35895,6 +35895,7 @@ export type Database = {
       acknowledge_learning_receipt: {
         Args: {
           p_actor_id: string
+          p_authentication_method?: string
           p_event_id: string
           p_source_digest: string
         }
@@ -39751,7 +39752,11 @@ export type Database = {
         }
       }
       list_learning_receipt_outbox: {
-        Args: { p_actor_id: string; p_limit?: number }
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_limit?: number
+        }
         Returns: Json
       }
       list_plan_of_correction_versions: {
@@ -40328,6 +40333,7 @@ export type Database = {
       provision_learning_receipt_mapping: {
         Args: {
           p_actor_id: string
+          p_authentication_method?: string
           p_course_id: string
           p_employee_id: string
           p_hub_tenant_id: string
@@ -41479,6 +41485,7 @@ export type Database = {
       resolve_learning_receipt_identity: {
         Args: {
           p_actor_id: string
+          p_authentication_method?: string
           p_employee_id: string
           p_organization_id: string
         }
@@ -41567,6 +41574,7 @@ export type Database = {
         Args: {
           p_actor_id: string
           p_assignment_id: string
+          p_authentication_method?: string
           p_expected_sequence: number
         }
         Returns: string
@@ -41721,7 +41729,11 @@ export type Database = {
         Returns: undefined
       }
       revoke_learning_receipt_mapping: {
-        Args: { p_actor_id: string; p_mapping_id: string }
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_mapping_id: string
+        }
         Returns: undefined
       }
       revoke_move_in_guest_grant: {

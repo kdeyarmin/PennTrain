@@ -46,11 +46,12 @@ export function createLearningAdminHandler({ config, enabled = false, createClie
   return async request => {
     try {
       if (!enabled || !config.enabled || !config.commandsEnabled) throw new AdminError(503, "unconfigured");
-      const { native, nativeId } = await authorizePlatformAdmin(request, { config, command: true, createClient, fetcher, now });
       let op;
       try { const raw = await request.text(); if (Buffer.byteLength(raw) > 4096) throw new Error(); op = parse(JSON.parse(raw)); }
       catch { throw new AdminError(400, "invalid_request"); }
-      const actor = { p_actor_id: nativeId };
+      const { native, nativeId, authenticationMethod } = await authorizePlatformAdmin(request, { config, command: true, learning: true,
+        operation: op, parseOperation: parse, createClient, fetcher, now });
+      const actor = { p_actor_id: nativeId, p_authentication_method: authenticationMethod };
       const calls = {
         resolve_identity: ["resolve_learning_receipt_identity", { p_organization_id: op.organizationId, p_employee_id: op.employeeId }],
         provision: ["provision_learning_receipt_mapping", { p_mapping_id: op.mappingId, p_organization_id: op.organizationId, p_employee_id: op.employeeId,

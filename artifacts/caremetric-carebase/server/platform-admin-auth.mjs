@@ -4,6 +4,7 @@ export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const MAX_UPSTREAM_BYTES = 2 * 1024 * 1024;
 const HUB_APP_READ_AUTHORIZE = "https://support-hub-web-production.up.railway.app/api/internal/admin/authorize";
 const HUB_APP_COMMAND_AUTHORIZE = "https://support-hub-web-production.up.railway.app/api/internal/command/carebase/authorize";
+const HUB_APP_LEARNING_AUTHORIZE = "https://support-hub-web-production.up.railway.app/api/internal/learning/carebase/authorize";
 
 export class AdminError extends Error {
   constructor(status, code) { super(code); this.status = status; this.code = code; }
@@ -78,7 +79,8 @@ async function boundedFetch(fetcher, requestSignal, input, init = {}) {
 }
 
 
-export async function authorizePlatformAdmin(request, { config, command = false, operation, parseOperation, createClient = createSupabaseClient, fetcher = fetch, now = () => new Date() }) {
+export async function authorizePlatformAdmin(request, { config, command = false, learning = false, operation, parseOperation, createClient = createSupabaseClient, fetcher = fetch, now = () => new Date() }) {
+  if (learning && !command) throw new AdminError(403, "forbidden");
   if (!config.enabled) throw new AdminError(503, "unconfigured");
   if (request.method !== "POST") throw new AdminError(405, "method_not_allowed");
   // The Hub backend calls this endpoint. It is never a browser cross-origin API.
@@ -94,7 +96,7 @@ export async function authorizePlatformAdmin(request, { config, command = false,
   if (authorization.startsWith("Bearer cmh_")) {
     if (!/^Bearer cmh_[A-Za-z0-9_-]{43}$/.test(authorization)) throw new AdminError(401, "unauthenticated");
     // Distinct endpoints consume distinct audiences. A read ticket cannot authorize a command.
-    const result = await boundedFetch(fetcher, request.signal, command ? HUB_APP_COMMAND_AUTHORIZE : HUB_APP_READ_AUTHORIZE, {
+    const result = await boundedFetch(fetcher, request.signal, learning ? HUB_APP_LEARNING_AUTHORIZE : command ? HUB_APP_COMMAND_AUTHORIZE : HUB_APP_READ_AUTHORIZE, {
       method: "POST", headers: { Authorization: authorization, "Content-Type": "application/json" }, body: "{}",
     });
     if (!result.ok) throw new AdminError(result.status === 401 || result.status === 403 ? result.status : 503,
