@@ -15,10 +15,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      claim_native_checkout_recovery: {
-        Args: { p_actor: string; p_command_id: string; p_grant_id: string }
-        Returns: Json
-      }
       graphql: {
         Args: {
           extensions?: Json
@@ -20072,20 +20068,6 @@ export type Database = {
           },
         ]
       }
-      platform_admin_recover_checkout: {
-        Args: {
-          p_actor: string
-          p_assurance_expires_at: string
-          p_authentication_method: string
-          p_hub_session: string
-          p_hub_user: string
-          p_reason: string
-          p_request_id: string
-          p_session_started_at: string
-          p_target: string
-        }
-        Returns: Json
-      }
       platform_settings: {
         Row: {
           key: string
@@ -22137,10 +22119,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      recover_native_checkout: {
-        Args: { p_actor: string; p_grant_id: string }
-        Returns: Json
       }
       referral_sources: {
         Row: {
@@ -37022,6 +37000,10 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_native_checkout_recovery: {
+        Args: { p_actor: string; p_command_id: string; p_grant_id: string }
+        Returns: Json
+      }
       claim_open_shift: {
         Args: { p_opportunity_id: string }
         Returns: {
@@ -40403,6 +40385,20 @@ export type Database = {
         }
         Returns: Json
       }
+      platform_admin_recover_checkout: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: string
+        }
+        Returns: Json
+      }
       policy_choices_are_valid: { Args: { p_choices: Json }; Returns: boolean }
       post_resident_financial_transaction: {
         Args: { p_entry: Json; p_resident_id: string }
@@ -41382,6 +41378,10 @@ export type Database = {
       record_work_item_effectiveness: {
         Args: { p_result: string; p_work_item_id: string }
         Returns: boolean
+      }
+      recover_native_checkout: {
+        Args: { p_actor: string; p_grant_id: string }
+        Returns: Json
       }
       refresh_benchmark_snapshots: {
         Args: { p_k_threshold?: number; p_period_end?: string }
