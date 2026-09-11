@@ -1,4 +1,6 @@
-import { useEffect, useId, useState } from "react";
+import { providerPatchFromForm, providerIntent, PROVIDER_LABELS } from '@/lib/providerPolicyForm';
+import type { ProviderPreview } from '../../../../../../supabase/functions/_shared/learningProviderPolicy';
+import { useEffect, useId, useRef, useState } from "react";
 import { BadgeCheck, Loader2, Save } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,9 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import {
-  nullableField,
   useGetCourseProviderProfile,
-  useUpsertCourseProviderProfile,
+  useCourseProviderPolicy,
 } from "@/hooks/useCourseProviderProfiles";
 import { facilityDaysUntil, formatDateForDisplay } from "@/lib/dateUtils";
 
@@ -57,71 +58,74 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
   const fieldIds = useId();
   const { toast } = useToast();
   const { data: profile, isLoading, isError, error, refetch } = useGetCourseProviderProfile(courseId);
-  const upsert = useUpsertCourseProviderProfile();
+  const [offset, setOffset] = useState(0);
+  const policy = useCourseProviderPolicy(courseId, canManage, offset);
+  const [reason, setReason] = useState('');
+  const [preview, setPreview] = useState<ProviderPreview | null>(null);
+  const [canApply, setCanApply] = useState(false);
+  const [message, setMessage] = useState('');
+  const intent = useRef<{ key: string; requestId: string } | null>(null);
+  const busy = policy.preview.isPending || policy.apply.isPending || policy.status.isPending;
+  const [snapshot, setSnapshot] = useState<typeof policy.context.data>();
   const [form, setForm] = useState<ProviderFormState>(EMPTY_FORM);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
+  useEffect(() => { setPreview(null); setCanApply(false); setSnapshot(undefined); setOffset(0); intent.current = null; }, [courseId]);
+
   useEffect(() => {
+    if (canManage && (!policy.context.data || policy.context.isError || policy.context.isFetching)) return;
     // isError matters as much as isLoading here. On a failed load the query settles with
     // profile undefined, so hydrating would blank every field AND mark the course loaded --
     // after which a successful Retry can no longer fill the form in, and an administrator
     // looking at blanks could save them over the stored regulatory metadata.
     if (isLoading || isError || loadedFor === courseId) return;
     setForm({
-      provider_full_name: profile?.provider_full_name ?? "",
-      course_author: profile?.course_author ?? "",
-      provider_signature_name: profile?.provider_signature_name ?? "",
-      content_version: profile?.content_version ?? "",
-      last_clinical_review_date: profile?.last_clinical_review_date ?? "",
-      reviewed_by: profile?.reviewed_by ?? "",
-      next_review_due: profile?.next_review_due ?? "",
-      regulation_review_date: profile?.regulation_review_date ?? "",
-      review_notes: profile?.review_notes ?? "",
+      provider_full_name: (canManage ? policy.context.data?.profile?.providerFullName : profile?.provider_full_name) ?? "",
+      course_author: (canManage ? policy.context.data?.profile?.courseAuthor : profile?.course_author) ?? "",
+      provider_signature_name: (canManage ? policy.context.data?.profile?.signatureName : profile?.provider_signature_name) ?? "",
+      content_version: (canManage ? policy.context.data?.profile?.contentVersion : profile?.content_version) ?? "",
+      last_clinical_review_date: (canManage ? policy.context.data?.profile?.lastClinicalReviewDate : profile?.last_clinical_review_date) ?? "",
+      reviewed_by: (canManage ? policy.context.data?.profile?.reviewedBy : profile?.reviewed_by) ?? "",
+      next_review_due: (canManage ? policy.context.data?.profile?.nextReviewDue : profile?.next_review_due) ?? "",
+      regulation_review_date: (canManage ? policy.context.data?.profile?.regulationReviewDate : profile?.regulation_review_date) ?? "",
+      review_notes: (canManage ? policy.context.data?.profile?.reviewNotes : profile?.review_notes) ?? "",
     });
     setLoadedFor(courseId);
-  }, [courseId, isLoading, loadedFor, profile]);
+    if (canManage) setSnapshot(policy.context.data);
+  }, [courseId, isLoading, isError, loadedFor, profile, canManage, policy.context.data, policy.context.isError, policy.context.isFetching]);
 
   const set = (key: keyof ProviderFormState) => (value: string) =>
-    setForm((previous) => ({ ...previous, [key]: value }));
+    { setPreview(null); setCanApply(false); setForm((previous) => ({ ...previous, [key]: value })); };
 
   const reviewOverdueDays = profile?.next_review_due ? facilityDaysUntil(profile.next_review_due) : null;
 
-  const handleSave = () => {
-    const trimmedName = form.provider_full_name.trim();
-    if (!trimmedName) {
-      toast({ title: "Enter the training provider's full name", variant: "destructive" });
-      return;
-    }
-    const signature = nullableField(form.provider_signature_name);
-    upsert.mutate(
-      {
-        course_id: courseId,
-        provider_full_name: trimmedName,
-        // The five credential columns are omitted, not nulled. PostgREST's upsert only writes the
-        // keys it is given, so leaving them out preserves whatever another course already stored
-        // instead of blanking it from a form that no longer shows it.
-        course_author: nullableField(form.course_author),
-        provider_signature_name: signature,
-        // A signature and the moment it was recorded travel together; clearing one clears both,
-        // which is what the table's own CHECK constraint requires.
-        provider_signature_recorded_at: signature
-          ? (profile?.provider_signature_name === signature
-              ? profile?.provider_signature_recorded_at ?? new Date().toISOString()
-              : new Date().toISOString())
-          : null,
-        content_version: nullableField(form.content_version),
-        last_clinical_review_date: nullableField(form.last_clinical_review_date),
-        reviewed_by: nullableField(form.reviewed_by),
-        next_review_due: nullableField(form.next_review_due),
-        regulation_review_date: nullableField(form.regulation_review_date),
-        review_notes: nullableField(form.review_notes),
-      },
-      {
-        onSuccess: () => toast({ title: "Training provider record saved" }),
-        onError: (e: Error) =>
-          toast({ title: "Could not save the training provider record", description: e.message, variant: "destructive" }),
-      },
-    );
+  const handlePreview = async () => {
+    if (!snapshot) return;
+    try {
+      const patch = providerPatchFromForm(snapshot, form);
+      const input = { domain: 'course.provider.v1' as const, operation: 'preview' as const, courseId,
+        providerContextRevision: snapshot.providerContextRevision, patch, reason: reason.trim() };
+      intent.current = providerIntent(intent.current, input);
+      const value = await policy.preview.mutateAsync({ ...input, requestId: intent.current.requestId });
+      setPreview(value); setCanApply(true); setMessage('');
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not preview provider changes.'); }
+  };
+  const handleApply = async () => {
+    if (!preview || !canApply) return;
+    try {
+      await policy.apply.mutateAsync(preview);
+      setPreview(null); setCanApply(false); setLoadedFor(null); intent.current = null;
+      setMessage('Provider documentation saved. Already stamped certificates remain unchanged.');
+      toast({ title: 'Training provider record saved' });
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Check the saved command before retrying.'); }
+  };
+  const recover = async (command: { commandId: string; expectedDigest: string }) => {
+    try {
+      const value = await policy.status.mutateAsync(command);
+      setPreview(value.preview); setCanApply(value.canApplyThisSession);
+      setMessage(value.result ? 'This command was already saved. Refresh the record before making another change.'
+        : value.canApplyThisSession ? 'This exact reviewed command can still be applied in this session.' : 'This command is unapplied. Refresh and review current values in this session.');
+    } catch (e) { setMessage(e instanceof Error ? e.message : 'Could not retrieve the saved provider command.'); }
   };
 
   if (isError) {
@@ -147,7 +151,7 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
         type={type}
         value={form[key]}
         onChange={(event) => set(key)(event.target.value)}
-        disabled={!canManage || isLoading}
+        disabled={!canManage || isLoading || busy || !snapshot}
       />
       {help && <p className="text-xs text-muted-foreground">{help}</p>}
     </div>
@@ -198,20 +202,37 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
             rows={3}
             value={form.review_notes}
             onChange={(event) => set("review_notes")(event.target.value)}
-            disabled={!canManage || isLoading}
+            disabled={!canManage || isLoading || busy || !snapshot}
           />
         </div>
 
-        {canManage ? (
-          <Button onClick={handleSave} disabled={upsert.isPending || isLoading}>
-            {upsert.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            {upsert.isPending ? "Saving..." : "Save provider record"}
-          </Button>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Only a platform administrator can edit this record.
-          </p>
-        )}
+        {canManage ? <div className="space-y-4">
+          {policy.context.isError && <QueryError what="the protected provider context" error={policy.context.error} onRetry={() => void policy.context.refetch()} />}
+          <Label htmlFor={`${fieldIds}-reason`}>Reason for this course-wide change</Label>
+          <Textarea id={`${fieldIds}-reason`} value={reason} disabled={busy} maxLength={500} onChange={e => { setReason(e.target.value); setPreview(null); setCanApply(false); }} />
+          <p className="text-xs text-muted-foreground">Use 10–500 characters. Provider metadata affects all versions of this course and invalidates material reviews for its governed AI drafts. These fields record documentation; they do not verify credentials or grant approval.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => void handlePreview()} disabled={busy || !snapshot || reason.trim().length < 10}>Preview provider changes</Button>
+            <Button variant="outline" disabled={busy} onClick={async () => { await Promise.all([policy.context.refetch(), refetch()]); setLoadedFor(null); setPreview(null); setCanApply(false); intent.current = null; }}>Refresh current record</Button>
+          </div>
+          {preview && <div className="space-y-2 rounded border p-4" aria-label="Provider change preview">
+            <p>Reviewed change: {preview.reason}</p>
+            <ul className="list-disc pl-5">{preview.changes.map(change => <li key={change.field}><strong>{PROVIDER_LABELS[change.field]}:</strong> {change.before ?? '(empty)'} → {change.after ?? '(empty)'}</li>)}</ul>
+            <p>{preview.impact.versionCount} course versions share this profile. {preview.impact.governedDrafts.filter(d => d.reviewInvalidated).length} current AI material reviews will be invalidated.</p>
+            {preview.changes.some(c => c.field === 'providerFullName') && <p>{preview.impact.legacyFallbackCertificates} older certificates still display the live provider name. Their display will follow this change. Stamped certificates keep their issued provider snapshot.</p>}
+            <p>Typed-signature timestamp: {preview.signatureTimestampAction === 'record' ? 'recorded by the server when saved' : preview.signatureTimestampAction === 'clear' ? 'cleared with the signature' : 'retained unchanged'}.</p>
+            <Button onClick={() => void handleApply()} disabled={busy || !canApply || Date.parse(preview.expiresAt) <= Date.now()}>{policy.apply.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Apply reviewed provider changes</Button>
+          </div>}
+          {message && <p role="status">{message}</p>}
+          <div className="space-y-2">
+            <p className="font-medium">Your saved provider commands</p>
+            {policy.commands.isError && <QueryError what="saved provider commands" error={policy.commands.error} onRetry={() => void policy.commands.refetch()} />}
+            {policy.commands.data?.items.map(command => <Button key={command.commandId} variant="outline" disabled={busy} onClick={() => void recover(command)}>Check {command.commandId.slice(0, 8)} — {command.appliedAt ? 'saved' : 'pending'}</Button>)}
+            {offset > 0 && <Button variant="outline" onClick={() => setOffset(Math.max(0, offset - 20))}>Previous commands</Button>}
+            {policy.commands.data?.nextOffset !== null && policy.commands.data?.nextOffset !== undefined && <Button variant="outline" onClick={() => setOffset(policy.commands.data!.nextOffset!)}>Next commands</Button>}
+          </div>
+        </div> : <p className="text-xs text-muted-foreground">Only a platform administrator can edit this record.</p>}
+
       </CardContent>
     </Card>
   );
