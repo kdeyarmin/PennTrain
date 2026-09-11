@@ -50,4 +50,21 @@ describe('native governed draft review binding', () => {
     expect(rpc.mock.calls[0][1].p_parameters).toEqual({ versionId, sourceRevision: captured.sourceRevision, reviewed: true });
     expect(rpc.mock.calls[0][1]).not.toHaveProperty('p_actor');
   });
+  it('reads each intentionally incomplete quiz draft without permitting a published source', async () => {
+    for (const quiz of [null, { id: courseId, questions: [] }, { id: courseId, questions: [{ id: versionId, options: [] }] }]) {
+      const raw = source({ blocks: [{ id: courseId, type: 'quiz', title: null, body: {}, quiz }] });
+      expect((await parseGovernedDraftSource(raw))?.document.blocks[0].quiz).toEqual(quiz);
+    }
+    await expect(parseGovernedDraftSource(source({ sourceVersionState: 'published', blocks: [{ id: courseId, type: 'quiz', quiz: null }] }))).rejects.toThrow('identity');
+  });
+  it('submits a complete structure intent with its original source and reuses unchanged retry inputs', async () => {
+    const captured = (await parseGovernedDraftSource(source()))!;
+    const changes = [{ operation: 'addLesson' as const, blockId: courseId, blockType: 'quiz' as const, title: null, body: {} }];
+    rpc.mockRejectedValueOnce(new Error('Response lost')).mockResolvedValueOnce({ data: { action: 'learning.editStructure', courseId, versionId, status: 'draft',
+      versionNumber: 2, sourceRevision: 'b'.repeat(64), replayed: true }, error: null });
+    await expect(executeNativeDraft(captured, 'learning.editStructure', 'same-request', 'Reviewed new quiz lesson', changes)).rejects.toThrow('Response lost');
+    await expect(executeNativeDraft(captured, 'learning.editStructure', 'same-request', 'Reviewed new quiz lesson', changes)).resolves.toMatchObject({ replayed: true });
+    expect(rpc.mock.calls[1]).toEqual(rpc.mock.calls[0]);
+    expect(rpc.mock.calls[0][1].p_parameters).toEqual({ versionId, sourceRevision: captured.sourceRevision, changes });
+  });
 });
