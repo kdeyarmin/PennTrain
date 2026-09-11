@@ -75,6 +75,7 @@ reset role;
 update public.billing_accounts set stripe_customer_id='cus_changed' where organization_id='9b000000-0000-4000-8000-000000000010';
 set local role service_role;
 select throws_ok($$select pg_temp.portal_claim((select preview from portal_fixture where label='drift'))$$,'40001','Billing configuration changed','customer reassignment invalidates preview');
+select throws_ok($$select pg_temp.portal_claim((select preview from portal_fixture where label='success'))$$,'40001','Billing configuration changed','customer reassignment also blocks disclosure of an old successful capability');
 reset role;
 update public.billing_accounts set stripe_customer_id='cus_portalfixture' where organization_id='9b000000-0000-4000-8000-000000000010';
 set local role service_role;

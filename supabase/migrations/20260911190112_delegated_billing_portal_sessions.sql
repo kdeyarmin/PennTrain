@@ -79,6 +79,26 @@ $$;
 revoke all on function app_private.audit_billing_portal_command(app_private.billing_portal_commands,text,text)
   from public,anon,authenticated,service_role;
 
+create function app_private.assert_billing_portal_source(p_row app_private.billing_portal_commands,p_configuration text,p_return_url text)
+returns void language plpgsql security definer set search_path='' as $$
+declare v_customer text; v_name text;
+begin
+  select stripe_customer_id into v_customer from public.billing_accounts
+    where id=p_row.billing_account_id and organization_id=p_row.organization_id for share;
+  if not found or v_customer is distinct from p_row.provider_parameters->>'customer'
+    or p_configuration is distinct from p_row.provider_parameters->>'configuration'
+    or p_return_url is distinct from p_row.provider_parameters->>'return_url' then
+    raise exception 'Billing configuration changed' using errcode='40001';
+  end if;
+  select name into v_name from public.organizations where id=p_row.organization_id for share;
+  if not found or v_name is distinct from p_row.summary->>'organizationName' then
+    raise exception 'Organization changed' using errcode='40001';
+  end if;
+end;
+$$;
+revoke all on function app_private.assert_billing_portal_source(app_private.billing_portal_commands,text,text)
+  from public,anon,authenticated,service_role;
+
 create function public.platform_admin_preview_billing_portal(
   p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,p_assurance_expires_at timestamptz,p_authentication_method text,
   p_request_id uuid,p_target uuid,p_reason text,p_provider_parameters jsonb)
@@ -139,8 +159,6 @@ create function public.platform_admin_claim_billing_portal(
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare
   v_row app_private.billing_portal_commands;
-  v_customer text;
-  v_name text;
   v_replayed boolean;
 begin
   perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
@@ -149,6 +167,7 @@ begin
   if v_row.actor_profile_id<>p_actor or v_row.hub_user_id<>p_hub_user or v_row.hub_session_id<>p_hub_session
     or v_row.authentication_method<>p_authentication_method then raise exception 'Billing command forbidden' using errcode='42501'; end if;
   if v_row.preview_digest is distinct from p_expected_digest then raise exception 'Billing preview changed' using errcode='40001'; end if;
+  perform app_private.assert_billing_portal_source(v_row,p_configuration,p_return_url);
   if v_row.state in ('succeeded','failed') then
     return jsonb_build_object('kind','result','data',app_private.billing_portal_public_result(v_row,true));
   end if;
@@ -160,17 +179,6 @@ begin
     -- Stripe may prune idempotency keys after 24h. Never issue this operation
     -- with a new key, or retry it after our shorter safe replay window.
     raise exception 'Billing preview expired or requires reconciliation' using errcode='40001';
-  end if;
-  select stripe_customer_id into v_customer from public.billing_accounts
-    where id=v_row.billing_account_id and organization_id=v_row.organization_id for share;
-  if not found or v_customer is distinct from v_row.provider_parameters->>'customer'
-    or p_configuration is distinct from v_row.provider_parameters->>'configuration'
-    or p_return_url is distinct from v_row.provider_parameters->>'return_url' then
-    raise exception 'Billing configuration changed' using errcode='40001';
-  end if;
-  select name into v_name from public.organizations where id=v_row.organization_id for share;
-  if not found or v_name is distinct from v_row.summary->>'organizationName' then
-    raise exception 'Organization changed' using errcode='40001';
   end if;
   v_replayed := v_row.first_started_at is not null;
   update app_private.billing_portal_commands set state='executing',first_started_at=coalesce(first_started_at,clock_timestamp()),
@@ -229,6 +237,7 @@ begin
   if v_row.actor_profile_id<>p_actor or v_row.hub_user_id<>p_hub_user or v_row.hub_session_id<>p_hub_session
     or v_row.authentication_method<>p_authentication_method then raise exception 'Billing command forbidden' using errcode='42501'; end if;
   if v_row.preview_digest is distinct from p_expected_digest then raise exception 'Billing preview changed' using errcode='40001'; end if;
+  perform app_private.assert_billing_portal_source(v_row,v_row.provider_parameters->>'configuration',v_row.provider_parameters->>'return_url');
   return app_private.billing_portal_public_result(v_row,coalesce(p_replayed,false));
 end;
 $$;
