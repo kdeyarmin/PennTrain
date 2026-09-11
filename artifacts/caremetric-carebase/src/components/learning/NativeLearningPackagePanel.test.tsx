@@ -29,6 +29,11 @@ it('blocks upload and finish while draft edits are unsaved',()=>{
  expect(nodes(tree).find(n=>n.props['aria-label']==='Original course package')?.props.disabled).toBe(true);
  expect(nodes(tree).find(n=>text(n.props.children as ReactNode)==='Finish verified package operation')?.props.disabled).toBe(true);
 });
+it('a failed current-authority refresh disables finishing stale listed intent data',()=>{
+ h.context.isError=true;const tree=render();
+ expect(nodes(tree).find(n=>text(n.props.children as ReactNode)==='Finish verified package operation')?.props.disabled).toBe(true);
+ expect(nodes(tree).find(n=>n.props['aria-label']==='Original course package')?.props.disabled).toBe(true);
+});
 it('uploads selected standard to this course without any facility or source path parameter',()=>{
  const tree=render();const select=nodes(tree).find(n=>n.type==='select')!;
  (select.props.onChange as (event:unknown)=>void)({target:{value:'xapi'}});

@@ -205,34 +205,6 @@ export function useAdminLearningPackages(courseVersionId?: string | null) {
   });
 }
 
-export function useRegisterLearningPackage() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      courseVersionId: string;
-      standardType?: string;
-      storagePath: string;
-      contentSha256: string;
-      compressedBytes: number;
-      entryPoint?: string;
-    }) => {
-      const { data, error } = await rpc().rpc("register_learning_package", {
-        p_course_version_id: input.courseVersionId,
-        p_standard_type: input.standardType ?? "scorm_1_2",
-        p_storage_path: input.storagePath,
-        p_content_sha256: input.contentSha256,
-        p_compressed_bytes: input.compressedBytes,
-        p_entry_point: input.entryPoint ?? "index.html",
-      });
-      if (error) throw new Error(error.message);
-      return data as string;
-    },
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["learning_packages"] });
-    },
-  });
-}
-
 export function useAcceptLearningPackage() {
   const client = useQueryClient();
   const attempts = useRef(new Map<string, { requestId: string; sourceRevision: string }>());

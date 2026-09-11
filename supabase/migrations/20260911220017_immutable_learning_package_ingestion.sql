@@ -391,6 +391,7 @@ begin
   v_authority:=app_private.native_learning_package_authority();
   v_course:=app_private.assert_learning_package_scope((v_authority->>'actorId')::uuid,p_course_version_id,true);
   perform app_private.lock_learning_authoring_source(v_course,p_course_version_id);
+  perform app_private.assert_learning_package_scope((v_authority->>'actorId')::uuid,p_course_version_id,true);
   select organization_id into v_org from public.course_versions where id=p_course_version_id;
   if p_compressed_bytes is null or p_compressed_bytes not between 1 and 52428800 then
     raise exception 'Package must be between 1 byte and 50 MiB.' using errcode='22023'; end if;
