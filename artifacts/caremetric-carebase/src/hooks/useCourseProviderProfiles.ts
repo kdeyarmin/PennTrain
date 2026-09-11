@@ -66,7 +66,8 @@ export function useCourseProviderPolicy(courseId: string, enabled: boolean, offs
       queryClient.invalidateQueries({ queryKey: ['course_provider_profiles', courseId] }),
       queryClient.invalidateQueries({ queryKey: ['course_provider_policy', courseId] }),
       queryClient.invalidateQueries({ queryKey: ['course_provider_commands', courseId] }),
-      queryClient.invalidateQueries({ queryKey: ['course_versions', courseId] }),
+      queryClient.invalidateQueries({ queryKey: ['courses'] }),
+      queryClient.invalidateQueries({ queryKey: ['governed_draft_source'] }),
     ]);
   } });
   const status = useMutation({ mutationFn: async (op: { commandId: string; expectedDigest: string }) => {

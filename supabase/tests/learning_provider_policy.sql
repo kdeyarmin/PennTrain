@@ -63,6 +63,7 @@ select is(pg_temp.apply((select value from creation_fixture where label='first')
 select is((select count(*) from app_private.learning_provider_commands where request_id=pg_temp.cid(200)),1::bigint,'replay does not make another command');
 select throws_ok($$select pg_temp.preview('{"providerFullName":"Different"}',pg_temp.cid(200),'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')$$,'40001','Request already has different inputs.','request cannot be repurposed');
 select throws_ok($$select pg_temp.edit('{"providerFullName":"Original provider"}')$$,'22023','No provider changes to apply.','no-op metadata denied');
+select throws_ok($$select pg_temp.edit(jsonb_build_object('reviewNotes','{"token":"hidden"}'))$$,'22023','Provider text contains excluded credentials.','credential JSON inside a text field is rejected');
 select throws_ok($$select pg_temp.edit('{"credential":"Invented"}')$$,'22023','Invalid provider patch.','credential assertion is outside editor');
 select throws_ok($$select pg_temp.edit('{"signatureRecordedAt":"2026-01-01"}')$$,'22023','Invalid provider patch.','client cannot supply signature timestamp');
 select throws_ok($$select pg_temp.edit('{"nextReviewDue":"2025-02-29"}')$$,'22023','Invalid calendar date.','impossible day denied by database');

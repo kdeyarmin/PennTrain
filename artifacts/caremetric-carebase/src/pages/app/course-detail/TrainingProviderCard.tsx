@@ -115,7 +115,7 @@ export function TrainingProviderCard({ courseId, canManage }: { courseId: string
     try {
       await policy.apply.mutateAsync(preview);
       setPreview(null); setCanApply(false); setLoadedFor(null); intent.current = null;
-      setMessage('Provider documentation saved. Already stamped certificates remain unchanged.');
+      setMessage('Provider documentation saved. Already stamped certificates remain unchanged. Reload the draft source before further course edits or material review.');
       toast({ title: 'Training provider record saved' });
     } catch (e) { setMessage(e instanceof Error ? e.message : 'Check the saved command before retrying.'); }
   };

@@ -84,6 +84,7 @@ begin
     end if;
     if jsonb_typeof(v_value)<>'string' then raise exception 'Provider fields must be text or null.' using errcode='22023'; end if;
     v_text:=p_patch->>v_key;
+    if v_text ~* '([?&](token|access_token|signature|sig|key|policy|jwt|auth|h|hdnts|hdnea|key-pair-id|api_key|apikey|x-amz-[a-z-]+|x-goog-[a-z-]+)=|"(access_?token|refresh_?token|service_?role_?key|authorization|password|client_?secret|storage_?(path|bucket)|video_?url|playback_?(url|token)|signed_?url|api_?key|token|secret|secret_?key|signing_?secret)"[[:space:]]*:)' then raise exception 'Provider text contains excluded credentials.' using errcode='22023'; end if;
     if v_key in ('lastClinicalReviewDate','nextReviewDue','regulationReviewDate') then
       if v_text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' or left(v_text,4)='0000' then raise exception 'Invalid calendar date.' using errcode='22023'; end if;
       begin v_date:=v_text::date; exception when others then raise exception 'Invalid calendar date.' using errcode='22023'; end;

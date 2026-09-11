@@ -30,6 +30,7 @@ export function validProviderPatch(v: unknown): v is ProviderPatch {
     || new TextEncoder().encode(JSON.stringify(v)).byteLength > 24576 || CREDENTIALS.test(JSON.stringify(v))) return false;
   return Object.entries(v).every(([key, value]) => {
     if (value === null) return key !== 'providerFullName';
+    if (typeof value === 'string' && CREDENTIALS.test(value)) return false;
     if (['lastClinicalReviewDate', 'nextReviewDue', 'regulationReviewDate'].includes(key)) return realProviderDate(value);
     if (key === 'reviewNotes') return typeof value === 'string' && value.length <= 12000 && value.trim().length > 0 && !/[^\P{Cc}\t\r\n]/u.test(value);
     return text(value, 1, key === 'contentVersion' ? 300 : 500);

@@ -44,7 +44,7 @@ test('provider patch is a closed sparse documentation contract with real calenda
   assert.equal(validProviderPatch({ reviewNotes: 'Reviewed\nnotes\tretained', lastClinicalReviewDate: '2024-02-29' }), true);
   for (const patch of [{}, { providerFullName: null }, { signatureRecordedAt: '2026-01-01' }, { credential: 'invented' }, { approved: true },
     { nextReviewDue: '2025-02-29' }, { nextReviewDue: '0000-01-01' }, { reviewNotes: 'secret https://example.test?token=hidden' },
-    { providerFullName: 'Provider\u0085name' }, { reviewNotes: '  ' }, { courseAuthor: 4 }]) assert.equal(validProviderPatch(patch), false);
+    { providerFullName: 'Provider\u0085name' }, { reviewNotes: '  ' }, { courseAuthor: 4 }, { reviewNotes: '{"token":"hidden"}' }, { courseAuthor: '{"accessToken":"hidden"}' }]) assert.equal(validProviderPatch(patch), false);
   assert.equal(realProviderDate('2024-04-31'), false); assert.equal(realProviderDate('2024-12-31'), true);
 });
 test('all provider operations require the domain and reject original authoring DTOs', () => {
