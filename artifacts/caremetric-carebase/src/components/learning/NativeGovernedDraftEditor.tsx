@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { QueryError } from '@/components/QueryState';
 import { useToast } from '@/hooks/use-toast';
 import { useMarkAiGenerationReviewed } from '@/hooks/useAiCourseGeneration';
+import { errorText } from '@/lib/errorText';
 import { executeNativeDraft, loadGovernedDraftSource, nativeDraftIntent, type DraftPatch, type GovernedDraftSource, type NativeDraftIntent } from '@/lib/governedLearningDraft';
 
 export function NativeGovernedDraftEditor({ versionId, userId, onGovernedChange, onDirtyChange }: { versionId: string; userId: string; onGovernedChange: (value: boolean) => void; onDirtyChange: (value: boolean) => void }) {
@@ -59,7 +60,7 @@ export function NativeGovernedDraftEditor({ versionId, userId, onGovernedChange,
       await Promise.all([client.invalidateQueries({ queryKey: ['courses'] }), client.invalidateQueries({ queryKey: ['course_blocks', versionId] })]);
       await reload(); toast({ title: action === 'learning.patchDraft' ? 'Governed draft updated' : 'Exact draft review recorded' });
     } catch (error) {
-      toast({ title: 'The draft action did not finish', description: error instanceof Error ? error.message : String(error), variant: 'destructive' });
+      toast({ title: 'The draft action did not finish', description: errorText(error), variant: 'destructive' });
     } finally { setBusy(false); }
   };
   if (sourceQuery.isError && !source) return <QueryError what="governed draft source" error={sourceQuery.error} onRetry={() => void sourceQuery.refetch()} />;
@@ -90,7 +91,7 @@ export function NativeGovernedDraftEditor({ versionId, userId, onGovernedChange,
     <div className="flex flex-wrap gap-2">
       <Button disabled={busy || !dirty || reason.trim().length < 10} onClick={() => void run('learning.patchDraft')}>Save reviewed changes</Button>
       {source.document.version.aiGenerated && <Button variant="outline" disabled={busy || dirty || !reviewed || reason.trim().length < 10} onClick={() => void run('learning.reviewDraft')}>Record exact draft review</Button>}
-      <Button variant="ghost" disabled={busy} onClick={() => { void reload().catch(error => toast({ title: 'Could not reload draft', description: String(error), variant: 'destructive' })); }}>Discard edits and reload source</Button>
+      <Button variant="ghost" disabled={busy} onClick={() => { void reload().catch(error => toast({ title: 'Could not reload draft', description: errorText(error), variant: 'destructive' })); }}>Discard edits and reload source</Button>
     </div>
   </CardContent></Card>;
 }

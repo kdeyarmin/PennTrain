@@ -12,6 +12,7 @@ import { useUpdateCourseVersion, type Course, type CourseVersion } from "@/hooks
 import { VersionStatusBadge } from "./components";
 import { QueryError } from "@/components/QueryState";
 import { loadGovernedDraftSource, type GovernedDraftSource } from "@/lib/governedLearningDraft";
+import { errorText } from "@/lib/errorText";
 
 export function VersionsCard({
   canManage,
@@ -120,7 +121,7 @@ export function VersionsCard({
                         setGovernedSource(source); setReason(''); setEditingId(v.id);
                         setForm({ title: source?.document.version.title ?? v.title, description: source ? source.document.version.description ?? '' : v.description ?? "" });
                       } catch (error) {
-                        toast({ title: 'Could not load the current draft', description: error instanceof Error ? error.message : String(error), variant: 'destructive' });
+                        toast({ title: 'Could not load the current draft', description: errorText(error), variant: 'destructive' });
                       } finally { setLoadingEdit(null); }
                     }}
                   >
@@ -180,7 +181,7 @@ export function VersionsCard({
                           ...(governedSource ? { governedSource, reason: reason.trim() } : {}),
                         }, {
                           onSuccess: () => { setEditingId(null); toast({ title: "Version updated" }); },
-                          onError: (error) => toast({ title: "Could not update the version", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
+                          onError: (error) => toast({ title: "Could not update the version", description: errorText(error), variant: "destructive" }),
                         })}
                       >
                         {updateVersion.isPending ? "Saving..." : "Save"}
