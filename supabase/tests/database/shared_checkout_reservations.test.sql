@@ -68,7 +68,7 @@ begin
  select * into v from app_private.checkout_intents where id=(p_original->>'commandId')::uuid;
  insert into app_private.checkout_intents(id,actor_id,principal_id,session_id,authentication_method,request_key,organization_id,reason,
    provider_parameters,source_snapshot,summary,preview_digest,expires_at,created_at)
- values(v_id,v.actor_id,v.principal_id,v.session_id,v.authentication_method,v_id::text,v.organization_id,v.reason,
+ values(v_id,v.actor_id,v.principal_id,case when p_age>interval '8 hours' then gen_random_uuid() else v.session_id end,v.authentication_method,v_id::text,v.organization_id,v.reason,
    v.provider_parameters,v.source_snapshot,v.summary,repeat('a',64),clock_timestamp()-p_age+interval '5 minutes',clock_timestamp()-p_age);
  return jsonb_build_object('commandId',v_id,'previewDigest',repeat('a',64));
 end;
@@ -193,9 +193,10 @@ with inserted as (
  returning id,first_intent_id
 ) update app_private.checkout_intents i set reservation_id=r.id from inserted r where i.id=r.first_intent_id;
 set local role service_role;
-select is(pg_temp.checkout_claim((select value from checkout_fixture where label='agedUnknown'))->>'kind','result','aged unknown dispatch never claims another provider POST');
-select is(pg_temp.checkout_claim((select value from checkout_fixture where label='agedUnknown'))#>>'{data,outcome}','pending','unknown aged receipt stays explicitly unresolved');
-select is(pg_temp.checkout_claim((select value from checkout_fixture where label='agedUnknown'),true)#>>'{data,canStartNewCheckout}','false','unknown aged receipt does not authorize replacement');
+insert into checkout_fixture values('freshUnknownRetry',pg_temp.checkout_preview('9c000000-0000-4000-8000-000000000104'));
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='freshUnknownRetry'))->>'kind','result','new current session cannot redispatch an aged unknown provider operation');
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='freshUnknownRetry'))#>>'{data,outcome}','pending','unknown aged receipt stays explicitly unresolved');
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='freshUnknownRetry'),true)#>>'{data,canStartNewCheckout}','false','unknown aged receipt does not authorize replacement');
 insert into checkout_fixture values('newAfterUnknown',pg_temp.checkout_preview('9c000000-0000-4000-8000-000000000103',true));
 select throws_ok($$select pg_temp.checkout_claim((select value from checkout_fixture where label='newAfterUnknown'))$$,
  '40001','Organization already has a checkout reservation','new request cannot bypass provider idempotency uncertainty');
