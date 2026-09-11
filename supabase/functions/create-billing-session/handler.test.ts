@@ -1,14 +1,58 @@
 import { assertEquals } from "jsr:@std/assert@1.0.14";
-import { createCreateBillingSessionHandler } from "./handler.ts";
+import { createCreateBillingSessionHandler as createHandler, type CreateBillingSessionDependencies } from "./handler.ts";
 
 const ENV = {
   SUPABASE_URL: "https://project.test",
   SUPABASE_ANON_KEY: "anon",
   SUPABASE_SERVICE_ROLE_KEY: "service",
-  STRIPE_SECRET_KEY: "sk_test",
+  STRIPE_SECRET_KEY: "sk_test_fixture",
   STRIPE_BILLING_WEBHOOK_SECRET: "whsec_test",
   BILLING_RETURN_URL_ORIGINS: "https://app.caremetric.test",
 };
+
+// Existing handler scenarios retain their query/provider assertions. This
+// synthetic RPC fixture supplies the newly durable reservation boundary; its
+// actual SQL authorization/lease behavior is covered by the native pgTAP suite.
+function createCreateBillingSessionHandler(deps: CreateBillingSessionDependencies) {
+  const commandId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", reservationId="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  let values: Record<string,unknown>={}, provider: Record<string,unknown>={}, receipt: Record<string,unknown>={};
+  return createHandler({...deps,
+    createClient:(url,key,options)=>{
+      const client=deps.createClient(url,key,options), original=client.rpc;
+      client.rpc=async(name:string,args:Record<string,unknown>)=>{
+        if(name==="authorize_native_checkout") {
+          assertEquals(key,"anon");
+          return {data:"cccccccc-cccc-4ccc-8ccc-cccccccccccc",error:null};
+        }
+        if(name==="claim_native_checkout") {
+          assertEquals(key,"service");values=args.p_provider_parameters as Record<string,unknown>;
+          return {data:{kind:"create",commandId,targetId:values.client_reference_id,reservationId,leaseId:"dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            idempotencyKey:`carebase:checkout:${reservationId}`,values,priorSession:null,replayed:false,firstDispatch:true,
+            priceConfiguration:{currency:"usd",interval_count:1}},error:null};
+        }
+        if(name==="finish_checkout_reservation") {receipt=args;return {data:null,error:null};}
+        if(name==="read_native_checkout_result") {
+          const s=receipt.p_session as Record<string,unknown>;
+          return {data:{commandId,action:"billing.checkout.create",targetId:values.client_reference_id,outcome:receipt.p_outcome,
+            replayed:false,checkedAt:new Date().toISOString(),providerStatus:s.status,availability:"available",canStartNewCheckout:false,
+            retryAfterSeconds:null,session:{kind:s.kind,id:s.id,url:s.url,expiresAt:s.expiresAt,livemode:s.livemode}},error:null};
+        }
+        return original.call(client,name,args);
+      };
+      return client;
+    },
+    stripePost:async(path,key,params,idempotency)=>{
+      const result=await deps.stripePost(path,key,params,idempotency);
+      if(path!=="/v1/checkout/sessions" || !result.ok) return result;
+      const rawId=String(result.data.id),id=rawId.startsWith("cs_test_")?rawId:`cs_test_${rawId.replace(/[^A-Za-z0-9]/g,"")}`;
+      provider={...result.data,id,url:`https://checkout.stripe.com/c/pay/${id}`,mode:"subscription",client_reference_id:params.client_reference_id,
+        customer:params.customer??null,subscription:null,status:"open",metadata:params.metadata,livemode:false,expires_at:Math.floor(Date.now()/1000)+3600};
+      return {...result,data:provider};
+    },
+    stripeGet:async()=>({ok:true,status:200,data:{...provider,line_items:{has_more:false,data:(values.line_items as Array<{price:string;quantity:number}>).map(item=>({
+      quantity:item.quantity,price:{active:true,livemode:false,type:"recurring",id:item.price,currency:"usd",recurring:{interval:(values.metadata as Record<string,unknown>).billing_interval,interval_count:1}}}))}}}),
+  });
+}
 
 function baseRequest(body: Record<string, unknown>, headers: Record<string, string> = {}) {
   return new Request("https://example.test/create-billing-session", {

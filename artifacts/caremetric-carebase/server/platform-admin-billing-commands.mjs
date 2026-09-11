@@ -1,6 +1,8 @@
 import { AdminError, authorizePlatformAdmin, boundedFetch, UUID } from "./platform-admin-auth.mjs";
 import { BillingSessionPlanError, planBillingSession } from "../../../supabase/functions/_shared/billingSessionPlan.ts";
 import { phase2StripePost, resolvePhase2BillingReturnOrigins, validatePhase2BillingReturnUrl } from "../../../supabase/functions/_shared/phase2Billing.ts";
+import { parseCheckoutCommand, projectCheckoutCommand, runCheckoutCommand } from "./platform-admin-checkout.mjs";
+import { CheckoutReservationError } from "../../../supabase/functions/_shared/checkoutReservations.ts";
 
 const DIGEST = /^[0-9a-f]{64}$/;
 const PORTAL_ACTION = "billing.portal.create";
@@ -14,6 +16,7 @@ const invalid = () => { throw new AdminError(400, "invalid_request"); };
 const upstream = () => { throw new AdminError(502, "upstream"); };
 
 export function parseBillingCommand(value) {
+  if (["billing.checkout.create", "billing.checkout.recover"].includes(value?.action)) return parseCheckoutCommand(value);
   if (keysAre(value, ["operation", "commandId", "expectedDigest"]) && value.operation === "apply"
     && typeof value.commandId === "string" && UUID.test(value.commandId)
     && typeof value.expectedDigest === "string" && DIGEST.test(value.expectedDigest)) {
@@ -94,7 +97,7 @@ function configuration(getEnv) {
 }
 
 export function createPlatformAdminBillingCommandHandler({ config, createClient, fetcher = fetch,
-  stripePost = phase2StripePost, getEnv = name => process.env[name], now = () => new Date() }) {
+  stripePost = phase2StripePost, stripeGet, getEnv = name => process.env[name], now = () => new Date() }) {
   const json = (body, status = 200) => new Response(JSON.stringify(body), {
     status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
   });
@@ -113,6 +116,12 @@ export function createPlatformAdminBillingCommandHandler({ config, createClient,
       const common = { p_actor: nativeId, p_hub_user: actor.user_id, p_hub_session: actor.session_id,
         p_session_started_at: actor.session_started_at, p_assurance_expires_at: actor.assurance_expires_at,
         p_authentication_method: authenticationMethod };
+      if (["billing.checkout.create", "billing.checkout.recover"].includes(command.action)) {
+        const result = await runCheckoutCommand({command, native, common, config, getEnv, request, fetcher, now, stripePost, stripeGet});
+        const generatedAt = now();
+        return json({contractVersion: 1, product: "carebase", operation: command.operation,
+          generatedAt: generatedAt.toISOString(), data: projectCheckoutCommand(result, command, generatedAt)});
+      }
       const current = configuration(getEnv);
       let data;
       if (command.operation === "preview") {
@@ -153,6 +162,7 @@ export function createPlatformAdminBillingCommandHandler({ config, createClient,
     } catch (error) {
       // No raw provider errors, private portal URLs, identities, bodies or keys in logs.
       if (error instanceof BillingSessionPlanError) return json({ error: { code: error.status === 409 ? "conflict" : "unconfigured" } }, error.status === 409 ? 409 : 503);
+      if (error instanceof CheckoutReservationError) return json({error: {code: error.status === 409 ? "conflict" : error.status === 403 ? "forbidden" : error.status === 404 ? "notfound" : "upstream"}}, error.status);
       return json({ error: { code: error instanceof AdminError ? error.code : "upstream" } }, error instanceof AdminError ? error.status : 503);
     }
   };

@@ -404,7 +404,7 @@ jobs:
       - name: Native central billing query contracts (local stack only)
         env:
           CAREMETRIC_LOCAL_BILLING_READ_TESTS: "true"
-        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/platform-admin-billing-database.test.mjs
+        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/platform-admin-billing-database.test.mjs server/platform-admin-checkout-database.test.mjs
 
       - name: Seed course-video placeholders (non-production Storage assets only)
         # See BACKLOG.md SG-3 and the script's own header. The 3 HeyGen New Employee Orientation
