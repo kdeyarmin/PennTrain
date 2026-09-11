@@ -36281,11 +36281,28 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_learning_provider_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       apply_medication_integration_command: {
         Args: { p_command_id: string }
         Returns: Json
       }
       apply_native_learning_draft_command: {
+        Args: { p_command_id: string; p_expected_digest: string }
+        Returns: Json
+      }
+      apply_native_learning_provider_command: {
         Args: { p_command_id: string; p_expected_digest: string }
         Returns: Json
       }
@@ -38795,6 +38812,31 @@ export type Database = {
         }
         Returns: Json
       }
+      get_learning_provider_context: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      get_learning_provider_status: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       get_managed_billing_subscriptions: {
         Args: {
           p_for_quantity_sync?: boolean
@@ -38859,6 +38901,15 @@ export type Database = {
       }
       get_native_learning_package_operation: {
         Args: { p_request_id: string }
+        Returns: Json
+      }
+      get_native_learning_provider_context: {
+        Args: { p_course_id: string }
+        Returns: Json
+      }
+      get_native_learning_provider_status: {
+        Args: { p_command_id: string; p_expected_digest: string }
+
         Returns: Json
       }
       get_notification_delivery_evidence: {
@@ -39931,12 +39982,29 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      list_learning_provider_commands: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_offset: number
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       list_learning_receipt_outbox: {
         Args: {
           p_actor_id: string
           p_authentication_method?: string
           p_limit?: number
         }
+        Returns: Json
+      }
+      list_native_learning_provider_commands: {
+        Args: { p_course_id: string; p_offset: number }
         Returns: Json
       }
       list_plan_of_correction_versions: {
@@ -40589,11 +40657,37 @@ export type Database = {
         }
         Returns: Json
       }
+      preview_learning_provider_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_context_revision: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_patch: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       preview_native_learning_draft_command: {
         Args: {
           p_action: string
           p_course_id: string
           p_parameters: Json
+          p_reason: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      preview_native_learning_provider_command: {
+        Args: {
+          p_context_revision: string
+          p_course_id: string
+          p_patch: Json
           p_reason: string
           p_request_id: string
         }
