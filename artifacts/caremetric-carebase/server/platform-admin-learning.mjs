@@ -86,6 +86,6 @@ export function createLearningAdminRouter(options = {}) {
   return createProviderRouter({ handlers: new Map([["receipt", createLearningAdminHandler({ ...options, config, enabled })],
     ['authoring', createLearningAuthoringHandler({ ...options, config, enabled: authoringEnabled })]]),
     enabled: config.enabled && config.commandsEnabled && (enabled || authoringEnabled), prefix: "/api/learning-admin/", unavailableCode: "unconfigured",
-    routes: new Map([["receipt", { bytes: 4096, browser: false }], ['authoring', { bytes: 4096, responseBytes: 4100000, browser: false }]]), forwardedHeaders: ["authorization", "origin", "content-type"],
+    routes: new Map([["receipt", { bytes: 4096, browser: false }], ['authoring', { bytes: 32768, responseBytes: 4100000, browser: false }]]), forwardedHeaders: ["authorization", "origin", "content-type"],
     handlerTimeoutMs: 12000, maxConcurrent: 4, maxPendingBodies: 8 });
 }

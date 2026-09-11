@@ -41,6 +41,7 @@ import {
   AddBlockDialog, QuizPromptDialog, RegenerateBlockDialog, DeleteBlockAlertDialog, DiscardConfirmAlertDialog,
 } from "./course-detail/BlockDialogs";
 import { VideoGenDialog, BulkVideoGenDialog } from "./course-detail/VideoGenDialogs";
+import { NativeGovernedDraftEditor } from "@/components/learning/NativeGovernedDraftEditor";
 
 export default function CourseDetail() {
   const __fieldIds = useId();
@@ -322,6 +323,10 @@ export default function CourseDetail() {
   const [publishingVersionId, setPublishingVersionId] = useState<string | null>(null);
 
   const handlePublish = async (version: CourseVersion) => {
+    if (governedDraftDirty) {
+      toast({ title: 'Save or discard the draft edits first', variant: 'destructive' });
+      return;
+    }
     if (!course) return;
     if (version.id !== selectedVersionId || !studentPreviewChecked) {
       setSelectedVersionId(version.id);
@@ -694,7 +699,9 @@ export default function CourseDetail() {
   // self-review acknowledgment before they can be published (the DB trigger from
   // Part 3 is the real enforcement; this is a UX courtesy pointing at the same rule). ---
   const [reviewChecked, setReviewChecked] = useState(false);
-  useEffect(() => { setReviewChecked(false); }, [selectedVersionId]);
+  const [governedDraft, setGovernedDraft] = useState(false);
+  const [governedDraftDirty, setGovernedDraftDirty] = useState(false);
+  useEffect(() => { setReviewChecked(false); setGovernedDraft(false); }, [selectedVersionId]);
 
   const needsAiReview = !!selectedVersion?.ai_generated && !selectedVersion?.ai_reviewed_at;
   const { data: aiGenerations } = useListCourseAiGenerations(course?.id, needsAiReview && !!course?.id);
@@ -787,7 +794,7 @@ export default function CourseDetail() {
 
       <PrePublishSection
         canManage={canManage}
-        needsAiReview={needsAiReview}
+        needsAiReview={needsAiReview && !governedDraft}
         reviewChecked={reviewChecked}
         setReviewChecked={setReviewChecked}
         markingReviewed={markingReviewed}
@@ -800,6 +807,9 @@ export default function CourseDetail() {
         studentPreviewChecked={studentPreviewChecked}
         setStudentPreviewChecked={setStudentPreviewChecked}
       />
+
+      {canManage && selectedVersion?.status === 'draft' && user && <NativeGovernedDraftEditor key={selectedVersion.id}
+        versionId={selectedVersion.id} userId={user.id} onGovernedChange={setGovernedDraft} onDirtyChange={setGovernedDraftDirty} />}
 
       <ContentBlocksCard
         selectedVersion={selectedVersion}
