@@ -142,5 +142,12 @@ select is((select count(*) from app_private.learning_assignment_bindings where a
 select lives_ok($$select pg_temp.complete(106)$$,'future unbound completion remains native');
 select is((select count(*) from app_private.learning_receipt_outbox where assignment_id=pg_temp.assignment_id(106)),0::bigint,'unbound completion after disable creates no central receipt');
 
+select ok(not exists(select 1 from pg_constraint c join pg_namespace n on n.oid=c.connamespace
+  where n.nspname='app_private' and c.contype='f' and c.conrelid in (
+    'app_private.learning_receipt_mappings'::regclass,'app_private.learning_source_policies'::regclass,
+    'app_private.learning_assignment_bindings'::regclass,'app_private.learning_receipt_command_audit'::regclass)
+    and c.confrelid in ('public.employees'::regclass,'public.profiles'::regclass,'public.organizations'::regclass,
+      'public.course_assignments'::regclass,'public.courses'::regclass,'public.course_versions'::regclass)),
+  'receipt identifiers do not add foreign-key blockers to existing native erasure workflows');
 select * from finish();
 rollback;

@@ -222,6 +222,7 @@ create function app_private.bind_prospective_learning_assignment() returns trigg
 language plpgsql security definer set search_path='' as $$
 declare mapping app_private.learning_receipt_mappings%rowtype; source_payload text; source_hash text;
 begin
+  if new.status='completed' or new.completed_at is not null or new.completion_recorded_at is not null then return new; end if;
   select * into mapping from app_private.learning_receipt_mappings m where m.active
     and m.employee_id=new.employee_id and m.organization_id=new.organization_id
     and m.course_id=new.course_id and m.version_id=new.course_version_id and new.assigned_at>=m.created_at for share;
