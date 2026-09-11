@@ -5,6 +5,7 @@ import { createPlatformAdminCommandHandler } from "./platform-admin-commands.mjs
 import { createPlatformAdminBillingCommandHandler } from "./platform-admin-billing-commands.mjs";
 export { readPlatformAdminConfig } from "./platform-admin-auth.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
+import { resolveSupportIdentity } from "./platform-admin-support-identity.mjs";
 
 const COURSE_COLUMNS = "id,title,description,category,status,estimated_duration_minutes,updated_at,organization_id,current_version_id";
 const MAX_LESSONS = 200;
@@ -20,6 +21,11 @@ const PROFILE_COLUMNS = "id,first_name,last_name,email,role,is_active,created_at
 function parseOperation(body) {
   if (!body || Array.isArray(body) || typeof body !== "object") throw new AdminError(400, "invalid_request");
   const keys = Object.keys(body);
+  if (body.operation === "support.identity.resolve" && keys.length === 3
+    && typeof body.sourceUserId === "string" && UUID.test(body.sourceUserId)
+    && typeof body.sourceAccountId === "string" && UUID.test(body.sourceAccountId)) {
+    return { operation:body.operation, sourceUserId:body.sourceUserId.toLowerCase(), sourceAccountId:body.sourceAccountId.toLowerCase() };
+  }
   if (["capabilities", "overview", "billing.overview"].includes(body.operation) && keys.length === 1) return body;
   if (body.operation === "courses.get" && keys.length === 2 && typeof body.courseId === "string" && UUID.test(body.courseId)) {
     return { operation: body.operation, courseId: body.courseId.toLowerCase() };
@@ -86,9 +92,11 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
         body = JSON.parse(raw);
       } catch { throw new AdminError(400, "invalid_request"); }
       const operation = parseOperation(body);
-      const { native } = await authorizePlatformAdmin(request, { config, operation, parseOperation, createClient, fetcher, now });
+      const { native, authenticationMethod, timestamp } = await authorizePlatformAdmin(request, { config, operation, parseOperation, createClient, fetcher, now });
       let data;
-      if (operation.operation === "capabilities") {
+      if (operation.operation === "support.identity.resolve") {
+        data = await resolveSupportIdentity({ native, operation, authenticationMethod, timestamp });
+      } else if (operation.operation === "capabilities") {
         data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : []),
           ...(config.commandsEnabled && config.billingCommandsEnabled ? ["billing.commands.preview", "billing.commands.apply"] : [])], sourceRevision: config.sourceRevision ?? null };
       } else if (BILLING_READ_OPERATIONS.includes(operation.operation)) {
