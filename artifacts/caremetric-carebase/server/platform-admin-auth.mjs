@@ -50,10 +50,10 @@ export function readPlatformAdminConfig(getEnv = (name) => process.env[name]) {
   const sourceRevision = typeof revision === "string" && /^[0-9a-f]{40}$/i.test(revision) ? revision.toLowerCase() : null;
   const commandFlag = getEnv("CAREMETRIC_ADMIN_COMMANDS_ENABLED");
   if (commandFlag !== undefined && commandFlag !== "true" && commandFlag !== "false") throw new Error("CAREMETRIC_ADMIN_COMMANDS_ENABLED must be true or false.");
-  return { enabled: true, hubUrl, hubKey, supabaseUrl, serviceKey, identities, sourceRevision, commandsEnabled: commandFlag === "true" };
+  return { enabled: true, hubUrl, hubKey, supabaseUrl, serviceKey, identities, sourceRevision, commandsEnabled: commandFlag === "true", stripeKey: getEnv("STRIPE_SECRET_KEY")?.trim() || null };
 }
 
-async function boundedFetch(fetcher, requestSignal, input, init = {}) {
+export async function boundedFetch(fetcher, requestSignal, input, init = {}) {
   const signals = [requestSignal, AbortSignal.timeout(8000)];
   if (input instanceof Request) signals.push(input.signal);
   if (init.signal) signals.push(init.signal);
