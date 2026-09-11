@@ -38362,6 +38362,18 @@ export type Database = {
         }
         Returns: Json
       }
+      finish_delegated_learning_package_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       finish_document_analyzer_job: {
         Args: {
           p_admission_date?: string
@@ -38381,6 +38393,12 @@ export type Database = {
           p_status?: string
         }
         Returns: boolean
+      }
+      finish_native_learning_package_operation: {
+        Args: {
+          p_operation_id: string
+        }
+        Returns: Json
       }
       finish_organization_export_job: {
         Args: {
@@ -38567,6 +38585,31 @@ export type Database = {
         Returns: Json
       }
       get_data_lifecycle_status: { Args: never; Returns: Json }
+      get_delegated_learning_package_context: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_package_id: string
+          p_session_started_at: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      get_delegated_learning_package_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_request_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       get_effective_access: {
         Args: { p_at?: string }
         Returns: {
@@ -38780,6 +38823,19 @@ export type Database = {
       get_my_shift_workspace: { Args: never; Returns: Json }
       get_native_learning_draft_source: {
         Args: { p_version_id: string }
+        Returns: Json
+      }
+      get_native_learning_package_context: {
+        Args: {
+          p_package_id?: string
+          p_version_id?: string
+        }
+        Returns: Json
+      }
+      get_native_learning_package_operation: {
+        Args: {
+          p_request_id: string
+        }
         Returns: Json
       }
       get_notification_delivery_evidence: {
@@ -40436,6 +40492,24 @@ export type Database = {
         }
         Returns: Json
       }
+      prepare_delegated_learning_package_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_request: Json
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      prepare_native_learning_package_operation: {
+        Args: {
+          p_request: Json
+        }
+        Returns: Json
+      }
       prepare_offline_course_bundle: {
         Args: {
           p_assignment_id: string
@@ -40900,6 +40974,18 @@ export type Database = {
       }
       record_idle_session_unlock: {
         Args: { p_lock_event_id: string }
+        Returns: undefined
+      }
+      record_learning_package_artifact: {
+        Args: {
+          p_bridge_sha256?: string
+          p_entry_point?: string
+          p_operation_id: string
+          p_runtime_bytes?: number
+          p_runtime_sha256?: string
+          p_source_bytes: number
+          p_source_sha256: string
+        }
         Returns: undefined
       }
       record_mock_inspection_run: {

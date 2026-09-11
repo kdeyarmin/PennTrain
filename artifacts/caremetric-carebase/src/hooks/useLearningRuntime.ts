@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   normalizeRuntimeCommitState,
@@ -234,16 +235,32 @@ export function useRegisterLearningPackage() {
 
 export function useAcceptLearningPackage() {
   const client = useQueryClient();
+  const attempts = useRef(new Map<string, { requestId: string; sourceRevision: string }>());
   return useMutation({
     mutationFn: async (input: { packageId: string; entryPoint?: string; reason: string }) => {
-      // Routes through the accept-learning-package edge function so bridge injection
-      // happens server-side (clients cannot skip it). The function downloads the zip,
-      // injects carebase/learning-runtime-bridge.js, re-uploads, and calls the RPC.
+      const key = JSON.stringify(input);
+      let attempt = attempts.current.get(key);
+      if (attempt) {
+        const prior = await rpc().rpc("get_native_learning_package_operation", { p_request_id: attempt.requestId });
+        if (prior.error) throw new Error(prior.error.message);
+        if (prior.data?.status === "committed" && prior.data.result?.packageId === input.packageId && prior.data.result.status === "accepted") return;
+        if (prior.data?.status === "expired") { attempts.current.delete(key); attempt = undefined; }
+      }
+      if (!attempt) {
+        const context = await rpc().rpc("get_native_learning_package_context", { p_version_id: null, p_package_id: input.packageId });
+        if (context.error) throw new Error(context.error.message);
+        if (context.data?.package?.id !== input.packageId || !/^[0-9a-f]{64}$/.test(context.data.sourceRevision)) throw new Error("Refresh the package before accepting it.");
+        attempt = { requestId: crypto.randomUUID(), sourceRevision: context.data.sourceRevision }; attempts.current.set(key, attempt);
+      }
+      // The worker retains original bytes and stages a separate verified bridge
+      // artifact. Only its final current-authorized CAS marks the package accepted.
       const { data, error } = await supabase.functions.invoke("accept-learning-package", {
         body: {
           package_id: input.packageId,
           entry_point: input.entryPoint ?? null,
           reason: input.reason,
+          request_id: attempt.requestId,
+          source_revision: attempt.sourceRevision,
         },
       });
       if (error) throw new Error(error.message);
@@ -253,6 +270,8 @@ export function useAcceptLearningPackage() {
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["learning_packages"] });
+      void client.invalidateQueries({ queryKey: ["learning_authoring_dependencies"] });
+      void client.invalidateQueries({ queryKey: ["native_learning_draft"] });
     },
   });
 }
