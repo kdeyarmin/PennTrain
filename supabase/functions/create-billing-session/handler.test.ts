@@ -261,6 +261,7 @@ Deno.test("create-billing-session honors identity_assurance_is_current without a
             q.select = self;
             q.eq = self;
             q.in = self;
+            q.or = self;
             q.order = self;
             q.limit = self;
             q.maybeSingle = async () => ({ data: null, error: null });
@@ -382,6 +383,7 @@ Deno.test("create-billing-session flat checkout uses quantity 1 without usage RP
             q.select = self;
             q.eq = self;
             q.in = self;
+            q.or = self;
             q.order = self;
             q.limit = self;
             q.maybeSingle = async () => ({ data: null, error: null });
@@ -518,6 +520,7 @@ Deno.test("create-billing-session routes existing subscriptions to the portal", 
             q.select = self;
             q.eq = self;
             q.in = self;
+            q.or = self;
             q.order = self;
             q.limit = self;
             q.maybeSingle = async () => ({ data: { id: "sub_local" }, error: null });
@@ -596,6 +599,7 @@ Deno.test("create-billing-session honors PUBLIC_APP_URL when billing origins are
             q.select = self;
             q.eq = self;
             q.in = self;
+            q.or = self;
             q.order = self;
             q.limit = self;
             q.maybeSingle = async () => ({ data: null, error: null });
