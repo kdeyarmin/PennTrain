@@ -33,6 +33,24 @@ select is(pg_temp.operations('operations.jobs.list')->'items'->0->>'lastStatus',
 select is(pg_temp.operations('operations.jobs.list')->'items'->0->>'hasError','true','error presence is visible');
 select ok(position('private-token' in pg_temp.operations('operations.jobs.list')::text)=0,'upstream error details remain private');
 select is(pg_temp.operations('operations.jobs.list',1,1)->'items','[]'::jsonb,'past-end pagination is empty without losing total');
+-- Model actual pg_cron 1.6.4 transitions in its own run ledger. This existing
+-- scheduled definition is changed only inside the rolled-back fixture.
+reset role;
+update app_private.system_job_definitions set execution_kind='sql_cron' where job_key='billing-quantity-sync';
+insert into cron.job_run_details(runid,jobid,status,username,database,command,start_time)
+select 9876500099,jobid,'starting',current_user,current_database(),command,now()+interval '1 hour'
+from cron.job where jobname='billing-quantity-sync';
+select is((select count(*)::int from cron.job_run_details where runid=9876500099),1,'SQL cron transition fixture exists');
+set local role service_role;
+select is(pg_temp.operations('operations.jobs.list',25,0,'billing-quantity-sync')->'items'->0->>'lastStatus','starting','SQL cron starting is preserved');
+reset role;
+update cron.job_run_details set status='connecting' where runid=9876500099;
+set local role service_role;
+select is(pg_temp.operations('operations.jobs.list',25,0,'billing-quantity-sync')->'items'->0->>'lastStatus','connecting','SQL cron connecting is preserved');
+reset role;
+update cron.job_run_details set status='sending' where runid=9876500099;
+set local role service_role;
+select is(pg_temp.operations('operations.jobs.list',25,0,'billing-quantity-sync')->'items'->0->>'lastStatus','sending','SQL cron sending is preserved');
 select is(pg_temp.operations('operations.releases.list')->'items'->0->>'rolloutMode','unconfigured','missing rollout stays distinct from off');
 select is(pg_temp.operations('operations.releases.list')->'items'->0->'isEnabled','null'::jsonb,'missing rollout is unknown');
 select is(pg_temp.operations('operations.releases.list')->'items'->0->>'organizationKillSwitchCount','0','unconfigured feature has exact switch count');

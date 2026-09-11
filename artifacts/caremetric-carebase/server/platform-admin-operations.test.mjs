@@ -12,6 +12,12 @@ test('operational projections preserve unknown health and exact bigint counts',(
   assert.equal(actual.items[0].attemptedCount,'9007199254740993');assert.equal(actual.items[0].isStale,null);
   assert.equal(actual.items[0].killSwitchCanStop,false);assert.equal(actual.items[0].lastSuccessAt,null);
 });
+test('SQL cron startup and connection transitions retain their native status',()=>{
+  for(const lastStatus of ['starting','connecting','sending']) {
+    const actual=projectOperationalRead(page([{...job,executionKind:'sql_cron',lastStatus}]),op);
+    assert.equal(actual.items[0].lastStatus,lastStatus);
+  }
+});
 test('raw logs, inferred counts, unknown statuses and duplicate records are refused',()=>{
   for(const row of [{...job,error_message:'private upstream credential'},{...job,attemptedCount:1},{...job,failedCount:'-1'},
     {...job,lastStatus:'healthy'},{...job,lastSuccessAt:'infinity'}])assert.throws(()=>projectOperationalRead(page([row]),op));

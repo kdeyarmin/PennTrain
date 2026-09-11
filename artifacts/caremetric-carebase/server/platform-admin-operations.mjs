@@ -20,7 +20,7 @@ export function projectOperationalRead(value,operation){
         'lastDurationMs','attemptedCount','succeededCount','failedCount','hasError','isStale','killSwitchEnabled','killSwitchCanStop']);
       return {jobKey:string(row.jobKey,200),displayName:string(row.displayName,500),description:string(row.description,10000),schedule:string(row.schedule,200,true),
         executionKind:member(row.executionKind,['sql_cron','edge_cron','worker','external']),isCritical:bool(row.isCritical),retryMode:member(row.retryMode,['automatic','manual','none']),
-        lastStatus:member(row.lastStatus,['never','queued','running','succeeded','partial','failed','cancelled']),lastAttemptAt:date(row.lastAttemptAt),lastSuccessAt:date(row.lastSuccessAt),
+        lastStatus:member(row.lastStatus,['never','queued','starting','connecting','sending','running','succeeded','partial','failed','cancelled']),lastAttemptAt:date(row.lastAttemptAt),lastSuccessAt:date(row.lastSuccessAt),
         nextExpectedAt:date(row.nextExpectedAt),lastDurationMs:decimal(row.lastDurationMs),attemptedCount:decimal(row.attemptedCount),succeededCount:decimal(row.succeededCount),
         failedCount:decimal(row.failedCount),hasError:bool(row.hasError),isStale:bool(row.isStale,true),killSwitchEnabled:bool(row.killSwitchEnabled),killSwitchCanStop:bool(row.killSwitchCanStop)};
     }
