@@ -1,9 +1,9 @@
 begin;
 select no_plan();
 
-select ok(not has_function_privilege('anon','public.platform_admin_preview_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,uuid,jsonb,text)','EXECUTE'), 'anon cannot preview');
-select ok(not has_function_privilege('authenticated','public.platform_admin_apply_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text)','EXECUTE'), 'native JWT cannot forge a Hub delegation');
-select ok(has_function_privilege('service_role','public.platform_admin_apply_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text)','EXECUTE'), 'server role can invoke bounded apply');
+select ok(not has_function_privilege('anon','public.platform_admin_preview_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,uuid,jsonb,text,text)','EXECUTE'), 'anon cannot preview');
+select ok(not has_function_privilege('authenticated','public.platform_admin_apply_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,text)','EXECUTE'), 'native JWT cannot forge a Hub delegation');
+select ok(has_function_privilege('service_role','public.platform_admin_apply_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,text)','EXECUTE'), 'server role can invoke bounded apply');
 select ok(not has_table_privilege('service_role','app_private.platform_admin_commands','UPDATE'), 'server role cannot alter command receipts directly');
 select ok(not has_function_privilege('service_role','app_private.set_organization_suspension_core(uuid,uuid,boolean,text)','EXECUTE'), 'server role cannot invoke extracted core directly');
 select ok(has_function_privilege('authenticated','public.set_organization_suspension(uuid,boolean,text)','EXECUTE'), 'native interactive suspension retains its grant');
@@ -34,12 +34,12 @@ grant all on command_fixture to service_role;
 create function pg_temp.preview(p_request text,p_action text default 'users.setActive',p_target uuid default '9d000000-0000-4000-8000-000000000002',p_parameters jsonb default '{"active":false}')
 returns jsonb language sql as $$
   select public.platform_admin_preview_command('9d000000-0000-4000-8000-000000000001','9d000000-0000-4000-8000-000000000011',
-    '9d000000-0000-4000-8000-000000000012',now()-interval '1 hour',now()+interval '7 hours',p_request::uuid,p_action,p_target,p_parameters,'Synthetic operator access change');
+    '9d000000-0000-4000-8000-000000000012',now()-interval '1 hour',now()+interval '7 hours',p_request::uuid,p_action,p_target,p_parameters,'Synthetic operator access change','app_sms');
 $$;
-create function pg_temp.apply(p_preview jsonb,p_session uuid default '9d000000-0000-4000-8000-000000000012',p_digest text default null)
+create function pg_temp.apply(p_preview jsonb,p_session uuid default '9d000000-0000-4000-8000-000000000012',p_digest text default null,p_method text default 'app_sms')
 returns jsonb language sql as $$
   select public.platform_admin_apply_command('9d000000-0000-4000-8000-000000000001','9d000000-0000-4000-8000-000000000011',
-    p_session,now()-interval '1 hour',now()+interval '7 hours',(p_preview->>'commandId')::uuid,coalesce(p_digest,p_preview->>'previewDigest'));
+    p_session,now()-interval '1 hour',now()+interval '7 hours',(p_preview->>'commandId')::uuid,coalesce(p_digest,p_preview->>'previewDigest'),p_method);
 $$;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
@@ -48,7 +48,7 @@ select throws_ok($$select pg_temp.preview('9d000000-0000-4000-8000-000000000100'
   '42501','Self and platform administrator targets are excluded','self changes are forbidden');
 select throws_ok($$select pg_temp.preview('9d000000-0000-4000-8000-000000000100','users.setActive','9d000000-0000-4000-8000-000000000003')$$,
   '42501','Self and platform administrator targets are excluded','other platform administrator changes are forbidden');
-select throws_ok($$select public.platform_admin_preview_command('9d000000-0000-4000-8000-000000000001','9d000000-0000-4000-8000-000000000011','9d000000-0000-4000-8000-000000000012',now()-interval '9 hours',now()+interval '1 hour','9d000000-0000-4000-8000-000000000100','users.setActive','9d000000-0000-4000-8000-000000000002','{"active":false}','Synthetic operator access change')$$,
+select throws_ok($$select public.platform_admin_preview_command('9d000000-0000-4000-8000-000000000001','9d000000-0000-4000-8000-000000000011','9d000000-0000-4000-8000-000000000012',now()-interval '9 hours',now()+interval '1 hour','9d000000-0000-4000-8000-000000000100','users.setActive','9d000000-0000-4000-8000-000000000002','{"active":false}','Synthetic operator access change','app_sms')$$,
   '42501','Fresh Hub session required','an expired original Hub session cannot preview');
 select throws_ok($$select pg_temp.preview('9d000000-0000-4000-8000-000000000100','users.setActive','9d000000-0000-4000-8000-000000000002','{"active":"false"}')$$,
   '22023','Invalid command','JSON coercion cannot alter account controls');
@@ -63,6 +63,10 @@ select throws_ok($$select pg_temp.apply((select preview from command_fixture whe
   '42501','Preview belongs to another administrator session','apply is bound to the preview session');
 select throws_ok($$select pg_temp.apply((select preview from command_fixture where label='deactivate'),p_digest=>repeat('b',64))$$,
   '40001','Preview changed','apply requires the reviewed digest');
+select throws_ok($$select pg_temp.apply((select preview from command_fixture where label='deactivate'),p_method=>'jwt_aal2')$$,
+  '42501','Preview belongs to another administrator session','apply cannot switch the authentication method');
+select throws_ok($$select pg_temp.apply((select preview from command_fixture where label='deactivate'),p_method=>'email')$$,
+  '42501','Delegation forbidden','unverified authentication methods cannot apply');
 select is((pg_temp.apply((select preview from command_fixture where label='deactivate'))->>'replayed')::boolean,false,'first apply commits');
 select is((pg_temp.apply((select preview from command_fixture where label='deactivate'))->>'replayed')::boolean,true,'repeat apply returns the original receipt');
 reset role;
@@ -71,6 +75,7 @@ select is((select count(*) from auth.sessions where user_id='9d000000-0000-4000-
 select is((select count(*) from public.audit_logs where action='central_admin_command_applied'),1::bigint,'replay creates no duplicate command audit');
 select is((select actor_profile_id from public.audit_logs where action='central_admin_command_applied'),'9d000000-0000-4000-8000-000000000001'::uuid,'audit attributes the mapped native actor');
 select is((select metadata->>'hubUserId' from public.audit_logs where action='central_admin_command_applied'),'9d000000-0000-4000-8000-000000000011','audit also records the Hub actor');
+select is((select metadata->>'authenticationMethod' from public.audit_logs where action='central_admin_command_applied'),'app_sms','SMS assurance is recorded without falsely claiming JWT AAL2');
 select ok((select expires_at-created_at <= interval '5 minutes' from app_private.platform_admin_commands limit 1),'preview lifetime is bounded to five minutes');
 select throws_ok($$update app_private.platform_admin_commands set reason='Changed after approval'$$,'42501','Command receipts are immutable','receipt intent cannot be changed');
 select throws_ok($$delete from app_private.platform_admin_commands$$,'42501','Command receipts are immutable','receipt cannot be deleted');
@@ -115,12 +120,29 @@ insert into command_fixture values('restore',pg_temp.preview('9d000000-0000-4000
 select lives_ok($$select pg_temp.apply((select preview from command_fixture where label='restore'))$$,'lifting a hold restores provider-derived state');
 reset role;
 select is((select subscription_status from public.organizations where id='9d000000-0000-4000-8000-000000000010'),'canceled','lifting hold does not assert active subscription');
+select set_config('app.privileged_write','on',true);
+update public.organizations set plan_name='Current independent plan' where id='9d000000-0000-4000-8000-000000000010';
+select set_config('app.privileged_write','',true);
+insert into public.billing_subscriptions(organization_id,billing_account_id,stripe_subscription_id,provider_status,billing_state,
+  provider_event_created_at,provider_event_id,is_provider_placeholder,checkout_previous_plan_name)
+select organization_id,id,'sub_CommandFixture','incomplete','trial',now(),'evt_CommandFixture',true,'Earlier plan'
+  from public.billing_accounts where organization_id='9d000000-0000-4000-8000-000000000010';
 set local role service_role;
+insert into command_fixture values('stale-plan',pg_temp.preview('9d000000-0000-4000-8000-000000000110','billing.setAccessOverride','9d000000-0000-4000-8000-000000000010','{"state":"comped","expiresAt":null}'));
+reset role;
+select set_config('app.privileged_write','on',true);
+update public.organizations set plan_name='Reviewed independent plan' where id='9d000000-0000-4000-8000-000000000010';
+select set_config('app.privileged_write','',true);
+set local role service_role;
+select throws_ok($$select pg_temp.apply((select preview from command_fixture where label='stale-plan'))$$,
+  '40001','Target changed since preview','an access grant cannot approve stale package provenance');
 insert into command_fixture values('comp',pg_temp.preview('9d000000-0000-4000-8000-000000000106','billing.setAccessOverride','9d000000-0000-4000-8000-000000000010','{"state":"comped","expiresAt":null}'));
 select lives_ok($$select pg_temp.apply((select preview from command_fixture where label='comp'))$$,'complimentary access uses native override');
 reset role;
 select is((select subscription_status from public.organizations where id='9d000000-0000-4000-8000-000000000010'),'comped','complimentary access is recorded');
 select is((select provider_state from public.billing_accounts where organization_id='9d000000-0000-4000-8000-000000000010'),'canceled','local access override never changes provider status');
+select is((select checkout_previous_plan_name from public.billing_subscriptions where stripe_subscription_id='sub_CommandFixture'),
+  'Reviewed independent plan','delegated comp preserves native independent Checkout provenance');
 set local role service_role;
 insert into command_fixture values('noop',pg_temp.preview('9d000000-0000-4000-8000-000000000107','billing.setAccessOverride','9d000000-0000-4000-8000-000000000010','{"state":"comped","expiresAt":null}'));
 select lives_ok($$select pg_temp.apply((select preview from command_fixture where label='noop'))$$,'no-op still produces a receipt');
@@ -133,7 +155,7 @@ set local role service_role;
 insert into command_fixture values('expired',public.platform_admin_preview_command(
   '9d000000-0000-4000-8000-000000000001','9d000000-0000-4000-8000-000000000011','9d000000-0000-4000-8000-000000000012',
   now()-interval '1 hour',clock_timestamp()+interval '150 milliseconds','9d000000-0000-4000-8000-000000000109',
-  'users.setActive','9d000000-0000-4000-8000-000000000002','{"active":false}','Synthetic short expiry preview'));
+  'users.setActive','9d000000-0000-4000-8000-000000000002','{"active":false}','Synthetic short expiry preview','app_sms'));
 select pg_sleep(0.2);
 select throws_ok($$select pg_temp.apply((select preview from command_fixture where label='expired'))$$,
   '40001','Preview expired','expired previews cannot be applied');

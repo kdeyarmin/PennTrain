@@ -39,6 +39,14 @@ function fixture(overrides = {}) {
     assert.equal(init.redirect, "error");
     assert.ok(init.signal instanceof AbortSignal);
     const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+    if (url.origin === "https://support-hub-web-production.up.railway.app") {
+      assert.equal(url.pathname, "/api/internal/command/carebase/authorize");
+      assert.match(headers.get("authorization"), /^Bearer cmh_[A-Za-z0-9_-]{43}$/);
+      assert.equal(headers.has("apikey"), false);
+      assert.equal(headers.has("origin"), false);
+      assert.equal(init.body, "{}");
+      return state.appError ? json({ error: "Private rejection" }, state.appError) : json(state.appActor);
+    }
     if (url.origin === env.HUB_SUPABASE_URL) {
       assert.ok(["/rest/v1/rpc/authorize_platform_command", "/rest/v1/rpc/authorize_platform_admin"].includes(url.pathname));
       assert.equal(headers.get("apikey"), env.HUB_SUPABASE_PUBLISHABLE_KEY);
@@ -87,6 +95,7 @@ test("preview sends only verified delegation identity and immutable intent to th
   assert.equal(output.operation, "preview");
   assert.equal(f.calls[0].url.pathname, "/rest/v1/rpc/authorize_platform_command");
   assert.deepEqual(f.calls.at(-1).body, { p_actor: NATIVE, p_hub_user: HUB, p_hub_session: SESSION,
+    p_authentication_method: "jwt_aal2",
     p_session_started_at: f.state.actor.session_started_at, p_assurance_expires_at: f.state.actor.assurance_expires_at,
     p_request_id: REQUEST, p_action: "users.setActive", p_target: TARGET, p_parameters: { active: false }, p_reason: preview().reason });
   assert.equal(JSON.stringify(output).includes("sb_secret"), false);
@@ -101,6 +110,57 @@ test("apply preserves the command UUID/digest and returns a safe replay result",
   assert.equal(f.calls.at(-1).body.p_command_id, COMMAND);
   assert.equal(f.calls.at(-1).body.p_expected_digest, DIGEST);
   assert.equal(Object.hasOwn(f.calls.at(-1).body, "p_parameters"), false);
+});
+
+test("app SMS commands consume only the separate command audience and preserve exact immutable intent", async () => {
+  const f = fixture();
+  const { aal, ...sms } = f.state.actor;
+  const headers = { Authorization: "Bearer cmh_" + "a".repeat(43) };
+  for (const operation of [preview(), apply()]) {
+    f.state.appActor = { ...sms, method: "sms", operation };
+    const response = await f.handler(request(operation, headers));
+    assert.equal(response.status, 200);
+    assert.equal(f.calls.at(-1).body.p_authentication_method, "app_sms");
+    assert.equal(f.calls.at(-1).body.p_hub_session, SESSION);
+    assert.equal(f.calls.some(call => call.url.origin === env.HUB_SUPABASE_URL), false);
+  }
+  f.state.profile.is_active = false;
+  assert.equal((await f.handler(request(apply(), headers))).status, 403);
+});
+
+test("app SMS cannot substitute actions, target, parameters, reason, request, digest, session freshness or read audience", async () => {
+  const headers = { Authorization: "Bearer cmh_" + "a".repeat(43) };
+  for (const override of [{ method: "email" }, { role: "org_admin" }, { user_id: TARGET }, { session_id: undefined },
+    { session_started_at: "2026-09-11T06:59:59Z" }, { session_started_at: "2026-09-11T15:05:01Z" },
+    { assurance_expires_at: NOW }, { assurance_expires_at: "2026-09-11T23:00:00Z" },
+    { operation: { operation: "overview" } }, { operation: preview({ targetId: NATIVE }) },
+    { operation: preview({ requestId: COMMAND }) }, { operation: preview({ parameters: { active: true } }) },
+    { operation: preview({ reason: "A different approved reason" }) },
+    { operation: preview({ action: "organizations.setSuspension", parameters: { suspended: true } }) },
+    { operation: preview({ actorId: NATIVE }) }]) {
+    const f = fixture();
+    const { aal, ...sms } = f.state.actor;
+    f.state.appActor = { ...sms, method: "sms", operation: preview(), ...override };
+    assert.equal((await f.handler(request(preview(), headers))).status, 403);
+    assert.equal(f.calls.some(call => call.url.pathname.includes("/rpc/platform_admin_")), false);
+  }
+  const f = fixture();
+  const { aal, ...sms } = f.state.actor;
+  f.state.appActor = { ...sms, method: "sms", operation: apply({ expectedDigest: "b".repeat(64) }) };
+  assert.equal((await f.handler(request(apply(), headers))).status, 403);
+});
+
+test("expired, consumed or malformed SMS tickets never fall through to JWT or read authorization", async () => {
+  for (const appError of [401, 403, 503]) {
+    const f = fixture({ appError });
+    const response = await f.handler(request(preview(), { Authorization: "Bearer cmh_" + "a".repeat(43) }));
+    assert.equal(response.status, appError);
+    assert.equal(f.calls.length, 1);
+    assert.equal(f.calls[0].url.pathname, "/api/internal/command/carebase/authorize");
+  }
+  const f = fixture();
+  assert.equal((await f.handler(request(preview(), { Authorization: "Bearer cmh_short" }))).status, 401);
+  assert.equal(f.calls.length, 0);
 });
 
 test("preview generation time follows the database response when the RPC is slow", async () => {

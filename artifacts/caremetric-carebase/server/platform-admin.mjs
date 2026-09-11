@@ -130,7 +130,7 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
         body = JSON.parse(raw);
       } catch { throw new AdminError(400, "invalid_request"); }
       const operation = parseOperation(body);
-      const { native, timestamp } = await authorizePlatformAdmin(request, { config, createClient, fetcher, now });
+      const { native, timestamp } = await authorizePlatformAdmin(request, { config, operation, parseOperation, createClient, fetcher, now });
       let data;
       if (operation.operation === "capabilities") {
         data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : [])], sourceRevision: config.sourceRevision ?? null };

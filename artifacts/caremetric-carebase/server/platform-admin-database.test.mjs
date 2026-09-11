@@ -24,6 +24,7 @@ test("concurrent native apply calls commit exactly one mutation receipt and audi
   const [actor, target] = identities;
   const started = new Date(Date.now() - 60_000);
   const args = { p_actor: actor, p_hub_user: hubUser, p_hub_session: hubSession,
+    p_authentication_method: "app_sms",
     p_session_started_at: started.toISOString(), p_assurance_expires_at: new Date(started.getTime() + 480 * 60_000).toISOString() };
   const previews = await Promise.all(Array.from({ length: 4 }, () => native.rpc("platform_admin_preview_command", {
     ...args, p_request_id: requestId, p_action: "users.setActive", p_target: target, p_parameters: { active: false },
@@ -49,4 +50,5 @@ test("concurrent native apply calls commit exactly one mutation receipt and audi
   assert.equal(audits.data[0].actor_profile_id, actor);
   assert.equal(audits.data[0].actor_subject_id, hubUser);
   assert.equal(audits.data[0].metadata.hubSessionId, hubSession);
+  assert.equal(audits.data[0].metadata.authenticationMethod, "app_sms");
 });

@@ -40153,6 +40153,7 @@ export type Database = {
         Args: {
           p_actor: string
           p_assurance_expires_at: string
+          p_authentication_method: string
           p_command_id: string
           p_expected_digest: string
           p_hub_session: string
@@ -40166,6 +40167,7 @@ export type Database = {
           p_action: string
           p_actor: string
           p_assurance_expires_at: string
+          p_authentication_method: string
           p_hub_session: string
           p_hub_user: string
           p_parameters: Json
