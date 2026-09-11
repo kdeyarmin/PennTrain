@@ -33,6 +33,7 @@ export function NativeLearningPackagePanel({ versionId, userId, disabled = false
     void client.invalidateQueries({ queryKey: ["learning_package_context"] });
     void client.invalidateQueries({ queryKey: ["learning_packages"] });
     void client.invalidateQueries({ queryKey: ["governed_draft_source"] });
+    void client.invalidateQueries({ queryKey: ["courses"] });
   } });
   const busy = upload.isPending || finish.isPending;
   const blocked = disabled || context.isError || !context.data;

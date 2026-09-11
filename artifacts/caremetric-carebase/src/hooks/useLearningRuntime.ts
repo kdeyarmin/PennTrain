@@ -49,7 +49,8 @@ export function useAcceptedLearningPackages(courseVersionId: string | undefined)
         .select("id, standard_type, entry_point, storage_bucket, storage_path, validation_status, course_version_id")
         .eq("course_version_id", courseVersionId!)
         .eq("validation_status", "accepted")
-        .order("validated_at", { ascending: false });
+        .order("validated_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
@@ -251,6 +252,7 @@ export function useAcceptLearningPackage() {
       void client.invalidateQueries({ queryKey: ["learning_authoring_dependencies"] });
       void client.invalidateQueries({ queryKey: ["governed_draft_source"] });
       void client.invalidateQueries({ queryKey: ["learning_package_context"] });
+      void client.invalidateQueries({ queryKey: ["courses"] });
     },
   });
 }
@@ -267,6 +269,9 @@ export function useQuarantineLearningPackage() {
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["learning_packages"] });
+      void client.invalidateQueries({ queryKey: ["courses"] });
+      void client.invalidateQueries({ queryKey: ["learning_package_context"] });
+      void client.invalidateQueries({ queryKey: ["governed_draft_source"] });
     },
   });
 }

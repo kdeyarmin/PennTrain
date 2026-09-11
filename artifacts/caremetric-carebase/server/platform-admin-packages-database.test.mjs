@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
+import {execFileSync,spawn} from 'node:child_process';
 import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import test from 'node:test';
 import {createClient} from '@supabase/supabase-js';
@@ -13,7 +13,7 @@ test('actual local Storage, native package handler and SQL preserve bytes throug
  assert.ok(['127.0.0.1','localhost','[::1]'].includes(url.hostname),'Package fixtures require disposable loopback Supabase');
  const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
  const native=createClient(url.origin,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
- const sql=input=>execFileSync('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-At'],{input,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
+ const sql=input=>execFileSync('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt'],{input,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
  const rpc=async(name,args)=>{const result=await native.rpc(name,args);assert.equal(result.error,null,`Synthetic RPC ${name}: ${result.error?.code??''}`);return result.data;};
  const created=await native.auth.admin.createUser({email:`package-${randomUUID()}@fixture.test`,email_confirm:true,password:randomUUID()+'Aa1!'});
  assert.equal(created.error,null);const actor=created.data.user.id;
@@ -22,7 +22,13 @@ test('actual local Storage, native package handler and SQL preserve bytes throug
  sql(`begin;
  insert into public.courses(id,organization_id,title,status,created_by) values('${course}',null,'Package HTTP fixture','draft','${actor}');
  insert into public.course_versions(id,course_id,organization_id,version_number,title,status) values('${version}','${course}',null,1,'Package HTTP draft','draft');
+ insert into public.course_blocks(course_version_id,organization_id,block_type,sort_order,title) values('${version}',null,'scorm',0,'Interactive lesson');
  commit;`);
+ // Exercise the native publisher's quality rules in their trusted internal context.
+ // Temporary negative state is rolled back; no learner or historical rows are changed.
+ const issues=(temporarySql='')=>JSON.parse(sql(`begin;set local app.privileged_write='on';${temporarySql}
+ select to_json(public.get_course_version_publish_issues('${version}'));rollback;`));
+ assert.deepEqual(issues(),['Interactive lesson: attach a document.']);
  const original=zipSync({'index.html':new TextEncoder().encode('<html><body>Exact authored package fixture</body></html>'),'lesson.txt':new TextEncoder().encode('Original lesson bytes')});
  const sha=createHash('sha256').update(original).digest('hex');
  const tickets=new Map(),storageCalls=[];let loseFinish=false;
@@ -60,6 +66,7 @@ test('actual local Storage, native package handler and SQL preserve bytes throug
  assert.ok(storageCalls.some(call=>call.method==='GET'&&call.status===200),'duplicate requires exact original-byte observation');
  loseFinish=true;assert.equal((await send({operation:'finish',operationId:stage.operationId})).status,502);
  const receipt=await ok({operation:'finish',operationId:stage.operationId});assert.equal(receipt.status,'pending');
+ assert.deepEqual(issues(),['Interactive lesson: attach a document.'],'a pending original cannot satisfy publication');
  assert.equal(sql(`select count(*) from public.audit_logs where entity_id='${receipt.packageId}' and action='package_original_registered'`),'1','lost final response never duplicates the audit');
  const packageContext=await ok({operation:'context',versionId:null,packageId:receipt.packageId});
  assert.equal(packageContext.intents.items[0].sourceRevision,upload.sourceRevision);
@@ -71,6 +78,18 @@ test('actual local Storage, native package handler and SQL preserve bytes throug
  assert.equal(sql(`select validation_status from public.learning_packages where id='${receipt.packageId}'`),'pending','revocation after byte upload stops acceptance');
  await rpc('admin_update_profile',{p_user_id:actor,p_is_active:true});
  const accepted=await ok({operation:'finish',operationId:acceptedStage.operationId});assert.equal(accepted.status,'accepted');
+ assert.deepEqual(issues(),[],'verified runtime can publish without a facility document');
+ assert.deepEqual(issues(`update public.learning_packages set validation_status='quarantined' where id='${receipt.packageId}';`),
+  ['Interactive lesson: attach a document.'],'quarantined runtime never satisfies publication');
+ for(const standard of ['lti_1_3','xapi']){
+  const newer=randomUUID();
+  const temporary=`insert into public.learning_packages(id,course_version_id,standard_type,storage_path,content_sha256,compressed_bytes,entry_point,
+   validation_status,validated_at,immutable_at) values('${newer}','${version}','${standard}','unverified.zip','${'f'.repeat(64)}',1,'index.html',
+   'accepted',clock_timestamp()+interval '1 minute',clock_timestamp());`;
+  assert.deepEqual(issues(temporary),['Interactive lesson: attach a document.'],'the actual newest selected runtime must be supported and verified');
+ }
+ assert.deepEqual(issues(`insert into public.course_blocks(course_version_id,organization_id,block_type,sort_order,title) values('${version}',null,'pdf',1,'PDF lesson');`),
+  ['PDF lesson: attach a document.'],'runtime package does not satisfy an unattached PDF');
  const originalPath=sql(`select storage_path from app_private.learning_package_originals where package_id='${receipt.packageId}'`);
  const retained=await native.storage.from('learning-package-originals').download(originalPath);assert.equal(retained.error,null);
  assert.deepEqual(new Uint8Array(await retained.data.arrayBuffer()),original);
@@ -84,4 +103,19 @@ test('actual local Storage, native package handler and SQL preserve bytes throug
  const observed=await ok({operation:'status',requestId:upload.requestId});assert.deepEqual(observed.result,receipt);
  assert.equal((await send({operation:'finish',operationId:acceptedStage.operationId})).status,403,'new session observes but never replays another write grant');
  assert.equal(sql(`select count(*) from public.learning_packages where course_version_id='${version}'`),'1');
+ assert.equal(sql(`select app_private.publish_course_version_core('${version}')`),version,'native publisher consumes the same accepted runtime proof');
+ assert.equal(sql(`select status from public.course_versions where id='${version}'`),'published');
+ // A second actual connection commits quarantine while publication waits on the
+ // package. The publisher must then see the committed state and fail closed.
+ const writer=spawn('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt'],{stdio:['pipe','pipe','pipe']});
+ let output='';const finished=new Promise((resolve,reject)=>{writer.once('error',reject);writer.once('exit',code=>code===0?resolve():reject(new Error('Synthetic quarantine connection failed')));});
+ const held=new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>reject(new Error('Synthetic quarantine lock was not reached')),5000);
+  writer.stdout.on('data',chunk=>{output+=String(chunk);if(output.includes('holding-package-lock')){clearTimeout(timer);resolve();}});
+  writer.once('error',error=>{clearTimeout(timer);reject(error);});
+ });
+ writer.stdin.end(`begin;update public.learning_packages set validation_status='quarantined' where id='${receipt.packageId}';select 'holding-package-lock';select pg_sleep(1);commit;`);
+ await held;
+ assert.throws(()=>sql(`select app_private.publish_course_version_core('${version}')`),/Course version is not ready to publish/,'publication rereads quarantine after waiting for the package lock');
+ await finished;
 });

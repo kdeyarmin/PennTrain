@@ -23,6 +23,7 @@ it('recovers an exact committed original after a lost response without reuploadi
  expect(request).toMatchObject({standard:'xapi',sourceRevision:'a'.repeat(64),sourceSha256:sha,sourceBytes:3});
  expect(h.rpc.mock.calls[1]).toEqual(['get_native_learning_package_operation',{p_request_id:request.requestId}]);
  hook.onSuccess();expect(h.invalidate).toHaveBeenCalledWith({queryKey:['governed_draft_source']});
+ expect(h.invalidate).toHaveBeenCalledWith({queryKey:['courses']});
 });
 it('reuses the exact request after uncertain staging and stops on current authority revocation',async()=>{
  h.rpc.mockResolvedValueOnce({data:{versionId:id(2),sourceRevision:'a'.repeat(64)}}).mockResolvedValueOnce({data:{status:'pending'}}).mockResolvedValueOnce({error:{message:'Current session revoked'}});

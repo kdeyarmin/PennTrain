@@ -33,6 +33,7 @@ create table app_private.learning_package_operations(
   check((committed_at is null)=(result is null))
 );
 create index learning_package_operations_version_idx on app_private.learning_package_operations(version_id);
+create index learning_package_operations_package_idx on app_private.learning_package_operations(package_id);
 create table app_private.learning_package_artifacts(
   operation_id uuid primary key references app_private.learning_package_operations(id),
   source_sha256 text not null check(source_sha256 ~ '^[0-9a-f]{64}$'),
@@ -471,3 +472,174 @@ begin perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hu
 $$;
 revoke all on function public.get_delegated_learning_package_operation(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid) from public,anon,authenticated,service_role;
 grant execute on function public.get_delegated_learning_package_operation(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid) to service_role;
+
+-- Preserve the native publish-quality rules while recognizing a verified course-owned
+-- runtime in the SCORM block that the learner actually launches.
+create or replace function public.get_course_version_publish_issues(p_version_id uuid)
+returns text[]
+language plpgsql
+stable
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_issues text[] := array[]::text[];
+  v_exists boolean;
+  v_label text;
+  v_question_count integer;
+  v_answer_count integer;
+  v_correct_count integer;
+  rec record;
+begin
+  if not public.is_platform_admin()
+     and coalesce(current_setting('app.privileged_write', true), '') is distinct from 'on' then
+    raise exception 'Only platform admins can inspect course publish readiness.'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  select exists(select 1 from public.course_versions where id = p_version_id) into v_exists;
+  if not v_exists then
+    return array['Course version not found.'];
+  end if;
+
+  if not exists(select 1 from public.course_blocks where course_version_id = p_version_id) then
+    return array['Add at least one content block before publishing.'];
+  end if;
+
+  for rec in
+    select id, block_type, sort_order, title, body, video_url, document_id
+      from public.course_blocks
+     where course_version_id = p_version_id
+     order by sort_order, created_at
+  loop
+    v_label := coalesce(nullif(btrim(rec.title), ''), 'Block ' || (rec.sort_order + 1));
+
+    if rec.block_type = 'text' and coalesce(btrim(rec.body ->> 'content'), '') = '' then
+      v_issues := array_append(v_issues, v_label || ': add lesson text.');
+    end if;
+
+    if rec.block_type = 'video' and coalesce(btrim(rec.video_url), '') = '' then
+      v_issues := array_append(v_issues, v_label || ': add a finished video URL before publishing.');
+    end if;
+
+    if rec.block_type = 'video'
+       and coalesce(btrim(coalesce(rec.body ->> 'transcript', rec.body ->> 'script')), '') = '' then
+      v_issues := array_append(v_issues, v_label || ': add captions or transcript notes for accessibility.');
+    end if;
+
+    if rec.block_type in ('pdf', 'scorm') and rec.document_id is null
+       and (rec.block_type='pdf' or not exists (
+         -- The learner explicitly selects the newest accepted package, with the
+         -- same stable ID tie-breaker. An older valid package cannot mask a newer
+         -- unsupported/unverified runtime. Legacy document fallback is unchanged.
+         select 1 from (
+           select p.* from public.learning_packages p
+           join public.course_versions v on v.id=p.course_version_id
+           where p.course_version_id=p_version_id and p.validation_status='accepted'
+             and p.organization_id is not distinct from v.organization_id
+           order by p.validated_at desc nulls last,p.id limit 1
+         ) p
+         join app_private.learning_package_originals o on o.package_id=p.id
+         join app_private.learning_package_operations op on op.package_id=p.id and op.operation='accept' and op.result is not null
+         join app_private.learning_package_artifacts a on a.operation_id=op.id
+         where p.standard_type in ('scorm_1_2','scorm_2004_4th','xapi') and p.validated_at is not null and p.immutable_at is not null
+           and p.storage_bucket='learning-packages' and p.storage_path='managed/'||op.id||'/'||a.runtime_sha256||'.zip'
+           and p.content_sha256=a.runtime_sha256 and p.entry_point=a.entry_point
+           and o.content_sha256=a.source_sha256 and o.compressed_bytes=a.source_bytes
+       )) then
+      v_issues := array_append(v_issues, v_label || ': attach a document.');
+    end if;
+
+    if rec.block_type = 'quiz'
+       and not exists(select 1 from public.quizzes where course_block_id = rec.id) then
+      v_issues := array_append(v_issues, v_label || ': configure the quiz.');
+    end if;
+
+    -- An attestation step with no statement is a signature line over blank paper, and
+    -- record_course_attestation() would reject every attempt to sign it.
+    if rec.block_type = 'attestation'
+       and length(coalesce(btrim(rec.body ->> 'attestation_text'), '')) < 40 then
+      v_issues := array_append(v_issues, v_label || ': write the statement the learner is signing (at least 40 characters).');
+    end if;
+
+    if rec.block_type = 'attestation'
+       and coalesce(btrim(rec.body ->> 'attestation_version'), '') = '' then
+      v_issues := array_append(v_issues, v_label || ': set an attestation_version so a signed statement stays identifiable.');
+    end if;
+  end loop;
+
+  for rec in
+    select q.id, q.title, cb.title as block_title, cb.sort_order
+      from public.quizzes q
+      join public.course_blocks cb on cb.id = q.course_block_id
+     where cb.course_version_id = p_version_id
+     order by cb.sort_order
+  loop
+    select count(*) into v_question_count
+      from public.quiz_questions
+     where quiz_id = rec.id;
+
+    if v_question_count = 0 then
+      v_label := coalesce(nullif(btrim(rec.block_title), ''), rec.title, 'Block ' || (rec.sort_order + 1));
+      v_issues := array_append(v_issues, v_label || ': add at least one question.');
+    end if;
+  end loop;
+
+  for rec in
+    select qq.id, qq.question_text, qq.question_type, cb.sort_order
+      from public.quiz_questions qq
+      join public.quizzes q on q.id = qq.quiz_id
+      join public.course_blocks cb on cb.id = q.course_block_id
+     where cb.course_version_id = p_version_id
+     order by cb.sort_order, qq.sort_order
+  loop
+    select count(*), count(*) filter (where is_correct)
+      into v_answer_count, v_correct_count
+      from public.quiz_answers
+     where question_id = rec.id;
+
+    v_label := left(coalesce(nullif(btrim(rec.question_text), ''), 'Question'), 80);
+
+    if v_answer_count < 2 then
+      v_issues := array_append(v_issues, v_label || ': add at least two answer choices.');
+    end if;
+
+    if v_correct_count = 0 then
+      v_issues := array_append(v_issues, v_label || ': mark at least one correct answer.');
+    end if;
+
+    if rec.question_type in ('single_choice', 'true_false') and v_correct_count > 1 then
+      v_issues := array_append(v_issues, v_label || ': single-choice questions can have only one correct answer.');
+    end if;
+  end loop;
+
+  return v_issues;
+end;
+$function$;
+
+create or replace function public.assert_course_version_publish_ready(p_version_id uuid)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_issues text[];
+  v_message text;
+begin
+  -- Freeze the selected runtime through the publishing transaction. Quarantine
+  -- must either precede this current check or wait until publication commits.
+  perform 1 from public.course_versions where id=p_version_id for share;
+  perform 1 from public.learning_packages where course_version_id=p_version_id order by id for share;
+  v_issues := public.get_course_version_publish_issues(p_version_id);
+  if coalesce(array_length(v_issues, 1), 0) > 0 then
+    v_message := array_to_string(v_issues, ' ');
+    if length(v_message) > 600 then
+      v_message := left(v_message, 600) || '...';
+    end if;
+    raise exception 'Course version is not ready to publish: %', v_message
+      using errcode = 'check_violation';
+  end if;
+end;
+$function$;

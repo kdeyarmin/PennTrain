@@ -48,5 +48,6 @@ export function useUploadLearningPackage() {
     void queryClient.invalidateQueries({ queryKey: ["learning_authoring_dependencies"] });
     void queryClient.invalidateQueries({ queryKey: ["governed_draft_source"] });
     void queryClient.invalidateQueries({ queryKey: ["learning_package_context"] });
+    void queryClient.invalidateQueries({ queryKey: ["courses"] });
   } });
 }

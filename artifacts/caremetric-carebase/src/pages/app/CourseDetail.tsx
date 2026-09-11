@@ -157,7 +157,7 @@ export default function CourseDetail() {
     () => facilities?.find(f => !course?.organization_id || f.organization_id === course.organization_id) ?? facilities?.[0],
     [facilities, course?.organization_id],
   );
-  const { data: publishIssues, isLoading: publishIssuesLoading } = useCourseVersionPublishIssues(
+  const { data: publishIssues, isLoading: publishIssuesLoading, isError: publishIssuesError } = useCourseVersionPublishIssues(
     selectedVersion?.id,
     !!selectedVersion && canManage,
   );
@@ -209,8 +209,8 @@ export default function CourseDetail() {
       },
       {
         label: "PDF and SCORM resources are attached",
-        passed: documentBlocks.length === 0 || documentBlocks.every(block => !!block.document_id),
-        detail: documentBlocks.length === 0 ? "No document blocks in this version." : "Document blocks point to uploaded files.",
+        passed: documentBlocks.length === 0 || (!publishIssuesLoading && !publishIssuesError && !hasIssue(["attach a document"])),
+        detail: documentBlocks.length === 0 ? "No document blocks in this version." : "PDF blocks reference documents; SCORM blocks use a document or a verified accepted runtime package.",
       },
       {
         label: "Quiz questions and answers pass validation",
@@ -223,7 +223,7 @@ export default function CourseDetail() {
         detail: "Open the student preview and confirm the content is easy to take on an employee-sized screen.",
       },
     ];
-  }, [blocks, publishIssues, publishIssuesLoading, studentPreviewChecked]);
+  }, [blocks, publishIssues, publishIssuesLoading, publishIssuesError, studentPreviewChecked]);
 
   // --- Course metadata edit ---
   const [showEditCourse, setShowEditCourse] = useState(false);
