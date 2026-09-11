@@ -881,3 +881,7 @@ Deployment-setting verification on 2026-09-08 (BACKLOG K11):
   emails `dispatch-notifications` sends to actually go out -- without it, those deliveries are
   logged as `skipped` rather than failing loudly. Routing Supabase Auth's own password-reset/
   email-change mail through SendGrid too requires the hosted Send Email hook and matching signing configuration in step 1.6; setting the Edge Function key alone does not change Auth delivery.
+
+### Hub app-owned SMS delegation
+
+The central administrator adapter also accepts opaque cmh_ capabilities from the Hub's Node server. It introspects each capability at the fixed HTTPS Hub application endpoint, validates the SMS method and exact read operation, and retains the existing explicit identity map and native account/role checks. Capabilities are single-use and expire after 30 seconds; the Hub rechecks the session and permissions at consumption. No new CareBase environment variables are required. Deploy this adapter before activating the paired Hub app-session frontend. Existing legacy Hub AAL2 tokens retain their original verification path. Live SMS receipt and administrator access must be verified after the paired release.
