@@ -30,12 +30,17 @@ function project(value, op) {
   }
   if (op.operation === "list") {
     if (!Array.isArray(value) || value.length > op.limit) throw new AdminError(502, "upstream");
-    return value.map(row => {
+    const batch=[]; let bytes=2;
+    for (const row of value) {
       if (!row || typeof row.payload !== "string" || Buffer.byteLength(row.payload) > 100000 || !SHA.test(row.sourceDigest)
         || !["pending", "quarantined", "delivered"].includes(row.state)
-        || !(row.reason === null || ["mapping_disabled", "policy_drift", "missing_renewal_evidence", "binding_identity_drift", "receipt_retracted"].includes(row.reason))) throw new AdminError(502, "upstream");
-      return { eventId: uuid(row.eventId), payload: row.payload, sourceDigest: row.sourceDigest, state: row.state, reason: row.reason };
-    });
+        || !(row.reason === null || ["mapping_disabled", "policy_drift", "missing_renewal_evidence", "binding_identity_drift", "receipt_retracted", "receipt_limits"].includes(row.reason))) throw new AdminError(502, "upstream");
+      const projected={ eventId: uuid(row.eventId), payload: row.state === "quarantined" ? "" : row.payload, sourceDigest: row.sourceDigest, state: row.state, reason: row.reason };
+      bytes+=Buffer.byteLength(JSON.stringify(projected))+1;
+      if(bytes>900000) break; // Remaining events stay unacknowledged for the next pull.
+      batch.push(projected);
+    }
+    return batch;
   }
   if (op.operation === "retract") uuid(value);
   return { success: true };

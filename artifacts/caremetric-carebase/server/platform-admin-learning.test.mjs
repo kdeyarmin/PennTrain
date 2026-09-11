@@ -57,6 +57,18 @@ test("ACK forwards only actor/event/digest and sanitizes conflicts",async()=>{
   assert.deepEqual(f.calls.at(-1).body,{p_actor_id:id(2),p_authentication_method:'jwt_aal2',p_event_id:id(7),p_source_digest:"a".repeat(64)});
   f.state.rpcError="40001";response=await f.handler(request({operation:"acknowledge",eventId:id(7),sourceDigest:"a".repeat(64)}));assert.equal(response.status,409);assert.deepEqual(await response.json(),{error:{code:"conflict"}});
 });
+test("a batch fits the shared transport budget without acknowledging skipped events",async()=>{
+  const f=fixture({result:Array.from({length:10},(_,n)=>({eventId:id(n+10),payload:'"'.repeat(99900),sourceDigest:'a'.repeat(64),state:'pending',reason:null}))});
+  const response=await f.handler(request({operation:'list',limit:10}));assert.equal(response.status,200);
+  const raw=await response.text();const rows=JSON.parse(raw);
+  assert.ok(Buffer.byteLength(raw)<900000);assert.ok(rows.length>0&&rows.length<10);
+  assert.ok(f.calls.every(c=>!c.url.pathname.includes('acknowledge')));
+});
+test("quarantined receipts expose their reason and identifiers without evidence payload",async()=>{
+  const f=fixture({result:[{eventId:id(7),payload:'native evidence must stay private',sourceDigest:'a'.repeat(64),state:'quarantined',reason:'receipt_limits'}]});
+  const response=await f.handler(request({operation:'list',limit:1}));assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),[{eventId:id(7),payload:'',sourceDigest:'a'.repeat(64),state:'quarantined',reason:'receipt_limits'}]);
+});
 test("SMS uses the dedicated learning audience and records its actual method",async()=>{
   const operation={operation:'acknowledge',eventId:id(7),sourceDigest:'a'.repeat(64)};
   const f=fixture();f.state.actor={...f.state.actor,method:'sms',operation};delete f.state.actor.aal;

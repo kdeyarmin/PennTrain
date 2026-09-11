@@ -133,12 +133,18 @@ select is((select count(*) from app_private.learning_receipt_outbox where assign
 select is((select kind from app_private.learning_receipt_outbox where assignment_id=pg_temp.assignment_id(102) and state='pending'),'retracted','withdrawal dominates a completion not yet sent');
 
 select pg_temp.assign(104);
+select set_config('app.privileged_write','on',true);
 update public.courses set title='Changed source policy after assignment' where id='9e000000-0000-4000-8000-000000000007';
+select set_config('app.privileged_write','',true);
 select lives_ok($$select pg_temp.complete(104)$$,'source policy drift does not erase valid native completion');
 select is((select quarantine_reason from app_private.learning_receipt_outbox where assignment_id=pg_temp.assignment_id(104)),'policy_drift','source policy drift is quarantined');
+select is((select value->>'payload' from jsonb_array_elements(public.list_learning_receipt_outbox('9e000000-0000-4000-8000-000000000003',25)) value
+  where value->>'reason'='policy_drift'),'','quarantined payload remains native while reconciliation exposes bounded metadata');
 select ok((select assignment_revision<>completion_revision from app_private.learning_assignment_bindings b
   join app_private.learning_completion_evidence e on e.assignment_id=b.assignment_id where b.assignment_id=pg_temp.assignment_id(104)),'both assignment-time and completion-time policy revisions remain available');
+select set_config('app.privileged_write','on',true);
 update public.courses set title='Receipt course' where id='9e000000-0000-4000-8000-000000000007';
+select set_config('app.privileged_write','',true);
 -- Publishing a new version must not force revocation of learners finishing the old one.
 insert into public.course_versions(id,course_id,organization_id,version_number,title,status) values
   ('9e000000-0000-4000-8000-000000000030','9e000000-0000-4000-8000-000000000007',null,2,'Receipt next version','draft');

@@ -111,7 +111,7 @@ create table app_private.learning_receipt_outbox (
   payload text not null,
   payload_sha256 text not null check(payload_sha256 ~ '^[0-9a-f]{64}$'),
   state text not null check(state in ('pending','quarantined','delivered')),
-  quarantine_reason text check(quarantine_reason in ('mapping_disabled','policy_drift','missing_renewal_evidence','binding_identity_drift','receipt_retracted')),
+  quarantine_reason text check(quarantine_reason in ('mapping_disabled','policy_drift','missing_renewal_evidence','binding_identity_drift','receipt_retracted','receipt_limits')),
   created_at timestamptz not null default now(),
   delivered_at timestamptz,
   unique(assignment_id,sequence)
@@ -308,6 +308,12 @@ begin
     'attestations',attestation_rows,'quizEvidenceSha256',encode(extensions.digest(quiz_rows::text,'sha256'),'hex'),
     'renewalEvidenceSha256',encode(extensions.digest(renewal_rows::text,'sha256'),'hex'));
   receipt_text:=receipt::text;
+  -- Preserve full evidence locally when the reviewed transport cannot represent it.
+  if octet_length(receipt_text)>100000 or jsonb_array_length(credit_rows)>100 or jsonb_array_length(attestation_rows)>500
+    or exists(select 1 from jsonb_array_elements(credit_rows) value where length(value->>'topicCode')>200)
+    or exists(select 1 from jsonb_array_elements(attestation_rows) value where length(value->>'version')>500) then
+    reason:=coalesce(reason,'receipt_limits');
+  end if;
   insert into app_private.learning_receipt_outbox(id,assignment_id,sequence,kind,payload,payload_sha256,state,quarantine_reason)
     values(event_id,assignment.id,1,'completed',receipt_text,encode(extensions.digest(receipt_text,'sha256'),'hex'),
       case when reason is null then 'pending' else 'quarantined' end,reason);
@@ -326,7 +332,7 @@ language plpgsql stable security definer set search_path='' as $$
 begin
   perform app_private.require_learning_bridge_actor(p_actor_id,p_authentication_method);
   if p_limit is null or p_limit not between 1 and 25 then raise exception 'Invalid receipt limit.' using errcode='22023'; end if;
-  return coalesce((select jsonb_agg(jsonb_build_object('eventId',s.id,'payload',s.payload,'sourceDigest',s.payload_sha256,
+  return coalesce((select jsonb_agg(jsonb_build_object('eventId',s.id,'payload',case when s.state='quarantined' then '' else s.payload end,'sourceDigest',s.payload_sha256,
     'state',s.state,'reason',s.quarantine_reason) order by s.assignment_id,s.sequence) from
     (select o.* from app_private.learning_receipt_outbox o where o.state<>'delivered' and o.quarantine_reason is distinct from 'receipt_retracted'
       order by (o.state='pending') desc,o.created_at,o.assignment_id,o.sequence limit p_limit) s),'[]'::jsonb);
@@ -364,7 +370,7 @@ begin
     where id=prior.id and state<>'delivered';
   insert into app_private.learning_receipt_outbox(id,assignment_id,sequence,kind,payload,payload_sha256,state)
     values(event_id,p_assignment_id,prior.sequence+1,'retracted',serialized,encode(extensions.digest(serialized,'sha256'),'hex'),
-      case when prior.quarantine_reason in ('policy_drift','binding_identity_drift') then 'quarantined' else 'pending' end);
+      case when prior.quarantine_reason in ('policy_drift','binding_identity_drift','receipt_limits') then 'quarantined' else 'pending' end);
   update app_private.learning_receipt_outbox set quarantine_reason=prior.quarantine_reason where id=event_id and state='quarantined';
   insert into app_private.learning_receipt_command_audit(actor_id,authentication_method,action,object_id) values(p_actor_id,p_authentication_method,'retract',event_id);
   return event_id;
