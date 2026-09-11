@@ -64,7 +64,8 @@ function readBody(req, limit, signal, onSettled) {
   });
 }
 
-async function responseBody(response, signal) {
+async function responseBody(response, signal, maximumBytes = RESPONSE_LIMIT) {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || maximumBytes > 4100000) throw new Error('Invalid response limit');
   if (!response.body) return Buffer.alloc(0);
   const chunks = [];
   let bytes = 0;
@@ -77,7 +78,7 @@ async function responseBody(response, signal) {
       const { value, done } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > RESPONSE_LIMIT) {
+      if (bytes > maximumBytes) {
         await reader.cancel();
         throw new Error("Provider response exceeds limit");
       }
@@ -157,7 +158,7 @@ export function createProviderRouter({
       const work = async () => {
         const response = await handler(request);
         if (!(response instanceof Response)) throw new Error("Invalid provider response");
-        return { response, bytes: await responseBody(response, controller.signal) };
+        return { response, bytes: await responseBody(response, controller.signal, route.responseBytes) };
       };
       let abortListener;
       const interrupted = new Promise((_, reject) => {

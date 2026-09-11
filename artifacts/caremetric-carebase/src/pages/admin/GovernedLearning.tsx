@@ -9,6 +9,7 @@ import {
   useQuarantineLearningPackage,
 } from "@/hooks/useLearningRuntime";
 import { QuarantinePackageDialog } from "@/components/learning/QuarantinePackageDialog";
+import { AuthoringPackageDependencies } from '@/components/learning/AuthoringPackageDependencies';
 import { useToast } from "@/hooks/use-toast";
 import type { EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
 import { QueryError } from "@/components/QueryState";
@@ -155,7 +156,7 @@ export default function GovernedLearning() {
         </TabsList>
         <TabsContent value="review" className="mt-4"><GovernedContentRevisionsPanel /></TabsContent>
         <TabsContent value="policies" className="mt-4"><Metrics title="Policy lifecycle" description="Effective audiences, exact attestations, and delivery outcomes." values={data.policies} /></TabsContent>
-        <TabsContent value="standards" className="mt-4"><StandardsPackagesPanel /></TabsContent>
+        <TabsContent value="standards" className="mt-4 space-y-4"><StandardsPackagesPanel /><AuthoringPackageDependencies /></TabsContent>
         <TabsContent value="adaptive" className="mt-4 space-y-4"><Metrics title="Adaptive paths" description="Pinned definitions and explainable server-side transitions." values={data.adaptive} /><AdaptivePathsPanel /></TabsContent>
         <TabsContent value="offline" className="mt-4"><Metrics title="Offline sync" description="Conflict, rejection, revocation, and wipe visibility." values={data.offline} /></TabsContent>
       </Tabs>

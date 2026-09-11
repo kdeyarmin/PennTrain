@@ -56,7 +56,8 @@ export function readPlatformAdminConfig(getEnv = (name) => process.env[name]) {
     billingCommandsEnabled: billingFlag === "true", stripeKey: getEnv("STRIPE_SECRET_KEY")?.trim() || null };
 }
 
-export async function boundedFetch(fetcher, requestSignal, input, init = {}) {
+export async function boundedFetch(fetcher, requestSignal, input, init = {}, maximumBytes = MAX_UPSTREAM_BYTES) {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || maximumBytes > 4100000) throw new Error('Invalid response limit');
   const signals = [requestSignal, AbortSignal.timeout(8000)];
   if (input instanceof Request) signals.push(input.signal);
   if (init.signal) signals.push(init.signal);
@@ -74,7 +75,7 @@ export async function boundedFetch(fetcher, requestSignal, input, init = {}) {
       const { value, done } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > MAX_UPSTREAM_BYTES) { await reader.cancel(); throw new Error("Source response exceeds limit"); }
+      if (bytes > maximumBytes) { await reader.cancel(); throw new Error("Source response exceeds limit"); }
       chunks.push(Buffer.from(value));
     }
   } finally { signal.removeEventListener("abort", cancel); reader.releaseLock(); }
@@ -93,7 +94,10 @@ export async function authorizePlatformAdmin(request, { config, command = false,
   if (!authorization || authorization.length > 8192 || !/^Bearer [A-Za-z0-9._~-]+$/.test(authorization)) throw new AdminError(401, "unauthenticated");
   const makeClient = (url, key, headers = {}) => createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers, fetch: (input, init) => boundedFetch(fetcher, request.signal, input, init) },
+    global: { headers, fetch: (input, init) => boundedFetch(fetcher, request.signal, input, init,
+      learning && command && operation?.operation === 'source'
+      && String(input instanceof Request ? input.url : input) === `${config.supabaseUrl}/rest/v1/rpc/get_learning_authoring_source`
+        ? 4100000 : MAX_UPSTREAM_BYTES) },
   });
   let actor, authenticationMethod;
   if (authorization.startsWith("Bearer cmh_")) {
