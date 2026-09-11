@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `e91bcd14054cedfcacc8d0a5eff05c033c559078` (2026-09-11), the released operations-reader integration. N17 adds reviewed configuration commands through the original native writers; eight focused transport/contract tests, ten actual runtime packaging tests and the shared TypeScript check pass locally. The new synthetic SQL transaction fixture and complete native release gate remain required. No production configuration, jobs, rollout state or applied migration is changed.
+**Last verified against main:** `cce2395d02a50e79dfa3c2f1e1b9a643dc50bf15` (2026-09-11), based on released operations-reader main e91bcd14. N17 adds reviewed configuration commands through the original native writers; eight focused transport/contract tests, ten actual runtime packaging tests and the shared TypeScript check pass locally. The new synthetic SQL transaction fixture and complete native release gate remain required. No production configuration, jobs, rollout state or applied migration is changed.
 
 **Owner:** the owner-operator (single person, platform admin)
 
