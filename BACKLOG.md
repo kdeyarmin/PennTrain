@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `6ef3743eb9a0b45fc07dace679a4b2b92e40ff25` (2026-09-11), the current reviewed structure branch baseline on top of native main `a01a198`; this baseline is not yet merged. Full CI `34646366339` passed, including database and browser lanes; it awaits ordered integration after Checkout. Creation baseline `146d0b79` passed its actual native lifecycle assertions; boundary review and fixture-ratchet corrections are now under full verification before integration.
+**Last verified against main:** `31dcf834be3b927765e7a257ee1c3ff09db1d40e` (2026-09-11), the reviewed integration of Creation535 with actual released native main `6d1570a8` (Checkout532, protected support identity and Structure533). Standalone creation CI34649393839 passed 5,340 SQL assertions and70browser journeys; the complete combined release gate is now required. Existing applied migration bytes and N9/N10/N12 ownership are preserved.
 
 **Owner:** the owner-operator (single person, platform admin)
 
