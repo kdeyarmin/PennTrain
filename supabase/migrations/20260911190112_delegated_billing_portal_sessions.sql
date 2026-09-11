@@ -207,7 +207,8 @@ begin
       or (p_session-array['kind','id','url','expiresAt','livemode'])<>'{}'::jsonb
       or not (p_session ?& array['kind','id','url','expiresAt','livemode'])
       or p_session->>'kind' is distinct from 'portal' or coalesce(p_session->>'id','') !~ '^bps_[A-Za-z0-9]+$'
-      or coalesce(p_session->>'url','') !~ '^https://billing[.]stripe[.]com/p/session/[A-Za-z0-9_/-]+([?][^[:cntrl:]#]*)?$'
+      or coalesce(p_session->>'url','') !~ '^https://billing[.]stripe[.]com/p/session(/[A-Za-z0-9_-]+|[?]secret=[A-Za-z0-9_-]+)$'
+      or length(regexp_replace(p_session->>'url','^https://billing[.]stripe[.]com/p/session(/|[?]secret=)','')) not between 1 and 2048
       or jsonb_typeof(p_session->'livemode') is distinct from 'boolean'
       or p_session->'expiresAt' is distinct from 'null'::jsonb then
       raise exception 'Invalid provider result' using errcode='22023';

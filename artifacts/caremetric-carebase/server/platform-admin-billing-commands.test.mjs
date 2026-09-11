@@ -113,6 +113,16 @@ test("portal creates only after durable claim and returns only after receipt per
   assert.equal(f.calls.at(-1).url.pathname, "/rest/v1/rpc/platform_admin_read_billing_portal_result");
 });
 
+test("portal accepts both documented Stripe capability formats", async () => {
+  for (const url of ["https://billing.stripe.com/p/session/test_legacy", "https://billing.stripe.com/p/session?secret=test_current"]) {
+    const f = fixture(); f.state.provider.data.url = url;
+    const response = await f.handler(request(apply));
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).data.session.url, url);
+    assert.equal(f.state.finish.p_session.url, url);
+  }
+});
+
 test("uncertain provider results remain pending without a fabricated failed outcome or session URL", async () => {
   for (const override of [{ throwProvider: true }, { provider: { ok: false, status: 500, data: {} } },
     { provider: { ok: false, status: 429, data: {} } }, { provider: { ok: false, status: 409, data: {} } },
@@ -191,6 +201,17 @@ test("unsafe or mismatched provider capability responses remain indeterminate", 
     const f = fixture();
     Object.assign(f.state.provider.data, change);
     assert.equal((await (await f.handler(request(apply))).json()).data.outcome, "pending");
+  }
+  for (const url of ["https://billing.stripe.com:443/p/session?secret=test_1", "https://user@billing.stripe.com/p/session?secret=test_1",
+    "https://billing.stripe.com/p/session?secret=test_1#fragment", "https://billing.stripe.com/p/session?secret=test_1&extra=1",
+    "https://billing.stripe.com/p/session?secret=test_1&secret=test_2", "https://billing.stripe.com/p/session?secret=",
+    "https://billing.stripe.com/p/session?secret=test%5f1", "https://billing.stripe.com/p/session?secret=test+1",
+    "https://billing.stripe.com/p/session/test_1?extra=1", "https://billing.stripe.com/p/session/test_1/subpath",
+    "https://billing.stripe.com/p/session?secret=" + "a".repeat(2049), "https://billing.stripe.com/p/session/" + "a".repeat(2049)]) {
+    const f = fixture(); f.state.provider.data.url = url;
+    const result = await (await f.handler(request(apply))).json();
+    assert.equal(result.data.outcome, "pending");
+    assert.equal(result.data.session, null);
   }
 });
 

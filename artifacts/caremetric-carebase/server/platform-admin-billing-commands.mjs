@@ -4,6 +4,10 @@ import { phase2StripePost, resolvePhase2BillingReturnOrigins, validatePhase2Bill
 
 const DIGEST = /^[0-9a-f]{64}$/;
 const PORTAL_ACTION = "billing.portal.create";
+// Stripe documents both the path token and the newer single secret parameter.
+// Match raw canonical URLs so ports, encoding, extra parameters and fragments
+// cannot broaden either accepted capability format.
+const PORTAL_URL = /^https:\/\/billing\.stripe\.com\/p\/session(?:\/[A-Za-z0-9_-]{1,2048}|\?secret=[A-Za-z0-9_-]{1,2048})$/;
 const keysAre = (v, keys) => v && typeof v === "object" && !Array.isArray(v)
   && Object.keys(v).length === keys.length && keys.every(k => Object.hasOwn(v, k));
 const invalid = () => { throw new AdminError(400, "invalid_request"); };
@@ -34,10 +38,7 @@ function portalSession(value) {
     || typeof value.id !== "string" || !/^bps_[A-Za-z0-9]+$/.test(value.id)
     || typeof value.url !== "string" || value.url.length > 4096 || value.expiresAt !== null
     || typeof value.livemode !== "boolean") upstream();
-  let url;
-  try { url = new URL(value.url); } catch { upstream(); }
-  if (url.origin !== "https://billing.stripe.com" || url.username || url.password || url.hash
-    || !/^\/p\/session\/[A-Za-z0-9_/-]+$/.test(url.pathname) || url.href !== value.url) upstream();
+  if (!PORTAL_URL.test(value.url)) upstream();
   return { ...value };
 }
 

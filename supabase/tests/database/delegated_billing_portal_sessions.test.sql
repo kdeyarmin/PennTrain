@@ -28,9 +28,9 @@ returns jsonb language sql as $$
  p_session,now()-interval '1 hour',now()+interval '7 hours',p_method,(p_preview->>'commandId')::uuid,
  coalesce(p_digest,p_preview->>'previewDigest'),'bpc_fixture','https://cmcarebase.com/admin/enterprise');
 $$;
-create function pg_temp.portal_finish(p_claim jsonb,p_outcome text default 'succeeded') returns void language sql as $$
+create function pg_temp.portal_finish(p_claim jsonb,p_outcome text default 'succeeded',p_url text default 'https://billing.stripe.com/p/session/test_fixture') returns void language sql as $$
  select public.platform_admin_finish_billing_portal((p_claim->>'commandId')::uuid,(p_claim->>'leaseId')::uuid,p_outcome,
- case when p_outcome='succeeded' then '{"kind":"portal","id":"bps_fixture","url":"https://billing.stripe.com/p/session/test_fixture","expiresAt":null,"livemode":false}'::jsonb else null end);
+ case when p_outcome='succeeded' then jsonb_build_object('kind','portal','id','bps_fixture','url',p_url,'expiresAt',null,'livemode',false) else null end);
 $$;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
@@ -121,6 +121,28 @@ select is((select state from app_private.billing_portal_commands where id=(selec
 drop trigger synthetic_portal_audit_failure on public.audit_logs;
 set local role service_role;
 select lives_ok($$select pg_temp.portal_finish((select claim from portal_fixture where label='audit-failure'))$$,'same provider result can be persisted after transient audit failure');
+
+insert into portal_fixture(label,preview) values('modern-url',pg_temp.portal_preview('9b000000-0000-4000-8000-000000000107'));
+update portal_fixture set claim=pg_temp.portal_claim(preview) where label='modern-url';
+select throws_ok(format('select pg_temp.portal_finish((select claim from portal_fixture where label=''modern-url''),p_url=>%L)',url),
+ '22023','Invalid provider result','reject noncanonical or unbounded portal capability URL') from (values
+ ('https://billing.stripe.com:443/p/session?secret=test_1'),
+ ('https://user@billing.stripe.com/p/session?secret=test_1'),
+ ('https://billing.stripe.com/p/session?secret=test_1#fragment'),
+ ('https://billing.stripe.com/p/session?secret=test_1&extra=1'),
+ ('https://billing.stripe.com/p/session?secret=test_1&secret=test_2'),
+ ('https://billing.stripe.com/p/session?secret='),
+ ('https://billing.stripe.com/p/session?secret=test%5f1'),
+ ('https://billing.stripe.com/p/session?secret=test+1'),
+ ('https://billing.stripe.com/p/session/test_1?extra=1'),
+ ('https://billing.stripe.com/p/session/test_1/subpath'),
+ ('https://billing.stripe.com/p/session?secret='||repeat('a',2049)),
+ ('https://billing.stripe.com/p/session/'||repeat('a',2049))
+) cases(url);
+select lives_ok($$select pg_temp.portal_finish((select claim from portal_fixture where label='modern-url'),p_url=>'https://billing.stripe.com/p/session?secret=test_current')$$,
+ 'documented single-secret capability URL is persisted');
+select is(pg_temp.portal_claim((select preview from portal_fixture where label='modern-url'))#>>'{data,session,url}',
+ 'https://billing.stripe.com/p/session?secret=test_current','replay preserves exact documented capability bytes');
 reset role;
 select * from finish();
 rollback;
