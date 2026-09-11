@@ -66,7 +66,7 @@ begin
 end;
 $$;
 
-select ok(not has_function_privilege('authenticated','public.provision_learning_receipt_mapping(uuid,uuid,uuid,uuid,uuid,uuid,uuid,uuid,text)','EXECUTE'),'native browser cannot forge bridge mappings');
+select ok(not has_function_privilege('authenticated','public.provision_learning_receipt_mapping(uuid,uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text)','EXECUTE'),'native browser cannot forge bridge mappings');
 select ok(not has_table_privilege('service_role','app_private.learning_completion_evidence','UPDATE'),'service credential cannot rewrite immutable evidence directly');
 select pg_temp.assign(101);
 select lives_ok($$select pg_temp.complete(101)$$,'ordinary historical completion still uses the native writer');
@@ -81,6 +81,12 @@ select lives_ok($$select public.provision_learning_receipt_mapping('9e000000-000
   '9e000000-0000-4000-8000-000000000001','9e000000-0000-4000-8000-000000000006','9e000000-0000-4000-8000-000000000021','9e000000-0000-4000-8000-000000000022',
   '9e000000-0000-4000-8000-000000000007','9e000000-0000-4000-8000-000000000008',(select value from receipt_fixture where label='revision'))$$,'explicit reviewed mapping is accepted');
 reset role;
+select throws_ok($$select public.provision_learning_receipt_mapping('9e000000-0000-4000-8000-000000000003','9e000000-0000-4000-8000-000000000023',
+  '9e000000-0000-4000-8000-000000000001','9e000000-0000-4000-8000-000000000006','9e000000-0000-4000-8000-000000000021','9e000000-0000-4000-8000-000000000022',
+  '9e000000-0000-4000-8000-000000000007','9e000000-0000-4000-8000-000000000008',(select value from receipt_fixture where label='revision'))$$,
+  '40001','An active mapping for this learner and source version already exists.','a second active mapping cannot duplicate one learner version');
+select lives_ok($$select public.revoke_learning_receipt_mapping('9e000000-0000-4000-8000-000000000003','9e000000-0000-4000-8000-000000000023')$$,
+  'a pending Hub-only mapping can be revoked when native provisioning never committed');
 select is((select count(*) from app_private.learning_assignment_bindings),0::bigint,'creating a mapping never backfills historical assignments');
 select pg_temp.assign(102);
 select is((select count(*) from app_private.learning_assignment_bindings where assignment_id=pg_temp.assignment_id(102)),1::bigint,'future assignment receives one policy binding');
@@ -133,6 +139,33 @@ select is((select quarantine_reason from app_private.learning_receipt_outbox whe
 select ok((select assignment_revision<>completion_revision from app_private.learning_assignment_bindings b
   join app_private.learning_completion_evidence e on e.assignment_id=b.assignment_id where b.assignment_id=pg_temp.assignment_id(104)),'both assignment-time and completion-time policy revisions remain available');
 update public.courses set title='Receipt course' where id='9e000000-0000-4000-8000-000000000007';
+-- Publishing a new version must not force revocation of learners finishing the old one.
+insert into public.course_versions(id,course_id,organization_id,version_number,title,status) values
+  ('9e000000-0000-4000-8000-000000000030','9e000000-0000-4000-8000-000000000007',null,2,'Receipt next version','draft');
+insert into public.course_blocks(id,course_version_id,organization_id,block_type,sort_order,title,body) values
+  ('9e000000-0000-4000-8000-000000000031','9e000000-0000-4000-8000-000000000030',null,'text',0,'Renewal lesson','{"content":"Synthetic next-version lesson."}');
+select set_config('app.privileged_write','on',true);
+update public.course_versions set status='published',published_at=now() where id='9e000000-0000-4000-8000-000000000030';
+update public.courses set current_version_id='9e000000-0000-4000-8000-000000000030' where id='9e000000-0000-4000-8000-000000000007';
+select set_config('app.privileged_write','',true);
+insert into receipt_fixture values('next_revision',encode(extensions.digest(app_private.learning_source_payload('9e000000-0000-4000-8000-000000000007','9e000000-0000-4000-8000-000000000030'),'sha256'),'hex'));
+select lives_ok($$select public.provision_learning_receipt_mapping('9e000000-0000-4000-8000-000000000003','9e000000-0000-4000-8000-000000000032',
+  '9e000000-0000-4000-8000-000000000001','9e000000-0000-4000-8000-000000000006','9e000000-0000-4000-8000-000000000021','9e000000-0000-4000-8000-000000000022',
+  '9e000000-0000-4000-8000-000000000007','9e000000-0000-4000-8000-000000000030',(select value from receipt_fixture where label='next_revision'),'app_sms')$$,
+  'an explicitly reviewed new version can coexist with the original version mapping');
+select is((select count(*) from app_private.learning_receipt_mappings where active),2::bigint,'old and new version bindings retain separate authorities');
+select is((select authentication_method from app_private.learning_receipt_command_audit where action='provision' and object_id='9e000000-0000-4000-8000-000000000032'),
+  'app_sms','native audit records actual SMS authorization without claiming AAL2');
+insert into public.course_assignments(id,organization_id,facility_id,employee_id,course_id,course_version_id,assigned_by)
+values(pg_temp.assignment_id(107),'9e000000-0000-4000-8000-000000000001','9e000000-0000-4000-8000-000000000002',
+  '9e000000-0000-4000-8000-000000000006','9e000000-0000-4000-8000-000000000007','9e000000-0000-4000-8000-000000000030','9e000000-0000-4000-8000-000000000004');
+select is((select mapping_id from app_private.learning_assignment_bindings where assignment_id=pg_temp.assignment_id(107)),
+  '9e000000-0000-4000-8000-000000000032'::uuid,'new assignments bind their exact reviewed version');
+select lives_ok($$select pg_temp.complete(107)$$,'native completion captures the new version independently');
+select is((select state from app_private.learning_receipt_outbox where assignment_id=pg_temp.assignment_id(107)),'pending','new version produces matching policy evidence');
+select set_config('app.privileged_write','on',true);
+update public.courses set current_version_id='9e000000-0000-4000-8000-000000000008' where id='9e000000-0000-4000-8000-000000000007';
+select set_config('app.privileged_write','',true);
 select pg_temp.assign(105);
 select public.revoke_learning_receipt_mapping('9e000000-0000-4000-8000-000000000003','9e000000-0000-4000-8000-000000000020');
 select lives_ok($$select pg_temp.complete(105)$$,'revoked bridge mapping does not break native completion');

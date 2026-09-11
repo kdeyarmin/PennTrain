@@ -89,7 +89,7 @@ create table app_private.learning_receipt_mappings (
   created_at timestamptz not null default now(),
   revoked_at timestamptz
 );
-create unique index learning_receipt_mapping_active on app_private.learning_receipt_mappings(employee_id,course_id) where active;
+create unique index learning_receipt_mapping_active on app_private.learning_receipt_mappings(employee_id,course_id,version_id) where active;
 create table app_private.learning_assignment_bindings (
   assignment_id uuid primary key,
   mapping_id uuid not null references app_private.learning_receipt_mappings(id),
@@ -196,6 +196,9 @@ begin
   if actual_hash is null or actual_hash is distinct from p_source_revision then
     raise exception 'Source policy changed. Preserve and review its exact revision before binding.' using errcode='40001';
   end if;
+  if exists(select 1 from app_private.learning_receipt_mappings where active and employee_id=p_employee_id
+    and course_id=p_course_id and version_id=p_version_id) then
+    raise exception 'An active mapping for this learner and source version already exists.' using errcode='40001'; end if;
   insert into app_private.learning_source_policies(revision,course_id,version_id,payload)
     values(actual_hash,p_course_id,p_version_id,source_payload) on conflict(revision) do nothing;
   insert into app_private.learning_receipt_mappings(id,organization_id,employee_id,native_profile_id,hub_tenant_id,hub_user_id,course_id,version_id,source_revision,created_by)
@@ -210,7 +213,7 @@ language plpgsql security definer set search_path='' as $$
 begin
   perform app_private.require_learning_bridge_actor(p_actor_id,p_authentication_method);
   update app_private.learning_receipt_mappings set active=false,revoked_at=coalesce(revoked_at,now()) where id=p_mapping_id;
-  if not found then raise exception 'Mapping unavailable.' using errcode='22023'; end if;
+  if not found then return; end if; -- A Hub-only pending mapping is safe to revoke and retry.
   insert into app_private.learning_receipt_command_audit(actor_id,authentication_method,action,object_id) values(p_actor_id,p_authentication_method,'revoke',p_mapping_id);
   update app_private.learning_receipt_outbox o set state='quarantined',quarantine_reason='mapping_disabled'
     where o.state='pending' and o.kind='completed' and exists(select 1 from app_private.learning_assignment_bindings b
