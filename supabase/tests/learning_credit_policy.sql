@@ -118,7 +118,7 @@ select public.execute_native_learning_draft_command(pg_temp.cid(220),'learning.r
 select ok((select ai_reviewed_at is not null from public.course_versions where id=pg_temp.cid(31)),'explicit AI review exists before edit');
 select pg_temp.edit(pg_temp.change(jsonb_build_array(pg_temp.credit(200,11,'1.50'))));
 select ok((select ai_reviewed_at is null and ai_reviewed_by is null from public.course_versions where id=pg_temp.cid(31)),'credit edit invalidates approval instead of auto-refreshing its digest');
-select throws_ok($$select public.publish_course_version(pg_temp.cid(31))$$,'23514',null,'unreviewed/incomplete generated draft cannot publish');
+select throws_ok($$select public.publish_course_version(pg_temp.cid(31))$$,'42501',null,'unreviewed/incomplete generated draft cannot publish');
 select public.execute_native_learning_draft_command(pg_temp.cid(221),'learning.reviewDraft',pg_temp.cid(30),
   jsonb_build_object('versionId',pg_temp.cid(31),'sourceRevision',pg_temp.crevision(),'reviewed',true),'Reviewed exact generated definition');
 select pg_temp.edit(pg_temp.change(pg_temp.keep(),'{"versionLabel":"Reviewed credit edition"}'));
