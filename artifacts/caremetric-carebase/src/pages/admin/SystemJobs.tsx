@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { deploymentReadinessChecks } from "@/lib/deploymentReadiness";
+import { isSystemJobActive } from "@/lib/systemJobStatus";
 import {
   killSwitchBadgeLabel,
   killSwitchButtonTitle,
@@ -197,7 +198,7 @@ export default function SystemJobs() {
   const failed = jobs.filter((job) => job.last_status === "failed").length;
   const degraded = jobs.filter((job) => job.last_status === "partial").length;
   const healthy = jobs.filter((job) => !job.is_stale && job.last_status === "succeeded").length;
-  const active = jobs.filter((job) => ["queued", "running"].includes(job.last_status)).length;
+  const active = jobs.filter((job) => isSystemJobActive(job.last_status)).length;
   const readinessChecks = deploymentReadinessChecks({
     viteSupabaseUrl: import.meta.env.VITE_SUPABASE_URL,
     viteSupabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -347,7 +348,7 @@ export default function SystemJobs() {
               <TableBody>
                 {jobs.map((job) => {
                   const recovery = recoveryByJob.get(job.job_key);
-                  const isActive = ["queued", "running"].includes(job.last_status);
+                  const isActive = isSystemJobActive(job.last_status);
                   const actionsPending = runJob.isPending || cancelJob.isPending || setKillSwitch.isPending;
                   return (
                   <TableRow key={job.job_key}>

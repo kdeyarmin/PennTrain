@@ -13,7 +13,7 @@ const REPO_DIR = fileURLToPath(new URL("../../../", import.meta.url));
 const APP_DIR = fileURLToPath(new URL("../", import.meta.url));
 const SUPABASE_URL = "https://fixture.example.test";
 const SERVER_FILES = [
-  "index.mjs", "learning-package-proxy.mjs", "provider-handlers.mjs",
+  "index.mjs", "learning-package-proxy.mjs", "provider-handlers.mjs", "platform-admin-operations.mjs",
   "provider-router.mjs", "provider-runtime-config.mjs", "platform-admin.mjs", "platform-admin-auth.mjs", "platform-admin-commands.mjs", "platform-admin-learning.mjs", "platform-admin-authoring.mjs", "platform-admin-provider.mjs", "platform-admin-data.mjs", "platform-admin-billing.mjs", "platform-admin-billing-commands.mjs", "platform-admin-checkout.mjs", "platform-admin-billing-catalog.mjs", "platform-admin-support-identity.mjs",
 ];
 const FIXTURE_ENV = {

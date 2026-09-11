@@ -85,7 +85,7 @@ export async function boundedFetch(fetcher, requestSignal, input, init = {}, max
 }
 
 
-export async function authorizePlatformAdmin(request, { config, command = false, learning = false, operation, parseOperation, createClient = createSupabaseClient, fetcher = fetch, now = () => new Date() }) {
+export async function authorizePlatformAdmin(request, { config, command = false, learning = false, sessionRequired = false, operation, parseOperation, createClient = createSupabaseClient, fetcher = fetch, now = () => new Date() }) {
   if (learning && !command) throw new AdminError(403, "forbidden");
   if (!config.enabled) throw new AdminError(503, "unconfigured");
   if (request.method !== "POST") throw new AdminError(405, "method_not_allowed");
@@ -118,7 +118,7 @@ export async function authorizePlatformAdmin(request, { config, command = false,
     authenticationMethod = "app_sms";
   } else {
     const hub = makeClient(config.hubUrl, config.hubKey, { Authorization: authorization });
-    const { data, error: actorError, status: actorStatus } = await hub.schema("hub").rpc(command ? "authorize_platform_command" : "authorize_platform_admin");
+    const { data, error: actorError, status: actorStatus } = await hub.schema("hub").rpc(command || sessionRequired ? "authorize_platform_command" : "authorize_platform_admin");
     if (actorError) {
       if (actorStatus === 401 || actorError.code === "28000") throw new AdminError(401, "unauthenticated");
       if (actorError.code === "42501") throw new AdminError(403, "forbidden");
@@ -149,7 +149,7 @@ export async function authorizePlatformAdmin(request, { config, command = false,
     throw new AdminError(403, "forbidden");
   }
 
-  if (command) {
+  if (command || sessionRequired) {
     const started = Date.parse(actor.session_started_at);
     const expires = Date.parse(actor.assurance_expires_at);
     if (typeof actor.session_id !== "string" || !UUID.test(actor.session_id)
