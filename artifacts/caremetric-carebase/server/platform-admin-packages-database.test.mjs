@@ -29,6 +29,9 @@ test('actual local Storage, native package handler and SQL preserve bytes throug
  const issues=(temporarySql='')=>JSON.parse(sql(`begin;set local app.privileged_write='on';${temporarySql}
  select to_json(public.get_course_version_publish_issues('${version}'));rollback;`));
  assert.deepEqual(issues(),['Interactive lesson: attach a document.']);
+ const direct=await native.from('learning_packages').insert({course_version_id:version,standard_type:'scorm_1_2',storage_path:'forbidden.zip',
+  content_sha256:'e'.repeat(64),compressed_bytes:1,entry_point:'index.html',validation_status:'accepted',validated_at:new Date().toISOString(),immutable_at:new Date().toISOString()});
+ assert.equal(direct.error?.code,'42501','service PostgREST cannot introduce an unverified accepted package');
  const original=zipSync({'index.html':new TextEncoder().encode('<html><body>Exact authored package fixture</body></html>'),'lesson.txt':new TextEncoder().encode('Original lesson bytes')});
  const sha=createHash('sha256').update(original).digest('hex');
  const tickets=new Map(),storageCalls=[];let loseFinish=false;
@@ -66,6 +69,10 @@ test('actual local Storage, native package handler and SQL preserve bytes throug
  assert.ok(storageCalls.some(call=>call.method==='GET'&&call.status===200),'duplicate requires exact original-byte observation');
  loseFinish=true;assert.equal((await send({operation:'finish',operationId:stage.operationId})).status,502);
  const receipt=await ok({operation:'finish',operationId:stage.operationId});assert.equal(receipt.status,'pending');
+ const rawUpdate=await native.from('learning_packages').update({validation_status:'accepted',validated_at:new Date().toISOString(),immutable_at:new Date().toISOString(),entry_point:'index.html'}).eq('id',receipt.packageId);
+ assert.equal(rawUpdate.error?.code,'42501','service PostgREST cannot bypass current-authority acceptance');
+ const rawDelete=await native.from('learning_packages').delete().eq('id',receipt.packageId);
+ assert.equal(rawDelete.error?.code,'42501','service PostgREST cannot erase retained package history');
  assert.deepEqual(issues(),['Interactive lesson: attach a document.'],'a pending original cannot satisfy publication');
  assert.equal(sql(`select count(*) from public.audit_logs where entity_id='${receipt.packageId}' and action='package_original_registered'`),'1','lost final response never duplicates the audit');
  const packageContext=await ok({operation:'context',versionId:null,packageId:receipt.packageId});

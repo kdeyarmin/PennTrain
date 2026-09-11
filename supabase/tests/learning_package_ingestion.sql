@@ -1,5 +1,9 @@
 begin;
 select no_plan();
+select ok(has_table_privilege('service_role','public.learning_packages','SELECT'),'worker retains package reads');
+select ok(not has_table_privilege('service_role','public.learning_packages','INSERT'),'service cannot introduce raw accepted packages');
+select ok(not has_table_privilege('service_role','public.learning_packages','UPDATE'),'service cannot bypass the acceptance writer');
+select ok(not has_table_privilege('service_role','public.learning_packages','DELETE') and not has_table_privilege('service_role','public.learning_packages','TRUNCATE'),'service cannot erase package history');
 select ok(not has_table_privilege('service_role','app_private.learning_package_originals','INSERT'),'original evidence has no direct service grant');
 select ok(not has_function_privilege('authenticated','public.record_learning_package_artifact(uuid,text,integer,text,integer,text,text)','EXECUTE'),'browser cannot invent verified artifact evidence');
 select ok(not has_function_privilege('anon','public.prepare_native_learning_package_operation(jsonb)','EXECUTE'),'anonymous callers cannot prepare uploads');

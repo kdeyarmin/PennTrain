@@ -6,6 +6,11 @@ values('learning-package-originals','learning-package-originals',false,52428800,
   array['application/zip','application/x-zip-compressed','application/octet-stream'])
 on conflict(id) do nothing;
 
+-- Workers only read package records directly. Registration, acceptance and
+-- quarantine now use their current-authority security-definer entry points;
+-- a service credential cannot bypass that writer or its version locks.
+revoke insert,update,delete,truncate on public.learning_packages from service_role;
+
 create table app_private.learning_package_operations(
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null,
