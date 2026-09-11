@@ -107,6 +107,17 @@ test("unexpected handler errors and oversized responses remain bounded and sanit
   assert.equal((await rawRequest(`${large}/api/providers/sms-mfa`)).status, 502);
 });
 
+test('only an explicitly bounded source route permits a larger escaped response', async t => {
+  const handler = () => new Response('x'.repeat(2100000));
+  const ordinary = await setup(t, handler);
+  assert.equal((await rawRequest(`${ordinary}/api/providers/sms-mfa`)).status, 502);
+  const source = await setup(t, handler, { routes: new Map([['sms-mfa', { bytes: 2048, browser: false, responseBytes: 4100000 }]]) });
+  const result = await rawRequest(`${source}/api/providers/sms-mfa`);
+  assert.equal(result.status, 200); assert.equal(result.body.length, 2100000);
+  const overflow = await setup(t, () => new Response('x'.repeat(4100001)), { routes: new Map([['sms-mfa', { bytes: 2048, browser: false, responseBytes: 4100000 }]]) });
+  assert.equal((await rawRequest(`${overflow}/api/providers/sms-mfa`)).status, 502);
+});
+
 test("concurrency is bounded while an accepted handler owns a request", async (t) => {
   let release;
   let entered;

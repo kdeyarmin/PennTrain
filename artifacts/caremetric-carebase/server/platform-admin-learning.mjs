@@ -1,5 +1,6 @@
 import { AdminError, authorizePlatformAdmin, readPlatformAdminConfig, UUID } from "./platform-admin-auth.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
+import { createLearningAuthoringHandler } from './platform-admin-authoring.mjs';
 
 const SHA = /^[0-9a-f]{64}$/;
 const definitions = {
@@ -81,8 +82,10 @@ export function createLearningAdminRouter(options = {}) {
   const getEnv = options.getEnv ?? (name => process.env[name]);
   const config = options.config ?? readPlatformAdminConfig(getEnv);
   const enabled = getEnv("CAREMETRIC_LEARNING_RECEIPTS_ENABLED") === "true";
-  return createProviderRouter({ handlers: new Map([["receipt", createLearningAdminHandler({ ...options, config, enabled })]]),
-    enabled: config.enabled && config.commandsEnabled && enabled, prefix: "/api/learning-admin/", unavailableCode: "unconfigured",
-    routes: new Map([["receipt", { bytes: 4096, browser: false }]]), forwardedHeaders: ["authorization", "origin", "content-type"],
+  const authoringEnabled = getEnv('CAREMETRIC_LEARNING_AUTHORING_ENABLED') === 'true';
+  return createProviderRouter({ handlers: new Map([["receipt", createLearningAdminHandler({ ...options, config, enabled })],
+    ['authoring', createLearningAuthoringHandler({ ...options, config, enabled: authoringEnabled })]]),
+    enabled: config.enabled && config.commandsEnabled && (enabled || authoringEnabled), prefix: "/api/learning-admin/", unavailableCode: "unconfigured",
+    routes: new Map([["receipt", { bytes: 4096, browser: false }], ['authoring', { bytes: 4096, responseBytes: 4100000, browser: false }]]), forwardedHeaders: ["authorization", "origin", "content-type"],
     handlerTimeoutMs: 12000, maxConcurrent: 4, maxPendingBodies: 8 });
 }
