@@ -1,9 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { cloneCourseVideoBody } from "@/lib/courseVideoGeneration";
 import { executeNativeDraft, nativeDraftIntent, type GovernedDraftSource, type NativeDraftIntent } from "@/lib/governedLearningDraft";
+import { executeNativeCreation, nativeCreationIntent, readNativeCreationOptions, type CourseCreationForm, type NativeCreationIntent } from "@/lib/governedLearningCreation";
 
 export type Course = Tables<"courses">;
 export type CourseInsert = TablesInsert<"courses">;
@@ -88,14 +89,20 @@ export function useGetCourse(id: string | undefined) {
 
 export function useCreateCourse() {
   const queryClient = useQueryClient();
+  const intent = useRef<NativeCreationIntent | null>(null);
   return useMutation({
-    mutationFn: async (payload: CourseInsert) => {
-      const { data, error } = await supabase.from("courses").insert(payload).select().single();
-      if (error) throw error;
-      return data;
+    mutationFn: async (payload: CourseCreationForm) => {
+      intent.current = nativeCreationIntent(intent.current, payload);
+      return executeNativeCreation(intent.current, payload);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["courses"] }),
+    onSuccess: () => { intent.current = null; return queryClient.invalidateQueries({ queryKey: ["courses"] }); },
   });
+}
+
+export function useLearningCreationOptions(enabled: boolean) {
+  return useInfiniteQuery({ queryKey: ['learning_creation_options'], initialPageParam: 0,
+    queryFn: ({ pageParam }) => readNativeCreationOptions(pageParam),
+    getNextPageParam: page => page.nextOffset ?? undefined, enabled });
 }
 
 export function useUpdateCourse() {
