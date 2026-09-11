@@ -13,6 +13,7 @@ const REPO_DIR = fileURLToPath(new URL("../../../", import.meta.url));
 const APP_DIR = fileURLToPath(new URL("../", import.meta.url));
 const SUPABASE_URL = "https://fixture.example.test";
 const SERVER_FILES = [
+  "platform-admin-distribution.mjs", "learning-distribution-status.mjs",
   "index.mjs", "learning-package-proxy.mjs", "provider-handlers.mjs", "platform-admin-operations.mjs",
   "provider-router.mjs", "provider-runtime-config.mjs", "platform-admin.mjs", "platform-admin-auth.mjs", "platform-admin-commands.mjs", "platform-admin-learning.mjs", "platform-admin-authoring.mjs", "platform-admin-data.mjs", "platform-admin-billing.mjs", "platform-admin-billing-commands.mjs", "platform-admin-checkout.mjs", "platform-admin-billing-catalog.mjs", "platform-admin-support-identity.mjs",
 ];
@@ -277,6 +278,17 @@ test("actual server keeps central administration default-off without external re
   assert.equal(response.status, 503);
   assert.deepEqual(JSON.parse(response.body), { error: { code: "unconfigured" } });
   assert.equal(response.headers["cache-control"], "no-store");
+  await server.assertNoProviderFetch();
+});
+
+test('actual server wires the machine distribution observer without forwarding browser cookies', {timeout:20000}, async t=>{
+  const server=await launch(t,{legacy:true,envOverrides:{CAREMETRIC_ADMIN_ENABLED:'true',HUB_SUPABASE_URL:'https://hub.example.test',
+    HUB_SUPABASE_PUBLISHABLE_KEY:'sb_publishable_fixture',SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY:'fixture-server-only-key',
+    CAREBASE_DISTRIBUTION_OBSERVER_TOKEN:'a'.repeat(43),
+    CAREMETRIC_ADMIN_IDENTITY_MAP_JSON:JSON.stringify({'11111111-1111-4111-8111-111111111111':'22222222-2222-4222-8222-222222222222'})}});
+  const response=await request(server,'/api/internal/learning/distribution-status',{method:'POST',body:'{}',headers:{
+    'content-type':'application/json',authorization:'Bearer '+'a'.repeat(43),cookie:'browser=must-deny'}});
+  assert.equal(response.status,403);assert.deepEqual(JSON.parse(response.body),{error:{code:'forbidden'}});
   await server.assertNoProviderFetch();
 });
 

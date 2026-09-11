@@ -38762,6 +38762,22 @@ export type Database = {
         }
         Returns: Json
       }
+      get_learning_distribution_context: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      get_learning_distribution_status: {
+        Args: { p_course_ids: string[] }
+        Returns: Json
+      }
       get_managed_billing_subscriptions: {
         Args: {
           p_for_quantity_sync?: boolean
