@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import {execFileSync} from "node:child_process";
+import {execFileSync,spawn} from "node:child_process";
 import {randomBytes,randomUUID} from "node:crypto";
 import test from "node:test";
 import {createClient} from "@supabase/supabase-js";
@@ -85,6 +85,35 @@ test("real native SMS session and Hub HTTP calls share one provider reservation 
  const checked=await send({...apply,operation:"check"});assert.equal(checked.status,200);assert.equal((await checked.json()).data.outcome,"open");
  assert.equal(providerCalls.filter(call=>call.method==="POST").length,1,"Hub checks never create another session");
  assert.equal(sql(`select metadata->>'sessionId' from public.audit_logs where entity_type='checkout_reservation' and request_id='${preview.commandId}' order by created_at desc limit 1`),hubSession,"later Hub observer owns its audit despite original native creator");
+ // Force the actual organization/reservation lock interleaving in two database
+ // connections. Finish must wait on the organization before taking the row.
+ const lease=await rpc(native,"platform_admin_claim_checkout",{p_actor:actor,p_hub_user:hubUser,p_hub_session:hubSession,
+  p_session_started_at:actorAuthority.session_started_at,p_assurance_expires_at:actorAuthority.assurance_expires_at,p_authentication_method:"app_sms",
+  p_command_id:preview.commandId,p_expected_digest:preview.previewDigest,p_check_only:true});
+ assert.equal(lease.kind,"check");
+ const owner=spawn("docker",["exec","-i","supabase_db_xsqobvvreaovwibxwyvv","psql","-U","postgres","-d","postgres","-v","ON_ERROR_STOP=1","-At"],{stdio:["pipe","pipe","pipe"]});
+ const step=(statement,marker)=>new Promise((resolve,reject)=>{
+  let output="";const timer=setTimeout(()=>finish(Error("Synthetic lock step timed out")),5000);
+  const read=chunk=>{output+=chunk.toString();if(output.includes(marker))finish();};
+  const error=()=>finish(Error("Synthetic lock step failed"));
+  const finish=failure=>{clearTimeout(timer);owner.stdout.off("data",read);owner.stderr.off("data",error);failure?reject(failure):resolve();};
+  owner.stdout.on("data",read);owner.stderr.on("data",error);owner.stdin.write(statement+`\nselect '${marker}';\n`);
+ });
+ let finishing;
+ try {
+  await step(`begin; select id from public.organizations where id='${org}' for update;`,"organization-held");
+  const observed=provider();
+  finishing=rpc(native,"finish_checkout_reservation",{p_reservation_id:lease.reservationId,p_lease_id:lease.leaseId,p_outcome:"open",p_subscription_status:null,
+   p_session:{kind:"checkout",id:observed.id,url:observed.url,expiresAt:new Date(observed.expires_at*1000).toISOString(),livemode:false,customerId:observed.customer,subscriptionId:null,status:"open"}});
+  let waiting=false;
+  for(let attempt=0;attempt<40&&!waiting;attempt++) {
+   waiting=sql("select exists(select 1 from pg_stat_activity where query like '%finish_checkout_reservation%' and wait_event_type='Lock')")==="t";
+   if(!waiting)await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  assert.equal(waiting,true,"finish reached the held organization lock");
+  await step(`select id from app_private.checkout_reservations where id='${lease.reservationId}' for update;`,"reservation-held");
+  await step("commit;","locks-released");await finishing;
+ } finally {owner.stdin.end("rollback;\n\\q\n");if(finishing)await finishing.catch(()=>{});}
  actorAuthority.session_id=randomUUID();
  sql(`update public.package_billing_prices set is_active=false,minimum_quantity=7 where id='${priceId}'`);
  const recover={operation:"recover",action:"billing.checkout.recover",requestId:randomUUID(),targetId:org,reason:"Inspect previous Checkout in a fresh session"};

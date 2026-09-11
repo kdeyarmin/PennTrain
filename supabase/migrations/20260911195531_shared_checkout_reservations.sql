@@ -217,16 +217,16 @@ $$;
 -- Recovery creates a separate current-authority intent. It copies the original
 -- reservation terms and never resolves today's catalog or enables a POST.
 create function app_private.checkout_can_start(p_org uuid) returns boolean
-language sql stable security definer set search_path='' as $
+language sql stable security definer set search_path='' as $$
  select exists(select 1 from public.organizations where id=p_org)
    and not exists(select 1 from app_private.checkout_reservations where organization_id=p_org and state not in ('expired','failed','closed'))
    and not exists(select 1 from public.billing_subscriptions where organization_id=p_org and
      (billing_state in ('trial','active','grace','past_due') or (stripe_subscription_id is not null and
        (provider_status is null or provider_status not in ('canceled','incomplete_expired')))));
-$;
+$$;
 create function app_private.recover_checkout_intent(p_actor uuid,p_principal uuid,p_session uuid,p_method text,p_request text,p_org uuid,
  p_reason text,p_authority_expires timestamptz) returns app_private.checkout_intents
-language plpgsql security definer set search_path='' as $
+language plpgsql security definer set search_path='' as $$
 declare v_row app_private.checkout_intents; v_original app_private.checkout_intents; r app_private.checkout_reservations;
  v_id uuid:=gen_random_uuid();
 begin
@@ -255,20 +255,20 @@ begin
    least(clock_timestamp()+interval '5 minutes',p_authority_expires),r.id) returning * into v_row;
  return v_row;
 end;
-$;
+$$;
 create function app_private.checkout_preview(p_intent app_private.checkout_intents) returns jsonb
-language sql stable security definer set search_path='' as $
+language sql stable security definer set search_path='' as $$
  select jsonb_build_object('commandId',p_intent.id,'action',p_intent.action,'targetId',p_intent.organization_id,'reason',p_intent.reason,
    'expiresAt',p_intent.expires_at,'previewDigest',p_intent.preview_digest,'summary',p_intent.summary);
-$;
+$$;
 create function app_private.checkout_recovery_preview(p_intent app_private.checkout_intents) returns jsonb
-language sql stable security definer set search_path='' as $
+language sql stable security definer set search_path='' as $$
  select jsonb_build_object('preview',case when p_intent.reservation_id is null then null else app_private.checkout_preview(p_intent) end,
    'canStartNewCheckout',app_private.checkout_can_start(p_intent.organization_id));
-$;
+$$;
 
 create function app_private.checkout_handoff_allowed(p_intent app_private.checkout_intents) returns boolean
-language sql stable security definer set search_path='' as $
+language sql stable security definer set search_path='' as $$
  select coalesce((select p.stripe_price_id=p_intent.provider_parameters#>>'{line_items,0,price}'
    and p.currency=p_intent.source_snapshot#>>'{price,currency}'
    and p.interval_count=(p_intent.source_snapshot#>>'{price,interval_count}')::integer
@@ -277,7 +277,7 @@ language sql stable security definer set search_path='' as $
      and p.recurring_interval=p_intent.provider_parameters#>>'{metadata,billing_interval}' and p.stripe_price_id is not null
      and p.effective_from<=statement_timestamp() and (p.effective_to is null or p.effective_to>statement_timestamp())
    order by p.effective_from desc,p.id desc limit 1),false);
-$;
+$$;
 
 create function app_private.checkout_public_result(p_intent app_private.checkout_intents,p_replayed boolean) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
@@ -406,6 +406,10 @@ returns void language plpgsql security definer set search_path='' as $$
 declare v_row app_private.checkout_reservations; v_intent app_private.checkout_intents; v_actor uuid; v_org uuid;
 begin
  if coalesce(auth.jwt()->>'role','')<>'service_role' then raise exception 'Forbidden' using errcode='42501'; end if;
+ -- Match claim's organization-before-reservation order. A finish must not hold
+ -- the reservation while waiting on a concurrent claim's organization lock.
+ select organization_id into v_org from app_private.checkout_reservations where id=p_reservation_id;
+ perform 1 from public.organizations where id=v_org for key share;
  select * into v_row from app_private.checkout_reservations where id=p_reservation_id for update;
  if not found or v_row.state<>'executing' or v_row.lease_id is distinct from p_lease_id then raise exception 'Checkout lease changed' using errcode='40001'; end if;
  if p_outcome is null or p_outcome not in ('open','complete','expired','closed','failed','indeterminate')
@@ -496,16 +500,16 @@ grant execute on function public.platform_admin_preview_checkout(uuid,uuid,uuid,
 
 create function public.platform_admin_recover_checkout(p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,
  p_assurance_expires_at timestamptz,p_authentication_method text,p_request_id uuid,p_target uuid,p_reason text)
-returns jsonb language plpgsql security definer set search_path='' as $
+returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_row app_private.checkout_intents;
 begin
  perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
  v_row:=app_private.recover_checkout_intent(p_actor,p_hub_user,p_hub_session,p_authentication_method,p_request_id::text,p_target,p_reason,p_assurance_expires_at);
  return app_private.checkout_recovery_preview(v_row);
 end;
-$;
+$$;
 create function public.recover_native_checkout(p_grant_id uuid,p_actor uuid) returns jsonb
-language plpgsql security definer set search_path='' as $
+language plpgsql security definer set search_path='' as $$
 declare v_grant app_private.checkout_native_grants; v_row app_private.checkout_intents;
 begin
  v_grant:=app_private.assert_checkout_grant(p_grant_id,p_actor);
@@ -515,9 +519,9 @@ begin
    'Native administrator requested Checkout recovery',v_grant.expires_at);
  return app_private.checkout_recovery_preview(v_row);
 end;
-$;
+$$;
 create function public.claim_native_checkout_recovery(p_grant_id uuid,p_actor uuid,p_command_id uuid) returns jsonb
-language plpgsql security definer set search_path='' as $
+language plpgsql security definer set search_path='' as $$
 declare v_grant app_private.checkout_native_grants; v_row app_private.checkout_intents;
 begin
  v_grant:=app_private.assert_checkout_grant(p_grant_id,p_actor);
@@ -528,7 +532,7 @@ begin
    raise exception 'Native checkout recovery forbidden' using errcode='42501'; end if;
  return app_private.claim_checkout(v_row,true);
 end;
-$;
+$$;
 revoke all on function app_private.checkout_can_start(uuid),app_private.checkout_handoff_allowed(app_private.checkout_intents),app_private.recover_checkout_intent(uuid,uuid,uuid,text,text,uuid,text,timestamptz),
  app_private.checkout_preview(app_private.checkout_intents),app_private.checkout_recovery_preview(app_private.checkout_intents),
  public.platform_admin_recover_checkout(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid,uuid,text),

@@ -75,16 +75,16 @@ end;
 $$;
 
 
-create function pg_temp.checkout_recover(p_request uuid,p_reason text default 'Inspect previous Checkout after signing in') returns jsonb language sql as $
+create function pg_temp.checkout_recover(p_request uuid,p_reason text default 'Inspect previous Checkout after signing in') returns jsonb language sql as $$
  select public.platform_admin_recover_checkout('9c000000-0000-4000-8000-000000000001','9c000000-0000-4000-8000-000000000011',
  '9c000000-0000-4000-8000-000000000013',now()-interval '1 minute',now()+interval '7 hours','jwt_aal2',p_request,
  '9c000000-0000-4000-8000-000000000010',p_reason);
-$;
-create function pg_temp.checkout_recovery_claim(p_preview jsonb,p_check boolean default true) returns jsonb language sql as $
+$$;
+create function pg_temp.checkout_recovery_claim(p_preview jsonb,p_check boolean default true) returns jsonb language sql as $$
  select public.platform_admin_claim_checkout('9c000000-0000-4000-8000-000000000001','9c000000-0000-4000-8000-000000000011',
  '9c000000-0000-4000-8000-000000000013',now()-interval '1 minute',now()+interval '7 hours','jwt_aal2',
  (p_preview->>'commandId')::uuid,p_preview->>'previewDigest',p_check);
-$;
+$$;
 
 -- Actual native assurance is minted by an authenticated caller, not service JWT emulation.
 select set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub','9c000000-0000-4000-8000-000000000001',
@@ -203,9 +203,9 @@ select is((select value#>'{preview,summary}' from checkout_fixture where label='
  (select value->'summary' from checkout_fixture where label='changed'),'recovery preserves original immutable plan, quantity and trial');
 select is(pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000105')->'preview',
  (select value->'preview' from checkout_fixture where label='recovered'),'recover request replay keeps exact command, summary and expiry');
-select throws_ok($select pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000105','Changed reason is not the original')$,
+select throws_ok($$select pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000105','Changed reason is not the original')$$,
  '40001','Checkout request changed','recovery request id cannot be rebound');
-select throws_ok($select pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='recovered'),false)$,
+select throws_ok($$select pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='recovered'),false)$$,
  '42501','Checkout recovery is observation only','service apply cannot turn recovery into provider creation');
 insert into checkout_fixture values('recoveryCheck',pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='recovered')));
 select is((select value->>'kind' from checkout_fixture where label='recoveryCheck'),'check','retired current price does not prevent GET of original session');
@@ -268,12 +268,12 @@ select is((select create_attempts from app_private.checkout_reservations where f
 
 
 set local role service_role;
-select throws_ok($select pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000106')$,'40001','Checkout reservation changed',
+select throws_ok($$select pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000106')$$,'40001','Checkout reservation changed',
  'empty recovery request cannot silently adopt a later reservation');
 insert into checkout_fixture values('unknownRecovery',pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000107'));
 select is(pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='unknownRecovery'))#>>'{data,outcome}',
  'pending','fresh-session recovery of unknown identifier stays pending without a provider dispatch');
-select throws_ok($select pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='unknownRecovery'),false)$,
+select throws_ok($$select pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='unknownRecovery'),false)$$,
  '42501','Checkout recovery is observation only','unknown identifier cannot be promoted to apply');
 reset role;
 insert into auth.sessions(id,user_id,created_at,updated_at,aal) values
@@ -290,8 +290,8 @@ insert into checkout_fixture values('nativeRecovered',public.recover_native_chec
 select is(public.claim_native_checkout_recovery((select (value#>>'{}')::uuid from checkout_fixture where label='nativeRecoverGrant'),
  '9c000000-0000-4000-8000-000000000001',(select (value#>>'{preview,commandId}')::uuid from checkout_fixture where label='nativeRecovered'))#>>'{data,outcome}',
  'pending','new real native session shares the same GET-only unknown recovery');
-select throws_ok($select public.claim_native_checkout_recovery((select (value#>>'{}')::uuid from checkout_fixture where label='grant'),
- '9c000000-0000-4000-8000-000000000001',(select (value#>>'{preview,commandId}')::uuid from checkout_fixture where label='nativeRecovered'))$,
+select throws_ok($$select public.claim_native_checkout_recovery((select (value#>>'{}')::uuid from checkout_fixture where label='grant'),
+ '9c000000-0000-4000-8000-000000000001',(select (value#>>'{preview,commandId}')::uuid from checkout_fixture where label='nativeRecovered'))$$,
  '42501','Native checkout recovery forbidden','creation grant and old session cannot assume recovery authority');
 reset role;
 
