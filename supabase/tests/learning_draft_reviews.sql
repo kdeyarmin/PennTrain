@@ -139,6 +139,32 @@ select throws_ok($$select pg_temp.execute(gen_random_uuid(),pg_temp.params('{"bl
 select throws_ok($$select pg_temp.execute(gen_random_uuid(),pg_temp.params('{"blocks":[{"blockId":"9e000000-0000-4000-8000-000000000080","transcript":"Wrong type"}]}'))$$,
   '22023','Field does not match this block type.','body field must match existing native block type');
 
+savepoint legacy_body;
+update public.course_blocks set body='{"content":{"native":"structured text"},"estimated_minutes":"4"}' where id='9e000000-0000-4000-8000-000000000080';
+select throws_ok($$select pg_temp.execute(gen_random_uuid(),pg_temp.params('{"blocks":[{"blockId":"9e000000-0000-4000-8000-000000000080","content":"Accidental flattening"}]}'))$$,
+  '22023','Review this legacy field in its native editor.','closed edit cannot flatten a structured legacy text field');
+select throws_ok($$select pg_temp.execute(gen_random_uuid(),pg_temp.params('{"blocks":[{"blockId":"9e000000-0000-4000-8000-000000000080","estimatedMinutes":4}]}'))$$,
+  '22023','Review this legacy field in its native editor.','closed edit cannot silently coerce a legacy duration');
+select lives_ok($$select pg_temp.execute(gen_random_uuid(),pg_temp.params('{"blocks":[{"blockId":"9e000000-0000-4000-8000-000000000080","title":"Safe title-only edit"}]}'))$$,
+  'safe title-only edits preserve legacy body values');
+select is((select body from public.course_blocks where id='9e000000-0000-4000-8000-000000000080'),'{"content":{"native":"structured text"},"estimated_minutes":"4"}'::jsonb,'title-only save preserves exact structured legacy body');
+rollback to savepoint legacy_body;
+
+create function pg_temp.boundary_patch(p_extra integer) returns jsonb language plpgsql as $$
+declare v_patch jsonb; v_padding integer;
+begin
+  v_patch:=jsonb_build_object('version',jsonb_build_object('title',repeat('t',300),'description',repeat(' ',12000)),
+    'blocks',jsonb_build_array(jsonb_build_object('blockId','9e000000-0000-4000-8000-000000000080','content',repeat('y',12000),'title','')));
+  -- root(3), version(3), one-item array(0), block(5) formatting spaces.
+  v_padding:=24576-(octet_length(v_patch::text)-11)+p_extra;
+  return jsonb_set(v_patch,'{blocks,0,title}',to_jsonb(repeat('z',v_padding)));
+end;
+$$;
+select lives_ok($$select app_private.validate_learning_draft_patch(pg_temp.draft_id(),pg_temp.boundary_patch(0))$$,
+  'SQL accepts the exact compact 24KiB transport boundary without discarding prose spaces');
+select throws_ok($$select app_private.validate_learning_draft_patch(pg_temp.draft_id(),pg_temp.boundary_patch(1))$$,
+  '22023','Invalid bounded draft patch.','SQL rejects one compact byte above the shared boundary');
+
 insert into draft_fixture values('preReviewRevision',to_jsonb(pg_temp.revision()));
 insert into draft_fixture values('review',pg_temp.review());
 select ok(not pg_temp.review_absent(),'explicit human review records active evidence');
@@ -222,12 +248,12 @@ create function pg_temp.hub_apply(p_preview jsonb) returns jsonb language sql as
 $$;
 insert into draft_fixture values('hubPatch',pg_temp.hub_preview('{"version":{"title":"Hub edited title"}}'));
 select is((select value->'after' from draft_fixture where label='hubPatch'),
- (select (value->'before'-'sourceRevision')||'{"title":"Hub edited title","aiReviewRequired":true}'::jsonb from draft_fixture where label='hubPatch'),'patch preview exactly preserves draft identities and reports new review requirement');
+ (select ((value->'before')-'sourceRevision')||'{"title":"Hub edited title","aiReviewRequired":true}'::jsonb from draft_fixture where label='hubPatch'),'patch preview exactly preserves draft identities and reports new review requirement');
 select pg_temp.hub_apply((select value from draft_fixture where label='hubPatch'));
 select ok(pg_temp.review_absent(),'delegated patch never manufactures review');
 insert into draft_fixture values('hubReview',pg_temp.hub_preview());
 select is((select value->'after' from draft_fixture where label='hubReview'),
- (select (value->'before'-'sourceRevision')||'{"aiReviewRequired":false}'::jsonb from draft_fixture where label='hubReview'),'review preview only changes review requirement');
+ (select ((value->'before')-'sourceRevision')||'{"aiReviewRequired":false}'::jsonb from draft_fixture where label='hubReview'),'review preview only changes review requirement');
 select pg_temp.hub_apply((select value from draft_fixture where label='hubReview'));
 select is((select authentication_method from app_private.learning_draft_reviews where version_id=pg_temp.draft_id() and revoked_at is null),'app_sms','delegated proof records actual SMS authority without claiming AAL2');
 select ok((pg_temp.hub_apply((select value from draft_fixture where label='hubReview'))->>'replayed')::boolean,'delegated review replay cannot create a second approval');

@@ -153,10 +153,13 @@ end; $$;
 
 create function app_private.validate_learning_draft_patch(p_version uuid,p_patch jsonb) returns void
 language plpgsql security definer set search_path='' as $$
-declare v_update jsonb; v_block public.course_blocks; v_version public.course_versions; v_changed boolean:=false; v_key text;
+declare v_update jsonb; v_block public.course_blocks; v_version public.course_versions; v_changed boolean:=false; v_key text; v_compact_bytes integer;
 begin
   if p_patch is null or jsonb_typeof(p_patch)<>'object' or p_patch-array['version','blocks']<>'{}'::jsonb or p_patch='{}'::jsonb
-    or octet_length(p_patch::text)>24576 then raise exception 'Invalid bounded draft patch.' using errcode='22023'; end if;
+    or octet_length(p_patch::text)>32768 then raise exception 'Invalid bounded draft patch.' using errcode='22023'; end if;
+  -- JSONB prints a space after each colon/comma. Count compact JSON bytes like
+  -- the two transports without modifying spaces inside the actual prose.
+  select octet_length(p_patch::text)-greatest(2*count(*)::integer-1,0) into v_compact_bytes from jsonb_object_keys(p_patch);
   if p_patch::text ~* '([?&](token|access_token|signature|sig|key|policy|jwt|auth|h|hdnts|hdnea|key-pair-id|api_key|apikey|x-amz-[a-z-]+|x-goog-[a-z-]+)=|"(access_?token|refresh_?token|service_?role_?key|authorization|password|client_?secret|storage_?(path|bucket)|video_?url|playback_?(url|token)|signed_?url|api_?key|token|secret|secret_?key|signing_?secret)"[[:space:]]*:)' then
     raise exception 'Draft text contains an excluded credential field.' using errcode='22023'; end if;
   select * into v_version from public.course_versions where id=p_version and status='draft';
@@ -169,6 +172,7 @@ begin
       or (v_update ? 'description' and (jsonb_typeof(v_update->'description') not in ('string','null') or length(v_update->>'description')>12000)) then
       raise exception 'Invalid editable version fields.' using errcode='22023';
     end if;
+    select v_compact_bytes-greatest(2*count(*)::integer-1,0) into v_compact_bytes from jsonb_object_keys(v_update);
     v_changed:=v_changed or (v_update ? 'title' and v_update->>'title' is distinct from v_version.title)
       or (v_update ? 'description' and v_update->>'description' is distinct from v_version.description);
   end if;
@@ -177,11 +181,13 @@ begin
       or exists(select 1 from jsonb_array_elements(p_patch->'blocks') b group by lower(b->>'blockId') having count(*)>1) then
       raise exception 'Invalid editable block list.' using errcode='22023';
     end if;
+    v_compact_bytes:=v_compact_bytes-greatest(jsonb_array_length(p_patch->'blocks')-1,0);
     for v_update in select value from jsonb_array_elements(p_patch->'blocks') loop
       if jsonb_typeof(v_update)<>'object' or v_update-array['blockId','title','content','transcript','estimatedMinutes']<>'{}'::jsonb
         or v_update-'blockId'='{}'::jsonb or coalesce(v_update->>'blockId','') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
         raise exception 'Invalid editable block fields.' using errcode='22023';
       end if;
+      select v_compact_bytes-greatest(2*count(*)::integer-1,0) into v_compact_bytes from jsonb_object_keys(v_update);
       select * into v_block from public.course_blocks where id=(v_update->>'blockId')::uuid and course_version_id=p_version and organization_id is null;
       if not found then raise exception 'Block is outside this global draft.' using errcode='42501'; end if;
       if v_update ? 'title' and (jsonb_typeof(v_update->'title') not in ('string','null') or length(v_update->>'title')>300
@@ -192,11 +198,18 @@ begin
         raise exception 'Review this legacy block in its native editor.' using errcode='22023';
       end if;
       foreach v_key in array array['content','transcript'] loop
+        if v_update ? v_key and v_block.body ? v_key and jsonb_typeof(v_block.body->v_key) not in ('string','null') then
+          raise exception 'Review this legacy field in its native editor.' using errcode='22023';
+        end if;
         if v_update ? v_key and (jsonb_typeof(v_update->v_key)<>'string' or length(v_update->>v_key)>12000
           or (v_key='content' and v_block.block_type<>'text') or (v_key='transcript' and v_block.block_type<>'video')) then
           raise exception 'Field does not match this block type.' using errcode='22023';
         end if;
       end loop;
+      if v_update ? 'estimatedMinutes' and v_block.body ? 'estimated_minutes'
+        and jsonb_typeof(v_block.body->'estimated_minutes') not in ('number','null') then
+        raise exception 'Review this legacy field in its native editor.' using errcode='22023';
+      end if;
       if v_update ? 'estimatedMinutes' and (v_block.block_type not in ('text','video') or jsonb_typeof(v_update->'estimatedMinutes')<>'number'
         or (v_update->>'estimatedMinutes')::numeric<>trunc((v_update->>'estimatedMinutes')::numeric)
         or (v_update->>'estimatedMinutes')::numeric not between 0 and 1440) then raise exception 'Invalid estimated minutes.' using errcode='22023'; end if;
@@ -206,6 +219,7 @@ begin
         or (v_update ? 'estimatedMinutes' and v_update->'estimatedMinutes' is distinct from v_block.body->'estimated_minutes');
     end loop;
   end if;
+  if v_compact_bytes>24576 then raise exception 'Invalid bounded draft patch.' using errcode='22023'; end if;
   if not v_changed then raise exception 'The draft patch has no changes.' using errcode='22023'; end if;
 end;
 $$;

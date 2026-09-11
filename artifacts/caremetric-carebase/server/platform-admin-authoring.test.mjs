@@ -15,6 +15,15 @@ const inspect = { operation: 'inspect', courseId: id(4) };
 const preview = { operation: 'preview', requestId: id(8), action: 'learning.cloneVersion', courseId: id(4),
   parameters: { versionId: id(5), sourceRevision: 'a'.repeat(64), title: 'A new governed draft' }, reason: 'Reviewed the source and its policies' };
 const apply = { operation: 'apply', commandId: id(7), expectedDigest: 'b'.repeat(64) };
+test('draft patch size counts actual prose spaces at the same 24KiB boundary as SQL', () => {
+  const patch = { version: { title: 't'.repeat(300), description: ' '.repeat(12000) },
+    blocks: [{ blockId: id(80), content: 'y'.repeat(12000), title: '' }] };
+  patch.blocks[0].title = 'z'.repeat(24576 - Buffer.byteLength(JSON.stringify(patch)));
+  assert.equal(Buffer.byteLength(JSON.stringify(patch)), 24576);
+  assert.equal(validDraftPatch(patch), true);
+  patch.blocks[0].title += 'z';
+  assert.equal(validDraftPatch(patch), false);
+});
 function fixture(overrides = {}) {
   const calls = []; const state = { actor: { user_id: id(1), role: 'platform_admin', aal: 'aal2', session_id: id(3),
     session_started_at: '2026-09-11T14:00:00Z', assurance_expires_at: '2026-09-11T22:00:00Z' },
