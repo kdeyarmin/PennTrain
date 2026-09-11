@@ -11,7 +11,7 @@ const ORGANIZATION_ID = "55555555-5555-4555-8555-555555555555";
 const ACCOUNT_ID = "66666666-6666-4666-8666-666666666666";
 const PACKAGE_ID = "77777777-7777-4777-8777-777777777777";
 const SUBSCRIPTION_ID = "88888888-8888-4888-8888-888888888888";
-const READS = ["capabilities", "overview", "courses.list", "courses.get", "organizations.list", "users.list", "billing.overview", "billing.subscriptions.list", "billing.packages.list", "billing.invoices.list", "billing.invoices.get", "billing.subscriptions.verify"];
+const READS = ["capabilities", "overview", "courses.list", "courses.get", "organizations.list", "users.list", "billing.overview", "billing.subscriptions.list", "billing.packages.list", "billing.invoices.list", "billing.invoices.get", "billing.subscriptions.verify", "operations.jobs.list", "operations.releases.list", "operations.audit.list"];
 const NOW = "2026-09-11T13:00:00.000Z";
 const ENV = {
   CAREMETRIC_ADMIN_ENABLED: "true", HUB_SUPABASE_URL: "https://hub.example.test",
@@ -67,7 +67,7 @@ function fixture(overrides = {}) {
       return state.appError ? json({error:'Unauthorized'},state.appError) : json(state.appActor);
     }
     if (url.origin === ENV.HUB_SUPABASE_URL) {
-      assert.equal(url.pathname, "/rest/v1/rpc/authorize_platform_admin");
+      assert.ok(["/rest/v1/rpc/authorize_platform_admin","/rest/v1/rpc/authorize_platform_command"].includes(url.pathname));
       assert.equal(method, "POST");
       assert.equal(headers.get("content-profile"), "hub");
       assert.equal(headers.get("apikey"), ENV.HUB_SUPABASE_PUBLISHABLE_KEY);
@@ -80,6 +80,12 @@ function fixture(overrides = {}) {
     if (url.pathname === `/auth/v1/admin/users/${NATIVE_ID}`) return state.userError
       ? json({ msg: "Native identity unavailable" }, state.userError) : json({ user: state.user });
     const table = url.pathname.slice("/rest/v1/".length);
+    if(table==='rpc/platform_admin_read_operations'){
+      assert.equal(method,'POST');
+      const args=JSON.parse(init.body);assert.equal(args.p_actor,NATIVE_ID);assert.equal(args.p_hub_user,HUB_ID);
+      assert.equal(args.p_hub_session,VERSION_ID);assert.equal(args.p_authentication_method,'app_sms');
+      return json({items:[],total:0,limit:args.p_limit,offset:args.p_offset});
+    }
     if (method === "HEAD") {
       if (table === "profiles") assert.equal(url.searchParams.get("is_active"), "eq.true");
       if (table === "courses") assert.equal(url.searchParams.get("organization_id"), "is.null");
@@ -150,6 +156,23 @@ test('SMS delegation rejects changed operation, method, role, unmapped identity 
   const f=fixture({appError:401});
   assert.equal((await f.handler(request(undefined,{Authorization:'Bearer cmh_'+'a'.repeat(43)}))).status,401);
   assert.equal(f.calls.length,1);
+});
+
+test('operational reads carry exact SMS authority to the shared native reader',async()=>{
+  for(const name of ['operations.jobs.list','operations.releases.list','operations.audit.list']){
+    const operation={operation:name,limit:10,offset:0,search:'fixture'};
+    const appActor={user_id:HUB_ID,role:'platform_admin',method:'sms',operation,session_id:VERSION_ID,
+      session_started_at:'2026-09-11T12:00:00Z',assurance_expires_at:'2026-09-11T20:00:00Z'};
+    const f=fixture({appActor});
+    const response=await f.handler(request(operation,{Authorization:'Bearer cmh_'+'a'.repeat(43)}));
+    assert.equal(response.status,200);assert.deepEqual((await response.json()).data,{items:[],total:0,limit:10,offset:0});
+    assert.ok(f.calls.some(call=>call.url.pathname==='/rest/v1/rpc/platform_admin_read_operations'));
+    for(const override of [{session_id:undefined},{assurance_expires_at:'2026-09-11T12:30:00Z'}]){
+      const denied=fixture({appActor:{...appActor,...override}});
+      assert.equal((await denied.handler(request(operation,{Authorization:'Bearer cmh_'+'a'.repeat(43)}))).status,403);
+      assert.equal(denied.calls.some(call=>call.url.pathname==='/rest/v1/rpc/platform_admin_read_operations'),false);
+    }
+  }
 });
 
 test("default off needs no credentials; enabled config refuses unsafe mappings and origins", () => {

@@ -11,7 +11,7 @@ export interface SystemJobStatus {
   is_critical: boolean;
   retry_mode: "automatic" | "manual" | "none";
   operator_route: string | null;
-  last_status: "never" | "queued" | "running" | "succeeded" | "partial" | "failed" | "cancelled";
+  last_status: "never" | "queued" | "starting" | "connecting" | "sending" | "running" | "succeeded" | "partial" | "failed" | "cancelled";
   last_attempt_at: string | null;
   last_success_at: string | null;
   next_expected_at: string | null;
@@ -20,7 +20,7 @@ export interface SystemJobStatus {
   succeeded_count: number | null;
   failed_count: number | null;
   error_message: string | null;
-  is_stale: boolean;
+  is_stale: boolean | null;
   /** The switch's stored position. Also on SystemJobRecoveryState; this is the same value. */
   kill_switch_enabled: boolean;
   /**
