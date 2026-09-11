@@ -80,6 +80,8 @@ create temporary table authoring_fixture(label text primary key,value jsonb);
 insert into authoring_fixture values('source',(select to_jsonb(v) from public.course_versions v where id='9f000000-0000-4000-8000-000000000008'));
 select ok(not has_function_privilege('anon','public.clone_course_version(uuid,uuid,integer,text,uuid)','EXECUTE'),'anonymous caller cannot clone');
 select ok(not has_function_privilege('service_role','app_private.clone_course_version_core(uuid,uuid,uuid,uuid,integer,text,text)','EXECUTE'),'service cannot bypass the delegated authority wrapper');
+select ok(not has_function_privilege('authenticated','app_private.assert_learning_authoring_ready(uuid)','EXECUTE')
+  and not has_function_privilege('service_role','app_private.assert_learning_authoring_ready(uuid)','EXECUTE'),'trusted readiness context has no public or service entry point');
 select ok(not has_function_privilege('authenticated','public.apply_learning_authoring_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,text)','EXECUTE'),'browser cannot forge delegated apply');
 select ok(not has_table_privilege('service_role','app_private.learning_authoring_package_dependencies','UPDATE'),'service cannot forge artifact resolution');
 select set_config('request.jwt.claims','{"sub":"9f000000-0000-4000-8000-000000000005","role":"authenticated"}',true);
@@ -207,6 +209,33 @@ select set_config('app.privileged_write','',true);
 -- Fresh native review is explicit; the delegated publisher reuses its existing rules.
 select set_config('request.jwt.claims','{"sub":"9f000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
 update public.course_versions set ai_reviewed_at=now(),ai_reviewed_by='9f000000-0000-4000-8000-000000000003' where id=pg_temp.draft_id();
+create function pg_temp.publish_failure(p_delegated boolean) returns jsonb language plpgsql as $$
+begin
+  if p_delegated then
+    perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+    perform public.preview_learning_authoring_command('9f000000-0000-4000-8000-000000000003','9f000000-0000-4000-8000-000000000050',
+      '9f000000-0000-4000-8000-000000000051',now()-interval '1 hour',now()+interval '7 hours',gen_random_uuid(),'learning.publishVersion',
+      '9f000000-0000-4000-8000-000000000007',jsonb_build_object('versionId',pg_temp.draft_id(),'sourceRevision',
+        encode(extensions.digest(app_private.learning_source_payload('9f000000-0000-4000-8000-000000000007',pg_temp.draft_id()),'sha256'),'hex')),
+      'Compare the existing native publication rules','app_sms');
+  else
+    perform set_config('request.jwt.claims','{"sub":"9f000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
+    perform public.publish_course_version(pg_temp.draft_id());
+  end if;
+  return jsonb_build_object('unexpectedSuccess',true);
+exception when others then
+  return jsonb_build_object('code',sqlstate,'message',sqlerrm,'trustedContext',coalesce(current_setting('app.privileged_write',true),''));
+end;
+$$;
+update public.course_blocks set body='{}' where course_version_id=pg_temp.draft_id() and block_type='video';
+select is(pg_temp.publish_failure(true),pg_temp.publish_failure(false),'delegated and native publication use identical transcript readiness rules');
+select is(pg_temp.publish_failure(true)->>'code','23514','invalid content remains rejected rather than bypassed by trusted context');
+select is(pg_temp.publish_failure(true)->>'trustedContext','','a failed readiness check restores its prior trusted context');
+update public.course_blocks set body='{"transcript":"Preserve accessible transcript","estimated_minutes":3}' where course_version_id=pg_temp.draft_id() and block_type='video';
+update public.course_versions set content_standard='comprehensive' where id=pg_temp.draft_id();
+select is(pg_temp.publish_failure(true),pg_temp.publish_failure(false),'delegated and native publication use identical comprehensive curriculum rules');
+select is(pg_temp.publish_failure(true)->>'code','23514','incomplete comprehensive curriculum cannot publish');
+update public.course_versions set content_standard='legacy' where id=pg_temp.draft_id();
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 insert into authoring_fixture values('publishPreview',public.preview_learning_authoring_command(
   '9f000000-0000-4000-8000-000000000003','9f000000-0000-4000-8000-000000000050','9f000000-0000-4000-8000-000000000051',
@@ -220,5 +249,7 @@ select is((select status from public.course_versions where id='9f000000-0000-400
 select is((select count(*) from public.quiz_attempts where assignment_id='9f000000-0000-4000-8000-000000000060'),1::bigint,'publishing neither migrates nor duplicates old quiz attempts');
 select is((select count(*) from app_private.learning_receipt_outbox),0::bigint,'authoring creates no synthetic completion receipt');
 select is(coalesce(current_setting('app.privileged_write',true),''),'','publisher restores the previous privileged-write setting');
+select set_config('request.jwt.claims','{"sub":"9f000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
+select lives_ok($$select public.publish_course_version(pg_temp.draft_id())$$,'native direct publication remains callable with the same ready course');
 select finish();
 rollback;
