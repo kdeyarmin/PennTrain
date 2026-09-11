@@ -39,10 +39,10 @@ test("real native SMS session and Hub HTTP calls share one provider reservation 
  const attempt=await rpc(native,"reserve_sms_mfa_check",{p_profile_id:actor,p_session_id:claims.session_id,p_challenge_id:challenge.challengeId});
  await rpc(native,"complete_sms_mfa_check",{p_profile_id:actor,p_session_id:claims.session_id,p_challenge_id:challenge.challengeId,p_attempt_id:attempt.attemptId,p_approved:true});
  assert.equal(await rpc(caller,"identity_assurance_is_current",{p_operation:"billing_admin"}),true);
- const providerCalls=[],tickets=new Map();let providerValues,releasePost,announcePost,revokeAfterGet=false;
+ const providerCalls=[],tickets=new Map();let providerValues,releasePost,announcePost,revokeAfterGet=false,providerStatus="open";
  const postStarted=new Promise(resolve=>{announcePost=resolve;}),postRelease=new Promise(resolve=>{releasePost=resolve;});
- const provider=()=>({id:`cs_test_${suffix}`,mode:"subscription",client_reference_id:org,customer:`cus_${suffix}`,subscription:null,status:"open",
-   metadata:providerValues.metadata,livemode:false,expires_at:Math.floor(Date.now()/1000)+3600,url:`https://checkout.stripe.com/c/pay/cs_test_${suffix}#safe%2Ffragment`,
+ const provider=()=>({id:`cs_test_${suffix}`,mode:"subscription",client_reference_id:org,customer:`cus_${suffix}`,subscription:null,status:providerStatus,
+   metadata:providerValues.metadata,livemode:false,expires_at:Math.floor(Date.now()/1000)+3600,url:providerStatus==="open"?`https://checkout.stripe.com/c/pay/cs_test_${suffix}#safe%2Ffragment`:null,
    line_items:{has_more:false,data:[{price:{active:true,livemode:false,type:"recurring",id:`price_${suffix}`,currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:1}]}});
  const stripePost=async(path,_key,values,key)=>{providerCalls.push({method:"POST",path,key});providerValues=values;announcePost();await postRelease;return {ok:true,status:200,data:provider()};};
  const stripeGet=async path=>{providerCalls.push({method:"GET",path});assert.equal(path,`/v1/checkout/sessions/cs_test_${suffix}?expand%5B%5D=line_items`);
@@ -84,9 +84,25 @@ test("real native SMS session and Hub HTTP calls share one provider reservation 
  const nativeResponse=await pendingNative;assert.equal(nativeResponse.status,200);assert.equal((await nativeResponse.json()).data.sessionId,`cs_test_${suffix}`);
  const checked=await send({...apply,operation:"check"});assert.equal(checked.status,200);assert.equal((await checked.json()).data.outcome,"open");
  assert.equal(providerCalls.filter(call=>call.method==="POST").length,1,"Hub checks never create another session");
+ assert.equal(sql(`select metadata->>'sessionId' from public.audit_logs where entity_type='checkout_reservation' and request_id='${preview.commandId}' order by created_at desc limit 1`),hubSession,"later Hub observer owns its audit despite original native creator");
+ actorAuthority.session_id=randomUUID();
+ sql(`update public.package_billing_prices set is_active=false,minimum_quantity=7 where id='${priceId}'`);
+ const recover={operation:"recover",action:"billing.checkout.recover",requestId:randomUUID(),targetId:org,reason:"Inspect previous Checkout in a fresh session"};
+ const recoveryResponse=await send(recover);assert.equal(recoveryResponse.status,200);const recovered=(await recoveryResponse.json()).data;
+ assert.equal(recovered.preview.summary.quantity,1);assert.equal(recovered.result.outcome,"pending");assert.equal(recovered.result.session,null,"retired native price never yields an open capability");
+ assert.equal(sql(`select metadata->>'sessionId' from public.audit_logs where entity_type='checkout_reservation' and request_id='${recovered.preview.commandId}' order by created_at desc limit 1`),actorAuthority.session_id);
+ const rejectedApply=await send({operation:"apply",action:"billing.checkout.create",commandId:recovered.preview.commandId,expectedDigest:recovered.preview.previewDigest});
+ assert.equal(rejectedApply.status,403,"a relabelled recovery intent cannot create");
+ providerStatus="expired";
+ const expiredResponse=await send({operation:"check",action:recover.action,commandId:recovered.preview.commandId,expectedDigest:recovered.preview.previewDigest});
+ assert.equal(expiredResponse.status,200);assert.equal((await expiredResponse.json()).data.canStartNewCheckout,true);
+ assert.equal(providerCalls.filter(call=>call.method==="POST").length,1);
+ sql(`update public.package_billing_prices set is_active=true,minimum_quantity=1 where id='${priceId}'`);
+ actorAuthority.session_id=hubSession;providerStatus="open";
+ const replacementResponse=await send({...previewRequest,requestId:randomUUID()});assert.equal(replacementResponse.status,200);const replacement=(await replacementResponse.json()).data;
  revokeAfterGet=true;
- const denied=await send({...apply,operation:"check"});assert.equal(denied.status,403);assert.equal((await denied.text()).includes("checkout.stripe.com"),false);
- assert.equal(sql(`select state from app_private.checkout_reservations where organization_id='${org}'`),"open","successful provider evidence persists despite later actor revocation");
+ const denied=await send({...apply,commandId:replacement.commandId,expectedDigest:replacement.previewDigest});assert.equal(denied.status,403);assert.equal((await denied.text()).includes("checkout.stripe.com"),false);
+ assert.equal(sql(`select state from app_private.checkout_reservations where organization_id='${org}' and state not in ('expired','failed','closed')`),"open","successful provider evidence persists despite later actor revocation");
  assert.equal(sql(`select count(*) from public.audit_logs where entity_type='checkout_reservation' and organization_id='${org}' and to_jsonb(audit_logs)::text like '%checkout.stripe.com%'`),"0");
  // Immutable synthetic evidence remains until CI stops this disposable stack without backup.
 });

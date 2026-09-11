@@ -74,6 +74,18 @@ begin
 end;
 $$;
 
+
+create function pg_temp.checkout_recover(p_request uuid,p_reason text default 'Inspect previous Checkout after signing in') returns jsonb language sql as $
+ select public.platform_admin_recover_checkout('9c000000-0000-4000-8000-000000000001','9c000000-0000-4000-8000-000000000011',
+ '9c000000-0000-4000-8000-000000000013',now()-interval '1 minute',now()+interval '7 hours','jwt_aal2',p_request,
+ '9c000000-0000-4000-8000-000000000010',p_reason);
+$;
+create function pg_temp.checkout_recovery_claim(p_preview jsonb,p_check boolean default true) returns jsonb language sql as $
+ select public.platform_admin_claim_checkout('9c000000-0000-4000-8000-000000000001','9c000000-0000-4000-8000-000000000011',
+ '9c000000-0000-4000-8000-000000000013',now()-interval '1 minute',now()+interval '7 hours','jwt_aal2',
+ (p_preview->>'commandId')::uuid,p_preview->>'previewDigest',p_check);
+$;
+
 -- Actual native assurance is minted by an authenticated caller, not service JWT emulation.
 select set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub','9c000000-0000-4000-8000-000000000001',
  'session_id','9c000000-0000-4000-8000-000000000002','aal','aal2','iat',extract(epoch from now()))::text,true);
@@ -179,16 +191,66 @@ select throws_ok($$select public.read_native_checkout_result((select (value#>>'{
 reset role;
 update auth.sessions set not_after=null where id='9c000000-0000-4000-8000-000000000002';
 
+
+-- A new authorized session observes original terms even after the catalog,
+-- trial and measured-quantity policy change. Recovery has no creation path.
+update public.package_billing_prices set is_active=false,minimum_quantity=12 where id='9c000000-0000-4000-8000-000000000031';
+update public.packages set trial_days=14 where id='9c000000-0000-4000-8000-000000000021';
+set local role service_role;
+insert into checkout_fixture values('recovered',pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000105'));
+select is((select value#>>'{preview,action}' from checkout_fixture where label='recovered'),'billing.checkout.recover','fresh-session recovery has an observation-only action');
+select is((select value#>'{preview,summary}' from checkout_fixture where label='recovered'),
+ (select value->'summary' from checkout_fixture where label='changed'),'recovery preserves original immutable plan, quantity and trial');
+select is(pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000105')->'preview',
+ (select value->'preview' from checkout_fixture where label='recovered'),'recover request replay keeps exact command, summary and expiry');
+select throws_ok($select pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000105','Changed reason is not the original')$,
+ '40001','Checkout request changed','recovery request id cannot be rebound');
+select throws_ok($select pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='recovered'),false)$,
+ '42501','Checkout recovery is observation only','service apply cannot turn recovery into provider creation');
+insert into checkout_fixture values('recoveryCheck',pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='recovered')));
+select is((select value->>'kind' from checkout_fixture where label='recoveryCheck'),'check','retired current price does not prevent GET of original session');
+select pg_temp.checkout_finish((select value from checkout_fixture where label='recoveryCheck'),'open');
+reset role;
+select is(app_private.checkout_public_result((select i from app_private.checkout_intents i where id=(select (value#>>'{preview,commandId}')::uuid from checkout_fixture where label='recovered')),true)->'session',
+ 'null'::jsonb,'current retired price withholds open capability even after valid provider observation');
+set local role service_role;
+insert into checkout_fixture values('recoveryExpiryCheck',pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='recovered')));
+select is((select value->>'kind' from checkout_fixture where label='recoveryExpiryCheck'),'check','retired-price observations remain GET-only');
+select pg_temp.checkout_finish((select value from checkout_fixture where label='recoveryExpiryCheck'),'expired');
+select is(pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='recovered'))#>>'{data,canStartNewCheckout}',
+ 'true','verified expiration can release original reservation after fresh-session recovery');
+reset role;
+select is((select metadata->>'sessionId' from public.audit_logs where entity_type='checkout_reservation'
+ and request_id=(select value#>>'{preview,commandId}' from checkout_fixture where label='recovered') order by created_at desc limit 1),
+ '9c000000-0000-4000-8000-000000000013','provider observation audit attributes the lease-owning current session');
+select is((select metadata->>'authenticationMethod' from public.audit_logs where entity_type='checkout_reservation'
+ and request_id=(select value#>>'{preview,commandId}' from checkout_fixture where label='recovered') order by created_at desc limit 1),
+ 'jwt_aal2','provider observation audit records current method instead of first native creator');
+set local role service_role;
+insert into checkout_fixture values('none',pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000106'));
+select is((select value->'preview' from checkout_fixture where label='none'),'null'::jsonb,'no unresolved reservation produces no reusable command');
+select is((select value->>'canStartNewCheckout' from checkout_fixture where label='none'),'true','empty organization state is explicit eligibility evidence');
+reset role;
+insert into public.billing_subscriptions(organization_id,billing_account_id,stripe_subscription_id,provider_status,billing_state)
+ select organization_id,id,'sub_recovery_paused','paused','suspended' from public.billing_accounts where organization_id='9c000000-0000-4000-8000-000000000010';
+set local role service_role;
+select is(pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000106')->>'canStartNewCheckout','false',
+ 'no reservation does not imply eligibility when native provider-backed subscription remains paused');
+reset role;
+delete from public.billing_subscriptions where stripe_subscription_id='sub_recovery_paused';
+update public.package_billing_prices set is_active=true,minimum_quantity=1 where id='9c000000-0000-4000-8000-000000000031';
+update public.packages set trial_days=0 where id='9c000000-0000-4000-8000-000000000021';
+
 -- A provider may prune an idempotency key after 24 hours. Unknown creation is
 -- deliberately retained after our 23-hour replay bound, regardless of a new intent.
 set local role service_role;
 insert into checkout_fixture values('expireKnown',pg_temp.checkout_claim((select value from checkout_fixture where label='changed'),true));
-select pg_temp.checkout_finish((select value from checkout_fixture where label='expireKnown'),'expired');
+select is((select value#>>'{data,outcome}' from checkout_fixture where label='expireKnown'),'expired','original command reads the preserved recovered terminal receipt');
 reset role;
 insert into checkout_fixture values('agedUnknown',pg_temp.expired_checkout_preview((select value from checkout_fixture where label='hub'),interval '24 hours 1 minute'));
 with inserted as (
- insert into app_private.checkout_reservations(organization_id,first_intent_id,provider_parameters,state,create_attempts,first_started_at,lease_id,lease_until)
- select organization_id,id,provider_parameters,'indeterminate',1,clock_timestamp()-interval '24 hours',gen_random_uuid(),clock_timestamp()-interval '23 hours'
+ insert into app_private.checkout_reservations(organization_id,first_intent_id,current_intent_id,provider_parameters,state,create_attempts,first_started_at,lease_id,lease_until)
+ select organization_id,id,id,provider_parameters,'indeterminate',1,clock_timestamp()-interval '24 hours',gen_random_uuid(),clock_timestamp()-interval '23 hours'
  from app_private.checkout_intents where id=(select (value->>'commandId')::uuid from checkout_fixture where label='agedUnknown')
  returning id,first_intent_id
 ) update app_private.checkout_intents i set reservation_id=r.id from inserted r where i.id=r.first_intent_id;
@@ -203,6 +265,35 @@ select throws_ok($$select pg_temp.checkout_claim((select value from checkout_fix
 reset role;
 select is((select create_attempts from app_private.checkout_reservations where first_intent_id=(select (value->>'commandId')::uuid from checkout_fixture where label='agedUnknown')),
  1,'aged unknown checks leave durable dispatch count unchanged');
+
+
+set local role service_role;
+select throws_ok($select pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000106')$,'40001','Checkout reservation changed',
+ 'empty recovery request cannot silently adopt a later reservation');
+insert into checkout_fixture values('unknownRecovery',pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000107'));
+select is(pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='unknownRecovery'))#>>'{data,outcome}',
+ 'pending','fresh-session recovery of unknown identifier stays pending without a provider dispatch');
+select throws_ok($select pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='unknownRecovery'),false)$,
+ '42501','Checkout recovery is observation only','unknown identifier cannot be promoted to apply');
+reset role;
+insert into auth.sessions(id,user_id,created_at,updated_at,aal) values
+ ('9c000000-0000-4000-8000-000000000003','9c000000-0000-4000-8000-000000000001',now(),now(),'aal2');
+select set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub','9c000000-0000-4000-8000-000000000001',
+ 'session_id','9c000000-0000-4000-8000-000000000003','aal','aal2','iat',extract(epoch from now()))::text,true);
+set local role authenticated;
+insert into checkout_fixture values('nativeRecoverGrant',to_jsonb(public.authorize_native_checkout('9c000000-0000-4000-8000-000000000010','native-recovery', '{"action":"recover"}')));
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+insert into checkout_fixture values('nativeRecovered',public.recover_native_checkout(
+ (select (value#>>'{}')::uuid from checkout_fixture where label='nativeRecoverGrant'),'9c000000-0000-4000-8000-000000000001'));
+select is(public.claim_native_checkout_recovery((select (value#>>'{}')::uuid from checkout_fixture where label='nativeRecoverGrant'),
+ '9c000000-0000-4000-8000-000000000001',(select (value#>>'{preview,commandId}')::uuid from checkout_fixture where label='nativeRecovered'))#>>'{data,outcome}',
+ 'pending','new real native session shares the same GET-only unknown recovery');
+select throws_ok($select public.claim_native_checkout_recovery((select (value#>>'{}')::uuid from checkout_fixture where label='grant'),
+ '9c000000-0000-4000-8000-000000000001',(select (value#>>'{preview,commandId}')::uuid from checkout_fixture where label='nativeRecovered'))$,
+ '42501','Native checkout recovery forbidden','creation grant and old session cannot assume recovery authority');
+reset role;
 
 -- Policy changes invalidate the exact short-lived native authorization evidence.
 select set_config('app.privileged_write','on',true);

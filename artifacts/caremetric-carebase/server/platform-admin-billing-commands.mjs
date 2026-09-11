@@ -16,7 +16,7 @@ const invalid = () => { throw new AdminError(400, "invalid_request"); };
 const upstream = () => { throw new AdminError(502, "upstream"); };
 
 export function parseBillingCommand(value) {
-  if (value?.action === "billing.checkout.create") return parseCheckoutCommand(value);
+  if (["billing.checkout.create", "billing.checkout.recover"].includes(value?.action)) return parseCheckoutCommand(value);
   if (keysAre(value, ["operation", "commandId", "expectedDigest"]) && value.operation === "apply"
     && typeof value.commandId === "string" && UUID.test(value.commandId)
     && typeof value.expectedDigest === "string" && DIGEST.test(value.expectedDigest)) {
@@ -116,7 +116,7 @@ export function createPlatformAdminBillingCommandHandler({ config, createClient,
       const common = { p_actor: nativeId, p_hub_user: actor.user_id, p_hub_session: actor.session_id,
         p_session_started_at: actor.session_started_at, p_assurance_expires_at: actor.assurance_expires_at,
         p_authentication_method: authenticationMethod };
-      if (command.action === "billing.checkout.create") {
+      if (["billing.checkout.create", "billing.checkout.recover"].includes(command.action)) {
         const result = await runCheckoutCommand({command, native, common, config, getEnv, request, fetcher, now, stripePost, stripeGet});
         const generatedAt = now();
         return json({contractVersion: 1, product: "carebase", operation: command.operation,

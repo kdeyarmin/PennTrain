@@ -71,7 +71,7 @@ function providerSession(data: Record<string, unknown>, values: Record<string, u
 export function projectCheckoutResult(value: unknown) {
   if (!keys(value, ["commandId", "action", "targetId", "outcome", "replayed", "checkedAt", "providerStatus", "availability", "canStartNewCheckout", "retryAfterSeconds", "session"])
     || typeof value.commandId !== "string" || !UUID.test(value.commandId) || typeof value.targetId !== "string" || !UUID.test(value.targetId)
-    || value.action !== "billing.checkout.create" || !["open", "complete", "expired", "pending", "failed"].includes(value.outcome as string)
+    || !["billing.checkout.create", "billing.checkout.recover"].includes(value.action as string) || !["open", "complete", "expired", "pending", "failed"].includes(value.outcome as string)
     || typeof value.replayed !== "boolean" || typeof value.canStartNewCheckout !== "boolean"
     || (value.canStartNewCheckout && ["open", "pending"].includes(value.outcome as string)) || !["available", "unavailable"].includes(value.availability as string)
     || ![null, "open", "complete", "expired"].includes(value.providerStatus as null | string)
@@ -87,6 +87,38 @@ export function projectCheckoutResult(value: unknown) {
       || Date.parse(session.expiresAt) <= Date.parse(value.checkedAt as string) || value.providerStatus !== "open") throw new CheckoutReservationError("invalid_checkout_result");
   } else if (value.session !== null || (value.outcome !== "pending" && value.providerStatus !== (value.outcome === "failed" ? null : value.outcome))) throw new CheckoutReservationError("invalid_checkout_result");
   return value;
+}
+
+export function projectCheckoutPreview(value: unknown, targetId: string, action: string, now: Date) {
+  if (!keys(value, ["commandId", "action", "targetId", "reason", "expiresAt", "previewDigest", "summary"])
+    || typeof value.commandId !== "string" || !UUID.test(value.commandId) || value.action !== action || value.targetId !== targetId
+    || !["billing.checkout.create", "billing.checkout.recover"].includes(action)
+    || typeof value.reason !== "string" || value.reason.length < 10 || value.reason.length > 500 || value.reason !== value.reason.trim()
+    || /[\u0000-\u001f\u007f]/.test(value.reason) || typeof value.previewDigest !== "string" || !/^[0-9a-f]{64}$/.test(value.previewDigest)
+    || !checkoutTimestamp(value.expiresAt) || Date.parse(value.expiresAt) > now.getTime() + 301000
+    || (action === "billing.checkout.create" && Date.parse(value.expiresAt) <= now.getTime())) throw new CheckoutReservationError("invalid_checkout_preview");
+  const s = value.summary;
+  if (!keys(s, ["kind", "organizationName", "packageId", "billingInterval", "intervalCount", "currency", "billingMetric", "quantity", "providerPriceId", "providerCustomerId", "trialDays"])
+    || s.kind !== "checkout" || typeof s.organizationName !== "string" || s.organizationName.length > 500
+    || typeof s.packageId !== "string" || !UUID.test(s.packageId) || !["month", "year"].includes(s.billingInterval as string)
+    || !["flat", "active_learner", "active_user", "active_resident", "facility"].includes(s.billingMetric as string)
+    || !Number.isInteger(s.intervalCount) || Number(s.intervalCount) < 1 || Number(s.intervalCount) > 36 || !/^[a-z]{3}$/.test(s.currency as string)
+    || !Number.isSafeInteger(s.quantity) || Number(s.quantity) < 1 || !Number.isSafeInteger(s.trialDays) || Number(s.trialDays) < 0 || Number(s.trialDays) > 90
+    || typeof s.providerPriceId !== "string" || !/^price_[A-Za-z0-9]+$/.test(s.providerPriceId)
+    || !(s.providerCustomerId === null || typeof s.providerCustomerId === "string" && /^cus_[A-Za-z0-9]+$/.test(s.providerCustomerId))) throw new CheckoutReservationError("invalid_checkout_preview");
+  return {...value, commandId: value.commandId, action: value.action, targetId: value.targetId, reason: value.reason,
+    previewDigest: value.previewDigest, summary: s, expiresAt: new Date(value.expiresAt).toISOString()};
+}
+
+export function projectCheckoutRecovery(value: unknown, targetId: string, now: Date) {
+  if (!keys(value, ["targetId", "preview", "result", "canStartNewCheckout"]) || value.targetId !== targetId
+    || typeof value.canStartNewCheckout !== "boolean") throw new CheckoutReservationError("invalid_checkout_recovery");
+  if (value.preview === null && value.result === null) return {...value, preview: null, result: null};
+  const preview = projectCheckoutPreview(value.preview, targetId, "billing.checkout.recover", now);
+  const result = projectCheckoutResult(value.result);
+  if (result.action !== preview.action || result.commandId !== preview.commandId || result.targetId !== targetId
+    || result.canStartNewCheckout !== value.canStartNewCheckout) throw new CheckoutReservationError("invalid_checkout_recovery");
+  return {...value, preview, result};
 }
 
 /** Claim is already committed. A failed GET never exposes the POST capability.

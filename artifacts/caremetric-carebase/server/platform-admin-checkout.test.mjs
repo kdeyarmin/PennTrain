@@ -9,6 +9,7 @@ const ORG="44444444-4444-4444-8444-444444444444", PACKAGE="55555555-5555-4555-85
 const RESERVATION="77777777-7777-4777-8777-777777777777", LEASE="88888888-8888-4888-8888-888888888888", NOW="2026-09-11T20:00:00.000Z", DIGEST="a".repeat(64);
 const preview={operation:"preview",action:"billing.checkout.create",requestId:COMMAND,targetId:ORG,parameters:{packageId:PACKAGE,billingInterval:"month"},reason:"Reviewed synthetic Checkout plan"};
 const apply={operation:"apply",action:preview.action,commandId:COMMAND,expectedDigest:DIGEST};
+const recover={operation:"recover",action:"billing.checkout.recover",requestId:COMMAND,targetId:ORG,reason:"Inspect original Checkout after signing in"};
 const values={mode:"subscription",client_reference_id:ORG,customer:"cus_fixture",payment_method_collection:"always",success_url:"https://cmcarebase.com/admin/enterprise?billing=success",
  cancel_url:"https://cmcarebase.com/admin/enterprise?billing=cancelled",line_items:[{price:"price_fixture",quantity:1}],metadata:{organization_id:ORG,package_id:PACKAGE,billing_metric:"flat",billing_interval:"month",billable_quantity_source:"database_snapshot"}};
 values.subscription_data={metadata:values.metadata};
@@ -41,6 +42,11 @@ function fixture(overrides={}) {
     assert.deepEqual(body.p_provider_parameters,values);assert.equal(body.p_source_snapshot.price.currency,"usd");
     return json({commandId:source.id,...Object.fromEntries(Object.entries(source).filter(([key])=>key!=="id"))});
   }
+  if(url.pathname.endsWith("/platform_admin_recover_checkout")) {
+    state.recovered=true;
+    return json({preview:state.noReservation?null:{commandId:source.id,...Object.fromEntries(Object.entries(source).filter(([key])=>key!=="id")),
+      action:recover.action,reason:body.p_reason,expiresAt:state.recoveryExpiry??source.expiresAt},canStartNewCheckout:state.canStart??false});
+  }
   if(url.pathname.endsWith("/platform_admin_claim_checkout")) return json(state.result ? {kind:"result",data:state.result} : {kind:body.p_check_only?"check":"create",commandId:COMMAND,targetId:ORG,reservationId:RESERVATION,leaseId:LEASE,
     idempotencyKey:`carebase:checkout:${RESERVATION}`,values,priorSession:body.p_check_only?{id:provider.id,customerId:provider.customer}:null,replayed:body.p_check_only,
     firstDispatch:!body.p_check_only,priceConfiguration:price});
@@ -49,7 +55,7 @@ function fixture(overrides={}) {
     if(state.revoked) return json({code:"42501"},403);
     if(state.result) return json(state.result);
     const finished=state.finish,s=finished.p_session,outcome=finished.p_outcome==="indeterminate"?"pending":finished.p_outcome;
-    return json({commandId:COMMAND,action:preview.action,targetId:ORG,outcome,replayed:body.p_replayed,checkedAt:outcome==="pending"?null:NOW,
+    return json({commandId:COMMAND,action:state.recovered?recover.action:preview.action,targetId:ORG,outcome,replayed:body.p_replayed,checkedAt:outcome==="pending"?null:NOW,
       providerStatus:s?.status??null,availability:outcome==="pending"?"unavailable":"available",canStartNewCheckout:false,retryAfterSeconds:outcome==="pending"?30:null,
       session:outcome==="open"?{kind:"checkout",id:s.id,url:s.url,expiresAt:s.expiresAt,livemode:s.livemode}:null});
   }
@@ -72,6 +78,27 @@ test("Checkout apply discloses only after exact GET and persisted receipt",async
 test("Checkout check performs no creation and keeps current session authority",async()=>{
  const f=fixture(),response=await f.request({...apply,operation:"check"});assert.equal(response.status,200);
  assert.deepEqual(f.providerCalls.map(v=>v.method),["GET"]);
+});
+
+test("Organization recovery preserves original terms, binds current SMS operation and never queries current catalog or POSTs",async()=>{
+ const f=fixture({recoveryExpiry:"2026-09-11T19:00:00Z"});const {aal,...actor}=f.state.actor;
+ f.state.sms={...actor,method:"sms",operation:recover};
+ const response=await f.request(recover,"cmh_"+"a".repeat(43));assert.equal(response.status,200);
+ const data=(await response.json()).data;assert.equal(data.preview.action,recover.action);assert.equal(data.preview.reason,recover.reason);
+ assert.equal(data.preview.summary.packageId,PACKAGE);assert.equal(data.result.commandId,data.preview.commandId);
+ assert.equal(data.result.action,recover.action);assert.equal(data.canStartNewCheckout,false);
+ assert.deepEqual(f.providerCalls.map(v=>v.method),["GET"]);
+ assert.equal(f.calls.some(v=>["/rest/v1/package_billing_prices","/rest/v1/billing_subscriptions"].includes(v.path)),false);
+ assert.equal(f.calls.at(-1).path,"/rest/v1/rpc/platform_admin_read_checkout_result");
+});
+
+test("Recovery cannot apply and no-reservation evidence never invents subscription eligibility",async()=>{
+ for(const canStart of [true,false]) {
+  const f=fixture({noReservation:true,canStart});const response=await f.request(recover);assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).data,{targetId:ORG,preview:null,result:null,canStartNewCheckout:canStart});assert.equal(f.providerCalls.length,0);
+ }
+ for(const invalid of [{...apply,action:recover.action},{...recover,parameters:preview.parameters},{...recover,operation:"preview"}]) assert.throws(()=>parseBillingCommand(invalid));
+ const f=fixture({revokeAfterGet:true});assert.equal((await f.request(recover)).status,403);assert.equal(f.state.finish.p_outcome,"open");
 });
 test("Expired never-dispatched preview recovery remains read-only and reauthorizes receipt disclosure",async()=>{
  const result={commandId:COMMAND,action:preview.action,targetId:ORG,outcome:"failed",replayed:true,checkedAt:NOW,

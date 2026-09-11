@@ -92,7 +92,7 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
       if (operation.operation === "capabilities") {
         data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : []),
           ...(config.commandsEnabled && config.billingCommandsEnabled ? ["billing.commands.preview", "billing.commands.apply",
-            ...(config.checkoutCommandsEnabled ? ["billing.checkout.preview", "billing.checkout.apply", "billing.checkout.check"] : [])] : [])], sourceRevision: config.sourceRevision ?? null };
+            ...(config.checkoutCommandsEnabled ? ["billing.checkout.preview", "billing.checkout.apply", "billing.checkout.check", "billing.checkout.recover"] : [])] : [])], sourceRevision: config.sourceRevision ?? null };
       } else if (operation.operation === "billing.packages.list") {
         data = await readBillingCatalog(native, operation);
       } else if (BILLING_READ_OPERATIONS.includes(operation.operation)) {

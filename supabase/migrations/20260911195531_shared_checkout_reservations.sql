@@ -9,6 +9,7 @@ create table app_private.checkout_intents (
   id uuid primary key default gen_random_uuid(), actor_id uuid not null, principal_id uuid not null, session_id uuid not null,
   authentication_method text not null check(authentication_method in ('native_session','jwt_aal2','app_sms')),
   request_key text not null, organization_id uuid not null, reason text not null,
+  action text not null default 'billing.checkout.create' check(action in ('billing.checkout.create','billing.checkout.recover')),
   provider_parameters jsonb not null, source_snapshot jsonb not null, summary jsonb not null,
   preview_digest text not null, expires_at timestamptz not null, reservation_id uuid,
   created_at timestamptz not null default clock_timestamp(), unique(principal_id,session_id,request_key)
@@ -16,6 +17,7 @@ create table app_private.checkout_intents (
 create table app_private.checkout_reservations (
   id uuid primary key default gen_random_uuid(), organization_id uuid not null,
   first_intent_id uuid not null references app_private.checkout_intents(id),
+  current_intent_id uuid not null references app_private.checkout_intents(id),
   provider_parameters jsonb not null, state text not null check(state in ('executing','indeterminate','open','complete','expired','failed','closed')),
   create_attempts integer not null default 0 check(create_attempts>=0), subscription_status text,
   first_started_at timestamptz not null default clock_timestamp(), lease_id uuid not null, lease_until timestamptz,
@@ -38,8 +40,9 @@ begin
     if (to_jsonb(new)-'reservation_id') is distinct from (to_jsonb(old)-'reservation_id') or old.reservation_id is not null then
       raise exception 'Checkout evidence is immutable' using errcode='42501'; end if;
   elsif tg_table_name='checkout_reservations' then
-    if (to_jsonb(new)-array['state','lease_id','lease_until','session','provider_checked_at','provider_available','create_attempts','subscription_status'])
-      is distinct from (to_jsonb(old)-array['state','lease_id','lease_until','session','provider_checked_at','provider_available','create_attempts','subscription_status'])
+    if (to_jsonb(new)-array['state','lease_id','lease_until','current_intent_id','session','provider_checked_at','provider_available','create_attempts','subscription_status'])
+      is distinct from (to_jsonb(old)-array['state','lease_id','lease_until','current_intent_id','session','provider_checked_at','provider_available','create_attempts','subscription_status'])
+      or (new.current_intent_id is distinct from old.current_intent_id and new.lease_id is not distinct from old.lease_id)
       or old.state in ('expired','failed','closed') or new.create_attempts not between old.create_attempts and old.create_attempts+1
       or (old.session is not null and (new.session->>'id' is distinct from old.session->>'id'
         or new.session->>'livemode' is distinct from old.session->>'livemode'))
@@ -77,12 +80,12 @@ begin
   if not found or (v_session.not_after is not null and v_session.not_after<=clock_timestamp())
     or v_session.created_at>clock_timestamp()+interval '5 minutes' then raise exception 'Current native session required' using errcode='42501'; end if;
   if p_request_key is null or length(p_request_key) not between 1 and 200 or p_request_key ~ '[[:cntrl:]]'
-    or jsonb_typeof(p_parameters) is distinct from 'object' or p_parameters-array['packageId','billingInterval','successUrl','cancelUrl']<>'{}'::jsonb
+    or (p_parameters is distinct from '{"action":"recover"}'::jsonb and (jsonb_typeof(p_parameters) is distinct from 'object' or p_parameters-array['packageId','billingInterval','successUrl','cancelUrl']<>'{}'::jsonb
     or not(p_parameters ?& array['packageId','billingInterval','successUrl','cancelUrl'])
     or coalesce(p_parameters->>'packageId','') !~ '^[0-9a-fA-F-]{36}$'
     or coalesce(p_parameters->>'billingInterval','') not in ('month','year')
     or length(coalesce(p_parameters->>'successUrl','')) not between 1 and 2048
-    or length(coalesce(p_parameters->>'cancelUrl','')) not between 1 and 2048 then
+    or length(coalesce(p_parameters->>'cancelUrl','')) not between 1 and 2048)) then
     raise exception 'Invalid native checkout intent' using errcode='22023'; end if;
   v_expires:=least(clock_timestamp()+interval '90 seconds',coalesce(v_session.not_after,'infinity'::timestamptz));
   if public.identity_operation_requires_aal2('billing_admin') then
@@ -188,7 +191,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('checkout-intent:'||p_principal::text||':'||p_session::text||':'||p_request,0));
   select * into v_row from app_private.checkout_intents where principal_id=p_principal and session_id=p_session and request_key=p_request;
   if found then
-    if v_row.actor_id<>p_actor or v_row.authentication_method<>p_method or v_row.organization_id<>p_org
+    if v_row.action<>'billing.checkout.create' or v_row.actor_id<>p_actor or v_row.authentication_method<>p_method or v_row.organization_id<>p_org
       or v_row.provider_parameters is distinct from p_values or v_row.reason<>btrim(p_reason) then
       raise exception 'Checkout request changed' using errcode='40001'; end if;
     return v_row;
@@ -204,26 +207,89 @@ begin
     provider_parameters,source_snapshot,summary,preview_digest,expires_at)
   values(v_id,p_actor,p_principal,p_session,p_method,p_request,p_org,btrim(p_reason),p_values,p_snapshot,v_summary,
     encode(extensions.digest(jsonb_build_object('id',v_id,'actor',p_actor,'principal',p_principal,'session',p_session,'method',p_method,
-      'request',p_request,'org',p_org,'reason',btrim(p_reason),'values',p_values,'source',p_snapshot)::text,'sha256'),'hex'),
+      'request',p_request,'org',p_org,'reason',btrim(p_reason),'action','billing.checkout.create','values',p_values,'source',p_snapshot)::text,'sha256'),'hex'),
     least(clock_timestamp()+interval '5 minutes',p_authority_expires)) returning * into v_row;
   return v_row;
 end;
 $$;
 
+
+-- Recovery creates a separate current-authority intent. It copies the original
+-- reservation terms and never resolves today's catalog or enables a POST.
+create function app_private.checkout_can_start(p_org uuid) returns boolean
+language sql stable security definer set search_path='' as $
+ select exists(select 1 from public.organizations where id=p_org)
+   and not exists(select 1 from app_private.checkout_reservations where organization_id=p_org and state not in ('expired','failed','closed'))
+   and not exists(select 1 from public.billing_subscriptions where organization_id=p_org and
+     (billing_state in ('trial','active','grace','past_due') or (stripe_subscription_id is not null and
+       (provider_status is null or provider_status not in ('canceled','incomplete_expired')))));
+$;
+create function app_private.recover_checkout_intent(p_actor uuid,p_principal uuid,p_session uuid,p_method text,p_request text,p_org uuid,
+ p_reason text,p_authority_expires timestamptz) returns app_private.checkout_intents
+language plpgsql security definer set search_path='' as $
+declare v_row app_private.checkout_intents; v_original app_private.checkout_intents; r app_private.checkout_reservations;
+ v_id uuid:=gen_random_uuid();
+begin
+ if p_request is null or length(p_request) not between 1 and 200 or p_reason is null or length(btrim(p_reason)) not between 10 and 500
+   or p_reason ~ '[[:cntrl:]]' then raise exception 'Invalid checkout recovery' using errcode='22023'; end if;
+ perform pg_advisory_xact_lock(hashtextextended('checkout-intent:'||p_principal::text||':'||p_session::text||':'||p_request,0));
+ perform 1 from public.organizations where id=p_org for update;
+ if not found then raise exception 'Organization not found' using errcode='P0002'; end if;
+ select * into v_row from app_private.checkout_intents where principal_id=p_principal and session_id=p_session and request_key=p_request;
+ if found then
+   if v_row.action<>'billing.checkout.recover' or v_row.actor_id<>p_actor or v_row.authentication_method<>p_method
+     or v_row.organization_id<>p_org or v_row.reason<>btrim(p_reason) then raise exception 'Checkout request changed' using errcode='40001'; end if;
+   if v_row.reservation_id is null and exists(select 1 from app_private.checkout_reservations where organization_id=p_org
+     and state not in ('expired','failed','closed')) then raise exception 'Checkout reservation changed' using errcode='40001'; end if;
+   return v_row;
+ end if;
+ select * into r from app_private.checkout_reservations where organization_id=p_org and state not in ('expired','failed','closed') for update;
+ if found then select * into strict v_original from app_private.checkout_intents where id=r.first_intent_id; end if;
+ insert into app_private.checkout_intents(id,actor_id,principal_id,session_id,authentication_method,request_key,organization_id,reason,action,
+   provider_parameters,source_snapshot,summary,preview_digest,expires_at,reservation_id)
+ values(v_id,p_actor,p_principal,p_session,p_method,p_request,p_org,btrim(p_reason),'billing.checkout.recover',
+   coalesce(r.provider_parameters,'{}'::jsonb),coalesce(v_original.source_snapshot,'{}'::jsonb),coalesce(v_original.summary,'{}'::jsonb),
+   encode(extensions.digest(jsonb_build_object('id',v_id,'actor',p_actor,'principal',p_principal,'session',p_session,'method',p_method,
+     'request',p_request,'org',p_org,'reason',btrim(p_reason),'action','billing.checkout.recover','reservation',r.id,
+     'values',r.provider_parameters,'source',v_original.source_snapshot)::text,'sha256'),'hex'),
+   least(clock_timestamp()+interval '5 minutes',p_authority_expires),r.id) returning * into v_row;
+ return v_row;
+end;
+$;
+create function app_private.checkout_preview(p_intent app_private.checkout_intents) returns jsonb
+language sql stable security definer set search_path='' as $
+ select jsonb_build_object('commandId',p_intent.id,'action',p_intent.action,'targetId',p_intent.organization_id,'reason',p_intent.reason,
+   'expiresAt',p_intent.expires_at,'previewDigest',p_intent.preview_digest,'summary',p_intent.summary);
+$;
+create function app_private.checkout_recovery_preview(p_intent app_private.checkout_intents) returns jsonb
+language sql stable security definer set search_path='' as $
+ select jsonb_build_object('preview',case when p_intent.reservation_id is null then null else app_private.checkout_preview(p_intent) end,
+   'canStartNewCheckout',app_private.checkout_can_start(p_intent.organization_id));
+$;
+
+create function app_private.checkout_handoff_allowed(p_intent app_private.checkout_intents) returns boolean
+language sql stable security definer set search_path='' as $
+ select coalesce((select p.stripe_price_id=p_intent.provider_parameters#>>'{line_items,0,price}'
+   and p.currency=p_intent.source_snapshot#>>'{price,currency}'
+   and p.interval_count=(p_intent.source_snapshot#>>'{price,interval_count}')::integer
+   from public.package_billing_prices p join public.packages k on k.id=p.package_id
+   where p.package_id=(p_intent.provider_parameters#>>'{metadata,package_id}')::uuid and p.is_active and p.is_primary and k.is_active
+     and p.recurring_interval=p_intent.provider_parameters#>>'{metadata,billing_interval}' and p.stripe_price_id is not null
+     and p.effective_from<=statement_timestamp() and (p.effective_to is null or p.effective_to>statement_timestamp())
+   order by p.effective_from desc,p.id desc limit 1),false);
+$;
+
 create function app_private.checkout_public_result(p_intent app_private.checkout_intents,p_replayed boolean) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
-declare v_customer text; r app_private.checkout_reservations; v_can_start boolean;
+declare v_customer text; r app_private.checkout_reservations; v_can_start boolean; v_handoff boolean;
 begin
   if not exists(select 1 from public.organizations where id=p_intent.organization_id) then
     raise exception 'Checkout reservation unavailable' using errcode='40001'; end if;
-  v_can_start:=not exists(select 1 from app_private.checkout_reservations where organization_id=p_intent.organization_id
-    and state not in ('expired','failed','closed')) and not exists(select 1 from public.billing_subscriptions
-    where organization_id=p_intent.organization_id and (billing_state in ('trial','active','grace','past_due') or
-      (stripe_subscription_id is not null and (provider_status is null or provider_status not in ('canceled','incomplete_expired')))));
+  v_can_start:=app_private.checkout_can_start(p_intent.organization_id);
   -- An expired intent that never acquired a reservation provably never dispatched.
   -- Its original apply is permanently unavailable; checking it never creates a lease.
   if p_intent.reservation_id is null and p_intent.expires_at<=clock_timestamp() then
-    return jsonb_build_object('commandId',p_intent.id,'action','billing.checkout.create','targetId',p_intent.organization_id,
+    return jsonb_build_object('commandId',p_intent.id,'action',p_intent.action,'targetId',p_intent.organization_id,
       'outcome','failed','replayed',p_replayed,'checkedAt',clock_timestamp(),'providerStatus',null,'availability','available',
       'canStartNewCheckout',v_can_start,'retryAfterSeconds',null,'session',null);
   end if;
@@ -234,15 +300,17 @@ begin
   if v_customer is distinct from p_intent.provider_parameters->>'customer'
     and (r.session is null or v_customer is distinct from r.session->>'customerId') then
     raise exception 'Checkout customer changed' using errcode='40001'; end if;
-  return jsonb_build_object('commandId',p_intent.id,'action','billing.checkout.create','targetId',p_intent.organization_id,
+  v_handoff:=r.provider_available and r.state='open' and (r.session->>'expiresAt')::timestamptz>clock_timestamp()
+    and app_private.checkout_handoff_allowed(p_intent);
+  return jsonb_build_object('commandId',p_intent.id,'action',p_intent.action,'targetId',p_intent.organization_id,
     'outcome',case when r.state in ('executing','indeterminate') or not r.provider_available
-      or (r.state='open' and (r.session->>'expiresAt')::timestamptz<=clock_timestamp()) then 'pending' when r.state='closed' then 'complete' else r.state end,
+      or (r.state='open' and not v_handoff) then 'pending' when r.state='closed' then 'complete' else r.state end,
     'replayed',p_replayed,'checkedAt',r.provider_checked_at,'providerStatus',r.session->>'status',
     'availability',case when r.provider_available then 'available' else 'unavailable' end,
     'canStartNewCheckout',r.state in ('expired','failed','closed') and v_can_start,
     'retryAfterSeconds',case when r.state in ('executing','indeterminate') or not r.provider_available
-      or (r.state='open' and (r.session->>'expiresAt')::timestamptz<=clock_timestamp()) then 30 else null end,
-    'session',case when r.provider_available and r.state='open' and (r.session->>'expiresAt')::timestamptz>clock_timestamp()
+      or (r.state='open' and not v_handoff) then 30 else null end,
+    'session',case when v_handoff
       then r.session-array['customerId','subscriptionId','status'] else null end);
 end;
 $$;
@@ -254,6 +322,8 @@ begin
   perform 1 from public.organizations where id=p_intent.organization_id for update;
   if not found then raise exception 'Organization not found' using errcode='P0002'; end if;
   select * into p_intent from app_private.checkout_intents where id=p_intent.id for update;
+  if p_intent.action='billing.checkout.recover' and (not coalesce(p_check_only,false) or p_intent.reservation_id is null) then
+    raise exception 'Checkout recovery is observation only' using errcode='42501'; end if;
   if p_intent.reservation_id is null then
     if p_check_only and p_intent.expires_at<=clock_timestamp() then
       return jsonb_build_object('kind','result','data',app_private.checkout_public_result(p_intent,true)); end if;
@@ -264,8 +334,8 @@ begin
       if v_row.provider_parameters is distinct from p_intent.provider_parameters then raise exception 'Organization already has a checkout reservation' using errcode='40001'; end if;
       v_replayed:=true;
     else
-      insert into app_private.checkout_reservations(organization_id,first_intent_id,provider_parameters,state,lease_id,lease_until)
-        values(p_intent.organization_id,p_intent.id,p_intent.provider_parameters,'executing',gen_random_uuid(),clock_timestamp()) returning * into v_row;
+      insert into app_private.checkout_reservations(organization_id,first_intent_id,current_intent_id,provider_parameters,state,lease_id,lease_until)
+        values(p_intent.organization_id,p_intent.id,p_intent.id,p_intent.provider_parameters,'executing',gen_random_uuid(),clock_timestamp()) returning * into v_row;
     end if;
     update app_private.checkout_intents set reservation_id=v_row.id where id=p_intent.id returning * into p_intent;
   else select * into v_row from app_private.checkout_reservations where id=p_intent.reservation_id for update;
@@ -282,7 +352,7 @@ begin
   if v_row.session is null then
     perform app_private.assert_checkout_plan(p_intent.organization_id,p_intent.provider_parameters,p_intent.source_snapshot);
   end if;
-  update app_private.checkout_reservations set state='executing',lease_id=gen_random_uuid(),lease_until=clock_timestamp()+interval '30 seconds',
+  update app_private.checkout_reservations set state='executing',lease_id=gen_random_uuid(),current_intent_id=p_intent.id,lease_until=clock_timestamp()+interval '30 seconds',
     create_attempts=create_attempts+case when session is null then 1 else 0 end,
     provider_available=false where id=v_row.id returning * into v_row;
   return jsonb_build_object('kind',case when v_row.session is null then 'create' else 'check' end,'reservationId',v_row.id,
@@ -299,8 +369,7 @@ declare v_row app_private.checkout_intents;
 begin
  perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
  v_row:=app_private.create_checkout_intent(p_actor,p_hub_user,p_hub_session,p_authentication_method,p_request_id::text,p_target,p_reason,p_provider_parameters,p_source_snapshot,p_assurance_expires_at);
- return jsonb_build_object('commandId',v_row.id,'action','billing.checkout.create','targetId',v_row.organization_id,'reason',v_row.reason,
-   'expiresAt',v_row.expires_at,'previewDigest',v_row.preview_digest,'summary',v_row.summary);
+ return app_private.checkout_preview(v_row);
 end;
 $$;
 create function public.platform_admin_claim_checkout(p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,
@@ -374,7 +443,7 @@ begin
    provider_checked_at=case when p_outcome<>'indeterminate' then clock_timestamp() else provider_checked_at end,
    provider_available=p_outcome<>'indeterminate',subscription_status=p_subscription_status,
    lease_until=case when p_outcome='indeterminate' then lease_until else null end where id=v_row.id;
- select * into v_intent from app_private.checkout_intents where id=v_row.first_intent_id;
+ select * into v_intent from app_private.checkout_intents where id=v_row.current_intent_id;
  select id into v_actor from public.profiles where id=v_intent.actor_id for key share;
  select id into v_org from public.organizations where id=v_row.organization_id for key share;
  insert into public.audit_logs(organization_id,actor_profile_id,actor_subject_id,entity_type,entity_id,action,source,request_id,reason,new_values,metadata)
@@ -392,7 +461,8 @@ begin
  v_grant:=app_private.assert_checkout_grant(p_grant_id,p_actor);
  select * into v_intent from app_private.checkout_intents where id=p_command_id and actor_id=p_actor and principal_id=p_actor
    and session_id=v_grant.session_id and organization_id=v_grant.organization_id and request_key=v_grant.request_key and authentication_method='native_session';
- if not found then raise exception 'Native checkout receipt forbidden' using errcode='42501'; end if;
+ if not found or (v_intent.action='billing.checkout.recover') is distinct from (v_grant.request_parameters='{"action":"recover"}'::jsonb) then
+   raise exception 'Native checkout receipt forbidden' using errcode='42501'; end if;
  return app_private.checkout_public_result(v_intent,coalesce(p_replayed,false));
 end;
 $$;
@@ -422,6 +492,49 @@ grant execute on function public.platform_admin_preview_checkout(uuid,uuid,uuid,
  public.platform_admin_claim_checkout(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid,text,boolean),public.claim_native_checkout(uuid,uuid,jsonb,jsonb),
  public.finish_checkout_reservation(uuid,uuid,text,jsonb,text),public.read_native_checkout_result(uuid,uuid,uuid,boolean),
  public.platform_admin_read_checkout_result(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid,text,boolean) to service_role;
+
+
+create function public.platform_admin_recover_checkout(p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,
+ p_assurance_expires_at timestamptz,p_authentication_method text,p_request_id uuid,p_target uuid,p_reason text)
+returns jsonb language plpgsql security definer set search_path='' as $
+declare v_row app_private.checkout_intents;
+begin
+ perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
+ v_row:=app_private.recover_checkout_intent(p_actor,p_hub_user,p_hub_session,p_authentication_method,p_request_id::text,p_target,p_reason,p_assurance_expires_at);
+ return app_private.checkout_recovery_preview(v_row);
+end;
+$;
+create function public.recover_native_checkout(p_grant_id uuid,p_actor uuid) returns jsonb
+language plpgsql security definer set search_path='' as $
+declare v_grant app_private.checkout_native_grants; v_row app_private.checkout_intents;
+begin
+ v_grant:=app_private.assert_checkout_grant(p_grant_id,p_actor);
+ if v_grant.request_parameters is distinct from '{"action":"recover"}'::jsonb then
+   raise exception 'Native checkout grant does not match recovery' using errcode='42501'; end if;
+ v_row:=app_private.recover_checkout_intent(p_actor,p_actor,v_grant.session_id,'native_session',v_grant.request_key,v_grant.organization_id,
+   'Native administrator requested Checkout recovery',v_grant.expires_at);
+ return app_private.checkout_recovery_preview(v_row);
+end;
+$;
+create function public.claim_native_checkout_recovery(p_grant_id uuid,p_actor uuid,p_command_id uuid) returns jsonb
+language plpgsql security definer set search_path='' as $
+declare v_grant app_private.checkout_native_grants; v_row app_private.checkout_intents;
+begin
+ v_grant:=app_private.assert_checkout_grant(p_grant_id,p_actor);
+ select * into v_row from app_private.checkout_intents where id=p_command_id and actor_id=p_actor and principal_id=p_actor
+   and session_id=v_grant.session_id and organization_id=v_grant.organization_id and request_key=v_grant.request_key
+   and authentication_method='native_session' and action='billing.checkout.recover';
+ if not found or v_grant.request_parameters is distinct from '{"action":"recover"}'::jsonb then
+   raise exception 'Native checkout recovery forbidden' using errcode='42501'; end if;
+ return app_private.claim_checkout(v_row,true);
+end;
+$;
+revoke all on function app_private.checkout_can_start(uuid),app_private.checkout_handoff_allowed(app_private.checkout_intents),app_private.recover_checkout_intent(uuid,uuid,uuid,text,text,uuid,text,timestamptz),
+ app_private.checkout_preview(app_private.checkout_intents),app_private.checkout_recovery_preview(app_private.checkout_intents),
+ public.platform_admin_recover_checkout(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid,uuid,text),
+ public.recover_native_checkout(uuid,uuid),public.claim_native_checkout_recovery(uuid,uuid,uuid) from public,anon,authenticated,service_role;
+grant execute on function public.platform_admin_recover_checkout(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid,uuid,text),
+ public.recover_native_checkout(uuid,uuid),public.claim_native_checkout_recovery(uuid,uuid,uuid) to service_role;
 
 create function public.platform_admin_checkout_catalog(p_search text default '',p_limit integer default 25,p_offset integer default 0)
 returns jsonb language plpgsql stable security definer set search_path='' as $$
