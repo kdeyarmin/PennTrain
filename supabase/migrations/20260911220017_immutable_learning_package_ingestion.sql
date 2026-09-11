@@ -643,3 +643,46 @@ begin
   end if;
 end;
 $function$;
+
+create or replace function public.quarantine_learning_package(
+  p_package_id uuid,
+  p_reason text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_pkg public.learning_packages%rowtype;
+begin
+  -- Draft review invalidation also locks the version. Match publication and
+  -- immutable acceptance's version-before-package order before taking this row.
+  perform 1 from public.course_versions where id=(
+    select course_version_id from public.learning_packages where id=p_package_id
+  ) for update;
+  select * into v_pkg from public.learning_packages where id = p_package_id for update;
+  if not found then raise exception 'Package not found' using errcode = 'P0002'; end if;
+  if not (
+    public.is_platform_admin()
+    or (
+      v_pkg.organization_id = public.current_org_id()
+      and public.current_role() in ('org_admin', 'facility_manager')
+    )
+  ) then
+    raise exception 'Not authorized to quarantine learning packages' using errcode = '42501';
+  end if;
+  if length(btrim(coalesce(p_reason, ''))) < 8 then
+    raise exception 'Quarantine reason required' using errcode = '22023';
+  end if;
+  update public.learning_packages set
+    validation_status = 'quarantined',
+    validation_results = coalesce(validation_results, '{}'::jsonb) || jsonb_build_object(
+      'quarantined_by', auth.uid(),
+      'quarantined_at', now(),
+      'reason', btrim(p_reason)
+    )
+  where id = p_package_id;
+  return true;
+end;
+$$;

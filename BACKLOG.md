@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `4f2a880` (2026-09-11), the integration of immutable package ingestion N15 with actual released credit and operations main `e91bcd14054cedfcacc8d0a5eff05c033c559078`. Real local Storage/handler/SQL recovery, database assertions and application checks passed. Native SCORM publication now recognizes the exact selected verified runtime while retaining PDF and legacy-document checks; the expanded publication fixture requires a fresh complete gate before release.
+**Last verified against main:** `02d860f` (2026-09-11), the integration of immutable package ingestion N15 with actual released credit and operations main `e91bcd14054cedfcacc8d0a5eff05c033c559078`. Real local Storage/handler/SQL recovery, all database assertions, actual publication and concurrent quarantine checks passed. Native SCORM publication recognizes the exact selected verified runtime while retaining PDF and legacy-document checks. The native quarantine writer now takes the same version-before-package lock order; a fresh complete gate is required before release.
 
 
 **Owner:** the owner-operator (single person, platform admin)
