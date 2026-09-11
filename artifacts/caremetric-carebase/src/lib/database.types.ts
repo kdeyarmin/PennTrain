@@ -40219,6 +40219,45 @@ export type Database = {
         }
         Returns: Json
       }
+      platform_admin_claim_billing_portal: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_configuration: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_return_url: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_finish_billing_portal: {
+        Args: {
+          p_command_id: string
+          p_lease_id: string
+          p_outcome: string
+          p_session: Json
+        }
+        Returns: undefined
+      }
+      platform_admin_preview_billing_portal: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_provider_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: string
+        }
+        Returns: Json
+      }
       platform_admin_preview_command: {
         Args: {
           p_action: string
@@ -40232,6 +40271,20 @@ export type Database = {
           p_request_id: string
           p_session_started_at: string
           p_target: string
+        }
+        Returns: Json
+      }
+      platform_admin_read_billing_portal_result: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_replayed: boolean
+          p_session_started_at: string
         }
         Returns: Json
       }

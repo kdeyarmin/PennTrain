@@ -5,7 +5,7 @@ import { BillingSessionPlanError, planBillingSession } from "./billingSessionPla
 Deno.test("shared Checkout planner includes nonterminal provider-backed rows in its scoped native guard", async () => {
   for (const status of ["paused", "unpaid", "incomplete", "past_due"]) {
     const requests: URL[] = [];
-    const admin = createClient("https://native.test", "synthetic-service", { auth: { persistSession: false }, global: {
+    const admin = createClient("https://native.test", "synthetic-service", { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }, global: {
       fetch: (input) => {
         const url = new URL(input instanceof Request ? input.url : input);
         requests.push(url);
