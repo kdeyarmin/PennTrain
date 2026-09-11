@@ -28,6 +28,11 @@ export function checkoutUrl(value: unknown, id: string): value is string {
   // Match the raw authority/path; never accept alternate hosts, ports or queries.
   return rest === "" || /^#[A-Za-z0-9%._~!$&()*+,;=:/?@-]+$/.test(rest) && !/%(?![0-9a-f]{2})/i.test(rest);
 }
+export function checkoutTimestamp(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 40
+    && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)
+    && Number.isFinite(Date.parse(value)) && new Date(`${value.slice(0, 10)}T00:00:00Z`).toISOString().slice(0, 10) === value.slice(0, 10);
+}
 type CheckoutSession = {kind: "checkout"; id: string; url: string | null; expiresAt: string; livemode: boolean;
   customerId: string | null; subscriptionId: string | null; status: "open" | "complete" | "expired"};
 const object = (v: unknown): Record<string, unknown> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
@@ -68,7 +73,7 @@ export function projectCheckoutResult(value: unknown) {
     || typeof value.replayed !== "boolean" || typeof value.canStartNewCheckout !== "boolean"
     || (value.canStartNewCheckout && ["open", "pending"].includes(value.outcome as string)) || !["available", "unavailable"].includes(value.availability as string)
     || ![null, "open", "complete", "expired"].includes(value.providerStatus as null | string)
-    || (value.checkedAt !== null && (typeof value.checkedAt !== "string" || !Number.isFinite(Date.parse(value.checkedAt))))) throw new CheckoutReservationError("invalid_checkout_result");
+    || (value.checkedAt !== null && !checkoutTimestamp(value.checkedAt))) throw new CheckoutReservationError("invalid_checkout_result");
   if (value.outcome === "pending") {
     if (value.session !== null || value.retryAfterSeconds !== 30) throw new CheckoutReservationError("invalid_checkout_result");
   } else if (value.availability !== "available" || value.checkedAt === null || value.retryAfterSeconds !== null) throw new CheckoutReservationError("invalid_checkout_result");
@@ -76,8 +81,9 @@ export function projectCheckoutResult(value: unknown) {
     const session = value.session;
     if (!keys(session, ["kind", "id", "url", "expiresAt", "livemode"]) || session.kind !== "checkout"
       || typeof session.id !== "string" || !checkoutUrl(session.url, session.id) || typeof session.livemode !== "boolean"
-      || typeof session.expiresAt !== "string" || !Number.isFinite(Date.parse(session.expiresAt)) || value.providerStatus !== "open") throw new CheckoutReservationError("invalid_checkout_result");
-  } else if (value.session !== null) throw new CheckoutReservationError("invalid_checkout_result");
+      || session.id.startsWith("cs_live_") !== session.livemode || !checkoutTimestamp(session.expiresAt)
+      || Date.parse(session.expiresAt) <= Date.parse(value.checkedAt as string) || value.providerStatus !== "open") throw new CheckoutReservationError("invalid_checkout_result");
+  } else if (value.session !== null || (value.outcome !== "pending" && value.providerStatus !== (value.outcome === "failed" ? null : value.outcome))) throw new CheckoutReservationError("invalid_checkout_result");
   return value;
 }
 

@@ -62,6 +62,17 @@ create function pg_temp.checkout_finish(p_claim jsonb,p_state text,p_subscriptio
  'subscriptionId',case when p_state in ('complete','closed') then 'sub_fixture' else null end,
  'status',case when p_state='closed' then 'complete' else p_state end) else null end,p_subscription_status);
 $$;
+create function pg_temp.expired_checkout_preview(p_original jsonb) returns jsonb language plpgsql as $$
+declare v app_private.checkout_intents; v_id uuid:=gen_random_uuid();
+begin
+ select * into v from app_private.checkout_intents where id=(p_original->>'commandId')::uuid;
+ insert into app_private.checkout_intents(id,actor_id,principal_id,session_id,authentication_method,request_key,organization_id,reason,
+   provider_parameters,source_snapshot,summary,preview_digest,expires_at,created_at)
+ values(v_id,v.actor_id,v.principal_id,v.session_id,v.authentication_method,v_id::text,v.organization_id,v.reason,
+   v.provider_parameters,v.source_snapshot,v.summary,repeat('a',64),clock_timestamp()-interval '1 minute',clock_timestamp()-interval '6 minutes');
+ return jsonb_build_object('commandId',v_id,'previewDigest',repeat('a',64));
+end;
+$$;
 
 -- Actual native assurance is minted by an authenticated caller, not service JWT emulation.
 select set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub','9c000000-0000-4000-8000-000000000001',
@@ -72,6 +83,12 @@ insert into checkout_fixture values('grant',to_jsonb(public.authorize_native_che
 reset role;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
+select throws_ok($$select public.claim_native_checkout((select (value#>>'{}')::uuid from checkout_fixture where label='grant'),
+ '9c000000-0000-4000-8000-000000000001',pg_temp.checkout_values(true),pg_temp.checkout_snapshot(true))$$,
+ '42501','Native checkout grant does not match plan','native authorization cannot be reused for a different package');
+select throws_ok($$select public.claim_native_checkout((select (value#>>'{}')::uuid from checkout_fixture where label='grant'),
+ '9c000000-0000-4000-8000-000000000001',jsonb_set(pg_temp.checkout_values(),'{line_items,0,quantity}','2'),pg_temp.checkout_snapshot())$$,
+ '40001','Checkout quantity changed','service plan cannot inflate native flat quantity');
 insert into checkout_fixture values('native',public.claim_native_checkout((select (value#>>'{}')::uuid from checkout_fixture where label='grant'),
  '9c000000-0000-4000-8000-000000000001',pg_temp.checkout_values(),pg_temp.checkout_snapshot()));
 select is((select value->>'kind' from checkout_fixture where label='native'),'create','native handler obtains shared organization lease');
@@ -101,12 +118,36 @@ select pg_temp.checkout_finish((select value from checkout_fixture where label='
 insert into checkout_fixture values('terminalCheck',pg_temp.checkout_claim((select value from checkout_fixture where label='hub'),true));
 select pg_temp.checkout_finish((select value from checkout_fixture where label='terminalCheck'),'closed','canceled');
 select is(pg_temp.checkout_claim((select value from checkout_fixture where label='hub'),true)#>>'{data,canStartNewCheckout}','true','provider-confirmed canceled completion permits a fresh reviewed Checkout');
+select throws_ok($$select pg_temp.checkout_claim((select value from checkout_fixture where label='changed'),true)$$,
+ '40001','Checkout preview expired or not applied','unexpired undispatched preview cannot be declared failed');
+reset role;
+insert into checkout_fixture values('expiredUnapplied',pg_temp.expired_checkout_preview((select value from checkout_fixture where label='hub')));
+set local role service_role;
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='expiredUnapplied'),true)#>>'{data,outcome}','failed','expired preview without a reservation proves no native dispatch');
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='expiredUnapplied'),true)#>>'{data,canStartNewCheckout}','true','never-dispatched expired preview can recover when organization is free');
+select throws_ok($$select pg_temp.checkout_claim((select value from checkout_fixture where label='expiredUnapplied'))$$,
+ '40001','Checkout preview expired or not applied','recovered expired preview still cannot apply');
 insert into checkout_fixture values('new',pg_temp.checkout_claim((select value from checkout_fixture where label='changed')));
 select is((select value->>'kind' from checkout_fixture where label='new'),'create','terminal completed reservation does not prevent later re-subscription');
 select isnt((select value->>'reservationId' from checkout_fixture where label='new'),(select value->>'reservationId' from checkout_fixture where label='native'),'replacement preserves old provider evidence and has a new reservation');
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='hub'),true)#>>'{data,canStartNewCheckout}','false','old terminal receipt recognizes a later payable reservation');
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='expiredUnapplied'),true)#>>'{data,canStartNewCheckout}','false','expired unapplied preview cannot ignore another payable reservation');
 reset role;
 select is((select count(*) from app_private.checkout_reservations where state='closed'),1::bigint,'old closed receipt remains immutable');
 select ok(not exists(select 1 from public.audit_logs where entity_type='checkout_reservation' and to_jsonb(audit_logs)::text like '%checkout.stripe.com%'),'Checkout capability is excluded from audit');
+
+-- Evidence and its audit append share the same transaction.
+create function pg_temp.reject_checkout_audit() returns trigger language plpgsql as $$
+begin if new.entity_type='checkout_reservation' then raise exception 'Synthetic audit failure' using errcode='23514'; end if; return new; end;
+$$;
+create trigger reject_checkout_audit before insert on public.audit_logs for each row execute function pg_temp.reject_checkout_audit();
+set local role service_role;
+select throws_ok($$select pg_temp.checkout_finish((select value from checkout_fixture where label='new'),'open')$$,
+ '23514','Synthetic audit failure','audit failure aborts provider receipt persistence');
+reset role;
+select is((select state from app_private.checkout_reservations where id=(select (value->>'reservationId')::uuid from checkout_fixture where label='new')),
+ 'executing','failed audit rolls back outcome and lease atomically');
+drop trigger reject_checkout_audit on public.audit_logs;
 
 -- Revocation cannot erase a provider result; disclosure still requires current authority.
 select set_config('app.privileged_write','on',true);
@@ -129,6 +170,14 @@ set local role service_role;
 select throws_ok($$select pg_temp.checkout_claim((select value from checkout_fixture where label='changed'))$$,'40001','Checkout customer changed','changed customer prevents capability disclosure');
 reset role;
 update public.billing_accounts set stripe_customer_id='cus_checkoutfixture' where organization_id='9c000000-0000-4000-8000-000000000010';
+
+update auth.sessions set not_after=clock_timestamp()-interval '1 second' where id='9c000000-0000-4000-8000-000000000002';
+set local role service_role;
+select throws_ok($$select public.read_native_checkout_result((select (value#>>'{}')::uuid from checkout_fixture where label='grant'),
+ '9c000000-0000-4000-8000-000000000001',(select (value->>'commandId')::uuid from checkout_fixture where label='native'),true)$$,
+ '42501','Native checkout authority changed','native session expiry invalidates an otherwise current grant');
+reset role;
+update auth.sessions set not_after=null where id='9c000000-0000-4000-8000-000000000002';
 
 -- Policy changes invalidate the exact short-lived native authorization evidence.
 select set_config('app.privileged_write','on',true);

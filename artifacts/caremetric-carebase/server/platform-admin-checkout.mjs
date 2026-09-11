@@ -1,6 +1,6 @@
 import { AdminError, boundedFetch, UUID } from "./platform-admin-auth.mjs";
 import { planBillingSession } from "../../../supabase/functions/_shared/billingSessionPlan.ts";
-import { checkoutRpc, executeCheckoutClaim, projectCheckoutResult } from "../../../supabase/functions/_shared/checkoutReservations.ts";
+import { checkoutRpc, checkoutTimestamp, executeCheckoutClaim, projectCheckoutResult } from "../../../supabase/functions/_shared/checkoutReservations.ts";
 import { phase2StripeGet, phase2StripePost } from "../../../supabase/functions/_shared/phase2Billing.ts";
 
 const ACTION = "billing.checkout.create", DIGEST = /^[0-9a-f]{64}$/;
@@ -31,7 +31,7 @@ export function projectCheckoutCommand(value, command, now) {
   if (!keys(value, ["commandId", "action", "targetId", "reason", "expiresAt", "previewDigest", "summary"])
     || typeof value.commandId !== "string" || !UUID.test(value.commandId) || value.action !== ACTION || value.targetId !== command.targetId
     || value.reason !== command.reason || typeof value.previewDigest !== "string" || !DIGEST.test(value.previewDigest)
-    || typeof value.expiresAt !== "string" || !Number.isFinite(Date.parse(value.expiresAt))
+    || !checkoutTimestamp(value.expiresAt)
     || Date.parse(value.expiresAt) <= now.getTime() || Date.parse(value.expiresAt) > now.getTime() + 301000) upstream();
   const s = value.summary;
   if (!keys(s, ["kind", "organizationName", "packageId", "billingInterval", "intervalCount", "currency", "billingMetric", "quantity", "providerPriceId", "providerCustomerId", "trialDays"])

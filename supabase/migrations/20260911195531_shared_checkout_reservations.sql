@@ -164,6 +164,7 @@ begin
     select * into v_usage from public.get_organization_billing_usage(p_org);
     v_measured:=case v_price->>'billing_metric' when 'active_learner' then v_usage.active_learners when 'active_user' then v_usage.active_users
       when 'active_resident' then v_usage.active_residents when 'facility' then v_usage.facilities else null end;
+    if v_measured is null then raise exception 'Checkout usage unavailable' using errcode='40001'; end if;
     v_measured:=greatest(v_measured,(v_price->>'minimum_quantity')::numeric);
   end if;
   if v_quantity is distinct from v_measured or v_quantity not between 1 and 9007199254740991
@@ -211,10 +212,23 @@ $$;
 
 create function app_private.checkout_public_result(p_intent app_private.checkout_intents,p_replayed boolean) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
-declare v_customer text; r app_private.checkout_reservations;
+declare v_customer text; r app_private.checkout_reservations; v_can_start boolean;
 begin
+  if not exists(select 1 from public.organizations where id=p_intent.organization_id) then
+    raise exception 'Checkout reservation unavailable' using errcode='40001'; end if;
+  v_can_start:=not exists(select 1 from app_private.checkout_reservations where organization_id=p_intent.organization_id
+    and state not in ('expired','failed','closed')) and not exists(select 1 from public.billing_subscriptions
+    where organization_id=p_intent.organization_id and (billing_state in ('trial','active','grace','past_due') or
+      (stripe_subscription_id is not null and (provider_status is null or provider_status not in ('canceled','incomplete_expired')))));
+  -- An expired intent that never acquired a reservation provably never dispatched.
+  -- Its original apply is permanently unavailable; checking it never creates a lease.
+  if p_intent.reservation_id is null and p_intent.expires_at<=clock_timestamp() then
+    return jsonb_build_object('commandId',p_intent.id,'action','billing.checkout.create','targetId',p_intent.organization_id,
+      'outcome','failed','replayed',p_replayed,'checkedAt',clock_timestamp(),'providerStatus',null,'availability','available',
+      'canStartNewCheckout',v_can_start,'retryAfterSeconds',null,'session',null);
+  end if;
   select * into r from app_private.checkout_reservations where id=p_intent.reservation_id;
-  if not found or not exists(select 1 from public.organizations where id=p_intent.organization_id) then
+  if not found then
     raise exception 'Checkout reservation unavailable' using errcode='40001'; end if;
   select stripe_customer_id into v_customer from public.billing_accounts where organization_id=p_intent.organization_id;
   if v_customer is distinct from p_intent.provider_parameters->>'customer'
@@ -225,9 +239,7 @@ begin
       or (r.state='open' and (r.session->>'expiresAt')::timestamptz<=clock_timestamp()) then 'pending' when r.state='closed' then 'complete' else r.state end,
     'replayed',p_replayed,'checkedAt',r.provider_checked_at,'providerStatus',r.session->>'status',
     'availability',case when r.provider_available then 'available' else 'unavailable' end,
-    'canStartNewCheckout',r.state in ('expired','failed','closed') and not exists(select 1 from public.billing_subscriptions
-      where organization_id=p_intent.organization_id and (billing_state in ('trial','active','grace','past_due') or
-        (stripe_subscription_id is not null and (provider_status is null or provider_status not in ('canceled','incomplete_expired'))))),
+    'canStartNewCheckout',r.state in ('expired','failed','closed') and v_can_start,
     'retryAfterSeconds',case when r.state in ('executing','indeterminate') or not r.provider_available
       or (r.state='open' and (r.session->>'expiresAt')::timestamptz<=clock_timestamp()) then 30 else null end,
     'session',case when r.provider_available and r.state='open' and (r.session->>'expiresAt')::timestamptz>clock_timestamp()
@@ -243,6 +255,8 @@ begin
   if not found then raise exception 'Organization not found' using errcode='P0002'; end if;
   select * into p_intent from app_private.checkout_intents where id=p_intent.id for update;
   if p_intent.reservation_id is null then
+    if p_check_only and p_intent.expires_at<=clock_timestamp() then
+      return jsonb_build_object('kind','result','data',app_private.checkout_public_result(p_intent,true)); end if;
     if p_check_only or p_intent.expires_at<=clock_timestamp() then raise exception 'Checkout preview expired or not applied' using errcode='40001'; end if;
     perform app_private.assert_checkout_plan(p_intent.organization_id,p_intent.provider_parameters,p_intent.source_snapshot);
     select * into v_row from app_private.checkout_reservations where organization_id=p_intent.organization_id and state not in ('expired','failed','closed') for update;
@@ -333,7 +347,10 @@ begin
      or not(p_session ?& array['kind','id','url','expiresAt','livemode','customerId','subscriptionId','status'])
      or p_session->>'kind' is distinct from 'checkout' or coalesce(p_session->>'status','') not in ('open','complete','expired')
      or (p_outcome<>'indeterminate' and p_session->>'status' is distinct from case when p_outcome='closed' then 'complete' else p_outcome end)
-     or coalesce(p_session->>'id','') !~ '^cs_[A-Za-z0-9_]+$' or jsonb_typeof(p_session->'livemode') is distinct from 'boolean'
+     or coalesce(p_session->>'id','') !~ '^cs_(test|live)_[A-Za-z0-9]+$' or length(p_session->>'id')>255
+     or jsonb_typeof(p_session->'livemode') is distinct from 'boolean'
+     or (left(p_session->>'id',8)='cs_live_') is distinct from (p_session->>'livemode')::boolean
+     or jsonb_typeof(p_session->'expiresAt') is distinct from 'string'
      or (p_session->>'status'='open' and (coalesce(p_session->>'url','') !~ '^https://checkout[.]stripe[.]com/c/pay/cs_[A-Za-z0-9_]+(#[A-Za-z0-9%._~!$&()*+,;=:/?@-]+)?$'
        or split_part(substring(p_session->>'url' from length('https://checkout.stripe.com/c/pay/')+1),'#',1) is distinct from p_session->>'id'
        or p_session->>'url' ~ '%([^0-9a-fA-F]|[0-9a-fA-F]([^0-9a-fA-F]|$)|$)'
