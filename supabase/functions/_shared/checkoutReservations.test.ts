@@ -10,7 +10,7 @@ const claim={kind:"create",reservationId:RESERVATION,commandId:COMMAND,targetId:
  priceConfiguration:{currency:"usd",interval_count:1}};
 const session={id:"cs_test_fixture",object:"checkout.session",mode:"subscription",client_reference_id:ORG,customer:"cus_fixture",subscription:null,
  status:"open",metadata:values.metadata,livemode:false,expires_at:Math.floor(Date.now()/1000)+3600,
- url:"https://checkout.stripe.com/c/pay/cs_test_fixture#safe%2Ffragment",line_items:{has_more:false,data:[{price:{id:"price_fixture",currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:3}]}};
+ url:"https://checkout.stripe.com/c/pay/cs_test_fixture#safe%2Ffragment",line_items:{has_more:false,data:[{price:{active:true,livemode:false,type:"recurring",id:"price_fixture",currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:3}]}};
 function fixture(overrides: Record<string,unknown>={}) {
  const calls:unknown[]=[],finishes:Record<string,unknown>[]=[];
  const options={secretKey:"sk_test_fixture",admin:{rpc:async(name:string,args:Record<string,unknown>)=>{
@@ -44,10 +44,12 @@ Deno.test("Only first dispatch can become definitive failure; retry401 keeps unc
 });
 Deno.test("Wrong organization/customer/price/quantity/currency/cadence/mode never becomes an open capability",async()=>{
  const variants=[{client_reference_id:COMMAND},{customer:"cus_other"},{livemode:true},{mode:"payment"},
-  {line_items:{has_more:false,data:[{price:{id:"price_other",currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:3}]}},
-  {line_items:{has_more:false,data:[{price:{id:"price_fixture",currency:"eur",recurring:{interval:"month",interval_count:1}},quantity:3}]}},
-  {line_items:{has_more:false,data:[{price:{id:"price_fixture",currency:"usd",recurring:{interval:"month",interval_count:3}},quantity:3}]}},
-  {line_items:{has_more:false,data:[{price:{id:"price_fixture",currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:4}]}}];
+  {line_items:{has_more:false,data:[{price:{active:true,livemode:false,type:"recurring",id:"price_other",currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:3}]}},
+  {line_items:{has_more:false,data:[{price:{active:true,livemode:false,type:"recurring",id:"price_fixture",currency:"eur",recurring:{interval:"month",interval_count:1}},quantity:3}]}},
+  {line_items:{has_more:false,data:[{price:{active:true,livemode:false,type:"recurring",id:"price_fixture",currency:"usd",recurring:{interval:"month",interval_count:3}},quantity:3}]}},
+  {line_items:{has_more:false,data:[{price:{active:true,livemode:false,type:"recurring",id:"price_fixture",currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:4}]}}];
+ for(const priceFields of [{active:false},{livemode:true},{type:"one_time"}]) variants.push({line_items:{has_more:false,data:[{
+   price:{...session.line_items.data[0].price,...priceFields},quantity:3}]}});
  for(const wrong of variants) {
   const f=fixture({stripeGet:async()=>({ok:true,status:200,data:{...structuredClone(session),...wrong}})});
   await executeCheckoutClaim(claim,f.options);assertEquals(f.finishes[0].p_outcome,"indeterminate");
@@ -86,4 +88,15 @@ Deno.test("Pending result projection rejects capability URLs and fabricated avai
   checkedAt:null,providerStatus:null,availability:"unavailable",canStartNewCheckout:false,retryAfterSeconds:30,session:null};
  assertEquals(projectCheckoutResult(result),result);
  let denied=false;try {projectCheckoutResult({...result,session});} catch {denied=true;}assertEquals(denied,true);
+});
+Deno.test("Terminal result projection rejects contradictory provider state, invalid dates and mode",()=>{
+ const result={commandId:COMMAND,action:"billing.checkout.create",targetId:ORG,outcome:"open",replayed:true,
+  checkedAt:new Date().toISOString(),providerStatus:"open",availability:"available",canStartNewCheckout:false,retryAfterSeconds:null,
+  session:{kind:"checkout",id:session.id,url:session.url,expiresAt:new Date(session.expires_at*1000).toISOString(),livemode:false}};
+ assertEquals(projectCheckoutResult(result),result);
+ for(const bad of [{...result,checkedAt:"September 11, 2026"},{...result,checkedAt:"2026-02-30T12:00:00Z"},
+  {...result,outcome:"complete",session:null},{...result,session:{...result.session,livemode:true}},
+  {...result,session:{...result.session,expiresAt:result.checkedAt}}]) {
+   let denied=false;try {projectCheckoutResult(bad);} catch {denied=true;}assertEquals(denied,true);
+ }
 });

@@ -56,6 +56,8 @@ function providerSession(data: Record<string, unknown>, values: Record<string, u
     const price = providerId(line.price) ?? providerId(object(object(line.pricing).price_details).price);
     if (!Array.isArray(lines.data) || lines.data.length !== 1 || lines.has_more !== false
       || price !== expected.price || line.quantity !== expected.quantity
+      || object(line.price).type !== "recurring" || object(line.price).livemode !== live
+      || (data.status === "open" && object(line.price).active !== true)
       || object(line.price).currency !== priceConfiguration.currency
       || object(object(line.price).recurring).interval !== object(values.metadata).billing_interval
       || object(object(line.price).recurring).interval_count !== priceConfiguration.interval_count) throw new CheckoutReservationError("invalid_stripe_response");

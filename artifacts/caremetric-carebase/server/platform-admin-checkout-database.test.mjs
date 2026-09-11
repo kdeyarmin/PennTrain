@@ -13,7 +13,8 @@ test("real native SMS session and Hub HTTP calls share one provider reservation 
  assert.ok(["127.0.0.1","localhost","[::1]"].includes(url.hostname),"Checkout fixtures require disposable loopback Supabase");
  const authOptions={persistSession:false,autoRefreshToken:false,detectSessionInUrl:false};
  const native=createClient(url.origin,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:authOptions});
- const caller=createClient(url.origin,process.env.SUPABASE_ANON_KEY,{auth:authOptions});
+ const anonKey=process.env.SUPABASE_ANON_KEY??process.env.VITE_SUPABASE_ANON_KEY;
+ const caller=createClient(url.origin,anonKey,{auth:authOptions});
  const org=randomUUID(),packageId=randomUUID(),priceId=randomUUID(),hubUser=randomUUID(),hubSession=randomUUID(),requestId=randomUUID();
  const suffix=org.replaceAll("-",""),password=randomUUID()+"Aa1!",email=`checkout-${suffix}@fixture.test`;
  const sql=input=>execFileSync("docker",["exec","-i","supabase_db_xsqobvvreaovwibxwyvv","psql","-U","postgres","-d","postgres","-v","ON_ERROR_STOP=1","-At"],
@@ -42,12 +43,12 @@ test("real native SMS session and Hub HTTP calls share one provider reservation 
  const postStarted=new Promise(resolve=>{announcePost=resolve;}),postRelease=new Promise(resolve=>{releasePost=resolve;});
  const provider=()=>({id:`cs_test_${suffix}`,mode:"subscription",client_reference_id:org,customer:`cus_${suffix}`,subscription:null,status:"open",
    metadata:providerValues.metadata,livemode:false,expires_at:Math.floor(Date.now()/1000)+3600,url:`https://checkout.stripe.com/c/pay/cs_test_${suffix}#safe%2Ffragment`,
-   line_items:{has_more:false,data:[{price:{id:`price_${suffix}`,currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:1}]}});
+   line_items:{has_more:false,data:[{price:{active:true,livemode:false,type:"recurring",id:`price_${suffix}`,currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:1}]}});
  const stripePost=async(path,_key,values,key)=>{providerCalls.push({method:"POST",path,key});providerValues=values;announcePost();await postRelease;return {ok:true,status:200,data:provider()};};
  const stripeGet=async path=>{providerCalls.push({method:"GET",path});assert.equal(path,`/v1/checkout/sessions/cs_test_${suffix}?expand%5B%5D=line_items`);
    if(revokeAfterGet) await rpc(native,"admin_update_profile",{p_user_id:actor,p_is_active:false});
    return {ok:true,status:200,data:provider()};};
- const env={SUPABASE_URL:url.origin,SUPABASE_ANON_KEY:process.env.SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY:process.env.SUPABASE_SERVICE_ROLE_KEY,
+ const env={SUPABASE_URL:url.origin,SUPABASE_ANON_KEY:anonKey,SUPABASE_SERVICE_ROLE_KEY:process.env.SUPABASE_SERVICE_ROLE_KEY,
    STRIPE_SECRET_KEY:"sk_test_fixture",STRIPE_BILLING_WEBHOOK_SECRET:"fixture-not-used",PUBLIC_APP_URL:"https://cmcarebase.com"};
  const nativeHandler=createCreateBillingSessionHandler({createClient,stripePost,stripeGet,getEnv:name=>env[name]});
  const started=new Date(Date.now()-60_000),actorAuthority={user_id:hubUser,role:"platform_admin",method:"sms",session_id:hubSession,

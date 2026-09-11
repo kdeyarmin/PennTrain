@@ -1094,7 +1094,9 @@ Only one unresolved Checkout reservation may exist for an organization across ei
 
 Provider-confirmed expiration or a definitive rejection of the first dispatch releases the reservation. A completed Checkout remains reserved while its subscription is payable or uncertain; a separate exact subscription GET must confirm `canceled` or `incomplete_expired` before replacement is possible. New native billing eligibility checks still apply. These observations do not write entitlements or bypass signed webhook reconciliation. Receipts and audits persist transactionally before disclosure, and current authorization is checked again afterward. No provider capability URL belongs in logs, audit metadata, Hub persistence, support tickets or exports.
 
-References: [Checkout Session retrieval](https://docs.stripe.com/api/checkout/sessions/retrieve), [Checkout state](https://docs.stripe.com/api/checkout/sessions/object), and [Stripe idempotency](https://docs.stripe.com/api/idempotent_requests).
+An expired preview that never acquired a reservation can be checked without provider dispatch. It reports no created session and allows a new preview only when no current payable reservation or blocking subscription exists. Checking old terminal evidence also checks for later reservations. Open-session disclosure requires the provider price to remain active, recurring and in the configured test/live mode; archived prices do not prevent checking an already completed or expired session's terminal disposition.
+
+References: [Checkout Session retrieval](https://docs.stripe.com/api/checkout/sessions/retrieve), [Checkout state](https://docs.stripe.com/api/checkout/sessions/object), [Checkout line items](https://docs.stripe.com/api/checkout/sessions/line_items), [Price fields](https://docs.stripe.com/api/prices/object), and [Stripe idempotency](https://docs.stripe.com/api/idempotent_requests).
 
 ### Governed Hub course authoring
 

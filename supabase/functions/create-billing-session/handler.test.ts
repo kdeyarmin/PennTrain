@@ -50,7 +50,7 @@ function createCreateBillingSessionHandler(deps: CreateBillingSessionDependencie
       return {...result,data:provider};
     },
     stripeGet:async()=>({ok:true,status:200,data:{...provider,line_items:{has_more:false,data:(values.line_items as Array<{price:string;quantity:number}>).map(item=>({
-      quantity:item.quantity,price:{id:item.price,currency:"usd",recurring:{interval:(values.metadata as Record<string,unknown>).billing_interval,interval_count:1}}}))}}}),
+      quantity:item.quantity,price:{active:true,livemode:false,type:"recurring",id:item.price,currency:"usd",recurring:{interval:(values.metadata as Record<string,unknown>).billing_interval,interval_count:1}}}))}}}),
   });
 }
 

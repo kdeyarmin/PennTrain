@@ -24,7 +24,7 @@ function fixture(overrides={}) {
   summary:{kind:"checkout",organizationName:"Synthetic organization",packageId:PACKAGE,billingInterval:"month",intervalCount:1,currency:"usd",billingMetric:"flat",quantity:1,providerPriceId:"price_fixture",providerCustomerId:"cus_fixture",trialDays:0}};
  const provider={id:"cs_test_fixture",mode:"subscription",client_reference_id:ORG,customer:"cus_fixture",subscription:null,status:"open",metadata:values.metadata,livemode:false,
   expires_at:Math.floor(Date.parse(NOW)/1000)+3600,url:"https://checkout.stripe.com/c/pay/cs_test_fixture#safe%2Ffragment",
-  line_items:{has_more:false,data:[{price:{id:"price_fixture",currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:1}]}};
+  line_items:{has_more:false,data:[{price:{active:true,livemode:false,type:"recurring",id:"price_fixture",currency:"usd",recurring:{interval:"month",interval_count:1}},quantity:1}]}};
  const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json"}});
  const fetcher=async(input,init={})=>{
   const url=new URL(input instanceof Request?input.url:input),body=init.body?JSON.parse(init.body):null;calls.push({path:url.pathname,body});
