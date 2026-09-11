@@ -5,6 +5,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const COURSE_COLUMNS = "id,title,description,category,status,estimated_duration_minutes,updated_at,organization_id,current_version_id";
 const MAX_UPSTREAM_BYTES = 2 * 1024 * 1024;
 const MAX_LESSONS = 200;
+const OPERATIONS = Object.freeze([
+  "capabilities", "overview", "courses.list", "courses.get", "organizations.list", "users.list",
+  "billing.overview", "billing.subscriptions.list",
+]);
+const LIST_OPERATIONS = new Set(["courses.list", "organizations.list", "users.list", "billing.subscriptions.list"]);
+// Enforced by billing_subscriptions.billing_state's database CHECK constraint.
+const BILLING_STATES = ["trial", "active", "grace", "past_due", "canceled", "comped", "suspended"];
+const ORGANIZATION_COLUMNS = "id,name,slug,subscription_status,created_at";
+const PROFILE_COLUMNS = "id,first_name,last_name,email,role,is_active,created_at";
+const SUBSCRIPTION_COLUMNS = "id,organization_id,billing_account_id,package_id,billing_state,provider_status,stripe_subscription_id,current_period_end,updated_at,is_provider_placeholder,organization:organizations!billing_subscriptions_organization_id_fkey(id,name),account:billing_accounts!billing_subscriptions_billing_account_id_fkey(id,organization_id,stripe_customer_id),package:packages!billing_subscriptions_package_id_fkey(id,name)";
 
 class AdminError extends Error {
   constructor(status, code) { super(code); this.status = status; this.code = code; }
@@ -46,17 +56,19 @@ export function readPlatformAdminConfig(getEnv = (name) => process.env[name]) {
   if (identities.size !== entries.length || new Set(identities.values()).size !== entries.length) {
     throw new Error("Each central administrator must map to one distinct CareBase identity.");
   }
-  return { enabled: true, hubUrl, hubKey, supabaseUrl, serviceKey, identities };
+  const revision = getEnv("RAILWAY_GIT_COMMIT_SHA");
+  const sourceRevision = typeof revision === "string" && /^[0-9a-f]{40}$/i.test(revision) ? revision.toLowerCase() : null;
+  return { enabled: true, hubUrl, hubKey, supabaseUrl, serviceKey, identities, sourceRevision };
 }
 
 function parseOperation(body) {
   if (!body || Array.isArray(body) || typeof body !== "object") throw new AdminError(400, "invalid_request");
   const keys = Object.keys(body);
-  if (body.operation === "overview" && keys.length === 1) return body;
+  if (["capabilities", "overview", "billing.overview"].includes(body.operation) && keys.length === 1) return body;
   if (body.operation === "courses.get" && keys.length === 2 && typeof body.courseId === "string" && UUID.test(body.courseId)) {
     return { operation: body.operation, courseId: body.courseId.toLowerCase() };
   }
-  if (body.operation === "courses.list" && keys.every((key) => ["operation", "limit", "offset", "search"].includes(key))) {
+  if (LIST_OPERATIONS.has(body.operation) && keys.every((key) => ["operation", "limit", "offset", "search"].includes(key))) {
     const { limit = 25, offset = 0, search = "" } = body;
     if (Number.isSafeInteger(limit) && limit >= 1 && limit <= 50 && Number.isSafeInteger(offset) && offset >= 0 && offset <= 10_000
       && typeof search === "string" && search.length <= 100 && !/[\u0000-\u001f\u007f*]/.test(search)) {
@@ -87,6 +99,59 @@ function courseSummary(row) {
 function countResult(result) {
   if (result.error || !Number.isSafeInteger(result.count) || result.count < 0) throw new AdminError(503, "upstream");
   return result.count;
+}
+
+function uuid(value) {
+  if (typeof value !== "string" || !UUID.test(value)) throw new AdminError(502, "upstream");
+  return value;
+}
+
+function date(value) {
+  if (value === null) return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+    || !Number.isFinite(Date.parse(value))) throw new AdminError(502, "upstream");
+  return new Date(value).toISOString();
+}
+
+function organizationSummary(row) {
+  return {
+    id: uuid(row?.id), name: text(row.name, 500, false), slug: text(row.slug, 200),
+    status: text(row.subscription_status, 80, false), createdAt: date(row.created_at),
+  };
+}
+
+function userSummary(row) {
+  if (!row || typeof row.is_active !== "boolean") throw new AdminError(502, "upstream");
+  const displayName = [text(row.first_name, 250, false), text(row.last_name, 250, false)].filter(Boolean).join(" ").trim();
+  return {
+    id: uuid(row.id), displayName: displayName || null, email: text(row.email, 320),
+    role: text(row.role, 80, false), status: row.is_active ? "active" : "inactive", createdAt: date(row.created_at),
+  };
+}
+
+function subscriptionSummary(row) {
+  if (!row || row.is_provider_placeholder !== false || !BILLING_STATES.includes(row.billing_state)
+    || !row.organization || row.organization.id !== row.organization_id
+    || !row.account || row.account.id !== row.billing_account_id || row.account.organization_id !== row.organization_id
+    || (row.package_id === null ? row.package !== null : !row.package || row.package.id !== row.package_id)) {
+    throw new AdminError(502, "upstream");
+  }
+  return {
+    id: uuid(row.id), organizationId: uuid(row.organization_id), organizationName: text(row.organization.name, 500),
+    planCode: null, planName: row.package === null ? null : text(row.package.name, 500),
+    status: row.billing_state, providerStatus: text(row.provider_status, 80),
+    providerCustomerId: text(row.account.stripe_customer_id, 255), providerSubscriptionId: text(row.stripe_subscription_id, 255),
+    currentPeriodEnd: date(row.current_period_end), updatedAt: date(row.updated_at),
+  };
+}
+
+async function listResult(query, operation, searchColumn, project) {
+  // A single encoded scalar filter treats PostgREST syntax as literal text.
+  if (operation.search) query = query.ilike(searchColumn, `%${operation.search.replace(/[\\%_]/g, "\\$&")}%`);
+  const result = await query.range(operation.offset, operation.offset + operation.limit - 1);
+  const total = countResult(result);
+  if (!Array.isArray(result.data) || result.data.length > operation.limit) throw new AdminError(502, "upstream");
+  return { items: result.data.map(project), total, limit: operation.limit, offset: operation.offset };
 }
 
 async function boundedFetch(fetcher, requestSignal, input, init = {}) {
@@ -168,7 +233,9 @@ export function createPlatformAdminHandler({ config, createClient = createSupaba
       }
 
       let data;
-      if (operation.operation === "overview") {
+      if (operation.operation === "capabilities") {
+        data = { apiVersion: 1, operations: OPERATIONS, sourceRevision: config.sourceRevision ?? null };
+      } else if (operation.operation === "overview") {
         const [organizations, users, courses] = await Promise.all([
           native.from("organizations").select("id", { count: "exact", head: true }),
           native.from("profiles").select("id", { count: "exact", head: true }).eq("is_active", true),
@@ -176,15 +243,31 @@ export function createPlatformAdminHandler({ config, createClient = createSupaba
         ]);
         data = { organizationCount: countResult(organizations), activeUserCount: countResult(users), globalCourseCount: countResult(courses) };
       } else if (operation.operation === "courses.list") {
-        let query = native.from("courses").select(COURSE_COLUMNS, { count: "exact" }).is("organization_id", null)
-          .order("title", { ascending: true }).order("id", { ascending: true });
-        // Use one encoded filter parameter, never an interpolated PostgREST `or` expression.
-        if (operation.search) query = query.ilike("title", `%${operation.search.replace(/[\\%_]/g, "\\$&")}%`);
-        const result = await query.range(operation.offset, operation.offset + operation.limit - 1);
-        const total = countResult(result);
-        if (!Array.isArray(result.data) || result.data.length > operation.limit) throw new AdminError(502, "upstream");
-        data = { items: result.data.map(courseSummary), total, limit: operation.limit, offset: operation.offset };
-      } else {
+        data = await listResult(native.from("courses").select(COURSE_COLUMNS, { count: "exact" }).is("organization_id", null)
+          .order("title", { ascending: true }).order("id", { ascending: true }), operation, "title", courseSummary);
+      } else if (operation.operation === "organizations.list") {
+        data = await listResult(native.from("organizations").select(ORGANIZATION_COLUMNS, { count: "exact" })
+          .order("name", { ascending: true }).order("id", { ascending: true }), operation, "name", organizationSummary);
+      } else if (operation.operation === "users.list") {
+        // Account directory only: no clinical/employee records or Auth-admin directory scan.
+        data = await listResult(native.from("profiles").select(PROFILE_COLUMNS, { count: "exact" })
+          .order("email", { ascending: true }).order("id", { ascending: true }), operation, "email", userSummary);
+      } else if (operation.operation === "billing.subscriptions.list") {
+        const page = await listResult(native.from("billing_subscriptions").select(SUBSCRIPTION_COLUMNS, { count: "exact" })
+          .eq("is_provider_placeholder", false).order("updated_at", { ascending: false }).order("id", { ascending: true }),
+        operation, "stripe_subscription_id", subscriptionSummary);
+        data = { source: "application_database", ...page };
+      } else if (operation.operation === "billing.overview") {
+        // Counts cover the same cached inventory as the list, including terminal history.
+        // No Stripe call, signed-event payload, invoice URL, or inferred revenue is needed.
+        const query = () => native.from("billing_subscriptions").select("id", { count: "exact", head: true }).eq("is_provider_placeholder", false);
+        const [total, ...states] = await Promise.all([query(), ...BILLING_STATES.map((status) => query().eq("billing_state", status))]);
+        const subscriptionCount = countResult(total);
+        const statusCounts = BILLING_STATES.map((status, index) => ({ status, count: countResult(states[index]) }));
+        // Separate source queries can race with webhooks; refuse inconsistent totals.
+        if (statusCounts.reduce((sum, entry) => sum + entry.count, 0) !== subscriptionCount) throw new AdminError(503, "upstream");
+        data = { source: "application_database", subscriptionCount, statusCounts };
+      } else if (operation.operation === "courses.get") {
         const result = await native.from("courses").select(COURSE_COLUMNS).eq("id", operation.courseId).is("organization_id", null).maybeSingle();
         if (result.error) throw new AdminError(503, "upstream");
         if (!result.data) throw new AdminError(404, "notfound");
