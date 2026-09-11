@@ -213,7 +213,11 @@ select set_config('app.privileged_write','',true);
 
 -- Fresh native review is explicit; the delegated publisher reuses its existing rules.
 select set_config('request.jwt.claims','{"sub":"9f000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
-update public.course_versions set ai_reviewed_at=now(),ai_reviewed_by='9f000000-0000-4000-8000-000000000003' where id=pg_temp.draft_id();
+create function pg_temp.review_fixture() returns void language sql as $$
+  select app_private.review_learning_draft_core('9f000000-0000-4000-8000-000000000003','native_session',pg_temp.draft_id(),
+    encode(extensions.digest(app_private.learning_source_payload('9f000000-0000-4000-8000-000000000007',pg_temp.draft_id()),'sha256'),'hex'));
+$$;
+select pg_temp.review_fixture();
 create function pg_temp.publish_failure(p_delegated boolean) returns jsonb language plpgsql as $$
 begin
   if p_delegated then
@@ -233,14 +237,17 @@ exception when others then
 end;
 $$;
 update public.course_blocks set body='{}' where course_version_id=pg_temp.draft_id() and block_type='video';
+select pg_temp.review_fixture();
 select is(pg_temp.publish_failure(true),pg_temp.publish_failure(false),'delegated and native publication use identical transcript readiness rules');
 select is(pg_temp.publish_failure(true)->>'code','23514','invalid content remains rejected rather than bypassed by trusted context');
 select is(pg_temp.publish_failure(true)->>'trustedContext','','a failed readiness check restores its prior trusted context');
 update public.course_blocks set body='{"transcript":"Preserve accessible transcript","estimated_minutes":3}' where course_version_id=pg_temp.draft_id() and block_type='video';
 update public.course_versions set content_standard='comprehensive' where id=pg_temp.draft_id();
+select pg_temp.review_fixture();
 select is(pg_temp.publish_failure(true),pg_temp.publish_failure(false),'delegated and native publication use identical comprehensive curriculum rules');
 select is(pg_temp.publish_failure(true)->>'code','23514','incomplete comprehensive curriculum cannot publish');
 update public.course_versions set content_standard='legacy' where id=pg_temp.draft_id();
+select pg_temp.review_fixture();
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 insert into authoring_fixture values('publishPreview',public.preview_learning_authoring_command(
   '9f000000-0000-4000-8000-000000000003','9f000000-0000-4000-8000-000000000050','9f000000-0000-4000-8000-000000000051',

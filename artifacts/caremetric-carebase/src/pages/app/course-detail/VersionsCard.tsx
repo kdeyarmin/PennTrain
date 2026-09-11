@@ -11,6 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useUpdateCourseVersion, type Course, type CourseVersion } from "@/hooks/useCourses";
 import { VersionStatusBadge } from "./components";
 import { QueryError } from "@/components/QueryState";
+import { loadGovernedDraftSource, type GovernedDraftSource } from "@/lib/governedLearningDraft";
+import { errorText } from "@/lib/errorText";
 
 export function VersionsCard({
   canManage,
@@ -45,6 +47,9 @@ export function VersionsCard({
   const updateVersion = useUpdateCourseVersion();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", description: "" });
+  const [governedSource, setGovernedSource] = useState<GovernedDraftSource | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
 
   return (
     <Card>
@@ -107,10 +112,17 @@ export function VersionsCard({
                 {canManage && v.status === "draft" && editingId !== v.id && (
                   <Button
                     size="sm" variant="ghost" aria-label={`Edit version ${v.version_number} details`}
-                    onClick={(e) => {
+                    disabled={loadingEdit !== null}
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      setEditingId(v.id);
-                      setForm({ title: v.title, description: v.description ?? "" });
+                      setLoadingEdit(v.id);
+                      try {
+                        const source = await loadGovernedDraftSource(v.id);
+                        setGovernedSource(source); setReason(''); setEditingId(v.id);
+                        setForm({ title: source?.document.version.title ?? v.title, description: source ? source.document.version.description ?? '' : v.description ?? "" });
+                      } catch (error) {
+                        toast({ title: 'Could not load the current draft', description: errorText(error), variant: 'destructive' });
+                      } finally { setLoadingEdit(null); }
                     }}
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -155,17 +167,21 @@ export function VersionsCard({
                       <Label htmlFor={`version-description-${v.id}`}>Description</Label>
                       <Textarea id={`version-description-${v.id}`} rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
                     </div>
+                    {governedSource && <div className="space-y-1"><Label htmlFor={`version-reason-${v.id}`}>Reason for this change</Label>
+                      <Textarea id={`version-reason-${v.id}`} value={reason} maxLength={500} onChange={e => setReason(e.target.value)} />
+                      <p className="text-xs text-muted-foreground">Saving this reviewed revision clears its previous AI approval.</p></div>}
                     <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        disabled={updateVersion.isPending || !form.title.trim()}
+                        disabled={updateVersion.isPending || !form.title.trim() || (!!governedSource && reason.trim().length < 10)}
                         onClick={() => updateVersion.mutate({
                           id: v.id,
                           title: form.title.trim(),
                           description: form.description.trim() || null,
+                          ...(governedSource ? { governedSource, reason: reason.trim() } : {}),
                         }, {
                           onSuccess: () => { setEditingId(null); toast({ title: "Version updated" }); },
-                          onError: (error) => toast({ title: "Could not update the version", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),
+                          onError: (error) => toast({ title: "Could not update the version", description: errorText(error), variant: "destructive" }),
                         })}
                       >
                         {updateVersion.isPending ? "Saving..." : "Save"}

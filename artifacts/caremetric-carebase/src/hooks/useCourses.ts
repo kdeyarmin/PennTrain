@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { cloneCourseVideoBody } from "@/lib/courseVideoGeneration";
+import { executeNativeDraft, nativeDraftIntent, type GovernedDraftSource, type NativeDraftIntent } from "@/lib/governedLearningDraft";
 
 export type Course = Tables<"courses">;
 export type CourseInsert = TablesInsert<"courses">;
@@ -231,8 +233,19 @@ export function useCloneCourseVersion() {
 // but we don't try to pre-guess/suppress the DB error here beyond that.
 export function useUpdateCourseVersion() {
   const queryClient = useQueryClient();
+  const intent = useRef<NativeDraftIntent | null>(null);
   return useMutation({
-    mutationFn: async ({ id, ...payload }: TablesUpdate<"course_versions"> & { id: string }) => {
+    mutationFn: async ({ id, governedSource, reason, ...payload }: TablesUpdate<"course_versions"> & { id: string; governedSource?: GovernedDraftSource; reason?: string }) => {
+      if (governedSource) {
+        if (id !== governedSource.versionId || Object.keys(payload).some(key => !['title', 'description'].includes(key))) throw new Error('Invalid governed version edit.');
+        const patch = { version: { ...(payload.title !== undefined ? { title: payload.title } : {}), ...(payload.description !== undefined ? { description: payload.description } : {}) } };
+        const explanation = reason?.trim() ?? '';
+        intent.current = nativeDraftIntent(intent.current, { sourceRevision: governedSource.sourceRevision, patch, reason: explanation });
+        await executeNativeDraft(governedSource, 'learning.patchDraft', intent.current.requestId, explanation, patch);
+        const { data, error } = await supabase.from('course_versions').select('*').eq('id', id).single();
+        if (error) throw error;
+        return data;
+      }
       const { data, error } = await supabase.from("course_versions").update(payload).eq("id", id).select().single();
       if (error) throw error;
       return data;

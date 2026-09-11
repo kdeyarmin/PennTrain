@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { executeNativeDraft, type GovernedDraftSource } from "@/lib/governedLearningDraft";
 
 export type CourseAiGeneration = Tables<"course_ai_generations">;
 
@@ -187,6 +188,9 @@ export interface MarkAiGenerationReviewedPayload {
   // missing/unmatched generation row doesn't block marking the version reviewed.
   generationId?: string;
   reviewedBy: string;
+  governedSource?: GovernedDraftSource;
+  requestId?: string;
+  reason?: string;
 }
 
 export interface MarkAiGenerationReviewedResult {
@@ -206,8 +210,17 @@ export function useMarkAiGenerationReviewed() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      courseVersionId, generationId, reviewedBy,
+      courseVersionId, generationId, reviewedBy, governedSource, requestId, reason,
     }: MarkAiGenerationReviewedPayload): Promise<MarkAiGenerationReviewedResult> => {
+      if (governedSource) {
+        if (governedSource.versionId !== courseVersionId || !requestId || !reason) throw new Error('Load and explicitly review the current draft first.');
+        await executeNativeDraft(governedSource, 'learning.reviewDraft', requestId, reason);
+        const { data: version, error } = await supabase.from('course_versions').select('*').eq('id', courseVersionId).single();
+        if (error) throw error;
+        // The server records the actual native actor and exact reviewed source.
+        // Cloned drafts never borrow their source generation's approval/history.
+        return { version, generationFailed: false, generationError: null };
+      }
       const reviewedAt = new Date().toISOString();
 
       const [versionResult, generationResult] = await Promise.allSettled([

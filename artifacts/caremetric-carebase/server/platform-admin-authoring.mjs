@@ -3,21 +3,39 @@ import { createHash } from 'node:crypto';
 
 const SHA = /^[0-9a-f]{64}$/;
 const EXCLUDED_SOURCE = /([?&](token|access_token|signature|sig|key|policy|jwt|auth|h|hdnts|hdnea|key-pair-id|api_key|apikey|x-amz-[a-z-]+|x-goog-[a-z-]+)=|"(access_?token|refresh_?token|service_?role_?key|authorization|password|client_?secret|storage_?(path|bucket)|video_?url|playback_?(url|token)|signed_?url|api_?key|token|secret|secret_?key|signing_?secret)"\s*:)/i;
-const actions = ['learning.cloneVersion', 'learning.publishVersion'];
+const actions = ['learning.cloneVersion', 'learning.publishVersion', 'learning.patchDraft', 'learning.reviewDraft'];
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exact = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
 const string = (value, min, max) => typeof value === 'string' && value === value.trim() && value.length >= min && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
 const uuid = value => typeof value === 'string' && UUID.test(value);
 const sha = value => typeof value === 'string' && SHA.test(value);
+const fields = (value, allowed) => object(value) && Object.keys(value).length > 0 && Object.keys(value).every(key => allowed.includes(key));
+const prose = (value, maximum) => typeof value === 'string' && value.length <= maximum && !value.includes('\0');
+export function validDraftPatch(value) {
+  if (!fields(value, ['version', 'blocks']) || Buffer.byteLength(JSON.stringify(value)) > 24576) return false;
+  if (Object.hasOwn(value, 'version') && (!fields(value.version, ['title', 'description'])
+    || Object.hasOwn(value.version, 'title') && !string(value.version.title, 1, 300)
+    || Object.hasOwn(value.version, 'description') && value.version.description !== null && !prose(value.version.description, 12000))) return false;
+  if (Object.hasOwn(value, 'blocks') && (!Array.isArray(value.blocks) || value.blocks.length < 1 || value.blocks.length > 20
+    || value.blocks.some(block => !fields(block, ['blockId', 'title', 'content', 'transcript', 'estimatedMinutes']) || !uuid(block.blockId)
+      || Object.keys(block).length < 2 || Object.hasOwn(block, 'title') && block.title !== null && !string(block.title, 0, 300)
+      || ['content', 'transcript'].some(key => Object.hasOwn(block, key) && !prose(block[key], 12000))
+      || Object.hasOwn(block, 'estimatedMinutes') && (!Number.isSafeInteger(block.estimatedMinutes) || block.estimatedMinutes < 0 || block.estimatedMinutes > 1440))
+    || new Set(value.blocks.map(block => block.blockId.toLowerCase())).size !== value.blocks.length)) return false;
+  return !EXCLUDED_SOURCE.test(JSON.stringify(value));
+}
 export function parseAuthoringOperation(value) {
   if (exact(value, ['operation', 'courseId', 'versionId']) && value.operation === 'source' && uuid(value.courseId) && uuid(value.versionId)) return value;
   if (exact(value, ['operation', 'courseId']) && value.operation === 'inspect' && uuid(value.courseId)) return value;
   if (exact(value, ['operation', 'commandId', 'expectedDigest']) && value.operation === 'apply' && uuid(value.commandId) && sha(value.expectedDigest)) return value;
   if (exact(value, ['operation', 'requestId', 'action', 'courseId', 'parameters', 'reason']) && value.operation === 'preview'
     && uuid(value.requestId) && actions.includes(value.action) && uuid(value.courseId) && string(value.reason, 10, 500)
-    && exact(value.parameters, value.action === 'learning.cloneVersion' ? ['versionId', 'sourceRevision', 'title'] : ['versionId', 'sourceRevision'])
+    && exact(value.parameters, ['versionId', 'sourceRevision', ...(value.action === 'learning.cloneVersion' ? ['title']
+      : value.action === 'learning.patchDraft' ? ['patch'] : value.action === 'learning.reviewDraft' ? ['reviewed'] : [])])
     && uuid(value.parameters.versionId) && sha(value.parameters.sourceRevision)
-    && (value.action !== 'learning.cloneVersion' || string(value.parameters.title, 1, 300))) return value;
+    && (value.action !== 'learning.cloneVersion' || string(value.parameters.title, 1, 300))
+    && (value.action !== 'learning.patchDraft' || validDraftPatch(value.parameters.patch))
+    && (value.action !== 'learning.reviewDraft' || value.parameters.reviewed === true)) return value;
   throw new AdminError(400, 'invalid_request');
 }
 
@@ -63,7 +81,10 @@ export function projectAuthoringResult(value, op) {
   check(value.commandId.toLowerCase() === op.commandId.toLowerCase() && uuid(value.versionId) && ['draft', 'published'].includes(value.status)
     && Number.isSafeInteger(value.versionNumber) && value.versionNumber > 0 && typeof value.replayed === 'boolean'
     && typeof value.appliedAt === 'string' && Number.isFinite(Date.parse(value.appliedAt)));
+  const edit = ['learning.patchDraft', 'learning.reviewDraft'].includes(value.action);
+  if (edit) check(value.status === 'draft' && sha(value.sourceRevision));
   return { commandId: value.commandId, courseId: value.courseId, action: value.action, versionId: value.versionId,
+    ...(edit ? { sourceRevision: value.sourceRevision } : {}),
     versionNumber: value.versionNumber, status: value.status, appliedAt: value.appliedAt, replayed: value.replayed };
 }
 
@@ -74,7 +95,7 @@ export function createLearningAuthoringHandler({ config, enabled = false, create
     try {
       if (!enabled || !config.enabled || !config.commandsEnabled) throw new AdminError(503, 'unconfigured');
       let op;
-      try { const raw = await request.text(); if (Buffer.byteLength(raw) > 4096) throw new Error(); op = parseAuthoringOperation(JSON.parse(raw)); }
+      try { const raw = await request.text(); if (Buffer.byteLength(raw) > 32768) throw new Error(); op = parseAuthoringOperation(JSON.parse(raw)); }
       catch { throw new AdminError(400, 'invalid_request'); }
       const { native, nativeId, actor, authenticationMethod } = await authorizePlatformAdmin(request, {
         config, command: true, learning: true, operation: op, parseOperation: parseAuthoringOperation, createClient, fetcher, now });
