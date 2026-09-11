@@ -74,7 +74,7 @@ test("real native SMS session and Hub HTTP calls share one provider reservation 
  const body={action:"checkout",organizationId:org,packageId,billingInterval:"month",successUrl:"https://cmcarebase.com/admin/enterprise?billing=success",cancelUrl:"https://cmcarebase.com/admin/enterprise?billing=cancelled",idempotencyKey:randomUUID()};
  const pendingNative=nativeHandler(new Request(url.origin+"/functions/v1/create-billing-session",{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify(body)}));
  // Surface an early HTTP failure instead of hiding it behind an unresolved provider wait.
- await Promise.race([postStarted,pendingNative.then(async response=>{throw new Error(`Native checkout stopped before synthetic provider: ${response.status} ${(await response.json()).error?.code}`);})]);
+ await Promise.race([postStarted,pendingNative.then(async response=>{throw new Error(`Native checkout stopped before synthetic provider: ${response.status} ${(await response.clone().json()).error?.code}`);})]);
  try {
    const racing=await Promise.all([send(apply),send(apply)]);
    for(const response of racing) {assert.equal(response.status,200);const data=(await response.json()).data;assert.equal(data.outcome,"pending");assert.equal(data.session,null);}
