@@ -247,6 +247,7 @@ create function public.get_native_learning_provider_context(p_course_id uuid) re
 language plpgsql security definer set search_path='' as $$
 declare v_auth jsonb;
 begin
+  if not public.is_platform_admin() then raise exception 'Current native administrator required.' using errcode='42501'; end if;
   v_auth:=app_private.current_native_provider_authority();
   return app_private.learning_provider_context(p_course_id,false);
 end;
@@ -258,6 +259,7 @@ create function public.preview_native_learning_provider_command(p_request_id uui
 language plpgsql security definer set search_path='' as $$
 declare v_auth jsonb;
 begin
+  if not public.is_platform_admin() then raise exception 'Current native administrator required.' using errcode='42501'; end if;
   v_auth:=app_private.current_native_provider_authority();
   return app_private.preview_learning_provider_command((v_auth->>'actorId')::uuid,(v_auth->>'actorId')::uuid,(v_auth->>'sessionId')::uuid,'native_session',(v_auth->>'expiresAt')::timestamptz,p_request_id,p_course_id,p_context_revision,p_patch,p_reason);
 end;
@@ -269,6 +271,7 @@ create function public.apply_native_learning_provider_command(p_command_id uuid,
 language plpgsql security definer set search_path='' as $$
 declare v_auth jsonb;
 begin
+  if not public.is_platform_admin() then raise exception 'Current native administrator required.' using errcode='42501'; end if;
   v_auth:=app_private.current_native_provider_authority();
   return app_private.apply_learning_provider_command((v_auth->>'actorId')::uuid,(v_auth->>'actorId')::uuid,(v_auth->>'sessionId')::uuid,'native_session',(v_auth->>'expiresAt')::timestamptz,p_command_id,p_expected_digest);
 end;
@@ -278,6 +281,9 @@ grant execute on function public.apply_native_learning_provider_command(uuid,tex
 
 -- The native card performs explicit preview and apply, just as the Hub does.
 revoke insert,update,delete on public.course_provider_profiles from authenticated,service_role;
+drop policy course_provider_profiles_insert on public.course_provider_profiles;
+drop policy course_provider_profiles_update on public.course_provider_profiles;
+drop policy course_provider_profiles_delete on public.course_provider_profiles;
 revoke all on function app_private.guard_learning_provider_command(),app_private.learning_provider_profile(jsonb),
   app_private.learning_provider_context(uuid,boolean),app_private.learning_provider_plan(uuid,boolean,text,jsonb),
   app_private.preview_learning_provider_command(uuid,uuid,uuid,text,timestamptz,uuid,uuid,text,jsonb,text),
@@ -336,6 +342,7 @@ create function public.get_native_learning_provider_status(p_command_id uuid,p_e
 language plpgsql security definer set search_path='' as $$
 declare v_auth jsonb;
 begin
+  if not public.is_platform_admin() then raise exception 'Current native administrator required.' using errcode='42501'; end if;
   v_auth:=app_private.current_native_provider_authority();
   return app_private.learning_provider_command_status((v_auth->>'actorId')::uuid,(v_auth->>'actorId')::uuid,(v_auth->>'sessionId')::uuid,'native_session',(v_auth->>'expiresAt')::timestamptz,p_command_id,p_expected_digest);
 end;
@@ -347,6 +354,7 @@ create function public.list_native_learning_provider_commands(p_course_id uuid,p
 language plpgsql security definer set search_path='' as $$
 declare v_auth jsonb;
 begin
+  if not public.is_platform_admin() then raise exception 'Current native administrator required.' using errcode='42501'; end if;
   v_auth:=app_private.current_native_provider_authority();
   return app_private.list_learning_provider_commands((v_auth->>'actorId')::uuid,(v_auth->>'actorId')::uuid,false,p_course_id,p_offset);
 end;
