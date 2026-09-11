@@ -36276,6 +36276,19 @@ export type Database = {
         Args: { p_batch_size?: number; p_import_run_id: string }
         Returns: Json
       }
+      apply_learning_authoring_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       apply_medication_integration_command: {
         Args: { p_command_id: string }
         Returns: Json
@@ -37041,6 +37054,16 @@ export type Database = {
       clear_auto_filled_assignments: {
         Args: { p_schedule_id: string }
         Returns: number
+      }
+      clone_course_version: {
+        Args: {
+          p_course_id: string
+          p_organization_id?: string
+          p_source_version_id: string
+          p_title: string
+          p_version_number: number
+        }
+        Returns: string
       }
       close_own_support_ticket: {
         Args: { p_ticket_id: string }
@@ -38655,6 +38678,19 @@ export type Database = {
         Args: { p_organization_id?: string }
         Returns: Json
       }
+      get_learning_authoring_source: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
       get_managed_billing_subscriptions: {
         Args: {
           p_for_quantity_sync?: boolean
@@ -39540,6 +39576,18 @@ export type Database = {
         }
         Returns: string
       }
+      inspect_learning_authoring_course: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       inspection_item_due_soon_lead_days: {
         Args: { p_interval_days: number; p_item_type: string }
         Returns: number
@@ -39718,6 +39766,10 @@ export type Database = {
           payload: Json
           sequence_number: number
         }[]
+      }
+      list_learning_authoring_dependencies: {
+        Args: { p_version_id?: string }
+        Returns: Json
       }
       list_learning_packages_admin: {
         Args: { p_course_version_id?: string }
@@ -40244,6 +40296,22 @@ export type Database = {
           p_facility_id?: string
           p_reason?: string
           p_transition: string
+        }
+        Returns: Json
+      }
+      preview_learning_authoring_command: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
         }
         Returns: Json
       }
@@ -41479,6 +41547,14 @@ export type Database = {
           p_exception_id: string
           p_resolution_note: string
           p_resolution_status: string
+        }
+        Returns: undefined
+      }
+      resolve_learning_authoring_package: {
+        Args: {
+          p_replacement_package_id: string
+          p_source_package_id: string
+          p_version_id: string
         }
         Returns: undefined
       }
