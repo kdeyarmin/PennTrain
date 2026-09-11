@@ -67,9 +67,10 @@ declare v app_private.checkout_intents; v_id uuid:=gen_random_uuid();
 begin
  select * into v from app_private.checkout_intents where id=(p_original->>'commandId')::uuid;
  insert into app_private.checkout_intents(id,actor_id,principal_id,session_id,authentication_method,request_key,organization_id,reason,
-   provider_parameters,source_snapshot,summary,preview_digest,expires_at,created_at)
+   provider_parameters,source_snapshot,summary,preview_digest,expires_at,created_at,action,reservation_id)
  values(v_id,v.actor_id,v.principal_id,case when p_age>interval '8 hours' then gen_random_uuid() else v.session_id end,v.authentication_method,v_id::text,v.organization_id,v.reason,
-   v.provider_parameters,v.source_snapshot,v.summary,repeat('a',64),clock_timestamp()-p_age+interval '5 minutes',clock_timestamp()-p_age);
+   v.provider_parameters,v.source_snapshot,v.summary,repeat('a',64),clock_timestamp()-p_age+interval '5 minutes',clock_timestamp()-p_age,
+   v.action,case when v.action='billing.checkout.recover' then v.reservation_id else null end);
  return jsonb_build_object('commandId',v_id,'previewDigest',repeat('a',64));
 end;
 $$;
@@ -231,8 +232,8 @@ insert into checkout_fixture values('none',pg_temp.checkout_recover('9c000000-00
 select is((select value->'preview' from checkout_fixture where label='none'),'null'::jsonb,'no unresolved reservation produces no reusable command');
 select is((select value->>'canStartNewCheckout' from checkout_fixture where label='none'),'true','empty organization state is explicit eligibility evidence');
 reset role;
-insert into public.billing_subscriptions(organization_id,billing_account_id,stripe_subscription_id,provider_status,billing_state)
- select organization_id,id,'sub_recovery_paused','paused','suspended' from public.billing_accounts where organization_id='9c000000-0000-4000-8000-000000000010';
+insert into public.billing_subscriptions(organization_id,billing_account_id,stripe_subscription_id,provider_status,billing_state,provider_event_created_at,provider_event_id,is_provider_placeholder)
+ select organization_id,id,'sub_recovery_paused','paused','suspended',now(),'evt_recovery_paused',false from public.billing_accounts where organization_id='9c000000-0000-4000-8000-000000000010';
 set local role service_role;
 select is(pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000106')->>'canStartNewCheckout','false',
  'no reservation does not imply eligibility when native provider-backed subscription remains paused');
@@ -273,6 +274,11 @@ select throws_ok($$select pg_temp.checkout_recover('9c000000-0000-4000-8000-0000
 insert into checkout_fixture values('unknownRecovery',pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000107'));
 select is(pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='unknownRecovery'))#>>'{data,outcome}',
  'pending','fresh-session recovery of unknown identifier stays pending without a provider dispatch');
+reset role;
+insert into checkout_fixture values('expiredRecovery',pg_temp.expired_checkout_preview((select value->'preview' from checkout_fixture where label='unknownRecovery')));
+set local role service_role;
+select is(pg_temp.checkout_recovery_claim((select value from checkout_fixture where label='expiredRecovery'))#>>'{data,outcome}',
+ 'pending','linked recovery checks remain available after preview expiry without creating a session');
 select throws_ok($$select pg_temp.checkout_recovery_claim((select value->'preview' from checkout_fixture where label='unknownRecovery'),false)$$,
  '42501','Checkout recovery is observation only','unknown identifier cannot be promoted to apply');
 reset role;

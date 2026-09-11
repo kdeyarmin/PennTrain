@@ -281,6 +281,7 @@ export async function recoverBillingCheckout(organizationId: string, requestId: 
   }
   const value = (data as {data?: unknown} | null)?.data as BillingCheckoutRecovery | undefined;
   if (!value || value.kind !== "checkout_recovery" || value.targetId !== organizationId
+    || !Object.hasOwn(value, "preview") || !Object.hasOwn(value, "result")
     || typeof value.canStartNewCheckout !== "boolean" || (value.preview === null) !== (value.result === null)
     || (value.result && (value.result.targetId !== organizationId || value.result.commandId !== value.preview?.commandId
       || value.result.action !== "billing.checkout.recover" || value.preview?.action !== "billing.checkout.recover"
