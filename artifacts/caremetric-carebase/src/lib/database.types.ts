@@ -40137,6 +40137,33 @@ export type Database = {
         Args: { p_from: string; p_organization_id?: string; p_to: string }
         Returns: string
       }
+      platform_admin_apply_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_preview_command: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_assurance_expires_at: string
+          p_hub_session: string
+          p_hub_user: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: string
+        }
+        Returns: Json
+      }
       policy_choices_are_valid: { Args: { p_choices: Json }; Returns: boolean }
       post_resident_financial_transaction: {
         Args: { p_entry: Json; p_resident_id: string }

@@ -876,6 +876,66 @@ Automated fixtures exercise both successful reads and fail-closed authorization/
 they do not certify a configured production connection. Disable `CAREMETRIC_ADMIN_ENABLED` to
 roll back without changing CareBase's native application data or authentication flows.
 
+### Preview and apply access controls
+
+`POST /api/platform-admin/command` is separately disabled unless
+`CAREMETRIC_ADMIN_COMMANDS_ENABLED=true` on the server. Install migration
+`20260911154400_delegated_platform_admin_commands.sql` and the Hub's
+`hub.authorize_platform_command()` RPC before enabling it. The capabilities read advertises
+`commands.preview` and `commands.apply` only when this flag is enabled.
+
+The command RPC must first perform the existing read authorization and additionally return
+`session_id`, `session_started_at`, and `assurance_expires_at`. The Hub verifies these against its
+actual live Auth session; expiry is no later than session creation plus 480 minutes and any
+session `not_after` deadline. The original session must be within 480 minutes and the JWT issue
+time no more than five minutes in the future. This preserves CareBase's native platform-admin
+freshness window from `identity_assurance_is_current`. Normal token refresh cannot extend it.
+Both the adapter and native transaction recheck the mapped native administrator and freshness.
+The foreign session is never represented as a fabricated native JWT or `auth.uid()`.
+
+Preview requests contain exactly `{operation: "preview", requestId, action, targetId, parameters,
+reason}`. The three action/parameter pairs are:
+
+- `users.setActive`: `{active: boolean}`. Excludes the caller and every platform-admin target.
+  Deactivation calls the native profile core, which deletes the target's native sessions; later
+  activation does not recover those sessions. Activation refuses anonymous, deleted or banned accounts.
+- `organizations.setSuspension`: `{suspended: boolean}`. The existing native core writes the
+  organization and billing account together; manual suspension survives future billing events.
+  Lifting it restores the provider-derived state, which can still be canceled or suspended.
+- `billing.setAccessOverride`: `{state: "comped" | "provider", expiresAt: ISO timestamp | null}`.
+  Complimentary access may have a future expiry or be indefinite. Returning to provider state
+  requires `expiresAt: null`. These are application-access decisions and never cancel, charge,
+  restart or alter a Stripe subscription.
+
+Identifiers are UUIDs; reasons must be 10–500 characters without control characters. The adapter
+accepts no caller-supplied identity, provider request, arbitrary RPC, account credential or email.
+Preview returns `{commandId, action, targetId, reason, expiresAt, previewDigest, changes}`. Changes
+are `{field, before, after}` with string/null values and only `active`, `status`, `billingState`,
+`stateSource`, or `compedUntil`. Apply accepts exactly `{operation: "apply", commandId,
+expectedDigest}` and returns `{commandId, action, targetId, appliedAt, replayed, changes}`. Both use
+the existing version-1 envelope with operation `preview`/`apply`. HTTP 409 `conflict` means the
+preview expired, the target changed, or the expected digest/request identifier no longer matches.
+
+Native previews are immutable, bound to both actors and the Hub session, and expire within five
+minutes. Reusing an identical request identifier returns the same preview; different inputs are
+rejected. Apply locks the receipt and target, revalidates state, invokes the same cores as native
+administration, verifies the outcome matches the preview, and commits the native audit and stored
+result together. Audit failure rolls back the change. A repeated or concurrent apply returns the
+stored outcome without another mutation or audit. No-op commands still create an audit that
+explicitly records `unchanged: true`. Records contain only safe state projections and the supplied
+operational reason; operators should keep clinical/personal details out of reasons.
+
+The command audit attributes the mapped native actor and the Hub subject/session explicitly.
+Native row-trigger evidence retains its normal system attribution and shares the command's
+request/correlation identifiers. The service credential has no direct read/write grants on the
+private ledger or private business cores. Native interactive RPC wrappers retain their own checks.
+Disable `CAREMETRIC_ADMIN_COMMANDS_ENABLED` to stop new previews/applies while retaining the
+read-only administration endpoint and all receipts.
+
+CI runs pgTAP transaction tests and an additional real loopback-Supabase concurrency test against
+the disposable database. The latter refuses remote URLs and requires
+`CAREMETRIC_LOCAL_COMMAND_TESTS=true`. No production action is part of automated verification.
+
 ## Limitations / manual steps remaining
 
 Deployment-setting verification on 2026-09-08 (BACKLOG K11):
