@@ -430,12 +430,13 @@ create function public.get_learning_authoring_source(p_actor uuid,p_hub_user uui
   p_session_started_at timestamptz,p_assurance_expires_at timestamptz,p_course_id uuid,p_version_id uuid,p_authentication_method text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_payload text;
+  v_excluded_pattern constant text := '([?&](token|access_token|signature|sig|key|policy|jwt|auth|h|hdnts|hdnea|key-pair-id|api_key|apikey|x-amz-[a-z-]+|x-goog-[a-z-]+)=|"(access_?token|refresh_?token|service_?role_?key|authorization|password|client_?secret|storage_?(path|bucket)|video_?url|playback_?(url|token)|signed_?url|api_?key|token|secret|secret_?key|signing_?secret)"[[:space:]]*:)';
 begin
   perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
   v_payload:=app_private.learning_source_payload(p_course_id,p_version_id);
   if v_payload is null then raise exception 'Global source version not found' using errcode='P0002'; end if;
   if octet_length(v_payload)>2000000 then raise exception 'Source exceeds governed snapshot limit' using errcode='22023'; end if;
-  if v_payload ~* '([?&](token|access_token|signature|sig|key|policy|jwt|auth|h|hdnts|hdnea|key-pair-id|api_key|apikey|x-amz-[a-z-]+|x-goog-[a-z-]+)=|"(access_token|refresh_token|service_role_key|authorization|accessToken|refreshToken|password|client_secret|storage_path|storage_bucket|video_url|playback_url|signed_url)"[[:space:]]*:)' then
+  if v_payload ~* v_excluded_pattern or v_payload::jsonb::text ~* v_excluded_pattern then
     raise exception 'Source contains an excluded credential or storage field; review it in CareBase before exporting' using errcode='42501';
   end if;
   return jsonb_build_object('courseId',p_course_id,'versionId',p_version_id,'sourceRevision',encode(extensions.digest(v_payload,'sha256'),'hex'),'payload',v_payload);

@@ -94,6 +94,15 @@ test('source response binds exact raw bytes and rejects hidden playback credenti
   assert.throws(() => projectAuthoringResult(sourceResult({ body: { playback_url: 'private' } }), sourceOp));
   assert.throws(() => projectAuthoringResult(sourceResult({ body: 'https://example.test/movie?token=private' }), sourceOp));
 });
+test('source credentials are rejected across snake/camel case and escaped JSON keys', () => {
+  for (const key of ['playbackToken', 'PLAYBACK_TOKEN', 'signedUrl', 'api_key', 'apiKey', 'clientSecret', 'token', 'secretKey', 'signing_secret', 'storagePath', 'videoUrl']) {
+    assert.throws(() => projectAuthoringResult(sourceResult({ body: { [key]: 'synthetic excluded value' } }), sourceOp), key);
+  }
+  const value = sourceResult({ body: { playbackToken: 'synthetic excluded value' } });
+  value.payload = value.payload.replace('playbackToken', 'playback\\u0054oken');
+  value.sourceRevision = createHash('sha256').update(value.payload).digest('hex');
+  assert.throws(() => projectAuthoringResult(value, sourceOp));
+});
 test('large escaped source fits its specific bound without increasing unrelated reads', async () => {
   const source = sourceResult({ body: '"'.repeat(650000) }); assert.ok(Buffer.byteLength(JSON.stringify(source)) > 2 * 1024 * 1024);
   const f = fixture({ result: source }); const response = await f.handler(request(sourceOp)); assert.equal(response.status, 200);

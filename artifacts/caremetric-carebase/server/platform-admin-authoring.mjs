@@ -2,7 +2,7 @@ import { AdminError, authorizePlatformAdmin, UUID } from './platform-admin-auth.
 import { createHash } from 'node:crypto';
 
 const SHA = /^[0-9a-f]{64}$/;
-const EXCLUDED_SOURCE = /([?&](token|access_token|signature|sig|key|policy|jwt|auth|h|hdnts|hdnea|key-pair-id|api_key|apikey|x-amz-[a-z-]+|x-goog-[a-z-]+)=|"(access_token|refresh_token|service_role_key|authorization|accessToken|refreshToken|password|client_secret|storage_path|storage_bucket|video_url|playback_url|signed_url)"\s*:)/i;
+const EXCLUDED_SOURCE = /([?&](token|access_token|signature|sig|key|policy|jwt|auth|h|hdnts|hdnea|key-pair-id|api_key|apikey|x-amz-[a-z-]+|x-goog-[a-z-]+)=|"(access_?token|refresh_?token|service_?role_?key|authorization|password|client_?secret|storage_?(path|bucket)|video_?url|playback_?(url|token)|signed_?url|api_?key|token|secret|secret_?key|signing_?secret)"\s*:)/i;
 const actions = ['learning.cloneVersion', 'learning.publishVersion'];
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exact = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
@@ -41,7 +41,7 @@ export function projectAuthoringResult(value, op) {
       && createHash('sha256').update(value.payload).digest('hex') === value.sourceRevision && !EXCLUDED_SOURCE.test(value.payload));
     let source; try { source = JSON.parse(value.payload); } catch { throw new AdminError(502, 'upstream'); }
     check(source?.contract === 'carebase.course.v1' && source.sourceCourseId?.toLowerCase() === op.courseId.toLowerCase()
-      && source.sourceVersionId?.toLowerCase() === op.versionId.toLowerCase());
+      && source.sourceVersionId?.toLowerCase() === op.versionId.toLowerCase() && !EXCLUDED_SOURCE.test(JSON.stringify(source)));
     return { courseId: value.courseId, versionId: value.versionId, sourceRevision: value.sourceRevision, payload: value.payload };
   }
   if (op.operation === 'inspect') {
