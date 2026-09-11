@@ -12,9 +12,9 @@ const digest = async (file: File) => Array.from(new Uint8Array(await crypto.subt
 export function useUploadLearningPackage() {
   const queryClient = useQueryClient();
   const attempts = useRef(new Map<string, { requestId: string; sourceRevision: string }>());
-  return useMutation({ mutationFn: async ({ file, versionId }: { file: File; versionId: string }): Promise<PackageReceipt> => {
+  return useMutation({ mutationFn: async ({ file, versionId, standard = "scorm_1_2" }: { file: File; versionId: string; standard?: "scorm_1_2" | "scorm_2004_4th" | "xapi" }): Promise<PackageReceipt> => {
     if (!file.name.toLowerCase().endsWith(".zip") || file.size < 1 || file.size > 50 * 1024 * 1024) throw new Error("Choose a ZIP package no larger than 50 MB.");
-    const sourceSha256 = await digest(file); const key = `${versionId}:${sourceSha256}`;
+    const sourceSha256 = await digest(file); const key = `${versionId}:${standard}:${sourceSha256}`;
     let attempt = attempts.current.get(key);
     if (attempt) {
       // A new authenticated session may read this actor's durable receipt without
@@ -34,7 +34,7 @@ export function useUploadLearningPackage() {
     }
     const form = new FormData();
     form.set("request", JSON.stringify({ operation: "upload", requestId: attempt.requestId, versionId, sourceRevision: attempt.sourceRevision,
-      reason: "Upload original package for this course draft", standard: "scorm_1_2", sourceSha256, sourceBytes: file.size }));
+      reason: "Upload original package for this course draft", standard, sourceSha256, sourceBytes: file.size }));
     form.set("file", file);
     const response = await supabase.functions.invoke("ingest-learning-package", { body: form });
     if (response.error) throw new Error("Package upload did not finish. Retry this file to check its saved receipt.");
@@ -46,6 +46,7 @@ export function useUploadLearningPackage() {
   }, onSuccess: () => {
     void queryClient.invalidateQueries({ queryKey: ["learning_packages"] });
     void queryClient.invalidateQueries({ queryKey: ["learning_authoring_dependencies"] });
-    void queryClient.invalidateQueries({ queryKey: ["native_learning_draft"] });
+    void queryClient.invalidateQueries({ queryKey: ["governed_draft_source"] });
+    void queryClient.invalidateQueries({ queryKey: ["learning_package_context"] });
   } });
 }

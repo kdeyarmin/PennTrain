@@ -38395,9 +38395,7 @@ export type Database = {
         Returns: boolean
       }
       finish_native_learning_package_operation: {
-        Args: {
-          p_operation_id: string
-        }
+        Args: { p_operation_id: string }
         Returns: Json
       }
       finish_organization_export_job: {
@@ -38864,16 +38862,11 @@ export type Database = {
         Returns: Json
       }
       get_native_learning_package_context: {
-        Args: {
-          p_package_id?: string
-          p_version_id?: string
-        }
+        Args: { p_package_id?: string; p_version_id?: string }
         Returns: Json
       }
       get_native_learning_package_operation: {
-        Args: {
-          p_request_id: string
-        }
+        Args: { p_request_id: string }
         Returns: Json
       }
       get_notification_delivery_evidence: {
@@ -40543,9 +40536,7 @@ export type Database = {
         Returns: Json
       }
       prepare_native_learning_package_operation: {
-        Args: {
-          p_request: Json
-        }
+        Args: { p_request: Json }
         Returns: Json
       }
       prepare_offline_course_bundle: {

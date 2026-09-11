@@ -10,7 +10,7 @@ const sha=createHash('sha256').update(bytes).digest('hex');
 const config={enabled:true,commandsEnabled:true,packageIngestionEnabled:true,hubUrl:'https://hub.test',hubKey:'sb_publishable_fixture',
  supabaseUrl:'https://native.test',serviceKey:'fixture-server-only',identities:new Map([[id(1),id(2)]])};
 const upload={operation:'upload',requestId:id(3),versionId:id(4),sourceRevision:'a'.repeat(64),reason:'Synthetic package upload',standard:'scorm_1_2',sourceSha256:sha,sourceBytes:bytes.byteLength};
-function fixture(){
+function fixture({duplicateStatus=null,duplicateBody=null}={}){
  let approved=upload,active=true,proof=null;const calls=[];const stored=new Map();
  const receipt={operationId:id(5),packageId:id(6),versionId:id(4),sourceRevision:'b'.repeat(64),status:'pending',sourceSha256:sha,runtimeSha256:null,entryPoint:null};
  const native={from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:{id:id(2),role:'platform_admin',is_active:active}})})})}),
@@ -27,7 +27,9 @@ function fixture(){
   if(url.includes('/api/internal/learning/carebase/authorize'))return Response.json({user_id:id(1),role:'platform_admin',method:'sms',session_id:id(7),session_started_at:'2026-09-11T21:00:00Z',assurance_expires_at:'2026-09-12T05:00:00Z',operation:approved});
   if(url.startsWith('https://native.test/storage/v1/object/')){
    assert.equal(init.headers.Authorization,`Bearer ${config.serviceKey}`);assert.equal(init.redirect,'error');
-   if(init.method==='POST'){assert.equal(init.headers['x-upsert'],'false');stored.set(url,init.body);return Response.json({Key:'retained'});}
+   if(init.method==='POST'){assert.equal(init.headers['x-upsert'],'false');stored.set(url,init.body);
+    if(duplicateStatus)return Response.json(duplicateBody,{status:duplicateStatus});
+    return Response.json({Key:'retained'});}
    return new Response(stored.get(url.replace('/authenticated/','/'))??null);
   }
   throw Error('Unexpected network');
@@ -71,4 +73,12 @@ test('browser origin, cookies and external path metadata are rejected',async()=>
 test('status is read-only and a disabled deployment cannot ingest',async()=>{
  const f=fixture();const op={operation:'status',requestId:id(3)};f.approve(op);const response=await f.handler(f.request(op));assert.equal(response.status,200);assert.equal((await response.json()).data,null);assert.equal(f.stored.size,0);
  const off=createPlatformPackageHandler({config:{...config,packageIngestionEnabled:false}});assert.equal((await off(f.request())).status,503);
+});
+
+test('only exact duplicate evidence permits the verifying GET after a storage error',async()=>{
+ for(const [status,body,expected] of [[409,{},200],[400,{code:'Duplicate'},200],[400,{code:'InvalidRequest'},502],[400,{message:'Duplicate'},502],[400,{code:'Duplicate',padding:'x'.repeat(5000)},502]]){
+  const f=fixture({duplicateStatus:status,duplicateBody:body});const response=await f.handler(f.request());assert.equal(response.status,expected);
+  assert.equal(f.calls.some(x=>x.url?.includes('/storage/')&&x.method==='GET'),expected===200);
+  assert.equal(f.calls.some(x=>x.name==='record_learning_package_artifact'),expected===200);
+ }
 });

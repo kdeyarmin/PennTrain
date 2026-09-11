@@ -27,10 +27,15 @@ async function storageRequest(config, requestSignal, fetcher, bucket, path, byte
     headers:{Authorization:`Bearer ${config.serviceKey}`,apikey:config.serviceKey,...(bytes?{'Content-Type':'application/zip','x-upsert':'false'}:{})},
     ...(bytes?{body:bytes}:{})});
   if (bytes) {
-    if (response.body) await response.body.cancel();
-    if(response.ok)return 'created';
+    if(response.ok){if(response.body)await response.body.cancel();return 'created';}
     // A duplicate is accepted only after a separate GET matches exact bytes.
-    if(response.status===400||response.status===409)return 'exists';
+    if(response.status===409){if(response.body)await response.body.cancel();return 'exists';}
+    if(response.status===400){
+      try {
+        const error=JSON.parse(new TextDecoder().decode(await boundedPackageBody(response,4096)));
+        if(error && typeof error==='object' && !Array.isArray(error) && error.code==='Duplicate')return 'exists';
+      }catch{/* Malformed or oversized provider errors are not duplicate evidence. */}
+    }else if(response.body)await response.body.cancel();
     throw new PackageIngestionError(502,'Immutable package bytes could not be stored.');
   }
   if(!response.ok){if(response.body)await response.body.cancel();throw new PackageIngestionError(502,'Original package is unavailable.');}
@@ -137,7 +142,7 @@ export function createPlatformPackageRouter({config=readPlatformAdminConfig(),ha
       const request=new Request('https://cmcarebase.com/api/learning-admin/package',{method:req.method,headers,signal:controller.signal,
         ...(!['GET','HEAD'].includes(req.method)?{body:Readable.toWeb(req),duplex:'half'}:{})});
       const response=await handler(request);const bytes=new Uint8Array(await response.arrayBuffer());
-      if(bytes.byteLength>65536)throw new Error('Response limit');
+      if(bytes.byteLength>262144)throw new Error('Response limit');
       res.writeHead(response.status,{'Content-Type':'application/json','Cache-Control':'no-store',Connection:'close'});res.end(bytes);
     }catch{if(!res.headersSent)fail(controller.signal.aborted?408:502,controller.signal.aborted?'request_timeout':'upstream');}
     finally{clearTimeout(timer);active=false;req.removeListener('aborted',abort);res.removeListener('close',abort);}

@@ -243,14 +243,16 @@ export function useAcceptLearningPackage() {
       if (attempt) {
         const prior = await rpc().rpc("get_native_learning_package_operation", { p_request_id: attempt.requestId });
         if (prior.error) throw new Error(prior.error.message);
-        if (prior.data?.status === "committed" && prior.data.result?.packageId === input.packageId && prior.data.result.status === "accepted") return;
-        if (prior.data?.status === "expired") { attempts.current.delete(key); attempt = undefined; }
+        const status = prior.data as { status?: string; result?: { packageId?: string; status?: string } } | null;
+        if (status?.status === "committed" && status.result?.packageId === input.packageId && status.result.status === "accepted") return;
+        if (status?.status === "expired") { attempts.current.delete(key); attempt = undefined; }
       }
       if (!attempt) {
         const context = await rpc().rpc("get_native_learning_package_context", { p_version_id: null, p_package_id: input.packageId });
         if (context.error) throw new Error(context.error.message);
-        if (context.data?.package?.id !== input.packageId || !/^[0-9a-f]{64}$/.test(context.data.sourceRevision)) throw new Error("Refresh the package before accepting it.");
-        attempt = { requestId: crypto.randomUUID(), sourceRevision: context.data.sourceRevision }; attempts.current.set(key, attempt);
+        const source = context.data as { package?: { id?: string }; sourceRevision?: string } | null;
+        if (source?.package?.id !== input.packageId || !/^[0-9a-f]{64}$/.test(source.sourceRevision ?? "")) throw new Error("Refresh the package before accepting it.");
+        attempt = { requestId: crypto.randomUUID(), sourceRevision: source.sourceRevision! }; attempts.current.set(key, attempt);
       }
       // The worker retains original bytes and stages a separate verified bridge
       // artifact. Only its final current-authorized CAS marks the package accepted.
@@ -271,7 +273,8 @@ export function useAcceptLearningPackage() {
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["learning_packages"] });
       void client.invalidateQueries({ queryKey: ["learning_authoring_dependencies"] });
-      void client.invalidateQueries({ queryKey: ["native_learning_draft"] });
+      void client.invalidateQueries({ queryKey: ["governed_draft_source"] });
+      void client.invalidateQueries({ queryKey: ["learning_package_context"] });
     },
   });
 }

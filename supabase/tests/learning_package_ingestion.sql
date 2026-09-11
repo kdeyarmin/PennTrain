@@ -62,9 +62,16 @@ select public.record_learning_package_artifact((select (value->>'operationId')::
 select throws_ok($$select public.record_learning_package_artifact((select (value->>'operationId')::uuid from package_fixture where label='plan'),repeat('b',64),128)$$,'40001',null,'observed original hash cannot change');
 set local role authenticated;
 select pg_temp.package_actor();
+select is(public.get_native_learning_package_context('22000000-0000-4000-8000-000000000030',null)->'intents'->'items'->0->>'state','staged','context exposes verified staged evidence');
+select is(public.get_native_learning_package_context('22000000-0000-4000-8000-000000000030',null)->'intents'->'items'->0->>'canFinishThisSession','true','context permits original current session finalization');
+select pg_temp.package_actor(false,true);
+select is(public.get_native_learning_package_context('22000000-0000-4000-8000-000000000030',null)->'intents'->'items'->0->>'canFinishThisSession','false','fresh session may inspect but cannot adopt old write authority');
+select pg_temp.package_actor();
 insert into package_fixture values('registered',public.finish_native_learning_package_operation((select (value->>'operationId')::uuid from package_fixture where label='plan')));
 select is((select value->>'status' from package_fixture where label='registered'),'pending','byte evidence registers pending package only');
 select is(public.prepare_native_learning_package_operation((select value from package_fixture where label='request'))->'result',(select value from package_fixture where label='registered'),'lost registration response returns same receipt');
+select is(public.get_native_learning_package_context('22000000-0000-4000-8000-000000000030',null)->'intents'->'items'->0->>'sourceRevision',(select value->>'sourceRevision' from package_fixture where label='request'),'context keeps immutable pre-commit source revision');
+select is(public.get_native_learning_package_context('22000000-0000-4000-8000-000000000030',null)->'intents'->'items'->0->'result'->>'sourceRevision',(select value->>'sourceRevision' from package_fixture where label='registered'),'committed receipt keeps exact post-commit source revision');
 reset role;
 select ok((select organization_id is null from public.learning_packages where id=(select (value->>'packageId')::uuid from package_fixture where label='plan')),'registered package keeps NULL global organization');
 select is((select content_sha256 from app_private.learning_package_originals where package_id=(select (value->>'packageId')::uuid from package_fixture where label='plan')),repeat('a',64),'original SHA stored separately');
@@ -124,5 +131,54 @@ select throws_ok($$select public.get_native_learning_package_context('22000000-0
 select lives_ok($$select public.get_native_learning_package_context('22000000-0000-4000-8000-000000000031',null)$$,'same-tenant trainer retains scoped authoring access');
 reset role;
 select is((select count(*) from public.learning_packages where course_version_id='22000000-0000-4000-8000-000000000030'),1::bigint,'rejected CAS adds no second package');
+
+-- Existing canonical native registrations can still enter the common verified worker.
+-- The global case must not inherit an operator's tenant or depend on a facility document.
+insert into public.courses(id,organization_id,title,status,created_by) values
+ ('22000000-0000-4000-8000-000000000023',null,'Legacy global package draft','draft','22000000-0000-4000-8000-000000000001');
+insert into public.course_versions(id,course_id,organization_id,version_number,title,status) values
+ ('22000000-0000-4000-8000-000000000033','22000000-0000-4000-8000-000000000023',null,1,'Legacy global version','draft');
+insert into storage.objects(bucket_id,name,metadata) values('learning-packages',
+ 'global/22000000-0000-4000-8000-000000000033/'||repeat('e',64)||'.zip','{"size":128}'::jsonb);
+set local role authenticated;
+select pg_temp.package_actor();
+select throws_ok($$select public.register_learning_package('22000000-0000-4000-8000-000000000033','scorm_1_2',
+ 'global/22000000-0000-4000-8000-000000000033/'||repeat('e',64)||'.zip',repeat('e',64),52428801)$$,'22023',null,'legacy registration cannot advertise files above worker 50 MiB bound');
+select throws_ok($$select public.register_learning_package('22000000-0000-4000-8000-000000000033','scorm_1_2',
+ 'global/22000000-0000-4000-8000-000000000033/'||repeat('e',64)||'.zip',repeat('e',64),128,'index.html','22000000-0000-4000-8000-000000000010')$$,'42501',null,'legacy global upload cannot borrow a tenant identity');
+insert into package_fixture values('legacy_package',to_jsonb(public.register_learning_package('22000000-0000-4000-8000-000000000033','scorm_1_2',
+ 'global/22000000-0000-4000-8000-000000000033/'||repeat('e',64)||'.zip',repeat('e',64),128)));
+insert into package_fixture values('legacy_plan',public.prepare_native_learning_package_operation(jsonb_build_object('operation','accept',
+ 'requestId','22000000-0000-4000-8000-000000000043','packageId',(select value#>>'{}' from package_fixture where label='legacy_package'),
+ 'sourceRevision',public.get_native_learning_package_context('22000000-0000-4000-8000-000000000033',null)->>'sourceRevision',
+ 'entryPoint','index.html','reason','Review canonical legacy source','bridgeSha256',repeat('c',64))));
+reset role;
+select ok((select organization_id is null from public.learning_packages where id=(select (value#>>'{}')::uuid from package_fixture where label='legacy_package')),'legacy global registration keeps NULL organization');
+select is((select count(*) from public.audit_logs where entity_id=(select value#>>'{}' from package_fixture where label='legacy_package') and action='package_registered'),1::bigint,'legacy global registration emits native audit');
+set local role service_role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+select public.record_learning_package_artifact((select (value->>'operationId')::uuid from package_fixture where label='legacy_plan'),repeat('e',64),128,repeat('d',64),200,'index.html',repeat('c',64));
+set local role authenticated;
+select pg_temp.package_actor();
+select is(public.finish_native_learning_package_operation((select (value->>'operationId')::uuid from package_fixture where label='legacy_plan'))->>'status','accepted','canonical legacy global package uses immutable common acceptance');
+reset role;
+select is((select content_sha256 from app_private.learning_package_originals where package_id=(select (value#>>'{}')::uuid from package_fixture where label='legacy_package')),repeat('e',64),'legacy original retained independently from accepted runtime');
+insert into public.learning_packages(id,organization_id,course_version_id,standard_type,storage_bucket,storage_path,content_sha256,compressed_bytes,validation_status,created_by)
+ values('22000000-0000-4000-8000-000000000060',null,'22000000-0000-4000-8000-000000000033','lti_1_3','learning-packages',
+ 'global/22000000-0000-4000-8000-000000000033/'||repeat('f',64)||'.zip',repeat('f',64),128,'pending','22000000-0000-4000-8000-000000000001');
+set local role authenticated;
+select pg_temp.package_actor();
+select throws_ok($$select public.prepare_native_learning_package_operation(jsonb_build_object('operation','accept',
+ 'requestId','22000000-0000-4000-8000-000000000061','packageId','22000000-0000-4000-8000-000000000060',
+ 'sourceRevision',public.get_native_learning_package_context('22000000-0000-4000-8000-000000000033',null)->>'sourceRevision',
+ 'entryPoint',null,'reason','Unsupported LTI ZIP acceptance','bridgeSha256',repeat('c',64)))$$,'22023',null,'LTI tools never enter the ZIP runtime bridge');
+do $$begin for i in 1..21 loop
+ perform public.prepare_native_learning_package_operation(pg_temp.package_upload_request(gen_random_uuid()));
+ end loop;end;$$;
+select is(jsonb_array_length(public.get_native_learning_package_context('22000000-0000-4000-8000-000000000030',null)->'intents'->'items'),20,'context bounds recovery list to twenty actor-owned intents');
+select is(public.get_native_learning_package_context('22000000-0000-4000-8000-000000000030',null)->'intents'->>'hasMore','true','context signals omitted older operations');
+select pg_temp.package_actor(true);
+select is(jsonb_array_length(public.get_native_learning_package_context('22000000-0000-4000-8000-000000000031',null)->'intents'->'items'),0,'another actor context exposes no foreign operations');
+reset role;
 select * from finish();
 rollback;

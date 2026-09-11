@@ -215,6 +215,7 @@ begin
     else
       select * into v_package from public.learning_packages where id=v_package_id;
       if v_package.organization_id is distinct from v_org then raise exception 'Package ownership does not match the course.' using errcode='42501'; end if;
+      if v_package.standard_type not in ('scorm_1_2','scorm_2004_4th','xapi') then raise exception 'This standard does not use ZIP runtime acceptance.' using errcode='22023'; end if;
       if v_package.validation_status not in ('pending','validating','rejected') then raise exception 'Package is not pending acceptance.' using errcode='40001'; end if;
       if coalesce(p_request->>'bridgeSha256','') !~ '^[0-9a-f]{64}$' then raise exception 'Bridge identity required.' using errcode='22023'; end if;
       select * into v_original from app_private.learning_package_originals where package_id=v_package_id;
@@ -389,7 +390,7 @@ revoke all on function app_private.register_learning_package_legacy_core(uuid,te
 create function public.register_learning_package(p_course_version_id uuid,p_standard_type text,p_storage_path text,p_content_sha256 text,
   p_compressed_bytes integer,p_entry_point text default 'index.html',p_organization_id uuid default null) returns uuid
 language plpgsql security definer set search_path='' as $$
-declare v_authority jsonb; v_course uuid; v_org uuid;
+declare v_authority jsonb; v_course uuid; v_org uuid; v_package uuid;
 begin
   v_authority:=app_private.native_learning_package_authority();
   v_course:=app_private.assert_learning_package_scope((v_authority->>'actorId')::uuid,p_course_version_id,true);
@@ -405,8 +406,12 @@ begin
   if v_org is null then
     insert into public.learning_packages(organization_id,course_version_id,standard_type,storage_bucket,storage_path,content_sha256,
       compressed_bytes,entry_point,validation_status,created_by)
-    values(null,p_course_version_id,p_standard_type,'learning-packages',p_storage_path,p_content_sha256,p_compressed_bytes,p_entry_point,'pending',auth.uid());
-    return (select id from public.learning_packages where course_version_id=p_course_version_id and content_sha256=p_content_sha256);
+    values(null,p_course_version_id,p_standard_type,'learning-packages',p_storage_path,p_content_sha256,p_compressed_bytes,p_entry_point,'pending',auth.uid()) returning id into v_package;
+    insert into public.audit_logs(organization_id,actor_profile_id,actor_subject_id,entity_type,entity_id,action,source,new_values,metadata)
+      values(null,auth.uid(),auth.uid()::text,'learning_packages',v_package::text,'package_registered','native_editor',
+        jsonb_build_object('courseVersionId',p_course_version_id,'sourceSha256',p_content_sha256,'status','pending'),
+        jsonb_build_object('sessionId',v_authority->>'sessionId','authenticationMethod','native_session','legacyRegistration',true));
+    return v_package;
   end if;
   return app_private.register_learning_package_legacy_core(p_course_version_id,p_standard_type,p_storage_path,p_content_sha256,
     p_compressed_bytes,p_entry_point,v_org);

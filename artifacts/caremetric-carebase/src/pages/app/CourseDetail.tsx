@@ -1,4 +1,5 @@
 import { useUploadLearningPackage } from "@/hooks/useLearningPackageIngestion";
+import { NativeLearningPackagePanel } from "@/components/learning/NativeLearningPackagePanel";
 import { useId, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -774,6 +775,8 @@ export default function CourseDetail() {
 
       {canManage && selectedVersion?.status === 'draft' && user && <NativeGovernedDraftEditor key={selectedVersion.id}
         versionId={selectedVersion.id} userId={user.id} onGovernedChange={setGovernedDraft} onDirtyChange={setGovernedDraftDirty} />}
+      {canManage && selectedVersion?.status === 'draft' && user && <NativeLearningPackagePanel key={`${user.id}:${selectedVersion.id}`}
+        versionId={selectedVersion.id} userId={user.id} disabled={governedDraftDirty} />}
 
       <ContentBlocksCard
         structureManaged={selectedVersion?.status === 'draft' && governedDraft !== false}

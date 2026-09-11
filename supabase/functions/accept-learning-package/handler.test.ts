@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { zipSync } from "npm:fflate@0.8.3";
 import { packageSha256, readPackageArchive } from "../_shared/learningPackageArchive.ts";
-import { derivePackageRuntime, executePackageOperation, PackageIngestionError, parsePackageOperation, type PackageAccept, type PackageIngestionPorts } from "../_shared/learningPackageIngestion.ts";
+import { derivePackageRuntime, executePackageOperation, stagePackageOperation, PackageIngestionError, parsePackageOperation, type PackageAccept, type PackageIngestionPorts } from "../_shared/learningPackageIngestion.ts";
 import { createLearningPackageHttpHandler } from "../_shared/learningPackageHttp.ts";
 
 const id = (n: number) => `22000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
@@ -49,6 +49,16 @@ Deno.test("lost final response replays the committed receipt without writing aga
   const f=await fixture();f.loseFinish();await assert.rejects(()=>executePackageOperation(f.operation,null,f.ports),/lost/);
   const puts=f.calls.filter(x=>x.startsWith("put:")).length;const result=await executePackageOperation(f.operation,null,f.ports);
   assert.equal(result.status,"accepted");assert.equal(f.calls.filter(x=>x.startsWith("put:")).length,puts);
+});
+Deno.test("staging needs a separate final authorization and cached receipts stay request-bound",async()=>{
+  const f=await fixture();const staged=await stagePackageOperation(f.operation,null,f.ports);
+  assert.equal(staged.state,"staged");assert.ok(!f.calls.includes("finish"));
+  const receipt=await executePackageOperation(f.operation,null,f.ports);
+  f.ports.prepare=async()=>({result:{...receipt,packageId:id(99)}});
+  await assert.rejects(()=>stagePackageOperation(f.operation,null,f.ports),/identity differs/);
+  const upload={operation:"upload" as const,requestId:id(8),versionId:id(4),sourceRevision:"a".repeat(64),reason:"Synthetic source upload",standard:"scorm_1_2" as const,sourceSha256:f.sha,sourceBytes:original.byteLength};
+  f.ports.prepare=async()=>({result:{...receipt,status:"pending",runtimeSha256:null,entryPoint:null,versionId:id(99)}});
+  await assert.rejects(()=>stagePackageOperation(upload,new Blob([original]),f.ports),/identity differs/);
 });
 Deno.test("lost staging response safely verifies existing immutable objects",async()=>{
   const f=await fixture();const record=f.ports.record;let first=true;

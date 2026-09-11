@@ -10,8 +10,10 @@ export function nativePackageDependencies(mode: "upload" | "accept", getEnv = (k
     if (!authorization || !/^Bearer [A-Za-z0-9._~-]+$/.test(authorization) || authorization.length > 8192) throw new PackageIngestionError(401, "Sign in to change course packages.");
     const url = getEnv("SUPABASE_URL"); const anon = getEnv("SUPABASE_ANON_KEY"); const service = getEnv("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !anon || !service) throw new PackageIngestionError(503, "Package ingestion is not configured.");
-    const caller = createClient(url, anon, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
-    const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+    const boundedFetch: typeof fetch = (input, init) => fetch(input, { ...init,
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(60_000), ...(init?.signal ? [init.signal] : [])]) });
+    const caller = createClient(url, anon, { global: { fetch: boundedFetch, headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
+    const admin = createClient(url, service, { global: { fetch: boundedFetch }, auth: { persistSession: false, autoRefreshToken: false } });
     const { data, error } = await caller.auth.getUser();
     if (error || !data.user) throw new PackageIngestionError(401, "Sign in again before changing course packages.");
     return {
