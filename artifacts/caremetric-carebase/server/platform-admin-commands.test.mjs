@@ -103,6 +103,25 @@ test("apply preserves the command UUID/digest and returns a safe replay result",
   assert.equal(Object.hasOwn(f.calls.at(-1).body, "p_parameters"), false);
 });
 
+test("preview generation time follows the database response when the RPC is slow", async () => {
+  const f = fixture();
+  let elapsed = 0;
+  const fetcher = async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : input);
+    if (url.pathname === "/rest/v1/rpc/platform_admin_preview_command") {
+      elapsed = 4_000;
+      f.state.previewResult.expiresAt = "2026-09-11T15:05:04.000Z";
+    }
+    return f.fetcher(input, init);
+  };
+  const handler = createPlatformAdminCommandHandler({ config: config(), fetcher, now: () => new Date(Date.parse(NOW) + elapsed) });
+  const response = await handler(request());
+  assert.equal(response.status, 200);
+  const output = await response.json();
+  assert.equal(output.generatedAt, "2026-09-11T15:00:04.000Z");
+  assert.equal(Date.parse(output.data.expiresAt) - Date.parse(output.generatedAt), 300_000);
+});
+
 for (const [label, override] of [
   ["missing command assurance", { session_id: undefined }], ["wrong session identifier", { session_id: "bad" }],
   ["expired original session", { session_started_at: "2026-09-11T06:59:59.000Z" }],

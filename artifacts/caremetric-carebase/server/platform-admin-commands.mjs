@@ -82,7 +82,7 @@ export function createPlatformAdminCommandHandler({ config, createClient, fetche
       try { const raw = await request.text(); if (Buffer.byteLength(raw) > 4096) fail(); body = JSON.parse(raw); }
       catch { fail(); }
       const command = parseCommand(body);
-      const { native, nativeId, actor, timestamp: checkedAt } = await authorizePlatformAdmin(request, { config, command: true, createClient, fetcher, now });
+      const { native, nativeId, actor } = await authorizePlatformAdmin(request, { config, command: true, createClient, fetcher, now });
       const common = { p_actor: nativeId, p_hub_user: actor.user_id, p_hub_session: actor.session_id,
         p_session_started_at: actor.session_started_at, p_assurance_expires_at: actor.assurance_expires_at };
       const result = command.operation === "preview"
@@ -97,7 +97,7 @@ export function createPlatformAdminCommandHandler({ config, createClient, fetche
         throw new AdminError(503, "upstream");
       }
       const data = projectResult(result.data, command);
-      return json({ contractVersion: 1, product: "carebase", operation: command.operation, generatedAt: checkedAt.toISOString(), data });
+      return json({ contractVersion: 1, product: "carebase", operation: command.operation, generatedAt: now().toISOString(), data });
     } catch (error) {
       // No identity, reason, provider response or request body is logged or echoed in errors.
       return json({ error: { code: error instanceof AdminError ? error.code : "upstream" } }, error instanceof AdminError ? error.status : 503);
