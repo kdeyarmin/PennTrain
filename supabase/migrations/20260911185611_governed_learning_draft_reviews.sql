@@ -398,6 +398,7 @@ create function public.preview_native_learning_draft_command(p_request_id uuid,p
 language plpgsql security definer set search_path='' as $$
 declare v_authority jsonb;
 begin
+  if not public.is_platform_admin() then raise exception 'Current native administrator required.' using errcode='42501'; end if;
   v_authority:=app_private.current_native_learning_authority();
   return app_private.preview_learning_draft_command((v_authority->>'actorId')::uuid,(v_authority->>'actorId')::uuid,
     (v_authority->>'sessionId')::uuid,'native_session',(v_authority->>'expiresAt')::timestamptz,p_request_id,p_action,p_course_id,p_parameters,p_reason);
@@ -407,6 +408,7 @@ create function public.apply_native_learning_draft_command(p_command_id uuid,p_e
 language plpgsql security definer set search_path='' as $$
 declare v_authority jsonb;
 begin
+  if not public.is_platform_admin() then raise exception 'Current native administrator required.' using errcode='42501'; end if;
   v_authority:=app_private.current_native_learning_authority();
   return app_private.apply_learning_draft_command((v_authority->>'actorId')::uuid,(v_authority->>'actorId')::uuid,
     (v_authority->>'sessionId')::uuid,'native_session',(v_authority->>'expiresAt')::timestamptz,p_command_id,p_expected_digest);
@@ -416,6 +418,7 @@ create function public.execute_native_learning_draft_command(p_request_id uuid,p
 language plpgsql security definer set search_path='' as $$
 declare v_preview jsonb;
 begin
+  if not public.is_platform_admin() then raise exception 'Current native administrator required.' using errcode='42501'; end if;
   -- The native form is itself the reviewed change. Preview and apply share one
   -- transaction and request identity; a lost response is recoverable unchanged.
   v_preview:=public.preview_native_learning_draft_command(p_request_id,p_action,p_course_id,p_parameters,p_reason);

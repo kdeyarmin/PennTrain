@@ -210,6 +210,7 @@ select throws_ok($$select pg_temp.execute('9e000000-0000-4000-8000-000000000082'
 update auth.users set banned_until=null where id='9e000000-0000-4000-8000-000000000003';
 
 -- The delegated Hub path has the same source-CAS and evidence implementation.
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
 create function pg_temp.hub_preview(p_patch jsonb default null) returns jsonb language sql as $$
  select public.preview_learning_authoring_command('9e000000-0000-4000-8000-000000000003','9e000000-0000-4000-8000-000000000090',
  '9e000000-0000-4000-8000-000000000091',now()-interval '1 hour',now()+interval '7 hours',gen_random_uuid(),
@@ -236,6 +237,7 @@ select is((select to_jsonb(v) from public.course_versions v where id='9e000000-0
 
 -- Publication remains a distinct native business operation. A later provider
 -- correction or emergency artifact quarantine must retain its existing authority.
+select set_config('request.jwt.claims','{"sub":"9e000000-0000-4000-8000-000000000003","role":"authenticated","session_id":"9e000000-0000-4000-8000-000000000070"}',true);
 insert into public.learning_packages(id,course_version_id,standard_type,storage_path,content_sha256,compressed_bytes,entry_point,validation_status,validated_at,immutable_at)
   values('9e000000-0000-4000-8000-000000000092',pg_temp.draft_id(),'scorm_1_2','synthetic/published.zip',repeat('c',64),50,'index.html','accepted',now(),now());
 select pg_temp.review();
