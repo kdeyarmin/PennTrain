@@ -130,6 +130,16 @@ create trigger fixture_provider_audit before insert on public.audit_logs for eac
 select throws_ok($$select pg_temp.edit('{"courseAuthor":"Rolled back author"}')$$,'P0001','fixture audit failure','audit failure aborts provider transaction');
 select is((select to_jsonb(p) from public.course_provider_profiles p where course_id=pg_temp.cid(30)),(select value from creation_fixture where label='beforeRollback'),'audit failure restores original provider');
 drop trigger fixture_provider_audit on public.audit_logs;
+-- Pagination retains all pending commands and derives full pages from one ordered snapshot.
+select pg_temp.preview(jsonb_build_object('reviewNotes','Pending provider note '||n),pg_temp.cid(300+n)) from generate_series(1,21)n;
+insert into creation_fixture values('page1',public.list_native_learning_provider_commands(pg_temp.cid(30),0)),
+  ('page2',public.list_native_learning_provider_commands(pg_temp.cid(30),20));
+select is((select jsonb_array_length(value->'items') from creation_fixture where label='page1'),20,'advancing saved-command page contains exactly20 items');
+select is((select value->>'nextOffset' from creation_fixture where label='page1'),'20','next offset advances by exactly20');
+select ok(not exists(select 1 from jsonb_array_elements((select value->'items' from creation_fixture where label='page1'))a
+  join jsonb_array_elements((select value->'items' from creation_fixture where label='page2'))b on a->>'commandId'=b->>'commandId'),'deterministic pages contain no repeated command');
+select is((select value->'nextOffset' from creation_fixture where label='page2'),'null'::jsonb,'final partial command page does not advance');
+
 -- Delegated SMS uses the identical writer with explicit actor audit and global-only scope.
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 select throws_ok($$select public.get_learning_provider_context(pg_temp.cid(1),pg_temp.cid(250),pg_temp.cid(251),now()-interval '1 hour',now()+interval '7 hours','app_sms',pg_temp.cid(40))$$,'42501','Global course required.','Hub delegate cannot edit tenant-owned course provider');
