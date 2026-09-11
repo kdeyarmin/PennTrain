@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
-import { createLearningAuthoringHandler, parseAuthoringOperation, projectAuthoringResult } from './platform-admin-authoring.mjs';
+import { createLearningAuthoringHandler, parseAuthoringOperation, projectAuthoringResult, validDraftPatch } from './platform-admin-authoring.mjs';
 import { readPlatformAdminConfig } from './platform-admin-auth.mjs';
 const id = n => `abc00000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const env = { CAREMETRIC_ADMIN_ENABLED: 'true', CAREMETRIC_ADMIN_COMMANDS_ENABLED: 'true', HUB_SUPABASE_URL: 'https://hub.example.test',
@@ -43,6 +43,28 @@ test('closed authoring parser rejects actor injection and incompatible action fi
     { ...preview, action: 'learning.publishVersion' }, { ...preview, reason: 'short' }, { ...apply, expectedDigest: 'A'.repeat(64) }])
     assert.throws(() => parseAuthoringOperation(value));
   assert.deepEqual(parseAuthoringOperation(preview), preview);
+});
+test('draft patch and review have closed fields without media or approval injection', () => {
+  const patch = { version: { title: 'Updated title', description: null }, blocks: [{ blockId: id(6), content: 'Edited lesson\nSecond line', estimatedMinutes: 3 }] };
+  const op = { ...preview, action: 'learning.patchDraft', parameters: { versionId: id(5), sourceRevision: 'a'.repeat(64), patch } };
+  assert.deepEqual(parseAuthoringOperation(op), op);
+  for (const invalid of [{}, { version: { aiGenerated: false } }, { blocks: [{ blockId: id(6), video_url: 'private' }] },
+    { blocks: [{ blockId: id(6), content: 'https://media.test?token=private' }] }, { blocks: [{ blockId: id(6), transcript: null }] },
+    { blocks: [{ blockId: id(6), estimatedMinutes: 1.5 }] }, { blocks: [{ blockId: id(6), title: 'A' }, { blockId: id(6).toUpperCase(), title: 'B' }] },
+    { version: { description: 'x'.repeat(12001) } }]) assert.equal(validDraftPatch(invalid), false, JSON.stringify(invalid).slice(0, 100));
+  const review = { ...preview, action: 'learning.reviewDraft', parameters: { versionId: id(5), sourceRevision: 'a'.repeat(64), reviewed: true } };
+  assert.deepEqual(parseAuthoringOperation(review), review);
+  assert.throws(() => parseAuthoringOperation({ ...review, parameters: { ...review.parameters, reviewed: false } }));
+  assert.throws(() => parseAuthoringOperation({ ...review, parameters: { ...review.parameters, reviewedBy: id(9) } }));
+});
+test('draft patch transports its exact reviewed fields and returns the resulting source revision', async () => {
+  const op = { ...preview, action: 'learning.patchDraft', parameters: { versionId: id(5), sourceRevision: 'a'.repeat(64), patch: { version: { description: 'x'.repeat(6000) } } } };
+  const f = fixture({ result: { commandId: id(7), courseId: id(4), action: op.action, reason: op.reason, previewDigest: 'b'.repeat(64),
+    expiresAt: '2026-09-11T15:04:00Z', before: { status: 'draft', title: 'Draft', versionNumber: 2 }, after: { status: 'draft', title: 'Draft', versionNumber: 2, aiReviewRequired: true } } });
+  assert.equal((await f.handler(request(op))).status, 200); assert.deepEqual(f.calls.at(-1).body.p_parameters, op.parameters);
+  const result = { commandId: id(7), courseId: id(4), action: op.action, versionId: id(5), versionNumber: 2, status: 'draft', sourceRevision: 'c'.repeat(64), appliedAt: '2026-09-11T15:00:00Z', replayed: true };
+  assert.deepEqual(projectAuthoringResult(result, apply), result);
+  assert.throws(() => projectAuthoringResult({ ...result, sourceRevision: undefined }, apply));
 });
 test('fresh native and Hub authority is forwarded independently of untrusted operation', async () => {
   const f = fixture(); const response = await f.handler(request(inspect)); assert.equal(response.status, 200);

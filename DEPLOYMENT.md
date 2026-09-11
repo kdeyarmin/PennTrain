@@ -14,6 +14,30 @@ see `ARCHITECTURE.md` and `README.md` for the architecture.
 
 ## Architecture at a glance
 
+### Governed draft editing and exact AI review (2026-09-11)
+
+The forward migration `20260911185611_governed_learning_draft_reviews.sql` adds
+bounded existing-draft edits and explicit AI review to the authoring command
+transport. Apply it only after the full database release gate passes and before
+deploying the paired native/Hub editors. It has not been applied by this change.
+No new runtime credential or learner writer is introduced.
+
+The native editor captures the canonical draft before the form opens and uses the
+same transaction as Hub preview/apply. Native authority requires a current
+platform administrator and an actual native Auth session no older than eight
+hours; native sessions are recorded as `native_session`, independently of delegated
+`app_sms` or `jwt_aal2` authority. A lost response retains the exact request for
+idempotent recovery. A changed source requires an explicit reload and new review.
+
+For AI-generated global governed drafts, publication requires immutable approval
+evidence for the exact current material. Every material version, block, quiz,
+answer, explanation, credit, provider, course or package change invalidates that
+approval. The approval timestamp is excluded only from the material hash to avoid
+self-invalidating evidence; the raw reviewed source hash is retained separately.
+Native media/package acceptance and existing publication quality checks still
+apply. Published artifact quarantine and provider maintenance remain available.
+Non-AI and existing ungoverned courses retain their existing review policy.
+
 - **Railway** hosts and runs `artifacts/caremetric-carebase` -- a static Vite/React build served by a small
   Node process (`artifacts/caremetric-carebase/server/index.mjs`), the learning-package proxy, and
   four optional `/api/providers/` routes for SMS MFA and billing. Application data still uses

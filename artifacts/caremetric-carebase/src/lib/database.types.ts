@@ -36293,6 +36293,13 @@ export type Database = {
         Args: { p_command_id: string }
         Returns: Json
       }
+      apply_native_learning_draft_command: {
+        Args: {
+          p_command_id: string
+          p_expected_digest: string
+        }
+        Returns: Json
+      }
       apply_scim_change: {
         Args: {
           p_connection_id: string
@@ -38188,6 +38195,16 @@ export type Database = {
         }
         Returns: Json
       }
+      execute_native_learning_draft_command: {
+        Args: {
+          p_action: string
+          p_course_id: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       execute_registered_sql_job: {
         Args: {
           p_correlation_id: string
@@ -38733,6 +38750,12 @@ export type Database = {
       get_my_mfa_policy: { Args: never; Returns: Json }
       get_my_mfa_status: { Args: never; Returns: Json }
       get_my_shift_workspace: { Args: never; Returns: Json }
+      get_native_learning_draft_source: {
+        Args: {
+          p_version_id: string
+        }
+        Returns: Json
+      }
       get_notification_delivery_evidence: {
         Args: { p_delivery_id: string }
         Returns: Json
@@ -40312,6 +40335,16 @@ export type Database = {
           p_reason: string
           p_request_id: string
           p_session_started_at: string
+        }
+        Returns: Json
+      }
+      preview_native_learning_draft_command: {
+        Args: {
+          p_action: string
+          p_course_id: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
         }
         Returns: Json
       }
