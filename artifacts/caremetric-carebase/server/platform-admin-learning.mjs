@@ -1,3 +1,4 @@
+import { createLearningProviderHandler } from './platform-admin-provider.mjs';
 import { AdminError, authorizePlatformAdmin, readPlatformAdminConfig, UUID } from "./platform-admin-auth.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
 import { createLearningAuthoringHandler } from './platform-admin-authoring.mjs';
@@ -84,8 +85,9 @@ export function createLearningAdminRouter(options = {}) {
   const enabled = getEnv("CAREMETRIC_LEARNING_RECEIPTS_ENABLED") === "true";
   const authoringEnabled = getEnv('CAREMETRIC_LEARNING_AUTHORING_ENABLED') === 'true';
   return createProviderRouter({ handlers: new Map([["receipt", createLearningAdminHandler({ ...options, config, enabled })],
-    ['authoring', createLearningAuthoringHandler({ ...options, config, enabled: authoringEnabled })]]),
+    ['authoring', createLearningAuthoringHandler({ ...options, config, enabled: authoringEnabled })],
+    ['provider', createLearningProviderHandler({ ...options, config, enabled: authoringEnabled })]]),
     enabled: config.enabled && config.commandsEnabled && (enabled || authoringEnabled), prefix: "/api/learning-admin/", unavailableCode: "unconfigured",
-    routes: new Map([["receipt", { bytes: 4096, browser: false }], ['authoring', { bytes: 32768, responseBytes: 4100000, browser: false }]]), forwardedHeaders: ["authorization", "origin", "content-type"],
+    routes: new Map([["receipt", { bytes: 4096, browser: false }], ['authoring', { bytes: 32768, responseBytes: 4100000, browser: false }], ['provider', { bytes: 32768, responseBytes: 1048576, browser: false }]]), forwardedHeaders: ["authorization", "origin", "content-type"],
     handlerTimeoutMs: 12000, maxConcurrent: 4, maxPendingBodies: 8 });
 }
