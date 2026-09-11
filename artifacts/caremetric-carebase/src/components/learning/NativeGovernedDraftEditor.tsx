@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useMarkAiGenerationReviewed } from '@/hooks/useAiCourseGeneration';
 import { errorText } from '@/lib/errorText';
 import { executeNativeDraft, loadGovernedDraftSource, nativeDraftIntent, type DraftPatch, type GovernedDraftSource, type NativeDraftIntent } from '@/lib/governedLearningDraft';
+import { NativeGovernedCreditPolicyEditor } from './NativeGovernedCreditPolicyEditor';
 import { NativeGovernedStructureEditor } from './NativeGovernedStructureEditor';
 
 export function NativeGovernedDraftEditor({ versionId, userId, onGovernedChange, onDirtyChange }: { versionId: string; userId: string; onGovernedChange: (value: boolean | null) => void; onDirtyChange: (value: boolean) => void }) {
@@ -19,6 +20,7 @@ export function NativeGovernedDraftEditor({ versionId, userId, onGovernedChange,
   const [reason, setReason] = useState('');
   const [reviewed, setReviewed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [creditDirty, setCreditDirty] = useState(false);
   const [structureDirty, setStructureDirty] = useState(false);
   const intent = useRef<NativeDraftIntent | null>(null);
   const client = useQueryClient(); const { toast } = useToast();
@@ -40,7 +42,7 @@ export function NativeGovernedDraftEditor({ versionId, userId, onGovernedChange,
     if (Object.keys(update).length > 1) patch.blocks!.push(update);
   }
   const dirty = !!patch.blocks?.length;
-  useEffect(() => { onDirtyChange(dirty || busy || structureDirty); return () => onDirtyChange(false); }, [dirty, busy, structureDirty, onDirtyChange]);
+  useEffect(() => { onDirtyChange(dirty || busy || structureDirty || creditDirty); return () => onDirtyChange(false); }, [dirty, busy, structureDirty, creditDirty, onDirtyChange]);
   const selectBlock = (id: string) => {
     const row = source?.document.blocks.find(item => item.id === id); setBlockId(id); setReviewed(false);
     setForm({ title: row?.title ?? '', content: typeof row?.body?.content === 'string' ? row.body.content : '',
@@ -52,7 +54,7 @@ export function NativeGovernedDraftEditor({ versionId, userId, onGovernedChange,
     setSource(result.data ?? null); setBlockId(''); setReviewed(false); intent.current = null;
   };
   const run = async (action: 'learning.patchDraft' | 'learning.reviewDraft') => {
-    if (!source || structureDirty || (action === 'learning.reviewDraft' && (!reviewed || dirty))) return;
+    if (!source || structureDirty || creditDirty || (action === 'learning.reviewDraft' && (!reviewed || dirty))) return;
     const explanation = reason.trim();
     intent.current = nativeDraftIntent(intent.current, { versionId, sourceRevision: source.sourceRevision, action, reason: explanation, ...(action === 'learning.patchDraft' ? { patch } : {}) });
     setBusy(true);
@@ -68,7 +70,7 @@ export function NativeGovernedDraftEditor({ versionId, userId, onGovernedChange,
   if (sourceQuery.isError && !source) return <QueryError what="governed draft source" error={sourceQuery.error} onRetry={() => void sourceQuery.refetch()} />;
   if (!source) return null;
   return <Card><CardHeader><CardTitle>Governed draft editing and review</CardTitle>
-    <CardDescription>Edits and review apply to this exact source revision. Native media, credits and package acceptance retain their existing controls.</CardDescription>
+    <CardDescription>Edits and review apply to this exact source revision. Native media and package acceptance retain their existing controls.</CardDescription>
   </CardHeader><CardContent className="space-y-4">
     {sourceQuery.isError && <QueryError what="updated draft source" error={sourceQuery.error} onRetry={() => void sourceQuery.refetch()} />}
     <p className="break-all text-xs text-muted-foreground">Source SHA-256: {source.sourceRevision}</p>
@@ -76,25 +78,26 @@ export function NativeGovernedDraftEditor({ versionId, userId, onGovernedChange,
       <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded border p-3 text-xs">{JSON.stringify(JSON.parse(source.payload), null, 2)}</pre>
     </details>
     <label className="block text-sm">Existing block
-      <select className="mt-1 w-full rounded border bg-background p-2" value={blockId} disabled={busy || dirty || structureDirty} onChange={e => selectBlock(e.target.value)}>
+      <select className="mt-1 w-full rounded border bg-background p-2" value={blockId} disabled={busy || dirty || structureDirty || creditDirty} onChange={e => selectBlock(e.target.value)}>
         <option value="">Choose a block to edit</option>{source.document.blocks.map(row => <option key={row.id} value={row.id}>{row.title ?? row.type} · {row.type}</option>)}
       </select>
     </label>
-    {block && <fieldset disabled={structureDirty} className="space-y-3">
+    {block && <fieldset disabled={structureDirty || creditDirty} className="space-y-3">
       <label className="block text-sm">Block title<Input value={form.title} maxLength={300} disabled={busy} onChange={e => { setReviewed(false); setForm(v => ({ ...v, title: e.target.value })); }} /></label>
       {contentEditable && <label className="block text-sm">Lesson text<Textarea value={form.content} maxLength={12000} rows={7} disabled={busy} onChange={e => { setReviewed(false); setForm(v => ({ ...v, content: e.target.value })); }} /></label>}
       {transcriptEditable && <label className="block text-sm">Transcript<Textarea value={form.transcript} maxLength={12000} rows={7} disabled={busy} onChange={e => { setReviewed(false); setForm(v => ({ ...v, transcript: e.target.value })); }} /></label>}
       {minutesEditable && <label className="block text-sm">Estimated minutes<Input type="number" min={0} max={1440} step={1} value={form.minutes} disabled={busy} onChange={e => { setReviewed(false); setForm(v => ({ ...v, minutes: e.target.value })); }} /></label>}
     </fieldset>}
     <label className="block text-sm">Reason for this action<Textarea value={reason} maxLength={500} disabled={busy} onChange={e => setReason(e.target.value)} /></label>
-    {source.document.version.aiGenerated && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={reviewed} disabled={busy || dirty || structureDirty} onChange={e => setReviewed(e.target.checked)} />
+    {source.document.version.aiGenerated && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={reviewed} disabled={busy || dirty || structureDirty || creditDirty} onChange={e => setReviewed(e.target.checked)} />
       I reviewed the exact course material, assessment and credit policies shown above. I approve this revision for the existing native publication checks.</label>}
     {dirty && <p className="text-sm">Save or discard these edits before recording review. Saving clears previous AI approval.</p>}
     <div className="flex flex-wrap gap-2">
-      <Button disabled={busy || structureDirty || !dirty || reason.trim().length < 10} onClick={() => void run('learning.patchDraft')}>Save reviewed changes</Button>
-      {source.document.version.aiGenerated && <Button variant="outline" disabled={busy || dirty || structureDirty || !reviewed || reason.trim().length < 10} onClick={() => void run('learning.reviewDraft')}>Record exact draft review</Button>}
-      <Button variant="ghost" disabled={busy || structureDirty} onClick={() => { void reload().catch(error => toast({ title: 'Could not reload draft', description: errorText(error), variant: 'destructive' })); }}>Discard edits and reload source</Button>
+      <Button disabled={busy || structureDirty || creditDirty || !dirty || reason.trim().length < 10} onClick={() => void run('learning.patchDraft')}>Save reviewed changes</Button>
+      {source.document.version.aiGenerated && <Button variant="outline" disabled={busy || dirty || structureDirty || creditDirty || !reviewed || reason.trim().length < 10} onClick={() => void run('learning.reviewDraft')}>Record exact draft review</Button>}
+      <Button variant="ghost" disabled={busy || structureDirty || creditDirty} onClick={() => { void reload().catch(error => toast({ title: 'Could not reload draft', description: errorText(error), variant: 'destructive' })); }}>Discard edits and reload source</Button>
     </div>
-    <NativeGovernedStructureEditor source={source} disabled={dirty || busy} onDirtyChange={setStructureDirty} onSaved={reload} />
+    <NativeGovernedStructureEditor source={source} disabled={dirty || busy || creditDirty} onDirtyChange={setStructureDirty} onSaved={reload} />
+    <NativeGovernedCreditPolicyEditor source={source} disabled={dirty || busy || structureDirty} onDirtyChange={setCreditDirty} onSaved={reload} />
   </CardContent></Card>;
 }
