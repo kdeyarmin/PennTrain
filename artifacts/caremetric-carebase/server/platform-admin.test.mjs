@@ -11,7 +11,7 @@ const ORGANIZATION_ID = "55555555-5555-4555-8555-555555555555";
 const ACCOUNT_ID = "66666666-6666-4666-8666-666666666666";
 const PACKAGE_ID = "77777777-7777-4777-8777-777777777777";
 const SUBSCRIPTION_ID = "88888888-8888-4888-8888-888888888888";
-const READS = ["capabilities", "overview", "courses.list", "courses.get", "organizations.list", "users.list", "billing.overview", "billing.subscriptions.list", "billing.invoices.list", "billing.invoices.get", "billing.subscriptions.verify"];
+const READS = ["capabilities", "overview", "courses.list", "courses.get", "organizations.list", "users.list", "billing.overview", "billing.subscriptions.list", "billing.packages.list", "billing.invoices.list", "billing.invoices.get", "billing.subscriptions.verify"];
 const NOW = "2026-09-11T13:00:00.000Z";
 const ENV = {
   CAREMETRIC_ADMIN_ENABLED: "true", HUB_SUPABASE_URL: "https://hub.example.test",
