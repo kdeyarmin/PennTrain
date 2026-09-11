@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `e91bcd14054cedfcacc8d0a5eff05c033c559078` (2026-09-11), integrating released operations N14 with provider metadata N16. Provider CI34656315249 passed all lanes, including 5,509 SQL assertions and 70 browser journeys. The combined operations/provider source and additional saved-command pagination assertions require the final combined gate. Applied migration bytes and existing planning ownership remain intact.
+**Last verified against main:** `dc65c67ad00aeba07142663486d62c11afe039c5` (2026-09-11), integrating released operations N14 with provider metadata N16. Provider CI34656315249 passed all lanes, including 5,509 SQL assertions and 70 browser journeys. The combined operations/provider source and additional saved-command pagination assertions require the final combined gate. Applied migration bytes and existing planning ownership remain intact.
 
 **Owner:** the owner-operator (single person, platform admin)
 
