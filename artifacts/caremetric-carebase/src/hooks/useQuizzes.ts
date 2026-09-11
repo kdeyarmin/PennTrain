@@ -1,6 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import { executeNativeDraft, type GovernedDraftSource, type StructureChange } from '@/lib/governedLearningDraft';
+
+/** Both native lesson and quiz forms submit a captured definition through the
+ * same atomic writer used by Hub. Never recapture source inside a mutation. */
+export function useEditGovernedLearningStructure() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ source, requestId, reason, changes }: { source: GovernedDraftSource; requestId: string; reason: string; changes: StructureChange[] }) =>
+      executeNativeDraft(source, 'learning.editStructure', requestId, reason, changes),
+    onSuccess: () => Promise.all(['courses', 'course_blocks', 'quizzes', 'quiz_questions', 'quiz_answers'].map(key => client.invalidateQueries({ queryKey: [key] }))),
+  });
+}
 
 // ---------------------------------------------------------------------------
 // IMPORTANT -- is_correct exposure boundary

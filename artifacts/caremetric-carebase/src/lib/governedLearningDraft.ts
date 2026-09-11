@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/lib/database.types';
+import { validStructureChanges, type StructureChange } from '../../../../supabase/functions/_shared/learningStructure';
+export type { StructureChange, LessonFields, LessonType, QuizPolicy, QuestionDefinition } from '../../../../supabase/functions/_shared/learningStructure';
 
 export type DraftPatch = {
   version?: { title?: string; description?: string | null };
@@ -8,7 +10,12 @@ export type DraftPatch = {
 export type GovernedDraftSource = {
   courseId: string; versionId: string; sourceRevision: string; payload: string;
   document: { sourceVersionNumber: number; version: { title: string; description: string | null; aiGenerated: boolean; aiReviewedAt: string | null };
-    blocks: { id: string; type: string; title: string | null; body: Record<string, unknown> | null }[] };
+    blocks: { id: string; type: string; title: string | null; body: Record<string, unknown> | null;
+      quiz?: { id: string; title: string; kind: 'assessment' | 'knowledge_check' | 'final_exam'; passingScore: number; maxAttempts: number | null;
+        shuffleQuestions: boolean; shuffleAnswers: boolean; revealsAnswersAfterAttempt: boolean;
+        questions: { id: string; prompt: string; type: 'single_choice' | 'multiple_choice' | 'true_false'; points: number;
+          topicCode: string | null; topicLabel: string | null; explanation: string | null;
+          options: { id: string; text: string; correct: boolean }[] }[] } | null }[] };
 };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const sha = /^[0-9a-f]{64}$/;
@@ -42,10 +49,11 @@ export function nativeDraftIntent(previous: NativeDraftIntent | null, value: unk
   const key = JSON.stringify(value);
   return previous?.key === key ? previous : { key, requestId: createId() };
 }
-export async function executeNativeDraft(source: GovernedDraftSource, action: 'learning.patchDraft' | 'learning.reviewDraft',
-  requestId: string, reason: string, patch?: DraftPatch) {
+export async function executeNativeDraft(source: GovernedDraftSource, action: 'learning.patchDraft' | 'learning.reviewDraft' | 'learning.editStructure',
+  requestId: string, reason: string, patch?: DraftPatch | StructureChange[]) {
+  if (action === 'learning.editStructure' && !validStructureChanges(patch)) throw new Error('Review the structure fields and answer key before saving.');
   const parameters = { versionId: source.versionId, sourceRevision: source.sourceRevision,
-    ...(action === 'learning.patchDraft' ? { patch } : { reviewed: true }) };
+    ...(action === 'learning.patchDraft' ? { patch } : action === 'learning.editStructure' ? { changes: patch } : { reviewed: true }) };
   const { data, error } = await supabase.rpc('execute_native_learning_draft_command', { p_request_id: requestId, p_action: action,
     p_course_id: source.courseId, p_parameters: parameters as Json, p_reason: reason });
   if (error) throw error;
