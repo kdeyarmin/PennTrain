@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `31dcf834be3b927765e7a257ee1c3ff09db1d40e` (2026-09-11), the reviewed integration of Creation535 with actual released native main `6d1570a8` (Checkout532, protected support identity and Structure533). Standalone creation CI34649393839 passed 5,340 SQL assertions and70browser journeys; the complete combined release gate is now required. Existing applied migration bytes and N9/N10/N12 ownership are preserved.
+**Last verified against main:** `f2e877e2e61efb958d2fe2fd479251327b73b707` (2026-09-11), the reviewed integration of version-credit policy N13 with actual released main `80f62ad7` (Checkout532, protected support identity, Structure533 and Creation535). Creation combined CI34653210438 passed 5,407 SQL assertions, 70 browser journeys and 2,184 application tests. Existing applied migration bytes and N9/N10/N11/N12 ownership remain preserved; this credit increment requires its full combined gate.
 
 **Owner:** the owner-operator (single person, platform admin)
 
