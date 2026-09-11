@@ -36666,6 +36666,14 @@ export type Database = {
         }
         Returns: Json
       }
+      authorize_native_checkout: {
+        Args: {
+          p_organization_id: string
+          p_parameters: Json
+          p_request_key: string
+        }
+        Returns: string
+      }
       authorize_resident_portal_document_download: {
         Args: {
           p_request_fingerprint_sha256?: string
@@ -36982,6 +36990,19 @@ export type Database = {
           request_body: Json
           timeout_ms: number
         }[]
+      }
+      claim_native_checkout: {
+        Args: {
+          p_actor: string
+          p_grant_id: string
+          p_provider_parameters: Json
+          p_source_snapshot: Json
+        }
+        Returns: Json
+      }
+      claim_native_checkout_recovery: {
+        Args: { p_actor: string; p_command_id: string; p_grant_id: string }
+        Returns: Json
       }
       claim_open_shift: {
         Args: { p_opportunity_id: string }
@@ -38320,6 +38341,16 @@ export type Database = {
           p_run_id: string
         }
         Returns: boolean
+      }
+      finish_checkout_reservation: {
+        Args: {
+          p_lease_id: string
+          p_outcome: string
+          p_reservation_id: string
+          p_session: Json
+          p_subscription_status: string
+        }
+        Returns: undefined
       }
       finish_course_video_submission: {
         Args: {
@@ -40275,6 +40306,10 @@ export type Database = {
         }
         Returns: Json
       }
+      platform_admin_checkout_catalog: {
+        Args: { p_limit?: number; p_offset?: number; p_search?: string }
+        Returns: Json
+      }
       platform_admin_claim_billing_portal: {
         Args: {
           p_actor: string
@@ -40286,6 +40321,20 @@ export type Database = {
           p_hub_session: string
           p_hub_user: string
           p_return_url: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_claim_checkout: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_check_only: boolean
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
           p_session_started_at: string
         }
         Returns: Json
@@ -40310,6 +40359,22 @@ export type Database = {
           p_reason: string
           p_request_id: string
           p_session_started_at: string
+          p_target: string
+        }
+        Returns: Json
+      }
+      platform_admin_preview_checkout: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_provider_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_source_snapshot: Json
           p_target: string
         }
         Returns: Json
@@ -40341,6 +40406,34 @@ export type Database = {
           p_hub_user: string
           p_replayed: boolean
           p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_read_checkout_result: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_replayed: boolean
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_recover_checkout: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: string
         }
         Returns: Json
       }
@@ -40618,6 +40711,15 @@ export type Database = {
       reactivate_integration_webhook_endpoint: {
         Args: { p_endpoint_id: string }
         Returns: undefined
+      }
+      read_native_checkout_result: {
+        Args: {
+          p_actor: string
+          p_command_id: string
+          p_grant_id: string
+          p_replayed: boolean
+        }
+        Returns: Json
       }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
@@ -41314,6 +41416,10 @@ export type Database = {
       record_work_item_effectiveness: {
         Args: { p_result: string; p_work_item_id: string }
         Returns: boolean
+      }
+      recover_native_checkout: {
+        Args: { p_actor: string; p_grant_id: string }
+        Returns: Json
       }
       refresh_benchmark_snapshots: {
         Args: { p_k_threshold?: number; p_period_end?: string }

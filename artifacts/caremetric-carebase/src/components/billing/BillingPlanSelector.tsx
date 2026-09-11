@@ -46,6 +46,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { absoluteAppUrl } from "@/lib/appUrl";
+import { BillingCheckoutRecovery } from "./BillingCheckoutRecovery";
 
 function enabledModuleNames(features: Json | null): string[] {
   if (!features || typeof features !== "object" || Array.isArray(features)) return [];
@@ -180,7 +181,7 @@ export function BillingPlanSelector() {
     }
     toast({
       title: "Checkout cancelled",
-      description: "No charge was made. You can start checkout again when you are ready.",
+      description: "You returned from Checkout. Check the existing session before starting another Checkout.",
     });
     params.delete("billing");
     const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
@@ -274,6 +275,7 @@ export function BillingPlanSelector() {
           ) : null}
         </CardHeader>
         <CardContent className="space-y-5">
+          {organizationId && <BillingCheckoutRecovery key={`${user?.id}:${organizationId}`} organizationId={organizationId} />}
           {isPlatformAdmin ? (
             <div className="max-w-xl space-y-1.5">
               <Label htmlFor={`${__fieldIds}-organization`}>Organization</Label>
