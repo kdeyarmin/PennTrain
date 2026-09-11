@@ -40385,6 +40385,21 @@ export type Database = {
         }
         Returns: Json
       }
+      platform_admin_read_operations: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_limit: number
+          p_offset: number
+          p_operation: string
+          p_search: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       platform_admin_recover_checkout: {
         Args: {
           p_actor: string
