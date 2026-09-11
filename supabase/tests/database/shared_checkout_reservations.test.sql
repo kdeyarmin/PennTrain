@@ -62,14 +62,14 @@ create function pg_temp.checkout_finish(p_claim jsonb,p_state text,p_subscriptio
  'subscriptionId',case when p_state in ('complete','closed') then 'sub_fixture' else null end,
  'status',case when p_state='closed' then 'complete' else p_state end) else null end,p_subscription_status);
 $$;
-create function pg_temp.expired_checkout_preview(p_original jsonb) returns jsonb language plpgsql as $$
+create function pg_temp.expired_checkout_preview(p_original jsonb,p_age interval default interval '6 minutes') returns jsonb language plpgsql as $$
 declare v app_private.checkout_intents; v_id uuid:=gen_random_uuid();
 begin
  select * into v from app_private.checkout_intents where id=(p_original->>'commandId')::uuid;
  insert into app_private.checkout_intents(id,actor_id,principal_id,session_id,authentication_method,request_key,organization_id,reason,
    provider_parameters,source_snapshot,summary,preview_digest,expires_at,created_at)
  values(v_id,v.actor_id,v.principal_id,v.session_id,v.authentication_method,v_id::text,v.organization_id,v.reason,
-   v.provider_parameters,v.source_snapshot,v.summary,repeat('a',64),clock_timestamp()-interval '1 minute',clock_timestamp()-interval '6 minutes');
+   v.provider_parameters,v.source_snapshot,v.summary,repeat('a',64),clock_timestamp()-p_age+interval '5 minutes',clock_timestamp()-p_age);
  return jsonb_build_object('commandId',v_id,'previewDigest',repeat('a',64));
 end;
 $$;
@@ -178,6 +178,30 @@ select throws_ok($$select public.read_native_checkout_result((select (value#>>'{
  '42501','Native checkout authority changed','native session expiry invalidates an otherwise current grant');
 reset role;
 update auth.sessions set not_after=null where id='9c000000-0000-4000-8000-000000000002';
+
+-- A provider may prune an idempotency key after 24 hours. Unknown creation is
+-- deliberately retained after our 23-hour replay bound, regardless of a new intent.
+set local role service_role;
+insert into checkout_fixture values('expireKnown',pg_temp.checkout_claim((select value from checkout_fixture where label='changed'),true));
+select pg_temp.checkout_finish((select value from checkout_fixture where label='expireKnown'),'expired');
+reset role;
+insert into checkout_fixture values('agedUnknown',pg_temp.expired_checkout_preview((select value from checkout_fixture where label='hub'),interval '24 hours 1 minute'));
+with inserted as (
+ insert into app_private.checkout_reservations(organization_id,first_intent_id,provider_parameters,state,create_attempts,first_started_at,lease_id,lease_until)
+ select organization_id,id,provider_parameters,'indeterminate',1,clock_timestamp()-interval '24 hours',gen_random_uuid(),clock_timestamp()-interval '23 hours'
+ from app_private.checkout_intents where id=(select (value->>'commandId')::uuid from checkout_fixture where label='agedUnknown')
+ returning id,first_intent_id
+) update app_private.checkout_intents i set reservation_id=r.id from inserted r where i.id=r.first_intent_id;
+set local role service_role;
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='agedUnknown'))->>'kind','result','aged unknown dispatch never claims another provider POST');
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='agedUnknown'))#>>'{data,outcome}','pending','unknown aged receipt stays explicitly unresolved');
+select is(pg_temp.checkout_claim((select value from checkout_fixture where label='agedUnknown'),true)#>>'{data,canStartNewCheckout}','false','unknown aged receipt does not authorize replacement');
+insert into checkout_fixture values('newAfterUnknown',pg_temp.checkout_preview('9c000000-0000-4000-8000-000000000103',true));
+select throws_ok($$select pg_temp.checkout_claim((select value from checkout_fixture where label='newAfterUnknown'))$$,
+ '40001','Organization already has a checkout reservation','new request cannot bypass provider idempotency uncertainty');
+reset role;
+select is((select create_attempts from app_private.checkout_reservations where first_intent_id=(select (value->>'commandId')::uuid from checkout_fixture where label='agedUnknown')),
+ 1,'aged unknown checks leave durable dispatch count unchanged');
 
 -- Policy changes invalidate the exact short-lived native authorization evidence.
 select set_config('app.privileged_write','on',true);
