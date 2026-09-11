@@ -3,6 +3,7 @@ import { readBilling, BILLING_READ_OPERATIONS } from "./platform-admin-billing.m
 import { AdminError, authorizePlatformAdmin, readPlatformAdminConfig, UUID } from "./platform-admin-auth.mjs";
 import { createPlatformAdminCommandHandler } from "./platform-admin-commands.mjs";
 import { createPlatformAdminBillingCommandHandler } from "./platform-admin-billing-commands.mjs";
+import { readBillingCatalog } from "./platform-admin-billing-catalog.mjs";
 export { readPlatformAdminConfig } from "./platform-admin-auth.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
 
@@ -10,9 +11,9 @@ const COURSE_COLUMNS = "id,title,description,category,status,estimated_duration_
 const MAX_LESSONS = 200;
 const OPERATIONS = Object.freeze([
   "capabilities", "overview", "courses.list", "courses.get", "organizations.list", "users.list",
-  "billing.overview", "billing.subscriptions.list", ...BILLING_READ_OPERATIONS,
+  "billing.overview", "billing.subscriptions.list", "billing.packages.list", ...BILLING_READ_OPERATIONS,
 ]);
-const LIST_OPERATIONS = new Set(["courses.list", "organizations.list", "users.list", "billing.subscriptions.list", "billing.invoices.list"]);
+const LIST_OPERATIONS = new Set(["courses.list", "organizations.list", "users.list", "billing.subscriptions.list", "billing.invoices.list", "billing.packages.list"]);
 // Enforced by billing_subscriptions.billing_state's database CHECK constraint.
 const ORGANIZATION_COLUMNS = "id,name,slug,subscription_status,created_at";
 const PROFILE_COLUMNS = "id,first_name,last_name,email,role,is_active,created_at";
@@ -90,7 +91,10 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
       let data;
       if (operation.operation === "capabilities") {
         data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : []),
-          ...(config.commandsEnabled && config.billingCommandsEnabled ? ["billing.commands.preview", "billing.commands.apply"] : [])], sourceRevision: config.sourceRevision ?? null };
+          ...(config.commandsEnabled && config.billingCommandsEnabled ? ["billing.commands.preview", "billing.commands.apply",
+            ...(config.checkoutCommandsEnabled ? ["billing.checkout.preview", "billing.checkout.apply", "billing.checkout.check"] : [])] : [])], sourceRevision: config.sourceRevision ?? null };
+      } else if (operation.operation === "billing.packages.list") {
+        data = await readBillingCatalog(native, operation);
       } else if (BILLING_READ_OPERATIONS.includes(operation.operation)) {
         data = await readBilling({ native, operation, config, request, fetcher, now });
       } else if (operation.operation === "overview") {

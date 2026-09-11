@@ -114,14 +114,14 @@ export async function planBillingSession({admin,profile,organizationId,body,getE
       throw new BillingSessionPlanError(409, "existing_subscription_requires_portal");
     }
     const { data: price, error: priceError } = await admin.from("package_billing_prices")
-      .select("stripe_price_id, billing_metric, pricing_model, minimum_quantity, maximum_quantity, packages!inner(is_active, trial_days)")
+      .select("stripe_price_id, currency, interval_count, billing_metric, pricing_model, minimum_quantity, maximum_quantity, packages!inner(is_active, trial_days)")
       .eq("package_id", body.packageId).eq("is_active", true)
       .eq("is_primary", true).eq("recurring_interval", billingInterval)
       .not("stripe_price_id", "is", null)
       .eq("packages.is_active", true)
       .lte("effective_from", nowIso())
       .or(`effective_to.is.null,effective_to.gt.${nowIso()}`)
-      .order("effective_from", { ascending: false }).limit(1).maybeSingle();
+      .order("effective_from", { ascending: false }).order("id", { ascending: false }).limit(1).maybeSingle();
     if (priceError || !price) throw new BillingSessionPlanError(409, "active_price_missing");
     priceSnapshot = price;
     // Flat self-serve plans always check out at quantity 1. Usage measurement is
