@@ -115,12 +115,29 @@ insert into command_fixture values('restore',pg_temp.preview('9d000000-0000-4000
 select lives_ok($$select pg_temp.apply((select preview from command_fixture where label='restore'))$$,'lifting a hold restores provider-derived state');
 reset role;
 select is((select subscription_status from public.organizations where id='9d000000-0000-4000-8000-000000000010'),'canceled','lifting hold does not assert active subscription');
+select set_config('app.privileged_write','on',true);
+update public.organizations set plan_name='Current independent plan' where id='9d000000-0000-4000-8000-000000000010';
+select set_config('app.privileged_write','',true);
+insert into public.billing_subscriptions(organization_id,billing_account_id,stripe_subscription_id,provider_status,billing_state,
+  provider_event_created_at,provider_event_id,is_provider_placeholder,checkout_previous_plan_name)
+select organization_id,id,'sub_CommandFixture','incomplete','trial',now(),'evt_CommandFixture',true,'Earlier plan'
+  from public.billing_accounts where organization_id='9d000000-0000-4000-8000-000000000010';
 set local role service_role;
+insert into command_fixture values('stale-plan',pg_temp.preview('9d000000-0000-4000-8000-000000000110','billing.setAccessOverride','9d000000-0000-4000-8000-000000000010','{"state":"comped","expiresAt":null}'));
+reset role;
+select set_config('app.privileged_write','on',true);
+update public.organizations set plan_name='Reviewed independent plan' where id='9d000000-0000-4000-8000-000000000010';
+select set_config('app.privileged_write','',true);
+set local role service_role;
+select throws_ok($$select pg_temp.apply((select preview from command_fixture where label='stale-plan'))$$,
+  '40001','Target changed since preview','an access grant cannot approve stale package provenance');
 insert into command_fixture values('comp',pg_temp.preview('9d000000-0000-4000-8000-000000000106','billing.setAccessOverride','9d000000-0000-4000-8000-000000000010','{"state":"comped","expiresAt":null}'));
 select lives_ok($$select pg_temp.apply((select preview from command_fixture where label='comp'))$$,'complimentary access uses native override');
 reset role;
 select is((select subscription_status from public.organizations where id='9d000000-0000-4000-8000-000000000010'),'comped','complimentary access is recorded');
 select is((select provider_state from public.billing_accounts where organization_id='9d000000-0000-4000-8000-000000000010'),'canceled','local access override never changes provider status');
+select is((select checkout_previous_plan_name from public.billing_subscriptions where stripe_subscription_id='sub_CommandFixture'),
+  'Reviewed independent plan','delegated comp preserves native independent Checkout provenance');
 set local role service_role;
 insert into command_fixture values('noop',pg_temp.preview('9d000000-0000-4000-8000-000000000107','billing.setAccessOverride','9d000000-0000-4000-8000-000000000010','{"state":"comped","expiresAt":null}'));
 select lives_ok($$select pg_temp.apply((select preview from command_fixture where label='noop'))$$,'no-op still produces a receipt');

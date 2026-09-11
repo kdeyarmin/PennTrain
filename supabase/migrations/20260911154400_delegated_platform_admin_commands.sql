@@ -143,6 +143,20 @@ begin
   update public.organizations
   set subscription_status = v_state, updated_at = now()
   where id = p_organization_id;
+
+  if p_override_state = 'comped' then
+    -- Preserve the later native Checkout-provenance patch: an explicit comp
+    -- makes the current organization tier independent of provisional Checkout.
+    update public.billing_subscriptions s
+    set checkout_previous_package_id = o.package_id,
+        checkout_previous_plan_name = o.plan_name,
+        updated_at = now()
+    from public.organizations o
+    where o.id = p_organization_id and s.organization_id = o.id
+      and s.billing_account_id = v_account.id and s.is_provider_placeholder
+      and (s.checkout_previous_package_id, s.checkout_previous_plan_name)
+        is distinct from (o.package_id, o.plan_name);
+  end if;
   perform set_config('app.privileged_write', v_previous_write, true);
 end;
 $$;
@@ -321,7 +335,8 @@ begin
         'stateSource',case when p_parameters->>'state'='comped' then 'manual_comp' else 'stripe' end,'compedUntil',v_expires);
     end if;
     v_state := v_before || jsonb_build_object('organizationUpdatedAt',v_org.updated_at,'accountUpdatedAt',v_account.updated_at,
-      'providerState',v_account.provider_state,'suspensionReason',v_account.suspension_reason);
+      'providerState',v_account.provider_state,'suspensionReason',v_account.suspension_reason,
+      'packageId',v_org.package_id,'planName',v_org.plan_name);
   else raise exception 'Invalid command' using errcode='22023'; end if;
   return jsonb_build_object('before',v_before,'after',v_after,
     'stateDigest',encode(extensions.digest(v_state::text,'sha256'),'hex'));
