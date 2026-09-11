@@ -82,9 +82,12 @@ export function createPlatformAdminCommandHandler({ config, createClient, fetche
       try { const raw = await request.text(); if (Buffer.byteLength(raw) > 4096) fail(); body = JSON.parse(raw); }
       catch { fail(); }
       const command = parseCommand(body);
-      const { native, nativeId, actor } = await authorizePlatformAdmin(request, { config, command: true, createClient, fetcher, now });
+      const { native, nativeId, actor, authenticationMethod } = await authorizePlatformAdmin(request, {
+        config, command: true, operation: command, parseOperation: parseCommand, createClient, fetcher, now,
+      });
       const common = { p_actor: nativeId, p_hub_user: actor.user_id, p_hub_session: actor.session_id,
-        p_session_started_at: actor.session_started_at, p_assurance_expires_at: actor.assurance_expires_at };
+        p_session_started_at: actor.session_started_at, p_assurance_expires_at: actor.assurance_expires_at,
+        p_authentication_method: authenticationMethod };
       const result = command.operation === "preview"
         ? await native.rpc("platform_admin_preview_command", { ...common, p_request_id: command.requestId, p_action: command.action,
           p_target: command.targetId, p_parameters: command.parameters, p_reason: command.reason })

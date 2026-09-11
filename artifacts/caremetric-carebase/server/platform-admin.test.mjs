@@ -58,6 +58,14 @@ function fixture(overrides = {}) {
     assert.ok(init.signal instanceof AbortSignal);
     if (state.rawResponse) return state.rawResponse();
     const json = (value, status = 200, extra = {}) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json", ...extra } });
+    if (url.origin === 'https://support-hub-web-production.up.railway.app') {
+      assert.equal(url.pathname, '/api/internal/admin/authorize');
+      assert.equal(method, 'POST');
+      assert.equal(headers.get('origin'), null);
+      assert.equal(headers.get('apikey'), null);
+      assert.match(headers.get('authorization'), /^Bearer cmh_[A-Za-z0-9_-]{43}$/);
+      return state.appError ? json({error:'Unauthorized'},state.appError) : json(state.appActor);
+    }
     if (url.origin === ENV.HUB_SUPABASE_URL) {
       assert.equal(url.pathname, "/rest/v1/rpc/authorize_platform_admin");
       assert.equal(method, "POST");
@@ -122,6 +130,26 @@ function fixture(overrides = {}) {
 
 const request = (body = { operation: "overview" }, headers = {}) => new Request("https://cmcarebase.com/api/platform-admin/read", {
   method: "POST", headers: { Authorization: "Bearer fixture.jwt.token", "Content-Type": "application/json", ...headers }, body: JSON.stringify(body),
+});
+
+test('SMS delegation uses a fixed app endpoint and retains native account checks', async () => {
+  const f=fixture({appActor:{user_id:HUB_ID,role:'platform_admin',method:'sms',operation:{operation:'overview'}}});
+  const headers={Authorization:'Bearer cmh_'+'a'.repeat(43)};
+  assert.equal((await f.handler(request(undefined,headers))).status,200);
+  assert.equal(f.calls.some(call=>call.url.origin===ENV.HUB_SUPABASE_URL),false);
+  f.state.profile.role='employee';
+  assert.equal((await f.handler(request(undefined,headers))).status,403);
+});
+
+test('SMS delegation rejects changed operation, method, role, unmapped identity and replay',async()=>{
+  for(const override of [{method:'email'},{role:'org_admin'},{user_id:COURSE_ID},{operation:{operation:'courses.list'}},{operation:{operation:'overview',tenantId:COURSE_ID}}]) {
+    const f=fixture({appActor:{user_id:HUB_ID,role:'platform_admin',method:'sms',operation:{operation:'overview'},...override}});
+    assert.equal((await f.handler(request(undefined,{Authorization:'Bearer cmh_'+'a'.repeat(43)}))).status,403);
+    assert.equal(f.calls.some(call=>call.method==='HEAD'),false);
+  }
+  const f=fixture({appError:401});
+  assert.equal((await f.handler(request(undefined,{Authorization:'Bearer cmh_'+'a'.repeat(43)}))).status,401);
+  assert.equal(f.calls.length,1);
 });
 
 test("default off needs no credentials; enabled config refuses unsafe mappings and origins", () => {

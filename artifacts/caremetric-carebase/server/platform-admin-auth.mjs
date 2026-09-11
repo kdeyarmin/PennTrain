@@ -1,6 +1,9 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { isDeepStrictEqual } from "node:util";
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_UPSTREAM_BYTES = 2 * 1024 * 1024;
+const HUB_APP_READ_AUTHORIZE = "https://support-hub-web-production.up.railway.app/api/internal/admin/authorize";
+const HUB_APP_COMMAND_AUTHORIZE = "https://support-hub-web-production.up.railway.app/api/internal/command/carebase/authorize";
 
 export class AdminError extends Error {
   constructor(status, code) { super(code); this.status = status; this.code = code; }
@@ -75,7 +78,7 @@ async function boundedFetch(fetcher, requestSignal, input, init = {}) {
 }
 
 
-export async function authorizePlatformAdmin(request, { config, command = false, createClient = createSupabaseClient, fetcher = fetch, now = () => new Date() }) {
+export async function authorizePlatformAdmin(request, { config, command = false, operation, parseOperation, createClient = createSupabaseClient, fetcher = fetch, now = () => new Date() }) {
   if (!config.enabled) throw new AdminError(503, "unconfigured");
   if (request.method !== "POST") throw new AdminError(405, "method_not_allowed");
   // The Hub backend calls this endpoint. It is never a browser cross-origin API.
@@ -87,14 +90,34 @@ export async function authorizePlatformAdmin(request, { config, command = false,
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: { headers, fetch: (input, init) => boundedFetch(fetcher, request.signal, input, init) },
   });
-  const hub = makeClient(config.hubUrl, config.hubKey, { Authorization: authorization });
-  const { data: actor, error: actorError, status: actorStatus } = await hub.schema("hub").rpc(command ? "authorize_platform_command" : "authorize_platform_admin");
-  if (actorError) {
-    if (actorStatus === 401 || actorError.code === "28000") throw new AdminError(401, "unauthenticated");
-    if (actorError.code === "42501") throw new AdminError(403, "forbidden");
-    throw new AdminError(503, "upstream");
+  let actor, authenticationMethod;
+  if (authorization.startsWith("Bearer cmh_")) {
+    if (!/^Bearer cmh_[A-Za-z0-9_-]{43}$/.test(authorization)) throw new AdminError(401, "unauthenticated");
+    // Distinct endpoints consume distinct audiences. A read ticket cannot authorize a command.
+    const result = await boundedFetch(fetcher, request.signal, command ? HUB_APP_COMMAND_AUTHORIZE : HUB_APP_READ_AUTHORIZE, {
+      method: "POST", headers: { Authorization: authorization, "Content-Type": "application/json" }, body: "{}",
+    });
+    if (!result.ok) throw new AdminError(result.status === 401 || result.status === 403 ? result.status : 503,
+      result.status === 401 ? "unauthenticated" : result.status === 403 ? "forbidden" : "upstream");
+    actor = await result.json();
+    if (actor?.method !== "sms" || typeof parseOperation !== "function" || !operation) throw new AdminError(403, "forbidden");
+    let approved;
+    try { approved = parseOperation(actor.operation); } catch { throw new AdminError(403, "forbidden"); }
+    if (!isDeepStrictEqual(approved, operation)) throw new AdminError(403, "forbidden");
+    authenticationMethod = "app_sms";
+  } else {
+    const hub = makeClient(config.hubUrl, config.hubKey, { Authorization: authorization });
+    const { data, error: actorError, status: actorStatus } = await hub.schema("hub").rpc(command ? "authorize_platform_command" : "authorize_platform_admin");
+    if (actorError) {
+      if (actorStatus === 401 || actorError.code === "28000") throw new AdminError(401, "unauthenticated");
+      if (actorError.code === "42501") throw new AdminError(403, "forbidden");
+      throw new AdminError(503, "upstream");
+    }
+    actor = data;
+    if (actor?.aal !== "aal2") throw new AdminError(403, "forbidden");
+    authenticationMethod = "jwt_aal2";
   }
-  if (!actor || actor.role !== "platform_admin" || actor.aal !== "aal2" || typeof actor.user_id !== "string" || !UUID.test(actor.user_id)) {
+  if (!actor || actor.role !== "platform_admin" || typeof actor.user_id !== "string" || !UUID.test(actor.user_id)) {
     throw new AdminError(403, "forbidden");
   }
   const nativeId = config.identities.get(actor.user_id.toLowerCase());
@@ -124,5 +147,5 @@ export async function authorizePlatformAdmin(request, { config, command = false,
       || started < timestamp.getTime() - 480 * 60_000 || started > timestamp.getTime() + 5 * 60_000
       || expires <= timestamp.getTime() || expires > started + 480 * 60_000) throw new AdminError(403, "forbidden");
   }
-  return { native, nativeId, actor, timestamp };
+  return { native, nativeId, actor, authenticationMethod, timestamp };
 }

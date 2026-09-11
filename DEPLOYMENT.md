@@ -804,7 +804,7 @@ deployment grants, never inferred from email. Revoke a mapping through configura
 or immediately disable/demote the native CareBase profile. Do not place these mappings in frontend
 configuration. No mappings, account grants or production settings are provisioned by the code.
 
-The Hub backend forwards `Authorization: Bearer <Hub access token>` plus JSON to this endpoint.
+For legacy Hub JWTs, the backend forwards `Authorization: Bearer <Hub access token>` plus JSON.
 The CareBase adapter calls `hub.authorize_platform_admin()` with that token on every request;
 the Hub RPC must validate the current usable account, live session, AAL2, verified TOTP and
 current unscoped platform-admin permission and return
@@ -881,10 +881,11 @@ roll back without changing CareBase's native application data or authentication 
 `POST /api/platform-admin/command` is separately disabled unless
 `CAREMETRIC_ADMIN_COMMANDS_ENABLED=true` on the server. Install migration
 `20260911154400_delegated_platform_admin_commands.sql` and the Hub's
-`hub.authorize_platform_command()` RPC before enabling it. The capabilities read advertises
+command authorization service before enabling it. Legacy JWT authorization uses the
+`hub.authorize_platform_command()` RPC. The capabilities read advertises
 `commands.preview` and `commands.apply` only when this flag is enabled.
 
-The command RPC must first perform the existing read authorization and additionally return
+The legacy command RPC must first perform the existing read authorization and additionally return
 `session_id`, `session_started_at`, and `assurance_expires_at`. The Hub verifies these against its
 actual live Auth session; expiry is no later than session creation plus 480 minutes and any
 session `not_after` deadline. The original session must be within 480 minutes and the JWT issue
@@ -892,6 +893,18 @@ time no more than five minutes in the future. This preserves CareBase's native p
 freshness window from `identity_assurance_is_current`. Normal token refresh cannot extend it.
 Both the adapter and native transaction recheck the mapped native administrator and freshness.
 The foreign session is never represented as a fabricated native JWT or `auth.uid()`.
+
+For Hub SMS sign-in, the Hub backend instead sends a single-use `cmh_` capability with 43
+base64url characters. CareBase consumes it only at
+`https://support-hub-web-production.up.railway.app/api/internal/command/carebase/authorize`,
+whose audience is `carebase.command`. The result must contain
+`{user_id, role: "platform_admin", method: "sms", session_id, session_started_at,
+assurance_expires_at, operation}`. The operation must exactly match the parsed preview/apply
+request. Native checks enforce the same original-session 480-minute window and five-minute
+future skew independently. Read capabilities are consumed at the separate `/api/internal/admin/authorize`
+endpoint and cannot authorize commands. Failed SMS consumption never falls back to a JWT or read path.
+The Hub verifies its SMS session and current relational permission when it consumes each ticket;
+CareBase still checks the explicitly mapped native account on every request.
 
 Preview requests contain exactly `{operation: "preview", requestId, action, targetId, parameters,
 reason}`. The three action/parameter pairs are:
@@ -916,7 +929,7 @@ expectedDigest}` and returns `{commandId, action, targetId, appliedAt, replayed,
 the existing version-1 envelope with operation `preview`/`apply`. HTTP 409 `conflict` means the
 preview expired, the target changed, or the expected digest/request identifier no longer matches.
 
-Native previews are immutable, bound to both actors and the Hub session, and expire within five
+Native previews are immutable, bound to both actors, authentication method and Hub session, and expire within five
 minutes. Reusing an identical request identifier returns the same preview; different inputs are
 rejected. Apply locks the receipt and target, revalidates state, invokes the same cores as native
 administration, verifies the outcome matches the preview, and commits the native audit and stored
@@ -925,7 +938,9 @@ stored outcome without another mutation or audit. No-op commands still create an
 explicitly records `unchanged: true`. Records contain only safe state projections and the supplied
 operational reason; operators should keep clinical/personal details out of reasons.
 
-The command audit attributes the mapped native actor and the Hub subject/session explicitly.
+The command audit attributes the mapped native actor and the Hub subject/session explicitly,
+including trusted `authenticationMethod: "jwt_aal2" | "app_sms"`; SMS is never labeled JWT AAL2.
+Only the adapter supplies this required native RPC argument after checking the corresponding authority.
 Native row-trigger evidence retains its normal system attribution and shares the command's
 request/correlation identifiers. The service credential has no direct read/write grants on the
 private ledger or private business cores. Native interactive RPC wrappers retain their own checks.
@@ -977,3 +992,7 @@ Deployment-setting verification on 2026-09-08 (BACKLOG K11):
   emails `dispatch-notifications` sends to actually go out -- without it, those deliveries are
   logged as `skipped` rather than failing loudly. Routing Supabase Auth's own password-reset/
   email-change mail through SendGrid too requires the hosted Send Email hook and matching signing configuration in step 1.6; setting the Edge Function key alone does not change Auth delivery.
+
+### Hub app-owned SMS delegation
+
+The central administrator adapter also accepts opaque cmh_ capabilities from the Hub's Node server. It introspects each capability at the fixed HTTPS Hub application endpoint, validates the SMS method and exact read operation, and retains the existing explicit identity map and native account/role checks. Capabilities are single-use and expire after 30 seconds; the Hub rechecks the session and permissions at consumption. No new CareBase environment variables are required. Deploy this adapter before activating the paired Hub app-session frontend. Existing legacy Hub AAL2 tokens retain their original verification path. Live SMS receipt and administrator access must be verified after the paired release.

@@ -185,7 +185,8 @@ begin
 end;
 $$;
 
--- Hub JWTs are verified by the app adapter, never converted into native JWTs.
+-- Hub JWTs and app-owned SMS capabilities are verified by the adapter;
+-- neither is ever converted into a native JWT or falsely labeled native AAL2.
 -- Only the existing server credential may invoke these narrowly scoped commands.
 create table app_private.platform_admin_commands (
   id uuid primary key default gen_random_uuid(),
@@ -193,6 +194,7 @@ create table app_private.platform_admin_commands (
   actor_profile_id uuid not null,
   hub_user_id uuid not null,
   hub_session_id uuid not null,
+  authentication_method text not null check (authentication_method in ('jwt_aal2','app_sms')),
   action text not null check (action in ('users.setActive','organizations.setSuspension','billing.setAccessOverride')),
   target_id uuid not null,
   parameters jsonb not null check (jsonb_typeof(parameters)='object'),
@@ -227,11 +229,12 @@ create trigger protect_platform_admin_command before update or delete on app_pri
 revoke all on function app_private.protect_platform_admin_command() from public,anon,authenticated,service_role;
 
 create function app_private.assert_platform_admin_delegate(
-  p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,p_assurance_expires_at timestamptz)
+  p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,p_assurance_expires_at timestamptz,p_authentication_method text)
 returns void language plpgsql security definer set search_path='' as $$
 begin
   if coalesce(auth.jwt()->>'role','') <> 'service_role'
-     or p_actor is null or p_hub_user is null or p_hub_session is null then
+     or p_actor is null or p_hub_user is null or p_hub_session is null
+     or coalesce(p_authentication_method,'') not in ('jwt_aal2','app_sms') then
     raise exception 'Delegation forbidden' using errcode='42501';
   end if;
   if p_session_started_at is null or p_assurance_expires_at is null
@@ -250,7 +253,7 @@ begin
   if not found then raise exception 'Delegation forbidden' using errcode='42501'; end if;
 end;
 $$;
-revoke all on function app_private.assert_platform_admin_delegate(uuid,uuid,uuid,timestamptz,timestamptz)
+revoke all on function app_private.assert_platform_admin_delegate(uuid,uuid,uuid,timestamptz,timestamptz,text)
   from public,anon,authenticated,service_role;
 
 create function app_private.platform_admin_command_plan(p_actor uuid,p_action text,p_target uuid,p_parameters jsonb)
@@ -353,7 +356,7 @@ revoke all on function app_private.platform_admin_command_changes(jsonb,jsonb) f
 
 create function public.platform_admin_preview_command(
   p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,p_assurance_expires_at timestamptz,
-  p_request_id uuid,p_action text,p_target uuid,p_parameters jsonb,p_reason text)
+  p_request_id uuid,p_action text,p_target uuid,p_parameters jsonb,p_reason text,p_authentication_method text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare
   v_row app_private.platform_admin_commands;
@@ -363,7 +366,7 @@ declare
   v_reason text := btrim(p_reason);
   v_digest text;
 begin
-  perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at);
+  perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
   if p_request_id is null or v_reason is null or length(v_reason) not between 10 and 500 or v_reason ~ '[[:cntrl:]]' then
     raise exception 'Invalid command reason or request identifier' using errcode='22023';
   end if;
@@ -371,7 +374,8 @@ begin
   select * into v_row from app_private.platform_admin_commands
     where hub_user_id=p_hub_user and hub_session_id=p_hub_session and request_id=p_request_id for update;
   if found then
-    if v_row.actor_profile_id<>p_actor or v_row.action is distinct from p_action or v_row.target_id is distinct from p_target
+    if v_row.actor_profile_id<>p_actor or v_row.authentication_method<>p_authentication_method
+      or v_row.action is distinct from p_action or v_row.target_id is distinct from p_target
       or v_row.parameters is distinct from p_parameters or v_row.reason is distinct from v_reason then
       raise exception 'Request identifier already has different inputs' using errcode='40001';
     end if;
@@ -383,11 +387,11 @@ begin
     end if;
     if v_expiry<=clock_timestamp() then raise exception 'Preview expired' using errcode='40001'; end if;
     v_digest := encode(extensions.digest(jsonb_build_object('commandId',v_id,'actor',p_actor,'hubUser',p_hub_user,
-      'session',p_hub_session,'action',p_action,'target',p_target,'parameters',p_parameters,'reason',v_reason,
+      'session',p_hub_session,'authenticationMethod',p_authentication_method,'action',p_action,'target',p_target,'parameters',p_parameters,'reason',v_reason,
       'plan',v_plan,'expiresAt',v_expiry)::text,'sha256'),'hex');
-    insert into app_private.platform_admin_commands(id,request_id,actor_profile_id,hub_user_id,hub_session_id,action,target_id,
+    insert into app_private.platform_admin_commands(id,request_id,actor_profile_id,hub_user_id,hub_session_id,authentication_method,action,target_id,
       parameters,reason,before_state,after_state,state_digest,preview_digest,expires_at)
-    values(v_id,p_request_id,p_actor,p_hub_user,p_hub_session,p_action,p_target,p_parameters,v_reason,
+    values(v_id,p_request_id,p_actor,p_hub_user,p_hub_session,p_authentication_method,p_action,p_target,p_parameters,v_reason,
       v_plan->'before',v_plan->'after',v_plan->>'stateDigest',v_digest,v_expiry) returning * into v_row;
   end if;
   return jsonb_build_object('commandId',v_row.id,'action',v_row.action,'targetId',v_row.target_id,'reason',v_row.reason,
@@ -398,7 +402,7 @@ $$;
 
 create function public.platform_admin_apply_command(
   p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,p_assurance_expires_at timestamptz,
-  p_command_id uuid,p_expected_digest text)
+  p_command_id uuid,p_expected_digest text,p_authentication_method text)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare
   v_row app_private.platform_admin_commands;
@@ -408,10 +412,11 @@ declare
   v_org uuid;
   v_applied timestamptz;
 begin
-  perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at);
+  perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
   select * into v_row from app_private.platform_admin_commands where id=p_command_id for update;
   if not found then raise exception 'Preview not found' using errcode='P0002'; end if;
-  if v_row.actor_profile_id<>p_actor or v_row.hub_user_id<>p_hub_user or v_row.hub_session_id<>p_hub_session then
+  if v_row.actor_profile_id<>p_actor or v_row.hub_user_id<>p_hub_user or v_row.hub_session_id<>p_hub_session
+    or v_row.authentication_method<>p_authentication_method then
     raise exception 'Preview belongs to another administrator session' using errcode='42501';
   end if;
   if p_expected_digest is distinct from v_row.preview_digest then raise exception 'Preview changed' using errcode='40001'; end if;
@@ -450,13 +455,13 @@ begin
     request_id,correlation_id,reason,old_values,new_values,metadata)
   values(v_org,p_actor,p_hub_user::text,'central_admin_command',v_row.id::text,'central_admin_command_applied','hub_delegate',
     v_row.id::text,v_row.request_id::text,v_row.reason,v_row.before_state,v_after,
-    jsonb_build_object('hubUserId',p_hub_user,'hubSessionId',p_hub_session,'nativeActorId',p_actor,'commandAction',v_row.action,
+    jsonb_build_object('hubUserId',p_hub_user,'hubSessionId',p_hub_session,'authenticationMethod',p_authentication_method,'nativeActorId',p_actor,'commandAction',v_row.action,
       'targetId',v_row.target_id,'unchanged',v_row.before_state=v_after));
   update app_private.platform_admin_commands set applied_at=v_applied,result=v_result where id=v_row.id;
   return v_result;
 end;
 $$;
-revoke all on function public.platform_admin_preview_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,uuid,jsonb,text),
-  public.platform_admin_apply_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text) from public,anon,authenticated,service_role;
-grant execute on function public.platform_admin_preview_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,uuid,jsonb,text),
-  public.platform_admin_apply_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text) to service_role;
+revoke all on function public.platform_admin_preview_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,uuid,jsonb,text,text),
+  public.platform_admin_apply_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,text) from public,anon,authenticated,service_role;
+grant execute on function public.platform_admin_preview_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,uuid,jsonb,text,text),
+  public.platform_admin_apply_command(uuid,uuid,uuid,timestamptz,timestamptz,uuid,text,text) to service_role;
