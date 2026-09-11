@@ -79,7 +79,7 @@ begin
     if p_target-array['kind','jobKey']<>'{}'::jsonb or jsonb_typeof(p_target->'jobKey') is distinct from 'string' then raise exception 'Invalid configuration target.' using errcode='22023'; end if;
     v_key:=p_target->>'jobKey';
   elsif v_kind in ('release','featureKill') then
-    if p_target-case when v_kind='release' then array['kind','featureKey'] else array['kind','featureKey','organizationId'] end<>'{}'::jsonb
+    if (p_target-(case when v_kind='release' then array['kind','featureKey'] else array['kind','featureKey','organizationId'] end))<>'{}'::jsonb
       or jsonb_typeof(p_target->'featureKey') is distinct from 'string' then raise exception 'Invalid configuration target.' using errcode='22023'; end if;
     v_key:=p_target->>'featureKey';
     if v_kind='featureKill' then
@@ -88,7 +88,7 @@ begin
       if p_target->>'organizationId' is not null then v_target:=jsonb_set(p_target,'{organizationId}',to_jsonb((p_target->>'organizationId')::uuid)); end if;
     end if;
   else raise exception 'Invalid configuration target.' using errcode='22023'; end if;
-  if v_key is null or length(v_key) not between 1 and case when v_kind='job' then 200 else 100 end or v_key<>trim(v_key) or v_key~'[[:cntrl:]]' then
+  if v_key is null or length(v_key) not between 1 and (case when v_kind='job' then 200 else 100 end) or v_key<>trim(v_key) or v_key~'[[:cntrl:]]' then
     raise exception 'Invalid configuration target.' using errcode='22023'; end if;
   return v_target;
 end; $$;
