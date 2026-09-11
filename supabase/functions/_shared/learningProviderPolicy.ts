@@ -78,6 +78,6 @@ export function validProviderStatus(v: unknown): v is ProviderStatus {
 }
 export function validProviderCommands(v: unknown): v is ProviderCommands {
   return exact(v, ['items', 'nextOffset']) && (v.nextOffset === null || Number.isSafeInteger(v.nextOffset) && Number(v.nextOffset) >= 0 && Number(v.nextOffset) <= 10000)
-    && Array.isArray(v.items) && v.items.length <= 20 && new Set(v.items.map(c => object(c) ? c.commandId : '')).size === v.items.length
+    && Array.isArray(v.items) && v.items.length <= 20 && (v.nextOffset === null || v.items.length === 20) && new Set(v.items.map(c => object(c) ? c.commandId : '')).size === v.items.length
     && v.items.every(c => exact(c, ['commandId', 'expectedDigest', 'expiresAt', 'appliedAt']) && uuid(c.commandId) && sha(c.expectedDigest) && instant(c.expiresAt) && (c.appliedAt === null || instant(c.appliedAt)));
 }

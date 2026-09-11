@@ -69,7 +69,8 @@ test('status is read-only evidence and page response cannot add an apply grant',
   assert.equal(validProviderStatus({ ...value, canApplyThisSession: true }), false);
   assert.equal(validProviderStatus({ ...value, result: { ...result, replayed: true } }), false);
   assert.throws(() => projectProviderResult({ ...value, preview: { ...preview, previewDigest: 'd'.repeat(64) } }, op));
-  const page = { items: [{ commandId: id(7), expectedDigest: 'b'.repeat(64), expiresAt: preview.expiresAt, appliedAt: null }], nextOffset: 20 };
+  const page = { items: Array.from({ length: 20 }, (_, index) => ({ commandId: id(index + 7), expectedDigest: 'b'.repeat(64), expiresAt: preview.expiresAt, appliedAt: null })), nextOffset: 20 };
+  assert.throws(() => projectProviderResult({ ...page, items: page.items.slice(0, 1) }, { domain, operation: 'commands', courseId: id(4), offset: 0 }));
   assert.deepEqual(projectProviderResult(page, { domain, operation: 'commands', courseId: id(4), offset: 0 }), page);
   assert.throws(() => projectProviderResult({ ...page, nextOffset: 40 }, { domain, operation: 'commands', courseId: id(4), offset: 0 }));
 });

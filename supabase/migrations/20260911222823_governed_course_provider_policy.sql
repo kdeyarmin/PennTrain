@@ -312,8 +312,10 @@ begin
     raise exception 'Accessible course required.' using errcode='42501'; end if;
   select coalesce(jsonb_agg(jsonb_build_object('commandId',id,'expectedDigest',preview_digest,'expiresAt',expires_at,'appliedAt',applied_at)
     order by (applied_at is null) desc,created_at desc,id),'[]') into v_rows from (select * from app_private.learning_provider_commands
-    where actor_id=p_actor and principal_id=p_principal and course_id=p_course order by (applied_at is null) desc,created_at desc,id limit 20 offset p_offset) q;
-  select exists(select 1 from app_private.learning_provider_commands where actor_id=p_actor and principal_id=p_principal and course_id=p_course offset p_offset+20 limit 1) into v_more;
+    where actor_id=p_actor and principal_id=p_principal and course_id=p_course order by (applied_at is null) desc,created_at desc,id limit 21 offset p_offset) q;
+  -- Derive the page and has-more bit from one snapshot, even with concurrent new intents.
+  v_more:=jsonb_array_length(v_rows)>20;
+  if v_more then v_rows:=v_rows-20; end if;
   return jsonb_build_object('items',v_rows,'nextOffset',case when v_more and p_offset+20<=10000 then p_offset+20 else null end);
 end;
 $$;
