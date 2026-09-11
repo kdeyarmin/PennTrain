@@ -824,6 +824,9 @@ cookies, caller API keys and arbitrary headers never cross into database request
 | `{ "operation": "users.list", "limit": 25, "offset": 0, "search": "example.com" }` | `{items, total, limit, offset}`; application profile email search |
 | `{ "operation": "billing.overview" }` | `{source: "application_database", subscriptionCount, statusCounts: [{status, count}]}` |
 | `{ "operation": "billing.subscriptions.list", "limit": 25, "offset": 0, "search": "sub_" }` | `{source: "application_database", items, total, limit, offset}`; provider subscription ID search |
+| `{ "operation": "billing.invoices.list", "limit": 25, "offset": 0, "search": "in_" }` | `{source: "application_database", items, total, limit, offset}`; recorded provider invoice ID search |
+| `{ "operation": "billing.invoices.get", "id": "<native invoice UUID>" }` | `{recorded, provider, comparison}` |
+| `{ "operation": "billing.subscriptions.verify", "id": "<native subscription UUID>" }` | `{recorded, applicationAccess, provider, comparison}` |
 
 Success envelopes are `{contractVersion: 1, product: "carebase", operation, generatedAt, data}`.
 Course metadata has `id`, `title`, `description`, `category`, `status`,
@@ -849,7 +852,7 @@ Directory metadata is deliberately limited to these fields (nullable keys are al
   Native identifiers are UUIDs. `planCode` is always `null` because CareBase has no plan-code
   field. `planName` comes from the subscription's package; absent links stay `null`.
 
-Billing reads list **recorded application subscriptions**, including canceled history, excluding
+Subscription inventory reads list **recorded application subscriptions**, including canceled history, excluding
 `is_provider_placeholder` rows. `status` is the cached application `billing_state` and
 `providerStatus` is the cached Stripe status. These are not the managed-subscription candidates
 used by native seat synchronization, the current organization entitlement decision, or a live
@@ -859,8 +862,52 @@ database-enforced states (`trial`, `active`, `grace`, `past_due`, `canceled`, `c
 using exact HEAD requests. Any source error or disagreement with the independently read total
 (including a concurrent webhook update) returns an error; retry to obtain a consistent result.
 No recurring revenue or monetary total is inferred from package prices or mixed currencies.
-The existing Stripe integration remains pinned to `2026-02-25.clover`; these reads perform no
+The existing Stripe integration remains pinned to `2026-02-25.clover`; inventory reads perform no
 Stripe requests and change no Checkout, portal, webhook or seat-sync behavior.
+
+Invoice inventory and provider checks use the same current Hub/native administrator authorization.
+Invoice metadata is `{id, organizationId, organizationName, subscriptionId, providerInvoiceId,
+providerSubscriptionId, status, currency, amountDueMinor, amountPaidMinor, amountRemainingMinor,
+issuedAt, dueAt, paidAt, updatedAt}`. Native IDs are UUIDs. Organization name, both subscription
+references and timestamps retain explicit nulls when unavailable. Amounts are canonical unsigned
+decimal strings in the currency's Stripe API minor units, bounded by PostgreSQL bigint. Source
+queries [cast bigint columns to text before JSON serialization](https://docs.postgrest.org/en/v13/references/api/tables_views.html#casting-columns).
+The Node 24 parser preserves the provider's original integer tokens, including values beyond
+JavaScript's safe integer range. Do not coerce them to Number or use the native catalog's generic
+cents formatter. Stripe has [currency-specific minor-unit rules](https://docs.stripe.com/currencies#minor-units-in-api-amounts),
+including zero-decimal currencies and ISK/UGX exceptions; unknown currencies should display the
+raw currency and minor-unit amount. Never aggregate unlike currencies.
+
+The two detail checks reuse server-only `STRIPE_SECRET_KEY`, the established `phase2StripeGet`
+helper, current Stripe account and pinned API version. No new key or environment setting is needed.
+An absent key leaves cached reads working and reports `unconfigured`. Calls retrieve only the
+provider invoice/subscription already identified by a native UUID; there is no provider search
+or arbitrary ID/URL input. The invoice's organization, linked subscription, billing account and
+customer must agree. Legacy invoices without a native subscription link may resolve their recorded
+provider subscription only within the same organization/account; standalone invoices must also be
+standalone at Stripe. Incorrect provider object/customer/subscription identities expose no provider
+data. [Invoice retrieval](https://docs.stripe.com/api/invoices/retrieve?api-version=2026-02-25.clover)
+and [subscription retrieval](https://docs.stripe.com/api/subscriptions/retrieve?api-version=2026-02-25.clover)
+are fixed GETs, bounded to five seconds and 2 MiB with no redirects. They never apply events,
+change entitlements, create portal/Checkout sessions or issue provider writes.
+
+`provider` is `{source: "stripe", apiVersion: "2026-02-25.clover", availability, checkedAt, data}`.
+Availability is `available`, `unconfigured`, `unavailable`, `notfound` or `identity_mismatch`;
+all unavailable variants keep `data: null` and preserve validated recorded data. Available invoice
+data is `{id, customerId, subscriptionId, status, currency, amountDueMinor, amountPaidMinor,
+amountRemainingMinor, createdAt, dueAt, paidAt, livemode}`. Available subscription data is
+`{id, customerId, status, cancelAtPeriodEnd, canceledAt, livemode}`. Nullable legacy values stay
+null; `livemode` describes the retrieved provider object. No provider address, email, metadata,
+payment method, description, invoice PDF or hosted URL is returned.
+
+`comparison` is `{status: "matches" | "differences" | "not_checked", fields: []}`. Available
+invoice comparisons include only `status`, `currency` and the three amount field names. Subscription
+comparison includes only `providerStatus`. Unavailable provider checks have `not_checked` with no
+differences; they never report invented provider zeroes. Subscription `applicationAccess` separately
+reports the native account's `{billingState, stateSource, compedUntil, graceEndsAt, updatedAt}`.
+This may deliberately disagree with Stripe due to manual comp, suspension or native grace rules.
+The read never turns that comparison into a billing-access change. Recorded/provider timestamps
+are independent observations, not a distributed transactional snapshot.
 
 Directory names/emails are intentional sensitive administrator fields: keep response bodies,
 search text and access-token headers out of proxy logs. Responses contain no organization contact
