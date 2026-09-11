@@ -46,7 +46,22 @@ test("native PostgREST preserves int64 invoice amounts, named foreign keys and n
     assert.equal(verified.recorded.planName, null);
     assert.equal(verified.applicationAccess.stateSource, "stripe");
     assert.deepEqual(verified.comparison, { status: "not_checked", fields: [] });
+    const checked = await readBilling({ ...options, config: { stripeKey: "sk_test_fixture" },
+      operation: { operation: "billing.invoices.get", id: invoice }, fetcher: async (input, init) => {
+        assert.equal(String(input), `https://api.stripe.com/v1/invoices/in_${suffix}`);
+        assert.equal(init.method ?? "GET", "GET");
+        // The native account lookup is real; only the external provider response is synthetic.
+        return Response.json({ id: `in_${suffix}`, object: "invoice", customer: `cus_${suffix}`,
+          parent: { type: "subscription_details", subscription_details: { subscription: `sub_${suffix}` } },
+          status: "open", currency: "jpy", amount_due: 100, amount_paid: 0, amount_remaining: 100,
+          created: 1789149600, due_date: null, status_transitions: { paid_at: null }, livemode: false });
+      } });
+    assert.equal(checked.provider.availability, "available");
+    assert.equal(checked.provider.data.customerId, `cus_${suffix}`);
+    assert.deepEqual(checked.comparison.fields, ["amountDueMinor", "amountRemainingMinor"]);
   } finally {
-    sql(`begin; delete from public.billing_invoices where organization_id='${org}'; delete from public.billing_subscriptions where organization_id='${org}'; delete from public.organizations where id='${org}'; commit;`);
+    // Retain the synthetic organization referenced by immutable native audit logs. The whole
+    // disposable CI stack is stopped without backup; never weaken audit rules to clean fixtures.
+    sql(`begin; delete from public.billing_invoices where organization_id='${org}'; delete from public.billing_subscriptions where organization_id='${org}'; commit;`);
   }
 });
