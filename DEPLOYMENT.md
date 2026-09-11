@@ -783,7 +783,7 @@ provider routes. Rebuild after changing browser `VITE_*` configuration. Railway 
 rejects mode/project mismatches, but it cannot certify live Checkout, carrier delivery, or webhook
 reconciliation; complete the checks in the provider rollout section.
 
-## Central CareMetric administration pilot
+## Central CareMetric administration
 
 The Node server supports a separately gated `POST /api/platform-admin/read` endpoint. It stays
 at the origin root regardless of `BASE_PATH`, defaults off, and does not require activating the
@@ -797,6 +797,7 @@ Railway Stripe/SMS runtime. Configure only on the server:
 | `CAREMETRIC_ADMIN_IDENTITY_MAP_JSON` | Explicit JSON object mapping each Hub user UUID to one distinct native CareBase profile/Auth UUID |
 | `SUPABASE_URL` | This CareBase project's HTTPS origin; falls back to `VITE_SUPABASE_URL` and must match it when both exist |
 | `SUPABASE_SERVICE_ROLE_KEY` | Existing CareBase server credential; never use a `VITE_` prefix |
+| `RAILWAY_GIT_COMMIT_SHA` | Railway-provided source revision; capabilities reports a valid full Git SHA or `null` |
 
 An enabled runtime refuses missing/malformed configuration. Identity mappings are explicit
 deployment grants, never inferred from email. Revoke a mapping through configuration and restart,
@@ -815,9 +816,14 @@ cookies, caller API keys and arbitrary headers never cross into database request
 
 | Request body | `data` in successful response |
 | --- | --- |
+| `{ "operation": "capabilities" }` | `{apiVersion: 1, operations, sourceRevision}`; requires the same administrator authorization as all reads |
 | `{ "operation": "overview" }` | `{organizationCount, activeUserCount, globalCourseCount}`; active-user count means active profiles, not current signed-in sessions |
 | `{ "operation": "courses.list", "limit": 25, "offset": 0, "search": "diabetes" }` | `{items, total, limit, offset}`; optional limit 1–50, offset 0–10000 and title substring up to 100 characters |
 | `{ "operation": "courses.get", "courseId": "<UUID>" }` | `{course, lessons, lessonsTruncated}` |
+| `{ "operation": "organizations.list", "limit": 25, "offset": 0, "search": "Care" }` | `{items, total, limit, offset}`; organization name search |
+| `{ "operation": "users.list", "limit": 25, "offset": 0, "search": "example.com" }` | `{items, total, limit, offset}`; application profile email search |
+| `{ "operation": "billing.overview" }` | `{source: "application_database", subscriptionCount, statusCounts: [{status, count}]}` |
+| `{ "operation": "billing.subscriptions.list", "limit": 25, "offset": 0, "search": "sub_" }` | `{source: "application_database", items, total, limit, offset}`; provider subscription ID search |
 
 Success envelopes are `{contractVersion: 1, product: "carebase", operation, generatedAt, data}`.
 Course metadata has `id`, `title`, `description`, `category`, `status`,
@@ -828,8 +834,38 @@ course. Draft and archived global courses are included in this administration in
 Search escapes SQL wildcard characters; `*` and control characters are rejected. Unknown
 operations, extra fields, tenant scopes and mutation requests are rejected.
 
-Responses contain no user records, organization contact information, clinical data, lesson bodies,
-answer keys or media URLs. Course title/description metadata is truncated to 500/4000 characters.
+All lists share the course-list pagination/search bounds and exact filtered counts. Ordering is
+stable by name/email/title (ascending) or subscription `updated_at` (descending), then native UUID.
+List offsets are subject to normal changes in the underlying live records; they are not snapshots.
+Directory metadata is deliberately limited to these fields (nullable keys are always present):
+
+- Organization: `{id, name, slug, status, createdAt}`. Status is the recorded
+  `organizations.subscription_status`, not a live provider status.
+- User: `{id, displayName, email, role, status, createdAt}` from `profiles` only. Status
+  `active`/`inactive` reflects `profiles.is_active`; it does not certify Auth-account usability,
+  bans or current sessions. These are application accounts, not employee or clinical records.
+- Subscription: `{id, organizationId, organizationName, planCode, planName, status,
+  providerStatus, providerCustomerId, providerSubscriptionId, currentPeriodEnd, updatedAt}`.
+  Native identifiers are UUIDs. `planCode` is always `null` because CareBase has no plan-code
+  field. `planName` comes from the subscription's package; absent links stay `null`.
+
+Billing reads list **recorded application subscriptions**, including canceled history, excluding
+`is_provider_placeholder` rows. `status` is the cached application `billing_state` and
+`providerStatus` is the cached Stripe status. These are not the managed-subscription candidates
+used by native seat synchronization, the current organization entitlement decision, or a live
+Stripe query. Explicit foreign keys bind package, billing account and organization metadata;
+an inconsistent joined organization/account fails closed. Billing overview counts all seven
+database-enforced states (`trial`, `active`, `grace`, `past_due`, `canceled`, `comped`, `suspended`)
+using exact HEAD requests. Any source error or disagreement with the independently read total
+(including a concurrent webhook update) returns an error; retry to obtain a consistent result.
+No recurring revenue or monetary total is inferred from package prices or mixed currencies.
+The existing Stripe integration remains pinned to `2026-02-25.clover`; these reads perform no
+Stripe requests and change no Checkout, portal, webhook or seat-sync behavior.
+
+Directory names/emails are intentional sensitive administrator fields: keep response bodies,
+search text and access-token headers out of proxy logs. Responses contain no organization contact
+information, clinical data, Auth directory objects, lesson bodies, answer keys or media/invoice URLs.
+Course title/description metadata is truncated to 500/4000 characters.
 The transport bounds ingress to 2 KiB, source responses to 2 MiB, emitted responses to 1 MiB,
 execution to 30 seconds and concurrent execution to eight requests. Error bodies contain only
 `{error: {code}}`; responses are `no-store`. Keep access-token headers out of proxy logs.
