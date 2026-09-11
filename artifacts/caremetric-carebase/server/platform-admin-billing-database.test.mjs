@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { createClient } from "@supabase/supabase-js";
 import { readBilling } from "./platform-admin-billing.mjs";
+import { planBillingSession } from "../../../supabase/functions/_shared/billingSessionPlan.ts";
 
 test("native PostgREST preserves int64 invoice amounts, named foreign keys and nullable legacy rows", {
   skip: process.env.CAREMETRIC_LOCAL_BILLING_READ_TESTS !== "true",
@@ -59,6 +60,22 @@ test("native PostgREST preserves int64 invoice amounts, named foreign keys and n
     assert.equal(checked.provider.availability, "available");
     assert.equal(checked.provider.data.customerId, `cus_${suffix}`);
     assert.deepEqual(checked.comparison.fields, ["amountDueMinor", "amountRemainingMinor"]);
+    // Exercise the actual shared planner through PostgREST against nonterminal
+    // provider rows which the former billing_state-only filter missed.
+    const checkoutPlan = () => planBillingSession({ admin: native, profile: { role: "platform_admin" }, organizationId: org,
+      body: { action: "checkout", packageId: randomUUID() }, nowIso: () => new Date().toISOString(),
+      getEnv: name => name === "STRIPE_BILLING_WEBHOOK_SECRET" ? "fixture-never-used" : undefined });
+    for (const status of ["paused", "unpaid", "incomplete"]) {
+      sql(`update public.billing_subscriptions set provider_status='${status}',billing_state='suspended' where id='${sub}';`);
+      await assert.rejects(checkoutPlan, error => error.code === "existing_subscription_requires_portal");
+    }
+    sql(`update public.billing_subscriptions set is_provider_placeholder=true where id='${sub}';`);
+    await assert.rejects(checkoutPlan, error => error.code === "existing_subscription_requires_portal");
+    for (const status of ["canceled", "incomplete_expired"]) {
+      sql(`update public.billing_subscriptions set provider_status='${status}',billing_state='canceled' where id='${sub}';`);
+      await assert.rejects(checkoutPlan, error => error.code === "active_price_missing",
+        "terminal provider history passes the subscription guard and reaches current price validation");
+    }
   } finally {
     // Retain the synthetic organization referenced by immutable native audit logs. The whole
     // disposable CI stack is stopped without backup; never weaken audit rules to clean fixtures.

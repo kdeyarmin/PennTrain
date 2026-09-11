@@ -50,7 +50,10 @@ export function readPlatformAdminConfig(getEnv = (name) => process.env[name]) {
   const sourceRevision = typeof revision === "string" && /^[0-9a-f]{40}$/i.test(revision) ? revision.toLowerCase() : null;
   const commandFlag = getEnv("CAREMETRIC_ADMIN_COMMANDS_ENABLED");
   if (commandFlag !== undefined && commandFlag !== "true" && commandFlag !== "false") throw new Error("CAREMETRIC_ADMIN_COMMANDS_ENABLED must be true or false.");
-  return { enabled: true, hubUrl, hubKey, supabaseUrl, serviceKey, identities, sourceRevision, commandsEnabled: commandFlag === "true", stripeKey: getEnv("STRIPE_SECRET_KEY")?.trim() || null };
+  const billingFlag = getEnv("CAREMETRIC_ADMIN_BILLING_COMMANDS_ENABLED");
+  if (billingFlag !== undefined && billingFlag !== "true" && billingFlag !== "false") throw new Error("CAREMETRIC_ADMIN_BILLING_COMMANDS_ENABLED must be true or false.");
+  return { enabled: true, hubUrl, hubKey, supabaseUrl, serviceKey, identities, sourceRevision, commandsEnabled: commandFlag === "true",
+    billingCommandsEnabled: billingFlag === "true", stripeKey: getEnv("STRIPE_SECRET_KEY")?.trim() || null };
 }
 
 export async function boundedFetch(fetcher, requestSignal, input, init = {}, maximumBytes = MAX_UPSTREAM_BYTES) {

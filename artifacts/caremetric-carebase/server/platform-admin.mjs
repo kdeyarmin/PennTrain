@@ -2,6 +2,7 @@ import { text, uuid, date, countResult, listResult, subscriptionSummary, SUBSCRI
 import { readBilling, BILLING_READ_OPERATIONS } from "./platform-admin-billing.mjs";
 import { AdminError, authorizePlatformAdmin, readPlatformAdminConfig, UUID } from "./platform-admin-auth.mjs";
 import { createPlatformAdminCommandHandler } from "./platform-admin-commands.mjs";
+import { createPlatformAdminBillingCommandHandler } from "./platform-admin-billing-commands.mjs";
 export { readPlatformAdminConfig } from "./platform-admin-auth.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
 
@@ -88,7 +89,8 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
       const { native } = await authorizePlatformAdmin(request, { config, operation, parseOperation, createClient, fetcher, now });
       let data;
       if (operation.operation === "capabilities") {
-        data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : [])], sourceRevision: config.sourceRevision ?? null };
+        data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : []),
+          ...(config.commandsEnabled && config.billingCommandsEnabled ? ["billing.commands.preview", "billing.commands.apply"] : [])], sourceRevision: config.sourceRevision ?? null };
       } else if (BILLING_READ_OPERATIONS.includes(operation.operation)) {
         data = await readBilling({ native, operation, config, request, fetcher, now });
       } else if (operation.operation === "overview") {
@@ -162,8 +164,9 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
 export function createPlatformAdminRouter(options = {}) {
   const config = options.config ?? readPlatformAdminConfig(options.getEnv);
   return createProviderRouter({
-    handlers: new Map([["read", createPlatformAdminHandler({ ...options, config })], ["command", createPlatformAdminCommandHandler({ ...options, config })]]), enabled: config.enabled,
-    prefix: "/api/platform-admin/", routes: new Map([["read", { bytes: 2048, browser: false }], ["command", { bytes: 4096, browser: false }]]),
+    handlers: new Map([["read", createPlatformAdminHandler({ ...options, config })], ["command", createPlatformAdminCommandHandler({ ...options, config })],
+      ["billing/command", createPlatformAdminBillingCommandHandler({ ...options, config })]]), enabled: config.enabled,
+    prefix: "/api/platform-admin/", routes: new Map([["read", { bytes: 2048, browser: false }], ["command", { bytes: 4096, browser: false }], ["billing/command", { bytes: 4096, browser: false }]]),
     unavailableCode: "unconfigured",
     forwardedHeaders: ["authorization", "origin", "content-type"],
     handlerTimeoutMs: 30_000, maxConcurrent: 8, maxPendingBodies: 16,
