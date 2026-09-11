@@ -141,12 +141,27 @@ begin
 end;
 $$;
 
+create function app_private.learning_authoring_needs_standard_package(p_version uuid) returns boolean
+language sql stable security definer set search_path='' as $$
+  select exists(select 1 from app_private.learning_authoring_drafts where version_id=p_version)
+    and exists(select 1 from public.course_blocks where course_version_id=p_version and block_type='scorm')
+    and not exists(select 1 from public.learning_packages p join public.course_versions v on v.id=p.course_version_id
+      where v.id=p_version and p.organization_id is not distinct from v.organization_id and p.validation_status='accepted'
+        and p.validated_at is not null and p.immutable_at is not null);
+$$;
+
 create function app_private.assert_learning_authoring_packages(p_version uuid) returns void
 language plpgsql security definer set search_path='' as $$
 begin
+  perform 1 from app_private.learning_authoring_package_dependencies where version_id=p_version order by source_package_id for share;
+  perform 1 from public.learning_packages p where p.course_version_id=p_version order by p.id for share;
+  if app_private.learning_authoring_needs_standard_package(p_version) then
+    raise exception 'A cloned SCORM draft requires its own accepted native runtime package before publication.' using errcode='23514';
+  end if;
   if exists(select 1 from app_private.learning_authoring_package_dependencies d
-    left join public.learning_packages p on p.id=d.replacement_package_id
+    join public.course_versions v on v.id=d.version_id left join public.learning_packages p on p.id=d.replacement_package_id
     where d.version_id=p_version and (p.id is null or p.course_version_id<>p_version
+      or p.organization_id is distinct from v.organization_id
       or p.validation_status<>'accepted' or p.content_sha256 is distinct from d.replacement_sha256
       or p.validated_at is null or p.immutable_at is null)) then
     raise exception 'Cloned package dependencies require separately registered and accepted replacement artifacts before publication.' using errcode='23514';
@@ -189,6 +204,7 @@ $$;
 revoke all on function app_private.lock_learning_authoring_source(uuid,uuid),
   app_private.clone_course_version_core(uuid,uuid,uuid,uuid,integer,text,text),
   app_private.assert_learning_authoring_packages(uuid),app_private.guard_learning_authoring_publication(),
+  app_private.learning_authoring_needs_standard_package(uuid),
   public.clone_course_version(uuid,uuid,integer,text,uuid),public.resolve_learning_authoring_package(uuid,uuid,uuid)
   from public,anon,authenticated,service_role;
 grant execute on function public.clone_course_version(uuid,uuid,integer,text,uuid),
@@ -374,9 +390,10 @@ begin
       'title',v.title,'status',v.status,'aiReviewRequired',v.ai_generated and v.ai_reviewed_at is null,
       'governed',exists(select 1 from app_private.learning_authoring_drafts d where d.version_id=v.id),
       'sourceRevision',encode(extensions.digest(app_private.learning_source_payload(c.id,v.id),'sha256'),'hex'),
-      'unresolvedPackages',(select count(*) from app_private.learning_authoring_package_dependencies d
+      'unresolvedPackages',case when app_private.learning_authoring_needs_standard_package(v.id) then 1 else 0 end+(select count(*) from app_private.learning_authoring_package_dependencies d
         left join public.learning_packages p on p.id=d.replacement_package_id where d.version_id=v.id and
-          (p.id is null or p.validation_status<>'accepted' or p.content_sha256 is distinct from d.replacement_sha256)))
+          (p.id is null or p.course_version_id<>v.id or p.organization_id is distinct from v.organization_id
+            or p.validation_status<>'accepted' or p.content_sha256 is distinct from d.replacement_sha256 or p.validated_at is null or p.immutable_at is null)))
       order by v.version_number desc) from (select * from public.course_versions where course_id=c.id and organization_id is null
       order by version_number desc limit 20) v),'[]'::jsonb)) into v_result
   from public.courses c where c.id=p_course_id and c.organization_id is null and c.status='published';
@@ -413,7 +430,8 @@ begin
     select v.version_number,d.source_package_id,jsonb_build_object('versionId',v.id,'versionTitle',v.title,'versionNumber',v.version_number,
       'courseTitle',c.title,'sourcePackageId',d.source_package_id,'sourceSha256',d.source_sha256,
       'standard',d.source_definition->>'standard','replacementPackageId',d.replacement_package_id,
-      'resolved',p.id is not null and p.validation_status='accepted' and p.content_sha256=d.replacement_sha256) item
+      'resolved',p.id is not null and p.course_version_id=v.id and p.organization_id is not distinct from v.organization_id
+        and p.validation_status='accepted' and p.content_sha256=d.replacement_sha256 and p.validated_at is not null and p.immutable_at is not null) item
     from app_private.learning_authoring_package_dependencies d join public.course_versions v on v.id=d.version_id
       join public.courses c on c.id=v.course_id left join public.learning_packages p on p.id=d.replacement_package_id
     where v.status='draft' and (p_version_id is null or v.id=p_version_id)

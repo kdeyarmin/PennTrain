@@ -47,8 +47,9 @@ select set_config('app.privileged_write','on',true);
 update public.course_versions set description='Complete retained version description',version_label='Revision A',
   credited_duration_rationale='Retain the native credited duration rationale',ai_generated=true,ai_reviewed_at=now(),
   ai_reviewed_by='9f000000-0000-4000-8000-000000000003' where id='9f000000-0000-4000-8000-000000000008';
-update public.quizzes set max_attempts=null,shuffle_questions=true,shuffle_answers=true,reveals_answers_after_attempt=true
+update public.quizzes set max_attempts=null,shuffle_questions=true,shuffle_answers=true,reveals_answers_after_attempt=false
   where id='9f000000-0000-4000-8000-000000000011';
+update public.quizzes set reveals_answers_after_attempt=true where id='9f000000-0000-4000-8000-000000000012';
 update public.quiz_questions set points=101,topic_code='FIXTURE',topic_label='Synthetic topic'
   where id='9f000000-0000-4000-8000-000000000013';
 insert into public.quiz_question_explanations(question_id,organization_id,explanation)
@@ -94,8 +95,10 @@ select is((select jsonb_build_array(description,version_label,content_standard,c
   (select jsonb_build_array(description,version_label,content_standard,credited_duration_rationale) from public.course_versions where id='9f000000-0000-4000-8000-000000000008'),'all version policy fields survive');
 select is((select count(*) from public.course_blocks where course_version_id=pg_temp.draft_id()),3::bigint,'every source block is copied');
 select ok((select body ? 'transcript' and not(body ? 'heygen') and video_url='course-videos/private-native-locator.mp4' from public.course_blocks where course_version_id=pg_temp.draft_id() and block_type='video'),'native locator and transcript survive without paid generation ownership');
-select ok((select max_attempts is null and shuffle_questions and shuffle_answers and reveals_answers_after_attempt and passing_score_percent=80
+select ok((select max_attempts is null and shuffle_questions and shuffle_answers and not reveals_answers_after_attempt and passing_score_percent=80
   from public.quizzes q join public.course_blocks b on b.id=q.course_block_id where b.course_version_id=pg_temp.draft_id() and q.quiz_kind='final_exam'),'final exam retry, score, kind and behavior policy are retained');
+select ok((select reveals_answers_after_attempt from public.quizzes q join public.course_blocks b on b.id=q.course_block_id
+  where b.course_version_id=pg_temp.draft_id() and q.quiz_kind='knowledge_check'),'formative answer reveal remains distinct from final examination policy');
 select is((select count(*) from public.quiz_questions q join public.quizzes z on z.id=q.quiz_id join public.course_blocks b on b.id=z.course_block_id
   where b.course_version_id=pg_temp.draft_id() and q.points=101 and q.topic_code='FIXTURE' and q.topic_label='Synthetic topic'),1::bigint,'weighted question and topic policy survive');
 select is((select count(*) from public.quiz_question_explanations e join public.quiz_questions q on q.id=e.question_id join public.quizzes z on z.id=q.quiz_id join public.course_blocks b on b.id=z.course_block_id where b.course_version_id=pg_temp.draft_id()),1::bigint,'explanations are copied with remapped question ids');
@@ -107,6 +110,10 @@ select throws_ok($$select public.publish_course_version(pg_temp.draft_id())$$,'4
   'course_version '||pg_temp.draft_id()::text||' is AI-generated and has not been reviewed; mark it reviewed before publishing','native publisher still requires a new AI review');
 select throws_ok($$select public.clone_course_version('9f000000-0000-4000-8000-000000000008','9f000000-0000-4000-8000-000000000007',2,'Retry draft')$$,
   '40001','Course versions changed; refresh before cloning','stale native version allocation cannot duplicate a draft');
+update public.course_blocks set block_type='scorm' where course_version_id=pg_temp.draft_id() and block_type='video';
+select throws_ok($$select app_private.assert_learning_authoring_packages(pg_temp.draft_id())$$,'23514',
+  'A cloned SCORM draft requires its own accepted native runtime package before publication.','SCORM cannot publish an unlaunchable clone when the source had no global package dependency');
+update public.course_blocks set block_type='video' where course_version_id=pg_temp.draft_id() and block_type='scorm';
 
 -- Accepted source packages are dependencies, never copied acceptance records.
 insert into public.learning_packages(id,course_version_id,standard_type,storage_path,content_sha256,compressed_bytes,entry_point,validation_status,validated_at,immutable_at)
