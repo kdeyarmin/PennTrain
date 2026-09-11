@@ -396,6 +396,11 @@ jobs:
           # the password above is scoped to one workflow run and never deployed.
           echo "VITE_ENABLE_PUBLIC_DEMO=true" >> "$GITHUB_ENV"
 
+      - name: Concurrent native central administrator commands (local stack only)
+        env:
+          CAREMETRIC_LOCAL_COMMAND_TESTS: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/platform-admin-database.test.mjs
+
       - name: Seed course-video placeholders (non-production Storage assets only)
         # See BACKLOG.md SG-3 and the script's own header. The 3 HeyGen New Employee Orientation
         # blocks only have real video files in the production project; this uploads a tiny
