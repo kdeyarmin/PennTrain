@@ -8,6 +8,7 @@ export { readPlatformAdminConfig } from "./platform-admin-auth.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
 import { resolveSupportIdentity } from "./platform-admin-support-identity.mjs";
 import { OPERATION_READS, readOperations } from "./platform-admin-operations.mjs";
+import { createPlatformConfigurationHandler } from "./platform-admin-configuration.mjs";
 
 const COURSE_COLUMNS = "id,title,description,category,status,estimated_duration_minutes,updated_at,organization_id,current_version_id";
 const MAX_LESSONS = 200;
@@ -181,8 +182,8 @@ export function createPlatformAdminRouter(options = {}) {
   const config = options.config ?? readPlatformAdminConfig(options.getEnv);
   return createProviderRouter({
     handlers: new Map([["read", createPlatformAdminHandler({ ...options, config })], ["command", createPlatformAdminCommandHandler({ ...options, config })],
-      ["billing/command", createPlatformAdminBillingCommandHandler({ ...options, config })]]), enabled: config.enabled,
-    prefix: "/api/platform-admin/", routes: new Map([["read", { bytes: 2048, browser: false }], ["command", { bytes: 4096, browser: false }], ["billing/command", { bytes: 4096, browser: false }]]),
+      ["billing/command", createPlatformAdminBillingCommandHandler({ ...options, config })], ["configuration", createPlatformConfigurationHandler({ ...options, config })]]), enabled: config.enabled,
+    prefix: "/api/platform-admin/", routes: new Map([["read", { bytes: 2048, browser: false }], ["command", { bytes: 4096, browser: false }], ["billing/command", { bytes: 4096, browser: false }], ["configuration", { bytes: 4096, browser: false }]]),
     unavailableCode: "unconfigured",
     forwardedHeaders: ["authorization", "origin", "content-type"],
     handlerTimeoutMs: 30_000, maxConcurrent: 8, maxPendingBodies: 16,
