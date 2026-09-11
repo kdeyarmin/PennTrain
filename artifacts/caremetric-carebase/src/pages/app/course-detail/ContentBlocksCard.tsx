@@ -10,6 +10,7 @@ import { documentDisplayName, videoTranscriptContent } from "./helpers";
 import { QueryError } from "@/components/QueryState";
 
 export function ContentBlocksCard({
+  structureManaged = false,
   selectedVersion,
   canManage,
   onPreviewAsStudent,
@@ -32,6 +33,7 @@ export function ContentBlocksCard({
   onRegenerateBlock,
   onDeleteBlock,
 }: {
+  structureManaged?: boolean;
   selectedVersion: CourseVersion | undefined;
   canManage: boolean;
   onPreviewAsStudent: () => void;
@@ -76,7 +78,7 @@ export function ContentBlocksCard({
                 <Video className="mr-2 h-3.5 w-3.5" /> Generate All Videos
               </Button>
             )}
-            {canManage && !isVersionLocked && (
+            {canManage && !isVersionLocked && !structureManaged && (
               <Button size="sm" onClick={onAddBlock}>
                 <Plus className="mr-2 h-3.5 w-3.5" /> Add Block
               </Button>
@@ -149,7 +151,7 @@ export function ContentBlocksCard({
                       <QuizBlockSummary
                         blockId={b.id}
                         onConfigure={() => onConfigureQuiz(b)}
-                        canManage={canManage}
+                        canManage={canManage && !structureManaged}
                         role={userRole}
                       />
                     </div>
@@ -168,7 +170,7 @@ export function ContentBlocksCard({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground"
-                      disabled={idx === 0 || reorderingBlocks}
+                      disabled={structureManaged || idx === 0 || reorderingBlocks}
                       onClick={() => onMoveBlock(idx, -1)}
                       aria-label="Move block up"
                     >
@@ -178,7 +180,7 @@ export function ContentBlocksCard({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground"
-                      disabled={idx === blocks.length - 1 || reorderingBlocks}
+                      disabled={structureManaged || idx === blocks.length - 1 || reorderingBlocks}
                       onClick={() => onMoveBlock(idx, 1)}
                       aria-label="Move block down"
                     >
@@ -231,6 +233,7 @@ export function ContentBlocksCard({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                    disabled={structureManaged}
                     onClick={() => onDeleteBlock(b)}
                     aria-label="Delete block"
                   >

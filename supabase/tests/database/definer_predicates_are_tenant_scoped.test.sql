@@ -145,6 +145,10 @@ select is(
      and p.prosrc !~* '(assert_|_in_caller_scope|current_org_id|current_role\(|is_platform_admin|is_assigned_to_facility|can_read_employee_peer_data|owns_employee|admission_row_visible|clinical_record_visible|can_read_clinical_record|current_session_unlocked|auth\.uid|auth\.jwt|current_profile_active|org_feature_enabled|require_|_visible\(|can_manage|can_view|is_member|_guest|p_token|preview_employee_lifecycle_transition)'
      and p.proname not in (
        -- Authorization proven to live one or two calls down, or no tenant data to disclose:
+       -- current_native_learning_authority checks active native platform-admin identity, actual Auth
+       -- session ownership/revocation, native assurance policy and the eight-hour freshness window.
+       -- learning_creation.sql probes current-session, learner and other-principal refusals.
+       'get_native_learning_creation_status',
        'get_resident_administrative_packet',   -- _base checks admission_row_visible and raises 42501
        'save_report_schedule',                 -- delegates to save_report_schedule_configuration
        'evaluate_feature_access',              -- refuses cross-tenant (probed: 42501)

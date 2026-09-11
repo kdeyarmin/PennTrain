@@ -663,7 +663,7 @@ export default function CourseDetail() {
   // self-review acknowledgment before they can be published (the DB trigger from
   // Part 3 is the real enforcement; this is a UX courtesy pointing at the same rule). ---
   const [reviewChecked, setReviewChecked] = useState(false);
-  const [governedDraft, setGovernedDraft] = useState(false);
+  const [governedDraft, setGovernedDraft] = useState<boolean | null>(null);
   const [governedDraftDirty, setGovernedDraftDirty] = useState(false);
   useEffect(() => { setReviewChecked(false); setGovernedDraft(false); }, [selectedVersionId]);
 
@@ -758,7 +758,7 @@ export default function CourseDetail() {
 
       <PrePublishSection
         canManage={canManage}
-        needsAiReview={needsAiReview && !governedDraft}
+        needsAiReview={needsAiReview && governedDraft === false}
         reviewChecked={reviewChecked}
         setReviewChecked={setReviewChecked}
         markingReviewed={markingReviewed}
@@ -776,6 +776,7 @@ export default function CourseDetail() {
         versionId={selectedVersion.id} userId={user.id} onGovernedChange={setGovernedDraft} onDirtyChange={setGovernedDraftDirty} />}
 
       <ContentBlocksCard
+        structureManaged={selectedVersion?.status === 'draft' && governedDraft !== false}
         selectedVersion={selectedVersion}
         canManage={canManage}
         onPreviewAsStudent={() => setShowStudentPreview(true)}
