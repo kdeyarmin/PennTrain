@@ -8,6 +8,7 @@ import { createServer } from "node:http";
 import { proxyLearningPackage } from "./learning-package-proxy.mjs";
 import { createProviderHandlers } from "./provider-handlers.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
+import { createPlatformAdminRouter } from "./platform-admin.mjs";
 import { createProviderBuildManifest, validateProviderRuntime } from "./provider-runtime-config.mjs";
 import { createReadStream } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
@@ -42,6 +43,7 @@ const routeProviderRequest = createProviderRouter({
   handlers: providerHandlers, enabled: providerRuntime.enabled,
   publicOrigin: process.env.PUBLIC_APP_URL || "https://cmcarebase.com",
 });
+const routePlatformAdminRequest = createPlatformAdminRouter();
 
 // Must mirror vite.config.ts's `basePath = process.env.BASE_PATH ?? "/"` exactly -- that's what
 // Vite prefixes every emitted asset URL with at build time, so this server has to strip the same
@@ -462,6 +464,8 @@ async function serveFile(filePath, req, res, { cacheControl }) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+    // Central administration has a stable root URL and an independent default-off gate.
+    if (await routePlatformAdminRequest(req, res, url.pathname)) return;
 
     const packagePath = stripBasePath(url.pathname);
     // Recognized root endpoints keep their stable URLs even when BASE_PATH overlaps
