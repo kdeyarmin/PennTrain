@@ -33,7 +33,10 @@ async function storageRequest(config, requestSignal, fetcher, bucket, path, byte
     if(response.status===400){
       try {
         const error=JSON.parse(new TextDecoder().decode(await boundedPackageBody(response,4096)));
-        if(error && typeof error==='object' && !Array.isArray(error) && error.code==='Duplicate')return 'exists';
+        // Storage's public HTTP compatibility status is 400; the bounded body
+        // retains the real 409 and a fixed duplicate code (legacy: Duplicate).
+        if(error && typeof error==='object' && !Array.isArray(error) && String(error.statusCode)==='409'
+          && ['Duplicate','ResourceAlreadyExists','KeyAlreadyExists'].includes(error.code??error.error))return 'exists';
       }catch{/* Malformed or oversized provider errors are not duplicate evidence. */}
     }else if(response.body)await response.body.cancel();
     throw new PackageIngestionError(502,'Immutable package bytes could not be stored.');

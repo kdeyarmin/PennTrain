@@ -76,7 +76,11 @@ test('status is read-only and a disabled deployment cannot ingest',async()=>{
 });
 
 test('only exact duplicate evidence permits the verifying GET after a storage error',async()=>{
- for(const [status,body,expected] of [[409,{},200],[400,{code:'Duplicate'},200],[400,{code:'InvalidRequest'},502],[400,{message:'Duplicate'},502],[400,{code:'Duplicate',padding:'x'.repeat(5000)},502]]){
+ for(const [status,body,expected] of [[409,{},200],
+  [400,{statusCode:'409',code:'ResourceAlreadyExists',error:'ResourceAlreadyExists'},200],
+  [400,{statusCode:'409',code:'KeyAlreadyExists'},200],[400,{statusCode:'409',error:'Duplicate'},200],
+  [400,{statusCode:'403',code:'KeyAlreadyExists'},502],[400,{statusCode:'409',code:'AccessDenied',error:'Duplicate'},502],
+  [400,{code:'InvalidRequest'},502],[400,{message:'Duplicate'},502],[400,{statusCode:'409',error:'Duplicate',padding:'x'.repeat(5000)},502]]){
   const f=fixture({duplicateStatus:status,duplicateBody:body});const response=await f.handler(f.request());assert.equal(response.status,expected);
   assert.equal(f.calls.some(x=>x.url?.includes('/storage/')&&x.method==='GET'),expected===200);
   assert.equal(f.calls.some(x=>x.name==='record_learning_package_artifact'),expected===200);
