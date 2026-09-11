@@ -15,6 +15,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_native_checkout_recovery: {
+        Args: { p_actor: string; p_command_id: string; p_grant_id: string }
+        Returns: Json
+      }
       graphql: {
         Args: {
           extensions?: Json
@@ -20068,6 +20072,20 @@ export type Database = {
           },
         ]
       }
+      platform_admin_recover_checkout: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: string
+        }
+        Returns: Json
+      }
       platform_settings: {
         Row: {
           key: string
@@ -22119,6 +22137,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      recover_native_checkout: {
+        Args: { p_actor: string; p_grant_id: string }
+        Returns: Json
       }
       referral_sources: {
         Row: {

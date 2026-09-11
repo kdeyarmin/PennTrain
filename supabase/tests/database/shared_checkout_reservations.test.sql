@@ -233,12 +233,12 @@ select is((select value->'preview' from checkout_fixture where label='none'),'nu
 select is((select value->>'canStartNewCheckout' from checkout_fixture where label='none'),'true','empty organization state is explicit eligibility evidence');
 reset role;
 insert into public.billing_subscriptions(organization_id,billing_account_id,stripe_subscription_id,provider_status,billing_state,provider_event_created_at,provider_event_id,is_provider_placeholder)
- select organization_id,id,'sub_recovery_paused','paused','suspended',now(),'evt_recovery_paused',false from public.billing_accounts where organization_id='9c000000-0000-4000-8000-000000000010';
+ select organization_id,id,'sub_recoveryPaused','paused','suspended',now(),'evt_recoveryPaused',false from public.billing_accounts where organization_id='9c000000-0000-4000-8000-000000000010';
 set local role service_role;
 select is(pg_temp.checkout_recover('9c000000-0000-4000-8000-000000000106')->>'canStartNewCheckout','false',
  'no reservation does not imply eligibility when native provider-backed subscription remains paused');
 reset role;
-delete from public.billing_subscriptions where stripe_subscription_id='sub_recovery_paused';
+delete from public.billing_subscriptions where stripe_subscription_id='sub_recoveryPaused';
 update public.package_billing_prices set is_active=true,minimum_quantity=1 where id='9c000000-0000-4000-8000-000000000031';
 update public.packages set trial_days=0 where id='9c000000-0000-4000-8000-000000000021';
 
