@@ -7,14 +7,15 @@ import { readBillingCatalog } from "./platform-admin-billing-catalog.mjs";
 export { readPlatformAdminConfig } from "./platform-admin-auth.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
 import { resolveSupportIdentity } from "./platform-admin-support-identity.mjs";
+import { OPERATION_READS, readOperations } from "./platform-admin-operations.mjs";
 
 const COURSE_COLUMNS = "id,title,description,category,status,estimated_duration_minutes,updated_at,organization_id,current_version_id";
 const MAX_LESSONS = 200;
 const OPERATIONS = Object.freeze([
   "capabilities", "overview", "courses.list", "courses.get", "organizations.list", "users.list",
-  "billing.overview", "billing.subscriptions.list", "billing.packages.list", ...BILLING_READ_OPERATIONS,
+  "billing.overview", "billing.subscriptions.list", "billing.packages.list", ...BILLING_READ_OPERATIONS, ...OPERATION_READS,
 ]);
-const LIST_OPERATIONS = new Set(["courses.list", "organizations.list", "users.list", "billing.subscriptions.list", "billing.invoices.list", "billing.packages.list"]);
+const LIST_OPERATIONS = new Set(["courses.list", "organizations.list", "users.list", "billing.subscriptions.list", "billing.invoices.list", "billing.packages.list", ...OPERATION_READS]);
 // Enforced by billing_subscriptions.billing_state's database CHECK constraint.
 const ORGANIZATION_COLUMNS = "id,name,slug,subscription_status,created_at";
 const PROFILE_COLUMNS = "id,first_name,last_name,email,role,is_active,created_at";
@@ -93,7 +94,8 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
         body = JSON.parse(raw);
       } catch { throw new AdminError(400, "invalid_request"); }
       const operation = parseOperation(body);
-      const { native, authenticationMethod, timestamp } = await authorizePlatformAdmin(request, { config, operation, parseOperation, createClient, fetcher, now });
+      const authority = await authorizePlatformAdmin(request, { config, operation, parseOperation, createClient, fetcher, now, sessionRequired: OPERATION_READS.includes(operation.operation) });
+      const { native, authenticationMethod, timestamp } = authority;
       let data;
       if (operation.operation === "support.identity.resolve") {
         data = await resolveSupportIdentity({ native, operation, authenticationMethod, timestamp });
@@ -101,6 +103,8 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
         data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled && config.packageIngestionEnabled ? ["learning.packages.context", "learning.packages.status", "learning.packages.upload", "learning.packages.accept", "learning.packages.finish"] : []), ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : []),
           ...(config.commandsEnabled && config.billingCommandsEnabled ? ["billing.commands.preview", "billing.commands.apply",
             ...(config.checkoutCommandsEnabled ? ["billing.checkout.preview", "billing.checkout.apply", "billing.checkout.check", "billing.checkout.recover"] : [])] : [])], sourceRevision: config.sourceRevision ?? null };
+      } else if (OPERATION_READS.includes(operation.operation)) {
+        data = await readOperations({ ...authority, operation });
       } else if (operation.operation === "billing.packages.list") {
         data = await readBillingCatalog(native, operation);
       } else if (BILLING_READ_OPERATIONS.includes(operation.operation)) {
