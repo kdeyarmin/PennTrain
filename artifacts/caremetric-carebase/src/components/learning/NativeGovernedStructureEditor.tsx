@@ -109,8 +109,8 @@ export function NativeGovernedStructureEditor({ source, disabled, onDirtyChange,
       {change.operation === 'addLesson' && <label className="block text-sm">Lesson type<select className="ml-2 rounded border bg-background p-2" value={change.blockType}
         onChange={event => setChange({ ...change, blockType: event.target.value as LessonType, body: {} })}>{LESSON_TYPES.map(type => <option key={type}>{type}</option>)}</select></label>}
       {fields && <>
-        <label className="block text-sm">Lesson title<Input maxLength={300} value={String(fieldValue('title', 'title') ?? '')} onChange={event => setField('title', event.target.value.trim() || null)} /></label>
-        {fieldEditable('estimated_minutes', 'number') && <label className="block text-sm">Estimated minutes<Input type="number" min={0} max={1440} step={1} value={String(fieldValue('estimatedMinutes', 'estimated_minutes') ?? '')}
+        <label className="block text-sm">Lesson title<Input maxLength={300} value={String(fieldValue('title', 'title') ?? '')} onChange={event => setField('title', event.target.value || null)} /></label>
+        {fieldEditable('estimated_minutes', 'number') && <label className="block text-sm">Estimated minutes<Input type="number" min={0} max={1440} step={1} value={Number.isNaN(fieldValue('estimatedMinutes', 'estimated_minutes')) ? '' : String(fieldValue('estimatedMinutes', 'estimated_minutes') ?? '')}
           onChange={event => setField('estimatedMinutes', event.target.value === '' ? Number.NaN : Number(event.target.value))} /></label>}
         {fieldEditable('activity_type', 'string') && <label className="block text-sm">Activity<select className="ml-2 rounded border bg-background p-2" value={String(fieldValue('activityType', 'activity_type') ?? '')}
           onChange={event => setField('activityType', event.target.value)}><option value="">Choose activity</option>{ACTIVITY_TYPES.map(type => <option key={type}>{type}</option>)}</select></label>}

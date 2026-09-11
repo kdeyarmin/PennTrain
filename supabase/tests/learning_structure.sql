@@ -215,6 +215,19 @@ select pg_temp.structure(jsonb_build_array(jsonb_build_object('operation','remov
 select is((select count(*) from public.quiz_questions where id=pg_temp.sid(3)),0::bigint,'explicit reviewed lesson removal removes definitions only');
 select is((select count(*) from public.course_completion_credits where course_version_id=pg_temp.draft_id()),0::bigint,'no completion credits generated');
 select is((select to_jsonb(v) from public.course_versions v where id='9e000000-0000-4000-8000-000000000008'),(select value from draft_fixture where label='source'),'published source version remains byte-for-byte unchanged');
+-- The same structure core works through freshly checked delegated SMS authority.
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+insert into draft_fixture values('hubStructure',public.preview_learning_authoring_command('9e000000-0000-4000-8000-000000000003',pg_temp.sid(90),pg_temp.sid(91),
+  now()-interval '1 hour',now()+interval '7 hours',pg_temp.sid(92),'learning.editStructure','9e000000-0000-4000-8000-000000000007',
+  pg_temp.sparams(jsonb_build_array(jsonb_build_object('operation','editLesson','blockId','9e000000-0000-4000-8000-000000000080','patch',jsonb_build_object('activityType','instruction')))),
+  'Reviewed delegated structure changes','app_sms'));
+select lives_ok($$select public.apply_learning_authoring_command('9e000000-0000-4000-8000-000000000003',pg_temp.sid(90),pg_temp.sid(91),now()-interval '1 hour',now()+interval '7 hours',
+  (select (value->>'commandId')::uuid from draft_fixture where label='hubStructure'),(select value->>'previewDigest' from draft_fixture where label='hubStructure'),'app_sms')$$,'SMS delegate applies the same structure writer');
+select is((select body->>'activity_type' from public.course_blocks where id='9e000000-0000-4000-8000-000000000080'),'instruction','delegated lesson field saved');
+select is((select authentication_method from app_private.platform_admin_commands where request_id=pg_temp.sid(92)),'app_sms','audit retains actual SMS method');
+select throws_ok($$select public.apply_learning_authoring_command('9e000000-0000-4000-8000-000000000003',pg_temp.sid(90),pg_temp.sid(93),now()-interval '1 hour',now()+interval '7 hours',
+  (select (value->>'commandId')::uuid from draft_fixture where label='hubStructure'),(select value->>'previewDigest' from draft_fixture where label='hubStructure'),'app_sms')$$,
+  '42501','Preview belongs to another operation or administrator session.','other delegate session cannot replay structure intent');
 select * from finish();
 rollback;
 
