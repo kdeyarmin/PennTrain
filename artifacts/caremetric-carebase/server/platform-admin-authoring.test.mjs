@@ -198,3 +198,21 @@ test('large escaped source fits its specific bound without increasing unrelated 
   const ordinary = fixture({ result: source }); assert.equal((await ordinary.handler(request(inspect))).status, 503);
   f.state.result = sourceResult({ body: 'x'.repeat(2000001) }); assert.equal((await f.handler(request(sourceOp))).status, 502);
 });
+
+test('credit policy carries only version definitions with exact cents, retained IDs and resulting source hash', async () => {
+  const parameters = { versionId: id(5), sourceRevision: 'a'.repeat(64), policy: { versionLabel: 'Edition one' }, credits: [
+    { creditId: id(10), preserve: true }, { creditId: id(11), trainingTypeId: id(12), topicCode: 'SAFETY', creditHours: '1.25', creditMode: 'verified_only', citationNote: 'Reviewed source citation', isActive: true }], removedCreditIds: [id(13)] };
+  const op = { ...preview, action: 'learning.editCreditPolicy', parameters };
+  assert.deepEqual(parseAuthoringOperation(op), op);
+  for (const invalid of [{ ...parameters, policy: { providerApproved: true } }, { ...parameters, credits: [{ ...parameters.credits[1], creditHours: 1.25 }] },
+    { ...parameters, credits: [{ ...parameters.credits[1], creditHours: '0.00' }] }, { ...parameters, removedCreditIds: [id(10)] }, { ...parameters, policy: { versionLabel: 'A', authorization: 'secret' } }]) {
+    assert.throws(() => parseAuthoringOperation({ ...op, parameters: invalid }));
+  }
+  const f = fixture({ result: { commandId: id(7), courseId: id(4), action: op.action, reason: op.reason, previewDigest: 'b'.repeat(64),
+    expiresAt: '2026-09-11T15:04:00Z', before: { status: 'draft', title: 'Draft', versionNumber: 2 }, after: { status: 'draft', title: 'Draft', versionNumber: 2, aiReviewRequired: true } } });
+  assert.equal((await f.handler(request(op))).status, 200); assert.deepEqual(f.calls.at(-1).body.p_parameters, parameters);
+  const result = { commandId: id(7), courseId: id(4), action: op.action, versionId: id(5), versionNumber: 2, status: 'draft', sourceRevision: 'c'.repeat(64), appliedAt: '2026-09-11T15:00:00Z', replayed: true };
+  assert.deepEqual(projectAuthoringResult(result, apply), result);
+  assert.throws(() => projectAuthoringResult({ ...result, sourceRevision: undefined }, apply));
+  assert.throws(() => projectAuthoringResult({ ...result, status: 'published' }, apply));
+});

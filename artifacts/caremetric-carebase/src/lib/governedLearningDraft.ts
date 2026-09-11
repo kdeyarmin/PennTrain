@@ -1,3 +1,5 @@
+import { validCreditPolicyChange, type CreditPolicyChange } from '../../../../supabase/functions/_shared/learningCreditPolicy';
+export type { CreditPolicyChange, CreditDefinition, CreditEntry } from '../../../../supabase/functions/_shared/learningCreditPolicy';
 import { supabase } from '@/lib/supabase';
 import type { Json } from '@/lib/database.types';
 import { validStructureChanges, type StructureChange } from '../../../../supabase/functions/_shared/learningStructure';
@@ -49,11 +51,13 @@ export function nativeDraftIntent(previous: NativeDraftIntent | null, value: unk
   const key = JSON.stringify(value);
   return previous?.key === key ? previous : { key, requestId: createId() };
 }
-export async function executeNativeDraft(source: GovernedDraftSource, action: 'learning.patchDraft' | 'learning.reviewDraft' | 'learning.editStructure',
-  requestId: string, reason: string, patch?: DraftPatch | StructureChange[]) {
+export async function executeNativeDraft(source: GovernedDraftSource, action: 'learning.patchDraft' | 'learning.reviewDraft' | 'learning.editStructure' | 'learning.editCreditPolicy',
+  requestId: string, reason: string, patch?: DraftPatch | StructureChange[] | CreditPolicyChange) {
   if (action === 'learning.editStructure' && !validStructureChanges(patch)) throw new Error('Review the structure fields and answer key before saving.');
+  if (action === 'learning.editCreditPolicy' && !validCreditPolicyChange(patch)) throw new Error('Review the credit policy fields and removals before saving.');
   const parameters = { versionId: source.versionId, sourceRevision: source.sourceRevision,
-    ...(action === 'learning.patchDraft' ? { patch } : action === 'learning.editStructure' ? { changes: patch } : { reviewed: true }) };
+    ...(action === 'learning.patchDraft' ? { patch } : action === 'learning.editStructure' ? { changes: patch } : action === 'learning.editCreditPolicy' ? patch as CreditPolicyChange : { reviewed: true }) };
+  if (action === 'learning.editCreditPolicy' && new TextEncoder().encode(JSON.stringify(parameters)).byteLength > 24576) throw new Error('Credit policy change exceeds the reviewed request limit.');
   const { data, error } = await supabase.rpc('execute_native_learning_draft_command', { p_request_id: requestId, p_action: action,
     p_course_id: source.courseId, p_parameters: parameters as Json, p_reason: reason });
   if (error) throw error;

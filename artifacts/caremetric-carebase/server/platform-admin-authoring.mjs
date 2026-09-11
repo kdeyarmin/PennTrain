@@ -1,11 +1,12 @@
 import { AdminError, authorizePlatformAdmin, UUID } from './platform-admin-auth.mjs';
 import { createHash } from 'node:crypto';
+import { validCreditPolicyChange } from '../../../supabase/functions/_shared/learningCreditPolicy.ts';
 import { validStructureChanges } from '../../../supabase/functions/_shared/learningStructure.ts';
 import { validCourseCreation, validCreationOptions } from '../../../supabase/functions/_shared/learningCreation.ts';
 
 const SHA = /^[0-9a-f]{64}$/;
 const EXCLUDED_SOURCE = /([?&](token|access_token|signature|sig|key|policy|jwt|auth|h|hdnts|hdnea|key-pair-id|api_key|apikey|x-amz-[a-z-]+|x-goog-[a-z-]+)=|"(access_?token|refresh_?token|service_?role_?key|authorization|password|client_?secret|storage_?(path|bucket)|video_?url|playback_?(url|token)|signed_?url|api_?key|token|secret|secret_?key|signing_?secret)"\s*:)/i;
-const actions = ['learning.cloneVersion', 'learning.publishVersion', 'learning.patchDraft', 'learning.reviewDraft', 'learning.editStructure', 'learning.createCourse'];
+const actions = ['learning.cloneVersion', 'learning.publishVersion', 'learning.patchDraft', 'learning.reviewDraft', 'learning.editStructure', 'learning.editCreditPolicy', 'learning.createCourse'];
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exact = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
 const string = (value, min, max) => typeof value === 'string' && value === value.trim() && value.length >= min && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
@@ -39,11 +40,13 @@ export function parseAuthoringOperation(value) {
   if (exact(value, ['operation', 'requestId', 'action', 'courseId', 'parameters', 'reason']) && value.operation === 'preview'
     && uuid(value.requestId) && value.action !== 'learning.createCourse' && actions.includes(value.action) && uuid(value.courseId) && string(value.reason, 10, 500)
     && exact(value.parameters, ['versionId', 'sourceRevision', ...(value.action === 'learning.cloneVersion' ? ['title']
-      : value.action === 'learning.patchDraft' ? ['patch'] : value.action === 'learning.reviewDraft' ? ['reviewed'] : value.action === 'learning.editStructure' ? ['changes'] : [])])
+      : value.action === 'learning.patchDraft' ? ['patch'] : value.action === 'learning.reviewDraft' ? ['reviewed'] : value.action === 'learning.editStructure' ? ['changes'] : value.action === 'learning.editCreditPolicy' ? ['policy', 'credits', 'removedCreditIds'] : [])])
     && uuid(value.parameters.versionId) && sha(value.parameters.sourceRevision)
     && (value.action !== 'learning.cloneVersion' || string(value.parameters.title, 1, 300))
     && (value.action !== 'learning.patchDraft' || validDraftPatch(value.parameters.patch))
     && (value.action !== 'learning.editStructure' || validStructureChanges(value.parameters.changes))
+    && (value.action !== 'learning.editCreditPolicy' || Buffer.byteLength(JSON.stringify(value.parameters)) <= 24576
+      && validCreditPolicyChange({ policy: value.parameters.policy, credits: value.parameters.credits, removedCreditIds: value.parameters.removedCreditIds }))
     && (value.action !== 'learning.reviewDraft' || value.parameters.reviewed === true)) return value;
   throw new AdminError(400, 'invalid_request');
 }
@@ -111,7 +114,7 @@ export function projectAuthoringResult(value, op) {
   check(value.commandId.toLowerCase() === op.commandId.toLowerCase() && uuid(value.versionId) && ['draft', 'published'].includes(value.status)
     && Number.isSafeInteger(value.versionNumber) && value.versionNumber > 0 && typeof value.replayed === 'boolean'
     && typeof value.appliedAt === 'string' && Number.isFinite(Date.parse(value.appliedAt)));
-  const edit = ['learning.patchDraft', 'learning.reviewDraft', 'learning.editStructure'].includes(value.action);
+  const edit = ['learning.patchDraft', 'learning.reviewDraft', 'learning.editStructure', 'learning.editCreditPolicy'].includes(value.action);
   const creation = value.action === 'learning.createCourse';
   if (creation) check(value.versionNumber === 1 && value.status === 'draft' && value.courseStatus === 'draft'
     && value.currentVersionId === null && value.contentStandard === 'comprehensive' && sha(value.sourceRevision));

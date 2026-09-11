@@ -68,3 +68,18 @@ describe('native governed draft review binding', () => {
     expect(rpc.mock.calls[0][1].p_parameters).toEqual({ versionId, sourceRevision: captured.sourceRevision, changes });
   });
 });
+
+it('credit policy retries the same complete definition request after an uncertain result', async () => {
+  rpc.mockReset(); const captured = (await parseGovernedDraftSource(source()))!;
+  const change = { policy: { versionLabel: 'Reviewed edition' }, credits: [{ creditId: courseId, preserve: true as const }], removedCreditIds: [] };
+  const input = { versionId, sourceRevision: captured.sourceRevision, change, reason: 'Reviewed definition preservation' };
+  const initial = nativeDraftIntent(null, input, () => 'same-credit-request');
+  rpc.mockRejectedValueOnce(new Error('Response lost')).mockResolvedValueOnce({ data: { action: 'learning.editCreditPolicy', courseId, versionId,
+    status: 'draft', versionNumber: 2, sourceRevision: 'c'.repeat(64), replayed: true }, error: null });
+  await expect(executeNativeDraft(captured, 'learning.editCreditPolicy', initial.requestId, input.reason, change)).rejects.toThrow('Response lost');
+  const retry = nativeDraftIntent(initial, input, () => 'unwanted-new-request');
+  await expect(executeNativeDraft(captured, 'learning.editCreditPolicy', retry.requestId, input.reason, change)).resolves.toMatchObject({ replayed: true });
+  expect(rpc.mock.calls[1]).toEqual(rpc.mock.calls[0]);
+  expect(rpc.mock.calls[0][1].p_parameters).toEqual({ versionId, sourceRevision: captured.sourceRevision, ...change });
+  expect(nativeDraftIntent(retry, { ...input, change: { ...change, policy: { versionLabel: 'Different edition' } } }, () => 'new-request').requestId).toBe('new-request');
+});
