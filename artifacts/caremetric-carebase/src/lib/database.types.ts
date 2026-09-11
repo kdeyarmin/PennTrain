@@ -35892,6 +35892,15 @@ export type Database = {
         Args: { p_episode_id: string; p_note: string }
         Returns: boolean
       }
+      acknowledge_learning_receipt: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_event_id: string
+          p_source_digest: string
+        }
+        Returns: undefined
+      }
       acknowledge_notification_spend_alert: {
         Args: { p_alert_id: string }
         Returns: undefined
@@ -39742,6 +39751,14 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      list_learning_receipt_outbox: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_limit?: number
+        }
+        Returns: Json
+      }
       list_plan_of_correction_versions: {
         Args: { p_violation_id: string }
         Returns: {
@@ -40312,6 +40329,21 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      provision_learning_receipt_mapping: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_course_id: string
+          p_employee_id: string
+          p_hub_tenant_id: string
+          p_hub_user_id: string
+          p_mapping_id: string
+          p_organization_id: string
+          p_source_revision: string
+          p_version_id: string
+        }
+        Returns: Json
       }
       publish_course_version: {
         Args: { p_course_version_id: string }
@@ -41450,6 +41482,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      resolve_learning_receipt_identity: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_employee_id: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       resolve_medication_integration_exception: {
         Args: {
           p_exception_id: string
@@ -41528,6 +41569,15 @@ export type Database = {
       retract_clinical_progress_note: {
         Args: { p_note_id: string; p_reason: string }
         Returns: boolean
+      }
+      retract_learning_receipt: {
+        Args: {
+          p_actor_id: string
+          p_assignment_id: string
+          p_authentication_method?: string
+          p_expected_sequence: number
+        }
+        Returns: string
       }
       retry_document_analyzer_job: {
         Args: { p_job_id: string }
@@ -41676,6 +41726,14 @@ export type Database = {
       }
       revoke_integration_api_credential: {
         Args: { p_credential_id: string; p_reason: string }
+        Returns: undefined
+      }
+      revoke_learning_receipt_mapping: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_mapping_id: string
+        }
         Returns: undefined
       }
       revoke_move_in_guest_grant: {
