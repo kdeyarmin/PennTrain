@@ -37,7 +37,7 @@ export function parseAuthoringOperation(value) {
     && uuid(value.requestId) && value.action === 'learning.createCourse' && uuid(value.courseId) && string(value.reason, 10, 500)
     && validCourseCreation(value.parameters) && value.parameters.versionId.toLowerCase() !== value.courseId.toLowerCase()) return value;
   if (exact(value, ['operation', 'requestId', 'action', 'courseId', 'parameters', 'reason']) && value.operation === 'preview'
-    && uuid(value.requestId) && actions.includes(value.action) && uuid(value.courseId) && string(value.reason, 10, 500)
+    && uuid(value.requestId) && value.action !== 'learning.createCourse' && actions.includes(value.action) && uuid(value.courseId) && string(value.reason, 10, 500)
     && exact(value.parameters, ['versionId', 'sourceRevision', ...(value.action === 'learning.cloneVersion' ? ['title']
       : value.action === 'learning.patchDraft' ? ['patch'] : value.action === 'learning.reviewDraft' ? ['reviewed'] : value.action === 'learning.editStructure' ? ['changes'] : [])])
     && uuid(value.parameters.versionId) && sha(value.parameters.sourceRevision)

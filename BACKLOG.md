@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `6ef3743eb9a0b45fc07dace679a4b2b92e40ff25` (2026-09-11), the current reviewed structure branch baseline on top of native main `a01a198`; this baseline is not yet merged. Full CI `34646366339` passed, including database and browser lanes; it awaits ordered integration after Checkout. This separate creation increment reuses that reviewed structure and remains under implementation and verification.
+**Last verified against main:** `6ef3743eb9a0b45fc07dace679a4b2b92e40ff25` (2026-09-11), the current reviewed structure branch baseline on top of native main `a01a198`; this baseline is not yet merged. Full CI `34646366339` passed, including database and browser lanes; it awaits ordered integration after Checkout. Creation baseline `146d0b79` passed its actual native lifecycle assertions; boundary review and fixture-ratchet corrections are now under full verification before integration.
 
 **Owner:** the owner-operator (single person, platform admin)
 

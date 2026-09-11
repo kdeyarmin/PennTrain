@@ -24,7 +24,7 @@ begin
   if exists(select 1 from jsonb_array_elements(v_result) item where not app_private.learning_structure_text(item->'label',1,500,false)) then
     raise exception 'Training type label is not valid for governed creation.' using errcode='22023'; end if;
   select exists(select 1 from public.training_types where organization_id is null and is_active order by name,id offset (p_offset+100) limit 1) into v_more;
-  return jsonb_build_object('trainingTypes',v_result,'nextOffset',case when v_more and p_offset<10000 then p_offset+100 else null end);
+  return jsonb_build_object('trainingTypes',v_result,'nextOffset',case when v_more and p_offset+100<=10000 then p_offset+100 else null end);
 end;
 $$;
 

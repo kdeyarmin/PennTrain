@@ -44,6 +44,12 @@ insert into creation_fixture values('options',public.get_native_learning_creatio
 select ok((select value->'trainingTypes' @> jsonb_build_array(jsonb_build_object('id',pg_temp.cid(11),'label','AAA active creation type')) from creation_fixture where label='options'),'options contain current global ID and actual label');
 select ok(not (select value::text like '%'||pg_temp.cid(12)::text||'%' or value::text like '%'||pg_temp.cid(13)::text||'%' from creation_fixture where label='options'),'inactive and tenant training types excluded');
 select throws_ok($$select public.get_native_learning_creation_options(-1)$$,'22023','Invalid creation options page.','negative options page rejected');
+-- More rows than the maximum page boundary prove arbitrary valid offsets never advertise an invalid next page.
+insert into public.training_types(id,code,name,category,is_active)
+select pg_temp.cid(10000+n),'CREATE_PAGE_'||n,'ZZZ creation page '||lpad(n::text,5,'0'),'Fixture',true from generate_series(1,10060) n;
+select is(public.get_native_learning_creation_options(9900)->>'nextOffset','10000','last reachable page remains available');
+select is(public.get_native_learning_creation_options(9950)->'nextOffset','null'::jsonb,'nonaligned last page never advertises an invalid offset');
+select is(public.get_native_learning_creation_options(10000)->'nextOffset','null'::jsonb,'maximum page ends pagination even with more rows');
 select is(public.get_native_learning_creation_status(pg_temp.cid(30),pg_temp.cid(31),pg_temp.cid(32)),'{"status":"absent","result":null}'::jsonb,'unused identities report absent');
 insert into creation_fixture values('preview',public.preview_native_learning_draft_command(pg_temp.cid(32),'learning.createCourse',pg_temp.cid(30),pg_temp.cparams(),'Reviewed new course definitions'));
 select is((select count(*) from public.courses where id=pg_temp.cid(30)),0::bigint,'preview writes no course');
@@ -77,6 +83,7 @@ select throws_ok($$select public.get_native_learning_creation_status(pg_temp.cid
   '40001','Creation identities exist without the matching receipt.','another principal cannot claim creation evidence');
 select pg_temp.actor(3,103);
 select throws_ok($$select public.get_native_learning_creation_options(0)$$,'42501','Current native administrator required.','learner cannot use creation reads');
+select throws_ok($$select public.get_native_learning_creation_status(pg_temp.cid(30),pg_temp.cid(31),pg_temp.cid(32))$$,'42501','Current native administrator required.','learner cannot read a native creation receipt');
 select pg_temp.actor(1,101);
 
 savepoint creation_rollback;
@@ -156,10 +163,8 @@ select is(public.get_learning_authoring_source(pg_temp.cid(1),pg_temp.cid(900),p
   (select value->>'sourceRevision' from creation_fixture where label='hubResult'),'direct new-draft source matches immutable create result');
 select throws_ok($$select public.get_learning_creation_status(pg_temp.cid(1),pg_temp.cid(999),pg_temp.cid(902),now()-interval '1 hour',now()+interval '7 hours',pg_temp.cid(80),pg_temp.cid(81),pg_temp.cid(82),'app_sms')$$,
   '40001','Creation identities exist without the matching receipt.','different Hub principal cannot recover creation receipt');
-savepoint creation_revocation;
 update auth.users set banned_until=now()+interval '1 day' where id=pg_temp.cid(1);
 select throws_ok($$select public.get_learning_creation_status(pg_temp.cid(1),pg_temp.cid(900),pg_temp.cid(902),now()-interval '1 hour',now()+interval '7 hours',pg_temp.cid(80),pg_temp.cid(81),pg_temp.cid(82),'app_sms')$$,
   '42501',null,'native actor ban blocks delegated receipt recovery');
-rollback to savepoint creation_revocation;
 select * from finish();
 rollback;

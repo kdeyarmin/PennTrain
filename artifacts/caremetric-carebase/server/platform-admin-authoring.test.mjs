@@ -25,7 +25,8 @@ const created = { commandId: id(7), action: 'learning.createCourse', courseId: i
 
 test('creation accepts only human draft fields and rejects state, tenancy, source and approval injection', () => {
   assert.deepEqual(parseAuthoringOperation(create), create);
-  for (const parameters of [{ ...create.parameters, sourceRevision: 'a'.repeat(64) },
+  for (const parameters of [{ versionId: create.parameters.versionId, sourceRevision: 'a'.repeat(64) },
+    { ...create.parameters, sourceRevision: 'a'.repeat(64) },
     { ...create.parameters, course: { ...create.parameters.course, organizationId: id(1) } },
     { ...create.parameters, version: { ...create.parameters.version, aiReviewedAt: 'now' } },
     { ...create.parameters, version: { ...create.parameters.version, contentStandard: 'legacy' } },
@@ -61,6 +62,9 @@ test('creation options and receipt reads retain fresh mapped authority and close
   assert.deepEqual(await (await f.handler(request(options))).json(), optionsValue);
   assert.equal(f.calls.at(-1).body.p_actor, id(2)); assert.equal(f.calls.at(-1).body.p_offset, 0);
   assert.throws(() => projectAuthoringResult({ ...optionsValue, nextOffset: 200 }, options));
+  assert.deepEqual(parseAuthoringOperation({ operation: 'creationOptions', offset: 9950 }), { operation: 'creationOptions', offset: 9950 });
+  assert.deepEqual(projectAuthoringResult(optionsValue, { operation: 'creationOptions', offset: 9950 }), optionsValue);
+  assert.throws(() => projectAuthoringResult({ ...optionsValue, nextOffset: 10050 }, { operation: 'creationOptions', offset: 9950 }));
   assert.throws(() => projectAuthoringResult({ trainingTypes: Array(101).fill(optionsValue.trainingTypes[0]), nextOffset: null }, options));
   assert.equal((await fixture({ profile: { id: id(2), role: 'employee', is_active: true } }).handler(request(options))).status, 403);
   const recovery = fixture({ result: { status: 'applied', result: created } });
