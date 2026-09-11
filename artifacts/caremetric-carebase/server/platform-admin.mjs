@@ -1,0 +1,232 @@
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createProviderRouter } from "./provider-router.mjs";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const COURSE_COLUMNS = "id,title,description,category,status,estimated_duration_minutes,updated_at,organization_id,current_version_id";
+const MAX_UPSTREAM_BYTES = 2 * 1024 * 1024;
+const MAX_LESSONS = 200;
+
+class AdminError extends Error {
+  constructor(status, code) { super(code); this.status = status; this.code = code; }
+}
+
+function httpsOrigin(value, name) {
+  let url;
+  try { url = new URL(value); } catch { throw new Error(`${name} must be an HTTPS origin.`); }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+    throw new Error(`${name} must be an HTTPS origin.`);
+  }
+  return url.origin;
+}
+
+/** No inferred accounts. Mapping is an explicit server-side deployment grant. */
+export function readPlatformAdminConfig(getEnv = (name) => process.env[name]) {
+  const enabled = getEnv("CAREMETRIC_ADMIN_ENABLED");
+  if (enabled === undefined || enabled === "false") return { enabled: false };
+  if (enabled !== "true") throw new Error("CAREMETRIC_ADMIN_ENABLED must be true or false.");
+  const hubUrl = httpsOrigin(getEnv("HUB_SUPABASE_URL"), "HUB_SUPABASE_URL");
+  const hubKey = getEnv("HUB_SUPABASE_PUBLISHABLE_KEY") ?? "";
+  if (!hubKey.startsWith("sb_publishable_")) throw new Error("HUB_SUPABASE_PUBLISHABLE_KEY must be a publishable key.");
+  const supabaseUrl = httpsOrigin(getEnv("SUPABASE_URL") ?? getEnv("VITE_SUPABASE_URL"), "SUPABASE_URL");
+  const builtUrl = getEnv("VITE_SUPABASE_URL");
+  if (builtUrl && httpsOrigin(builtUrl, "VITE_SUPABASE_URL") !== supabaseUrl) {
+    throw new Error("Central administration must use the frontend's CareBase project.");
+  }
+  const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  if (!serviceKey || serviceKey.startsWith("sb_publishable_")) throw new Error("A server-only SUPABASE_SERVICE_ROLE_KEY is required.");
+  let rawMap;
+  try { rawMap = JSON.parse(getEnv("CAREMETRIC_ADMIN_IDENTITY_MAP_JSON") ?? ""); }
+  catch { throw new Error("CAREMETRIC_ADMIN_IDENTITY_MAP_JSON must contain explicit UUID mappings."); }
+  if (!rawMap || Array.isArray(rawMap) || typeof rawMap !== "object") throw new Error("Invalid central administrator identity map.");
+  const entries = Object.entries(rawMap);
+  if (!entries.length || entries.length > 100 || entries.some(([hubId, nativeId]) => !UUID.test(hubId) || typeof nativeId !== "string" || !UUID.test(nativeId))) {
+    throw new Error("Central administrator mappings must contain 1–100 UUID pairs.");
+  }
+  const identities = new Map(entries.map(([hubId, nativeId]) => [hubId.toLowerCase(), nativeId.toLowerCase()]));
+  if (identities.size !== entries.length || new Set(identities.values()).size !== entries.length) {
+    throw new Error("Each central administrator must map to one distinct CareBase identity.");
+  }
+  return { enabled: true, hubUrl, hubKey, supabaseUrl, serviceKey, identities };
+}
+
+function parseOperation(body) {
+  if (!body || Array.isArray(body) || typeof body !== "object") throw new AdminError(400, "invalid_request");
+  const keys = Object.keys(body);
+  if (body.operation === "overview" && keys.length === 1) return body;
+  if (body.operation === "courses.get" && keys.length === 2 && typeof body.courseId === "string" && UUID.test(body.courseId)) {
+    return { operation: body.operation, courseId: body.courseId.toLowerCase() };
+  }
+  if (body.operation === "courses.list" && keys.every((key) => ["operation", "limit", "offset", "search"].includes(key))) {
+    const { limit = 25, offset = 0, search = "" } = body;
+    if (Number.isSafeInteger(limit) && limit >= 1 && limit <= 50 && Number.isSafeInteger(offset) && offset >= 0 && offset <= 10_000
+      && typeof search === "string" && search.length <= 100 && !/[\u0000-\u001f\u007f*]/.test(search)) {
+      return { operation: body.operation, limit, offset, search: search.trim() };
+    }
+  }
+  throw new AdminError(400, "invalid_request");
+}
+
+function text(value, limit, nullable = true) {
+  if (value === null && nullable) return null;
+  if (typeof value !== "string") throw new AdminError(502, "upstream");
+  return value.slice(0, limit);
+}
+
+function courseSummary(row) {
+  if (!row || !UUID.test(row.id) || row.organization_id !== null
+    || !(row.estimated_duration_minutes === null || (Number.isSafeInteger(row.estimated_duration_minutes) && row.estimated_duration_minutes >= 0))) {
+    throw new AdminError(502, "upstream");
+  }
+  return {
+    id: row.id, title: text(row.title, 500, false), description: text(row.description, 4000),
+    category: text(row.category, 120), status: text(row.status, 80, false),
+    estimatedDurationMinutes: row.estimated_duration_minutes, updatedAt: text(row.updated_at, 40, false),
+  };
+}
+
+function countResult(result) {
+  if (result.error || !Number.isSafeInteger(result.count) || result.count < 0) throw new AdminError(503, "upstream");
+  return result.count;
+}
+
+async function boundedFetch(fetcher, requestSignal, input, init = {}) {
+  const signals = [requestSignal, AbortSignal.timeout(8000)];
+  if (input instanceof Request) signals.push(input.signal);
+  if (init.signal) signals.push(init.signal);
+  const signal = AbortSignal.any(signals);
+  const response = await fetcher(input, { ...init, signal, redirect: "error" });
+  if (!response.body) return response;
+  const reader = response.body.getReader();
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal.addEventListener("abort", cancel, { once: true });
+  const chunks = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_UPSTREAM_BYTES) { await reader.cancel(); throw new Error("Source response exceeds limit"); }
+      chunks.push(Buffer.from(value));
+    }
+  } finally { signal.removeEventListener("abort", cancel); reader.releaseLock(); }
+  return new Response(Buffer.concat(chunks, bytes), { status: response.status, statusText: response.statusText, headers: response.headers });
+}
+
+/** Every call verifies both the issuer's live authorization and the app's native role. */
+export function createPlatformAdminHandler({ config, createClient = createSupabaseClient, fetcher = fetch, now = () => new Date() }) {
+  const json = (body, status = 200) => new Response(JSON.stringify(body), {
+    status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
+  });
+  return async (request) => {
+    try {
+      if (!config.enabled) throw new AdminError(503, "unconfigured");
+      if (request.method !== "POST") throw new AdminError(405, "method_not_allowed");
+      // The Hub backend calls this endpoint. It is never a browser cross-origin API.
+      if (request.headers.has("origin")) throw new AdminError(403, "forbidden");
+      if (request.headers.get("content-type")?.split(";", 1)[0].trim() !== "application/json") throw new AdminError(415, "unsupported_content_type");
+      const authorization = request.headers.get("authorization");
+      if (!authorization || authorization.length > 8192 || !/^Bearer [A-Za-z0-9._~-]+$/.test(authorization)) throw new AdminError(401, "unauthenticated");
+      let body;
+      try {
+        const raw = await request.text();
+        if (Buffer.byteLength(raw) > 2048) throw new Error("oversize");
+        body = JSON.parse(raw);
+      } catch { throw new AdminError(400, "invalid_request"); }
+      const operation = parseOperation(body);
+      const makeClient = (url, key, headers = {}) => createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        global: { headers, fetch: (input, init) => boundedFetch(fetcher, request.signal, input, init) },
+      });
+      const hub = makeClient(config.hubUrl, config.hubKey, { Authorization: authorization });
+      const { data: actor, error: actorError, status: actorStatus } = await hub.schema("hub").rpc("authorize_platform_admin");
+      if (actorError) {
+        if (actorStatus === 401 || actorError.code === "28000") throw new AdminError(401, "unauthenticated");
+        if (actorError.code === "42501") throw new AdminError(403, "forbidden");
+        throw new AdminError(503, "upstream");
+      }
+      if (!actor || actor.role !== "platform_admin" || actor.aal !== "aal2" || typeof actor.user_id !== "string" || !UUID.test(actor.user_id)) {
+        throw new AdminError(403, "forbidden");
+      }
+      const nativeId = config.identities.get(actor.user_id.toLowerCase());
+      if (!nativeId) throw new AdminError(403, "forbidden");
+      const native = makeClient(config.supabaseUrl, config.serviceKey);
+      const [profileResult, userResult] = await Promise.all([
+        native.from("profiles").select("id,role,is_active").eq("id", nativeId).maybeSingle(),
+        native.auth.admin.getUserById(nativeId),
+      ]);
+      if (profileResult.error) throw new AdminError(503, "upstream");
+      if (userResult.error) throw new AdminError(userResult.error.status === 404 ? 403 : 503, userResult.error.status === 404 ? "forbidden" : "upstream");
+      const profile = profileResult.data;
+      const user = userResult.data?.user;
+      const timestamp = now();
+      if (!profile || profile.id !== nativeId || profile.role !== "platform_admin" || profile.is_active !== true
+        || !user || user.id !== nativeId || user.is_anonymous === true || user.deleted_at
+        || (user.banned_until && (!Number.isFinite(Date.parse(user.banned_until)) || Date.parse(user.banned_until) > timestamp.getTime()))) {
+        throw new AdminError(403, "forbidden");
+      }
+
+      let data;
+      if (operation.operation === "overview") {
+        const [organizations, users, courses] = await Promise.all([
+          native.from("organizations").select("id", { count: "exact", head: true }),
+          native.from("profiles").select("id", { count: "exact", head: true }).eq("is_active", true),
+          native.from("courses").select("id", { count: "exact", head: true }).is("organization_id", null),
+        ]);
+        data = { organizationCount: countResult(organizations), activeUserCount: countResult(users), globalCourseCount: countResult(courses) };
+      } else if (operation.operation === "courses.list") {
+        let query = native.from("courses").select(COURSE_COLUMNS, { count: "exact" }).is("organization_id", null)
+          .order("title", { ascending: true }).order("id", { ascending: true });
+        // Use one encoded filter parameter, never an interpolated PostgREST `or` expression.
+        if (operation.search) query = query.ilike("title", `%${operation.search.replace(/[\\%_]/g, "\\$&")}%`);
+        const result = await query.range(operation.offset, operation.offset + operation.limit - 1);
+        const total = countResult(result);
+        if (!Array.isArray(result.data) || result.data.length > operation.limit) throw new AdminError(502, "upstream");
+        data = { items: result.data.map(courseSummary), total, limit: operation.limit, offset: operation.offset };
+      } else {
+        const result = await native.from("courses").select(COURSE_COLUMNS).eq("id", operation.courseId).is("organization_id", null).maybeSingle();
+        if (result.error) throw new AdminError(503, "upstream");
+        if (!result.data) throw new AdminError(404, "notfound");
+        const course = courseSummary(result.data);
+        if (course.id !== operation.courseId) throw new AdminError(502, "upstream");
+        let lessons = [];
+        let lessonsTruncated = false;
+        const versionId = result.data.current_version_id;
+        if (versionId !== null) {
+          if (typeof versionId !== "string" || !UUID.test(versionId)) throw new AdminError(502, "upstream");
+          const version = await native.from("course_versions").select("id").eq("id", versionId)
+            .eq("course_id", course.id).is("organization_id", null).maybeSingle();
+          if (version.error) throw new AdminError(503, "upstream");
+          if (!version.data || version.data.id !== versionId) throw new AdminError(502, "upstream");
+          const blocks = await native.from("course_blocks").select("id,title,block_type,sort_order,organization_id")
+            .eq("course_version_id", versionId).is("organization_id", null)
+            .order("sort_order", { ascending: true }).order("id", { ascending: true }).limit(MAX_LESSONS + 1);
+          if (blocks.error) throw new AdminError(503, "upstream");
+          if (!Array.isArray(blocks.data) || blocks.data.length > MAX_LESSONS + 1) throw new AdminError(502, "upstream");
+          lessonsTruncated = blocks.data.length > MAX_LESSONS;
+          lessons = blocks.data.slice(0, MAX_LESSONS).map((block) => {
+            if (!UUID.test(block.id) || block.organization_id !== null || !Number.isSafeInteger(block.sort_order)) throw new AdminError(502, "upstream");
+            return { id: block.id, title: text(block.title, 500), type: text(block.block_type, 80, false), position: block.sort_order };
+          });
+        }
+        data = { course, lessons, lessonsTruncated };
+      }
+      return json({ contractVersion: 1, product: "carebase", operation: operation.operation, generatedAt: timestamp.toISOString(), data });
+    } catch (error) {
+      // No upstream responses, identities, bearer tokens or service credentials enter errors.
+      return json({ error: { code: error instanceof AdminError ? error.code : "upstream" } }, error instanceof AdminError ? error.status : 503);
+    }
+  };
+}
+
+export function createPlatformAdminRouter(options = {}) {
+  const config = options.config ?? readPlatformAdminConfig(options.getEnv);
+  return createProviderRouter({
+    handlers: new Map([["read", createPlatformAdminHandler({ ...options, config })]]), enabled: config.enabled,
+    prefix: "/api/platform-admin/", routes: new Map([["read", { bytes: 2048, browser: false }]]),
+    unavailableCode: "unconfigured",
+    forwardedHeaders: ["authorization", "origin", "content-type"],
+    handlerTimeoutMs: 30_000, maxConcurrent: 8, maxPendingBodies: 16,
+  });
+}

@@ -783,6 +783,63 @@ provider routes. Rebuild after changing browser `VITE_*` configuration. Railway 
 rejects mode/project mismatches, but it cannot certify live Checkout, carrier delivery, or webhook
 reconciliation; complete the checks in the provider rollout section.
 
+## Central CareMetric administration pilot
+
+The Node server supports a separately gated `POST /api/platform-admin/read` endpoint. It stays
+at the origin root regardless of `BASE_PATH`, defaults off, and does not require activating the
+Railway Stripe/SMS runtime. Configure only on the server:
+
+| Variable | Value |
+| --- | --- |
+| `CAREMETRIC_ADMIN_ENABLED` | `true` to activate; unset or `false` to disable |
+| `HUB_SUPABASE_URL` | The trusted Hub Supabase HTTPS origin |
+| `HUB_SUPABASE_PUBLISHABLE_KEY` | The Hub's `sb_publishable_` key |
+| `CAREMETRIC_ADMIN_IDENTITY_MAP_JSON` | Explicit JSON object mapping each Hub user UUID to one distinct native CareBase profile/Auth UUID |
+| `SUPABASE_URL` | This CareBase project's HTTPS origin; falls back to `VITE_SUPABASE_URL` and must match it when both exist |
+| `SUPABASE_SERVICE_ROLE_KEY` | Existing CareBase server credential; never use a `VITE_` prefix |
+
+An enabled runtime refuses missing/malformed configuration. Identity mappings are explicit
+deployment grants, never inferred from email. Revoke a mapping through configuration and restart,
+or immediately disable/demote the native CareBase profile. Do not place these mappings in frontend
+configuration. No mappings, account grants or production settings are provisioned by the code.
+
+The Hub backend forwards `Authorization: Bearer <Hub access token>` plus JSON to this endpoint.
+The CareBase adapter calls `hub.authorize_platform_admin()` with that token on every request;
+the Hub RPC must validate the current usable account, live session, AAL2, verified TOTP and
+current unscoped platform-admin permission and return
+`{user_id, role: "platform_admin", aal: "aal2"}`. CareBase then checks the mapped native Auth
+user is usable and the current profile is active with `role = platform_admin`. The Hub's verified
+MFA session supplies session assurance for this delegated API; no native browser session is minted.
+There is no cross-origin browser API or generic RPC proxy. `Origin` headers are refused, and
+cookies, caller API keys and arbitrary headers never cross into database requests.
+
+| Request body | `data` in successful response |
+| --- | --- |
+| `{ "operation": "overview" }` | `{organizationCount, activeUserCount, globalCourseCount}`; active-user count means active profiles, not current signed-in sessions |
+| `{ "operation": "courses.list", "limit": 25, "offset": 0, "search": "diabetes" }` | `{items, total, limit, offset}`; optional limit 1–50, offset 0–10000 and title substring up to 100 characters |
+| `{ "operation": "courses.get", "courseId": "<UUID>" }` | `{course, lessons, lessonsTruncated}` |
+
+Success envelopes are `{contractVersion: 1, product: "carebase", operation, generatedAt, data}`.
+Course metadata has `id`, `title`, `description`, `category`, `status`,
+`estimatedDurationMinutes` and `updatedAt`. Lesson metadata has `id`, nullable `title`, `type`
+and `position`, capped at 200 with explicit truncation. Only global courses/versions/blocks
+(`organization_id IS NULL`) are accessible. Current versions must belong to the requested
+course. Draft and archived global courses are included in this administration inventory.
+Search escapes SQL wildcard characters; `*` and control characters are rejected. Unknown
+operations, extra fields, tenant scopes and mutation requests are rejected.
+
+Responses contain no user records, organization contact information, clinical data, lesson bodies,
+answer keys or media URLs. Course title/description metadata is truncated to 500/4000 characters.
+The transport bounds ingress to 2 KiB, source responses to 2 MiB, emitted responses to 1 MiB,
+execution to 30 seconds and concurrent execution to eight requests. Error bodies contain only
+`{error: {code}}`; responses are `no-store`. Keep access-token headers out of proxy logs.
+
+Before activation, install the Hub authorization RPC, verify the intended native and Hub UUIDs,
+enroll the owner's MFA and test allowed and denied operations with real owner-controlled sessions.
+Automated fixtures exercise both successful reads and fail-closed authorization/projection cases;
+they do not certify a configured production connection. Disable `CAREMETRIC_ADMIN_ENABLED` to
+roll back without changing CareBase's native application data or authentication flows.
+
 ## Limitations / manual steps remaining
 
 Deployment-setting verification on 2026-09-08 (BACKLOG K11):

@@ -92,6 +92,10 @@ export function createProviderRouter({
   handlers, enabled = false, publicOrigin = "https://cmcarebase.com",
   bodyTimeoutMs = 10_000, handlerTimeoutMs = 150_000, maxConcurrent = 16,
   maxPendingBodies = 32,
+  prefix = PREFIX, routes = ROUTES,
+  unavailableCode = "provider_runtime_unavailable",
+  forwardedHeaders = ["authorization", "origin", "content-type", "stripe-signature",
+    "x-caremetric-cron-secret", "x-correlation-id", "x-request-id", "idempotency-key"],
 }) {
   const origin = new URL(publicOrigin).origin;
   if (!Number.isSafeInteger(maxPendingBodies) || maxPendingBodies < 1) {
@@ -100,11 +104,11 @@ export function createProviderRouter({
   const pendingBodies = new Map();
   let active = 0;
   return async (req, res, pathname) => {
-    if (!pathname?.startsWith(PREFIX)) return false;
-    const name = pathname.slice(PREFIX.length);
-    const route = ROUTES.get(name);
+    if (!pathname?.startsWith(prefix)) return false;
+    const name = pathname.slice(prefix.length);
+    const route = routes.get(name);
     if (!route) { fail(req, res, 404, "provider_route_not_found"); return true; }
-    if (!enabled) { fail(req, res, 503, "provider_runtime_unavailable"); return true; }
+    if (!enabled) { fail(req, res, 503, unavailableCode); return true; }
     if (req.method !== "POST" && !(route.browser && req.method === "OPTIONS")) {
       fail(req, res, 405, "method_not_allowed"); return true;
     }
@@ -116,7 +120,7 @@ export function createProviderRouter({
       fail(req, res, 415, "unsupported_content_encoding"); return true;
     }
     const handler = handlers.get(name);
-    if (!handler) { fail(req, res, 503, "provider_runtime_unavailable"); return true; }
+    if (!handler) { fail(req, res, 503, unavailableCode); return true; }
     const controller = new AbortController();
     // Slow uploads own bounded ingress capacity, never provider execution capacity.
     // Shed the oldest incomplete body under pressure so stalled uploads cannot keep
@@ -142,12 +146,11 @@ export function createProviderRouter({
       const headers = new Headers();
       // Only headers consumed by these handlers cross the adapter. No cookies, proxy headers,
       // service credentials from arbitrary input, or hop-by-hop headers are forwarded.
-      for (const key of ["authorization", "origin", "content-type", "stripe-signature",
-        "x-caremetric-cron-secret", "x-correlation-id", "x-request-id", "idempotency-key"]) {
+      for (const key of forwardedHeaders) {
         const value = req.headers[key];
         if (typeof value === "string") headers.set(key, value);
       }
-      const request = new Request(`${origin}${PREFIX}${name}`, {
+      const request = new Request(`${origin}${prefix}${name}`, {
         method: req.method, headers, signal: controller.signal,
         ...(body.length ? { body } : {}),
       });
