@@ -48,7 +48,7 @@ export function NativeLearningPackagePanel({ versionId, userId, disabled = false
         }} />
         <Button variant="outline" disabled={busy} onClick={() => { void context.refetch(); void packages.refetch(); }}>Refresh package status</Button>
       </div>
-      {upload.isPending && <p role="status">Retaining the original packageâ€¦</p>}
+      {upload.isPending && <p role="status">Retaining the original package…</p>}
       {upload.isSuccess && <p role="status">Original package registered. Review it before acceptance. Reload the draft source before the next course edit or review.</p>}
       {upload.isError && <p role="alert" className="text-sm text-destructive">{upload.error.message}</p>}
       {context.isError && <QueryError what="package operations" error={context.error} onRetry={() => void context.refetch()} />}
@@ -56,11 +56,11 @@ export function NativeLearningPackagePanel({ versionId, userId, disabled = false
       {finish.isError && <p role="alert" className="text-sm text-destructive">{finish.error.message}</p>}
       {finish.isSuccess && <p role="status">Package operation finished. Reload the draft source before the next course edit or review.</p>}
       {(packages.data ?? []).map(pkg => <div key={pkg.id} className="space-y-2 rounded border p-3">
-        <p>{pkg.standard_type} Â· {pkg.validation_status} Â· SHA {pkg.content_sha256.slice(0, 12)}â€¦</p>
+        <p>{pkg.standard_type} · {pkg.validation_status} · SHA {pkg.content_sha256.slice(0, 12)}…</p>
         {["pending", "validating", "rejected"].includes(pkg.validation_status) && ["scorm_1_2", "scorm_2004_4th", "xapi"].includes(pkg.standard_type) && <AcceptPackage packageId={pkg.id} disabled={disabled || busy} />}
       </div>)}
       {unfinished.map(intent => <div key={intent.operationId} className="rounded border p-3 text-sm">
-        <p>{intent.operation === "upload" ? "Original upload" : "Package acceptance"} Â· {intent.state} Â· source SHA {intent.sourceSha256.slice(0, 12)}â€¦</p>
+        <p>{intent.operation === "upload" ? "Original upload" : "Package acceptance"} · {intent.state} · source SHA {intent.sourceSha256.slice(0, 12)}…</p>
         {intent.canFinishThisSession ? <Button disabled={disabled || busy} onClick={() => finish.mutate(intent.operationId)}>Finish verified package operation</Button>
           : <p className="text-muted-foreground">This saved operation cannot finish in the current session or draft. Refresh and explicitly upload or review the package again.</p>}
       </div>)}

@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `ee7ba6c` (2026-09-11), the reviewed integration of immutable package ingestion N15 with actual released credit-policy main `d48b4add`. Native global draft upload, immutable acceptance and current-session recovery use the common authoring core. Original runtime and historical learner evidence remain unchanged. The prior ingestion SQL replay passed its behavior fixtures; the complete combined application/database/browser gate is required before release.
+**Last verified against main:** `64bf33c` (2026-09-11), the reviewed integration of immutable package ingestion N15 with actual released credit-policy main `d48b4add`. Native global draft upload, immutable acceptance and current-session recovery use the common authoring core. The unused direct acceptance RPC is retired; all supported acceptance uses verified worker evidence. Original runtime and historical learner evidence remain unchanged. The prior ingestion SQL replay passed its behavior fixtures; the complete combined application/database/browser gate is required before release.
 
 **Owner:** the owner-operator (single person, platform admin)
 

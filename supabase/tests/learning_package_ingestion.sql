@@ -53,7 +53,7 @@ select ok((select value->>'originalPath' like 'global/22000000-0000-4000-8000-00
 select throws_ok($$select public.finish_native_learning_package_operation((select (value->>'operationId')::uuid from package_fixture where label='plan'))$$,'42501',null,'cannot finish without trusted byte evidence');
 select throws_ok($$select public.prepare_native_learning_package_operation((select value||'{"storagePath":"foreign/file.zip"}'::jsonb from package_fixture where label='request'))$$,'22023',null,'client cannot choose an existing foreign storage path');
 select throws_ok($$select public.prepare_native_learning_package_operation((select jsonb_set(value,'{reason}','"Different operation reason"') from package_fixture where label='request'))$$,'40001',null,'same request ID binds exact input');
-select throws_ok($$select public.accept_learning_package('22000000-0000-4000-8000-000000000099',null,'Bypass attempted by client')$$,'42501',null,'legacy direct acceptance cannot bypass runtime proof');
+select throws_ok($$select public.accept_learning_package('22000000-0000-4000-8000-000000000099',null,'Bypass attempted by client')$$,'42883',null,'retired direct acceptance cannot bypass runtime proof');
 reset role;
 select is((select count(*) from public.learning_packages where course_version_id='22000000-0000-4000-8000-000000000030'),0::bigint,'prepare does not register a package');
 set local role service_role;

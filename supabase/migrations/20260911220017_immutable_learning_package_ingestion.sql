@@ -332,13 +332,9 @@ begin
 end;
 $$;
 
--- All new acceptance uses verified immutable artifact evidence. This legacy RPC
--- remains a clear failure for stale clients; it cannot mark arbitrary ZIPs accepted.
-create or replace function public.accept_learning_package(p_package_id uuid,p_entry_point text default null,
-  p_reason text default 'Accepted by content admin after structural review') returns boolean
-language plpgsql security definer set search_path='' as $$
-begin raise exception 'Accept this package through the verified package worker.' using errcode='42501'; end;
-$$;
+-- All new acceptance uses verified immutable artifact evidence. Retire the old
+-- direct acceptance RPC so no stale client can mark arbitrary ZIPs accepted.
+drop function public.accept_learning_package(uuid,text,text);
 
 create function public.get_native_learning_package_context(p_version_id uuid default null,p_package_id uuid default null) returns jsonb
 language plpgsql security definer set search_path='' as $$

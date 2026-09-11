@@ -47,3 +47,10 @@ it('acceptance retries recover the exact saved receipt and preserve original inp
  expect(h.invoke).toHaveBeenCalledTimes(1);expect(h.invoke.mock.calls[0][1].body).toMatchObject({package_id:id(3),source_revision:'a'.repeat(64),reason:input.reason});
  hook.onSuccess();expect(h.invalidate).toHaveBeenCalledWith({queryKey:['governed_draft_source']});
 });
+it('fresh acceptance rejects a wrong-package or malformed success receipt',async()=>{
+ for(const data of [{}, {...receipt,status:'accepted',packageId:id(99),runtimeSha256:'c'.repeat(64),entryPoint:'index.html'},receipt]){
+  h.rpc.mockResolvedValue({data:{package:{id:id(3)},sourceRevision:'a'.repeat(64)}});h.invoke.mockResolvedValue({data,error:null});
+  const hook=useAcceptLearningPackage() as unknown as Mutation<{packageId:string;reason:string}>;
+  await expect(hook.mutationFn({packageId:id(3),reason:'Reviewed original course'})).rejects.toThrow('receipt could not be verified');
+ }
+});

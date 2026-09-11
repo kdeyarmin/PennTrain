@@ -269,6 +269,10 @@ export function useAcceptLearningPackage() {
       if (data && typeof data === "object" && "error" in data) {
         throw new Error(String((data as Record<string, unknown>).error));
       }
+      if (!data || typeof data !== "object" || data.packageId !== input.packageId || data.status !== "accepted"
+        || typeof data.runtimeSha256 !== "string" || !/^[0-9a-f]{64}$/.test(data.runtimeSha256)
+        || typeof data.sourceSha256 !== "string" || !/^[0-9a-f]{64}$/.test(data.sourceSha256)
+        || typeof data.entryPoint !== "string" || !data.entryPoint) throw new Error("The package acceptance receipt could not be verified.");
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["learning_packages"] });

@@ -35860,14 +35860,6 @@ export type Database = {
           was_duplicate: boolean
         }[]
       }
-      accept_learning_package: {
-        Args: {
-          p_entry_point?: string
-          p_package_id: string
-          p_reason?: string
-        }
-        Returns: boolean
-      }
       accept_move_in_guest_terms: {
         Args: { p_fingerprint?: string; p_token: string }
         Returns: Json
