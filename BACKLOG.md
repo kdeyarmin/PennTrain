@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `e91bcd14054cedfcacc8d0a5eff05c033c559078` (2026-09-11), the reviewed integration of immutable package ingestion N15 with actual released credit and operations main. Native and Hub package paths retain originals, require current-authority finalization and preserve learner history. The complete combined gate is required before release.
+**Last verified against main:** `d21d8af` (2026-09-11), the reviewed integration of immutable package ingestion N15 with actual released credit and operations main `e91bcd14054cedfcacc8d0a5eff05c033c559078`. Native and Hub package paths retain originals, require current-authority finalization and preserve learner history. The complete combined gate is required before release.
 
 
 **Owner:** the owner-operator (single person, platform admin)
