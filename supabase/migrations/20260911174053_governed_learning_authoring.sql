@@ -213,6 +213,28 @@ grant execute on function public.clone_course_version(uuid,uuid,integer,text,uui
 -- The live publisher was inventoried before extraction (2026-09-11,
 -- pg_get_functiondef MD5 395d01029053456a422d72de8d504dc7). Keep its business
 -- rules and database triggers; the caller supplies separately verified authority.
+create function app_private.assert_learning_authoring_ready(p_version uuid) returns void
+language plpgsql security definer set search_path='' as $$
+declare v_prior text:=coalesce(current_setting('app.privileged_write',true),''); v_issues text[];
+begin
+  -- These existing read-only checkers accept native admin identity or this trusted
+  -- server context. Their content checks are unconditional. Never fabricate auth.uid().
+  perform set_config('app.privileged_write','on',true);
+  perform public.assert_course_version_publish_ready(p_version);
+  if exists(select 1 from public.course_versions where id=p_version and content_standard='comprehensive') then
+    v_issues:=public.get_comprehensive_course_version_issues(p_version);
+    if coalesce(array_length(v_issues,1),0)>0 then
+      raise exception 'Comprehensive course version is not ready to publish: %',array_to_string(v_issues,' ') using errcode='23514';
+    end if;
+  end if;
+  perform set_config('app.privileged_write',v_prior,true);
+exception when others then
+  perform set_config('app.privileged_write',v_prior,true);
+  raise;
+end;
+$$;
+revoke all on function app_private.assert_learning_authoring_ready(uuid) from public,anon,authenticated,service_role;
+
 create function app_private.publish_course_version_core(p_course_version_id uuid) returns uuid
 language plpgsql security definer set search_path='' as $$
 declare v_version public.course_versions; v_prior text:=coalesce(current_setting('app.privileged_write',true),'');
@@ -222,7 +244,7 @@ begin
   if v_version.ai_generated and v_version.ai_reviewed_at is null then
     raise exception 'course_version % is AI-generated and has not been reviewed; mark it reviewed before publishing',v_version.id using errcode='42501';
   end if;
-  perform public.assert_course_version_publish_ready(p_course_version_id);
+  perform app_private.assert_learning_authoring_ready(p_course_version_id);
   perform app_private.assert_learning_authoring_packages(p_course_version_id);
   perform set_config('app.privileged_write','on',true);
   update public.course_versions set status='published',published_at=coalesce(published_at,now()) where id=p_course_version_id;
@@ -288,7 +310,7 @@ begin
     if v_version.ai_generated and v_version.ai_reviewed_at is null then
       raise exception 'The new draft requires its own AI review before publication' using errcode='42501';
     end if;
-    perform public.assert_course_version_publish_ready(v_version.id);
+    perform app_private.assert_learning_authoring_ready(v_version.id);
     perform app_private.assert_learning_authoring_packages(v_version.id);
     v_after:=v_before||jsonb_build_object('status','published','currentVersionId',v_version.id);
   end if;
