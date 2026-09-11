@@ -71,7 +71,7 @@ select is(public.execute_native_learning_draft_command(pg_temp.cid(201),'learnin
   (select value from creation_fixture where label='firstParams'),'Reviewed version credit policy')->>'replayed','true','exact request replays after source changes');
 select is((select count(*) from public.course_compliance_credits where course_version_id=pg_temp.cid(31)),1::bigint,'replay does not insert another credit definition');
 select is((select count(*) from public.course_completion_credits where course_version_id=pg_temp.cid(31)),0::bigint,'definition edits issue no completion credits');
-select is((select count(*) from public.certificates where course_version_id=pg_temp.cid(31)),0::bigint,'definition edits issue no certificates');
+select is((select count(*) from public.certificates c join public.course_assignments a on a.id=c.course_assignment_id where a.course_version_id=pg_temp.cid(31)),0::bigint,'definition edits issue no certificates');
 select throws_ok($$select pg_temp.edit(pg_temp.change(pg_temp.keep()))$$,'22023','No credit policy changes to apply.','all-preserved no-op refused');
 select throws_ok($$select pg_temp.edit(pg_temp.change('[]'))$$,'40001','Review every removed credit identity explicitly.','implicit credit deletion refused');
 select throws_ok($$select pg_temp.edit(pg_temp.change(pg_temp.keep(),'{}',jsonb_build_array(pg_temp.cid(200))))$$,'22023','Credit identities and training associations must be distinct.','preserve and removal cannot overlap');
@@ -157,19 +157,15 @@ select set_config('app.privileged_write','on',true);
 update public.courses set estimated_duration_minutes=120,credited_duration_check_exempt=false where id=pg_temp.cid(30);
 select set_config('app.privileged_write','',true);
 
--- An actual assignment reference makes the draft immutable for this writer.
-insert into public.facilities(id,organization_id,name,facility_type) values(pg_temp.cid(260),pg_temp.cid(10),'Credit fixture facility','PCH');
-insert into public.employees(id,organization_id,facility_id,profile_id,first_name,last_name,job_title,status)
-  values(pg_temp.cid(261),pg_temp.cid(10),pg_temp.cid(260),pg_temp.cid(3),'Synthetic','Credit learner','Aide','active');
-select set_config('app.privileged_write','on',true);
-insert into public.course_assignments(id,organization_id,facility_id,employee_id,course_id,course_version_id,assigned_by)
-  values(pg_temp.cid(262),pg_temp.cid(10),pg_temp.cid(260),pg_temp.cid(261),pg_temp.cid(30),pg_temp.cid(31),pg_temp.cid(1));
-select set_config('app.privileged_write','',true);
-select throws_ok($$select pg_temp.edit(pg_temp.change())$$,'40001','This definition is bound to learner history. Clone a new version.','actual assignment blocks version credit edits');
--- Delete via the established native fixture privilege instead of reverting a TAP counter.
-select set_config('app.privileged_write','on',true);
-delete from public.course_assignments where id=pg_temp.cid(262);
-select set_config('app.privileged_write','',true);
+-- Preserve actual content-distribution history even for legacy draft references.
+-- No assignment publication guard is disabled to construct this case.
+insert into public.offline_device_registrations(id,organization_id,profile_id,device_public_key,device_fingerprint_sha256,role_at_registration)
+  values(pg_temp.cid(260),pg_temp.cid(10),pg_temp.cid(3),'synthetic-fixture-public-key',repeat('a',64),'employee');
+insert into public.offline_content_manifests(id,organization_id,profile_id,device_id,course_version_id,manifest_version,
+  content_sha256,encrypted_content_key,allowlisted_assets,expires_at)
+  values(pg_temp.cid(261),pg_temp.cid(10),pg_temp.cid(3),pg_temp.cid(260),pg_temp.cid(31),1,repeat('b',64),'synthetic-fixture-encrypted-content','[]',now()+interval '1 hour');
+select throws_ok($$select pg_temp.edit(pg_temp.change())$$,'40001','This definition is bound to learner history. Clone a new version.','actual offline content reference blocks version credit edits');
+delete from public.offline_content_manifests where id=pg_temp.cid(261);
 
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 insert into creation_fixture values('smsPreview',public.preview_learning_authoring_command(pg_temp.cid(1),pg_temp.cid(250),pg_temp.cid(251),
