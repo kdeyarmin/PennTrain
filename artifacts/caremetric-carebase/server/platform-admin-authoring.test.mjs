@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { createLearningAuthoringHandler, parseAuthoringOperation, projectAuthoringResult, validDraftPatch } from './platform-admin-authoring.mjs';
 import { readPlatformAdminConfig } from './platform-admin-auth.mjs';
+import { validCourseCreation } from '../../../supabase/functions/_shared/learningCreation.ts';
 const id = n => `abc00000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const env = { CAREMETRIC_ADMIN_ENABLED: 'true', CAREMETRIC_ADMIN_COMMANDS_ENABLED: 'true', HUB_SUPABASE_URL: 'https://hub.example.test',
   HUB_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_fixture', SUPABASE_URL: 'https://native.example.test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_fixture',
@@ -15,6 +16,58 @@ const inspect = { operation: 'inspect', courseId: id(4) };
 const preview = { operation: 'preview', requestId: id(8), action: 'learning.cloneVersion', courseId: id(4),
   parameters: { versionId: id(5), sourceRevision: 'a'.repeat(64), title: 'A new governed draft' }, reason: 'Reviewed the source and its policies' };
 const apply = { operation: 'apply', commandId: id(7), expectedDigest: 'b'.repeat(64) };
+const create = { ...preview, action: 'learning.createCourse', parameters: { versionId: id(5),
+  course: { title: 'New global course', description: null, category: null, estimatedDurationMinutes: 60, trainingTypeId: null },
+  version: { title: 'First draft', description: 'Human entered description\nSecond line' } } };
+const created = { commandId: id(7), action: 'learning.createCourse', courseId: id(4), versionId: id(5), versionNumber: 1,
+  status: 'draft', courseStatus: 'draft', currentVersionId: null, contentStandard: 'comprehensive', sourceRevision: 'c'.repeat(64),
+  appliedAt: '2026-09-11T15:00:00Z', replayed: false };
+
+test('creation accepts only human draft fields and rejects state, tenancy, source and approval injection', () => {
+  assert.deepEqual(parseAuthoringOperation(create), create);
+  for (const parameters of [{ ...create.parameters, sourceRevision: 'a'.repeat(64) },
+    { ...create.parameters, course: { ...create.parameters.course, organizationId: id(1) } },
+    { ...create.parameters, version: { ...create.parameters.version, aiReviewedAt: 'now' } },
+    { ...create.parameters, version: { ...create.parameters.version, contentStandard: 'legacy' } },
+    { ...create.parameters, course: { ...create.parameters.course, estimatedDurationMinutes: 0 } },
+    { ...create.parameters, course: { ...create.parameters.course, title: 'Control\u0085title' } },
+    { ...create.parameters, version: { ...create.parameters.version, description: 'https://example.test?token=private' } }]) {
+    assert.equal(validCourseCreation(parameters), false); assert.throws(() => parseAuthoringOperation({ ...create, parameters }));
+  }
+  assert.throws(() => parseAuthoringOperation({ ...create, courseId: create.parameters.versionId }));
+});
+test('creation preview projection binds absence and the complete new draft state to the reviewed request', () => {
+  const value = { commandId: id(7), action: create.action, courseId: create.courseId, reason: create.reason, previewDigest: 'b'.repeat(64), expiresAt: '2026-09-11T15:05:00Z',
+    before: { courseId: id(4), versionId: id(5), exists: false }, after: { courseId: id(4), versionId: id(5), courseStatus: 'draft', status: 'draft',
+      versionNumber: 1, title: create.parameters.version.title, currentVersionId: null, aiReviewRequired: false, contentStandard: 'comprehensive' } };
+  assert.deepEqual(projectAuthoringResult(value, create), value);
+  for (const after of [{ ...value.after, status: 'published' }, { ...value.after, title: 'Other title' }, { ...value.after, currentVersionId: id(5) },
+    { ...value.after, contentStandard: 'legacy' }, { ...value.after, sourceVersionId: id(9) }]) assert.throws(() => projectAuthoringResult({ ...value, after }, create));
+});
+test('creation result rejects fake publication, missing revision and wrong recovery receipt', () => {
+  assert.deepEqual(projectAuthoringResult(created, apply), created);
+  for (const value of [{ ...created, sourceRevision: null }, { ...created, courseStatus: 'published' }, { ...created, versionNumber: 2 }])
+    assert.throws(() => projectAuthoringResult(value, apply));
+  const status = { operation: 'creationStatus', courseId: id(4), versionId: id(5), requestId: id(8) };
+  assert.deepEqual(projectAuthoringResult({ status: 'applied', result: created }, status), { status: 'applied', result: created });
+  assert.deepEqual(projectAuthoringResult({ status: 'absent', result: null }, status), { status: 'absent', result: null });
+  assert.throws(() => projectAuthoringResult({ status: 'applied', result: { ...created, versionId: id(9) } }, status));
+  assert.throws(() => projectAuthoringResult({ status: 'applied', result: { ...created, replayed: true } }, status));
+});
+test('creation options and receipt reads retain fresh mapped authority and closed bounded results', async () => {
+  const options = { operation: 'creationOptions', offset: 0 };
+  const optionsValue = { trainingTypes: [{ id: id(9), label: 'Actual native training type' }], nextOffset: null };
+  const f = fixture({ result: optionsValue });
+  assert.deepEqual(await (await f.handler(request(options))).json(), optionsValue);
+  assert.equal(f.calls.at(-1).body.p_actor, id(2)); assert.equal(f.calls.at(-1).body.p_offset, 0);
+  assert.throws(() => projectAuthoringResult({ ...optionsValue, nextOffset: 200 }, options));
+  assert.throws(() => projectAuthoringResult({ trainingTypes: Array(101).fill(optionsValue.trainingTypes[0]), nextOffset: null }, options));
+  assert.equal((await fixture({ profile: { id: id(2), role: 'employee', is_active: true } }).handler(request(options))).status, 403);
+  const recovery = fixture({ result: { status: 'applied', result: created } });
+  const op = { operation: 'creationStatus', courseId: id(4), versionId: id(5), requestId: id(8) };
+  assert.deepEqual(await (await recovery.handler(request(op))).json(), { status: 'applied', result: created });
+  assert.equal(recovery.calls.at(-1).body.p_request_id, id(8));
+});
 test('draft patch size counts actual prose spaces at the same 24KiB boundary as SQL', () => {
   const patch = { version: { title: 't'.repeat(300), description: ' '.repeat(12000) },
     blocks: [{ blockId: id(80), content: 'y'.repeat(12000), title: '' }] };

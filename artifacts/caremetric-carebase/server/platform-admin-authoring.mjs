@@ -1,10 +1,11 @@
 import { AdminError, authorizePlatformAdmin, UUID } from './platform-admin-auth.mjs';
 import { createHash } from 'node:crypto';
 import { validStructureChanges } from '../../../supabase/functions/_shared/learningStructure.ts';
+import { validCourseCreation, validCreationOptions } from '../../../supabase/functions/_shared/learningCreation.ts';
 
 const SHA = /^[0-9a-f]{64}$/;
 const EXCLUDED_SOURCE = /([?&](token|access_token|signature|sig|key|policy|jwt|auth|h|hdnts|hdnea|key-pair-id|api_key|apikey|x-amz-[a-z-]+|x-goog-[a-z-]+)=|"(access_?token|refresh_?token|service_?role_?key|authorization|password|client_?secret|storage_?(path|bucket)|video_?url|playback_?(url|token)|signed_?url|api_?key|token|secret|secret_?key|signing_?secret)"\s*:)/i;
-const actions = ['learning.cloneVersion', 'learning.publishVersion', 'learning.patchDraft', 'learning.reviewDraft', 'learning.editStructure'];
+const actions = ['learning.cloneVersion', 'learning.publishVersion', 'learning.patchDraft', 'learning.reviewDraft', 'learning.editStructure', 'learning.createCourse'];
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exact = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
 const string = (value, min, max) => typeof value === 'string' && value === value.trim() && value.length >= min && value.length <= max && !/[\x00-\x1f\x7f]/.test(value);
@@ -26,9 +27,15 @@ export function validDraftPatch(value) {
   return !EXCLUDED_SOURCE.test(JSON.stringify(value));
 }
 export function parseAuthoringOperation(value) {
+  if (exact(value, ['operation', 'offset']) && value.operation === 'creationOptions' && Number.isSafeInteger(value.offset) && value.offset >= 0 && value.offset <= 10000) return value;
+  if (exact(value, ['operation', 'courseId', 'versionId', 'requestId']) && value.operation === 'creationStatus'
+    && uuid(value.courseId) && uuid(value.versionId) && uuid(value.requestId)) return value;
   if (exact(value, ['operation', 'courseId', 'versionId']) && value.operation === 'source' && uuid(value.courseId) && uuid(value.versionId)) return value;
   if (exact(value, ['operation', 'courseId']) && value.operation === 'inspect' && uuid(value.courseId)) return value;
   if (exact(value, ['operation', 'commandId', 'expectedDigest']) && value.operation === 'apply' && uuid(value.commandId) && sha(value.expectedDigest)) return value;
+  if (exact(value, ['operation', 'requestId', 'action', 'courseId', 'parameters', 'reason']) && value.operation === 'preview'
+    && uuid(value.requestId) && value.action === 'learning.createCourse' && uuid(value.courseId) && string(value.reason, 10, 500)
+    && validCourseCreation(value.parameters) && value.parameters.versionId.toLowerCase() !== value.courseId.toLowerCase()) return value;
   if (exact(value, ['operation', 'requestId', 'action', 'courseId', 'parameters', 'reason']) && value.operation === 'preview'
     && uuid(value.requestId) && actions.includes(value.action) && uuid(value.courseId) && string(value.reason, 10, 500)
     && exact(value.parameters, ['versionId', 'sourceRevision', ...(value.action === 'learning.cloneVersion' ? ['title']
@@ -55,6 +62,18 @@ export function projectAuthoringResult(value, op) {
     return { ...projected, status: row.status, title: row.title, versionNumber: row.versionNumber };
   };
   check(object(value));
+  if (op.operation === 'creationOptions') {
+    check(validCreationOptions(value) && (value.nextOffset === null || value.nextOffset === op.offset + 100));
+    return { trainingTypes: value.trainingTypes.map(row => ({ id: row.id, label: row.label })), nextOffset: value.nextOffset };
+  }
+  if (op.operation === 'creationStatus') {
+    check(exact(value, ['status', 'result']));
+    if (value.status === 'absent') { check(value.result === null); return { status: 'absent', result: null }; }
+    check(value.status === 'applied' && object(value.result) && value.result.action === 'learning.createCourse'
+      && value.result.courseId?.toLowerCase() === op.courseId.toLowerCase() && value.result.versionId?.toLowerCase() === op.versionId.toLowerCase()
+      && value.result.replayed === false);
+    return { status: 'applied', result: projectAuthoringResult(value.result, { operation: 'apply', commandId: value.result.commandId }) };
+  }
   if (op.operation === 'source') {
     check(value.courseId?.toLowerCase() === op.courseId.toLowerCase() && value.versionId?.toLowerCase() === op.versionId.toLowerCase()
       && typeof value.payload === 'string' && Buffer.byteLength(value.payload) <= 2000000 && sha(value.sourceRevision)
@@ -77,6 +96,15 @@ export function projectAuthoringResult(value, op) {
   if (op.operation === 'preview') {
     check(value.courseId.toLowerCase() === op.courseId.toLowerCase() && value.action === op.action && value.reason === op.reason
       && sha(value.previewDigest) && typeof value.expiresAt === 'string' && Number.isFinite(Date.parse(value.expiresAt)));
+    if (op.action === 'learning.createCourse') {
+      const before = { courseId: value.courseId, versionId: op.parameters.versionId.toLowerCase(), exists: false };
+      const after = { courseId: value.courseId, versionId: op.parameters.versionId.toLowerCase(), courseStatus: 'draft', status: 'draft',
+        versionNumber: 1, title: op.parameters.version.title, currentVersionId: null, aiReviewRequired: false, contentStandard: 'comprehensive' };
+      for (const [received, expected] of [[value.before, before], [value.after, after]]) check(exact(received, Object.keys(expected))
+        && Object.entries(expected).every(([key, expectedValue]) => received[key] === expectedValue));
+      return { commandId: value.commandId, courseId: value.courseId, action: value.action, reason: value.reason,
+        previewDigest: value.previewDigest, expiresAt: value.expiresAt, before, after };
+    }
     return { commandId: value.commandId, courseId: value.courseId, action: value.action, reason: value.reason,
       previewDigest: value.previewDigest, expiresAt: value.expiresAt, before: state(value.before), after: state(value.after) };
   }
@@ -84,9 +112,13 @@ export function projectAuthoringResult(value, op) {
     && Number.isSafeInteger(value.versionNumber) && value.versionNumber > 0 && typeof value.replayed === 'boolean'
     && typeof value.appliedAt === 'string' && Number.isFinite(Date.parse(value.appliedAt)));
   const edit = ['learning.patchDraft', 'learning.reviewDraft', 'learning.editStructure'].includes(value.action);
+  const creation = value.action === 'learning.createCourse';
+  if (creation) check(value.versionNumber === 1 && value.status === 'draft' && value.courseStatus === 'draft'
+    && value.currentVersionId === null && value.contentStandard === 'comprehensive' && sha(value.sourceRevision));
   if (edit) check(value.status === 'draft' && sha(value.sourceRevision));
   return { commandId: value.commandId, courseId: value.courseId, action: value.action, versionId: value.versionId,
-    ...(edit ? { sourceRevision: value.sourceRevision } : {}),
+    ...(edit || creation ? { sourceRevision: value.sourceRevision } : {}),
+    ...(creation ? { courseStatus: 'draft', currentVersionId: null, contentStandard: 'comprehensive' } : {}),
     versionNumber: value.versionNumber, status: value.status, appliedAt: value.appliedAt, replayed: value.replayed };
 }
 
@@ -104,6 +136,8 @@ export function createLearningAuthoringHandler({ config, enabled = false, create
       const authority = { p_actor: nativeId, p_hub_user: actor.user_id, p_hub_session: actor.session_id,
         p_session_started_at: actor.session_started_at, p_assurance_expires_at: actor.assurance_expires_at, p_authentication_method: authenticationMethod };
       const calls = {
+        creationOptions: ['get_learning_creation_options', { p_offset: op.offset }],
+        creationStatus: ['get_learning_creation_status', { p_course_id: op.courseId, p_version_id: op.versionId, p_request_id: op.requestId }],
         source: ['get_learning_authoring_source', { p_course_id: op.courseId, p_version_id: op.versionId }],
         inspect: ['inspect_learning_authoring_course', { p_course_id: op.courseId }],
         preview: ['preview_learning_authoring_command', { p_request_id: op.requestId, p_action: op.action, p_course_id: op.courseId, p_parameters: op.parameters, p_reason: op.reason }],
