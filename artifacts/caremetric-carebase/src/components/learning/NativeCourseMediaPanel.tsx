@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useCourseMediaContext, useFinishCourseMedia, callCourseMedia } from "@/hooks/useCourseMedia";
 import { mediaMime, parseMediaOperation, projectMediaStage, type MediaUpload } from "../../../../../supabase/functions/_shared/courseMediaProtocol";
 import { errorText } from "@/lib/errorText";
+import { sha256File } from "@/lib/courseMediaHash";
 
 export function NativeCourseMediaPanel({ versionId, blockId, type, locked = false }: { versionId: string; blockId: string; type: "pdf" | "video"; locked?: boolean }) {
   const context = useCourseMediaContext(versionId, blockId);
@@ -20,7 +21,7 @@ export function NativeCourseMediaPanel({ versionId, blockId, type, locked = fals
     try {
       if (file.size < 1 || file.size > (type === "pdf" ? 26_214_400 : 104_857_600)) throw new Error("The file exceeds this media type’s size limit.");
       if (!mediaMime(file.type) || (type === "pdf") !== (file.type === "application/pdf")) throw new Error("Choose a PDF, MP4 or WebM file.");
-      const sha = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()))).map(value => value.toString(16).padStart(2, "0")).join("");
+      const sha = await sha256File(file);
       if (!request.current) request.current = parseMediaOperation({ operation: "media.upload", requestId: crypto.randomUUID(), versionId, blockId,
         sourceRevision: context.data.sourceRevision, reason: reason.trim(), fileName: file.name.normalize("NFC").trim(), mimeType: file.type, sourceSha256: sha, sourceBytes: file.size }) as MediaUpload;
       const result = projectMediaStage(await callCourseMedia(request.current, file), request.current);
@@ -30,7 +31,11 @@ export function NativeCourseMediaPanel({ versionId, blockId, type, locked = fals
         setMessage("This upload was already attached. Its saved receipt has been recovered.");
       } else setMessage("Original bytes are verified. Review the saved upload below, then attach it to this draft.");
       await context.refetch();
-    } catch (cause) { setError(errorText(cause)); await context.refetch(); }
+    } catch (cause) {
+      const status = typeof cause === "object" && cause !== null && "status" in cause ? (cause as { status?: unknown }).status : null;
+      if (status === 404 || status === 409 || status === 410) request.current = null;
+      setError(errorText(cause)); await context.refetch();
+    }
     finally { setPending(false); }
   }
   return <section className="mt-3 space-y-2 rounded border p-3" aria-label="Course media">

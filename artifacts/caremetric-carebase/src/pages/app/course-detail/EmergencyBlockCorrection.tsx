@@ -42,7 +42,7 @@ export function EmergencyBlockCorrection({ block }: { block: CourseBlock }) {
   const reasonTooShort = reason.trim().length < MIN_REASON_LENGTH;
   const titleChanged = title.trim().length > 0 && title.trim() !== (originalBlock.title ?? "");
   const contentChanged = content !== originalContent;
-  const nothingToChange = title.trim().length === 0 || (!titleChanged && !contentChanged);
+  const nothingToChange = !titleChanged && !contentChanged;
 
   if (!open) {
     return (

@@ -9,8 +9,11 @@ import { MediaError, type MediaMime } from "./courseMediaProtocol.ts";
 export function mediaSignatureMatches(prefix: Uint8Array, mime: MediaMime): boolean {
   const ascii = new TextDecoder("latin1").decode(prefix);
   if (mime === "application/pdf") return /^%PDF-[12]\.\d/.test(ascii);
-  if (mime === "video/mp4") return prefix.byteLength >= 16 && ascii.slice(4, 8) === "ftyp"
-    && new DataView(prefix.buffer, prefix.byteOffset, prefix.byteLength).getUint32(0) >= 16;
+  if (mime === "video/mp4") {
+    if (prefix.byteLength < 16 || ascii.slice(4, 8) !== "ftyp") return false;
+    const view = new DataView(prefix.buffer, prefix.byteOffset, prefix.byteLength); const size = view.getUint32(0);
+    return size >= 16 || size === 1 && prefix.byteLength >= 24 && view.getBigUint64(8) >= 24n;
+  }
   return prefix.length >= 16 && prefix[0] === 0x1a && prefix[1] === 0x45 && prefix[2] === 0xdf && prefix[3] === 0xa3
     && ascii.includes("webm");
 }

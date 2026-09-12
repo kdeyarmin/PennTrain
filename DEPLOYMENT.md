@@ -1126,7 +1126,8 @@ course packages retain their existing readers and history.
 
 Deploy the reviewed `course-media` Edge worker with `verify_jwt=true` and the
 updated `generate-course-video`, `check-course-video-status` and
-`poll-heygen-video-statuses` sources together with migration235550 and the native
+`poll-heygen-video-statuses` sources together with migration
+`20260911235550_immutable_course_media.sql` and the native
 web bundle. Drain the old generation writers before applying changed RPC
 signatures, using the maximum invocation duration of the hosted plan. No live
 upload or generation is part of deployment verification.

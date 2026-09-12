@@ -35,3 +35,18 @@ it('retains request identity after uncertainty and never treats malformed stage 
  const first=h.call.mock.calls[0][0];(button('Upload for review').props.onClick as ()=>void)();await vi.waitFor(()=>expect(h.state[2]).toBe(false));
  expect(h.call.mock.calls[1][0]).toEqual(first);expect(h.finish).not.toHaveBeenCalled();expect(text(render())).toContain('Invalid course media response');
 });
+
+for (const status of [404,409,410,503]) it(`uses safe upload identity recovery after HTTP ${status}`,async()=>{
+ choose(new File(['%PDF-1.7 synthetic'],'Original.pdf',{type:'application/pdf'}));
+ h.call.mockRejectedValue(Object.assign(new Error('Synthetic upload outcome'),{status}));
+ (button('Upload for review').props.onClick as ()=>void)();
+ await vi.waitFor(()=>expect(h.state[2]).toBe(false));expect(h.call).toHaveBeenCalledTimes(1);
+ const first=h.call.mock.calls[0][0];
+ h.context.data={...(h.context.data as object),sourceRevision:'b'.repeat(64)};
+ (button('Upload for review').props.onClick as ()=>void)();
+ await vi.waitFor(()=>expect(h.state[2]).toBe(false));expect(h.call).toHaveBeenCalledTimes(2);
+ const second=h.call.mock.calls[1][0];
+ if(status===503){expect(second).toEqual(first);}
+ else {expect(second.requestId).not.toBe(first.requestId);expect(second.sourceRevision).toBe('b'.repeat(64));}
+ expect(h.finish).not.toHaveBeenCalled();
+});

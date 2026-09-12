@@ -236,6 +236,11 @@ grant insert(id,course_version_id,organization_id,block_type,sort_order,title,bo
 create function app_private.guard_course_media_attachment() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin
+  if tg_op = 'UPDATE' and old.media_asset_id is not null and
+    (new.id is distinct from old.id or new.course_version_id is distinct from old.course_version_id
+      or new.organization_id is distinct from old.organization_id or new.block_type is distinct from old.block_type) then
+    raise exception 'The identity of a block with attached course media is immutable.' using errcode='42501';
+  end if;
   if new.media_asset_id is not null and not exists(select 1 from app_private.course_media_assets a
     join public.course_versions v on v.course_id=a.course_id where a.id=new.media_asset_id and v.id=new.course_version_id
       and a.organization_id is not distinct from v.organization_id and a.organization_id is not distinct from new.organization_id

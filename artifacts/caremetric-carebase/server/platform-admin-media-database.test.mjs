@@ -111,6 +111,20 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  const clone=sql(`select (app_private.clone_course_version_core('${actor}','${version}','${course}',null,2,'Cloned media draft')).id`);
  assert.equal(sql(`select media_asset_id from public.course_blocks where course_version_id='${clone}'`),receipt.assetId,'clone shares immutable course asset');
  assert.equal(sql(`select count(*) from public.course_assignments where course_version_id='${clone}'`),'0','clone copies no learner history');
+ // Prove the trigger itself rejects attached-block identity changes. This uses
+ // the privileged fixture connection so a missing column grant cannot mask a
+ // broken trigger. Each rejected statement rolls back in its subtransaction.
+ for(const assignment of [`id='${randomUUID()}'`,`course_version_id='${clone}'`,`organization_id='${randomUUID()}'`,"block_type='video'"]){
+  sql(`do $$ begin
+   begin
+    update public.course_blocks set ${assignment} where id='${block}';
+    raise exception 'Attached block identity update was accepted';
+   exception when insufficient_privilege then
+    if position('identity of a block' in sqlerrm)=0 then raise; end if;
+   end;
+  end $$;`);
+ }
+ assert.equal(sql(`select media_asset_id from public.course_blocks where id='${block}'`),receipt.assetId,'identity attempts preserve the original attached artifact');
  assert.equal(sql(`select app_private.publish_course_version_core('${version}')`),version,'shared native publisher accepts verified PDF');
  authority.session_id=randomUUID();const observed=await ok({operation:'media.status',operationId:stage.operationId});assert.deepEqual(observed.result,receipt);
  assert.equal((await send({operation:'media.finish',operationId:stage.operationId})).status,403,'cross-session receipt recovery is read-only');

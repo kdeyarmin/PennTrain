@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `58aa26b08a93b10ab343039542b3df6dc579ddc2` (2026-09-12), retaining the released immutable package, provider, operational configuration and distribution source. N19 adds course-owned media in an isolated candidate; application and native database permission gates passed before this integration. Final combined database, actual Storage, concurrency and browser gates remain required before release.
+**Last verified against main:** `58aa26b08a93b10ab343039542b3df6dc579ddc2` (2026-09-12), retaining the released immutable package, provider, operational configuration and distribution source. N19 review fixes add database identity guards, race-safe script writes, typed metadata failures, retry identity tests and bounded 100 MiB hashing coverage in an isolated candidate; application and native database permission gates passed before this integration. Final combined database, actual Storage, concurrency and browser gates remain required before release.
 
 **Owner:** the owner-operator (single person, platform admin)
 

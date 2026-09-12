@@ -27,15 +27,26 @@ export async function parseMediaHttpRequest(request: Request): Promise<MediaOper
   const mime = request.headers.get("content-type"); const encoded = request.headers.get("x-caremetric-media-request");
   if (mediaMime(mime)) {
     if (!encoded || encoded.length > 8192 || !/^[A-Za-z0-9_-]+$/.test(encoded)) throw new MediaError(400, "Media metadata is required.");
-    const bytes = Uint8Array.from(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")), value => value.charCodeAt(0));
-    const operation = parseMediaOperation(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
+    let operation: MediaOperation;
+    try {
+      const bytes = Uint8Array.from(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")), value => value.charCodeAt(0));
+      operation = parseMediaOperation(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
+    } catch {
+      throw new MediaError(400, "Invalid media upload metadata.");
+    }
     if (encodeMediaRequest(operation) !== encoded || operation.operation !== "media.upload" || operation.mimeType !== mime) throw new MediaError(400, "Invalid media upload metadata.");
     const length = request.headers.get("content-length");
     if (length !== null && (!/^\d+$/.test(length) || Number(length) !== operation.sourceBytes)) throw new MediaError(400, "Media length differs from the reviewed upload.");
     return operation;
   }
   if (mime?.split(";", 1)[0] !== "application/json" || encoded !== null) throw new MediaError(415, "Unsupported course media content type.");
-  const operation = parseMediaOperation(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await mediaMetadataBody(request))));
+  let operation: MediaOperation;
+  try {
+    operation = parseMediaOperation(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await mediaMetadataBody(request))));
+  } catch (error) {
+    if (error instanceof MediaError) throw error;
+    throw new MediaError(400, "Invalid media metadata.");
+  }
   if (operation.operation === "media.upload") throw new MediaError(415, "Send media as its original binary bytes.");
   return operation;
 }

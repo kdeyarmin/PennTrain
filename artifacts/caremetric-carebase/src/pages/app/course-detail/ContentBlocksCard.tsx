@@ -224,6 +224,8 @@ export function ContentBlocksCard({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground shrink-0"
+                    disabled={b.block_type === "video" && !!b.media_asset_id}
+                    title={b.block_type === "video" && b.media_asset_id ? "Reviewed media prevents script regeneration" : undefined}
                     onClick={() => onRegenerateBlock(b)}
                     aria-label="Regenerate with AI"
                   >
