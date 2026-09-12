@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `f37723ca6bb14190952c9f18d55d467c7850b65e` (2026-09-12), integrating released immutable package ingestion N15, provider N16 and distribution N18. N17 exact0cb full CI34660580058 passed every lane before this integration, including actual configuration concurrency and expiry tests. The combined package/configuration runtime preserves both capability families and current native writer ownership. Final combined CI remains required; N17 SQL bytes are unchanged and no production configuration or jobs are changed.
+**Last verified against main:** `47b3c5a7dce8130a80e272bfe57723047a062c20` (2026-09-12), integrating released immutable package ingestion N15, provider N16 and distribution N18. N17 exact0cb full CI34660580058 passed every lane before this integration, including actual configuration concurrency and expiry tests. The combined package/configuration runtime preserves both capability families and current native writer ownership. All 71 combined configuration/admin/package/runtime tests pass locally. Final combined CI remains required; N17 SQL bytes are unchanged and no production configuration or jobs are changed.
 
 **Owner:** the owner-operator (single person, platform admin)
 
