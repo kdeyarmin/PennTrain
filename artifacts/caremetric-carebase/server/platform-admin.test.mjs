@@ -213,6 +213,12 @@ test("capabilities require the same authorization and report only an actual depl
   }
   const withRevision = createPlatformAdminHandler({ config: config({ RAILWAY_GIT_COMMIT_SHA: "ABCDEF01".repeat(5) }), fetcher: f.fetcher });
   assert.equal((await (await withRevision(request({ operation: "capabilities" }))).json()).data.sourceRevision, "abcdef01".repeat(5));
+  const configured = createPlatformAdminHandler({ config: config({ CAREMETRIC_ADMIN_COMMANDS_ENABLED: "true" }), fetcher: f.fetcher });
+  const advertised = (await (await configured(request({ operation: "capabilities" }))).json()).data.operations;
+  assert.equal(advertised.includes("operations.config.v1"), true);
+  assert.equal(data.operations.includes("operations.config.v1"), false);
+  f.state.profile.is_active = false;
+  assert.equal((await configured(request({ operation: "capabilities" }))).status, 403);
 });
 
 test("organization and account directories project intentional account fields without clinical or Auth data", async () => {
