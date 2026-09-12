@@ -36312,6 +36312,19 @@ export type Database = {
         Args: { p_command_id: string; p_expected_digest: string }
         Returns: Json
       }
+      apply_operational_configuration_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       apply_scim_change: {
         Args: {
           p_connection_id: string
@@ -39024,6 +39037,31 @@ export type Database = {
         Args: { p_organization_id?: string }
         Returns: Json
       }
+      get_operational_configuration: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+          p_target: Json
+        }
+        Returns: Json
+      }
+      get_operational_configuration_command_status: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       get_operations_command_center: {
         Args: { p_facility_id: string }
         Returns: Json
@@ -40096,6 +40134,19 @@ export type Database = {
         Args: { p_course_id: string; p_offset: number }
         Returns: Json
       }
+      list_operational_configuration_commands: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_offset?: number
+          p_session_started_at: string
+          p_target: Json
+        }
+        Returns: Json
+      }
       list_plan_of_correction_versions: {
         Args: { p_violation_id: string }
         Returns: {
@@ -40808,6 +40859,22 @@ export type Database = {
           p_body_template: string
           p_subject_template: string
           p_variables?: Json
+        }
+        Returns: Json
+      }
+      preview_operational_configuration_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_configuration_revision: string
+          p_hub_session: string
+          p_hub_user: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: Json
         }
         Returns: Json
       }
