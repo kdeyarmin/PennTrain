@@ -17,15 +17,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/review-evidence
-          gh api repos/kdeyarmin/PennTrain/actions/jobs/103575074804/logs > /tmp/job.log
+          gh api --allow-escape-sequences repos/kdeyarmin/PennTrain/actions/jobs/103575074804/logs > /tmp/job.log
           python3 - <<'PY'
           from pathlib import Path
-          text=Path('/tmp/job.log').read_text()
-          start=text.index('Immutable course media Storage and native authorization') if 'Immutable course media Storage and native authorization' in text else 0
-          lines=text[start:].splitlines()
+          import re
+          text=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',Path('/tmp/job.log').read_text())
+          lines=text.splitlines()
           selected=set()
           for i,line in enumerate(lines):
-            if any(term in line for term in ['not ok','AssertionError','ERR_ASSERTION','error:','Error:','failureType','expected:','actual:','Subtest:','exit code 1']):
+            if any(term in line for term in ['not ok','AssertionError','ERR_ASSERTION','error:','Error:','failureType','expected:','actual:','exit code 1']):
               selected.update(range(max(0,i-8),min(len(lines),i+28)))
           Path('/tmp/review-evidence/media-failure.txt').write_text('\n'.join(lines[i] for i in sorted(selected))[-60000:])
           PY
