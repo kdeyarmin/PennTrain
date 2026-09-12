@@ -18,6 +18,7 @@ export interface HeygenPollableBlock {
   block_type: string;
   title: string | null;
   video_url: string | null;
+  media_asset_id?: string | null;
   body: (Record<string, unknown> & { heygen?: HeygenJobState }) | null;
 }
 export interface HeygenPollResult { status: string; video_url?: string; error?: string }
@@ -38,7 +39,7 @@ async function resolveState(worker: SupabaseClient, block: HeygenPollableBlock,
   const { data, error } = await worker.rpc("resolve_course_video_generation", {
     p_block_id: block.id, p_video_id: job?.video_id, p_attempt_id: job?.attempt_id ?? null,
     p_expected_source: { version: block.course_version_id, type: block.block_type,
-      organization_id: block.organization_id, title: block.title, body, video_url: block.video_url },
+      organization_id: block.organization_id, title: block.title, body, video_url: block.video_url, ...(block.media_asset_id ? { media_asset_id: block.media_asset_id } : {}) },
     p_status: status, p_video_url: videoUrl ?? null, p_error: failure ?? null,
   });
   if (error || !data) return { status: "error", error: "The current video status could not be saved. Please try again." };

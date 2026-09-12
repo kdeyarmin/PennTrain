@@ -52,16 +52,17 @@ export interface GenerateCourseVideoPayload {
   title?: string;
   replaceExisting?: boolean;
   expectedVideoUrl?: string | null;
+  expectedMediaAssetId?: string | null;
 }
 
 export function useGenerateCourseVideo() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ requestId, courseBlockId, avatarId, voiceId, script, title, replaceExisting, expectedVideoUrl }: GenerateCourseVideoPayload) => {
+    mutationFn: async ({ requestId, courseBlockId, avatarId, voiceId, script, title, replaceExisting, expectedVideoUrl, expectedMediaAssetId }: GenerateCourseVideoPayload) => {
       const { data, error } = await supabase.functions.invoke<{ success?: boolean; video_id?: string; status?: string; error?: string }>(
         "generate-course-video",
         { body: { request_id: requestId, course_block_id: courseBlockId, avatar_id: avatarId, voice_id: voiceId, script, title,
-          replace_existing: replaceExisting === true, expected_video_url: expectedVideoUrl ?? null } },
+          replace_existing: replaceExisting === true, expected_video_url: expectedVideoUrl ?? null, expected_media_asset_id: expectedMediaAssetId ?? null } },
       );
       if (error) throw await edgeFunctionError(error) ?? error;
       if (!data || data.success === false) throw new Error(data?.error ?? "Failed to start video generation");

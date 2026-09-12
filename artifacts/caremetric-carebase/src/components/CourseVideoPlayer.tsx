@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Lock } from "lucide-react";
 import { EMPTY_VIDEO_STATE, type VideoBlockState } from "@/lib/videoWatchState";
+import { useCourseMediaUrl } from "@/hooks/useCourseMedia";
 import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
 
 // "Watched through" tolerates outros/rounding: 95% of duration or the ended event.
@@ -22,6 +23,7 @@ function formatSeconds(total: number): string {
 
 interface CourseVideoPlayerProps {
   src: string;
+  media?: { versionId: string; blockId: string; assetId: string };
   /** Persisted state for this block; undefined for a first watch. */
   state: VideoBlockState | undefined;
   /**
@@ -40,8 +42,19 @@ interface CourseVideoPlayerProps {
  * the compliance watch gate. Server-side completion integrity still rests on
  * complete_course_assignment(); this keeps honest employees honest and their place saved.
  */
-export function CourseVideoPlayer({ src, state, gated, onChange }: CourseVideoPlayerProps) {
-  const resolved = useCourseVideoUrl(src);
+export function CourseVideoPlayer(props: CourseVideoPlayerProps) {
+  return props.media ? <OwnedCourseVideoPlayer {...props} /> : <LegacyCourseVideoPlayer {...props} />;
+}
+function OwnedCourseVideoPlayer(props: CourseVideoPlayerProps) {
+  const resolved = useCourseMediaUrl(props.media?.versionId, props.media?.blockId, props.media?.assetId);
+  return <CourseVideoPlayerCore {...props} resolved={resolved} />;
+}
+function LegacyCourseVideoPlayer(props: CourseVideoPlayerProps) {
+  const resolved = useCourseVideoUrl(props.src);
+  return <CourseVideoPlayerCore {...props} resolved={resolved} />;
+}
+function CourseVideoPlayerCore({ src, media, state, gated, onChange, resolved }: CourseVideoPlayerProps & { resolved: ReturnType<typeof useCourseVideoUrl> }) {
+  const sourceIdentity = media?.assetId ?? src;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stateRef = useRef<VideoBlockState>({ ...(state ?? EMPTY_VIDEO_STATE) });
   const restoredRef = useRef(false);
@@ -67,7 +80,7 @@ export function CourseVideoPlayer({ src, state, gated, onChange }: CourseVideoPl
     // Intentionally only on src change: `state` also updates as we report our own
     // changes upward, and re-syncing from those echoes would fight the playhead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src]);
+  }, [sourceIdentity]);
 
   // A re-signed URL is the same video at the same place. Clearing the one-shot restore guard is
   // what lets loadedmetadata put the playhead back instead of starting the lesson over.

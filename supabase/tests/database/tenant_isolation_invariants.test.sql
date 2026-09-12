@@ -109,6 +109,13 @@ select is(
 -- to read it, it needs a policy and comes off this list.
 create temporary table service_role_only_buckets (id text primary key, why text not null);
 insert into service_role_only_buckets values (
+  'course-media',
+  'Immutable course originals, accessed through a current-authorized native worker. '
+  'No browser or administrator receives direct Storage access; the worker checks '
+  'current block/course/actor before issuing a bounded learner link or Hub bytes. '
+  'Attachment additionally requires verified artifact proof and draft CAS. See 20260911235550.'
+);
+insert into service_role_only_buckets values (
   'learning-package-originals',
   'Immutable authored ZIP originals, read and written only by the verified package worker. '
   'No browser, tenant role or platform-admin Storage policy: current-authority RPCs own '

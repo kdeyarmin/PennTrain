@@ -127,6 +127,7 @@ interface RegenerateRequestBody {
 
 interface CourseBlockRow {
   id: string;
+  media_asset_id: string | null;
   block_type: string;
   title: string | null;
   body: Record<string, unknown> | null;
@@ -196,7 +197,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: blockRaw, error: blockError } = await callerClient
     .from("course_blocks")
-    .select("id, block_type, title, body, course_version_id, course_versions(status, ai_generated, course_id, courses(organization_id))")
+    .select("id, block_type, title, body, media_asset_id, course_version_id, course_versions(status, ai_generated, course_id, courses(organization_id))")
     .eq("id", course_block_id)
     .single();
   if (blockError || !blockRaw) return json(req, { error: "course block not found" }, 404);
@@ -207,6 +208,9 @@ Deno.serve(async (req: Request) => {
   }
   if (!["text", "video", "quiz"].includes(block.block_type)) {
     return json(req, { error: `block_type '${block.block_type}' is not supported for AI regeneration` }, 400);
+  }
+  if (block.block_type === "video" && block.media_asset_id) {
+    return json(req, { error: "Detach or replace the reviewed course media before regenerating this video script." }, 409);
   }
 
   // PT-019: per-organization BAA gate, on top of the platform switch above. The course's
@@ -375,13 +379,23 @@ Deno.serve(async (req: Request) => {
     // Clearing video_url/heygen job state: a previously generated video no longer matches the
     // just-revised script, mirroring generate-course-video's own video_url: null reset when a
     // fresh generation job is kicked off.
-    const { error: updateError } = await callerClient
+    // Attachment may have changed while the provider was producing the script.
+    // Compare at the writer, not just the initial read, so a newly attached
+    // immutable video is never paired with a different generated script.
+    const { data: updatedBlock, error: updateError } = await callerClient
       .from("course_blocks")
       .update({ body: { script }, video_url: null })
-      .eq("id", course_block_id);
+      .eq("id", course_block_id)
+      .is("media_asset_id", null)
+      .select("id")
+      .maybeSingle();
     if (updateError) {
       await markFailed(updateError.message);
       return json(req, { error: updateError.message, generation_id: generationId }, 500);
+    }
+    if (!updatedBlock) {
+      await markFailed("The lesson media changed while the script was generated.");
+      return json(req, { error: "The lesson media changed. Review the current attachment before regenerating.", generation_id: generationId }, 409);
     }
   } else {
     const questions = revision.questions;

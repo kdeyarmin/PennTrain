@@ -29,7 +29,7 @@ export function createGenerateCourseVideoHandler({ createClient, getEnv = (name:
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid body");
       body = parsed;
     } catch { return json(req, { error: "Invalid JSON body" }, 400); }
-    const { course_block_id, request_id, avatar_id, voice_id, script, title, replace_existing, expected_video_url } = body;
+    const { course_block_id, request_id, avatar_id, voice_id, script, title, replace_existing, expected_video_url, expected_media_asset_id } = body;
     if (typeof course_block_id !== "string" || !UUID.test(course_block_id)
       || typeof request_id !== "string" || !UUID.test(request_id)
       || typeof avatar_id !== "string" || !avatar_id.trim() || avatar_id.length > 200
@@ -37,6 +37,7 @@ export function createGenerateCourseVideoHandler({ createClient, getEnv = (name:
       || typeof script !== "string" || !script.trim() || script.length > 50000
       || (title !== undefined && (typeof title !== "string" || title.length > 1000))
       || (replace_existing !== undefined && typeof replace_existing !== "boolean")
+      || (expected_media_asset_id !== undefined && expected_media_asset_id !== null && (typeof expected_media_asset_id !== "string" || !UUID.test(expected_media_asset_id)))
       || (expected_video_url !== undefined && expected_video_url !== null && typeof expected_video_url !== "string")) {
       return json(req, { error: "A valid request ID, course block, avatar, voice, and script are required. Reload the page if it was already open." }, 400);
     }
@@ -45,7 +46,7 @@ export function createGenerateCourseVideoHandler({ createClient, getEnv = (name:
     const { data, error: claimError } = await caller.rpc("claim_course_video_generation", {
       p_block_id: course_block_id, p_request_id: request_id,
       p_payload: { type: "avatar", avatar_id, voice_id, script, ...(title === undefined ? {} : { title }) },
-      p_replace_existing: replace_existing === true, p_expected_video_url: expected_video_url ?? null,
+      p_replace_existing: replace_existing === true, p_expected_video_url: expected_video_url ?? null, p_expected_media_asset_id: expected_media_asset_id ?? null,
     });
     if (claimError) {
       const status = claimError.code === "42501" ? 403 : claimError.code === "P0002" ? 404 : claimError.code === "22023" ? 400 : claimError.code === "55000" ? 409 : 503;
