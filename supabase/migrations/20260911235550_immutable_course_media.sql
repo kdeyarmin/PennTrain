@@ -15,7 +15,7 @@ create table app_private.course_media_operations(
   byte_size integer not null check(byte_size between 1 and 104857600),file_name text not null,
   storage_path text not null unique,created_at timestamptz not null default clock_timestamp(),expires_at timestamptz not null,
   committed_at timestamptz,result jsonb,unique(actor_id,principal_id,session_id,request_id),
-  check((committed_at is null)=(result is null)),check(mime_type<>'application/pdf' or byte_size<=26214400)
+  check((committed_at is null)=(result is null)),check(expires_at>created_at),check(mime_type<>'application/pdf' or byte_size<=26214400)
 );
 create index course_media_operations_context on app_private.course_media_operations(actor_id,principal_id,version_id,block_id,created_at desc,id desc);
 create table app_private.course_media_artifacts(
@@ -160,6 +160,7 @@ begin
   if app_private.learning_package_revision(v_version) is distinct from v_revision or app_private.course_media_generation_pending(v_block.id) then
     raise exception 'The draft changed or a video generation is unresolved.' using errcode='40001'; end if;
   if v_row.id is null then
+    if p_expiry<=clock_timestamp() then raise exception 'Current session expired while waiting for the source.' using errcode='28000'; end if;
     insert into app_private.course_media_operations(id,request_id,actor_id,principal_id,session_id,authentication_method,request,
       course_id,version_id,block_id,organization_id,asset_id,source_revision,content_sha256,mime_type,byte_size,file_name,storage_path,expires_at)
     values(v_id,v_request,p_actor,p_principal,p_session,p_method,p_request,v_course,v_version,v_block.id,v_block.organization_id,v_asset,
@@ -275,7 +276,7 @@ create function public.get_native_course_media_read(p_version_id uuid,p_block_id
 language plpgsql security definer set search_path='' as $$
 declare v_profile public.profiles;v_version public.course_versions;v_session uuid;
 begin
-  perform public.current_role();
+  if public.current_role() is null then raise exception 'Current unlocked session required.' using errcode='42501'; end if;
   select p.* into v_profile from public.profiles p join auth.users u on u.id=p.id where p.id=auth.uid() and p.is_active
     and u.deleted_at is null and not coalesce(u.is_anonymous,false) and (u.banned_until is null or u.banned_until<=clock_timestamp()) for share of p,u;
   if not found then raise exception 'Current signed-in account required.' using errcode='42501'; end if;

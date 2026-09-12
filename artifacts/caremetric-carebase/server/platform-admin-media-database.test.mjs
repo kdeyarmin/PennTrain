@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {execFileSync} from 'node:child_process';
+import {execFileSync,spawn} from 'node:child_process';
 import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import test from 'node:test';
 import {createClient} from '@supabase/supabase-js';
@@ -57,6 +57,19 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  const response=await send({operation:'media.read',versionId:version,blockId:block,assetId:receipt.assetId,range:{start:0,end:9}});assert.equal(response.status,206);assert.deepEqual(new Uint8Array(await response.arrayBuffer()),original.slice(0,10));
  const storagePath=sql(`select storage_path from app_private.course_media_assets where id='${receipt.assetId}'`);
  const retained=await native.storage.from('course-media').download(storagePath);assert.equal(retained.error,null);assert.deepEqual(new Uint8Array(await retained.data.arrayBuffer()),original);
+ // A writer holds the version while finish waits. Once the writer commits,
+ // finalization must compare the new source rather than attach a stale upload.
+ const pending=await ok({...upload,requestId:randomUUID(),sourceRevision:saved.sourceRevision});
+ const writer=spawn('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt'],{stdio:['pipe','pipe','pipe']});
+ let output='';const finished=new Promise((resolve,reject)=>{writer.once('error',reject);writer.once('exit',code=>code===0?resolve():reject(new Error('Synthetic source writer failed')));});
+ const held=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Synthetic source lock not reached')),5000);
+  writer.stdout.on('data',chunk=>{output+=String(chunk);if(output.includes('holding-source-lock')){clearTimeout(timer);resolve();}});
+  writer.once('error',error=>{clearTimeout(timer);reject(error);});});
+ writer.stdin.end(`begin;update public.course_versions set title='Concurrent reviewed source' where id='${version}';select 'holding-source-lock';select pg_sleep(0.8);commit;`);
+ await held;assert.equal((await send({operation:'media.finish',operationId:pending.operationId})).status,409);await finished;
+ assert.equal(sql(`select media_asset_id from public.course_blocks where id='${block}'`),receipt.assetId,'waiting finish preserves original media after source drift');
+ const replays=await Promise.all([ok({operation:'media.finish',operationId:stage.operationId}),ok({operation:'media.finish',operationId:stage.operationId})]);
+ assert.deepEqual(replays,[receipt,receipt]);assert.equal(sql(`select count(*) from public.audit_logs where entity_id='${block}' and action='course_media_attached'`),'1');
  const clone=sql(`select (app_private.clone_course_version_core('${actor}','${version}','${course}',null,2,'Cloned media draft')).id`);
  assert.equal(sql(`select media_asset_id from public.course_blocks where course_version_id='${clone}'`),receipt.assetId,'clone shares immutable course asset');
  assert.equal(sql(`select count(*) from public.course_assignments where course_version_id='${clone}'`),'0','clone copies no learner history');

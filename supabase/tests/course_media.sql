@@ -188,5 +188,29 @@ reset role;
 select is((select media_asset_id::text from public.course_blocks where id='23550000-0000-4000-8000-000000000051'),(select value->>'assetId' from media_fixture where label='video_receipt'),'stale provider completion preserves original video asset');
 select ok(app_private.course_media_ready('23550000-0000-4000-8000-000000000051'),'original media remains usable after rejected provider completion');
 select is((select count(*) from app_private.course_media_assets),2::bigint,'all original asset evidence remains retained');
+-- Learner reads are bound to current active organization and published/assigned content.
+select set_config('app.privileged_write','on',true);
+update public.profiles set role='employee' where id='23550000-0000-4000-8000-000000000002';
+select set_config('app.privileged_write','',true);
+set local role authenticated;
+select pg_temp.media_actor(true);
+select throws_ok($$select public.get_native_course_media_read('23550000-0000-4000-8000-000000000030','23550000-0000-4000-8000-000000000050',
+ (select (value->>'assetId')::uuid from media_fixture where label='receipt'))$$,'42501',null,'an unassigned learner cannot read draft media');
+reset role;
+select lives_ok($$select app_private.publish_course_version_core('23550000-0000-4000-8000-000000000030')$$,'native publisher consumes verified PDF and video assets');
+set local role authenticated;
+select pg_temp.media_actor(true);
+select lives_ok($$select public.get_native_course_media_read('23550000-0000-4000-8000-000000000030','23550000-0000-4000-8000-000000000050',
+ (select (value->>'assetId')::uuid from media_fixture where label='receipt'))$$,'current learner can read published global course media');
+select throws_ok($$select public.get_native_course_media_read('23550000-0000-4000-8000-000000000032','23550000-0000-4000-8000-000000000053',
+ (select (value->>'assetId')::uuid from media_fixture where label='receipt'))$$,'42501',null,'learner cannot substitute a foreign tenant version');
+reset role;
+-- current_role returns NULL for a locked SMS account; a PERFORM would ignore it.
+insert into app_private.sms_mfa_accounts(profile_id) values('23550000-0000-4000-8000-000000000001');
+set local role authenticated;
+select pg_temp.media_actor();
+select throws_ok($$select public.get_native_course_media_read('23550000-0000-4000-8000-000000000030','23550000-0000-4000-8000-000000000050',
+ (select (value->>'assetId')::uuid from media_fixture where label='receipt'))$$,'42501',null,'a locked native SMS account cannot read by presenting a different aal claim');
+reset role;
 select * from finish();
 rollback;
