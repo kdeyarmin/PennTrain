@@ -229,7 +229,9 @@ $$;
 revoke insert,update on public.course_blocks from authenticated,service_role;
 grant insert(id,course_version_id,organization_id,block_type,sort_order,title,body,document_id,video_url,created_at),
   update(id,course_version_id,organization_id,block_type,sort_order,title,body,document_id,video_url,created_at)
-  on public.course_blocks to authenticated,service_role;
+  on public.course_blocks to authenticated;
+grant insert(id,course_version_id,organization_id,block_type,sort_order,title,body,document_id,video_url,created_at)
+  on public.course_blocks to service_role;
 create function app_private.guard_course_media_attachment() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin

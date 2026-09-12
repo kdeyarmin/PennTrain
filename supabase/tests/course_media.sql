@@ -6,6 +6,12 @@ select ok(has_column_privilege('authenticated','public.course_blocks','body','UP
 select ok(not has_table_privilege('service_role','app_private.course_media_assets','INSERT'),'asset provenance has no raw service grant');
 select ok(not has_function_privilege('authenticated','public.record_course_media_artifact(uuid,text,integer,text)','EXECUTE'),'browser cannot assert verified bytes');
 select ok(not has_function_privilege('anon','public.get_native_course_media_read(uuid,uuid,uuid)','EXECUTE'),'anonymous media reads denied');
+select ok(not has_any_column_privilege('service_role','public.course_blocks','UPDATE'),'service retains its original INSERT-only block access');
+select ok((select bool_and(has_column_privilege('authenticated','public.course_blocks',column_name,privilege))
+ from unnest(array['id','course_version_id','organization_id','block_type','sort_order','title','body','document_id','video_url','created_at']) column_name
+ cross join unnest(array['INSERT','UPDATE']) privilege),'all historical browser columns retain exactly their authoring commands');
+select ok((select bool_and(has_column_privilege('service_role','public.course_blocks',column_name,'INSERT'))
+ from unnest(array['id','course_version_id','organization_id','block_type','sort_order','title','body','document_id','video_url','created_at']) column_name),'all historical service INSERT columns remain usable');
 insert into public.organizations(id,name,slug,subscription_status) values
  ('23550000-0000-4000-8000-000000000010','Media fixture','media-ingestion-fixture','active'),
  ('23550000-0000-4000-8000-000000000011','Other media fixture','media-ingestion-other','active');
@@ -42,7 +48,7 @@ select is(app_private.learning_source_payload('23550000-0000-4000-8000-000000000
 create temporary table media_fixture(label text primary key,value jsonb);
 grant all on media_fixture to authenticated,service_role;
 create function pg_temp.media_actor(p_trainer boolean default false,p_new_session boolean default false) returns void language sql as $$
- select set_config('request.jwt.claims',jsonb_build_object('role','authenticated','aal','aal2','sub',
+ select set_config('request.jwt.claims',jsonb_build_object('role','authenticated','aal','aal2','iat',extract(epoch from now())::bigint,'sub',
  case when p_trainer then '23550000-0000-4000-8000-000000000002' else '23550000-0000-4000-8000-000000000001' end,
  'session_id',case when p_trainer then '23550000-0000-4000-8000-000000000004' when p_new_session then '23550000-0000-4000-8000-000000000005' else '23550000-0000-4000-8000-000000000003' end)::text,true);
 $$;
@@ -122,5 +128,65 @@ select pg_temp.media_actor();
 select throws_ok($$select public.finish_native_course_media_operation((select (value->>'operationId')::uuid from media_fixture where label='stale'))$$,'40001',null,'source drift prevents replacement after upload');
 reset role;
 select is((select media_asset_id::text from public.course_blocks where id='23550000-0000-4000-8000-000000000050'),(select value->>'assetId' from media_fixture where label='receipt'),'failed CAS preserves prior immutable media');
+
+-- An actual common clone shares immutable course-owned assets, never learner history.
+insert into media_fixture values('clone',to_jsonb(app_private.clone_course_version_core('23550000-0000-4000-8000-000000000001',
+ '23550000-0000-4000-8000-000000000030','23550000-0000-4000-8000-000000000020',null,2,'Cloned media source')));
+select is((select media_asset_id::text from public.course_blocks where course_version_id=(select (value->>'id')::uuid from media_fixture where label='clone') and block_type='pdf'),
+ (select value->>'assetId' from media_fixture where label='receipt'),'clone preserves exact original asset identity');
+select is((select count(*) from public.course_assignments where course_version_id=(select (value->>'id')::uuid from media_fixture where label='clone')),0::bigint,'clone copies no learner assignments');
+set local role authenticated;
+select pg_temp.media_actor();
+select throws_ok($$select public.admin_emergency_update_course_block('23550000-0000-4000-8000-000000000050','Reviewed emergency text correction',p_title=>'Corrected title')$$,
+ '40001',null,'legacy emergency call cannot silently replace attached media');
+reset role;
+insert into media_fixture values('emergency',jsonb_build_object('block',(select to_jsonb(b) from public.course_blocks b where id='23550000-0000-4000-8000-000000000050'),
+ 'source',app_private.learning_package_revision('23550000-0000-4000-8000-000000000030')));
+set local role authenticated;
+select pg_temp.media_actor();
+select lives_ok($$select public.admin_emergency_update_course_block('23550000-0000-4000-8000-000000000050','Reviewed emergency text correction',p_title=>'Corrected title',
+ p_expected_media_asset_id=>(select (value->>'assetId')::uuid from media_fixture where label='receipt'),
+ p_expected_source_revision=>(select value->>'source' from media_fixture where label='emergency'),p_expected_block=>(select value->'block' from media_fixture where label='emergency'))$$,
+ 'emergency text correction uses reviewed block and source CAS');
+select throws_ok($$select public.admin_emergency_update_course_block('23550000-0000-4000-8000-000000000050','Repeated obsolete emergency correction',p_title=>'Another title',
+ p_expected_media_asset_id=>(select (value->>'assetId')::uuid from media_fixture where label='receipt'),
+ p_expected_source_revision=>(select value->>'source' from media_fixture where label='emergency'),p_expected_block=>(select value->'block' from media_fixture where label='emergency'))$$,
+ '40001',null,'stale emergency snapshot cannot overwrite a later correction');
+reset role;
+select is((select media_asset_id::text from public.course_blocks where id='23550000-0000-4000-8000-000000000050'),(select value->>'assetId' from media_fixture where label='receipt'),'text correction preserves original PDF');
+set local role authenticated;
+select pg_temp.media_actor();
+insert into media_fixture values('video_plan',public.prepare_native_course_media_operation(pg_temp.media_request('23550000-0000-4000-8000-000000000042','23550000-0000-4000-8000-000000000051','video/mp4')||'{"fileName":"Original.mp4"}'::jsonb));
+reset role;
+insert into storage.objects(bucket_id,name,metadata) select 'course-media',value->>'storagePath','{"size":128}'::jsonb from media_fixture where label='video_plan';
+set local role service_role;
+select public.record_course_media_artifact((select (value->>'operationId')::uuid from media_fixture where label='video_plan'),repeat('a',64),128,'video/mp4');
+set local role authenticated;
+select pg_temp.media_actor();
+insert into media_fixture values('video_receipt',public.finish_native_course_media_operation((select (value->>'operationId')::uuid from media_fixture where label='video_plan')));
+reset role;
+create function pg_temp.media_generation(p_request uuid,p_replace boolean,p_expected uuid) returns jsonb language sql as $$
+ select public.claim_course_video_generation('23550000-0000-4000-8000-000000000051',p_request,
+ '{"type":"avatar","avatar_id":"synthetic_avatar","voice_id":"synthetic_voice","script":"Synthetic narration"}',p_replace,null,p_expected);
+$$;
+set local role authenticated;
+select pg_temp.media_actor();
+select throws_ok($$select pg_temp.media_generation('23550000-0000-4000-8000-000000000061',false,(select (value->>'assetId')::uuid from media_fixture where label='video_receipt'))$$,'55000',null,'paid generation requires explicit replacement of an attached asset');
+select throws_ok($$select pg_temp.media_generation('23550000-0000-4000-8000-000000000061',true,null)$$,'55000',null,'paid generation cannot compare only an empty legacy URL');
+insert into media_fixture values('generation',pg_temp.media_generation('23550000-0000-4000-8000-000000000061',true,(select (value->>'assetId')::uuid from media_fixture where label='video_receipt')));
+select throws_ok($$select public.prepare_native_course_media_operation(pg_temp.media_request('23550000-0000-4000-8000-000000000043','23550000-0000-4000-8000-000000000051','video/mp4'))$$,'40001',null,'unresolved paid generation prevents new staged replacement');
+reset role;
+select is((select media_asset_id::text from public.course_blocks where id='23550000-0000-4000-8000-000000000051'),(select value->>'assetId' from media_fixture where label='video_receipt'),'starting generation preserves usable current media');
+set local role service_role;
+select public.finish_course_video_submission((select (value->>'attempt_id')::uuid from media_fixture where label='generation'),(select (value->>'lease_id')::uuid from media_fixture where label='generation'),'accepted','synthetic_media_video',null);
+reset role;
+update public.course_blocks set title='Content edited after generation' where id='23550000-0000-4000-8000-000000000051';
+set local role service_role;
+select is(public.resolve_course_video_generation('23550000-0000-4000-8000-000000000051','synthetic_media_video',
+ (select (value->>'attempt_id')::uuid from media_fixture where label='generation'),null,'completed','storage://course-videos/system/23550000-0000-4000-8000-000000000051.synthetic_media_video.mp4',null)->>'status','stale','late provider response cannot overwrite a changed reviewed source');
+reset role;
+select is((select media_asset_id::text from public.course_blocks where id='23550000-0000-4000-8000-000000000051'),(select value->>'assetId' from media_fixture where label='video_receipt'),'stale provider completion preserves original video asset');
+select ok(app_private.course_media_ready('23550000-0000-4000-8000-000000000051'),'original media remains usable after rejected provider completion');
+select is((select count(*) from app_private.course_media_assets),2::bigint,'all original asset evidence remains retained');
 select * from finish();
 rollback;
