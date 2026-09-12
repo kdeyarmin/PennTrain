@@ -38909,7 +38909,6 @@ export type Database = {
       }
       get_native_learning_provider_status: {
         Args: { p_command_id: string; p_expected_digest: string }
-
         Returns: Json
       }
       get_notification_delivery_evidence: {
