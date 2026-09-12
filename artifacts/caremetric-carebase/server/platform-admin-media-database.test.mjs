@@ -136,5 +136,5 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  const read=()=>nativeHandler(new Request(url.origin+'/functions/v1/course-media',{method:'POST',headers:{authorization:'Bearer '+signedIn.data.session.access_token,'content-type':'application/json'},body:JSON.stringify({operation:'media.read',versionId:version,blockId:block,assetId:receipt.assetId,range:null})}));
  const linkResponse=await read();assert.equal(linkResponse.status,200);const link=(await linkResponse.json()).data;assert.equal(new URL(link.url).origin,url.origin);
  const download=await fetch(link.url);assert.equal(download.status,200);assert.deepEqual(new Uint8Array(await download.arrayBuffer()),original);
- await rpc('admin_update_profile',{p_user_id:actor,p_is_active:false});assert.equal((await read()).status,403);
+ await rpc('admin_update_profile',{p_user_id:actor,p_is_active:false});assert.equal((await read()).status,401);
 });
