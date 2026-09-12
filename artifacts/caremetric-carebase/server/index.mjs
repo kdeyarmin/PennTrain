@@ -10,6 +10,7 @@ import { createProviderHandlers } from "./provider-handlers.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
 import { createPlatformAdminRouter } from "./platform-admin.mjs";
 import { createLearningAdminRouter } from "./platform-admin-learning.mjs";
+import { createDistributionStatusRouter } from './learning-distribution-status.mjs';
 import { createProviderBuildManifest, validateProviderRuntime } from "./provider-runtime-config.mjs";
 import { createReadStream } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
@@ -46,6 +47,7 @@ const routeProviderRequest = createProviderRouter({
 });
 const routePlatformAdminRequest = createPlatformAdminRouter();
 const routeLearningAdminRequest = createLearningAdminRouter();
+const routeDistributionStatusRequest = createDistributionStatusRouter();
 
 // Must mirror vite.config.ts's `basePath = process.env.BASE_PATH ?? "/"` exactly -- that's what
 // Vite prefixes every emitted asset URL with at build time, so this server has to strip the same
@@ -469,6 +471,7 @@ const server = createServer(async (req, res) => {
     // Central administration has a stable root URL and an independent default-off gate.
     if (await routePlatformAdminRequest(req, res, url.pathname)) return;
     if (await routeLearningAdminRequest(req, res, url.pathname)) return;
+    if (await routeDistributionStatusRequest(req, res, url.pathname)) return;
 
     const packagePath = stripBasePath(url.pathname);
     // Recognized root endpoints keep their stable URLs even when BASE_PATH overlaps
