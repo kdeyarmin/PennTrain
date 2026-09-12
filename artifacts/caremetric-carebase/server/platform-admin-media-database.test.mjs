@@ -13,6 +13,25 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY,anon=process.env.SUPABASE_ANON_KEY;
  const native=createClient(url.origin,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
  const sql=input=>execFileSync('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt'],{input,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
+ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+ const holdSource=async statement=>{
+  const child=spawn('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt'],{stdio:['pipe','pipe','pipe']});
+  let output='';const completed=new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(new Error('Synthetic source locker failed')));});
+  const locked=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Synthetic source lock not reached')),5000);
+   child.stdout.on('data',chunk=>{output+=String(chunk);const match=/source-lock-pid:(\d+)/.exec(output);if(match){clearTimeout(timer);resolve(Number(match[1]));}});
+   child.once('error',error=>{clearTimeout(timer);reject(error);});});
+  child.stdin.write(`begin;${statement};select 'source-lock-pid:'||pg_backend_pid();\n`);
+  return {pid:await locked,release:async()=>{child.stdin.end('commit;\n');await completed;}};
+ };
+ const waitingOnSource=async(pid,rpcName)=>{
+  assert.ok(Number.isInteger(pid));assert.ok(['prepare_delegated_course_media_operation','finish_delegated_course_media_operation'].includes(rpcName));
+  const deadline=Date.now()+4000;
+  while(Date.now()<deadline){
+   if(sql(`select exists(select 1 from pg_stat_activity a where ${pid}=any(pg_blocking_pids(a.pid)) and position('${rpcName}' in a.query)>0)`)==='t')return;
+   await pause(50);
+  }
+  assert.fail('Synthetic media RPC did not wait on its held source lock');
+ };
  const rpc=async(name,args)=>{const r=await native.rpc(name,args);assert.equal(r.error,null,`Synthetic ${name}: ${r.error?.code??''}`);return r.data;};
  const email=`media-${randomUUID()}@fixture.test`,password=randomUUID()+'Aa1!';
  const created=await native.auth.admin.createUser({email,email_confirm:true,password});assert.equal(created.error,null);const actor=created.data.user.id;
@@ -47,16 +66,15 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  const upload={operation:'media.upload',requestId:randomUUID(),versionId:version,blockId:block,sourceRevision:context.sourceRevision,reason:'Review original synthetic PDF',fileName:'Original.pdf',mimeType:'application/pdf',sourceSha256:sha,sourceBytes:original.byteLength};
  // A still-valid session can expire while waiting on the authoritative source lock.
  // No reservation or upload may survive that wait.
- const expiryWriter=spawn('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt'],{stdio:['pipe','pipe','pipe']});
- let expiryOutput='';const expiryFinished=new Promise((resolve,reject)=>{expiryWriter.once('error',reject);expiryWriter.once('exit',code=>code===0?resolve():reject(new Error('Synthetic expiry lock failed')));});
- const expiryHeld=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Synthetic expiry lock not reached')),5000);
-  expiryWriter.stdout.on('data',chunk=>{expiryOutput+=String(chunk);if(expiryOutput.includes('holding-expiry-lock')){clearTimeout(timer);resolve();}});
-  expiryWriter.once('error',error=>{clearTimeout(timer);reject(error);});});
- expiryWriter.stdin.end(`begin;select id from public.course_versions where id='${version}' for update;select 'holding-expiry-lock';select pg_sleep(1.5);commit;`);
- await expiryHeld;const normalExpiry=authority.assurance_expires_at,expiredRequest={...upload,requestId:randomUUID()};
- authority.assurance_expires_at=new Date(Date.now()+1000).toISOString();
- try {assert.equal((await send(expiredRequest)).status,401,'expiry after source lock rejects reservation');await expiryFinished;}
- finally {authority.assurance_expires_at=normalExpiry;}
+ const expiryLock=await holdSource(`select id from public.course_versions where id='${version}' for update`);
+ const normalExpiry=authority.assurance_expires_at,expiredRequest={...upload,requestId:randomUUID()};
+ authority.assurance_expires_at=new Date(Date.now()+6000).toISOString();
+ const expiryResponse=send(expiredRequest);
+ try {
+  await waitingOnSource(expiryLock.pid,'prepare_delegated_course_media_operation');
+  await pause(Math.max(0,Date.parse(authority.assurance_expires_at)-Date.now()+50));
+ } finally {await expiryLock.release();authority.assurance_expires_at=normalExpiry;}
+ assert.equal((await expiryResponse).status,401,'expiry after a confirmed source-lock wait rejects reservation');
  assert.equal(sql(`select count(*) from app_private.course_media_operations where request_id='${expiredRequest.requestId}'`),'0');
  assert.equal(storageCalls.length,0,'expired source wait sends no immutable bytes');
  const stage=await ok(upload);assert.equal(stage.state,'staged');assert.equal(sql(`select coalesce(media_asset_id::text,'none') from public.course_blocks where id='${block}'`),'none');
@@ -74,13 +92,10 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  // A writer holds the version while finish waits. Once the writer commits,
  // finalization must compare the new source rather than attach a stale upload.
  const pending=await ok({...upload,requestId:randomUUID(),sourceRevision:saved.sourceRevision});
- const writer=spawn('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt'],{stdio:['pipe','pipe','pipe']});
- let output='';const finished=new Promise((resolve,reject)=>{writer.once('error',reject);writer.once('exit',code=>code===0?resolve():reject(new Error('Synthetic source writer failed')));});
- const held=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Synthetic source lock not reached')),5000);
-  writer.stdout.on('data',chunk=>{output+=String(chunk);if(output.includes('holding-source-lock')){clearTimeout(timer);resolve();}});
-  writer.once('error',error=>{clearTimeout(timer);reject(error);});});
- writer.stdin.end(`begin;update public.course_versions set title='Concurrent reviewed source' where id='${version}';select 'holding-source-lock';select pg_sleep(0.8);commit;`);
- await held;assert.equal((await send({operation:'media.finish',operationId:pending.operationId})).status,409);await finished;
+ const sourceLock=await holdSource(`update public.course_versions set title='Concurrent reviewed source' where id='${version}'`);
+ const waitingFinish=send({operation:'media.finish',operationId:pending.operationId});
+ try {await waitingOnSource(sourceLock.pid,'finish_delegated_course_media_operation');} finally {await sourceLock.release();}
+ assert.equal((await waitingFinish).status,409);
  assert.equal(sql(`select media_asset_id from public.course_blocks where id='${block}'`),receipt.assetId,'waiting finish preserves original media after source drift');
  const replays=await Promise.all([ok({operation:'media.finish',operationId:stage.operationId}),ok({operation:'media.finish',operationId:stage.operationId})]);
  assert.deepEqual(replays,[receipt,receipt]);assert.equal(sql(`select count(*) from public.audit_logs where entity_id='${block}' and action='course_media_attached'`),'1');

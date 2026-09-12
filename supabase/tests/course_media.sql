@@ -197,6 +197,8 @@ select pg_temp.media_actor(true);
 select throws_ok($$select public.get_native_course_media_read('23550000-0000-4000-8000-000000000030','23550000-0000-4000-8000-000000000050',
  (select (value->>'assetId')::uuid from media_fixture where label='receipt'))$$,'42501',null,'an unassigned learner cannot read draft media');
 reset role;
+select throws_ok($$select app_private.publish_course_version_core('23550000-0000-4000-8000-000000000030')$$,'23514',null,'owned video still requires accessible transcript notes');
+update public.course_blocks set body=body||'{"transcript":"Synthetic original lesson transcript"}'::jsonb where id='23550000-0000-4000-8000-000000000051';
 select lives_ok($$select app_private.publish_course_version_core('23550000-0000-4000-8000-000000000030')$$,'native publisher consumes verified PDF and video assets');
 set local role authenticated;
 select pg_temp.media_actor(true);
