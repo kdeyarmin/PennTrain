@@ -41,7 +41,7 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  insert into public.course_versions(id,course_id,organization_id,version_number,title,status) values('${version}','${course}',null,1,'Media HTTP draft','draft');
  insert into public.course_blocks(id,course_version_id,organization_id,block_type,sort_order,title) values('${block}','${version}',null,'pdf',0,'PDF lesson');commit;`);
  const original=new TextEncoder().encode('%PDF-1.7\nSynthetic immutable source fixture\n%%EOF');const sha=createHash('sha256').update(original).digest('hex');
- const tickets=new Map(),storageCalls=[];let loseFinish=false;
+ const tickets=new Map(),storageCalls=[],rpcEvents=[];let loseFinish=false;
  const started=new Date(Date.now()-60_000),authority={user_id:hubUser,role:'platform_admin',method:'sms',session_id:hubSession,session_started_at:started.toISOString(),assurance_expires_at:new Date(started.getTime()+480*60_000).toISOString()};
  const handler=createPlatformMediaHandler({config:{enabled:true,commandsEnabled:true,mediaEnabled:true,supabaseUrl:url.origin,serviceKey,identities:new Map([[hubUser,actor]])},createClient,
   fetcher:async(input,init)=>{
@@ -50,7 +50,16 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
     const ticket=new Headers(init.headers).get('authorization'),operation=tickets.get(ticket);tickets.delete(ticket);
     return operation?Response.json({...authority,operation}):Response.json({},{status:401});
    }
-   assert.equal(target.origin,url.origin,'Synthetic fixture cannot contact external services');const response=await fetch(input,init);
+   assert.equal(target.origin,url.origin,'Synthetic fixture cannot contact external services');
+   const began=Date.now();let response;
+   try {response=await fetch(input,init);} catch(error) {
+    if(target.pathname.startsWith('/rest/v1/rpc/'))rpcEvents.push({rpc:target.pathname.split('/').at(-1),failure:error?.name??'unknown',elapsedMs:Date.now()-began});
+    throw error;
+   }
+   if(target.pathname.startsWith('/rest/v1/rpc/')){
+    const result=response.ok?null:await response.clone().json().catch(()=>null);
+    rpcEvents.push({rpc:target.pathname.split('/').at(-1),status:response.status,code:typeof result?.code==='string'?result.code:null,elapsedMs:Date.now()-began});
+   }
    if(target.pathname.startsWith('/storage/'))storageCalls.push({method:init?.method??'GET',status:response.status});
    if(loseFinish&&target.pathname==='/rest/v1/rpc/finish_delegated_course_media_operation'){loseFinish=false;await response.arrayBuffer();throw new Error('Synthetic committed response lost');}
    return response;
@@ -95,7 +104,7 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  const sourceLock=await holdSource(`update public.course_versions set title='Concurrent reviewed source' where id='${version}'`);
  const waitingFinish=send({operation:'media.finish',operationId:pending.operationId});
  try {await waitingOnSource(sourceLock.pid,'finish_delegated_course_media_operation');} finally {await sourceLock.release();}
- assert.equal((await waitingFinish).status,409);
+ const finishResponse=await waitingFinish;assert.equal(finishResponse.status,409,JSON.stringify(rpcEvents.slice(-5)));
  assert.equal(sql(`select media_asset_id from public.course_blocks where id='${block}'`),receipt.assetId,'waiting finish preserves original media after source drift');
  const replays=await Promise.all([ok({operation:'media.finish',operationId:stage.operationId}),ok({operation:'media.finish',operationId:stage.operationId})]);
  assert.deepEqual(replays,[receipt,receipt]);assert.equal(sql(`select count(*) from public.audit_logs where entity_id='${block}' and action='course_media_attached'`),'1');
