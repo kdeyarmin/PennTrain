@@ -425,12 +425,13 @@ verify_jwt = false
 [functions.process-data-import-jobs]
 verify_jwt = false
 
-# Server-side SCORM/xAPI package acceptance: downloads the registered zip, injects
-# carebase/learning-runtime-bridge.js into the entry HTML, re-uploads the modified zip,
-# updates content_sha256, and calls accept_learning_package as the authenticated caller.
-# Using an edge function keeps the injection server-side so clients cannot skip it.
+# Server-side immutable SCORM/xAPI ingestion. Original bytes are retained separately;
+# acceptance writes a new runtime object and commits current authority + draft CAS.
 # Requires an active session (trainer / facility_manager / org_admin / platform_admin).
 [functions.accept-learning-package]
+verify_jwt = true
+
+[functions.ingest-learning-package]
 verify_jwt = true
 
 # Asset GETs use the server-minted session nonce as an expiring, per-package capability.

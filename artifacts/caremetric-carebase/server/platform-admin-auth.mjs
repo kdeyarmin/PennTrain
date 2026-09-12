@@ -52,10 +52,12 @@ export function readPlatformAdminConfig(getEnv = (name) => process.env[name]) {
   if (commandFlag !== undefined && commandFlag !== "true" && commandFlag !== "false") throw new Error("CAREMETRIC_ADMIN_COMMANDS_ENABLED must be true or false.");
   const billingFlag = getEnv("CAREMETRIC_ADMIN_BILLING_COMMANDS_ENABLED");
   const checkoutFlag = getEnv("CAREMETRIC_ADMIN_CHECKOUT_COMMANDS_ENABLED");
+  const packageFlag = getEnv("CAREMETRIC_ADMIN_PACKAGE_INGESTION_ENABLED");
+  if (packageFlag !== undefined && packageFlag !== "true" && packageFlag !== "false") throw new Error("CAREMETRIC_ADMIN_PACKAGE_INGESTION_ENABLED must be true or false.");
   if (checkoutFlag !== undefined && checkoutFlag !== "true" && checkoutFlag !== "false") throw new Error("CAREMETRIC_ADMIN_CHECKOUT_COMMANDS_ENABLED must be true or false.");
   if (billingFlag !== undefined && billingFlag !== "true" && billingFlag !== "false") throw new Error("CAREMETRIC_ADMIN_BILLING_COMMANDS_ENABLED must be true or false.");
   return { enabled: true, hubUrl, hubKey, supabaseUrl, serviceKey, identities, sourceRevision, commandsEnabled: commandFlag === "true",
-    billingCommandsEnabled: billingFlag === "true", checkoutCommandsEnabled: checkoutFlag === "true", stripeKey: getEnv("STRIPE_SECRET_KEY")?.trim() || null,
+    billingCommandsEnabled: billingFlag === "true", checkoutCommandsEnabled: checkoutFlag === "true", packageIngestionEnabled: packageFlag === "true", stripeKey: getEnv("STRIPE_SECRET_KEY")?.trim() || null,
     learningAuthoringEnabled:getEnv('CAREMETRIC_LEARNING_AUTHORING_ENABLED')==='true' };
 }
 
