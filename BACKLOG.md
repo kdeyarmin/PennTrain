@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** 8cde4b516c7b588f3fb3bcfd421aa726cc256a90 (2026-09-11), integrating released distribution main b4a9f1d, provider N16 and operations-reader N14. N17 first combined CI34659937907 passed every lane including actual concurrency/expired-lock rejection, all database assertions/advisors/types and browser journeys. After the N18 base merge, 69 focused configuration/admin/observer/runtime tests pass locally. The final combined gate remains required; applied SQL bytes and native source ownership are unchanged. No production configuration or jobs are changed.
+**Last verified against main:** `8cde4b516c7b588f3fb3bcfd421aa726cc256a90` (2026-09-11), integrating released distribution main b4a9f1d, provider N16 and operations-reader N14. N17 first combined CI34659937907 passed every lane including actual concurrency/expired-lock rejection, all database assertions/advisors/types and browser journeys. After the N18 base merge, 69 focused configuration/admin/observer/runtime tests pass locally. The final combined gate remains required; applied SQL bytes and native source ownership are unchanged. No production configuration or jobs are changed.
 
 **Owner:** the owner-operator (single person, platform admin)
 
