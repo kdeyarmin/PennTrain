@@ -15,11 +15,12 @@ const upload={operation:'media.upload',requestId:id(3),versionId:id(4),blockId:i
 const path=`global/${id(9)}/${id(6)}/${sha}`;
 const asset={id:id(6),contentSha256:sha,mimeType:'application/pdf',byteSize:bytes.byteLength,fileName:'Original.pdf'};
 const receipt={operationId:id(5),assetId:id(6),versionId:id(4),blockId:id(8),sourceRevision:'b'.repeat(64),contentSha256:sha,mimeType:'application/pdf',byteSize:bytes.byteLength,fileName:'Original.pdf',attachedAt:now.toISOString()};
-function fixture({duplicateStatus=null,duplicateBody=null,badStoredBytes=false,wrongPath=false,wrongRange=false,committed=false,revokeAfterRead=false}={}){
+function fixture({duplicateStatus=null,duplicateBody=null,badStoredBytes=false,wrongPath=false,wrongRange=false,committed=false,revokeAfterRead=false,conflict=false}={}){
  let approved=upload,active=true,proof=null;const calls=[];let stored=null;
  const native={from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:{id:id(2),role:'platform_admin',is_active:active}})})})}),
   auth:{admin:{getUserById:async()=>({data:{user:{id:id(2),is_anonymous:false}}})}},
   rpc:async(name,args)=>{calls.push({name,args});
+   if(name==='prepare_delegated_course_media_operation'&&conflict)return {data:null,error:{code:'PT409'}};
    if(name==='prepare_delegated_course_media_operation')return {data:committed?{result:receipt}:{result:null,operationId:id(5),assetId:id(6),versionId:id(4),blockId:id(8),contentSha256:sha,mimeType:'application/pdf',byteSize:bytes.byteLength,fileName:'Original.pdf',storagePath:path}};
    if(name==='record_course_media_artifact'){proof=args;return {data:null};}
    if(name==='finish_delegated_course_media_operation'){assert.ok(proof);return {data:receipt};}
@@ -132,4 +133,10 @@ test('raw anonymous slow JSON never occupies the upload slot; authenticated meta
   const response=await fetch(`http://127.0.0.1:${port}/api/learning-admin/media`,{method:'POST',headers:{...valid,'content-type':'application/json'},body:JSON.stringify(operation)});
   assert.equal(response.status,200);await response.arrayBuffer();
  } finally {server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+});
+
+test('nonretrying native media conflicts return an explicit refreshable conflict',async()=>{
+ const f=fixture({conflict:true});const response=await f.handler(f.request());
+ assert.equal(response.status,409);assert.deepEqual(await response.json(),{error:{code:'conflict'}});
+ assert.ok(!f.calls.some(call=>call.method==='POST'&&call.url?.includes('/storage/')));
 });

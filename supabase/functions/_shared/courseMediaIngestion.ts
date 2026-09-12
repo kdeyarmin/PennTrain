@@ -46,6 +46,6 @@ export async function stageCourseMedia(request: MediaUpload, body: ReadableStrea
 export function mediaRpcError(error: { code?: string } | null | undefined) {
   if (!error) return;
   throw new MediaError(error.code === "42501" ? 403 : error.code === "28000" ? 401 : error.code === "P0002" ? 404
-    : ["40001", "23514", "55000"].includes(error.code ?? "") ? 409 : ["22023", "22P02"].includes(error.code ?? "") ? 400 : 502,
+    : ["PT409", "40001", "23514", "55000"].includes(error.code ?? "") ? 409 : ["22023", "22P02"].includes(error.code ?? "") ? 400 : 502,
   "The course media request could not be completed. Refresh the course and try again.");
 }

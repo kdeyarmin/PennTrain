@@ -186,7 +186,7 @@ begin
     values(p_operation_id,p_content_sha256,p_byte_size,p_mime_type) on conflict(operation_id) do nothing;
   select * into v_proof from app_private.course_media_artifacts where operation_id=p_operation_id;
   if v_proof.content_sha256 is distinct from p_content_sha256 or v_proof.byte_size is distinct from p_byte_size or v_proof.mime_type is distinct from p_mime_type then
-    raise exception 'Media proof is immutable.' using errcode='40001'; end if;
+    raise exception 'Media proof is immutable.' using errcode='PT409'; end if;
 end;
 $$;
 
@@ -605,13 +605,13 @@ begin
   end if;
 
   if p_expected_block is not null and (to_jsonb(v_old)-array['created_at','media_asset_id']) is distinct from (p_expected_block-array['created_at','media_asset_id']) then
-    raise exception 'Course block changed; refresh before correcting.' using errcode='40001'; end if;
-  if v_old.media_asset_id is not null and p_expected_block is null then raise exception 'Review the current media block first.' using errcode='40001'; end if;
+    raise exception 'Course block changed; refresh before correcting.' using errcode='PT409'; end if;
+  if v_old.media_asset_id is not null and p_expected_block is null then raise exception 'Review the current media block first.' using errcode='PT409'; end if;
   if v_old.media_asset_id is distinct from p_expected_media_asset_id
     or (v_old.media_asset_id is not null and app_private.learning_package_revision(v_old.course_version_id) is distinct from p_expected_source_revision) then
-    raise exception 'Course media changed; refresh before correcting.' using errcode='40001'; end if;
+    raise exception 'Course media changed; refresh before correcting.' using errcode='PT409'; end if;
   if (p_video_url is not null or p_document_id is not null) and app_private.course_media_generation_pending(v_old.id) then
-    raise exception 'Reconcile the pending video first.' using errcode='40001'; end if;
+    raise exception 'Reconcile the pending video first.' using errcode='PT409'; end if;
   perform set_config('app.privileged_write', 'on', true);
 
   update public.course_blocks
@@ -660,16 +660,24 @@ $$;
 revoke all on function public.get_delegated_course_media_context(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid,uuid) from public,anon,authenticated,service_role;
 grant execute on function public.get_delegated_course_media_context(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid,uuid) to service_role;
 
+-- Public RPC conflicts use a nonretrying HTTP code. PostgREST 14 retries
+-- custom serialization_failure indefinitely; internal shared CAS stays unchanged.
 create function public.prepare_native_course_media_operation(p_request jsonb) returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_auth jsonb;
 begin v_auth:=app_private.native_learning_package_authority();
-  return app_private.prepare_course_media((v_auth->>'actorId')::uuid,(v_auth->>'actorId')::uuid,(v_auth->>'sessionId')::uuid,'native_session',(v_auth->>'expiresAt')::timestamptz,p_request); end;
+  return app_private.prepare_course_media((v_auth->>'actorId')::uuid,(v_auth->>'actorId')::uuid,(v_auth->>'sessionId')::uuid,'native_session',(v_auth->>'expiresAt')::timestamptz,p_request);
+exception when serialization_failure then
+  raise sqlstate 'PT409' using message='The course media changed. Refresh before retrying.';
+end;
 $$;
 revoke all on function public.prepare_native_course_media_operation(jsonb) from public,anon,authenticated,service_role;
 grant execute on function public.prepare_native_course_media_operation(jsonb) to authenticated;
 create function public.prepare_delegated_course_media_operation(p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,p_assurance_expires_at timestamptz,p_authentication_method text,p_request jsonb) returns jsonb language plpgsql security definer set search_path='' as $$
 begin perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
-  return app_private.prepare_course_media(p_actor,p_hub_user,p_hub_session,p_authentication_method,p_assurance_expires_at,p_request); end;
+  return app_private.prepare_course_media(p_actor,p_hub_user,p_hub_session,p_authentication_method,p_assurance_expires_at,p_request);
+exception when serialization_failure then
+  raise sqlstate 'PT409' using message='The course media changed. Refresh before retrying.';
+end;
 $$;
 revoke all on function public.prepare_delegated_course_media_operation(uuid,uuid,uuid,timestamptz,timestamptz,text,jsonb) from public,anon,authenticated,service_role;
 grant execute on function public.prepare_delegated_course_media_operation(uuid,uuid,uuid,timestamptz,timestamptz,text,jsonb) to service_role;
@@ -677,13 +685,19 @@ grant execute on function public.prepare_delegated_course_media_operation(uuid,u
 create function public.finish_native_course_media_operation(p_operation_id uuid) returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_auth jsonb;
 begin v_auth:=app_private.native_learning_package_authority();
-  return app_private.finish_course_media((v_auth->>'actorId')::uuid,(v_auth->>'actorId')::uuid,(v_auth->>'sessionId')::uuid,'native_session',p_operation_id); end;
+  return app_private.finish_course_media((v_auth->>'actorId')::uuid,(v_auth->>'actorId')::uuid,(v_auth->>'sessionId')::uuid,'native_session',p_operation_id);
+exception when serialization_failure then
+  raise sqlstate 'PT409' using message='The course media changed. Refresh before retrying.';
+end;
 $$;
 revoke all on function public.finish_native_course_media_operation(uuid) from public,anon,authenticated,service_role;
 grant execute on function public.finish_native_course_media_operation(uuid) to authenticated;
 create function public.finish_delegated_course_media_operation(p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,p_assurance_expires_at timestamptz,p_authentication_method text,p_operation_id uuid) returns jsonb language plpgsql security definer set search_path='' as $$
 begin perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
-  return app_private.finish_course_media(p_actor,p_hub_user,p_hub_session,p_authentication_method,p_operation_id); end;
+  return app_private.finish_course_media(p_actor,p_hub_user,p_hub_session,p_authentication_method,p_operation_id);
+exception when serialization_failure then
+  raise sqlstate 'PT409' using message='The course media changed. Refresh before retrying.';
+end;
 $$;
 revoke all on function public.finish_delegated_course_media_operation(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid) from public,anon,authenticated,service_role;
 grant execute on function public.finish_delegated_course_media_operation(uuid,uuid,uuid,timestamptz,timestamptz,text,uuid) to service_role;
