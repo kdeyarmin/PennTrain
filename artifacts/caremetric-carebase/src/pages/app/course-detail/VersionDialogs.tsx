@@ -1,3 +1,5 @@
+import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
+import { CourseMediaDocumentLink } from "@/components/learning/CourseMediaDocumentLink";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -106,7 +108,7 @@ export function StudentPreviewDialog({
 
                   {block.block_type === "video" && (
                     <div className="space-y-3">
-                      {block.video_url ? (
+                      {block.media_asset_id ? <CourseVideoPlayer src="" media={{versionId:block.course_version_id,blockId:block.id,assetId:block.media_asset_id}} state={undefined} gated={false} onChange={() => {}} /> : block.video_url ? (
                         <div className="overflow-hidden rounded-md border bg-muted">
                           <CourseVideoPreview src={block.video_url} />
                         </div>
@@ -124,7 +126,7 @@ export function StudentPreviewDialog({
                     </div>
                   )}
 
-                  {(block.block_type === "pdf" || block.block_type === "scorm") && (
+                  {block.block_type === "pdf" && block.media_asset_id ? <CourseMediaDocumentLink versionId={block.course_version_id} blockId={block.id} assetId={block.media_asset_id} /> : (block.block_type === "pdf" || block.block_type === "scorm") && (
                     <div className="flex items-center gap-3 rounded-md bg-muted/50 p-3">
                       <FileIcon className="h-5 w-5 text-muted-foreground" />
                       <div className="min-w-0">

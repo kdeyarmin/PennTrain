@@ -100,7 +100,7 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
       if (operation.operation === "support.identity.resolve") {
         data = await resolveSupportIdentity({ native, operation, authenticationMethod, timestamp });
       } else if (operation.operation === "capabilities") {
-        data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled && config.packageIngestionEnabled ? ["learning.packages.context", "learning.packages.status", "learning.packages.upload", "learning.packages.accept", "learning.packages.finish"] : []), ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : []),
+        data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled && config.mediaEnabled ? ["learning.media.v1", "learning.media.context", "learning.media.status", "learning.media.upload", "learning.media.finish", "learning.media.read"] : []), ...(config.commandsEnabled && config.packageIngestionEnabled ? ["learning.packages.context", "learning.packages.status", "learning.packages.upload", "learning.packages.accept", "learning.packages.finish"] : []), ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : []),
           ...(config.commandsEnabled && config.learningAuthoringEnabled ? ['learning.distribution.context'] : []),
           ...(config.commandsEnabled && config.billingCommandsEnabled ? ["billing.commands.preview", "billing.commands.apply",
             ...(config.checkoutCommandsEnabled ? ["billing.checkout.preview", "billing.checkout.apply", "billing.checkout.check", "billing.checkout.recover"] : [])] : [])], sourceRevision: config.sourceRevision ?? null };

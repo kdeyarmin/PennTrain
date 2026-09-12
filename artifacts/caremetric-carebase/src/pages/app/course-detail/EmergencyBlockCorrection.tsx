@@ -1,3 +1,5 @@
+import { callCourseMedia } from "@/hooks/useCourseMedia";
+import { projectMediaContext } from "../../../../../../supabase/functions/_shared/courseMediaProtocol";
 import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,14 +30,17 @@ export function EmergencyBlockCorrection({ block }: { block: CourseBlock }) {
   const { toast } = useToast();
   const correct = useEmergencyUpdateCourseBlock(block.course_version_id ?? undefined);
   const [open, setOpen] = useState(false);
+  const [loadingReview, setLoadingReview] = useState(false);
+  const [review, setReview] = useState<{ block: CourseBlock; source: string | null } | null>(null);
   const [reason, setReason] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
 
-  const body = block.body as { content?: string } | null;
+  const originalBlock = review?.block ?? block;
+  const body = originalBlock.body as { content?: string } | null;
   const originalContent = body?.content ?? "";
   const reasonTooShort = reason.trim().length < MIN_REASON_LENGTH;
-  const titleChanged = title.trim().length > 0 && title.trim() !== (block.title ?? "");
+  const titleChanged = title.trim().length > 0 && title.trim() !== (originalBlock.title ?? "");
   const contentChanged = content !== originalContent;
   const nothingToChange = title.trim().length === 0 || (!titleChanged && !contentChanged);
 
@@ -45,8 +50,17 @@ export function EmergencyBlockCorrection({ block }: { block: CourseBlock }) {
         size="sm"
         variant="ghost"
         className="text-destructive hover:text-destructive"
-        onClick={() => {
-          setOpen(true); setReason(""); setTitle(block.title ?? ""); setContent(originalContent);
+        disabled={loadingReview}
+        onClick={async () => {
+          setLoadingReview(true);
+          try {
+            const snapshot = structuredClone(block);
+            const context = snapshot.media_asset_id ? projectMediaContext(await callCourseMedia({ operation: "media.context", versionId: snapshot.course_version_id, blockId: snapshot.id }), { versionId: snapshot.course_version_id, blockId: snapshot.id }) : null;
+            if (context && context.block.mediaAsset?.id !== snapshot.media_asset_id) throw new Error("The media changed. Refresh this course before correcting it.");
+            setReview({ block: snapshot, source: context?.sourceRevision ?? null });
+            setOpen(true); setReason(""); setTitle(snapshot.title ?? ""); setContent((snapshot.body as {content?: string} | null)?.content ?? "");
+          } catch (cause) { toast({title: "Could not review the current block",description:errorText(cause),variant:"destructive"}); }
+          finally { setLoadingReview(false); }
         }}
       >
         <ShieldAlert className="mr-1 h-4 w-4" />Emergency correction
@@ -107,12 +121,15 @@ export function EmergencyBlockCorrection({ block }: { block: CourseBlock }) {
             correct.mutate(
               {
                 blockId: block.id,
+                expectedMediaAssetId: review?.block.media_asset_id ?? null,
+                expectedSourceRevision: review?.source ?? null,
+                expectedBlock: review?.block,
                 reason: reason.trim(),
                 title: title.trim(),
                 // Merged into the existing body rather than replacing it: `heygen` job state lives
                 // alongside `content`, and sending a bare { content } would drop it. Omitted
                 // entirely when unchanged, which the RPC coalesces back to the current value.
-                ...(contentChanged ? { body: { ...(body ?? {}), content } } : {}),
+                ...(contentChanged ? { body: { ...((review?.block.body as Record<string, unknown> | null) ?? body ?? {}), content } } : {}),
               },
               {
                 onSuccess: () => {

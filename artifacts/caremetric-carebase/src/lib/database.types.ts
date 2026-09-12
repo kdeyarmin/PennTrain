@@ -4731,6 +4731,7 @@ export type Database = {
           created_at: string
           document_id: string | null
           id: string
+          media_asset_id: string | null
           organization_id: string | null
           sort_order: number
           title: string | null
@@ -4743,6 +4744,7 @@ export type Database = {
           created_at?: string
           document_id?: string | null
           id?: string
+          media_asset_id?: string | null
           organization_id?: string | null
           sort_order?: number
           title?: string | null
@@ -4755,6 +4757,7 @@ export type Database = {
           created_at?: string
           document_id?: string | null
           id?: string
+          media_asset_id?: string | null
           organization_id?: string | null
           sort_order?: number
           title?: string | null
