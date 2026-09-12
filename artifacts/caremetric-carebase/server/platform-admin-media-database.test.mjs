@@ -10,7 +10,9 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  skip:process.env.CAREMETRIC_LOCAL_MEDIA_TESTS!=='true',timeout:45_000,
 },async()=>{
  const url=new URL(process.env.SUPABASE_URL??'');assert.ok(['127.0.0.1','localhost','[::1]'].includes(url.hostname));
- const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY,anon=process.env.SUPABASE_ANON_KEY;
+ const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY,anon=process.env.SUPABASE_ANON_KEY??process.env.VITE_SUPABASE_ANON_KEY;
+ assert.ok(serviceKey,'Local media tests require the exported service role key');
+ assert.ok(anon,'Local media tests require the exported anonymous key');
  const native=createClient(url.origin,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
  const sql=input=>execFileSync('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt'],{input,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
  const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
