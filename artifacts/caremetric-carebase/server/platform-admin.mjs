@@ -101,6 +101,7 @@ export function createPlatformAdminHandler({ config, createClient, fetcher = fet
         data = await resolveSupportIdentity({ native, operation, authenticationMethod, timestamp });
       } else if (operation.operation === "capabilities") {
         data = { apiVersion: 1, operations: [...OPERATIONS, ...(config.commandsEnabled && config.packageIngestionEnabled ? ["learning.packages.context", "learning.packages.status", "learning.packages.upload", "learning.packages.accept", "learning.packages.finish"] : []), ...(config.commandsEnabled ? ["commands.preview", "commands.apply"] : []),
+          ...(config.commandsEnabled && config.learningAuthoringEnabled ? ['learning.distribution.context'] : []),
           ...(config.commandsEnabled && config.billingCommandsEnabled ? ["billing.commands.preview", "billing.commands.apply",
             ...(config.checkoutCommandsEnabled ? ["billing.checkout.preview", "billing.checkout.apply", "billing.checkout.check", "billing.checkout.recover"] : [])] : [])], sourceRevision: config.sourceRevision ?? null };
       } else if (OPERATION_READS.includes(operation.operation)) {

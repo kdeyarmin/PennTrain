@@ -57,7 +57,8 @@ export function readPlatformAdminConfig(getEnv = (name) => process.env[name]) {
   if (checkoutFlag !== undefined && checkoutFlag !== "true" && checkoutFlag !== "false") throw new Error("CAREMETRIC_ADMIN_CHECKOUT_COMMANDS_ENABLED must be true or false.");
   if (billingFlag !== undefined && billingFlag !== "true" && billingFlag !== "false") throw new Error("CAREMETRIC_ADMIN_BILLING_COMMANDS_ENABLED must be true or false.");
   return { enabled: true, hubUrl, hubKey, supabaseUrl, serviceKey, identities, sourceRevision, commandsEnabled: commandFlag === "true",
-    billingCommandsEnabled: billingFlag === "true", checkoutCommandsEnabled: checkoutFlag === "true", packageIngestionEnabled: packageFlag === "true", stripeKey: getEnv("STRIPE_SECRET_KEY")?.trim() || null };
+    billingCommandsEnabled: billingFlag === "true", checkoutCommandsEnabled: checkoutFlag === "true", packageIngestionEnabled: packageFlag === "true", stripeKey: getEnv("STRIPE_SECRET_KEY")?.trim() || null,
+    learningAuthoringEnabled:getEnv('CAREMETRIC_LEARNING_AUTHORING_ENABLED')==='true' };
 }
 
 export async function boundedFetch(fetcher, requestSignal, input, init = {}, maximumBytes = MAX_UPSTREAM_BYTES) {
@@ -99,8 +100,10 @@ export async function authorizePlatformAdmin(request, { config, command = false,
   const makeClient = (url, key, headers = {}) => createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: { headers, fetch: (input, init) => boundedFetch(fetcher, request.signal, input, init,
-      learning && command && operation?.operation === 'source'
-      && String(input instanceof Request ? input.url : input) === `${config.supabaseUrl}/rest/v1/rpc/get_learning_authoring_source`
+      learning && command && ((operation?.operation === 'source'
+      && String(input instanceof Request ? input.url : input) === `${config.supabaseUrl}/rest/v1/rpc/get_learning_authoring_source`)
+      ||(operation?.domain==='course.distribution.v1'&&operation.operation==='context'
+      &&String(input instanceof Request ? input.url : input)===`${config.supabaseUrl}/rest/v1/rpc/get_learning_distribution_context`))
         ? 4100000 : MAX_UPSTREAM_BYTES) },
   });
   let actor, authenticationMethod;
