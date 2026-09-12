@@ -45,6 +45,20 @@ test('actual local media Storage/native SQL preserve bytes, receipts, clone sour
  const ok=async op=>{const response=await send(op);assert.equal(response.status,200,`Synthetic media ${op.operation}: ${response.status}`);return (await response.json()).data;};
  const context=await ok({operation:'media.context',versionId:version,blockId:block});
  const upload={operation:'media.upload',requestId:randomUUID(),versionId:version,blockId:block,sourceRevision:context.sourceRevision,reason:'Review original synthetic PDF',fileName:'Original.pdf',mimeType:'application/pdf',sourceSha256:sha,sourceBytes:original.byteLength};
+ // A still-valid session can expire while waiting on the authoritative source lock.
+ // No reservation or upload may survive that wait.
+ const expiryWriter=spawn('docker',['exec','-i','supabase_db_xsqobvvreaovwibxwyvv','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-qAt'],{stdio:['pipe','pipe','pipe']});
+ let expiryOutput='';const expiryFinished=new Promise((resolve,reject)=>{expiryWriter.once('error',reject);expiryWriter.once('exit',code=>code===0?resolve():reject(new Error('Synthetic expiry lock failed')));});
+ const expiryHeld=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Synthetic expiry lock not reached')),5000);
+  expiryWriter.stdout.on('data',chunk=>{expiryOutput+=String(chunk);if(expiryOutput.includes('holding-expiry-lock')){clearTimeout(timer);resolve();}});
+  expiryWriter.once('error',error=>{clearTimeout(timer);reject(error);});});
+ expiryWriter.stdin.end(`begin;select id from public.course_versions where id='${version}' for update;select 'holding-expiry-lock';select pg_sleep(1.5);commit;`);
+ await expiryHeld;const normalExpiry=authority.assurance_expires_at,expiredRequest={...upload,requestId:randomUUID()};
+ authority.assurance_expires_at=new Date(Date.now()+1000).toISOString();
+ try {assert.equal((await send(expiredRequest)).status,401,'expiry after source lock rejects reservation');await expiryFinished;}
+ finally {authority.assurance_expires_at=normalExpiry;}
+ assert.equal(sql(`select count(*) from app_private.course_media_operations where request_id='${expiredRequest.requestId}'`),'0');
+ assert.equal(storageCalls.length,0,'expired source wait sends no immutable bytes');
  const stage=await ok(upload);assert.equal(stage.state,'staged');assert.equal(sql(`select coalesce(media_asset_id::text,'none') from public.course_blocks where id='${block}'`),'none');
  assert.deepEqual(await ok(upload),stage);assert.ok(storageCalls.some(x=>x.method==='POST'&&[400,409].includes(x.status)),'actual Storage duplicate observed');
  const direct=await native.from('course_blocks').update({media_asset_id:stage.assetId}).eq('id',block);assert.equal(direct.error?.code,'42501','raw service column cannot bypass finish');
