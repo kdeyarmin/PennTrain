@@ -104,7 +104,7 @@ export function AddBlockDialog({
           )}
           {(blockForm.block_type === "pdf" || blockForm.block_type === "scorm") && (
             <div className="space-y-3">
-              <div className="space-y-1">
+              {blockForm.block_type === "pdf" && <div className="space-y-1">
                 <Label htmlFor={`${fieldIds}-document`}>Document</Label>
                 <Select
                   value={blockForm.documentId || NO_DOCUMENT}
@@ -123,7 +123,8 @@ export function AddBlockDialog({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div>}
+              {blockForm.block_type === "scorm" && <p className="text-sm text-muted-foreground">Upload the original ZIP for this course version, then accept it in Governed Learning. Its original and runtime files are stored separately.</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   ref={courseDocumentInputRef}
@@ -137,7 +138,7 @@ export function AddBlockDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => courseDocumentInputRef.current?.click()}
-                  disabled={uploadingDocument || !courseDocumentUploadFacility}
+                  disabled={uploadingDocument || blockForm.block_type === "pdf" && !courseDocumentUploadFacility}
                 >
                   {uploadingDocument ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-2 h-3.5 w-3.5" />}
                   Upload File
@@ -148,7 +149,7 @@ export function AddBlockDialog({
                   </p>
                 )}
               </div>
-              {!courseDocumentUploadFacility && (
+              {blockForm.block_type === "pdf" && !courseDocumentUploadFacility && (
                 <p className="text-xs text-muted-foreground">
                   Uploads need a facility record to own the document metadata.
                 </p>

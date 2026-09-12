@@ -109,6 +109,12 @@ select is(
 -- to read it, it needs a policy and comes off this list.
 create temporary table service_role_only_buckets (id text primary key, why text not null);
 insert into service_role_only_buckets values (
+  'learning-package-originals',
+  'Immutable authored ZIP originals, read and written only by the verified package worker. '
+  'No browser, tenant role or platform-admin Storage policy: current-authority RPCs own '
+  'course scope, staged artifact proof and final draft CAS. See 20260911220017.'
+);
+insert into service_role_only_buckets values (
   'regulatory-templates',
   'Cache of blank PA DHS form PDFs, which DHS publishes publicly. Written and read only by the '
   'edge functions that fill them, using the service role. Holds no tenant data, so there is '

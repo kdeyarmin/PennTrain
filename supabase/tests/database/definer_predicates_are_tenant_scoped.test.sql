@@ -149,6 +149,13 @@ select is(
        -- session ownership/revocation, native assurance policy and the eight-hour freshness window.
        -- learning_creation.sql probes current-session, learner and other-principal refusals.
        'get_native_learning_creation_status',
+       -- native_learning_package_authority rechecks usable actor, native current_role,
+       -- actual session and freshness; each core then checks exact course/version scope.
+       -- learning_package_ingestion.sql probes revocation, cross-tenant/global denial,
+       -- stale sessions and CAS.
+       'finish_native_learning_package_operation',
+       'get_native_learning_package_context',
+       'get_native_learning_package_operation',
        'get_resident_administrative_packet',   -- _base checks admission_row_visible and raises 42501
        'save_report_schedule',                 -- delegates to save_report_schedule_configuration
        'evaluate_feature_access',              -- refuses cross-tenant (probed: 42501)
