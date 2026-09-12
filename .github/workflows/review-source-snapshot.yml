@@ -1,0 +1,32 @@
+name: Review source snapshot
+on:
+  push:
+    branches: [codex/governed-learning-media-20260911]
+    paths: [.github/workflows/review-source-snapshot.yml]
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Archive source and review evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/review-sources
+          git archive --format=tar.gz --output=/tmp/review-sources/penntrain545.tar.gz HEAD
+          git rev-parse HEAD > /tmp/review-sources/penntrain545.sha
+          gh api "repos/$GITHUB_REPOSITORY/issues/545/comments" --paginate --slurp > /tmp/review-sources/penntrain545-comments.json
+          gh api "repos/$GITHUB_REPOSITORY/pulls/545/comments" --paginate --slurp > /tmp/review-sources/penntrain545-review.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-source-snapshots
+          path: /tmp/review-sources/
+          retention-days: 1
+          if-no-files-found: error
