@@ -411,6 +411,11 @@ jobs:
           CAREMETRIC_LOCAL_PACKAGE_TESTS: "true"
         run: pnpm --filter @workspace/caremetric-carebase exec node --test server/platform-admin-packages-database.test.mjs
 
+      - name: Immutable course media Storage and native authorization (local stack only)
+        env:
+          CAREMETRIC_LOCAL_MEDIA_TESTS: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/platform-admin-media-database.test.mjs
+
       - name: Seed course-video placeholders (non-production Storage assets only)
         # See BACKLOG.md SG-3 and the script's own header. The 3 HeyGen New Employee Orientation
         # blocks only have real video files in the production project; this uploads a tiny

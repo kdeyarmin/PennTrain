@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
+import { CourseMediaDocumentLink } from "@/components/learning/CourseMediaDocumentLink";
 import { CourseVideoPlayer } from "@/components/CourseVideoPlayer";
 import { StandardsRuntimePlayer } from "@/components/learning/StandardsRuntimePlayer";
 import { useAssignmentPackageCompleted } from "@/hooks/useLearningRuntime";
@@ -507,7 +508,7 @@ useEffect(() => {
     );
   };
 
-  const isVideoBlock = currentBlock?.block_type === "video" && !!currentBlock?.video_url;
+  const isVideoBlock = currentBlock?.block_type === "video" && !!(currentBlock?.video_url || currentBlock?.media_asset_id);
   const currentVideoWatched = currentBlock ? !!videoState[currentBlock.id]?.completedAt : false;
   const videoGateBlocksAdvance =
     isVideoBlock && assignment?.status !== "completed" && !currentVideoWatched;
@@ -997,10 +998,11 @@ useEffect(() => {
               )}
 
               {currentBlock?.block_type === "video" && (
-                currentBlock.video_url ? (
+                (currentBlock.video_url || currentBlock.media_asset_id) ? (
                   <CourseVideoPlayer
                     key={currentBlock.id}
-                    src={currentBlock.video_url}
+                    src={currentBlock.video_url ?? ""}
+                    media={currentBlock.media_asset_id ? { versionId: currentBlock.course_version_id, blockId: currentBlock.id, assetId: currentBlock.media_asset_id } : undefined}
                     state={videoState[currentBlock.id]}
                     gated={assignment?.status !== "completed"}
                     onChange={(next) => handleVideoStateChange(currentBlock.id, next)}
@@ -1011,7 +1013,7 @@ useEffect(() => {
               )}
 
               {currentBlock?.block_type === "pdf" && (
-                <DocumentBlockLink documentId={currentBlock.document_id} />
+                currentBlock.media_asset_id ? <CourseMediaDocumentLink versionId={currentBlock.course_version_id} blockId={currentBlock.id} assetId={currentBlock.media_asset_id} /> : <DocumentBlockLink documentId={currentBlock.document_id} />
               )}
 
               {currentBlock?.block_type === "scorm" && (

@@ -153,6 +153,12 @@ select is(
        -- actual session and freshness; each core then checks exact course/version scope.
        -- learning_package_ingestion.sql probes revocation, cross-tenant/global denial,
        -- stale sessions and CAS.
+       -- The same native_learning_package_authority and exact course scope
+       -- protect media operations; course_media.sql probes revoked actors,
+       -- foreign/global targets, original-session finish and source CAS.
+       'finish_native_course_media_operation',
+       'get_native_course_media_context',
+       'get_native_course_media_status',
        'finish_native_learning_package_operation',
        'get_native_learning_package_context',
        'get_native_learning_package_operation',

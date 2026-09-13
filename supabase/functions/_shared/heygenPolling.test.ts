@@ -238,3 +238,14 @@ Deno.test("invalid provider identifiers are rejected before constructing a statu
   assertEquals(result, { status: "error", error: "Invalid HeyGen video identifier" });
   assertEquals(mock.events, []);
 });
+
+Deno.test("polling binds owned-media replacement to the reviewed asset identity", async () => {
+  const mock = setup();
+  const owned = { ...BLOCK, media_asset_id: "db700000-0000-4000-8000-000000000701", video_url: null };
+  await pollAndResolveHeygenVideo(mock.worker, owned, "test-provider-key", mock.fetchImpl);
+  for (const args of mock.rpcs) {
+    assertEquals((args.p_expected_source as Record<string, unknown>).media_asset_id, owned.media_asset_id);
+    assertEquals((args.p_expected_source as Record<string, unknown>).video_url, null);
+  }
+  assert(mock.rpcs.length > 0);
+});

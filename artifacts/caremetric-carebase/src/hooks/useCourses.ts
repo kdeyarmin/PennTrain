@@ -394,12 +394,18 @@ export function useEmergencyUpdateCourseBlock(courseVersionId: string | undefine
       body?: unknown;
       videoUrl?: string;
       documentId?: string;
+      expectedMediaAssetId?: string | null;
+      expectedSourceRevision?: string | null;
+      expectedBlock?: CourseBlock;
     }) => {
       // Only the fields being corrected are sent. The function coalesces each against the current
       // value, so omitting one leaves it alone rather than blanking it.
       const { error } = await supabase.rpc("admin_emergency_update_course_block" as never, {
         p_course_block_id: input.blockId,
         p_reason: input.reason,
+        p_expected_media_asset_id: input.expectedMediaAssetId ?? null,
+        p_expected_source_revision: input.expectedSourceRevision ?? null,
+        p_expected_block: input.expectedBlock ?? null,
         ...(input.title !== undefined ? { p_title: input.title } : {}),
         ...(input.body !== undefined ? { p_body: input.body } : {}),
         ...(input.videoUrl !== undefined ? { p_video_url: input.videoUrl } : {}),

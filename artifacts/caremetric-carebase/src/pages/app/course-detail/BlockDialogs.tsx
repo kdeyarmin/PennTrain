@@ -12,9 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload } from "lucide-react";
 import type { CourseBlock } from "@/hooks/useCourses";
 import type { TrainingDocument } from "@/hooks/useDocuments";
-import type { Facility } from "@/hooks/useFacilities";
 import { documentDisplayName } from "./helpers";
-import { NO_DOCUMENT, type BlockFormState, type QuizFormState } from "./types";
+import { type BlockFormState, type QuizFormState } from "./types";
 
 export function AddBlockDialog({
   open,
@@ -22,12 +21,9 @@ export function AddBlockDialog({
   onCancel,
   blockForm,
   setBlockForm,
-  courseDocumentsLoading,
-  courseDocuments,
   courseDocumentInputRef,
   handleCourseDocumentUpload,
   uploadingDocument,
-  courseDocumentUploadFacility,
   courseDocumentById,
   onAdd,
   creatingBlock,
@@ -38,12 +34,9 @@ export function AddBlockDialog({
   onCancel: () => void;
   blockForm: BlockFormState;
   setBlockForm: Dispatch<SetStateAction<BlockFormState>>;
-  courseDocumentsLoading: boolean;
-  courseDocuments: TrainingDocument[] | undefined;
   courseDocumentInputRef: RefObject<HTMLInputElement | null>;
   handleCourseDocumentUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   uploadingDocument: boolean;
-  courseDocumentUploadFacility: Facility | undefined;
   courseDocumentById: Map<string, TrainingDocument>;
   onAdd: () => void;
   creatingBlock: boolean;
@@ -102,35 +95,16 @@ export function AddBlockDialog({
               </div>
             </div>
           )}
-          {(blockForm.block_type === "pdf" || blockForm.block_type === "scorm") && (
+          {blockForm.block_type === "pdf" && <p className="text-sm text-muted-foreground">Create this PDF block, then upload and review its original file in Course media. The file belongs to this course.</p>}
+          {blockForm.block_type === "scorm" && (
             <div className="space-y-3">
-              {blockForm.block_type === "pdf" && <div className="space-y-1">
-                <Label htmlFor={`${fieldIds}-document`}>Document</Label>
-                <Select
-                  value={blockForm.documentId || NO_DOCUMENT}
-                  onValueChange={value => setBlockForm(f => ({ ...f, documentId: value === NO_DOCUMENT ? "" : value }))}
-                  disabled={courseDocumentsLoading}
-                >
-                  <SelectTrigger id={`${fieldIds}-document`}>
-                    <SelectValue placeholder={courseDocumentsLoading ? "Loading documents..." : "Select a document"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_DOCUMENT}>No document attached</SelectItem>
-                    {(courseDocuments ?? []).map(document => (
-                      <SelectItem key={document.id} value={document.id}>
-                        {documentDisplayName(document)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>}
               {blockForm.block_type === "scorm" && <p className="text-sm text-muted-foreground">Upload the original ZIP for this course version, then accept it in Governed Learning. Its original and runtime files are stored separately.</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   ref={courseDocumentInputRef}
                   className="hidden"
                   type="file"
-                  accept={blockForm.block_type === "pdf" ? "application/pdf,.pdf" : ".zip,application/zip,application/x-zip-compressed"}
+                  accept=".zip,application/zip,application/x-zip-compressed"
                   onChange={handleCourseDocumentUpload}
                 />
                 <Button
@@ -138,7 +112,7 @@ export function AddBlockDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => courseDocumentInputRef.current?.click()}
-                  disabled={uploadingDocument || blockForm.block_type === "pdf" && !courseDocumentUploadFacility}
+                  disabled={uploadingDocument}
                 >
                   {uploadingDocument ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-2 h-3.5 w-3.5" />}
                   Upload File
@@ -149,11 +123,6 @@ export function AddBlockDialog({
                   </p>
                 )}
               </div>
-              {blockForm.block_type === "pdf" && !courseDocumentUploadFacility && (
-                <p className="text-xs text-muted-foreground">
-                  Uploads need a facility record to own the document metadata.
-                </p>
-              )}
             </div>
           )}
           {blockForm.block_type === "quiz" && (

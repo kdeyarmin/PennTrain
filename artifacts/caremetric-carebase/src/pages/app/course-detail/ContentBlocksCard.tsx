@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, Eye, Lock, Plus, RefreshCw, Sparkles, Trash2, Video, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NativeCourseMediaPanel } from "@/components/learning/NativeCourseMediaPanel";
 import { EmergencyBlockCorrection } from "./EmergencyBlockCorrection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CourseBlock, CourseVersion } from "@/hooks/useCourses";
@@ -123,7 +124,7 @@ export function ContentBlocksCard({
                   )}
                   {b.block_type === "video" && (
                     <>
-                      <p className="text-xs text-muted-foreground mt-1 truncate">{b.video_url ?? "No video URL set."}</p>
+                      <p className="text-xs text-muted-foreground mt-1 truncate">{b.media_asset_id ? "Course-owned video attached." : b.video_url ?? "No video URL set."}</p>
                       {videoTranscriptContent(b) && (
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                           Transcript: {videoTranscriptContent(b)}
@@ -143,7 +144,7 @@ export function ContentBlocksCard({
                   )}
                   {(b.block_type === "pdf" || b.block_type === "scorm") && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      {b.document_id ? `Document: ${documentDisplayName(courseDocumentById.get(b.document_id)) || b.document_id}` : "No document attached."}
+                      {b.media_asset_id ? "Course-owned PDF attached." : b.document_id ? `Document: ${documentDisplayName(courseDocumentById.get(b.document_id)) || b.document_id}` : "No document attached."}
                     </p>
                   )}
                   {b.block_type === "quiz" && (
@@ -156,6 +157,7 @@ export function ContentBlocksCard({
                       />
                     </div>
                   )}
+                  {canManage && (b.block_type === "pdf" || b.block_type === "video") && <NativeCourseMediaPanel key={`${b.id}:${selectedVersion.id}`} versionId={selectedVersion.id} blockId={b.id} type={b.block_type} locked={isVersionLocked} />}
                   {/* Only where the lock actually bites, and only for the one role the server
                       accepts. Per block, because a correction that rewrites a whole version is the
                       re-version this deliberately is not. Inside the block's own column so the
@@ -222,6 +224,8 @@ export function ContentBlocksCard({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground shrink-0"
+                    disabled={b.block_type === "video" && !!b.media_asset_id}
+                    title={b.block_type === "video" && b.media_asset_id ? "Reviewed media prevents script regeneration" : undefined}
                     onClick={() => onRegenerateBlock(b)}
                     aria-label="Regenerate with AI"
                   >

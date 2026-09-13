@@ -4731,6 +4731,7 @@ export type Database = {
           created_at: string
           document_id: string | null
           id: string
+          media_asset_id: string | null
           organization_id: string | null
           sort_order: number
           title: string | null
@@ -4743,6 +4744,7 @@ export type Database = {
           created_at?: string
           document_id?: string | null
           id?: string
+          media_asset_id?: string | null
           organization_id?: string | null
           sort_order?: number
           title?: string | null
@@ -4755,6 +4757,7 @@ export type Database = {
           created_at?: string
           document_id?: string | null
           id?: string
+          media_asset_id?: string | null
           organization_id?: string | null
           sort_order?: number
           title?: string | null
@@ -36180,6 +36183,9 @@ export type Database = {
           p_body?: Json
           p_course_block_id: string
           p_document_id?: string
+          p_expected_block?: Json
+          p_expected_media_asset_id?: string
+          p_expected_source_revision?: string
           p_reason: string
           p_title?: string
           p_video_url?: string
@@ -36893,6 +36899,7 @@ export type Database = {
       claim_course_video_generation: {
         Args: {
           p_block_id: string
+          p_expected_media_asset_id?: string
           p_expected_video_url?: string
           p_payload: Json
           p_replace_existing?: boolean
@@ -38384,6 +38391,18 @@ export type Database = {
         }
         Returns: Json
       }
+      finish_delegated_course_media_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       finish_delegated_learning_package_operation: {
         Args: {
           p_actor: string
@@ -38415,6 +38434,10 @@ export type Database = {
           p_status?: string
         }
         Returns: boolean
+      }
+      finish_native_course_media_operation: {
+        Args: { p_operation_id: string }
+        Returns: Json
       }
       finish_native_learning_package_operation: {
         Args: { p_operation_id: string }
@@ -38605,6 +38628,45 @@ export type Database = {
         Returns: Json
       }
       get_data_lifecycle_status: { Args: never; Returns: Json }
+      get_delegated_course_media_context: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_block_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      get_delegated_course_media_read: {
+        Args: {
+          p_actor: string
+          p_asset_id: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_block_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      get_delegated_course_media_status: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       get_delegated_learning_package_context: {
         Args: {
           p_actor: string
@@ -38908,6 +38970,18 @@ export type Database = {
       get_my_mfa_policy: { Args: never; Returns: Json }
       get_my_mfa_status: { Args: never; Returns: Json }
       get_my_shift_workspace: { Args: never; Returns: Json }
+      get_native_course_media_context: {
+        Args: { p_block_id: string; p_version_id: string }
+        Returns: Json
+      }
+      get_native_course_media_read: {
+        Args: { p_asset_id: string; p_block_id: string; p_version_id: string }
+        Returns: Json
+      }
+      get_native_course_media_status: {
+        Args: { p_operation_id: string }
+        Returns: Json
+      }
       get_native_learning_creation_options: {
         Args: { p_offset: number }
         Returns: Json
@@ -40664,6 +40738,18 @@ export type Database = {
         }
         Returns: Json
       }
+      prepare_delegated_course_media_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_request: Json
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       prepare_delegated_learning_package_operation: {
         Args: {
           p_actor: string
@@ -40674,6 +40760,10 @@ export type Database = {
           p_request: Json
           p_session_started_at: string
         }
+        Returns: Json
+      }
+      prepare_native_course_media_operation: {
+        Args: { p_request: Json }
         Returns: Json
       }
       prepare_native_learning_package_operation: {
@@ -41128,6 +41218,15 @@ export type Database = {
       record_course_attestation: {
         Args: { p_assignment_id: string; p_block_id: string }
         Returns: string
+      }
+      record_course_media_artifact: {
+        Args: {
+          p_byte_size: number
+          p_content_sha256: string
+          p_mime_type: string
+          p_operation_id: string
+        }
+        Returns: undefined
       }
       record_credential_renewal_extraction: {
         Args: {

@@ -9,6 +9,7 @@ import { proxyLearningPackage } from "./learning-package-proxy.mjs";
 import { createProviderHandlers } from "./provider-handlers.mjs";
 import { createProviderRouter } from "./provider-router.mjs";
 import { createPlatformAdminRouter } from "./platform-admin.mjs";
+import { createPlatformMediaRouter } from "./platform-admin-media.mjs";
 import { createPlatformPackageRouter } from "./platform-admin-packages.mjs";
 import { createLearningAdminRouter } from "./platform-admin-learning.mjs";
 import { createDistributionStatusRouter } from './learning-distribution-status.mjs';
@@ -48,6 +49,7 @@ const routeProviderRequest = createProviderRouter({
 });
 const routePlatformAdminRequest = createPlatformAdminRouter();
 const routeLearningAdminRequest = createLearningAdminRouter();
+const routePlatformMediaRequest = createPlatformMediaRouter();
 const routePlatformPackageRequest = createPlatformPackageRouter();
 const routeDistributionStatusRequest = createDistributionStatusRouter();
 
@@ -472,6 +474,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     // Central administration has a stable root URL and an independent default-off gate.
     if (await routePlatformAdminRequest(req, res, url.pathname)) return;
+    if (await routePlatformMediaRequest(req, res, url.pathname)) return;
     if (await routePlatformPackageRequest(req, res, url.pathname)) return;
     if (await routeLearningAdminRequest(req, res, url.pathname)) return;
     if (await routeDistributionStatusRequest(req, res, url.pathname)) return;

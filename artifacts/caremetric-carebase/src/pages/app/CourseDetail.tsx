@@ -21,9 +21,8 @@ import {
   useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus, useAutoCheckVideoStatuses,
 } from "@/hooks/useCourseVideoGeneration";
 import { useRegenerateCourseBlock, useListCourseAiGenerations, useMarkAiGenerationReviewed } from "@/hooks/useAiCourseGeneration";
-import { useListDocuments, useUploadDocument } from "@/hooks/useDocuments";
+import { useListDocuments } from "@/hooks/useDocuments";
 import { } from "@/hooks/useLearningRuntime";
-import { useListFacilities } from "@/hooks/useFacilities";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
@@ -134,17 +133,12 @@ export default function CourseDetail() {
 
   const { data: blocks, isLoading: blocksLoading, isError: blocksError, refetch: refetchBlocks } = useListCourseBlocks(selectedVersion?.id);
   const courseDocumentPrefix = course ? `${course.organization_id ?? "system"}/${course.id}/` : undefined;
-  const { data: courseDocuments, isLoading: courseDocumentsLoading } = useListDocuments(
+  const { data: courseDocuments } = useListDocuments(
     courseDocumentPrefix
       ? { storageBucket: "course-documents", storagePathPrefix: courseDocumentPrefix }
       : {},
     !!courseDocumentPrefix,
   );
-  const { data: facilities } = useListFacilities(
-    course?.organization_id ? { organizationId: course.organization_id } : {},
-    canManage && !!course,
-  );
-  const uploadCourseDocument = useUploadDocument();
   const uploadLearningPackage = useUploadLearningPackage();
   const packageVersionRef = useRef(selectedVersion?.id);
   packageVersionRef.current = selectedVersion?.id;
@@ -152,10 +146,6 @@ export default function CourseDetail() {
   const courseDocumentById = useMemo(
     () => new Map((courseDocuments ?? []).map(document => [document.id, document])),
     [courseDocuments],
-  );
-  const courseDocumentUploadFacility = useMemo(
-    () => facilities?.find(f => !course?.organization_id || f.organization_id === course.organization_id) ?? facilities?.[0],
-    [facilities, course?.organization_id],
   );
   const { data: publishIssues, isLoading: publishIssuesLoading, isError: publishIssuesError } = useCourseVersionPublishIssues(
     selectedVersion?.id,
@@ -202,7 +192,7 @@ export default function CourseDetail() {
       },
       {
         label: "Videos are ready with captions or transcript",
-        passed: videoBlocks.length === 0 || (videoBlocks.every(block => !!block.video_url) && videoBlocks.every(block => !!videoTranscriptContent(block))),
+        passed: videoBlocks.length === 0 || (videoBlocks.every(block => !!(block.video_url || block.media_asset_id)) && videoBlocks.every(block => !!videoTranscriptContent(block))),
         detail: videoBlocks.length === 0
           ? "No video blocks in this version."
           : "Every video should have a finished URL and a script or transcript.",
@@ -435,30 +425,6 @@ export default function CourseDetail() {
       return;
     }
 
-    if (!courseDocumentUploadFacility) {
-      toast({
-        title: "No facility available for document ownership",
-        description: "Create or select a facility before uploading a training document.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const document = await uploadCourseDocument.mutateAsync({
-        file,
-        bucket: "course-documents",
-        organizationId: courseDocumentUploadFacility.organization_id,
-        facilityId: courseDocumentUploadFacility.id,
-        documentType: "other",
-        storagePrefix: courseDocumentPrefix,
-      });
-      setBlockForm(f => ({ ...f, documentId: document.id }));
-
-      toast({ title: "Document uploaded", description: `${document.file_name} is attached to this block.` });
-    } catch (e) {
-      toast({ title: "Failed to upload document", description: (e as Error).message, variant: "destructive" });
-    }
   };
 
   const handleRequestCloseAddBlock = () => {
@@ -607,8 +573,9 @@ export default function CourseDetail() {
         voiceId: videoGenForm.voiceId,
         script: videoGenForm.script.trim(),
         title: videoGenRequestTitle.current,
-        replaceExisting: Boolean(videoGenBlock.video_url),
+        replaceExisting: Boolean(videoGenBlock.video_url || videoGenBlock.media_asset_id),
         expectedVideoUrl: videoGenBlock.video_url,
+        expectedMediaAssetId: videoGenBlock.media_asset_id,
       },
       {
         onSuccess: () => {
@@ -842,12 +809,9 @@ export default function CourseDetail() {
         onCancel={() => setShowAddBlock(false)}
         blockForm={blockForm}
         setBlockForm={setBlockForm}
-        courseDocumentsLoading={courseDocumentsLoading}
-        courseDocuments={courseDocuments}
         courseDocumentInputRef={courseDocumentInputRef}
         handleCourseDocumentUpload={handleCourseDocumentUpload}
-        uploadingDocument={uploadCourseDocument.isPending || uploadLearningPackage.isPending}
-        courseDocumentUploadFacility={courseDocumentUploadFacility}
+        uploadingDocument={uploadLearningPackage.isPending}
         courseDocumentById={courseDocumentById}
         onAdd={handleAddBlock}
         creatingBlock={creatingBlock}
@@ -874,7 +838,7 @@ export default function CourseDetail() {
         heygenOptionsLoading={heygenOptionsLoading}
         onGenerate={handleGenerateVideo}
         generatingVideo={generatingVideo}
-        replacingVideo={Boolean(videoGenBlock?.video_url)}
+        replacingVideo={Boolean(videoGenBlock?.video_url || videoGenBlock?.media_asset_id)}
         fieldIds={__fieldIds}
       />
 

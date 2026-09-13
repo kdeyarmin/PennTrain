@@ -442,3 +442,6 @@ verify_jwt = false
 # User JWT verified by handler; all SMS proofs are session-bound in app_private.
 [functions.sms-mfa]
 verify_jwt = false
+
+[functions.course-media]
+verify_jwt = true

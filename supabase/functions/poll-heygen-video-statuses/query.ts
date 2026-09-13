@@ -6,7 +6,7 @@ import type { SupabaseClient } from "jsr:@supabase/supabase-js@2.48.1";
  */
 export function selectPollableHeygenBlocks(client: SupabaseClient, batchSize: number) {
   return client.from("course_blocks")
-    .select("id, organization_id, course_version_id, block_type, title, body, video_url")
+    .select("id, organization_id, course_version_id, block_type, title, body, video_url, media_asset_id")
     .eq("block_type", "video")
     .not("body->heygen->>status", "in", "(completed,failed)")
     .not("body->heygen->>video_id", "is", null)

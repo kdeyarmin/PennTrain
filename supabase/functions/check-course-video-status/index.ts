@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: block, error: blockError } = await callerClient
     .from("course_blocks")
-    .select("id, organization_id, course_version_id, block_type, title, body, video_url")
+    .select("id, organization_id, course_version_id, block_type, title, body, video_url, media_asset_id")
     .eq("id", body.course_block_id)
     .single();
   if (blockError || !block) return json(req, { error: "course block not found" }, 404);

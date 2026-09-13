@@ -1113,3 +1113,32 @@ A clone uses the same atomic database core as the native editor. It copies defin
 Deploy migration 20260911220017 and both ingest-learning-package / accept-learning-package Edge Functions together before enabling the new native UI. The learning-package-originals bucket is private with no browser access. Original archives are retained at new immutable paths; accepted runtime archives use a reserved managed/ prefix in learning-packages. Existing accepted objects are unchanged. Deploy the package asset helper as well: its bounded archive reader is shared, and its legacy launch contract remains unchanged.
 
 The Railway Hub endpoint is POST /api/learning-admin/package. CAREMETRIC_ADMIN_PACKAGE_INGESTION_ENABLED=true also requires the existing central-administration and command flags. It defaults off. Upload uses application/zip and a bounded base64url JSON x-caremetric-package-request header, which is bound to its exact fresh carebase.learning delegation. Other operations use application/json. Upload and accept stage bytes only; a separately authorized finish is mandatory after the Hub rechecks its current session. Status observes an uploader's persisted receipt across current verified sessions without replaying old write authority. Archive input is limited to50 MiB compressed/100 MiB expanded; the Node router admits one operation at a time and applies a120-second request timeout. Neither transport accepts external URLs, bucket names or storage paths.
+
+## Course-owned media (N19)
+
+The private `course-media` bucket retains PDF (25 MiB), MP4 and WebM (100 MiB)
+originals under generated course/asset/hash paths. Upload workers stream to an
+invocation-local temporary file, verify actual bytes and never upsert objects.
+The upload stage does not alter a course; a separately authorized finish checks
+current native authority, original session, source revision and unresolved video
+jobs before attaching the immutable asset. Old facility documents and accepted
+course packages retain their existing readers and history.
+
+Deploy the reviewed `course-media` Edge worker with `verify_jwt=true` and the
+updated `generate-course-video`, `check-course-video-status` and
+`poll-heygen-video-statuses` sources together with migration
+`20260911235550_immutable_course_media.sql` and the native
+web bundle. Drain the old generation writers before applying changed RPC
+signatures, using the maximum invocation duration of the hosted plan. No live
+upload or generation is part of deployment verification.
+
+The Hub route `/api/learning-admin/media` is off by default. Set
+`CAREMETRIC_ADMIN_MEDIA_ENABLED=true` only after the paired Hub protocol is live
+and the existing central admin and command flags/identity mapping are ready.
+It advertises `learning.media.v1`; the same existing learning delegation audience
+binds each exact operation. JSON metadata is capped at8 KiB/3 seconds; authorized
+byte transfers are capped at120 seconds with one active transfer. Hub byte reads
+return current-authorized bytes and checked range/hash headers, never Storage
+URLs. Native learners receive a short-lived authorized Storage link (60 seconds
+for PDFs, 900 seconds for video), with current authority checked again before
+link disclosure.
