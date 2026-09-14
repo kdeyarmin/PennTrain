@@ -47,6 +47,26 @@ const EMPTY_ACTIVITY: MedicationIngestionActivity = {
   residents: [],
 };
 
+async function listMedicationExceptions(facilityId: string): Promise<MedicationException[]> {
+  // Keep unresolved exceptions visible even when many newer resolved records precede them.
+  // The workspace displays history and computes its open count from this same collection.
+  const pageSize = 1000;
+  const rows: MedicationException[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("medication_integration_exceptions")
+      .select("*")
+      .eq("facility_id", facilityId)
+      .order("last_seen_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows;
+}
+
 /**
  * The eMAR integration console.
  *
@@ -65,14 +85,14 @@ export function useMedicationIntegration(facilityId?: string) {
     queryFn: async (): Promise<MedicationIntegrationWorkspace> => {
       const [sources, exceptions, activity] = await Promise.all([
         supabase.from("medication_integration_sources").select("*").eq("facility_id", facilityId!).order("created_at"),
-        supabase.from("medication_integration_exceptions").select("*").eq("facility_id", facilityId!).order("last_seen_at", { ascending: false }).limit(100),
+        listMedicationExceptions(facilityId!),
         supabase.rpc("get_facility_medication_ingestion_activity", { p_facility_id: facilityId! }),
       ]);
-      const failed = [sources, exceptions, activity].find((result) => result.error);
+      const failed = [sources, activity].find((result) => result.error);
       if (failed?.error) throw failed.error;
       return {
         sources: sources.data ?? [],
-        exceptions: exceptions.data ?? [],
+        exceptions,
         activity: (activity.data as unknown as MedicationIngestionActivity | null) ?? EMPTY_ACTIVITY,
       };
     },

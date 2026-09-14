@@ -8,3 +8,7 @@ d3f81bd91acb577a13d9d5f74c65ea091e20077c:supabase/functions/_shared/marketingEma
 # on entropy by the generic-api-key heuristic.
 6de70ec84a37c8bc48c96d518b0f459c662da12c:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:473
 6de70ec84a37c8bc48c96d518b0f459c662da12c:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:477
+# The same two reviewed public template identifiers in the earlier historical UI
+# revision, independently confirmed against that commit after the weekly scan.
+0df5a8e21838bea949c0c37aea7905e96e2f0911:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:470
+0df5a8e21838bea949c0c37aea7905e96e2f0911:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:474

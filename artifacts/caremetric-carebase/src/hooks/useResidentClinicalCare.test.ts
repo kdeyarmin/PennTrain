@@ -9,7 +9,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: harness.invalidateQueries }),
 }));
 
-import { useSaveClinicalProgressNote, useSignClinicalProgressNote } from "./useResidentClinicalCare";
+import { useSaveCarePlanGoal, useSaveClinicalProgressNote, useSignClinicalProgressNote } from "./useResidentClinicalCare";
 import { useResidentClinicalChartSummary } from "./useClinicalObservations";
 
 type Mutation = {
@@ -42,5 +42,19 @@ describe("clinical draft persistence", () => {
     expect(query.queryKey).toEqual(["clinical-chart-summary", "resident-1", "Caregiver clinical charting"]);
     expect(harness.invalidateQueries).toHaveBeenCalledWith({ queryKey: query.queryKey.slice(0, 2) });
     expect(harness.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["resident-clinical-care", "resident-1"] });
+  });
+});
+
+describe("care-plan goal revisions", () => {
+  it("preserves the goal's linked condition when changing its status", async () => {
+    const mutation = useSaveCarePlanGoal() as unknown as Mutation;
+    await mutation.mutationFn({
+      residentId: "resident-1", carePlanId: "plan-1", goalId: "goal-1",
+      description: "Transfer safely", status: "achieved", addressesConditionRef: "Condition/condition-1",
+    });
+    expect(harness.rpc).toHaveBeenCalledWith("save_care_plan_goal", expect.objectContaining({
+      p_goal_id: "goal-1", p_care_plan_id: "plan-1", p_status: "achieved",
+      p_addresses_condition_ref: "Condition/condition-1",
+    }));
   });
 });
