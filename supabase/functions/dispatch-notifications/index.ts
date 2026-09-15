@@ -1,7 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import webpush from "npm:web-push@3.6.7";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
-import { buildDisabledPushSubscriptionPatch, isAllowedWebPushEndpoint, webPushTargetPath } from "../_shared/webPush.ts";
+import { buildDisabledPushSubscriptionPatch, rejectInvalidStoredPushSubscription, webPushTargetPath } from "../_shared/webPush.ts";
 import {
   channelProviderConfigured,
   classifyNotificationDispatchStatus,
@@ -82,6 +82,7 @@ interface ProviderResult {
   httpStatus?: number;
   errorCode?: string;
   error?: string;
+  persistenceError?: boolean;
 }
 
 async function sendEmail(
@@ -276,9 +277,8 @@ async function sendWebPush(
     return { ok: false, retryable: false, errorCode: "subscription_unavailable", error: "No active browser push subscription exists" };
   }
   const subscription = data as StoredPushSubscription;
-  if (!isAllowedWebPushEndpoint(subscription.endpoint)) {
-    return { ok: false, retryable: false, errorCode: "invalid_push_endpoint", error: "Browser push endpoint is not supported" };
-  }
+  const invalidSubscription = await rejectInvalidStoredPushSubscription(adminClient, subscription, profileId);
+  if (invalidSubscription) return invalidSubscription;
   try {
     webpush.setVapidDetails(subject, publicKey, privateKey);
     const response = await webpush.sendNotification({
@@ -579,6 +579,11 @@ Deno.serve(async (req: Request) => {
         row.notification_id,
         webPushTargetPath(row.notifications?.link ?? null, row.profiles?.role ?? null),
       );
+
+    if (result.persistenceError) {
+      console.error("push subscription retirement could not be confirmed", { deliveryId: row.id });
+      persistenceErrors++;
+    }
 
     const completion = result.ok
       ? "accepted"
