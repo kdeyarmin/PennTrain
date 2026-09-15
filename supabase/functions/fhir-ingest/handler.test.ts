@@ -67,6 +67,7 @@ for (const body of [
   { resourceType: "Bundle", entry: {} },
   { resourceType: "Bundle", entry: [null] },
   { resourceType: "Bundle", entry: [{ resource: [] }] },
+  { resourceType: "Bundle", entry: [{ fullUrl: {}, resource: MEDICATION }] },
   { ...MEDICATION, subject: { reference: 123 } },
   { ...MEDICATION, medicationCodeableConcept: { coding: {} } },
   { ...MEDICATION, medicationCodeableConcept: { coding: [null] } },
@@ -198,3 +199,19 @@ Deno.test("FHIR repeating primitive placeholders retain their metadata without i
   assertEquals(payload.allergies[0].category, ["medication"]);
   assertEquals(payload.allergies[0].raw._category, categoryMetadata);
 });
+
+for (const targetType of ["Patient", "Group"]) {
+  Deno.test(`FHIR ingestion resolves UUID aliases against actual ${targetType} targets before resident matching`, async () => {
+    const { handler, calls } = fixture();
+    const fullUrl = "urn:uuid:10000000-0000-4000-8000-000000000001";
+    const response = await handler(request(JSON.stringify({
+      resourceType: "Bundle", entry: [
+        { fullUrl, resource: { resourceType: targetType, id: "patient-1" } },
+        { resource: { ...MEDICATION, subject: { reference: fullUrl } } },
+      ],
+    })));
+    assertEquals(response.status, 202);
+    const payload = calls[2].args.p_payload as { medicationRequests: Array<Record<string, unknown>> };
+    assertEquals(payload.medicationRequests[0].fhirPatientId, targetType === "Patient" ? "patient-1" : null);
+  });
+}

@@ -40161,7 +40161,7 @@ export type Database = {
         Returns: Json
       }
       list_pending_resident_document_deletions: {
-        Args: { p_resident_id: string }
+        Args: { p_resident_id?: string }
         Returns: {
           document_id: string
           file_name: string

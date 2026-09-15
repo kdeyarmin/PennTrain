@@ -67,6 +67,7 @@ export function hasValidFhirMappingShape(value: unknown): boolean {
   if (value.resourceType !== "Bundle") return validResource(value);
   if (value.entry === undefined) return true;
   return Array.isArray(value.entry) && value.entry.every((entry) =>
-    isObject(entry) && (entry.resource === undefined || validResource(entry.resource))
+    isObject(entry) && (entry.fullUrl === undefined || typeof entry.fullUrl === "string") &&
+    (entry.resource === undefined || validResource(entry.resource))
   );
 }

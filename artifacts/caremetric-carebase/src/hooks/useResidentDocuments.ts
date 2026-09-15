@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { useAuth } from "@/lib/auth";
 import { describeFunctionError } from "./useResidentAssessmentForms";
 
 export type ResidentDocument = Tables<"resident_documents">;
@@ -8,11 +9,18 @@ export type ResidentDocument = Tables<"resident_documents">;
 export function useListResidentDocuments(residentId: string | undefined) {
   return useQuery({
     queryKey: ["resident_documents", residentId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("resident_documents").select("*").eq("resident_id", residentId!).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+    queryFn: async ({ signal }) => {
+      const pageSize = 1000;
+      const rows: ResidentDocument[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("resident_documents").select("*").eq("resident_id", residentId!)
+          .order("created_at", { ascending: false }).order("id", { ascending: true })
+          .range(from, from + pageSize - 1).abortSignal(signal);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) return rows;
+      }
     },
     enabled: !!residentId,
   });
@@ -135,7 +143,7 @@ export function useDeleteResidentDocument() {
     },
     onSettled: (_data, _error, doc) => {
       queryClient.invalidateQueries({ queryKey: ["resident_documents", doc.resident_id] });
-      queryClient.invalidateQueries({ queryKey: ["resident_document_deletions", doc.resident_id] });
+      queryClient.invalidateQueries({ queryKey: ["resident_document_deletions"] });
     },
   });
 }
@@ -159,20 +167,21 @@ async function finishResidentDocumentDeletion(doc: Pick<PendingResidentDocumentD
   }
 }
 
-export function useListPendingResidentDocumentDeletions(residentId: string, enabled: boolean) {
+export function useListPendingResidentDocumentDeletions(residentId: string | undefined, enabled: boolean) {
+  const { user, isLoading } = useAuth();
   return useQuery({
-    queryKey: ["resident_document_deletions", residentId],
+    queryKey: ["resident_document_deletions", user?.id, user?.organizationId, user?.role, user?.facilityId, residentId ?? "all"],
     queryFn: async ({ signal }) => {
       const rows: PendingResidentDocumentDeletion[] = [];
       for (let from = 0; ; from += 500) {
-        const { data, error } = await supabase.rpc("list_pending_resident_document_deletions", { p_resident_id: residentId })
+        const { data, error } = await supabase.rpc("list_pending_resident_document_deletions", residentId ? { p_resident_id: residentId } : {})
           .range(from, from + 499).abortSignal(signal);
         if (error) throw error;
         rows.push(...(data ?? []));
         if (!data || data.length < 500) return rows;
       }
     },
-    enabled,
+    enabled: enabled && !isLoading && !!user?.isActive,
   });
 }
 
@@ -181,7 +190,7 @@ export function useRetryResidentDocumentDeletion() {
   return useMutation({
     mutationFn: (doc: PendingResidentDocumentDeletion) => finishResidentDocumentDeletion(doc),
     onSettled: (_data, _error, doc) => {
-      queryClient.invalidateQueries({ queryKey: ["resident_document_deletions", doc.resident_id] });
+      queryClient.invalidateQueries({ queryKey: ["resident_document_deletions"] });
     },
   });
 }

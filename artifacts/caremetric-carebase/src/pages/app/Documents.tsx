@@ -20,6 +20,7 @@ import { QueryError } from "@/components/QueryState";
 import { FileText, Upload, Trash2, Download, Files, UserRound } from "lucide-react";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { canUploadTrainingDocumentType, canUploadTrainingDocuments } from "@/lib/policyPermissions";
+import { ResidentDocumentDeletionQueue } from "@/components/residents/ResidentDocumentDeletionQueue";
 
 // Matches the training_documents_delete RLS policy (org_admin/facility_manager, or
 // platform_admin via is_platform_admin()) — trainer and employee can never delete a
@@ -272,6 +273,8 @@ export default function Documents() {
             : "Training certificates and compliance documents"}
         </p>
       </div>
+
+      {(user?.role === "org_admin" || user?.role === "platform_admin") && <ResidentDocumentDeletionQueue />}
 
       {canUpload && <Card>
         <CardHeader>

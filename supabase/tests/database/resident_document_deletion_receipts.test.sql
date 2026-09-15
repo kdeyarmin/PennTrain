@@ -33,6 +33,9 @@ select ('d7000000-0000-4000-8000-00000000004' || i)::uuid,
   'd7000000-0000-4000-8000-000000000001', 'd7000000-0000-4000-8000-000000000011', 'd7000000-0000-4000-8000-000000000031',
   'd7000000-0000-4000-8000-000000000001/d7000000-0000-4000-8000-000000000011/file-' || i || '.pdf',
   'file-' || i || '.pdf', 'application/pdf' from generate_series(1,3) i;
+insert into public.resident_documents(id,organization_id,facility_id,resident_id,storage_path,file_name,file_type) values
+  ('d7000000-0000-4000-8000-000000000044','d7000000-0000-4000-8000-000000000002','d7000000-0000-4000-8000-000000000012',
+   'd7000000-0000-4000-8000-000000000032','d7000000-0000-4000-8000-000000000002/d7000000-0000-4000-8000-000000000012/cascade.pdf','cascade.pdf','application/pdf');
 update public.residents set photo_document_id = 'd7000000-0000-4000-8000-000000000042'
   where id = 'd7000000-0000-4000-8000-000000000031';
 -- A real FK reproduces the same non-deferrable RESTRICT constraint used by
@@ -42,6 +45,7 @@ insert into app_private.resident_document_deletion_test_reference values ('d7000
 insert into storage.objects(bucket_id, name)
   select storage_bucket, storage_path from public.resident_documents where resident_id = 'd7000000-0000-4000-8000-000000000031';
 insert into storage.objects(bucket_id, name) values
+  ('resident-documents', 'd7000000-0000-4000-8000-000000000002/d7000000-0000-4000-8000-000000000012/cascade.pdf'),
   ('resident-documents', 'd7000000-0000-4000-8000-000000000001/d7000000-0000-4000-8000-000000000011/failed-upload.pdf'),
   ('org-branding', 'd7000000-0000-4000-8000-000000000001/logo.png');
 select set_config('app.privileged_write', 'off', true);
@@ -81,6 +85,8 @@ select is((select count(*)::integer from public.resident_documents where id = 'd
   'deleted metadata is no longer selectable as clinical evidence');
 select is((select count(*)::integer from public.list_pending_resident_document_deletions('d7000000-0000-4000-8000-000000000031')), 1,
   'cleanup remains discoverable after a disconnected browser reloads');
+select is((select count(*)::integer from public.list_pending_resident_document_deletions()), 1,
+  'organization-wide cleanup lists pending work across the current tenant');
 select is(public.confirm_resident_document_deletion('d7000000-0000-4000-8000-000000000041'), false,
   'a success-with-zero-rows Storage response cannot falsely complete cleanup');
 select throws_ok($$select * from public.begin_resident_document_deletion('d7000000-0000-4000-8000-000000000041')$$,
@@ -89,6 +95,8 @@ select throws_ok($$select * from public.begin_resident_document_deletion('d70000
 select pg_temp.act_as('d7000000-0000-4000-8000-000000000022');
 select is((select count(*)::integer from public.list_pending_resident_document_deletions('d7000000-0000-4000-8000-000000000031')), 0,
   'another organization cannot enumerate filenames or storage paths');
+select is((select count(*)::integer from public.list_pending_resident_document_deletions()), 0,
+  'organization-wide cleanup cannot leak another tenant''s pending work');
 select throws_ok($$select public.confirm_resident_document_deletion('d7000000-0000-4000-8000-000000000041')$$,
   '42501', null, 'another organization cannot complete a known receipt');
 select throws_ok($$select * from public.begin_resident_document_deletion('d7000000-0000-4000-8000-000000000042')$$,
@@ -136,7 +144,7 @@ select is((select count(*)::integer from public.list_pending_resident_document_d
   'completed deletions leave the retry list');
 select throws_ok($$insert into storage.objects(bucket_id,name) values
   ('resident-documents','d7000000-0000-4000-8000-000000000001/d7000000-0000-4000-8000-000000000011/file-1.pdf')$$,
-  '42501', null, 'completed deletion path cannot be reused by a new upload and erased by a late retry');
+  '23514', null, 'completed deletion path cannot be reused by a new upload and erased by a late retry');
 select throws_ok($$insert into public.resident_documents(id,organization_id,facility_id,resident_id,storage_path,file_name,file_type)
   values('d7000000-0000-4000-8000-000000000045','d7000000-0000-4000-8000-000000000001','d7000000-0000-4000-8000-000000000011',
   'd7000000-0000-4000-8000-000000000031','d7000000-0000-4000-8000-000000000001/d7000000-0000-4000-8000-000000000011/file-1.pdf','file.pdf','application/pdf')$$,
@@ -145,8 +153,28 @@ select throws_ok($$insert into public.resident_documents(id,organization_id,faci
   values('d7000000-0000-4000-8000-000000000041','d7000000-0000-4000-8000-000000000001','d7000000-0000-4000-8000-000000000011',
   'd7000000-0000-4000-8000-000000000031','d7000000-0000-4000-8000-000000000001/d7000000-0000-4000-8000-000000000011/new-file.pdf','file.pdf','application/pdf')$$,
   '23514', null, 'a deleted document UUID cannot be reused and collide with the durable receipt');
+select throws_ok($$insert into public.resident_documents(id,organization_id,facility_id,resident_id,storage_path,file_name,file_type)
+  values('d7000000-0000-4000-8000-000000000046','d7000000-0000-4000-8000-000000000001','d7000000-0000-4000-8000-000000000011',
+  'd7000000-0000-4000-8000-000000000031','d7000000-0000-4000-8000-000000000001/d7000000-0000-4000-8000-000000000011/missing.pdf','file.pdf','application/pdf')$$,
+  '23514', null, 'authenticated registration rejects a file already removed from Storage');
 
 reset role;
+set local role service_role;
+select throws_ok($$insert into public.resident_documents(id,organization_id,facility_id,resident_id,storage_path,file_name,file_type)
+  values('d7000000-0000-4000-8000-000000000046','d7000000-0000-4000-8000-000000000001','d7000000-0000-4000-8000-000000000011',
+  'd7000000-0000-4000-8000-000000000031','d7000000-0000-4000-8000-000000000001/d7000000-0000-4000-8000-000000000011/missing.pdf','file.pdf','application/pdf')$$,
+  '23514', null, 'service-role registration also requires real Storage metadata despite SECURITY DEFINER');
+
+reset role;
+select throws_ok($$insert into storage.objects(bucket_id,name,version) values
+  ('resident-documents','d7000000-0000-4000-8000-000000000001/d7000000-0000-4000-8000-000000000011/file-1.pdf','final-version')$$,
+  '23514', null, 'privileged Storage finalization cannot resurrect a retired path after preflight');
+select throws_ok($$update storage.objects set version='replacement-version' where bucket_id='resident-documents' and name like '%/file-2.pdf'$$,
+  '23514', null, 'privileged Storage finalization cannot overwrite registered resident bytes');
+select throws_ok($$update storage.objects set name=name||'.moved' where bucket_id='resident-documents' and name like '%/file-2.pdf'$$,
+  '23514', null, 'moving a registered source object is refused');
+select lives_ok($$update storage.objects set last_accessed_at=now() where bucket_id='resident-documents' and name like '%/file-2.pdf'$$,
+  'non-content Storage bookkeeping on a registered object remains possible');
 select is((select count(*)::integer from app_private.resident_document_deletions where document_id in
   ('d7000000-0000-4000-8000-000000000042','d7000000-0000-4000-8000-000000000043')), 0,
   'the transaction rolled back all receipts for failed retention checks');
@@ -155,6 +183,38 @@ select ok((select completed_at is not null from app_private.resident_document_de
 select ok((select storage_path is null and file_name is null and length(storage_path_sha256) = 64
   from app_private.resident_document_deletions where document_id = 'd7000000-0000-4000-8000-000000000041'),
   'completed receipts retain a hash reservation without filenames or raw storage paths');
+
+-- Import rollback must report blocked instead of cascading away a resident and
+-- stranding the file cleanup work outside the remaining tenant's reach.
+insert into public.data_import_jobs(id,organization_id,facility_id,domain,status,original_file_name,original_file_sha256,applied_at)
+values('d7000000-0000-4000-8000-000000000063','d7000000-0000-4000-8000-000000000002','d7000000-0000-4000-8000-000000000012',
+  'residents','applied','fixture.csv',repeat('a',64),now());
+insert into public.data_import_rows(organization_id,job_id,row_number,status,target_table,target_id,applied_at)
+values('d7000000-0000-4000-8000-000000000002','d7000000-0000-4000-8000-000000000063',2,'applied','residents',
+  'd7000000-0000-4000-8000-000000000032',now());
+select pg_temp.act_as('d7000000-0000-4000-8000-000000000022');
+select is((public.rollback_data_import_job('d7000000-0000-4000-8000-000000000063')->>'blocked')::integer,1,
+  'resident import rollback reports a blocked record until document bytes are deleted');
+select is((select count(*)::integer from public.resident_documents where id='d7000000-0000-4000-8000-000000000044'),1,
+  'failed resident cascade restores document metadata atomically');
+select is((select count(*)::integer from public.list_pending_resident_document_deletions()),0,
+  'failed resident cascade does not create an orphaned pending receipt');
+select is((select count(*)::integer from storage.objects where bucket_id='resident-documents' and name like '%/cascade.pdf'),1,
+  'failed resident cascade preserves its original file');
+select is((select count(*)::integer from public.begin_resident_document_deletion('d7000000-0000-4000-8000-000000000044')),1,
+  'the resident document can be deleted through the ordinary cleanup workflow first');
+reset role;
+select throws_ok($$delete from public.residents where id='d7000000-0000-4000-8000-000000000032'$$,
+  '23503','Finish the pending file deletions in Documents before deleting this resident.',
+  'an existing pending receipt keeps its resident reachable and gives an actionable error');
+select pg_temp.act_as('d7000000-0000-4000-8000-000000000022');
+delete from storage.objects where bucket_id='resident-documents' and name like '%/cascade.pdf';
+select is(public.confirm_resident_document_deletion('d7000000-0000-4000-8000-000000000044'),true,'physical cleanup completes before resident rollback');
+select is((public.rollback_data_import_job('d7000000-0000-4000-8000-000000000063')->>'reverted')::integer,1,
+  'completed receipts permit the normal resident import rollback to finish');
+reset role;
+select ok((select pending_resident_id is null and completed_at is not null from app_private.resident_document_deletions
+  where document_id='d7000000-0000-4000-8000-000000000044'),'completed receipts detach their retention FK from the removed resident');
 
 select * from finish();
 rollback;

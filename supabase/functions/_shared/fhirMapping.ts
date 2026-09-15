@@ -49,8 +49,11 @@ interface FhirResource {
 
 interface FhirBundle {
   resourceType?: string;
-  entry?: { resource?: FhirResource }[];
+  entry?: { fullUrl?: string; resource?: FhirResource }[];
 }
+
+type ReferenceTargets = ReadonlyMap<string, FhirResource | null>;
+const FHIR_ID = /^[A-Za-z0-9.-]{1,64}$/;
 
 export interface NormalizedMedicationRequest {
   fhirPatientId: string | null;
@@ -157,14 +160,13 @@ export function referenceId(reference: string | undefined | null, expectedType?:
   if (typeof reference !== "string") return null;
   const trimmed = reference.trim();
   if (trimmed === "" || /[\s\\?#]/.test(trimmed)) return null;
-  const idPattern = /^[A-Za-z0-9.-]{1,64}$/;
-  // Preserve the existing bare-ID and UUID mapping contracts. Contained references (#id) need
-  // resolution in their parent resource and must never be treated as external patient IDs.
+  // This generic extractor can return a UUID suffix, but a UUID cannot prove an expected type.
+  // resourceReferenceId first resolves its Bundle target or requires an explicit Reference.type.
   if (trimmed.startsWith("urn:uuid:")) {
     const id = trimmed.slice("urn:uuid:".length);
-    return idPattern.test(id) ? id : null;
+    return !expectedType && FHIR_ID.test(id) ? id : null;
   }
-  if (idPattern.test(trimmed)) return trimmed;
+  if (FHIR_ID.test(trimmed)) return trimmed;
   let path = trimmed;
   if (/^https?:\/\//i.test(trimmed)) {
     try {
@@ -182,10 +184,22 @@ export function referenceId(reference: string | undefined | null, expectedType?:
   return match[2];
 }
 
-function resourceReferenceId(reference: Reference | undefined, expectedType: string): string | null {
+function resourceReferenceId(reference: Reference | undefined, expectedType: string, targets?: ReferenceTargets): string | null {
   if (reference?.type && reference.type !== expectedType &&
     reference.type !== `http://hl7.org/fhir/StructureDefinition/${expectedType}`) return null;
-  return referenceId(reference?.reference, expectedType);
+  const literal = reference?.reference?.trim();
+  if (!literal || /[\s\\?#]/.test(literal)) return null;
+  if (targets?.has(literal)) {
+    const target = targets.get(literal);
+    // Duplicate fullUrls are ambiguous; a claimed Reference.type cannot override a Group target.
+    if (!target || target.resourceType !== expectedType) return null;
+    if (target.id !== undefined) return FHIR_ID.test(target.id) ? target.id : null;
+    // Preserve UUID-based partner mappings only after resolving an actual target of the right
+    // type. This fallback is a boundary compatibility contract for resources lacking a logical ID.
+    return referenceId(literal);
+  }
+  if (literal.startsWith("urn:uuid:")) return reference?.type ? referenceId(literal) : null;
+  return referenceId(literal, expectedType);
 }
 
 function firstCoding(concept: CodeableConcept | undefined) {
@@ -209,11 +223,11 @@ function updatedAt(resource: FhirResource, ...fallbacks: (string | null | undefi
   return fallbacks[fallbacks.length - 1] ?? "";
 }
 
-export function mapMedicationRequest(resource: FhirResource, nowIso: string): NormalizedMedicationRequest {
+export function mapMedicationRequest(resource: FhirResource, nowIso: string, targets?: ReferenceTargets): NormalizedMedicationRequest {
   const concept = resource.medicationCodeableConcept;
   const rxnorm = findCoding(concept, "rxnorm");
   return {
-    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient", targets),
     fhirResourceId: String(resource.id ?? ""),
     rxnormCode: rxnorm?.code ?? null,
     // FHIR orders may carry the drug as medicationReference instead of a codeable concept; fall
@@ -230,11 +244,11 @@ export function mapMedicationRequest(resource: FhirResource, nowIso: string): No
   };
 }
 
-export function mapMedicationAdministration(resource: FhirResource): NormalizedMedicationAdministration {
+export function mapMedicationAdministration(resource: FhirResource, targets?: ReferenceTargets): NormalizedMedicationAdministration {
   return {
-    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient", targets),
     fhirResourceId: String(resource.id ?? ""),
-    fhirRequestId: resourceReferenceId(resource.request, "MedicationRequest"),
+    fhirRequestId: resourceReferenceId(resource.request, "MedicationRequest", targets),
     status: resource.status ?? "unknown",
     medicationDisplay: conceptDisplay(resource.medicationCodeableConcept),
     effectiveAt: effectiveTime(resource),
@@ -243,7 +257,7 @@ export function mapMedicationAdministration(resource: FhirResource): NormalizedM
   };
 }
 
-export function mapAllergyIntolerance(resource: FhirResource, nowIso: string): NormalizedAllergy {
+export function mapAllergyIntolerance(resource: FhirResource, nowIso: string, targets?: ReferenceTargets): NormalizedAllergy {
   const coding = firstCoding(resource.code);
   const categories = (resource.category ?? []).filter((value): value is string => typeof value === "string");
   const manifestations = (resource.reaction ?? [])
@@ -252,7 +266,7 @@ export function mapAllergyIntolerance(resource: FhirResource, nowIso: string): N
     .filter((value): value is string => Boolean(value));
   return {
     // AllergyIntolerance references the subject via `patient`, not `subject`.
-    fhirPatientId: resourceReferenceId(resource.patient ?? resource.subject, "Patient"),
+    fhirPatientId: resourceReferenceId(resource.patient ?? resource.subject, "Patient", targets),
     fhirResourceId: String(resource.id ?? ""),
     substanceDisplay: conceptDisplay(resource.code) ?? "Unspecified allergen",
     substanceCode: coding?.code ?? null,
@@ -268,11 +282,11 @@ export function mapAllergyIntolerance(resource: FhirResource, nowIso: string): N
   };
 }
 
-export function mapCondition(resource: FhirResource, nowIso: string): NormalizedCondition {
+export function mapCondition(resource: FhirResource, nowIso: string, targets?: ReferenceTargets): NormalizedCondition {
   const coding = firstCoding(resource.code);
   const firstCategory = resource.category?.[0] as CodeableConcept | undefined;
   return {
-    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient", targets),
     fhirResourceId: String(resource.id ?? ""),
     codeDisplay: conceptDisplay(resource.code) ?? "Unspecified condition",
     code: coding?.code ?? null,
@@ -288,10 +302,10 @@ export function mapCondition(resource: FhirResource, nowIso: string): Normalized
   };
 }
 
-export function mapServiceRequest(resource: FhirResource, nowIso: string): NormalizedServiceRequest {
+export function mapServiceRequest(resource: FhirResource, nowIso: string, targets?: ReferenceTargets): NormalizedServiceRequest {
   const coding = firstCoding(resource.code);
   return {
-    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient", targets),
     fhirResourceId: String(resource.id ?? ""),
     codeDisplay: conceptDisplay(resource.code) ?? "Unspecified order",
     code: coding?.code ?? null,
@@ -306,10 +320,10 @@ export function mapServiceRequest(resource: FhirResource, nowIso: string): Norma
   };
 }
 
-export function mapDocumentReference(resource: FhirResource, nowIso: string): NormalizedDocumentReference {
+export function mapDocumentReference(resource: FhirResource, nowIso: string, targets?: ReferenceTargets): NormalizedDocumentReference {
   const attachment = resource.content?.[0]?.attachment;
   return {
-    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient", targets),
     fhirResourceId: String(resource.id ?? ""),
     typeDisplay: conceptDisplay(resource.type),
     typeCode: firstCoding(resource.type)?.code ?? null,
@@ -333,6 +347,17 @@ export function mapFhirBundle(bundle: FhirBundle | FhirResource, nowIso: string)
     documentReferences: [],
     unsupported: [],
   };
+  // HL7 R4 Bundle 2.36.4.1 resolves identities against fullUrl before external lookup; multiple
+  // matches may be treated as unresolved. Never infer a UUID target's type from its suffix.
+  // https://hl7.org/fhir/R4/bundle.html#references
+  const targets = new Map<string, FhirResource | null>();
+  if (bundle.resourceType === "Bundle") {
+    for (const entry of (bundle as FhirBundle).entry ?? []) {
+      const fullUrl = entry?.fullUrl?.trim();
+      if (!fullUrl) continue;
+      targets.set(fullUrl, targets.has(fullUrl) ? null : entry.resource ?? null);
+    }
+  }
   const resources: FhirResource[] = bundle.resourceType === "Bundle"
     ? ((bundle as FhirBundle).entry ?? [])
       .map((entry) => entry?.resource)
@@ -343,22 +368,22 @@ export function mapFhirBundle(bundle: FhirBundle | FhirResource, nowIso: string)
   for (const resource of resources) {
     switch (resource.resourceType) {
       case "MedicationRequest":
-        out.medicationRequests.push(mapMedicationRequest(resource, nowIso));
+        out.medicationRequests.push(mapMedicationRequest(resource, nowIso, targets));
         break;
       case "MedicationAdministration":
-        out.medicationAdministrations.push(mapMedicationAdministration(resource));
+        out.medicationAdministrations.push(mapMedicationAdministration(resource, targets));
         break;
       case "AllergyIntolerance":
-        out.allergies.push(mapAllergyIntolerance(resource, nowIso));
+        out.allergies.push(mapAllergyIntolerance(resource, nowIso, targets));
         break;
       case "Condition":
-        out.conditions.push(mapCondition(resource, nowIso));
+        out.conditions.push(mapCondition(resource, nowIso, targets));
         break;
       case "ServiceRequest":
-        out.serviceRequests.push(mapServiceRequest(resource, nowIso));
+        out.serviceRequests.push(mapServiceRequest(resource, nowIso, targets));
         break;
       case "DocumentReference":
-        out.documentReferences.push(mapDocumentReference(resource, nowIso));
+        out.documentReferences.push(mapDocumentReference(resource, nowIso, targets));
         break;
       default:
         out.unsupported.push({ resourceType: resource.resourceType ?? "unknown", id: resource.id ?? null });

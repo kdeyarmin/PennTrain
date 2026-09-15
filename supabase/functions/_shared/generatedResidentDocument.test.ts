@@ -61,3 +61,69 @@ Deno.test("failed upload reports failure without pretending the document was sto
   }) }, "org", "facility", "same-form", new Uint8Array([1]));
   assertEquals(result.error?.message, "Storage unavailable");
 });
+
+Deno.test("a lost upload response cleans up bytes before any metadata insert can occur", async () => {
+  const h = storageHarness();
+  const storage = { from(bucket: string) {
+    const original = h.storage.from(bucket);
+    return { ...original, async upload(...args: Parameters<typeof original.upload>) {
+      await original.upload(...args);
+      return { error: { message: "Upload response lost" } };
+    } };
+  } };
+  const result = await uploadGeneratedResidentDocument(storage, "org", "facility", "same-form", new Uint8Array([1]));
+  assertEquals(result.error?.message, "Upload response lost");
+  assertEquals(h.removals, [result.path]);
+  assertEquals(h.objects.size, 0);
+});
+
+Deno.test("a thrown upload failure retains the original error after cleaning its attempt", async () => {
+  const h = storageHarness();
+  const failure = new Error("Upload connection lost");
+  const storage = { from(bucket: string) {
+    const original = h.storage.from(bucket);
+    return { ...original, async upload(...args: Parameters<typeof original.upload>) {
+      await original.upload(...args);
+      throw failure;
+    } };
+  } };
+  let caught: unknown;
+  try { await uploadGeneratedResidentDocument(storage, "org", "facility", "same-form", new Uint8Array([1])); }
+  catch (error) { caught = error; }
+  assertEquals(caught, failure);
+  assertEquals(h.removals.length, 1);
+  assertEquals(h.objects.size, 0);
+});
+
+Deno.test("an upload collision never deletes the object owned by another attempt", async () => {
+  const removals: string[][] = [];
+  const result = await uploadGeneratedResidentDocument({ from: () => ({
+    upload: () => Promise.resolve({ error: { message: "Object already exists", statusCode: "409" } }),
+    remove: (paths: string[]) => { removals.push(paths); return Promise.resolve({ error: null }); },
+  }) }, "org", "facility", "same-form", new Uint8Array([1]));
+  assertEquals(result.error?.statusCode, "409");
+  assertEquals(removals, []);
+});
+
+Deno.test("legacy and thrown collision failures cannot remove a pre-existing object", async () => {
+  const removals: string[][] = [];
+  for (const failure of [{ message: "Duplicate", code: "ResourceAlreadyExists" }, { message: "Duplicate", statusCode: "400" }]) {
+    const storage = { from: () => ({
+      upload: () => Promise.reject(failure),
+      remove: (paths: string[]) => { removals.push(paths); return Promise.resolve({ error: null }); },
+    }) };
+    let caught: unknown;
+    try { await uploadGeneratedResidentDocument(storage, "org", "facility", "same-form", new Uint8Array([1])); }
+    catch (error) { caught = error; }
+    assertEquals(caught, failure);
+  }
+  assertEquals(removals, []);
+});
+
+Deno.test("cleanup failure cannot replace the original upload failure", async () => {
+  const result = await uploadGeneratedResidentDocument({ from: () => ({
+    upload: () => Promise.resolve({ error: { message: "Upload response lost" } }),
+    remove: () => Promise.reject(new Error("Cleanup unavailable")),
+  }) }, "org", "facility", "same-form", new Uint8Array([1]));
+  assertEquals(result.error?.message, "Upload response lost");
+});

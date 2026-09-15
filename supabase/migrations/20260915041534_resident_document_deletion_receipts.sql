@@ -12,6 +12,9 @@ create table app_private.resident_document_deletions (
   file_name text,
   requested_at timestamptz not null default now(),
   completed_at timestamptz,
+  pending_resident_id uuid generated always as (case when completed_at is null then resident_id end) stored,
+  constraint resident_document_cleanup_requires_resident foreign key (pending_resident_id)
+    references public.residents(id) on delete restrict,
   check ((completed_at is null and storage_path is not null and file_name is not null)
       or (completed_at is not null and storage_path is null and file_name is null))
 );
@@ -22,29 +25,74 @@ create index resident_document_deletions_pending_idx
   where completed_at is null;
 create index resident_document_deletions_path_idx
   on app_private.resident_document_deletions (storage_bucket, storage_path_sha256);
+create index resident_document_deletions_pending_resident_idx
+  on app_private.resident_document_deletions (pending_resident_id) where pending_resident_id is not null;
 create index resident_documents_storage_path_idx
   on public.resident_documents (storage_bucket, storage_path);
+
+-- All metadata registration/deletion and Storage writes use this lock order.
+-- PL/pgSQL callers are VOLATILE so the SELECT after waiting obtains a fresh
+-- READ COMMITTED snapshot instead of reusing the permission-check snapshot.
+create function app_private.lock_resident_document_paths(
+  p_bucket text, p_path text, p_other_bucket text default null, p_other_path text default null
+) returns void language plpgsql set search_path = '' as $$
+declare v_key text;
+begin
+  for v_key in select distinct k from unnest(array[p_bucket || '/' || p_path, p_other_bucket || '/' || p_other_path]) k
+    where k is not null order by k
+  loop
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_key, 0));
+  end loop;
+end;
+$$;
+
+create function app_private.lock_resident_document_deletion()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  perform app_private.lock_resident_document_paths(old.storage_bucket, old.storage_path);
+  return old;
+end;
+$$;
+create trigger lock_document_storage_before_delete before delete on public.resident_documents
+  for each row execute function app_private.lock_resident_document_deletion();
 
 create function app_private.record_resident_document_deletion()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
-  -- Serialize re-registration of this path with recording its deletion. This runs
-  -- only AFTER the normal DELETE RLS, evidence triggers and foreign keys succeed.
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(old.storage_bucket || '/' || old.storage_path, 0));
+  -- The BEFORE trigger holds the path lock already. The pending-only resident FK
+  -- refuses cascades that would strand work after deleting its resident/organization.
   insert into app_private.resident_document_deletions
     (document_id, organization_id, resident_id, storage_bucket, storage_path, storage_path_sha256, file_name)
   values (old.id, old.organization_id, old.resident_id, old.storage_bucket, old.storage_path,
     pg_catalog.encode(extensions.digest(old.storage_path, 'sha256'), 'hex'), old.file_name);
   return old;
+exception when foreign_key_violation then
+  raise exception 'Delete the resident document files from Documents before deleting the resident.' using errcode = '23503';
 end;
 $$;
 create trigger record_storage_cleanup after delete on public.resident_documents
   for each row execute function app_private.record_resident_document_deletion();
 
+create function app_private.require_resident_document_cleanup_before_purge()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if exists (select 1 from app_private.resident_document_deletions d where d.pending_resident_id = old.id) then
+    raise exception 'Finish the pending file deletions in Documents before deleting this resident.' using errcode = '23503';
+  end if;
+  return old;
+end;
+$$;
+create trigger require_document_cleanup_before_purge before delete on public.residents
+  for each row execute function app_private.require_resident_document_cleanup_before_purge();
+
 create function app_private.protect_deleted_resident_document_path()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(new.storage_bucket || '/' || new.storage_path, 0));
+  if tg_op = 'UPDATE' then
+    perform app_private.lock_resident_document_paths(new.storage_bucket, new.storage_path, old.storage_bucket, old.storage_path);
+  else
+    perform app_private.lock_resident_document_paths(new.storage_bucket, new.storage_path);
+  end if;
   if exists (select 1 from app_private.resident_document_deletions d where d.document_id = new.id) then
     raise exception 'This document identifier has been deleted. Upload the document again with a new identifier.'
       using errcode = '23514';
@@ -54,6 +102,14 @@ begin
                and d.storage_path_sha256 = pg_catalog.encode(extensions.digest(new.storage_path, 'sha256'), 'hex')) then
     raise exception 'This document path has been deleted. Upload the document again with a new path.'
       using errcode = '23514';
+  end if;
+  -- If Storage removal won the lock first, the object is now absent. API callers
+  -- cannot register metadata after that removal. SET ROLE survives SECURITY DEFINER;
+  -- direct trusted SQL migration/fixture loading keeps its historical metadata path.
+  if current_setting('role', true) in ('authenticated', 'service_role') and not exists (
+    select 1 from storage.objects o where o.bucket_id = new.storage_bucket and o.name = new.storage_path
+  ) then
+    raise exception 'The document file is no longer in Storage. Upload it again before saving the document.' using errcode = '23514';
   end if;
   return new;
 end;
@@ -65,26 +121,66 @@ create trigger protect_deleted_storage_path before insert or update of id, stora
 -- live document that protects the object. It returns only a boolean, is private,
 -- and grants no additional Storage access; all existing policies still apply.
 create function app_private.resident_document_object_removable(p_bucket text, p_path text)
-returns boolean language sql stable security definer set search_path = '' as $$
-  select auth.uid() is not null and not exists (
+returns boolean language plpgsql volatile security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return false; end if;
+  perform app_private.lock_resident_document_paths(p_bucket, p_path);
+  return not exists (
     select 1 from public.resident_documents d where d.storage_bucket = p_bucket and d.storage_path = p_path
   );
+end;
 $$;
 create policy resident_document_bytes_retained on storage.objects as restrictive for delete to authenticated
   using (app_private.resident_document_object_removable(bucket_id, name));
 
 create function app_private.resident_document_path_available(p_bucket text, p_path text)
-returns boolean language sql stable security definer set search_path = '' as $$
-  select auth.uid() is not null and not exists (
+returns boolean language plpgsql volatile security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return false; end if;
+  perform app_private.lock_resident_document_paths(p_bucket, p_path);
+  return not exists (
     select 1 from app_private.resident_document_deletions d where d.storage_bucket = p_bucket
       and d.storage_path_sha256 = pg_catalog.encode(extensions.digest(p_path, 'sha256'), 'hex')
   );
+end;
 $$;
 create policy resident_document_deleted_path_insert on storage.objects as restrictive for insert to authenticated
   with check (app_private.resident_document_path_available(bucket_id, name));
 create policy resident_document_deleted_path_update on storage.objects as restrictive for update to authenticated
   using (app_private.resident_document_path_available(bucket_id, name))
   with check (app_private.resident_document_path_available(bucket_id, name));
+
+-- Storage uploads check RLS in a short permission transaction, upload versioned
+-- backend bytes, then finalize with a privileged database writer. RLS alone cannot
+-- reject a path retired between those transactions. This narrow invariant trigger
+-- also runs for that final writer; it never modifies Storage rows or backend bytes.
+-- https://github.com/supabase/storage/blob/v1.62.5/src/storage/uploader.ts
+create function app_private.protect_resident_document_storage_write()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'UPDATE' then
+    if new.bucket_id is not distinct from old.bucket_id and new.name is not distinct from old.name
+       and new.version is not distinct from old.version then return new; end if;
+    perform app_private.lock_resident_document_paths(new.bucket_id, new.name, old.bucket_id, old.name);
+    if exists (select 1 from public.resident_documents d where d.storage_bucket = old.bucket_id and d.storage_path = old.name) then
+      raise exception 'A registered resident document cannot be replaced or moved. Upload a new document instead.' using errcode = '23514';
+    end if;
+    if exists (select 1 from app_private.resident_document_deletions d where d.storage_bucket = old.bucket_id
+      and d.storage_path_sha256 = pg_catalog.encode(extensions.digest(old.name, 'sha256'), 'hex')) then
+      raise exception 'A deleted resident document path cannot be reused.' using errcode = '23514';
+    end if;
+  else
+    perform app_private.lock_resident_document_paths(new.bucket_id, new.name);
+  end if;
+  if exists (select 1 from app_private.resident_document_deletions d where d.storage_bucket = new.bucket_id
+    and d.storage_path_sha256 = pg_catalog.encode(extensions.digest(new.name, 'sha256'), 'hex')) then
+    raise exception 'A deleted resident document path cannot be reused.' using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+create trigger protect_resident_document_storage_write before insert or update of bucket_id, name, version on storage.objects
+  for each row execute function app_private.protect_resident_document_storage_write();
 
 create function app_private.can_manage_resident_document_deletion(p_organization_id uuid)
 returns boolean language sql stable security definer set search_path = '' as $$
@@ -96,12 +192,13 @@ returns boolean language sql stable security definer set search_path = '' as $$
       (public.current_role() = 'org_admin' and public.current_org_id() = p_organization_id));
 $$;
 
-create function public.list_pending_resident_document_deletions(p_resident_id uuid)
+create function public.list_pending_resident_document_deletions(p_resident_id uuid default null)
 returns table (document_id uuid, resident_id uuid, storage_bucket text, storage_path text, file_name text, requested_at timestamptz)
 language sql stable security definer set search_path = '' as $$
   select d.document_id, d.resident_id, d.storage_bucket, d.storage_path, d.file_name, d.requested_at
   from app_private.resident_document_deletions d
-  where d.resident_id = p_resident_id and d.completed_at is null
+  where (p_resident_id is null or d.resident_id = p_resident_id) and d.completed_at is null
+    and (p_resident_id is not null or d.organization_id = public.current_org_id())
     and app_private.can_manage_resident_document_deletion(d.organization_id)
   order by d.requested_at, d.document_id;
 $$;
@@ -144,7 +241,11 @@ end;
 $$;
 
 revoke all on function app_private.record_resident_document_deletion(),
+  app_private.require_resident_document_cleanup_before_purge(),
+  app_private.lock_resident_document_paths(text,text,text,text),
+  app_private.lock_resident_document_deletion(),
   app_private.protect_deleted_resident_document_path(),
+  app_private.protect_resident_document_storage_write(),
   app_private.resident_document_object_removable(text,text),
   app_private.resident_document_path_available(text,text),
   app_private.can_manage_resident_document_deletion(uuid),
