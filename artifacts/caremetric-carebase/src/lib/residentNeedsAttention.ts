@@ -16,6 +16,7 @@
 // Pure and injectable-clock, in the style of moveInReadiness.ts / careLevelReview.ts.
 
 import { addFacilityCalendarDays, facilityDaysUntil, facilityToday } from "./dateUtils";
+import { residentFallEvidence } from "./residentFallEvidence";
 import {
   buildPreparationState, followUpIsOverdue, followUpOutstanding,
   type AppointmentLike, type AppointmentPreparationItemLike,
@@ -83,6 +84,7 @@ export interface NeedsAttentionDocumentLike {
 }
 export interface NeedsAttentionChangeEventLike {
   id: string;
+  incident_id?: string | null;
   category: string;
   status: string;
   identified_at: string;
@@ -395,12 +397,7 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
   // routinely recorded only as a condition change. Counting one source would undercount the cluster.
   const fallCutoffDay = addFacilityCalendarDays(facilityToday(now), -FALL_CLUSTER_WINDOW_DAYS);
   const today = facilityToday(now);
-  const recentFalls = [
-    ...input.incidents
-      .filter((incident) => /fall/i.test(incident.incident_type))
-      .map((incident) => incident.occurred_at),
-    ...input.changeEvents.filter((event) => event.category === "fall").map((event) => event.identified_at),
-  ].filter((at) => {
+  const recentFalls = residentFallEvidence(input.incidents, input.changeEvents).map((event) => event.at).filter((at) => {
     const day = /^\d{4}-\d{2}-\d{2}$/.test(at) ? at : Number.isFinite(Date.parse(at)) ? facilityToday(new Date(at)) : null;
     return !!day && day >= fallCutoffDay && day <= today;
   });

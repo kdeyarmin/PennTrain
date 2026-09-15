@@ -117,6 +117,33 @@ describe("increased assistance", () => {
 });
 
 describe("falls", () => {
+  it("counts a change event and its reclassified linked incident as one fall", () => {
+    const signals = detectResidentChangeSignals(quiet({
+      incidents: [{ id: "incident-1", incident_type: "fall_with_injury", occurred_at: daysAgo(3) }],
+      changeEvents: [{ incident_id: "incident-1", category: "fall", identified_at: daysAgo(2), status: "closed" }],
+    }));
+    expect(signals.map((signal) => signal.kind)).not.toContain("multiple_falls");
+  });
+
+  it("retains unlinked falls even when their timestamps match", () => {
+    const signals = detectResidentChangeSignals(quiet({
+      incidents: [{ id: "incident-1", incident_type: "fall", occurred_at: daysAgo(3) }],
+      changeEvents: [{ category: "fall", identified_at: daysAgo(3), status: "closed" }],
+    }));
+    expect(signals.find((signal) => signal.kind === "multiple_falls")?.evidence).toHaveLength(2);
+  });
+
+  it("does not move an old linked fall into the window using a later identification date", () => {
+    const signals = detectResidentChangeSignals(quiet({
+      incidents: [{ id: "incident-1", incident_type: "fall", occurred_at: daysAgo(FALL_WINDOW_DAYS + 5) }],
+      changeEvents: [
+        { incident_id: "incident-1", category: "fall", identified_at: daysAgo(2), status: "closed" },
+        { category: "fall", identified_at: daysAgo(3), status: "closed" },
+      ],
+    }));
+    expect(signals.map((signal) => signal.kind)).not.toContain("multiple_falls");
+  });
+
   it("counts incidents and condition changes together", () => {
     // A fall without injury is routinely recorded only as a condition change; one source undercounts.
     const signals = detectResidentChangeSignals(quiet({

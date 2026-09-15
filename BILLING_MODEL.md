@@ -118,3 +118,122 @@ closed. These instructions do not assert that production activation or live chec
 7. After Railway readiness is verified, set Supabase's nonsecret `BILLING_RUNTIME=railway` if using that runtime. Confirm both the scheduled **Billing quantity synchronization** job and operator-triggered dispatch use their existing Edge URLs and record correlated, succeeded runs; for flat plans they must keep quantity at 1. Do not retry an ambiguous forwarder timeout before checking the durable run result. For rollback, disable this forwarder before rolling back Railway, as described in `DEPLOYMENT.md`.
 8. Run Checkout for Train and CareBase (monthly and annual). Verify the subscription item quantity is **1**, the invoice amount matches the flat fee, and — now that step 6 is done — that the subscription actually reconciled into `billing_subscriptions` rather than only existing in Stripe.
 9. Repeat with live Price IDs on an internal organization before accepting real customers.
+
+### Production activation handoff — verified 2026-09-15
+
+Billing activation remains blocked by missing provider credentials. Read-only inspection of the
+PennTrain Railway service **and its project shared variables** found no `STRIPE_SECRET_KEY`,
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, or `TWILIO_VERIFY_SERVICE_SID`. No staged environment
+changes were present. The existing webhook signing-secret and portal-configuration variable names
+are present; this does not establish that their values are valid. Keep both runtime switches and
+webhook delivery in their current inactive state until the ordered checks below pass.
+
+The connected live Stripe account is `acct_19pJ0MCEZXcVOdjd`. Its current configuration
+`bpc_1UDrX7CEZXcVOdjdJD30C59J` has `is_default=true`, even though PennTrain explicitly supplies
+its ID. **Do not turn this shared default into a PennTrain-only portal.** Create a separate,
+non-default PennTrain configuration and bind its returned ID to
+`STRIPE_BILLING_PORTAL_CONFIGURATION_ID`. Preserve the current account default and other apps'
+webhooks. The connected Stripe tool can read configurations but currently lacks permission to
+create or update them; a connected account does not supply a runtime API key.
+
+All four prices below were checked in live Stripe and against CM Train's production
+`package_billing_prices` / `packages` rows. They are active, primary, flat, USD recurring prices
+with quantity 1, interval count 1, and no effective end date in the application catalog.
+
+| Product | Cadence | Price | Stripe Price ID |
+| --- | --- | --- | --- |
+| `prod_penntrain_train_flat_20260909` | Monthly | $239 | `price_1UDdvDCEZXcVOdjdznrMHQt4` |
+| `prod_penntrain_train_flat_20260909` | Annual | $2,390 | `price_1UDdvICEZXcVOdjdvcbLyuFa` |
+| `prod_penntrain_carebase_flat_20260909` | Monthly | $499 | `price_1UDdvOCEZXcVOdjd6rdSYEDT` |
+| `prod_penntrain_carebase_flat_20260909` | Annual | $4,990 | `price_1UDdvVCEZXcVOdjdfzqBmbFo` |
+
+Prepare the new configuration using the application's pinned Stripe API version
+`2026-02-25.clover`. This is the proposed creation payload, **not an applied change**. Keep the
+new ID unbound while preparing it and keep plan changes and the hosted login page disabled.
+Creation does not accept `active`; after creation, use the update endpoint to set `active=false`
+before binding the new ID to PennTrain. That separate guard prevents session creation.
+Use the normal Stripe form encoding for the following JSON structure. Recheck the current API
+schema with a credential authorized to manage portal configurations before submitting it.
+
+```json
+{
+  "name": "PennTrain / CareMetric CareBase",
+  "default_return_url": "https://cmcarebase.com/app/billing",
+  "login_page": { "enabled": false },
+  "metadata": {
+    "app": "penntrain",
+    "supabase_project": "xsqobvvreaovwibxwyvv"
+  },
+  "features": {
+    "customer_update": {
+      "enabled": true,
+      "allowed_updates": ["name", "email", "address", "phone"]
+    },
+    "invoice_history": { "enabled": true },
+    "payment_method_update": { "enabled": true },
+    "subscription_cancel": {
+      "enabled": true,
+      "mode": "at_period_end",
+      "proration_behavior": "none"
+    },
+    "subscription_update": {
+      "enabled": false,
+      "default_allowed_updates": ["price"],
+      "proration_behavior": "always_invoice",
+      "products": [
+        {
+          "product": "prod_penntrain_train_flat_20260909",
+          "prices": ["price_1UDdvDCEZXcVOdjdznrMHQt4", "price_1UDdvICEZXcVOdjdvcbLyuFa"]
+        },
+        {
+          "product": "prod_penntrain_carebase_flat_20260909",
+          "prices": ["price_1UDdvOCEZXcVOdjd6rdSYEDT", "price_1UDdvVCEZXcVOdjdfzqBmbFo"]
+        }
+      ]
+    }
+  }
+}
+```
+
+The proposed plan-change policy retains the existing configuration's immediate invoicing of
+prorations and offers price changes only; customers cannot change a flat plan's quantity. Review
+the resulting invoice preview, trial behavior, and cadence changes in the separate Stripe test
+environment before activation. Do not promise end-of-period Train-to-CareBase or CareBase-to-Train
+downgrades: Stripe documents end-of-period downgrade scheduling only between prices of the same
+product. See [Stripe's portal configuration guide](https://docs.stripe.com/customer-management/configure-portal)
+and [portal configuration API](https://docs.stripe.com/api/customer_portal/configurations/create).
+
+Complete the production handoff in this order:
+
+1. Provision the four missing server settings through Railway's secret-variable interface. Use an
+   account-scoped restricted Stripe key with the permissions needed by the existing billing
+   handlers; keep portal-configuration administration separate from ordinary runtime access.
+   Do not place keys in source files, command arguments, logs, frontend variables, or chat.
+   Confirm the key belongs to `acct_19pJ0MCEZXcVOdjd` using an authorized read; confirm the Twilio
+   Verify service belongs to the intended account. Preserve the existing cron shared secret.
+2. With portal-configuration write access, create the configuration above without binding its ID
+   or creating any sessions. Set `active=false` on its update endpoint, then read it back; require
+   `active=false` and `is_default=false`, verify its exact product/price allowlist, and confirm the
+   previous default is unchanged. Set its returned `bpc_...` ID in PennTrain's server variable.
+3. Deploy the reviewed application with `VITE_PROVIDER_RUNTIME=railway` only after all startup
+   prerequisites in `DEPLOYMENT.md` are available. Verify `/health` reports `providerRuntime:
+   "railway"`, the frontend uses same-origin provider routes, and unauthenticated requests and
+   invalid webhook signatures are rejected. This step is still blocked by step 1.
+4. Verify the dedicated endpoint `we_1UDuXaCEZXcVOdjdBBPzMZxx` remains bound to
+   `https://cmcarebase.com/api/providers/stripe-billing-webhook`, API `2026-02-25.clover`, and its
+   own installed signing secret. It was disabled at inspection. Enable delivery only when the
+   handler is ready, then verify a supported signed event's durable receipt and entitlement
+   reconciliation before admitting a payable Checkout or portal plan change.
+5. Set Supabase's nonsecret `BILLING_RUNTIME=railway` after the handler check. Verify scheduled and
+   manual billing synchronization through their existing authenticated entry points and durable
+   correlation IDs; flat plans must remain at quantity 1. Resolve unknown outcomes from their
+   existing ledger records before any retry.
+6. On only the new non-default configuration, set `active=true` and
+   `features.subscription_update.enabled=true`, after the preceding verification and separate
+   test-mode Checkout/portal exercises. Verify the application returns a portal session
+   for its explicit configuration ID and that other apps still use their existing configuration.
+   Complete the internal-organization billing acceptance checks above before public admission.
+
+Tax setup is a separate billing requirement: the verified prices currently have unspecified tax
+behavior. Confirm the business's applicable registrations and intended tax treatment before
+enabling automatic tax; changing a flag alone does not establish tax collection.

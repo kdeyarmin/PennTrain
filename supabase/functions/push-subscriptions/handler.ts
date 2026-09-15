@@ -3,8 +3,12 @@ import { requireSmsMfaFloor } from "../_shared/smsMfaFloor.ts";
 import {
   buildDisabledPushSubscriptionPatch,
   buildPushSubscriptionRow,
+  isAllowedWebPushEndpoint,
+  validatedWebPushKeys,
 } from "../_shared/webPush.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
+import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+import { channelProviderConfigured } from "../_shared/notificationDelivery.ts";
 
 const CORS_OPTIONS = {
   headers: "authorization, x-client-info, apikey, content-type",
@@ -32,7 +36,8 @@ async function sha256(value: string) {
   return Array.from(new Uint8Array(digest), (part) => part.toString(16).padStart(2, "0")).join("");
 }
 
-function validEndpoint(value: unknown): value is string {
+// Removal remains possible for a previously stored endpoint that is no longer supported.
+function validRemovalEndpoint(value: unknown): value is string {
   if (typeof value !== "string" || value.length < 40 || value.length > 4096) return false;
   try { return new URL(value).protocol === "https:"; } catch { return false; }
 }
@@ -64,29 +69,45 @@ export function createPushSubscriptionsHandler({
 
   if (req.method === "GET") {
     const publicKey = getEnv("WEB_PUSH_VAPID_PUBLIC_KEY");
-    return publicKey ? json(req, { publicKey }) : json(req, { error: "Web push is not configured" }, 503);
+    return channelProviderConfigured("web_push", getEnv)
+      ? json(req, { publicKey }) : json(req, { error: "Web push is not configured" }, 503);
   }
   let body: SubscriptionBody;
-  try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
+  try {
+    body = await readJsonBody<SubscriptionBody>(req);
+    if (Array.isArray(body)) return json(req, { error: "Invalid JSON body" }, 400);
+  } catch (error) {
+    return json(req, { error: error instanceof RequestBodyError ? error.message : "Invalid JSON body" },
+      error instanceof RequestBodyError ? error.status : 400);
+  }
   const admin = createClient(supabaseUrl, serviceKey);
   if (req.method === "DELETE") {
-    if (!validEndpoint(body.endpoint)) return json(req, { error: "A valid HTTPS endpoint is required" }, 400);
+    if (!validRemovalEndpoint(body.endpoint)) return json(req, { error: "A valid HTTPS endpoint is required" }, 400);
     const { error } = await admin.from("push_subscriptions")
       .update(buildDisabledPushSubscriptionPatch("user_unsubscribed"))
       .eq("profile_id", user.id).eq("endpoint_hash", await sha256(body.endpoint));
     return error ? json(req, { error: "Failed to disable push subscription" }, 500) : json(req, { disabled: true });
   }
 
+  if (!channelProviderConfigured("web_push", getEnv)) return json(req, { error: "Web push is not configured" }, 503);
+
   const subscription = body.subscription;
-  if (!validEndpoint(subscription?.endpoint)
-      || typeof subscription?.keys?.p256dh !== "string"
-      || subscription.keys.p256dh.length < 40
-      || typeof subscription.keys.auth !== "string"
-      || subscription.keys.auth.length < 8) {
+  if (!isAllowedWebPushEndpoint(subscription?.endpoint)) {
+    return json(req, { error: "This browser's push service is not supported. Try Chrome, Firefox, Safari, or Microsoft Edge." }, 400);
+  }
+  const keys = await validatedWebPushKeys(subscription?.keys?.p256dh, subscription?.keys?.auth);
+  if (!keys) {
     return json(req, { error: "A valid browser PushSubscription is required" }, 400);
   }
-  const expiration = typeof subscription.expirationTime === "number"
-    ? new Date(subscription.expirationTime).toISOString() : null;
+  let expiration: string | null = null;
+  if (subscription.expirationTime !== undefined && subscription.expirationTime !== null) {
+    const value = subscription.expirationTime;
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= Date.now()
+      || !Number.isFinite(new Date(value).getTime())) {
+      return json(req, { error: "A valid future subscription expiration is required" }, 400);
+    }
+    expiration = new Date(value).toISOString();
+  }
   const userAgent = req.headers.get("user-agent") || "unknown";
   const { error } = await admin.from("push_subscriptions").upsert(
     buildPushSubscriptionRow({
@@ -94,8 +115,8 @@ export function createPushSubscriptionsHandler({
       profileId: user.id,
       endpoint: subscription.endpoint,
       endpointHash: await sha256(subscription.endpoint),
-      p256dhKey: subscription.keys.p256dh,
-      authKey: subscription.keys.auth,
+      p256dhKey: keys.p256dh,
+      authKey: keys.auth,
       expirationTime: expiration,
       userAgentHash: await sha256(userAgent),
       now: new Date().toISOString(),

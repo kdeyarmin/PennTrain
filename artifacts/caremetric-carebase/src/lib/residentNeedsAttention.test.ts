@@ -216,6 +216,29 @@ describe("change-of-condition cards", () => {
 });
 
 describe("fall clustering", () => {
+  it("does not turn two falls into an urgent cluster through a linked incident", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      incidents: [{ id: "i1", incident_type: "fall", status: "closed", occurred_at: daysAgo(3) }],
+      changeEvents: [
+        { id: "e1", incident_id: "i1", category: "fall", status: "closed", identified_at: daysAgo(3) },
+        { id: "e2", category: "fall", status: "closed", identified_at: daysAgo(12) },
+      ],
+    }));
+    expect(cards.map((card) => card.kind)).not.toContain("fall_cluster");
+  });
+
+  it("retains fall change evidence when its linked incident is not classified as a fall", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      incidents: [{ id: "i1", incident_type: "other", status: "closed", occurred_at: daysAgo(3) }],
+      changeEvents: [
+        { id: "e1", incident_id: "i1", category: "fall", status: "closed", identified_at: daysAgo(3) },
+        { id: "e2", category: "fall", status: "closed", identified_at: daysAgo(12) },
+        { id: "e3", category: "fall", status: "closed", identified_at: daysAgo(20) },
+      ],
+    }));
+    expect(cards.find((card) => card.kind === "fall_cluster")?.title).toBe("3 falls in 30 days");
+  });
+
   it("counts falls from incidents and condition changes together", () => {
     // Two falls recorded as condition changes plus one as an incident is still three falls.
     const cards = buildResidentNeedsAttention(clean({
