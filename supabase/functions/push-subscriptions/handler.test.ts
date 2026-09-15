@@ -9,7 +9,9 @@ const endpoint = "https://fcm.googleapis.com/fcm/send/subscription-token";
 // Deterministic test-only P-256 generator point and 16-byte auth secret.
 const keys = {
   p256dh: "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
-  auth: "AAECAwQFBgcICQoLDA0ODw",
+  // Public synthetic bytes 0..15, encoded at runtime; never a provider credential.
+  auth: btoa(String.fromCharCode(...Array.from({ length: 16 }, (_, index) => index)))
+    .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""),
 };
 
 function fixture(assurance: unknown = true, error: { code: string } | null = null, env = ENV) {

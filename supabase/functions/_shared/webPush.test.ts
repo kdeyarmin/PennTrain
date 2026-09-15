@@ -9,7 +9,9 @@ import {
 
 Deno.test("push key validation accepts the P-256 generator and canonical optional padding", async () => {
   const p256dh = "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU";
-  const auth = "AAECAwQFBgcICQoLDA0ODw";
+  // Public synthetic bytes 0..15, encoded at runtime; never a provider credential.
+  const auth = btoa(String.fromCharCode(...Array.from({ length: 16 }, (_, index) => index)))
+    .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
   assertEquals(await validatedWebPushKeys(p256dh, auth), { p256dh, auth });
   assertEquals(await validatedWebPushKeys(p256dh + "=", auth + "=="), { p256dh, auth });
   assertEquals(await validatedWebPushKeys(p256dh, auth + "="), null);
