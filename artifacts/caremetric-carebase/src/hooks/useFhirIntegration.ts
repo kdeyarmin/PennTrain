@@ -3,7 +3,6 @@ import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 
 export type FhirSource = Tables<"fhir_integration_sources">;
-export type FhirPatientMapping = Tables<"fhir_patient_mappings">;
 export type FhirException = Tables<"fhir_integration_exceptions">;
 
 /**
@@ -69,7 +68,7 @@ export interface FhirIngestionActivity {
 
 export interface FhirIntegrationWorkspace {
   sources: FhirSource[];
-  mappings: FhirPatientMapping[];
+  mappedPatientCount: number;
   activity: FhirIngestionActivity;
   exceptions: FhirException[];
 }
@@ -101,20 +100,25 @@ export function useFhirIntegration(facilityId?: string) {
   return useQuery({
     queryKey: [FHIR_INTEGRATION_KEY, facilityId],
     enabled: Boolean(facilityId),
-    queryFn: async (): Promise<FhirIntegrationWorkspace> => {
+    queryFn: async ({ signal }): Promise<FhirIntegrationWorkspace> => {
       const [sources, mappings, activity, exceptions] = await Promise.all([
-        supabase.from("fhir_integration_sources").select("*").eq("facility_id", facilityId!).order("created_at"),
-        supabase.from("fhir_patient_mappings").select("*").eq("facility_id", facilityId!).order("mapped_at", { ascending: false }).limit(200),
-        supabase.rpc("get_facility_fhir_ingestion_activity", { p_facility_id: facilityId! }),
-        supabase.from("fhir_integration_exceptions").select("*").eq("facility_id", facilityId!).order("last_seen_at", { ascending: false }).limit(100),
+        supabase.from("fhir_integration_sources").select("*").eq("facility_id", facilityId!).order("created_at").abortSignal(signal),
+        supabase.from("fhir_patient_mappings").select("id", { count: "exact", head: true })
+          .eq("facility_id", facilityId!).eq("status", "active").abortSignal(signal),
+        supabase.rpc("get_facility_fhir_ingestion_activity", { p_facility_id: facilityId! }).abortSignal(signal),
+        // Active work and recent history must come from one database snapshot. Independent
+        // status-filtered reads can omit an exception that changes disposition between them.
+        supabase.rpc("get_fhir_integration_review_queue", { p_facility_id: facilityId! }).abortSignal(signal),
       ]);
       const failed = [sources, mappings, activity, exceptions].find((result) => result.error);
       if (failed?.error) throw failed.error;
+      if (mappings.count == null) throw new Error("Mapped patient count is unavailable. Please retry.");
+      if (!Array.isArray(exceptions.data)) throw new Error("FHIR exception queue is unavailable. Please retry.");
       return {
         sources: sources.data ?? [],
-        mappings: mappings.data ?? [],
+        mappedPatientCount: mappings.count,
         activity: (activity.data as unknown as FhirIngestionActivity | null) ?? EMPTY_ACTIVITY,
-        exceptions: exceptions.data ?? [],
+        exceptions: exceptions.data as unknown as FhirException[],
       };
     },
     staleTime: 30_000,

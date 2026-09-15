@@ -114,7 +114,7 @@ export default function FhirIntegration() {
 
   const data: FhirIntegrationWorkspace = workspace.data ?? {
     sources: [],
-    mappings: [],
+    mappedPatientCount: 0,
     activity: {
       requestTotal: 0,
       requestActiveTotal: 0,
@@ -239,7 +239,7 @@ export default function FhirIntegration() {
           <div className="grid gap-4 md:grid-cols-3">
             <Card><CardHeader className="pb-2"><CardDescription>Open sync exceptions</CardDescription><CardTitle className="text-3xl">{openExceptions.length}</CardTitle></CardHeader></Card>
             <Card><CardHeader className="pb-2"><CardDescription>Active medication requests</CardDescription><CardTitle className="text-3xl">{data.activity.requestActiveTotal}</CardTitle></CardHeader></Card>
-            <Card><CardHeader className="pb-2"><CardDescription>Mapped patients</CardDescription><CardTitle className="text-3xl">{data.mappings.filter((item) => item.status === "active").length}</CardTitle></CardHeader></Card>
+            <Card><CardHeader className="pb-2"><CardDescription>Mapped patients</CardDescription><CardTitle className="text-3xl">{data.mappedPatientCount}</CardTitle></CardHeader></Card>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -283,6 +283,9 @@ export default function FhirIntegration() {
               <TabsTrigger value="activity">Ingestion activity</TabsTrigger>
             </TabsList>
             <TabsContent value="exceptions" className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                All open and acknowledged exceptions appear first, followed by up to 100 recently seen resolved or dismissed exceptions.
+              </p>
               {data.exceptions.length === 0 ? (
                 <Card><CardContent className="py-10 text-center"><CheckCircle2 className="mx-auto mb-2 h-7 w-7 text-emerald-600" /><p>No integration exceptions recorded.</p></CardContent></Card>
               ) : data.exceptions.map((item) => (
