@@ -37,8 +37,8 @@ update public.residents set photo_document_id = 'd7000000-0000-4000-8000-0000000
   where id = 'd7000000-0000-4000-8000-000000000031';
 -- A real FK reproduces the same non-deferrable RESTRICT constraint used by
 -- portal releases, agreement versions and financial receipts without unrelated fixtures.
-create temporary table deletion_reference(document_id uuid references public.resident_documents(id) on delete restrict);
-insert into deletion_reference values ('d7000000-0000-4000-8000-000000000043');
+create table app_private.resident_document_deletion_test_reference(document_id uuid references public.resident_documents(id) on delete restrict);
+insert into app_private.resident_document_deletion_test_reference values ('d7000000-0000-4000-8000-000000000043');
 insert into storage.objects(bucket_id, name)
   select storage_bucket, storage_path from public.resident_documents where resident_id = 'd7000000-0000-4000-8000-000000000031';
 insert into storage.objects(bucket_id, name) values
