@@ -3,7 +3,6 @@ import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 
 export type FhirSource = Tables<"fhir_integration_sources">;
-export type FhirPatientMapping = Tables<"fhir_patient_mappings">;
 export type FhirException = Tables<"fhir_integration_exceptions">;
 
 /**
@@ -69,7 +68,7 @@ export interface FhirIngestionActivity {
 
 export interface FhirIntegrationWorkspace {
   sources: FhirSource[];
-  mappings: FhirPatientMapping[];
+  mappedPatientCount: number;
   activity: FhirIngestionActivity;
   exceptions: FhirException[];
 }
@@ -84,6 +83,41 @@ const EMPTY_ACTIVITY: FhirIngestionActivity = {
   lastAdministrationAt: null,
   residents: [],
 };
+
+const ACTIVE_EXCEPTION_STATUSES = ["open", "acknowledged"];
+
+async function listActiveFhirExceptions(facilityId: string, signal: AbortSignal): Promise<FhirException[]> {
+  const rows: FhirException[] = [];
+  const pageSize = 1000;
+  let afterId: string | undefined;
+  for (;;) {
+    // Polling refreshes last_seen_at even on existing exceptions. Page by the immutable ID so a
+    // refresh or removal on an earlier page cannot shift an older urgent item past our cursor.
+    let query = supabase.from("fhir_integration_exceptions").select("*")
+      .eq("facility_id", facilityId).in("status", ACTIVE_EXCEPTION_STATUSES)
+      .order("id", { ascending: true }).range(0, pageSize - 1).abortSignal(signal);
+    if (afterId) query = query.gt("id", afterId);
+    const { data, error } = await query;
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < pageSize) return rows;
+    afterId = data[data.length - 1].id;
+  }
+}
+
+function mergeFhirExceptions(active: FhirException[], recentHistory: FhirException[]): FhirException[] {
+  const byId = new Map<string, FhirException>();
+  // A disposition can change between the two reads. Use its newest observed version once;
+  // prefer the active copy on an exact timestamp tie so unresolved work is not hidden.
+  for (const row of [...active, ...recentHistory]) {
+    const previous = byId.get(row.id);
+    if (!previous || Date.parse(row.updated_at) > Date.parse(previous.updated_at)) byId.set(row.id, row);
+  }
+  return [...byId.values()].sort((left, right) =>
+    Number(!ACTIVE_EXCEPTION_STATUSES.includes(left.status)) - Number(!ACTIVE_EXCEPTION_STATUSES.includes(right.status))
+    || Date.parse(right.last_seen_at) - Date.parse(left.last_seen_at)
+    || left.id.localeCompare(right.id));
+}
 
 /**
  * The integration console.
@@ -101,20 +135,25 @@ export function useFhirIntegration(facilityId?: string) {
   return useQuery({
     queryKey: [FHIR_INTEGRATION_KEY, facilityId],
     enabled: Boolean(facilityId),
-    queryFn: async (): Promise<FhirIntegrationWorkspace> => {
-      const [sources, mappings, activity, exceptions] = await Promise.all([
-        supabase.from("fhir_integration_sources").select("*").eq("facility_id", facilityId!).order("created_at"),
-        supabase.from("fhir_patient_mappings").select("*").eq("facility_id", facilityId!).order("mapped_at", { ascending: false }).limit(200),
-        supabase.rpc("get_facility_fhir_ingestion_activity", { p_facility_id: facilityId! }),
-        supabase.from("fhir_integration_exceptions").select("*").eq("facility_id", facilityId!).order("last_seen_at", { ascending: false }).limit(100),
+    queryFn: async ({ signal }): Promise<FhirIntegrationWorkspace> => {
+      const [sources, mappings, activity, activeExceptions, recentHistory] = await Promise.all([
+        supabase.from("fhir_integration_sources").select("*").eq("facility_id", facilityId!).order("created_at").abortSignal(signal),
+        supabase.from("fhir_patient_mappings").select("id", { count: "exact", head: true })
+          .eq("facility_id", facilityId!).eq("status", "active").abortSignal(signal),
+        supabase.rpc("get_facility_fhir_ingestion_activity", { p_facility_id: facilityId! }).abortSignal(signal),
+        listActiveFhirExceptions(facilityId!, signal),
+        supabase.from("fhir_integration_exceptions").select("*").eq("facility_id", facilityId!)
+          .in("status", ["resolved", "dismissed"]).order("last_seen_at", { ascending: false })
+          .order("id", { ascending: true }).limit(100).abortSignal(signal),
       ]);
-      const failed = [sources, mappings, activity, exceptions].find((result) => result.error);
+      const failed = [sources, mappings, activity, recentHistory].find((result) => result.error);
       if (failed?.error) throw failed.error;
+      if (mappings.count == null) throw new Error("Mapped patient count is unavailable. Please retry.");
       return {
         sources: sources.data ?? [],
-        mappings: mappings.data ?? [],
+        mappedPatientCount: mappings.count,
         activity: (activity.data as unknown as FhirIngestionActivity | null) ?? EMPTY_ACTIVITY,
-        exceptions: exceptions.data ?? [],
+        exceptions: mergeFhirExceptions(activeExceptions, recentHistory.data ?? []),
       };
     },
     staleTime: 30_000,
