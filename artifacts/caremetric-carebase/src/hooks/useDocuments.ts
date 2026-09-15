@@ -29,23 +29,36 @@ export interface ListDocumentsFilters {
 export function useListDocuments(filters: ListDocumentsFilters = {}, enabled = true) {
   return useQuery({
     queryKey: ["documents", filters],
-    queryFn: async () => {
-      let query = supabase
-        .from("training_documents")
-        .select("*, employees(id, first_name, last_name)")
-        .order("created_at", { ascending: false });
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.storageBucket) query = query.eq("storage_bucket", filters.storageBucket);
-      if (filters.storagePathPrefix) {
-        const escapedPrefix = filters.storagePathPrefix.replace(/[\\%_]/g, "\\$&");
-        query = query.like("storage_path", `${escapedPrefix}%`);
+    queryFn: async ({ signal }) => {
+      // PendingApprovals excludes already-linked certificates after loading this list. A
+      // capped response can contain only reviewed documents and hide older submissions.
+      // Employee and course document lists likewise need the complete scoped collection.
+      const pageSize = 1000;
+      const rows: TrainingDocumentWithEmployee[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("training_documents")
+          .select("*, employees(id, first_name, last_name)")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1)
+          .abortSignal(signal);
+        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.storageBucket) query = query.eq("storage_bucket", filters.storageBucket);
+        if (filters.storagePathPrefix) {
+          const escapedPrefix = filters.storagePathPrefix.replace(/[\\%_]/g, "\\$&");
+          query = query.like("storage_path", `${escapedPrefix}%`);
+        }
+        if (filters.documentTypes?.length) query = query.in("document_type", filters.documentTypes);
+        else if (filters.documentType) query = query.eq("document_type", filters.documentType);
+        const { data, error } = await query;
+        if (error) throw error;
+        const batch = (data ?? []) as unknown as TrainingDocumentWithEmployee[];
+        rows.push(...batch);
+        if (batch.length < pageSize) break;
       }
-      if (filters.documentTypes?.length) query = query.in("document_type", filters.documentTypes);
-      else if (filters.documentType) query = query.eq("document_type", filters.documentType);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as unknown as TrainingDocumentWithEmployee[];
+      return rows;
     },
     enabled,
   });

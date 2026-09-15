@@ -2,6 +2,7 @@ import {
   mapAllergyIntolerance,
   mapCondition,
   mapFhirBundle,
+  mapMedicationAdministration,
   mapMedicationRequest,
   referenceId,
 } from "./fhirMapping.ts";
@@ -20,6 +21,57 @@ Deno.test("referenceId strips resource-type and urn prefixes", () => {
   assertEquals(referenceId("bare"), "bare");
   assertEquals(referenceId(undefined), null);
   assertEquals(referenceId(""), null);
+});
+
+Deno.test("version-specific references resolve the resource ID, never the version ID", () => {
+  assertEquals(referenceId("Patient/patient-1/_history/7"), "patient-1");
+  assertEquals(referenceId("https://ehr.example/fhir/Patient/patient-1/_history/7"), "patient-1");
+  const administration = mapMedicationAdministration({
+    id: "administration-1",
+    subject: { reference: "Patient/patient-1/_history/7" },
+    request: { reference: "MedicationRequest/order-1/_history/9" },
+  });
+  assertEquals(administration.fhirPatientId, "patient-1");
+  assertEquals(administration.fhirRequestId, "order-1");
+});
+
+Deno.test("non-patient subjects cannot collide with resident patient mappings", () => {
+  for (const reference of ["Group/patient-1", "https://ehr.example/Group/patient-1/_history/7"]) {
+    const bundle = mapFhirBundle({
+      resourceType: "Bundle",
+      entry: [
+        { resource: { resourceType: "MedicationRequest", id: "order", subject: { reference } } },
+        { resource: { resourceType: "MedicationAdministration", id: "event", subject: { reference } } },
+        { resource: { resourceType: "AllergyIntolerance", id: "allergy", patient: { reference } } },
+        { resource: { resourceType: "Condition", id: "condition", subject: { reference } } },
+        { resource: { resourceType: "ServiceRequest", id: "service", subject: { reference } } },
+        { resource: { resourceType: "DocumentReference", id: "document", subject: { reference } } },
+      ],
+    }, "2026-09-15T00:00:00Z");
+    assertEquals([
+      ...bundle.medicationRequests, ...bundle.medicationAdministrations, ...bundle.allergies,
+      ...bundle.conditions, ...bundle.serviceRequests, ...bundle.documentReferences,
+    ].map((row) => row.fhirPatientId), [null, null, null, null, null, null]);
+  }
+});
+
+Deno.test("malformed and contained references cannot become a resident identifier", () => {
+  for (const reference of ["Patient/p1/_history", "Patient/p1/", "Patient/p1?x=1", "#p1", "urn:uuid:"]) {
+    assertEquals(referenceId(reference), null, reference);
+  }
+});
+
+Deno.test("explicit reference types cannot disguise a non-patient or unrelated order", () => {
+  assertEquals(mapMedicationAdministration({
+    subject: { reference: "urn:uuid:patient-1", type: "Group" },
+    request: { reference: "ServiceRequest/order-1" },
+  }).fhirPatientId, null);
+  const administration = mapMedicationAdministration({
+    subject: { reference: "Patient/patient-1", type: "Patient" },
+    request: { reference: "ServiceRequest/order-1" },
+  });
+  assertEquals(administration.fhirPatientId, "patient-1");
+  assertEquals(administration.fhirRequestId, null);
 });
 
 Deno.test("mapMedicationRequest extracts RxNorm, display, dosage, and patient", () => {

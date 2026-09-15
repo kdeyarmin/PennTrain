@@ -7,6 +7,7 @@ import {
   stripXfa,
 } from "../_shared/dhsStateFormFill.ts";
 import { toWinAnsi } from "../_shared/pdfText.ts";
+import { uploadGeneratedResidentDocument, discardConflictingGeneratedDocument } from "../_shared/generatedResidentDocument.ts";
 
 // Prefills the official PA DHS PDF for the two upload-only compliance item types (preadmission
 // screening, medical evaluation/DME) with the resident's demographics and stores it as a
@@ -345,10 +346,10 @@ Deno.serve(async (req: Request) => {
   // Never flattened: the whole point is a fillable official form the user finishes themselves.
   const pdfBytes = await doc.save();
 
-  const path = `${item.organization_id}/${item.facility_id}/${item.resident_id}-${item.item_type}-prefill-${item.id}.pdf`;
-  const { error: uploadError } = await adminClient.storage
-    .from(DOCUMENTS_BUCKET)
-    .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
+  const { path, error: uploadError } = await uploadGeneratedResidentDocument(
+    adminClient.storage, item.organization_id, item.facility_id,
+    `${item.resident_id}-${item.item_type}-prefill-${item.id}`, pdfBytes,
+  );
   if (uploadError) return json(req, { error: uploadError.message }, 500);
 
   // is_state_form is explicitly false (matches the column default, but stated here so it can
@@ -374,6 +375,7 @@ Deno.serve(async (req: Request) => {
     .select("id")
     .single();
   if (docError) {
+    await discardConflictingGeneratedDocument(adminClient.storage, path, docError);
     if (docError.code === "23505") {
       const raced = await existingResponse();
       if (raced) return raced;

@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   useDeleteResidentDocument, useListResidentDocuments, useResidentDocumentSignedUrl,
   useUploadResidentDocument, type ResidentDocument,
+  useListPendingResidentDocumentDeletions, useRetryResidentDocumentDeletion, type PendingResidentDocumentDeletion,
 } from "@/hooks/useResidentDocuments";
 import { ResidentPortalWorkspace } from "@/components/residents/ResidentPortalWorkspace";
 import { AdministrativePacketCard } from "@/components/residents/AdministrativePacketCard";
@@ -27,6 +28,8 @@ export default function DocumentsTab({ resident, facility, canManage, canDelete 
   const uploadDocument = useUploadResidentDocument();
   const getSignedUrl = useResidentDocumentSignedUrl();
   const deleteDocument = useDeleteResidentDocument();
+  const pendingDeletions = useListPendingResidentDocumentDeletions(resident.id, canDelete);
+  const retryDeletion = useRetryResidentDocumentDeletion();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [docPendingDelete, setDocPendingDelete] = useState<ResidentDocument | null>(null);
   const formLabel = getComplianceFormLabel(facility?.facility_type);
@@ -64,6 +67,15 @@ export default function DocumentsTab({ resident, facility, canManage, canDelete 
       toast({ title: "Delete failed", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
       setDocPendingDelete(null);
+    }
+  };
+
+  const handleRetryDeletion = async (doc: PendingResidentDocumentDeletion) => {
+    try {
+      await retryDeletion.mutateAsync(doc);
+      toast({ title: "Document deleted" });
+    } catch (err) {
+      toast({ title: "File deletion is still pending", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     }
   };
 
@@ -123,6 +135,23 @@ export default function DocumentsTab({ resident, facility, canManage, canDelete 
                       </Button>
                     )}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {canDelete && pendingDeletions.isError && (
+            <QueryError what="pending document deletions" error={pendingDeletions.error} onRetry={() => void pendingDeletions.refetch()} />
+          )}
+          {canDelete && !!pendingDeletions.data?.length && (
+            <div className="mt-4 space-y-2 rounded-lg border p-3">
+              <p className="text-sm font-medium">File deletion pending</p>
+              <p className="text-sm text-muted-foreground">These documents were removed from the resident record. Retry to finish deleting their files.</p>
+              {pendingDeletions.data.map((doc) => (
+                <div key={doc.document_id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate">{doc.file_name}</span>
+                  <Button variant="outline" size="sm" disabled={retryDeletion.isPending || deleteDocument.isPending} onClick={() => void handleRetryDeletion(doc)}>
+                    Retry deletion
+                  </Button>
                 </div>
               ))}
             </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, FileScan, RefreshCw, XCircle } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,7 @@ const STATUSES = [
   "approved",
   "rejected",
 ] as const;
+const PAGE_SIZE = 50;
 
 function statusLabel(status: string): string {
   return status.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -58,7 +59,17 @@ export function CredentialRenewalInbox({
   const { user } = useAuth();
   const { toast } = useToast();
   const [status, setStatus] = useState("needs_review");
-  const submissions = useCredentialRenewalSubmissions({ status, pageSize: 50 });
+  const [page, setPage] = useState(0);
+  const submissions = useCredentialRenewalSubmissions({ status, page, pageSize: PAGE_SIZE });
+  const total = submissions.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Reviewing the last item on a later page can shrink the queue. Return to a populated page
+  // after the refreshed count arrives instead of leaving an apparently empty review inbox.
+  useEffect(() => {
+    if (submissions.data && !submissions.isFetching && !submissions.isError && page >= pageCount) {
+      setPage(pageCount - 1);
+    }
+  }, [submissions.data, submissions.isFetching, submissions.isError, page, pageCount]);
   const queue = useCredentialRenewalQueueSummary();
   const review = useReviewCredentialRenewal();
   const [selected, setSelected] = useState<CredentialRenewalSubmission | null>(null);
@@ -186,7 +197,7 @@ export function CredentialRenewalInbox({
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Select value={status} onValueChange={setStatus}>
+            <Select value={status} onValueChange={(value) => { setStatus(value); setPage(0); }}>
               <SelectTrigger className="w-44" aria-label="Credential renewal status"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
@@ -286,6 +297,19 @@ export function CredentialRenewalInbox({
                 </div>
               );
             })
+          )}
+          {submissions.data && !submissions.isError && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+              <p className="text-sm text-muted-foreground">
+                {total} submission{total === 1 ? "" : "s"} · Page {page + 1} of {pageCount}
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" disabled={page === 0 || submissions.isFetching}
+                  onClick={() => setPage((value) => value - 1)}>Previous</Button>
+                <Button size="sm" variant="outline" disabled={page + 1 >= pageCount || submissions.isFetching}
+                  onClick={() => setPage((value) => value + 1)}>Next</Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

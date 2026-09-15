@@ -63,6 +63,31 @@ for (const body of [null, [], [MEDICATION], "MedicationRequest", 1, false, {}, {
   });
 }
 
+for (const body of [
+  { resourceType: "Bundle", entry: {} },
+  { resourceType: "Bundle", entry: [null] },
+  { resourceType: "Bundle", entry: [{ resource: [] }] },
+  { ...MEDICATION, subject: { reference: 123 } },
+  { ...MEDICATION, medicationCodeableConcept: { coding: {} } },
+  { ...MEDICATION, medicationCodeableConcept: { coding: [null] } },
+  { ...MEDICATION, medicationCodeableConcept: { coding: [{ system: 123 }] } },
+  { ...MEDICATION, dosageInstruction: { text: "invalid array" } },
+  { resourceType: "AllergyIntolerance", id: "allergy-1", category: "medication" },
+  { resourceType: "AllergyIntolerance", id: "allergy-1", reaction: [null] },
+  { resourceType: "AllergyIntolerance", id: "allergy-1", reaction: [{ manifestation: {} }] },
+  { resourceType: "Condition", id: "condition-1", category: [{ coding: [null] }] },
+]) {
+  Deno.test(`FHIR ingestion rejects malformed nested structure ${JSON.stringify(body)}`, async () => {
+    const { handler, calls } = fixture();
+    const response = await handler(request(JSON.stringify(body)));
+    assertEquals(response.status, 400);
+    assertEquals(await response.json(), {
+      error: { code: "invalid_fhir_resource" }, meta: { correlationId: "fhir-regression" },
+    });
+    assertEquals(calls.length, 2);
+  });
+}
+
 Deno.test("FHIR ingestion retains malformed JSON response without accepting a command", async () => {
   const { handler, calls } = fixture();
   const response = await handler(request("{"));
@@ -101,4 +126,75 @@ Deno.test("FHIR invalid bodies cannot bypass authentication or rate limits", asy
   assertEquals(limited.status, 429);
   assertEquals((await limited.json()).error.code, "rate_limit_exceeded");
   assertEquals(throttled.calls.length, 2);
+});
+
+Deno.test("FHIR ingestion preserves patient and order identity for version-specific medication references", async () => {
+  const { handler, calls } = fixture();
+  const response = await handler(request(JSON.stringify({
+    resourceType: "MedicationAdministration", id: "event-1", status: "completed",
+    subject: { reference: "https://ehr.example/fhir/Patient/patient-1/_history/7" },
+    request: { reference: "MedicationRequest/order-1/_history/9" },
+    effectiveDateTime: "2026-09-15T00:00:00-04:00",
+  })));
+  assertEquals(response.status, 202);
+  const payload = calls[2].args.p_payload as { medicationAdministrations: Array<Record<string, unknown>> };
+  assertEquals(payload.medicationAdministrations[0].fhirPatientId, "patient-1");
+  assertEquals(payload.medicationAdministrations[0].fhirRequestId, "order-1");
+  assertEquals(payload.medicationAdministrations[0].effectiveAt, "2026-09-15T00:00:00-04:00");
+});
+
+Deno.test("FHIR ingestion leaves Group medication evidence unmatched rather than selecting a resident with the same ID", async () => {
+  const { handler, calls } = fixture();
+  const response = await handler(request(JSON.stringify({
+    ...MEDICATION, subject: { reference: "Group/patient-1" },
+  })));
+  assertEquals(response.status, 202);
+  const payload = calls[2].args.p_payload as { medicationRequests: Array<Record<string, unknown>> };
+  // apply_fhir_integration_command routes a null patient ID to its unmatched_patient exception;
+  // it must not see 'patient-1' and attach a group order to that resident's chart.
+  assertEquals(payload.medicationRequests[0].fhirPatientId, null);
+});
+
+Deno.test("FHIR shape validation preserves all supported resources and unknown extension data", async () => {
+  const { handler, calls } = fixture();
+  const subject = { reference: "Patient/patient-1" };
+  const code = { coding: [{ system: "http://snomed.info/sct", code: "test-code", display: "Test fixture" }] };
+  const extension = [{ url: "https://ehr.example/extension", valueString: "preserved" }];
+  const response = await handler(request(JSON.stringify({
+    resourceType: "Bundle", entry: [
+      { resource: { ...MEDICATION, medicationCodeableConcept: code, dosageInstruction: [{ text: "Fixture only" }], extension } },
+      { resource: { resourceType: "MedicationAdministration", id: "event-1", subject,
+        effectivePeriod: { start: "2026-09-15T00:00:00Z" }, performer: [{ actor: { display: "Fixture staff" } }] } },
+      { resource: { resourceType: "AllergyIntolerance", id: "allergy-1", patient: subject, code,
+        category: ["medication"], reaction: [{ manifestation: [code] }] } },
+      { resource: { resourceType: "Condition", id: "condition-1", subject, code, category: [code] } },
+      { resource: { resourceType: "ServiceRequest", id: "service-1", subject, code } },
+      { resource: { resourceType: "DocumentReference", id: "document-1", subject, type: code,
+        content: [{ attachment: { url: "https://ehr.example/doc", contentType: "application/pdf" } }] } },
+      { resource: { resourceType: "Observation", id: "unsupported-1" } },
+    ],
+  })));
+  assertEquals(response.status, 202);
+  assertEquals((await response.json()).data.mapped, {
+    medicationRequests: 1, medicationAdministrations: 1, allergies: 1,
+    conditions: 1, serviceRequests: 1, documentReferences: 1, unsupported: 1,
+  });
+  const payload = calls[2].args.p_payload as { medicationRequests: Array<{ raw: Record<string, unknown> }> };
+  assertEquals(payload.medicationRequests[0].raw.extension, extension);
+});
+
+Deno.test("FHIR repeating primitive placeholders retain their metadata without inventing allergy categories", async () => {
+  const { handler, calls } = fixture();
+  const categoryMetadata = [{ extension: [{
+    url: "http://hl7.org/fhir/StructureDefinition/data-absent-reason", valueCode: "unknown",
+  }] }, null];
+  const response = await handler(request(JSON.stringify({
+    resourceType: "AllergyIntolerance", id: "allergy-1",
+    patient: { reference: "Patient/patient-1" }, category: [null, "medication"],
+    _category: categoryMetadata,
+  })));
+  assertEquals(response.status, 202);
+  const payload = calls[2].args.p_payload as { allergies: Array<{ category: string[]; raw: Record<string, unknown> }> };
+  assertEquals(payload.allergies[0].category, ["medication"]);
+  assertEquals(payload.allergies[0].raw._category, categoryMetadata);
 });

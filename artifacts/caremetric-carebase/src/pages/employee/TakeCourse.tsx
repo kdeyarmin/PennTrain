@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseMediaDocumentLink } from "@/components/learning/CourseMediaDocumentLink";
@@ -15,6 +16,8 @@ import {
   useUpsertCourseProgress,
   useCompleteCourseAssignment,
   useStartCourseAssignment,
+  invalidateCompletedCourseEvidence,
+  verifyCourseAssignmentCompleted,
 } from "@/hooks/useCourseAssignments";
 import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
 import { useGetQuizByBlockId, useListQuizAttempts } from "@/hooks/useQuizzes";
@@ -70,6 +73,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { createCourseProgressWriter } from "@/lib/courseProgressWriter";
 
 function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   const { data: document, isLoading } = useGetDocument(documentId ?? undefined);
@@ -144,8 +148,15 @@ function AssignmentStatusBadge({ status }: { status: string }) {
 }
 
 export default function TakeCourse() {
-  const __fieldIds = useId();
   const { assignmentId } = useParams<{ assignmentId: string }>();
+  // A route change starts a different learning session. In-flight callbacks for the previous
+  // assignment must not open its rating dialog or carry its completion lock into the next one.
+  return <AssignmentCourse key={assignmentId} assignmentId={assignmentId} />;
+}
+
+export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
+  const __fieldIds = useId();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -182,13 +193,15 @@ export default function TakeCourse() {
   } = useGetCourseProgress(assignmentId);
   const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
   const packageCompleted = useAssignmentPackageCompleted(assignmentId);
+  const progressWriter = useMemo(() => createCourseProgressWriter(), [assignmentId]);
+  const [completionPending, setCompletionPending] = useState(false);
   const ownsAssignment = !!assignment && !!employee && assignment.employee_id === employee.id;
   const completionEvidenceLocked = assignment?.status === "completed";
   const canMutateEvidence = canMutateCourseEvidence(
     assignment?.employee_id,
     employee?.id,
     assignment?.status,
-  );
+  ) && !completionPending;
 
   const upsertProgress = useUpsertCourseProgress();
   const startAssignment = useStartCourseAssignment();
@@ -344,19 +357,16 @@ useEffect(() => {
     if (progress?.started_at) progressStartedAtRef.current = progress.started_at;
   }, [progress?.started_at]);
 
-  const flushProgressCheckpoint = useCallback((mode: "debounce" | "immediate") => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) {
-      return;
-    }
-    if (videoStateLoadedForId !== assignmentId && lessonToolsLoadedForId !== assignmentId) {
-      // Still hydrating both stores — skip until at least one is ready so we do not wipe server state.
-      return;
-    }
+  const buildProgressCheckpoint = useCallback(() => {
+    if (!resumed || !assignment || !canMutateEvidence || !blocks || blocks.length === 0) return null;
+    // Both stores belong in every snapshot. Waiting for only one can carry the previous
+    // assignment's notes or video state into this assignment during an in-place navigation.
+    if (videoStateLoadedForId !== assignmentId || lessonToolsLoadedForId !== assignmentId) return null;
     const block = blocks[stepIndex];
-    if (!block) return;
+    if (!block) return null;
     const startedAt = progressStartedAtRef.current ?? new Date().toISOString();
     progressStartedAtRef.current = startedAt;
-    const payload = {
+    return {
       assignment_id: assignment.id,
       last_block_id: block.id,
       percent_complete: Math.round(((stepIndex + 1) / blocks.length) * 100),
@@ -364,39 +374,32 @@ useEffect(() => {
       video_state: videoStateRef.current as unknown as Json,
       learning_tools: learningToolsRef.current as unknown as Json,
     };
-    const onProgressError = (error: Error) => {
-      toast({
-        title: "Could not save progress",
-        description: error.message,
-        variant: "destructive",
-      });
-    };
-    if (mode === "immediate") {
-      upsertProgress.mutate(payload, { onError: onProgressError });
-      return;
-    }
-    // debounce path handled by the effect below via timer calling this with immediate
-    upsertProgress.mutate(payload, { onError: onProgressError });
-  }, [
-    resumed, assignment, canMutateEvidence, completeAssignment.isPending, blocks, stepIndex,
-    videoStateLoadedForId, lessonToolsLoadedForId, assignmentId, upsertProgress, toast,
-  ]);
+  }, [resumed, assignment, canMutateEvidence, blocks, stepIndex,
+    videoStateLoadedForId, lessonToolsLoadedForId, assignmentId]);
+
+  const flushProgressCheckpoint = useCallback(() => {
+    const payload = buildProgressCheckpoint();
+    if (!payload) return;
+    void progressWriter.checkpoint(() => upsertProgress.mutateAsync(payload)).catch((error: Error) => {
+      toast({ title: "Could not save progress", description: error.message, variant: "destructive" });
+    });
+  }, [buildProgressCheckpoint, progressWriter, upsertProgress, toast]);
 
   // Trailing debounce for high-frequency writers (video ticks + notes).
   useEffect(() => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
-    if (videoStateLoadedForId !== assignmentId && lessonToolsLoadedForId !== assignmentId) return;
-    const timer = window.setTimeout(() => flushProgressCheckpoint("immediate"), 3_000);
+    if (!resumed || !assignment || !canMutateEvidence || completionPending || !blocks || blocks.length === 0) return;
+    if (videoStateLoadedForId !== assignmentId || lessonToolsLoadedForId !== assignmentId) return;
+    const timer = window.setTimeout(() => flushProgressCheckpoint(), 3_000);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoState, lessonNotes, lessonConfidence, lessonToolsLoadedForId, videoStateLoadedForId, canMutateEvidence, completeAssignment.isPending]);
+  }, [videoState, lessonNotes, lessonConfidence, lessonToolsLoadedForId, videoStateLoadedForId, canMutateEvidence, completionPending]);
 
   // Immediate checkpoint on step navigation / resume landing.
   useEffect(() => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
-    flushProgressCheckpoint("immediate");
+    if (!resumed || !assignment || !canMutateEvidence || completionPending || !blocks || blocks.length === 0) return;
+    flushProgressCheckpoint();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumed, stepIndex, assignment?.id, canMutateEvidence, blocks, completeAssignment.isPending]);
+  }, [resumed, stepIndex, assignment?.id, canMutateEvidence, blocks, completionPending]);
 
   // Wires the previously-dead assigned -> in_progress transition (see ROADMAP.md Tier 3.4).
   useEffect(() => {
@@ -414,15 +417,15 @@ useEffect(() => {
 
   // Mobile-safe flush when the tab is backgrounded.
   useEffect(() => {
-    if (!resumed || !assignment || !canMutateEvidence || completeAssignment.isPending || !blocks || blocks.length === 0) return;
+    if (!resumed || !assignment || !canMutateEvidence || completionPending || !blocks || blocks.length === 0) return;
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "hidden") return;
-      flushProgressCheckpoint("immediate");
+      flushProgressCheckpoint();
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumed, assignment?.id, canMutateEvidence, blocks, stepIndex, completeAssignment.isPending, flushProgressCheckpoint]);
+  }, [resumed, assignment?.id, canMutateEvidence, blocks, stepIndex, completionPending, flushProgressCheckpoint]);
 
   const currentBlock: CourseBlock | undefined = blocks?.[stepIndex];
   const lessonCount = blocks?.length ?? 0;
@@ -611,18 +614,47 @@ useEffect(() => {
   return () => window.removeEventListener("keydown", handleKeyDown);
 }, [blocks, canAdvance, canMutateEvidence, currentBlock, isLastBlock, ownsAssignment, showClearLearningToolsConfirm, showRatingPrompt, stepIndex]);
 
-  const handleComplete = () => {
-    if (!assignment || !canMutateEvidence) return;
-    completeAssignment.mutate(assignment.id, {
-      onSuccess: () => {
-        // Certificate issuance is part of the same database transaction. A successful response
-        // guarantees there is exactly one certificate, even after retries or concurrent clicks.
-        toast({ title: "Training completed", description: "Certificate issued -- nice work!" });
-        setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
-        setShowRatingPrompt(true);
-      },
-      onError: (e: Error) => toast({ title: "Failed to complete training", description: e.message, variant: "destructive" }),
-    });
+  const handleComplete = async () => {
+    if (!assignment || !canMutateEvidence || !isLastBlock || !canAdvance || progressWriter.isClosed()) return;
+    const finalSnapshot = buildProgressCheckpoint();
+    if (!finalSnapshot) return;
+    setCompletionPending(true);
+    const acknowledgeCompletion = () => {
+      progressWriter.confirmCompleted();
+      toast({ title: "Training completed", description: "Certificate issued -- nice work!" });
+      setPostCompleteDestination(isEmployeeRole ? "/me/certificates" : "/me/courses");
+      setShowRatingPrompt(true);
+    };
+    try {
+      // The final response/video tick may still be inside the three-second debounce. Save it
+      // after every older checkpoint and before the RPC checks and locks completion evidence.
+      await progressWriter.complete(
+        () => upsertProgress.mutateAsync(finalSnapshot),
+        () => completeAssignment.mutateAsync(assignment.id),
+      );
+      acknowledgeCompletion();
+    } catch (error) {
+      // Completion may have committed while its HTTP response was lost. A retry then meets the
+      // progress row's immutability guard before reaching the idempotent completion RPC. Read the
+      // assignment through a bounded, uncached read after either failure. This also handles
+      // another tab completing the same assignment first without waiting offline for reconnect.
+      try {
+        if (await verifyCourseAssignmentCompleted(assignment.id, assignment.employee_id)) {
+          invalidateCompletedCourseEvidence(queryClient);
+          acknowledgeCompletion();
+          return;
+        }
+      } catch {
+        // Keep the original save/completion failure visible if reconciliation is unavailable.
+      }
+      toast({
+        title: "Failed to complete training",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setCompletionPending(false);
+    }
   };
 
   const handleSkipRating = () => {
@@ -1145,7 +1177,7 @@ useEffect(() => {
                           ? "Describe the steps you would take and why..."
                           : "Example: I should document the incident time before calling the supervisor..."}
                         rows={3}
-                        readOnly={completionEvidenceLocked}
+                        readOnly={!canMutateEvidence}
                         aria-invalid={appliedResponseRequired && !appliedResponseComplete}
                       />
                       {appliedResponseRequired && (
@@ -1175,7 +1207,7 @@ useEffect(() => {
                               variant={currentConfidence === confidence ? "default" : "outline"}
                               size="sm"
                               onClick={() => handleConfidenceChange(confidence)}
-                              disabled={completionEvidenceLocked}
+                              disabled={!canMutateEvidence}
                             >
                               {CONFIDENCE_LABEL[confidence]}
                             </Button>
@@ -1225,9 +1257,9 @@ useEffect(() => {
                   )}
                 </div>
               ) : (
-                <Button onClick={handleComplete} disabled={!canAdvance || completeAssignment.isPending}>
+                <Button onClick={handleComplete} disabled={!canAdvance || completionPending}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
-                  {completeAssignment.isPending ? "Completing..." : "Mark Training Complete"}
+                  {completionPending ? "Completing..." : "Mark Training Complete"}
                 </Button>
               )
             ) : (

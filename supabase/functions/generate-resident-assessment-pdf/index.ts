@@ -15,6 +15,7 @@ import {
   setFirstMatchingTextField,
 } from "../_shared/dhsStateFormFill.ts";
 import { toWinAnsi } from "../_shared/pdfText.ts";
+import { uploadGeneratedResidentDocument, discardConflictingGeneratedDocument } from "../_shared/generatedResidentDocument.ts";
 
 
 function json(req: Request, body: unknown, status = 200) {
@@ -1291,14 +1292,10 @@ Deno.serve(async (req: Request) => {
     content: (form.content ?? {}) as AnyRecord,
   });
 
-  const path = `${form.organization_id}/${form.facility_id}/${form.resident_id}-${form.form_type.toLowerCase()}-v${form.version_number}-${form.id}.pdf`;
-
-  const { error: uploadError } = await adminClient.storage
-    .from(DOCUMENTS_BUCKET)
-    .upload(path, pdfBytes, {
-      contentType: "application/pdf",
-      upsert: true,
-    });
+  const { path, error: uploadError } = await uploadGeneratedResidentDocument(
+    adminClient.storage, form.organization_id, form.facility_id,
+    `${form.resident_id}-${form.form_type.toLowerCase()}-v${form.version_number}-${form.id}`, pdfBytes,
+  );
   if (uploadError) return json(req, { error: uploadError.message }, 500);
 
   // One resident_documents row per assessment-form version -- the existence check above already
@@ -1320,6 +1317,7 @@ Deno.serve(async (req: Request) => {
     is_state_form: false,
   });
   if (docError) {
+    await discardConflictingGeneratedDocument(adminClient.storage, path, docError);
     // Racing duplicate requests (a double-clicked "Generate PDF") can both pass the pre-check;
     // the loser hits resident_documents_resident_document_label_udx. Answer it like the
     // pre-check does -- the document exists -- instead of surfacing a raw constraint error.

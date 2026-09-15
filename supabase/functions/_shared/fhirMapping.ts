@@ -7,6 +7,7 @@ import { classifyCodeSystem, type CodeableConcept, conceptDisplay, findCoding } 
 
 interface Reference {
   reference?: string;
+  type?: string;
   display?: string;
 }
 
@@ -146,14 +147,45 @@ export interface NormalizedFhirBundle {
   unsupported: { resourceType: string; id: string | null }[];
 }
 
-/** "Patient/abc", "urn:uuid:..", or a bare id -> bare id. */
-export function referenceId(reference: string | undefined | null): string | null {
-  if (!reference) return null;
+/**
+ * Resolve the logical resource ID, including FHIR R4 version-specific references.
+ * The database matches this against a source-scoped patient mapping; returning the final path
+ * segment would match a version number (or a Group ID) to an unrelated resident.
+ * https://hl7.org/fhir/R4/references.html#literal
+ */
+export function referenceId(reference: string | undefined | null, expectedType?: string): string | null {
+  if (typeof reference !== "string") return null;
   const trimmed = reference.trim();
-  if (trimmed === "") return null;
-  if (trimmed.startsWith("urn:uuid:")) return trimmed.slice("urn:uuid:".length);
-  const slash = trimmed.lastIndexOf("/");
-  return slash >= 0 ? trimmed.slice(slash + 1) : trimmed;
+  if (trimmed === "" || /[\s\\?#]/.test(trimmed)) return null;
+  const idPattern = /^[A-Za-z0-9.-]{1,64}$/;
+  // Preserve the existing bare-ID and UUID mapping contracts. Contained references (#id) need
+  // resolution in their parent resource and must never be treated as external patient IDs.
+  if (trimmed.startsWith("urn:uuid:")) {
+    const id = trimmed.slice("urn:uuid:".length);
+    return idPattern.test(id) ? id : null;
+  }
+  if (idPattern.test(trimmed)) return trimmed;
+  let path = trimmed;
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      if (url.username || url.password) return null;
+      path = url.pathname;
+    } catch {
+      return null;
+    }
+  } else if (!/^[A-Za-z][A-Za-z0-9]*\/[A-Za-z0-9.-]+(?:\/_history\/[A-Za-z0-9.-]+)?$/.test(trimmed)) {
+    return null;
+  }
+  const match = path.match(/(?:^|\/)([A-Za-z][A-Za-z0-9]*)\/([A-Za-z0-9.-]{1,64})(?:\/_history\/[A-Za-z0-9.-]{1,64})?$/);
+  if (!match || (expectedType && match[1] !== expectedType)) return null;
+  return match[2];
+}
+
+function resourceReferenceId(reference: Reference | undefined, expectedType: string): string | null {
+  if (reference?.type && reference.type !== expectedType &&
+    reference.type !== `http://hl7.org/fhir/StructureDefinition/${expectedType}`) return null;
+  return referenceId(reference?.reference, expectedType);
 }
 
 function firstCoding(concept: CodeableConcept | undefined) {
@@ -181,7 +213,7 @@ export function mapMedicationRequest(resource: FhirResource, nowIso: string): No
   const concept = resource.medicationCodeableConcept;
   const rxnorm = findCoding(concept, "rxnorm");
   return {
-    fhirPatientId: referenceId(resource.subject?.reference),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
     fhirResourceId: String(resource.id ?? ""),
     rxnormCode: rxnorm?.code ?? null,
     // FHIR orders may carry the drug as medicationReference instead of a codeable concept; fall
@@ -200,9 +232,9 @@ export function mapMedicationRequest(resource: FhirResource, nowIso: string): No
 
 export function mapMedicationAdministration(resource: FhirResource): NormalizedMedicationAdministration {
   return {
-    fhirPatientId: referenceId(resource.subject?.reference),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
     fhirResourceId: String(resource.id ?? ""),
-    fhirRequestId: referenceId(resource.request?.reference),
+    fhirRequestId: resourceReferenceId(resource.request, "MedicationRequest"),
     status: resource.status ?? "unknown",
     medicationDisplay: conceptDisplay(resource.medicationCodeableConcept),
     effectiveAt: effectiveTime(resource),
@@ -220,7 +252,7 @@ export function mapAllergyIntolerance(resource: FhirResource, nowIso: string): N
     .filter((value): value is string => Boolean(value));
   return {
     // AllergyIntolerance references the subject via `patient`, not `subject`.
-    fhirPatientId: referenceId(resource.patient?.reference ?? resource.subject?.reference),
+    fhirPatientId: resourceReferenceId(resource.patient ?? resource.subject, "Patient"),
     fhirResourceId: String(resource.id ?? ""),
     substanceDisplay: conceptDisplay(resource.code) ?? "Unspecified allergen",
     substanceCode: coding?.code ?? null,
@@ -240,7 +272,7 @@ export function mapCondition(resource: FhirResource, nowIso: string): Normalized
   const coding = firstCoding(resource.code);
   const firstCategory = resource.category?.[0] as CodeableConcept | undefined;
   return {
-    fhirPatientId: referenceId(resource.subject?.reference),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
     fhirResourceId: String(resource.id ?? ""),
     codeDisplay: conceptDisplay(resource.code) ?? "Unspecified condition",
     code: coding?.code ?? null,
@@ -259,7 +291,7 @@ export function mapCondition(resource: FhirResource, nowIso: string): Normalized
 export function mapServiceRequest(resource: FhirResource, nowIso: string): NormalizedServiceRequest {
   const coding = firstCoding(resource.code);
   return {
-    fhirPatientId: referenceId(resource.subject?.reference),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
     fhirResourceId: String(resource.id ?? ""),
     codeDisplay: conceptDisplay(resource.code) ?? "Unspecified order",
     code: coding?.code ?? null,
@@ -277,7 +309,7 @@ export function mapServiceRequest(resource: FhirResource, nowIso: string): Norma
 export function mapDocumentReference(resource: FhirResource, nowIso: string): NormalizedDocumentReference {
   const attachment = resource.content?.[0]?.attachment;
   return {
-    fhirPatientId: referenceId(resource.subject?.reference),
+    fhirPatientId: resourceReferenceId(resource.subject, "Patient"),
     fhirResourceId: String(resource.id ?? ""),
     typeDisplay: conceptDisplay(resource.type),
     typeCode: firstCoding(resource.type)?.code ?? null,

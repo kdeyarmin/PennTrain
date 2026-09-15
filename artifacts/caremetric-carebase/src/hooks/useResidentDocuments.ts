@@ -127,11 +127,61 @@ export function useDeleteResidentDocument() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (doc: ResidentDocument) => {
-      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
-      if (storageError) throw storageError;
-      const { error } = await supabase.from("resident_documents").delete().eq("id", doc.id);
+      // Retention checks and a durable cleanup receipt commit before any bytes go.
+      const { data, error } = await supabase.rpc("begin_resident_document_deletion", { p_document_id: doc.id });
       if (error) throw error;
+      if (!data || data.length !== 1) throw new Error("The document could not be deleted. Refresh the list and try again.");
+      await finishResidentDocumentDeletion(data[0]);
     },
-    onSuccess: (_data, doc) => queryClient.invalidateQueries({ queryKey: ["resident_documents", doc.resident_id] }),
+    onSettled: (_data, _error, doc) => {
+      queryClient.invalidateQueries({ queryKey: ["resident_documents", doc.resident_id] });
+      queryClient.invalidateQueries({ queryKey: ["resident_document_deletions", doc.resident_id] });
+    },
+  });
+}
+
+export type PendingResidentDocumentDeletion = {
+  document_id: string;
+  resident_id: string;
+  storage_bucket: string;
+  storage_path: string;
+  file_name: string;
+  requested_at: string;
+};
+
+async function finishResidentDocumentDeletion(doc: Pick<PendingResidentDocumentDeletion, "document_id" | "storage_bucket" | "storage_path">) {
+  // A lost Storage response can still mean deletion succeeded. The server confirms
+  // absence independently, also catching remove() success with zero RLS-visible rows.
+  try { await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]); } catch { /* confirm below */ }
+  const { data, error } = await supabase.rpc("confirm_resident_document_deletion", { p_document_id: doc.document_id });
+  if (error || data !== true) {
+    throw new Error("The document record was removed, but file deletion is still pending. Use Retry deletion in this resident's Documents tab.");
+  }
+}
+
+export function useListPendingResidentDocumentDeletions(residentId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["resident_document_deletions", residentId],
+    queryFn: async ({ signal }) => {
+      const rows: PendingResidentDocumentDeletion[] = [];
+      for (let from = 0; ; from += 500) {
+        const { data, error } = await supabase.rpc("list_pending_resident_document_deletions", { p_resident_id: residentId })
+          .range(from, from + 499).abortSignal(signal);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < 500) return rows;
+      }
+    },
+    enabled,
+  });
+}
+
+export function useRetryResidentDocumentDeletion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (doc: PendingResidentDocumentDeletion) => finishResidentDocumentDeletion(doc),
+    onSettled: (_data, _error, doc) => {
+      queryClient.invalidateQueries({ queryKey: ["resident_document_deletions", doc.resident_id] });
+    },
   });
 }

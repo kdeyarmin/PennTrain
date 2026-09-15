@@ -36744,6 +36744,15 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      begin_resident_document_deletion: {
+        Args: { p_document_id: string }
+        Returns: {
+          document_id: string
+          resident_id: string
+          storage_bucket: string
+          storage_path: string
+        }[]
+      }
       begin_system_job: {
         Args: {
           p_correlation_id: string
@@ -37331,6 +37340,10 @@ export type Database = {
       complete_training_class: {
         Args: { p_class_id: string }
         Returns: undefined
+      }
+      confirm_resident_document_deletion: {
+        Args: { p_document_id: string }
+        Returns: boolean
       }
       consume_integration_rate_limit: {
         Args: { p_cost?: number; p_credential_id: string }
@@ -40146,6 +40159,17 @@ export type Database = {
           p_target: Json
         }
         Returns: Json
+      }
+      list_pending_resident_document_deletions: {
+        Args: { p_resident_id: string }
+        Returns: {
+          document_id: string
+          file_name: string
+          requested_at: string
+          resident_id: string
+          storage_bucket: string
+          storage_path: string
+        }[]
       }
       list_plan_of_correction_versions: {
         Args: { p_violation_id: string }
