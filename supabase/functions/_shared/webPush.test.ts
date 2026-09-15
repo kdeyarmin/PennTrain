@@ -2,8 +2,20 @@ import { assertEquals, assertFalse } from "jsr:@std/assert@1.0.14";
 import {
   buildDisabledPushSubscriptionPatch,
   buildPushSubscriptionRow,
+  isAllowedWebPushEndpoint,
+  validatedWebPushKeys,
   webPushTargetPath,
 } from "./webPush.ts";
+
+Deno.test("push key validation accepts the P-256 generator and canonical optional padding", async () => {
+  const p256dh = "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU";
+  const auth = "AAECAwQFBgcICQoLDA0ODw";
+  assertEquals(await validatedWebPushKeys(p256dh, auth), { p256dh, auth });
+  assertEquals(await validatedWebPushKeys(p256dh + "=", auth + "=="), { p256dh, auth });
+  assertEquals(await validatedWebPushKeys(p256dh, auth + "="), null);
+  assertEquals(await validatedWebPushKeys(p256dh, auth.slice(0, -1) + "x"), null);
+  assertEquals(await validatedWebPushKeys("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", auth), null);
+});
 
 Deno.test("push subscription rows use the schema column and clear disable state", () => {
   const row = buildPushSubscriptionRow({
@@ -57,4 +69,33 @@ Deno.test("webPushTargetPath refuses a link that is not a same-origin path", () 
   assertEquals(webPushTargetPath("https://evil.example/steal", "org_admin"), "/app/today");
   assertEquals(webPushTargetPath("", "trainer"), "/trainer");
   assertEquals(webPushTargetPath("app/today", "org_admin"), "/app/today");
+  assertEquals(webPushTargetPath("/\\evil.example/steal", "employee"), "/me");
+  assertEquals(webPushTargetPath("/\n/evil.example/steal", "employee"), "/me");
+});
+
+Deno.test("push endpoint policy accepts supported browser services", () => {
+  for (const origin of ["https://fcm.googleapis.com", "https://updates.push.services.mozilla.com", "https://web.push.apple.com", "https://subdomain.push.apple.com", "https://wns2-bn1p.notify.windows.com"]) {
+    assertEquals(isAllowedWebPushEndpoint(`${origin}/subscription/opaque-token`), true);
+  }
+});
+
+Deno.test("push endpoint policy blocks SSRF, deceptive hosts and URL parser ambiguities", () => {
+  for (const endpoint of [
+    "https://127.0.0.1/private-path-of-at-least-40-characters",
+    "https://169.254.169.254/metadata/identity/oauth2/token",
+    "https://[::1]/private-path-of-at-least-40-characters",
+    "https://internal-service/private-path-of-at-least-40-characters",
+    "https://fcm.googleapis.com.evil.example/opaque-token",
+    "https://evilpush.apple.com/opaque-token-at-least-40-characters",
+    "https://push.apple.com.evil.example/opaque-token",
+    "https://evilnotify.windows.com/opaque-token-at-least-40-characters",
+    "https://evil.example/fcm.googleapis.com/opaque-token",
+    "https://fcm.googleapis.com@evil.example/opaque-token",
+    "https://user:password@fcm.googleapis.com/opaque-token",
+    "https://fcm.googleapis.com:444/opaque-token",
+    "https://fcm.googleapis.com/opaque-token#fragment",
+    "https://fcm.googleapis.com\\@evil.example/opaque-token",
+    "https://fcm.google\napis.com/opaque-token",
+    "http://fcm.googleapis.com/opaque-token-at-least-40-characters",
+  ]) assertEquals(isAllowedWebPushEndpoint(endpoint), false, endpoint);
 });

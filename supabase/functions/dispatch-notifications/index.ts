@@ -1,7 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import webpush from "npm:web-push@3.6.7";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
-import { buildDisabledPushSubscriptionPatch, webPushTargetPath } from "../_shared/webPush.ts";
+import { buildDisabledPushSubscriptionPatch, isAllowedWebPushEndpoint, webPushTargetPath } from "../_shared/webPush.ts";
 import {
   channelProviderConfigured,
   classifyNotificationDispatchStatus,
@@ -276,6 +276,9 @@ async function sendWebPush(
     return { ok: false, retryable: false, errorCode: "subscription_unavailable", error: "No active browser push subscription exists" };
   }
   const subscription = data as StoredPushSubscription;
+  if (!isAllowedWebPushEndpoint(subscription.endpoint)) {
+    return { ok: false, retryable: false, errorCode: "invalid_push_endpoint", error: "Browser push endpoint is not supported" };
+  }
   try {
     webpush.setVapidDetails(subject, publicKey, privateKey);
     const response = await webpush.sendNotification({

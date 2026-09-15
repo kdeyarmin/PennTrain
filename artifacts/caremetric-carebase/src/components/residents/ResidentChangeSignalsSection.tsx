@@ -147,11 +147,13 @@ export default function ResidentChangeSignalsSection({
         occurred_at: entry.occurred_at,
       })),
       changeEvents: (changeEvents.data ?? []).map((entry) => ({
+        incident_id: entry.incident_id,
         category: entry.category,
         identified_at: entry.identified_at,
         status: entry.status,
       })),
       incidents: (incidents.data ?? []).map((entry) => ({
+        id: entry.id,
         incident_type: entry.incident_type,
         occurred_at: entry.occurred_at,
       })),
