@@ -96,15 +96,23 @@ function parseInstant(value: string | null | undefined): Date | null {
   return Number.isNaN(at.getTime()) ? null : at;
 }
 
+/** Transport may leave before the provider visit. A later/invalid pickup cannot delay readiness. */
+function departureAt(appointment: AppointmentLike): Date | null {
+  const startsAt = parseInstant(appointment.starts_at);
+  const pickupAt = parseInstant(appointment.pickup_at);
+  if (pickupAt && (!startsAt || pickupAt.getTime() < startsAt.getTime())) return pickupAt;
+  return startsAt;
+}
+
 export function appointmentStage(appointment: AppointmentLike, now: Date = new Date()): AppointmentStage {
   if (appointment.status === "canceled") return "canceled";
   if (appointment.status === "rescheduled") return "rescheduled";
   if (appointment.status === "scheduled") {
-    const startsAt = parseInstant(appointment.starts_at);
+    const departure = departureAt(appointment);
     // "In progress" is not a stored status; it is the window between departure and the expected
     // return, and staff need it distinguished from "upcoming" while the resident is out of the
     // building. Deriving it means no background job has to move a row to keep the record honest.
-    if (startsAt && startsAt.getTime() <= now.getTime()) return "in_progress";
+    if (departure && departure.getTime() <= now.getTime()) return "in_progress";
     return "upcoming";
   }
   if (appointment.follow_up_completed_at) return "closed";
@@ -142,7 +150,7 @@ export function buildPreparationState({
   now?: Date;
 }): AppointmentPreparationState {
   const stage = appointmentStage(appointment, now);
-  const startsAt = parseInstant(appointment.starts_at);
+  const departure = departureAt(appointment);
   // Preparation for a cancelled, already-attended, or superseded appointment is not "complete", it
   // is moot. Reporting it as outstanding would put permanent, unactionable rows in the panel.
   //
@@ -153,8 +161,8 @@ export function buildPreparationState({
   // no action could clear. That is exactly the failure this filter exists to prevent.
   const applicable = stage === "upcoming" || stage === "in_progress";
   const outstanding = items.filter((item) => item.required && !item.ready);
-  const dueAt = startsAt
-    ? new Date(startsAt.getTime() - PREPARATION_LEAD_HOURS * 3_600_000)
+  const dueAt = departure
+    ? new Date(departure.getTime() - PREPARATION_LEAD_HOURS * 3_600_000)
     : null;
 
   return {
@@ -168,7 +176,7 @@ export function buildPreparationState({
     // Departure has passed with required items still unready. This is the state worth interrupting
     // someone over, and it is the reason the panel ranks it above the merely-due version.
     overdue: applicable && outstanding.length > 0
-      && Boolean(startsAt) && now.getTime() >= startsAt!.getTime(),
+      && Boolean(departure) && now.getTime() >= departure!.getTime(),
   };
 }
 

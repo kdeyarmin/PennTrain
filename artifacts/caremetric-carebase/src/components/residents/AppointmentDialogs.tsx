@@ -15,7 +15,7 @@ import {
   useRescheduleAppointment, useScheduleAppointmentForResident,
 } from "@/hooks/useResidentAppointmentMutations";
 import type { AppointmentLike } from "@/lib/residentAppointments";
-import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { errorText } from "@/lib/errorText";
 
 /**
@@ -179,25 +179,33 @@ export function RecordAppointmentOutcomeDialog({
     if (!appointment) return;
     setStatus("attended");
     setSummary(appointment.outcome_summary ?? "");
-    setFollowUpDueAt("");
+    setFollowUpDueAt(appointment.follow_up_due_at ? toFacilityDateTimeLocal(appointment.follow_up_due_at) : "");
     // An acknowledgement already granted is never offered back as a checkbox: the server keeps it
     // and this dialog cannot revoke it.
     setNewOrders(appointment.new_order_ack_status === "pending_review");
   }, [appointment]);
 
+  const closing = status === "closed";
+  const existingOrdersPending = appointment?.new_order_ack_status === "pending_review";
+  const closureBlocked = closing && (!summary.trim() || existingOrdersPending);
+  const existingFollowUpLocal = appointment?.follow_up_due_at ? toFacilityDateTimeLocal(appointment.follow_up_due_at) : "";
+
   const submit = async () => {
-    if (!appointment) return;
+    if (!appointment || closureBlocked) return;
     try {
       await record.mutateAsync({
         appointmentId: appointment.id,
         status,
         outcomeSummary: summary.trim() || undefined,
-        followUpDueAt: followUpDueAt ? facilityDateTimeLocalToUtcIso(followUpDueAt) : undefined,
+        // The input displays minutes. Omit an unchanged deadline so its stored seconds and the
+        // existing queue clock are preserved, including when completing an earlier draft outcome.
+        followUpDueAt: !closing && followUpDueAt && followUpDueAt !== existingFollowUpLocal
+          ? facilityDateTimeLocalToUtcIso(followUpDueAt) : undefined,
         // A closed outcome cannot raise an acknowledgement. `record_appointment_outcome` opens a
         // follow-up work item for `pending_review`, while `appointmentStage` reads the row as
         // closed and the Appointments tab stops offering the Close follow-up action -- so the pair
-        // produced a work item with no way to close it. Closing means nothing is outstanding.
-        newOrderAckStatus: newOrders && status !== "closed" ? "pending_review" : "not_applicable",
+        // removed the appointment's closure action. Closing means nothing is outstanding.
+        newOrderAckStatus: (newOrders || existingOrdersPending) && !closing ? "pending_review" : "not_applicable",
       });
       toast({ title: "Outcome recorded" });
       onOpenChange(false);
@@ -240,12 +248,14 @@ export function RecordAppointmentOutcomeDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="outcome-follow-up">Follow-up due</Label>
-            <Input id="outcome-follow-up" type="datetime-local" value={followUpDueAt} onChange={(e) => setFollowUpDueAt(e.target.value)} />
+            <Input id="outcome-follow-up" type="datetime-local" value={closing ? "" : followUpDueAt} disabled={closing} onChange={(e) => setFollowUpDueAt(e.target.value)} />
+            {closing && <p className="text-xs text-muted-foreground">A closed outcome has no remaining follow-up deadline.</p>}
+            {!closing && appointment?.follow_up_due_at && <p className="text-xs text-muted-foreground">Leave unchanged or blank to keep the current deadline.</p>}
           </div>
           <label className="flex items-start gap-2 rounded-md border p-2 text-sm">
             <input
-              type="checkbox" className="mt-0.5" checked={newOrders && status !== "closed"}
-              disabled={status === "closed"}
+              type="checkbox" className="mt-0.5" checked={(newOrders || existingOrdersPending) && !closing}
+              disabled={closing || existingOrdersPending}
               onChange={(e) => setNewOrders(e.target.checked)}
             />
             <span>
@@ -260,12 +270,18 @@ export function RecordAppointmentOutcomeDialog({
                   outstanding. Record this as “Follow-up required” instead if orders came back.
                 </span>
               )}
+              {existingOrdersPending && (
+                <span className="block text-xs text-muted-foreground">Use Acknowledge orders on the appointment to record who reviewed the saved orders.</span>
+              )}
+              {closing && existingOrdersPending && (
+                <span className="block text-xs text-destructive">Acknowledge the existing orders before closing this appointment.</span>
+              )}
             </span>
           </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => void submit()} disabled={record.isPending}>
+          <Button onClick={() => void submit()} disabled={record.isPending || closureBlocked}>
             {record.isPending ? "Recording…" : "Record outcome"}
           </Button>
         </DialogFooter>

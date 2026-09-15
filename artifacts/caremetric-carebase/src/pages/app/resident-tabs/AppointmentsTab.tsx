@@ -163,6 +163,7 @@ export default function AppointmentsTab({ resident, canManage }: ResidentTabProp
     [appointmentsQuery.data],
   );
   const preparationQuery = useResidentAppointmentPreparation(appointments.map((row) => row.id));
+  const preparationAvailable = !preparationQuery.isError && preparationQuery.data !== undefined;
   const setItem = useSetAppointmentPreparationItem(resident.id);
   const completePreparation = useCompleteAppointmentPreparation(resident.id);
 
@@ -320,10 +321,10 @@ export default function AppointmentsTab({ resident, canManage }: ResidentTabProp
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="flex items-center gap-1.5 text-sm font-medium">
                             <ClipboardCheck className="h-3.5 w-3.5" /> Before departure
-                            {preparation.signedOff && (
+                            {preparationAvailable && preparation.signedOff && (
                               <Badge variant="outline" className="text-[10px]">Signed off</Badge>
                             )}
-                            {!preparation.signedOff && preparation.overdue && (
+                            {preparationAvailable && !preparation.signedOff && preparation.overdue && (
                               <Badge variant="outline" className="border-destructive text-[10px] text-destructive">
                                 Departure passed
                               </Badge>
@@ -332,7 +333,7 @@ export default function AppointmentsTab({ resident, canManage }: ResidentTabProp
                           {canManage && !preparation.signedOff && (
                             <Button
                               size="sm" variant="outline"
-                              disabled={!preparation.ready || completePreparation.isPending}
+                              disabled={!preparationAvailable || !preparation.ready || completePreparation.isPending}
                               title={preparation.ready ? undefined : "Every required item has to be ready first."}
                               onClick={() => void signOff(appointment)}
                             >
@@ -341,18 +342,24 @@ export default function AppointmentsTab({ resident, canManage }: ResidentTabProp
                           )}
                         </div>
                         <div className="mt-2">
-                          <PreparationList
-                            items={items}
-                            canManage={canManage}
-                            disabled={setItem.isPending}
-                            onToggle={(item) => void toggleItem(item)}
-                          />
+                          {preparationQuery.isError ? (
+                            <p className="text-sm text-destructive">Preparation could not be verified. Retry loading the preparation items below.</p>
+                          ) : preparationQuery.data === undefined ? (
+                            <p className="text-sm text-muted-foreground" role="status">Loading preparation items…</p>
+                          ) : (
+                            <PreparationList
+                              items={items}
+                              canManage={canManage}
+                              disabled={setItem.isPending}
+                              onToggle={(item) => void toggleItem(item)}
+                            />
+                          )}
                           {/* The trigger derives preparation items from the arrays the scheduler
                               wrote, which covers what was known when the appointment was booked.
                               Anything remembered afterwards -- and it usually is -- needs this.
                               The hook existed from the start of this branch and nothing rendered
                               it, so the list was fixed at creation. */}
-                          {canManage && (stage === "upcoming" || stage === "in_progress") && (
+                          {canManage && preparationAvailable && (stage === "upcoming" || stage === "in_progress") && (
                             <AddPreparationItem
                               appointmentId={appointment.id}
                               residentId={resident.id}

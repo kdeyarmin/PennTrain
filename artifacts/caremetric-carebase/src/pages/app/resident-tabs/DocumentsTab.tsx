@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useResidentDocuments";
 import { ResidentPortalWorkspace } from "@/components/residents/ResidentPortalWorkspace";
 import { AdministrativePacketCard } from "@/components/residents/AdministrativePacketCard";
+import { ResidentDocumentDeletionQueue } from "@/components/residents/ResidentDocumentDeletionQueue";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import type { ResidentTabProps } from "./types";
 import { QueryError } from "@/components/QueryState";
@@ -129,6 +130,8 @@ export default function DocumentsTab({ resident, facility, canManage, canDelete 
           )}
         </CardContent>
       </Card>
+
+      <ResidentDocumentDeletionQueue residentId={resident.id} enabled={canDelete} />
 
       {canManage && <ResidentPortalWorkspace residentId={resident.id} />}
 

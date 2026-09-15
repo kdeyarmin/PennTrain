@@ -77,6 +77,12 @@ where employee_id = '00000000-0000-0000-0000-0000000000a6'
 
 -- Helper: simulate an authenticated request from the given profile for the rest of the
 -- transaction block (mirrors how PostgREST sets these GUCs per-request in production).
+-- API document registration requires a completed Storage upload; these rows model
+-- those uploads without introducing real bytes into a transactional pgTAP fixture.
+insert into storage.objects(bucket_id, name) values
+  ('resident-documents', 'test/draft.pdf'),
+  ('resident-documents', 'test/other-item.pdf'),
+  ('resident-documents', 'test/preadmission.pdf');
 create or replace function pg_temp.act_as(p_profile_id uuid) returns void as $$
 begin
   perform set_config('request.jwt.claims', json_build_object('sub', p_profile_id::text, 'role', 'authenticated')::text, true);

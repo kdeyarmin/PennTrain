@@ -25,43 +25,66 @@ const APPOINTMENT_COLUMNS = [
   "rescheduled_to_appointment_id",
 ].join(", ");
 
+const PAGE_SIZE = 1000;
+// Keep the UUID filter within proxy/request URL limits even for a long resident history.
+const APPOINTMENT_ID_BATCH_SIZE = 100;
+type PreparationRow = AppointmentPreparationItemLike & { appointment_id: string };
+
 export function useResidentAppointments(residentId: string | undefined) {
   return useQuery({
     queryKey: ["resident-appointments", residentId],
     enabled: !!residentId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("resident_appointments")
-        .select(APPOINTMENT_COLUMNS)
-        .eq("resident_id", residentId!)
-        .order("starts_at", { ascending: false });
-      if (error) throw error;
-      return data as unknown as AppointmentLike[];
+      const rows: AppointmentLike[] = [];
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from("resident_appointments")
+          .select(APPOINTMENT_COLUMNS)
+          .eq("resident_id", residentId!)
+          .order("starts_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        const page = (data ?? []) as unknown as AppointmentLike[];
+        rows.push(...page);
+        if (page.length < PAGE_SIZE) return rows;
+      }
     },
   });
 }
 
 /**
- * Every preparation item for the resident's appointments in one query rather than one per row.
- * The tab renders a list, and a per-appointment query would fan out to N requests for a screen
- * whose whole purpose is to be read at a glance before a shift.
+ * Batch the resident's appointments and page each batch. A single capped response can omit a
+ * required item and make an incomplete preparation list appear ready; a failure on any page must
+ * reject the complete query so both the tab and Needs Attention can show the error.
  */
 export function useResidentAppointmentPreparation(appointmentIds: string[]) {
   // Sorted so the key is stable regardless of the order the appointment list happens to arrive in;
   // an unsorted key refetches on every re-render that reorders the source array.
-  const key = [...appointmentIds].sort();
+  const key = [...new Set(appointmentIds)].sort();
   return useQuery({
     queryKey: ["resident-appointment-preparation", key],
     enabled: key.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("resident_appointment_preparation_items")
-        .select("id, appointment_id, item_kind, label, required, ready, ready_at, note")
-        .in("appointment_id", key)
-        .order("item_kind")
-        .order("label");
-      if (error) throw error;
-      return data as unknown as (AppointmentPreparationItemLike & { appointment_id: string })[];
+      const rows: PreparationRow[] = [];
+      for (let index = 0; index < key.length; index += APPOINTMENT_ID_BATCH_SIZE) {
+        const ids = key.slice(index, index + APPOINTMENT_ID_BATCH_SIZE);
+        for (let from = 0; ; from += PAGE_SIZE) {
+          const { data, error } = await supabase
+            .from("resident_appointment_preparation_items")
+            .select("id, appointment_id, item_kind, label, required, ready, ready_at, note")
+            .in("appointment_id", ids)
+            .order("item_kind")
+            .order("label")
+            .order("id")
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) throw error;
+          const page = (data ?? []) as unknown as PreparationRow[];
+          rows.push(...page);
+          if (page.length < PAGE_SIZE) break;
+        }
+      }
+      return rows;
     },
   });
 }
