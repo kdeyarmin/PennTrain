@@ -31,6 +31,22 @@ describe("post-login redirects", () => {
     expect(loginPathWithNext("/train/trainer/classes/123", "", "#attendance", "/train")).toBe("/login?next=%2Ftrainer%2Fclasses%2F123%23attendance");
   });
 
+  it.each(["\t", "\n", "\r"])("rejects network paths hidden by URL-normalized control %j", (control) => {
+    for (const separator of ["/", "\\"]) {
+      const destination = `/${control}${separator}evil.example/app`;
+      // Browsers remove these controls before resolving a path against the app origin.
+      expect(new URL(destination, "https://care.example").origin).toBe("https://evil.example");
+      expect(sanitizePostLoginPath(destination)).toBe("/");
+      expect(postLoginPathFromSearch(`?next=${encodeURIComponent(destination)}`)).toBe("/");
+    }
+  });
+
+  it("revalidates redirects after removing the configured application base", () => {
+    for (const destination of ["/train//evil.example/app", "/train/\\evil.example/app"]) {
+      expect(postLoginPathFromSearch(`?next=${encodeURIComponent(destination)}`, "/train")).toBe("/");
+    }
+  });
+
   it("normalizes app-base paths before storing next destinations", () => {
     expect(stripAppBaseFromPath("/train/app/reports", "/train")).toBe("/app/reports");
     expect(postLoginPathFromLocation("/train/app/reports", "?q=abc", "#saved", "/train")).toBe("/app/reports?q=abc#saved");

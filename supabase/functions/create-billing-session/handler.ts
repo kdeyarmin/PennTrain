@@ -104,6 +104,18 @@ export function createCreateBillingSessionHandler({
     }
     return json(req, { error: { code: "invalid_json" } }, 400);
   }
+  // JSON parsing does not validate the asserted TypeScript shape. Reject bad
+  // field types before building queries or slicing an idempotency key; otherwise
+  // malformed checkout/portal input can escape as an unhandled provider error.
+  const stringFields = ["organizationId", "action", "packageId", "billingInterval",
+    "successUrl", "cancelUrl", "returnUrl", "idempotencyKey"] as const;
+  const headerIdempotency = req.headers.get("idempotency-key");
+  if (Array.isArray(body)
+    || stringFields.some((field) => body[field] !== undefined && typeof body[field] !== "string")
+    || (typeof body.idempotencyKey === "string" && body.idempotencyKey.length > 200)
+    || (headerIdempotency !== null && headerIdempotency.length > 200)) {
+    return json(req, { error: { code: "invalid_json" } }, 400);
+  }
   const organizationId = profile.role === "platform_admin"
     ? body.organizationId
     : profile.organization_id;

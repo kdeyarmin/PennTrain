@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const harness = vi.hoisted(() => ({
   state: [] as unknown[], cursor: 0, role: "org_admin",
   notes: [] as Record<string, unknown>[],
+  carePlans: [] as Record<string, unknown>[], goals: [] as Record<string, unknown>[], saveGoal: vi.fn(),
   save: vi.fn(), sign: vi.fn(), toast: vi.fn(), refetch: vi.fn(),
 }));
 
@@ -25,12 +26,12 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: harness.toast })
 vi.mock("@/hooks/useResidentClinicalCare", () => {
   const mutation = () => ({ mutateAsync: vi.fn(), isPending: false });
   return {
-    useResidentClinicalCare: () => ({ data: { notes: harness.notes, carePlans: [], goals: [], assessments: [] }, isLoading: false, refetch: harness.refetch }),
+    useResidentClinicalCare: () => ({ data: { notes: harness.notes, carePlans: harness.carePlans, goals: harness.goals, assessments: [] }, isLoading: false, refetch: harness.refetch }),
     useSaveClinicalProgressNote: () => ({ mutateAsync: harness.save, isPending: false }),
     useSignClinicalProgressNote: () => ({ mutateAsync: harness.sign, isPending: false }),
     useAmendClinicalProgressNote: mutation, useRetractClinicalProgressNote: mutation,
     useFinalizeClinicalAssessment: mutation, useRecordClinicalAssessment: mutation,
-    useSaveCarePlanGoal: mutation, useSaveClinicalCarePlan: mutation,
+    useSaveCarePlanGoal: () => ({ mutateAsync: harness.saveGoal, isPending: false }), useSaveClinicalCarePlan: mutation,
   };
 });
 
@@ -78,9 +79,40 @@ function note(status = "draft") {
 
 beforeEach(() => {
   harness.state = []; harness.cursor = 0; harness.role = "org_admin"; harness.notes = [];
+  harness.carePlans = []; harness.goals = [];
+  harness.saveGoal.mockReset().mockResolvedValue(undefined);
   harness.save.mockReset().mockResolvedValue("note-1");
   harness.sign.mockReset().mockResolvedValue(undefined);
   harness.toast.mockReset(); harness.refetch.mockReset().mockResolvedValue(undefined);
+});
+
+describe("care-plan goal revisions", () => {
+  it("retains the existing condition reference when a goal is revised", async () => {
+    harness.carePlans = [{ id: "plan-1", title: "Mobility", category: "general", status: "active" }];
+    harness.goals = [{
+      id: "goal-1", care_plan_id: "plan-1", description: "Transfer safely", target_measure: "No falls",
+      status: "active", addresses_condition_ref: "Condition/condition-1",
+    }];
+    click("Revise");
+    const status = render().find((node) => node.props.value === "active" && typeof node.props.onValueChange === "function")!;
+    (status.props.onValueChange as (value: string) => void)("achieved");
+    click("Save goal");
+    await vi.waitFor(() => expect(harness.saveGoal).toHaveBeenCalledWith({
+      residentId: "resident-1", carePlanId: "plan-1", goalId: "goal-1",
+      description: "Transfer safely", targetMeasure: "No falls", status: "achieved",
+      addressesConditionRef: "Condition/condition-1",
+    }));
+
+    // A new goal must not inherit the condition from the one just revised.
+    click("Add goal");
+    const description = render().find((node) => node.props.id === "goal-desc")!;
+    (description.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "Walk daily" } });
+    const add = render().findLast((node) => typeof node.props.onClick === "function" && nodeText(node.props.children as ReactNode) === "Add goal")!;
+    (add.props.onClick as () => void)();
+    await vi.waitFor(() => expect(harness.saveGoal).toHaveBeenLastCalledWith(expect.objectContaining({
+      description: "Walk daily", addressesConditionRef: null,
+    })));
+  });
 });
 
 describe("clinical progress-note draft completion", () => {

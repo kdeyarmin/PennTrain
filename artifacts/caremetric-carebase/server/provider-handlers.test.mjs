@@ -190,6 +190,39 @@ test("billing still requires fresh server-verified MFA before reading profile or
   assert.deepEqual(calls, [{ name: "identity_assurance_is_current", args: { p_operation: "billing_admin" } }]);
 });
 
+test("billing rejects malformed request fields before service access or provider calls", async () => {
+  const map = handlers({ createClient: (_url, key) => {
+    assert.equal(key, ENV.VITE_SUPABASE_ANON_KEY);
+    return {
+      auth: { getUser: async () => ({ data: { user: { id: USER } }, error: null }) },
+      rpc: async (name) => {
+        assert.equal(name, "identity_assurance_is_current");
+        return { data: true, error: null };
+      },
+      from: (table) => {
+        assert.equal(table, "profiles");
+        const builder = { select: () => builder, eq: () => builder,
+          single: async () => ({ data: { id: USER, role: "platform_admin", is_active: true }, error: null }) };
+        return builder;
+      },
+    };
+  } });
+  const valid = { action: "portal", organizationId: USER, returnUrl: "https://cmcarebase.com/app/billing" };
+  for (const body of [[],
+    ...["action", "organizationId", "packageId", "billingInterval", "successUrl", "cancelUrl", "returnUrl", "idempotencyKey"]
+      .flatMap(field => [null, 12, {}, []].map(value => ({ ...valid, [field]: value }))),
+    { ...valid, idempotencyKey: "a".repeat(201) },
+  ]) {
+    const response = await map.get("create-billing-session")(request(body));
+    assert.equal(response.status, 400, JSON.stringify(body));
+    assert.deepEqual(await response.json(), { error: { code: "invalid_json" } });
+  }
+  const response = await map.get("create-billing-session")(request(valid, {
+    headers: { "idempotency-key": "a".repeat(201) },
+  }));
+  assert.equal(response.status, 400);
+});
+
 test("cron uses the injected secret and retains durable duplicate-run behavior", async () => {
   for (const existingStatus of ["succeeded", "running", undefined]) {
     const calls = [];
