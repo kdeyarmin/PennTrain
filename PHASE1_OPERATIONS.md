@@ -361,9 +361,10 @@ posture as unproven regardless of what the plan says.
 
 `scripts/verify-recovery.mjs` performs only read-only database queries and
 Storage GET requests. It creates no backup, restore, bucket, project or network
-configuration. Its source and target reports contain counts and SHA256 hashes;
-customer rows remain inside PostgreSQL, and object names/bytes and credentials
-are not written to reports or logs. Streams avoid buffering large videos.
+configuration. Its source and target reports contain counts, per-object byte
+sizes and SHA256 hashes. Customer rows remain inside PostgreSQL; object names,
+file contents and credentials are not written to reports or logs. Streams avoid
+buffering large videos.
 
 Provide `SUPABASE_ACCESS_TOKEN` and `RECOVERY_STORAGE_SERVICE_KEY` through the
 approved secret environment. Use the source Storage service key for the first
