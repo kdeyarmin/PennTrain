@@ -10,11 +10,43 @@ alter table public.fhir_integration_exceptions
     'sync_failure', 'administration_conflict'
   ));
 
--- The active queue advances by immutable ID within one facility, independently of bounded
--- resolved history. Match that keyset query rather than sorting every historical exception.
+-- Keep all active facility items and bounded recent history efficient independently.
 create index fhir_integration_exceptions_active_cursor_idx
   on public.fhir_integration_exceptions(facility_id, id)
   where status in ('open', 'acknowledged');
+create index fhir_integration_exceptions_recent_history_idx
+  on public.fhir_integration_exceptions(facility_id, last_seen_at desc, id)
+  where status in ('resolved', 'dismissed');
+
+-- Two client queries can miss an item that changes disposition between their snapshots.
+-- One STABLE SQL statement returns both sets from the same snapshot. A scalar JSONB array
+-- retains every active item even when the Data API's maximum row count is lower.
+-- SECURITY INVOKER intentionally retains the table's facility/organization, module, SMS and
+-- impersonation RLS policies. This RPC adds no alternate authorization or clinical disclosure.
+create function public.get_fhir_integration_review_queue(p_facility_id uuid)
+returns jsonb
+language sql stable security invoker
+set search_path = ''
+as $queue$
+  select coalesce(jsonb_agg(q.record order by q.is_history, q.last_seen_at desc, q.id), '[]'::jsonb)
+  from (
+    select to_jsonb(e) as record, e.id, e.last_seen_at, false as is_history
+    from public.fhir_integration_exceptions e
+    where e.facility_id = p_facility_id and e.status in ('open', 'acknowledged')
+    union all
+    select h.record, h.id, h.last_seen_at, true as is_history
+    from (
+      select to_jsonb(e) as record, e.id, e.last_seen_at
+      from public.fhir_integration_exceptions e
+      where e.facility_id = p_facility_id and e.status in ('resolved', 'dismissed')
+      order by e.last_seen_at desc, e.id
+      limit 100
+    ) h
+  ) q;
+$queue$;
+revoke all on function public.get_fhir_integration_review_queue(uuid)
+  from public, anon, authenticated, service_role;
+grant execute on function public.get_fhir_integration_review_queue(uuid) to authenticated;
 
 -- Patch only the administration insert in the current applier. Its receipt/source locks,
 -- credential checks, other resource handling, result contract and grants stay in place;

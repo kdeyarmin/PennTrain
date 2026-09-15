@@ -38796,6 +38796,10 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_fhir_integration_review_queue: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
       get_governed_learning_control_plane: { Args: never; Returns: Json }
       get_guest_access_health: {
         Args: { p_hours?: number }

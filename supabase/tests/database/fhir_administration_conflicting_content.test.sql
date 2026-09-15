@@ -1,5 +1,5 @@
 begin;
-select plan(40);
+select plan(60);
 
 -- Fixtures ------------------------------------------------------------------------------
 insert into public.organizations(id, name, slug, subscription_status) values
@@ -327,5 +327,116 @@ select ok(exists(select 1 from app_private.integration_command_receipts r
     and r.payload->'medicationAdministrations'->0 =
       (select record from fhir_conflict_records where key = 'dose')),
   'the incoming content remains durable in the receipt with the existing partial-apply status');
+-- One snapshot owns both active work and bounded history, including disposition changes.
+-- Use a separate facility so every active/history branch must apply its facility filter.
+insert into public.facilities(id, organization_id, name, facility_type) values
+  ('f1500000-0000-4000-8000-000000000012', 'f1500000-0000-4000-8000-000000000001', 'FHIR queue facility', 'PCH');
+insert into public.fhir_integration_sources(
+  id, organization_id, facility_id, credential_id, name, vendor_name, external_facility_id, status
+) values (
+  'f1500000-0000-4000-8000-000000000402', 'f1500000-0000-4000-8000-000000000001',
+  'f1500000-0000-4000-8000-000000000012', 'f1500000-0000-4000-8000-000000000401',
+  'Snapshot queue source', 'Synthetic queue vendor', 'queue-facility', 'active'
+);
+insert into public.fhir_integration_exceptions(
+  id, organization_id, facility_id, source_id, exception_key, exception_type, severity, summary,
+  status, last_seen_at, resolved_at
+)
+select ('f1510000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid,
+  'f1500000-0000-4000-8000-000000000001', 'f1500000-0000-4000-8000-000000000012',
+  'f1500000-0000-4000-8000-000000000402', 'snapshot:' || i, 'administration_conflict',
+  'urgent', 'Synthetic content conflict for queue regression',
+  case when i <= 1050 then case when i % 2 = 0 then 'acknowledged' else 'open' end
+    else case when i % 2 = 0 then 'dismissed' else 'resolved' end end,
+  case when i <= 1050 then '2026-09-10T09:00:00Z'::timestamptz - greatest(i - 1, 1) * interval '1 second'
+    else '2026-09-11T09:00:00Z'::timestamptz
+      - (case when i = 1052 then 1 when i = 1151 then 100 else i - 1050 end) * interval '1 second' end,
+  case when i > 1050 then '2026-09-11T10:00:00Z'::timestamptz else null end
+from generate_series(1, 1170) as s(i);
+create temporary table fhir_queue_snapshots(key text primary key, payload jsonb not null) on commit drop;
+grant all on fhir_queue_snapshots to authenticated;
+select ok(exists(select 1 from pg_proc p join pg_language l on l.oid = p.prolang
+  where p.oid = 'public.get_fhir_integration_review_queue(uuid)'::regprocedure
+    and p.provolatile = 's' and not p.prosecdef and l.lanname = 'sql'),
+  'the queue is a STABLE SQL invoker function using one caller snapshot and existing RLS');
+select ok(has_function_privilege('authenticated', 'public.get_fhir_integration_review_queue(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.get_fhir_integration_review_queue(uuid)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.get_fhir_integration_review_queue(uuid)', 'EXECUTE'),
+  'only the authenticated browser role can invoke the clinical integration queue');
+select has_index('public', 'fhir_integration_exceptions', 'fhir_integration_exceptions_recent_history_idx',
+  'recent facility history has an index matching its recency and ID ordering');
+select pg_temp.act_as('f1500000-0000-4000-8000-000000000101');
+insert into fhir_queue_snapshots values ('initial',
+  public.get_fhir_integration_review_queue('f1500000-0000-4000-8000-000000000012'));
+select is((select jsonb_array_length(payload) from fhir_queue_snapshots where key = 'initial'), 1150,
+  'one JSONB result returns all 1050 active items plus only the most recent 100 history rows');
+select is((select count(*) from fhir_queue_snapshots q cross join lateral jsonb_array_elements(q.payload) e
+  where q.key = 'initial' and e->>'status' in ('open', 'acknowledged')), 1050::bigint,
+  'the active queue is not truncated at either the old 100 cap or the Data API 1000-row cap');
+select is((select count(*) from fhir_queue_snapshots q cross join lateral jsonb_array_elements(q.payload) e
+  where q.key = 'initial' and e->>'status' in ('resolved', 'dismissed')), 100::bigint,
+  'only resolved and dismissed history is bounded');
+select is((select payload->0 from fhir_queue_snapshots where key = 'initial'),
+  (select to_jsonb(e) from public.fhir_integration_exceptions e
+    where id = 'f1510000-0000-4000-8000-000000000001'),
+  'queue entries retain the existing exception row shape without exposing internal ordering fields');
+select is((select jsonb_build_array(payload->0->>'id', payload->1->>'id', payload->1049->>'id',
+    payload->1050->>'id', payload->1051->>'id', payload->1149->>'id')
+  from fhir_queue_snapshots where key = 'initial'),
+  '["f1510000-0000-4000-8000-000000000001","f1510000-0000-4000-8000-000000000002", "f1510000-0000-4000-8000-000000001050", "f1510000-0000-4000-8000-000000001051", "f1510000-0000-4000-8000-000000001052", "f1510000-0000-4000-8000-000000001150"]'::jsonb,
+  'active work precedes newer history and recency ties use ascending ID including the history cutoff');
+select is((select count(distinct e->>'id') from fhir_queue_snapshots q
+  cross join lateral jsonb_array_elements(q.payload) e where q.key = 'initial'), 1150::bigint,
+  'each selected exception appears exactly once');
+select ok(not exists(select 1 from fhir_queue_snapshots q cross join lateral jsonb_array_elements(q.payload) e
+  where q.key = 'initial' and e->>'facility_id' <> 'f1500000-0000-4000-8000-000000000012'),
+  'both active and history reads exclude other facilities in the same organization');
+select is(public.get_fhir_integration_review_queue(null), '[]'::jsonb,
+  'a missing facility never broadens a queue read');
+
+select lives_ok($$select public.resolve_fhir_integration_exception(
+  'f1510000-0000-4000-8000-000000001051', 'acknowledged', 'Reopened for reconciliation')$$,
+  'the existing review action can move a history row back to active work');
+insert into fhir_queue_snapshots values ('reopened',
+  public.get_fhir_integration_review_queue('f1500000-0000-4000-8000-000000000012'));
+select is((select jsonb_build_array(jsonb_array_length(payload), payload->0->>'id', payload->0->>'status',
+    (select count(*) from jsonb_array_elements(payload) e where e->>'id' = 'f1510000-0000-4000-8000-000000001051'))
+  from fhir_queue_snapshots where key = 'reopened'),
+  '[1151,"f1510000-0000-4000-8000-000000001051","acknowledged",1]'::jsonb,
+  'a history-to-active transition appears once in the next snapshot and is not lost between reads');
+select lives_ok($$select public.resolve_fhir_integration_exception(
+  'f1510000-0000-4000-8000-000000001051', 'resolved', 'Reconciliation complete')$$,
+  'the existing review action can move that active row back to history');
+insert into fhir_queue_snapshots values ('reclosed',
+  public.get_fhir_integration_review_queue('f1500000-0000-4000-8000-000000000012'));
+select is((select jsonb_build_array(jsonb_array_length(payload), payload->1050->>'id', payload->1050->>'status',
+    (select count(*) from jsonb_array_elements(payload) e where e->>'id' = 'f1510000-0000-4000-8000-000000001051'))
+  from fhir_queue_snapshots where key = 'reclosed'),
+  '[1150,"f1510000-0000-4000-8000-000000001051","resolved",1]'::jsonb,
+  'an active-to-history transition appears once in the bounded history of the next snapshot');
+
+select pg_temp.act_as('f1500000-0000-4000-8000-000000000201');
+select is(public.get_fhir_integration_review_queue('f1500000-0000-4000-8000-000000000012'), '[]'::jsonb,
+  'the invoker queue preserves cross-organization RLS for both status sets');
+select pg_temp.act_as('f1500000-0000-4000-8000-000000000104');
+select is(public.get_fhir_integration_review_queue('f1500000-0000-4000-8000-000000000012'), '[]'::jsonb,
+  'the invoker queue preserves facility assignment restrictions');
+select pg_temp.act_as('00000000-0000-0000-0000-000000000000', 'anon');
+select throws_ok($$select public.get_fhir_integration_review_queue('f1500000-0000-4000-8000-000000000012')$$,
+  '42501', null, 'anonymous callers cannot invoke the queue');
+reset role;
+insert into public.organization_entitlement_grants(id, organization_id, feature_key, decision, reason) values
+  ('f1500000-0000-4000-8000-000000000061', 'f1500000-0000-4000-8000-000000000001',
+    'modules.carebase', 'deny', 'FHIR queue regression');
+select pg_temp.act_as('f1500000-0000-4000-8000-000000000101');
+select is(public.get_fhir_integration_review_queue('f1500000-0000-4000-8000-000000000012'), '[]'::jsonb,
+  'the invoker queue cannot bypass the restrictive CareBase entitlement policy');
+reset role;
+delete from public.organization_entitlement_grants where id = 'f1500000-0000-4000-8000-000000000061';
+insert into app_private.sms_mfa_accounts(profile_id) values ('f1500000-0000-4000-8000-000000000101');
+select pg_temp.act_as('f1500000-0000-4000-8000-000000000101');
+select is(public.get_fhir_integration_review_queue('f1500000-0000-4000-8000-000000000012'), '[]'::jsonb,
+  'the invoker queue cannot bypass required SMS verification');
+reset role;
 select * from finish();
 rollback;
