@@ -1,5 +1,5 @@
 begin;
-select plan(34);
+select plan(40);
 
 -- Fixtures ------------------------------------------------------------------------------
 insert into public.organizations(id, name, slug, subscription_status) values
@@ -233,6 +233,60 @@ select is((select to_jsonb(a) from public.fhir_medication_administrations a
       and fhir_resource_id = 'conflict-admin-1'),
   (select record from fhir_conflict_records where key = 'saved-evidence'),
   'all original administration columns, hash, resident and import time remain exactly unchanged');
+
+-- Older demo seeds used a raw-only hash and stored details that their raw JSON omits.
+-- Carry those saved normalized values explicitly: the mapper cannot invent a missing time.
+reset role;
+insert into fhir_conflict_records(key, record)
+select 'legacy', record || jsonb_build_object('fhirResourceId', 'legacy-admin-1', 'raw',
+  jsonb_build_object('resourceType', 'MedicationAdministration', 'id', 'legacy-admin-1',
+    'status', 'completed', 'subject', jsonb_build_object('reference', 'Patient/fhir-patient-1')))
+from fhir_conflict_records where key = 'original';
+insert into fhir_conflict_records(key, record)
+select 'unknown-hash', jsonb_set(record || '{"fhirResourceId":"unknown-hash-admin"}',
+  '{raw,id}', '"unknown-hash-admin"') from fhir_conflict_records where key = 'legacy';
+insert into public.fhir_medication_administrations(
+  organization_id, facility_id, source_id, resident_id, fhir_resource_id, fhir_request_id,
+  administration_status, medication_display, effective_at, performer_display, raw_resource, raw_record_sha256
+)
+select 'f1500000-0000-4000-8000-000000000001', 'f1500000-0000-4000-8000-000000000011',
+  (select id from fhir_conflict_ids where key = 'source'), 'f1500000-0000-4000-8000-000000000302',
+  record->>'fhirResourceId', record->>'fhirRequestId', record->>'status', record->>'medicationDisplay',
+  (record->>'effectiveAt')::timestamptz, record->>'performerDisplay', record->'raw',
+  case when key = 'legacy'
+    then encode(extensions.digest(convert_to((record->'raw')::text, 'UTF8'), 'sha256'), 'hex')
+    else repeat('e', 64) end
+from fhir_conflict_records where key in ('legacy', 'unknown-hash');
+insert into fhir_conflict_records(key, record)
+select 'legacy-saved-evidence', to_jsonb(a) from public.fhir_medication_administrations a
+where source_id = (select id from fhir_conflict_ids where key = 'source')
+  and fhir_resource_id = 'legacy-admin-1';
+select pg_temp.act_as('00000000-0000-0000-0000-000000000000', 'service_role');
+select is(pg_temp.import_fhir_conflict('legacy-identical', jsonb_build_array(
+    (select record from fhir_conflict_records where key = 'legacy'))),
+  '{"requestsApplied":0,"administrationsApplied":1,"clinicalApplied":0,"exceptions":0}'::jsonb,
+  'matching raw and every saved normalized field replay legacy raw-hash evidence without a conflict');
+select is(pg_temp.import_fhir_conflict('unknown-hash', jsonb_build_array(
+    (select record from fhir_conflict_records where key = 'unknown-hash'))),
+  '{"requestsApplied":0,"administrationsApplied":0,"clinicalApplied":0,"exceptions":1}'::jsonb,
+  'equal raw and normalized fields cannot bypass an unrecognized stored hash recipe');
+select is(pg_temp.import_fhir_conflict('legacy-time', jsonb_build_array(
+    (select record || '{"effectiveAt":"2026-07-25T10:00:00Z"}' from fhir_conflict_records where key = 'legacy'))),
+  '{"requestsApplied":0,"administrationsApplied":0,"clinicalApplied":0,"exceptions":1}'::jsonb,
+  'legacy raw equality cannot hide changed normalized administration time');
+select is(pg_temp.import_fhir_conflict('legacy-dose', jsonb_build_array(
+    (select jsonb_set(record, '{raw,dosage}', '{"dose":{"value":20,"unit":"mg"}}')
+      from fhir_conflict_records where key = 'legacy'))),
+  '{"requestsApplied":0,"administrationsApplied":0,"clinicalApplied":0,"exceptions":1}'::jsonb,
+  'legacy hash compatibility does not discard changed raw dose content');
+select is((select to_jsonb(a) from public.fhir_medication_administrations a
+    where source_id = (select id from fhir_conflict_ids where key = 'source')
+      and fhir_resource_id = 'legacy-admin-1'),
+  (select record from fhir_conflict_records where key = 'legacy-saved-evidence'),
+  'legacy replay and conflicts preserve the original row and its raw-only evidence hash');
+reset role;
+select has_index('public', 'fhir_integration_exceptions', 'fhir_integration_exceptions_active_cursor_idx',
+  'active facility exception pagination has a matching partial cursor index');
 
 -- Scope and immutable evidence remain enforced by the existing boundaries.
 select pg_temp.act_as('f1500000-0000-4000-8000-000000000201');

@@ -10,6 +10,12 @@ alter table public.fhir_integration_exceptions
     'sync_failure', 'administration_conflict'
   ));
 
+-- The active queue advances by immutable ID within one facility, independently of bounded
+-- resolved history. Match that keyset query rather than sorting every historical exception.
+create index fhir_integration_exceptions_active_cursor_idx
+  on public.fhir_integration_exceptions(facility_id, id)
+  where status in ('open', 'acknowledged');
+
 -- Patch only the administration insert in the current applier. Its receipt/source locks,
 -- credential checks, other resource handling, result contract and grants stay in place;
 -- the inbox drain/outcome-event wrapper from 20260906260000 is not replaced.
@@ -64,8 +70,31 @@ begin
         select * into strict v_existing_administration
         from public.fhir_medication_administrations
         where source_id = v_source.id and fhir_resource_id = v_record->>'fhirResourceId';
-        if v_existing_administration.raw_record_sha256 is distinct from v_administration_hash
-          or v_existing_administration.resident_id is distinct from v_resident_id then
+        if v_existing_administration.resident_id is distinct from v_resident_id
+          or (v_existing_administration.raw_record_sha256 is distinct from v_administration_hash
+            and not (
+              -- Older demo seeds hashed raw alone. Recognize that exact legacy hash recipe
+              -- only when raw AND every retained normalized value still match the INSERT.
+              -- Incomplete seed raw cannot reconstruct its time/request/display/performer;
+              -- raw equality alone would silently accept changed normalized clinical data.
+              v_existing_administration.raw_record_sha256 = encode(extensions.digest(convert_to(
+                v_existing_administration.raw_resource::text, 'UTF8'), 'sha256'), 'hex')
+              and row(
+                v_existing_administration.fhir_request_id,
+                v_existing_administration.administration_status,
+                v_existing_administration.medication_display,
+                v_existing_administration.effective_at,
+                v_existing_administration.performer_display,
+                v_existing_administration.raw_resource
+              ) is not distinct from row(
+                nullif(v_record->>'fhirRequestId', ''),
+                coalesce(nullif(v_record->>'status', ''), 'unknown'),
+                nullif(v_record->>'medicationDisplay', ''),
+                (v_record->>'effectiveAt')::timestamptz,
+                nullif(v_record->>'performerDisplay', ''),
+                coalesce(v_record->'raw', '{}'::jsonb)
+              )
+            )) then
           -- Dose/route/period/other clinical details live in raw, not just normalized columns.
           -- Hash the full record as before; do not silently discard unrecognized differences.
           -- The content-specific key also prevents a resolved conflict being reopened by every
