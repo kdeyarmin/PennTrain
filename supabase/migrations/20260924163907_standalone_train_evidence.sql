@@ -167,7 +167,8 @@ begin
     insert into public.training_work_shifts(organization_id,facility_id,employee_id,starts_at,ends_at,source_reference,recorded_by)
       values(v_org,p_facility_id,p_employee_id,v_start,v_end,p_data->>'source_reference',auth.uid()) returning id into v_id;
   elsif p_kind='event' then
-    if (p_data->>'completed_on')::date>(now() at time zone 'America/New_York')::date then
+    if (p_data->>'completed_on')::date>(now() at time zone 'America/New_York')::date
+      or nullif(p_data->>'completed_at','')::timestamptz>now() then
       raise exception 'Training cannot be completed in the future' using errcode='22023'; end if;
     if exists(select 1 from jsonb_each_text(coalesce(p_data->'allocations','{}')) a where a.key not in ('base','administrator','initial','dementia_initial','dementia_annual','special_initial','special_annual')
       or a.value !~ '^\d+$') then raise exception 'Invalid credit allocation' using errcode='22023'; end if;
@@ -202,6 +203,9 @@ begin
     if p_data->>'status'='verified' and (v_event.topics && array['fire','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial']
       or coalesce((v_event.allocations->>'administrator')::integer,0)>0) and length(btrim(v_event.provider_qualification))<10 then
       raise exception 'Verify the qualified instructor or approval reference before crediting this training' using errcode='22023'; end if;
+    if p_data->>'status'='verified' and (v_event.topics && array['dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial']
+      or coalesce((v_event.allocations->>'administrator')::integer,0)>0) and v_event.evidence_document_id is null then
+      raise exception 'Attach approval, qualification or external certification evidence before verifying this training' using errcode='22023'; end if;
     if p_data->>'status'='verified' and v_event.topics && array['job_demonstration','supervised_practice'] and v_event.delivery not in ('observed_practice','ojt','hybrid') then
       raise exception 'Practical skills require observed practice evidence' using errcode='22023'; end if;
     update public.training_evidence_events set status=p_data->>'status',review_note=p_data->>'review_note',reviewed_by=auth.uid(),reviewed_at=now() where id=v_event.id returning id into v_id;

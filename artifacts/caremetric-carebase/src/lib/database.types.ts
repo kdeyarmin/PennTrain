@@ -33529,6 +33529,7 @@ export type Database = {
       training_evidence_events: {
         Row: {
           allocations: Json
+          completed_at: string | null
           completed_on: string
           course_assignment_id: string | null
           created_at: string
@@ -33554,6 +33555,7 @@ export type Database = {
         }
         Insert: {
           allocations?: Json
+          completed_at?: string | null
           completed_on: string
           course_assignment_id?: string | null
           created_at?: string
@@ -33579,6 +33581,7 @@ export type Database = {
         }
         Update: {
           allocations?: Json
+          completed_at?: string | null
           completed_on?: string
           course_assignment_id?: string | null
           created_at?: string

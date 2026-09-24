@@ -172,6 +172,9 @@ importers:
       '@supabase/supabase-js':
         specifier: 2.110.1
         version: 2.110.1
+      pdf-lib:
+        specifier: 1.17.1
+        version: 1.17.1
     devDependencies:
       '@axe-core/playwright':
         specifier: 4.12.1

@@ -1230,6 +1230,6 @@ Release acceptance still required: H9/M10 billing activation and provider round 
 
 | ID | Status | Scope / verification |
 | --- | --- | --- |
-| TRAIN1 | in_progress | Dedicated Train workspace, actual-work-hour deadline evidence, training-owned evidence and annual schedules, facility-scoped review, printable readiness reports and batch issued certificates. Existing courses, student import and invitations are reused. |
-| TRAIN2 | in_progress | Train signup and owner facility provisioning explicitly select Train-only; independent complimentary/contract module terms preserve Train when a paid subscription ends; resident tables require a resident product. Server authorization and regression checks required before release. |
+| TRAIN1 | in_progress | Dedicated Train workspace, actual-work-hour deadline evidence, training-owned evidence and annual schedules, facility-scoped review, printable readiness reports and batch issued certificates. Existing courses, supervised classes/kiosk, student import and invitations are reused; selected issued certificates support ZIP and a combined printable PDF. |
+| TRAIN2 | in_progress | Train signup and owner facility provisioning explicitly select Train-only; independent complimentary/contract module terms preserve Train when a paid subscription ends; resident tables require a resident product. The module chooser matches exact configured package access and preserves independent Train grants. Server authorization and regression checks required before release. |
 | TRAIN3 | open | DHS written determinations, approved instructor/curriculum evidence, content crosswalk activation and PCH/ALR pilot. Software readiness is not regulatory approval. |

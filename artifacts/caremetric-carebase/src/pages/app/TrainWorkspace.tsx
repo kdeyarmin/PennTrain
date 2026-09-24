@@ -1,3 +1,4 @@
+import { certificatePrintPacket } from "@/lib/certificatePrintPacket";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal, formatDateForDisplay } from "@/lib/dateUtils";
 import { downloadBlob } from "@/lib/browserDownload";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
@@ -84,8 +85,8 @@ export default function TrainWorkspace() {
       if (!["policy", "profile"].includes(kind)) form.reset();
     } catch (error) { message(error); }
   }
-  async function certificateDownload(batch: boolean) {
-    const targets = batch ? certs.filter(c => selectedCerts.has(c.id)) : [];
+  async function certificateDownload(format: "zip" | "pdf") {
+    const targets = certs.filter(c => selectedCerts.has(c.id));
     if (!targets.length) return;
     if (targets.length > 100) { message(new Error("Select up to 100 certificates per archive.")); return; }
     setBatchBusy(true);
@@ -98,7 +99,10 @@ export default function TrainWorkspace() {
         const response = await fetch(result.url); if (!response.ok) throw new Error(`Could not download certificate ${cert.id}; no archive was created.`);
         files[`certificate-${cert.id}.pdf`] = new Uint8Array(await response.arrayBuffer());
       }
-      downloadBlob(`training-certificates-${today}.zip`, new Blob([new Uint8Array(zipSync(files))], { type: "application/zip" }));
+      if (format === "pdf") {
+        const packet = await certificatePrintPacket(Object.values(files));
+        downloadBlob(`training-certificates-${today}.pdf`, new Blob([new Uint8Array(packet)], { type: "application/pdf" }));
+      } else downloadBlob(`training-certificates-${today}.zip`, new Blob([new Uint8Array(zipSync(files))], { type: "application/zip" }));
     } catch (error) { message(error); } finally { setBatchBusy(false); }
   }
   function exportReport() {
@@ -133,6 +137,7 @@ export default function TrainWorkspace() {
           <p>{roster.length} students · {data?.profiles.length || 0} duty profiles confirmed · {data?.events.filter(e => e.status === "pending").length || 0} evidence items awaiting review</p>
           <ol className="list-decimal pl-5 space-y-2"><li>Add or import students and send invitations.</li><li>Confirm each student's duties, first work date and training audience in Students.</li><li>Document the facility's training-year policy in Settings.</li><li>Assign courses, record practical or external evidence, and verify eligible credit.</li><li>Schedule annual training with dates, times and locations; export records for inspection.</li></ol>
           {!policy && <p className="font-medium">Action needed: annual training-year policy has not been documented.</p>}
+          <p>Staff without email can attend supervised classes with individually attributed attendance and practical evidence. Individual online accounts and external DHS programs retain their own login requirements.</p>
           <p>Readiness covers recorded training evidence. Staffing coverage, authorization to work, facility operations and DHS approval require separate verification.</p>
           <div className="flex gap-3"><Link href="/app/courses" className="underline">Course library</Link><Link href="/trainer/classes" className="underline">Classes, attendance and supervised kiosk</Link><Link href="/app/documents" className="underline">Upload evidence</Link><Link href="/app/training-matrix" className="underline">Existing training records</Link><Link href="/app/billing" className="underline">Optional modules and billing</Link></div>
         </CardContent></Card>
@@ -171,7 +176,8 @@ export default function TrainWorkspace() {
         {data?.plans.filter(p => p.employee_id === student).map(p => <Card key={p.id}><CardContent className="pt-5"><p className="font-semibold">{p.title}</p><p>{p.duties_snapshot} · {toFacilityDateTimeLocal(p.scheduled_at)} · {p.location}</p><p>Fulfillment: {p.completed_event_id || "Open"}</p>{canWrite && !p.completed_event_id && !p.canceled_at && <form onSubmit={e => void submit("plan_complete", e)} className="flex gap-3 mt-2"><input type="hidden" name="id" value={p.id} /><Options name="event_id" label="Verified fulfillment" options={Object.fromEntries(studentEvents.filter(e => e.status === "verified").map(e => [e.id, `${e.title} (${e.completed_on})`]))} /><Button disabled={save.isPending || !studentEvents.some(e => e.status === "verified")}>Record fulfillment</Button></form>}</CardContent></Card>)}
       </>}</TabsContent>
       <TabsContent value="certificates" className="space-y-4"><p>Certificates are issued by the existing course-completion workflow. Training credit still requires an eligibility review.</p>
-        <Button onClick={() => void certificateDownload(true)} disabled={batchBusy || !certs.some(c => selectedCerts.has(c.id))}>{batchBusy ? "Preparing complete archive…" : "Download selected certificates (ZIP)"}</Button>
+        <Button onClick={() => void certificateDownload("zip")} disabled={batchBusy || !certs.some(c => selectedCerts.has(c.id))}>{batchBusy ? "Preparing certificates…" : "Download selected certificates (ZIP)"}</Button>
+        <Button variant="outline" onClick={() => void certificateDownload("pdf")} disabled={batchBusy || !certs.some(c => selectedCerts.has(c.id))}>Download selected for printing (PDF)</Button>
         {certificates.isError ? <p role="alert">Certificates could not be loaded. <Button onClick={() => void certificates.refetch()}>Retry</Button></p> : certificates.isLoading ? <p>Loading certificates…</p> : certs.map(c => <div key={c.id} className="flex gap-3 items-center border-b py-3"><label><input type="checkbox" checked={selectedCerts.has(c.id)} onChange={e => setSelectedCerts(old => { const next = new Set(old); if (e.target.checked) next.add(c.id); else next.delete(c.id); return next; })} /> {employeeMap.get(c.employee_id)?.first_name} {employeeMap.get(c.employee_id)?.last_name} · {c.issued_at}</label><Button variant="outline" disabled={preparePdf.isPending} onClick={async () => { try { const result = await preparePdf.mutateAsync(c.id); openDocumentUrl(result.url); } catch (error) { message(error); } }}>Open PDF / print</Button></div>)}
       </TabsContent>
       <TabsContent value="reports" className="space-y-4">

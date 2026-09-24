@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(26);
 insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
 select 'dd240000-0000-4000-8000-000000000001','Standalone Train test','standalone-train-test','trial',now()-interval '1 day',id
 from public.packages where name='CareMetric Train';
@@ -9,10 +9,12 @@ insert into public.facilities(id,organization_id,name,facility_type) values
 ('dd240000-0000-4000-8000-000000000012','dd240000-0000-4000-8000-000000000002','Other PCH','PCH');
 insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values('dd240000-0000-4000-8000-000000000101','authenticated','authenticated','train-admin@test.local','x',now(),'{}','{}',now(),now());
+insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values('dd240000-0000-4000-8000-000000000102','authenticated','authenticated','train-platform@test.local','x',now(),'{}','{}',now(),now());
 select set_config('app.privileged_write','on',true);
 insert into public.profiles(id,organization_id,email,first_name,last_name,role,is_active)
 values('dd240000-0000-4000-8000-000000000101','dd240000-0000-4000-8000-000000000001','train-admin@test.local','Train','Admin','org_admin',true)
 on conflict(id) do update set organization_id=excluded.organization_id,role=excluded.role,is_active=true;
+insert into public.profiles(id,email,first_name,last_name,role,is_active) values('dd240000-0000-4000-8000-000000000102','train-platform@test.local','Platform','Owner','platform_admin',true) on conflict(id) do update set role=excluded.role,is_active=true;
 insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,status)
 values('dd240000-0000-4000-8000-000000000021','dd240000-0000-4000-8000-000000000001','dd240000-0000-4000-8000-000000000011','Test','Student','Direct care','active');
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),false,'expired trial denies Train before independent grant');
@@ -49,5 +51,14 @@ select is((select p.name from public.organizations o join public.packages p on p
 select throws_ok($$ select public.configure_train_signup('dd240000-0000-4000-8000-000000000001',true) $$,'22023',null,'signup cannot change a claimed organization');
 reset role;
 select ok(not has_function_privilege('authenticated','public.configure_train_signup(uuid,boolean)','execute'),'self-service callers cannot directly grant free products');
+select set_config('request.jwt.claims',jsonb_build_object('sub','dd240000-0000-4000-8000-000000000102','role','authenticated','aal','aal2','iat',extract(epoch from now())::bigint)::text,true);
+set local role authenticated;
+select lives_ok($$ select public.provision_training_facility('dd240000-0000-4000-8000-000000000003','Provisioned organization','Provisioned ALR','ALR') $$,'platform owner can provision complimentary training without a card');
+select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000003','modules.train'),true,'provisioning enables Train');
+select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000003','modules.carebase'),false,'provisioning does not enable operational modules');
+select lives_ok($$ select public.provision_training_facility('dd240000-0000-4000-8000-000000000003','Provisioned organization','Provisioned ALR','ALR') $$,'provisioning request can safely be retried');
+select is(jsonb_array_length(public.list_module_access_terms('dd240000-0000-4000-8000-000000000003')),1,'retry does not duplicate a grant');
+select throws_ok($$ select public.provision_training_facility('dd240000-0000-4000-8000-000000000004','Unsupported facility','Not PCH or ALR','GH') $$,'22023',null,'initial free facility flow is restricted to PCH and ALR');
+reset role;
 select * from finish();
 rollback;
