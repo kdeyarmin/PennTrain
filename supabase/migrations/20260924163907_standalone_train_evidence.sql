@@ -224,7 +224,9 @@ begin
     if p_data->>'status'='verified' and (v_event.topics && array['fire','dhs_initial_orientation','initial_transfer','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial']
       or coalesce((v_event.allocations->>'administrator')::integer,0)>0) and length(btrim(v_event.provider_qualification))<10 then
       raise exception 'Verify the qualified instructor or approval reference before crediting this training' using errcode='22023'; end if;
-    if p_data->>'status'='verified' and (v_event.topics && array['dhs_initial_orientation','initial_transfer','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial']
+    if p_data->>'status'='verified' and 'fire'=any(v_event.topics) and v_event.delivery not in ('classroom','hybrid','external') then
+      raise exception 'Annual fire training needs qualified instructor delivery; video requires a trained on-site instructor. Record classroom, hybrid or documented external evidence' using errcode='22023'; end if;
+    if p_data->>'status'='verified' and (v_event.topics && array['fire','dhs_initial_orientation','initial_transfer','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial']
       or coalesce((v_event.allocations->>'administrator')::integer,0)>0) and v_event.evidence_document_id is null then
       raise exception 'Attach approval, qualification or external certification evidence before verifying this training' using errcode='22023'; end if;
     if p_data->>'status'='verified' and v_event.topics && array['job_demonstration','supervised_practice'] and v_event.delivery not in ('observed_practice','ojt','hybrid') then
