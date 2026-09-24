@@ -40,6 +40,20 @@ select throws_ok($$ select public.get_change_event_resident_options() $$,'42501'
 select throws_ok($$ select public.get_resident_administrative_packet('dd240000-0000-4000-8000-000000000091') $$,'42501',null,'Train-only administrator cannot read resident packets via definer RPC');
 select is((select count(*)::integer from public.get_clinical_chart_resident_options()),0,'Train-only administrator cannot read clinical resident options');
 select is((select count(*)::integer from public.get_clinical_chart_resident_photos()),0,'Train-only administrator cannot read resident photo paths');
+
+select throws_ok($$ select public.get_my_shift_workspace() $$,'42501',null,'Train-only caller cannot read the operational shift workspace');
+select throws_ok($$ select public.start_resident_assessment_form('dd240000-0000-4000-8000-000000000091','initial') $$,'42501',null,'Train-only caller cannot start a resident assessment');
+select throws_ok($$ select public.get_schedule_service_workload('dd240000-0000-4000-8000-000000000091') $$,'42501',null,'Train-only caller cannot read resident workload through a schedule RPC');
+select is((select count(*)::integer from public.residents),0,'retained resident is hidden by direct table RLS');
+reset role;
+insert into app_private.module_access_terms(id,organization_id,module_key,source,reason)
+values('dd240000-0000-4000-8000-000000000039','dd240000-0000-4000-8000-000000000001','modules.carebase','contract','Positive resident product access control');
+set local role authenticated;
+select is((select count(*)::integer from public.get_change_event_resident_options()),1,'resident product restores the same-tenant directory');
+select lives_ok($$ select public.get_resident_administrative_packet('dd240000-0000-4000-8000-000000000091') $$,'resident product restores the scoped administrative packet');
+reset role;
+update app_private.module_access_terms set revoked_at=now() where id='dd240000-0000-4000-8000-000000000039';
+set local role authenticated;
 select lives_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"direct_care":true,"administrator":false,"specialty_unit":"none","duties":"Personal care assistance","first_work_date":"2026-01-01"}') $$,'Train administrator can record a confirmed duty profile');
 select lives_ok($$ select public.get_training_workspace('dd240000-0000-4000-8000-000000000011') $$,'Train workspace reads use authenticated grants and facility RLS');
 select throws_ok($$ select public.get_training_workspace('dd240000-0000-4000-8000-000000000012') $$,'42501',null,'workspace cannot read a different tenant facility');
