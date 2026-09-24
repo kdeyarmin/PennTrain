@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Production server for the CareMetric CareBase SPA and opt-in provider routes on Railway.
+// Production server for the CareMetric CareBase or standalone Train SPA and opt-in provider routes.
 //
 // The browser talks to Supabase directly for application data. This server serves the built
 // Vite bundle, provides /health, runs configured billing/SMS handlers, and proxies learning package assets with mandatory
@@ -21,7 +21,10 @@ import { extname, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const DIST_DIR = resolve(__dirname, "..", "dist", "public");
+// An explicit start command selects one complete build, including its runtime manifest.
+// Never fall back to CareBase assets when a standalone Train deployment is incomplete.
+const BUILD_NAME = process.argv.includes("--train") ? "dist-train" : "dist";
+const DIST_DIR = resolve(__dirname, "..", BUILD_NAME, "public");
 const DIST_DIR_WITH_SEP = DIST_DIR + sep;
 const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 8080;
 const ASSET_ARCHIVE_DIR = process.env.ASSET_ARCHIVE_DIR
@@ -34,7 +37,7 @@ const HOST = process.env.HOST || "::";
 
 let providerManifest;
 try {
-  providerManifest = JSON.parse(await readFile(resolve(__dirname, "../dist/provider-runtime.json"), "utf8"));
+  providerManifest = JSON.parse(await readFile(resolve(__dirname, "..", BUILD_NAME, "provider-runtime.json"), "utf8"));
 } catch (error) {
   // Older static-only build fixtures have no manifest. They may not activate provider routes.
   if (error?.code !== "ENOENT" || process.env.VITE_PROVIDER_RUNTIME === "railway") throw error;
@@ -126,7 +129,7 @@ try {
 } catch (error) {
   console.error(
     `Refusing to start: ${join(DIST_DIR, "index.html")} is missing or unreadable (${error?.code ?? error}). ` +
-      "Build before starting: `pnpm --filter @workspace/caremetric-carebase run build`.",
+      `Build before starting: \`pnpm --filter @workspace/caremetric-carebase run ${BUILD_NAME === "dist-train" ? "build:train" : "build"}\`.`,
   );
   process.exit(1);
 }

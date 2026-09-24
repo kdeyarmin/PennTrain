@@ -1,5 +1,5 @@
 begin;
-select plan(45);
+select plan(48);
 insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
 select 'dd240000-0000-4000-8000-000000000001','Standalone Train test','standalone-train-test','trial',now()-interval '1 day',id
 from public.packages where name='CareMetric Train';
@@ -56,10 +56,16 @@ select lives_ok($$ select public.save_training_workspace_item('plan_cancel','dd2
 select ok((select canceled_at is not null from public.training_annual_schedule where title='Rights instruction'),'canceled annual plan remains in its history');
 select throws_ok($$ select public.manage_module_access_term('dd240000-0000-4000-8000-000000000001','modules.carebase','complimentary','Attempt self upgrade') $$,'42501',null,'tenant administrator cannot grant commercial modules');
 reset role;
-select set_config('request.jwt.claims','{}',true);
-update public.organizations set subscription_status='suspended' where id='dd240000-0000-4000-8000-000000000001';
+-- Exercise the real platform action. A lifecycle transaction intentionally clears the
+-- privileged-write flag, so a raw fixture UPDATE would now be reverted by the column guard.
+select set_config('request.jwt.claims',jsonb_build_object('sub','dd240000-0000-4000-8000-000000000102','role','authenticated','aal','aal2','iat',extract(epoch from now())::bigint)::text,true);
+set local role authenticated;
+select lives_ok($$ select public.set_organization_suspension('dd240000-0000-4000-8000-000000000001',true,'Administrative suspension test') $$,'platform suspension uses the guarded organization and billing transaction');
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),false,'administrative suspension overrides independent terms');
-update public.organizations set subscription_status='active' where id='dd240000-0000-4000-8000-000000000001';
+select lives_ok($$ select public.set_organization_suspension('dd240000-0000-4000-8000-000000000001',false,'Approved reactivation test') $$,'platform can lift the administrative suspension');
+select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),true,'reactivation restores the independent Train term');
+reset role;
+select set_config('request.jwt.claims','{}',true);
 update app_private.module_access_terms set revoked_at=now() where id='dd240000-0000-4000-8000-000000000031';
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),false,'revocation restores provider-derived access');
 select is((select permissive from pg_policies where schemaname='public' and tablename='residents' and policyname='resident_product_access'),'RESTRICTIVE','resident access requires a resident product at the database boundary');

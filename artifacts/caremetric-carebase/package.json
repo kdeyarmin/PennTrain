@@ -8,6 +8,7 @@
     "build": "pnpm --filter @workspace/scripts run generate:manual && vite build --config vite.config.ts && node server/prerender-heads.mjs && node server/precompress.mjs",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "start": "node server/index.mjs",
+    "start:train": "node server/index.mjs --train",
     "test": "vitest run --exclude \"e2e/**\" --exclude \"server/**\" && pnpm run test:server",
     "test:server": "node --test server/provider-*.test.mjs server/platform-admin*.test.mjs",
     "test:e2e": "playwright test",

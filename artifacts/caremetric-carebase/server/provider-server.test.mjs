@@ -54,12 +54,12 @@ async function availablePort() {
 
 /** Each fixture runs the actual server sources with no inherited account credentials. */
 async function launch(t, {
-  legacy = false, basePath = "/", envOverrides = {}, manifestOverrides = {}, expectStartup = true,
+  legacy = false, train = false, basePath = "/", envOverrides = {}, manifestOverrides = {}, expectStartup = true,
 } = {}) {
   const root = await mkdtemp(join(tmpdir(), "penntrain-provider-server-"));
   const app = join(root, "artifacts", "caremetric-carebase");
   const server = join(app, "server");
-  const dist = join(app, "dist");
+  const dist = join(app, train ? "dist-train" : "dist");
   const auditPath = join(root, "unexpected-fetch.txt");
   let child;
   let exited;
@@ -81,7 +81,7 @@ async function launch(t, {
     ...SERVER_FILES.map((name) => copyFile(join(SERVER_DIR, name), join(server, name))),
     symlink(join(REPO_DIR, "supabase"), join(root, "supabase"), process.platform === "win32" ? "junction" : "dir"),
     symlink(join(APP_DIR, "node_modules"), join(app, "node_modules"), process.platform === "win32" ? "junction" : "dir"),
-    writeFile(join(dist, "public", "index.html"), "<!doctype html><title>Server fixture</title><main>App fixture</main>"),
+    writeFile(join(dist, "public", "index.html"), `<!doctype html><title>Server fixture</title><main>${train ? "Standalone Train fixture" : "App fixture"}</main>`),
     // All provider transports use fetch. Blocking it in the child both prevents
     // external traffic and proves these rejected requests stop before provider use.
     writeFile(join(root, "no-provider-network.mjs"),
@@ -101,7 +101,7 @@ async function launch(t, {
     ...(!legacy ? FIXTURE_ENV : {}), ...envOverrides,
   };
   for (const key of Object.keys(env)) if (env[key] === undefined) delete env[key];
-  child = spawn(process.execPath, ["--import", pathToFileURL(join(root, "no-provider-network.mjs")).href, join(server, "index.mjs")], {
+  child = spawn(process.execPath, ["--import", pathToFileURL(join(root, "no-provider-network.mjs")).href, join(server, "index.mjs"), ...(train ? ["--train"] : [])], {
     cwd: root, env, stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
@@ -183,6 +183,24 @@ test("actual Railway server reports runtime health and wires all four guarded pr
   const app = await request(server, "/");
   assert.equal(app.status, 200);
   assert.match(app.body, /App fixture/);
+});
+
+test("standalone Train serves its own build and runtime manifest with guarded provider routes", { timeout: 20_000 }, async (t) => {
+  const server = await launch(t, { train: true });
+  const app = await request(server, "/app/train");
+  assert.equal(app.status, 200);
+  assert.match(app.body, /Standalone Train fixture/);
+  assert.doesNotMatch(app.body, /App fixture/);
+  assert.equal(JSON.parse((await request(server, "/health")).body).providerRuntime, "railway");
+  await assertRejectedRoutes(server);
+});
+
+test("standalone Train rejects a mismatched provider manifest before listening", { timeout: 20_000 }, async (t) => {
+  const server = await launch(t, { train: true, manifestOverrides: { supabaseUrl: "https://wrong-project.example.test" }, expectStartup: false });
+  const result = await deadline(server.exited, "mismatched Train manifest shutdown");
+  assert.notEqual(result.code, 0);
+  assert.doesNotMatch(server.output(), /server listening on/);
+  await server.assertNoProviderFetch();
 });
 
 test("actual server supports browser BASE_PATH while keeping root cron and webhook URLs stable", { timeout: 20_000 }, async (t) => {
