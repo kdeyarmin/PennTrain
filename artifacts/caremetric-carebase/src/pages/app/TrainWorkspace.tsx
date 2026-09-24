@@ -1,3 +1,5 @@
+import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal, formatDateForDisplay } from "@/lib/dateUtils";
+import { downloadBlob } from "@/lib/browserDownload";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { useListDocuments } from "@/hooks/useDocuments";
 import { useListCourseAssignments } from "@/hooks/useCourseAssignments";
@@ -25,10 +27,7 @@ function Field({ name, label, type = "text", required = true, value }: { name: s
 function Options({ name, label, options, value }: { name: string; label: string; options: Record<string, string>; value?: string }) {
   return <label className="grid gap-1 text-sm">{label}<select name={name} className={selectClass} defaultValue={value}>{Object.entries(options).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>;
 }
-function download(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob), a = document.createElement("a"); a.href = url; a.download = filename; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
+
 export default function TrainWorkspace() {
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
@@ -76,8 +75,10 @@ export default function TrainWorkspace() {
       for (const key of Object.keys(payload)) if (key.startsWith("credit_")) delete payload[key];
     }
     if (kind === "plan") payload.requirement_keys = String(fields.get("requirement_keys") || "").split(",").map(s => s.trim()).filter(Boolean);
-    // Date-time controls are explicitly PA offsets entered as ISO strings; never interpret in the browser's local timezone.
     try {
+      for (const key of ["starts_at", "ends_at", "scheduled_at", "completed_at"]) {
+        if (payload[key]) payload[key] = facilityDateTimeLocalToUtcIso(String(payload[key]));
+      }
       await save.mutateAsync({ kind, facilityId, employeeId: kind === "policy" ? null : student, data: payload });
       toast({ title: kind === "event" ? "Evidence saved for review" : "Training record saved" });
       if (!["policy", "profile"].includes(kind)) form.reset();
@@ -97,7 +98,7 @@ export default function TrainWorkspace() {
         const response = await fetch(result.url); if (!response.ok) throw new Error(`Could not download certificate ${cert.id}; no archive was created.`);
         files[`certificate-${cert.id}.pdf`] = new Uint8Array(await response.arrayBuffer());
       }
-      download(new Blob([new Uint8Array(zipSync(files))], { type: "application/zip" }), `training-certificates-${today}.zip`);
+      downloadBlob(`training-certificates-${today}.zip`, new Blob([new Uint8Array(zipSync(files))], { type: "application/zip" }));
     } catch (error) { message(error); } finally { setBatchBusy(false); }
   }
   function exportReport() {
@@ -105,10 +106,12 @@ export default function TrainWorkspace() {
       ["Student", "Employee ID", "Requirement", "Rule", "Status", "Due", "Evidence / action"]];
     rows.forEach(({ employee, checks }) => checks.forEach(c => report.push([`${employee.first_name} ${employee.last_name}`, employee.id, c.label, c.citation, c.status, c.due, c.detail])));
     report.push([], ["Annual plan", "Student ID", "Duties", "Scheduled time", "Minutes", "Location", "Fulfillment evidence"]);
-    data?.plans.forEach(p => report.push([p.title, p.employee_id, p.duties_snapshot, p.scheduled_at, p.duration_minutes, p.location, p.completed_event_id || (p.canceled_at ? "canceled" : "open")]));
+    const included = new Set(rows.map(row => row.employee.id));
+    report.push(["Training-year policy", policy?.policy_reference || "Missing", policy?.effective_from || "", workspace.data?.generated_at || ""]);
+    data?.plans.filter(p => included.has(p.employee_id)).forEach(p => report.push([p.title, p.employee_id, p.duties_snapshot, p.scheduled_at, p.duration_minutes, p.location, p.completed_event_id || (p.canceled_at ? "canceled" : "open")]));
     report.push([], ["Evidence", "Student ID", "Completion date", "Minutes", "Source", "Provider", "Topics", "Review", "Basis", "Credit allocations"]);
-    data?.events.forEach(e => report.push([e.title, e.employee_id, e.completed_on, e.minutes, e.source_reference, e.provider, e.topics.join("; "), e.status, e.review_note, JSON.stringify(e.allocations)]));
-    download(new Blob([trainingCsv(report)], { type: "text/csv;charset=utf-8" }), `training-evidence-${today}.csv`);
+    data?.events.filter(e => included.has(e.employee_id)).forEach(e => report.push([e.title, e.employee_id, e.completed_on, e.minutes, e.source_reference, e.provider, e.topics.join("; "), e.status, e.review_note, JSON.stringify(e.allocations)]));
+    downloadBlob(`training-evidence-${today}.csv`, new Blob([trainingCsv(report)], { type: "text/csv;charset=utf-8" }));
   }
   if (!org) return <p>Select an organization in the administrator workspace first.</p>;
   if (facilities.isError || employees.isError || workspace.isError) return <div role="alert">Training data could not be loaded. <Button onClick={() => { void facilities.refetch(); void employees.refetch(); void workspace.refetch(); }}>Retry</Button></div>;
@@ -131,10 +134,10 @@ export default function TrainWorkspace() {
           <ol className="list-decimal pl-5 space-y-2"><li>Add or import students and send invitations.</li><li>Confirm each student's duties, first work date and training audience in Students.</li><li>Document the facility's training-year policy in Settings.</li><li>Assign courses, record practical or external evidence, and verify eligible credit.</li><li>Schedule annual training with dates, times and locations; export records for inspection.</li></ol>
           {!policy && <p className="font-medium">Action needed: annual training-year policy has not been documented.</p>}
           <p>Readiness covers recorded training evidence. Staffing coverage, authorization to work, facility operations and DHS approval require separate verification.</p>
-          <div className="flex gap-3"><Link href="/app/courses" className="underline">Course library</Link><Link href="/app/documents" className="underline">Upload evidence</Link><Link href="/app/training-matrix" className="underline">Existing training records</Link><Link href="/app/billing" className="underline">Optional modules and billing</Link></div>
+          <div className="flex gap-3"><Link href="/app/courses" className="underline">Course library</Link><Link href="/trainer/classes" className="underline">Classes, attendance and supervised kiosk</Link><Link href="/app/documents" className="underline">Upload evidence</Link><Link href="/app/training-matrix" className="underline">Existing training records</Link><Link href="/app/billing" className="underline">Optional modules and billing</Link></div>
         </CardContent></Card>
       </TabsContent>
-      {["students", "evidence", "plans"].includes(tab) && <label className="block my-4 max-w-lg">Student<select aria-label="Training student" className={selectClass} value={student} onChange={e => setStudent(e.target.value)}><option value="">Choose a student</option>{roster.map(e => <option key={e.id} value={e.id}>{e.last_name}, {e.first_name}</option>)}</select></label>}
+      {["students", "evidence", "plans", "certificates"].includes(tab) && <label className="block my-4 max-w-lg">Student<select aria-label="Training student" className={selectClass} value={student} onChange={e => setStudent(e.target.value)}><option value="">All students / choose a student</option>{roster.map(e => <option key={e.id} value={e.id}>{e.last_name}, {e.first_name}</option>)}</select></label>}
       <TabsContent value="students">{chosen && <Card><CardHeader><CardTitle>{chosen.first_name} {chosen.last_name}: duties and audience</CardTitle></CardHeader><CardContent>
         {canWrite ? <form key={`${student}-${profile?.first_work_date}`} onSubmit={e => void submit("profile", e)} className="grid gap-4 max-w-xl">
           <label><input type="checkbox" name="direct_care" defaultChecked={profile?.direct_care} /> Direct care staff</label><label><input type="checkbox" name="administrator" defaultChecked={profile?.administrator} /> Administrator</label>
@@ -143,13 +146,13 @@ export default function TrainWorkspace() {
           <Button disabled={save.isPending}>Confirm duties and audience</Button>
         </form> : <p>{profile?.duties || "Profile awaits confirmation."}</p>}
         <h3 className="font-semibold mt-6">Actual scheduled shifts for the first 40 hours</h3>
-        <p className="text-sm">Enter ISO date/time with Pennsylvania offset, for example 2026-09-24T07:00:00-04:00. Use -05:00 during standard time.</p>
-        {canWrite && <form onSubmit={e => void submit("shift", e)} className="grid md:grid-cols-4 gap-3 mt-3"><Field name="starts_at" label="Shift start (with offset)" /><Field name="ends_at" label="Shift end (with offset)" /><Field name="source_reference" label="Schedule reference" /><Button disabled={save.isPending}>Add shift</Button></form>}
-        <ul className="mt-3 text-sm">{data?.shifts.filter(s => s.employee_id === student).map(s => <li key={s.id}>{s.starts_at} – {s.ends_at} · {s.source_reference}</li>)}</ul>
+        <p className="text-sm">Dates and times use Pennsylvania time. Confirm repeated overnight hours at daylight-saving changes against the source schedule.</p>
+        {canWrite && <form onSubmit={e => void submit("shift", e)} className="grid md:grid-cols-4 gap-3 mt-3"><Field name="starts_at" label="Shift start (Pennsylvania)" type="datetime-local" /><Field name="ends_at" label="Shift end (Pennsylvania)" type="datetime-local" /><Field name="source_reference" label="Schedule reference" /><Button disabled={save.isPending}>Add shift</Button></form>}
+        <ul className="mt-3 text-sm">{data?.shifts.filter(s => s.employee_id === student).map(s => <li key={s.id}>{toFacilityDateTimeLocal(s.starts_at)} – {toFacilityDateTimeLocal(s.ends_at)} · {s.source_reference}</li>)}</ul>
       </CardContent></Card>}</TabsContent>
       <TabsContent value="evidence" className="space-y-4">{chosen && <>
         {canWrite && <Card><CardHeader><CardTitle>Record training or practical evidence</CardTitle></CardHeader><CardContent><form onSubmit={e => void submit("event", e)} className="grid md:grid-cols-2 gap-4">
-          <Field name="title" label="Training title / content" /><Field name="completed_on" label="Completion date" type="date" />
+          <Field name="title" label="Training title / content" /><Field name="completed_on" label="Completion date" type="date" /><Field name="completed_at" label="Exact completion time (optional; Pennsylvania)" type="datetime-local" required={false} />
           <Field name="minutes" label="Actual duration in minutes" type="number" /><Options name="delivery" label="Delivery" options={{ online: "Online", classroom: "Classroom", hybrid: "Hybrid with observed practice", ojt: "On-the-job", observed_practice: "Observed practice", external: "External training" }} />
           <Field name="provider" label="Instructor / provider" /><Field name="source_reference" label="Unique event or certificate reference" />
           <Field name="provider_qualification" label="Instructor qualifications / approval reference" required={false} /><Field name="valid_until" label="Valid through (if applicable)" type="date" required={false} />
@@ -164,8 +167,8 @@ export default function TrainWorkspace() {
         </CardContent></Card>)}
       </>}</TabsContent>
       <TabsContent value="plans" className="space-y-4">{chosen && <>
-        {canWrite && <form onSubmit={e => void submit("plan", e)} className="grid md:grid-cols-2 gap-4"><Field name="title" label="Required course / instruction" /><Field name="duties_snapshot" label="Position and duties for this plan" value={profile?.duties} /><Field name="scheduled_at" label="Scheduled ISO time with PA offset" /><Field name="duration_minutes" label="Minutes" type="number" /><Field name="location" label="Location / online meeting" /><Field name="requirement_keys" label="Requirements (comma separated)" /><Button disabled={save.isPending}>Add annual plan entry</Button></form>}
-        {data?.plans.filter(p => p.employee_id === student).map(p => <Card key={p.id}><CardContent className="pt-5"><p className="font-semibold">{p.title}</p><p>{p.duties_snapshot} · {p.scheduled_at} · {p.location}</p><p>Fulfillment: {p.completed_event_id || "Open"}</p>{canWrite && !p.completed_event_id && !p.canceled_at && <form onSubmit={e => void submit("plan_complete", e)} className="flex gap-3 mt-2"><input type="hidden" name="id" value={p.id} /><Options name="event_id" label="Verified fulfillment" options={Object.fromEntries(studentEvents.filter(e => e.status === "verified").map(e => [e.id, `${e.title} (${e.completed_on})`]))} /><Button disabled={save.isPending || !studentEvents.some(e => e.status === "verified")}>Record fulfillment</Button></form>}</CardContent></Card>)}
+        {canWrite && <form onSubmit={e => void submit("plan", e)} className="grid md:grid-cols-2 gap-4"><Field name="title" label="Required course / instruction" /><Field name="duties_snapshot" label="Position and duties for this plan" value={profile?.duties} /><Field name="scheduled_at" label="Scheduled time (Pennsylvania)" type="datetime-local" /><Field name="duration_minutes" label="Minutes" type="number" /><Field name="location" label="Location / online meeting" /><Field name="requirement_keys" label="Requirements (comma separated)" /><Button disabled={save.isPending}>Add annual plan entry</Button></form>}
+        {data?.plans.filter(p => p.employee_id === student).map(p => <Card key={p.id}><CardContent className="pt-5"><p className="font-semibold">{p.title}</p><p>{p.duties_snapshot} · {toFacilityDateTimeLocal(p.scheduled_at)} · {p.location}</p><p>Fulfillment: {p.completed_event_id || "Open"}</p>{canWrite && !p.completed_event_id && !p.canceled_at && <form onSubmit={e => void submit("plan_complete", e)} className="flex gap-3 mt-2"><input type="hidden" name="id" value={p.id} /><Options name="event_id" label="Verified fulfillment" options={Object.fromEntries(studentEvents.filter(e => e.status === "verified").map(e => [e.id, `${e.title} (${e.completed_on})`]))} /><Button disabled={save.isPending || !studentEvents.some(e => e.status === "verified")}>Record fulfillment</Button></form>}</CardContent></Card>)}
       </>}</TabsContent>
       <TabsContent value="certificates" className="space-y-4"><p>Certificates are issued by the existing course-completion workflow. Training credit still requires an eligibility review.</p>
         <Button onClick={() => void certificateDownload(true)} disabled={batchBusy || !certs.some(c => selectedCerts.has(c.id))}>{batchBusy ? "Preparing complete archive…" : "Download selected certificates (ZIP)"}</Button>
@@ -173,8 +176,13 @@ export default function TrainWorkspace() {
       </TabsContent>
       <TabsContent value="reports" className="space-y-4">
         <div className="flex gap-3 print:hidden"><Input aria-label="Filter report students" placeholder="Filter students" value={search} onChange={e => setSearch(e.target.value)} /><Button onClick={exportReport}>Export CSV and evidence index</Button><Button variant="outline" onClick={() => window.print()}>Print report</Button></div>
-        <h2 className="text-xl font-semibold">{facility?.name} · Training evidence readiness · {today}</h2><p className="text-sm">“Met” means the recorded evidence satisfies this check. Review items, staff authorization, on-site coverage and facility obligations remain separate. Pending, rejected and void evidence earns no credit.</p>
-        {rows.map(({ employee, checks }) => <section key={employee.id} className="break-inside-avoid"><h3 className="font-semibold mt-5">{employee.first_name} {employee.last_name}</h3><table className="w-full text-sm"><thead><tr className="text-left"><th>Requirement</th><th>Status / due</th><th>Evidence or action</th></tr></thead><tbody>{checks.map(c => <tr key={c.key} className="border-t align-top"><td className="p-2">{c.label}<br /><span className="text-muted-foreground">55 Pa. Code {c.citation}</span></td><td className="p-2">{c.status}<br />{c.due}</td><td className="p-2">{c.detail}</td></tr>)}</tbody></table></section>)}
+        <h2 className="text-xl font-semibold">{facility?.name} · Training evidence readiness · {today}</h2><p className="text-sm">Policy: {policy?.policy_reference || "Not documented"} · Generated {formatDateForDisplay(data?.generated_at)}</p><p className="text-sm">“Met” means the recorded evidence satisfies this check. Review items, staff authorization, on-site coverage and facility obligations remain separate. Pending, rejected and void evidence earns no credit.</p>
+        {rows.map(({ employee, checks }) => <section key={employee.id} className="break-inside-avoid"><h3 className="font-semibold mt-5">{employee.first_name} {employee.last_name}</h3><table className="w-full text-sm"><thead><tr className="text-left"><th>Requirement</th><th>Status / due</th><th>Evidence or action</th></tr></thead><tbody>{checks.map(c => <tr key={c.key} className="border-t align-top"><td className="p-2">{c.label}<br /><span className="text-muted-foreground">55 Pa. Code {c.citation}</span></td><td className="p-2">{c.status}<br />{c.due}</td><td className="p-2">{c.detail}</td></tr>)}</tbody></table>
+          <h4 className="font-semibold mt-4">Annual plan and fulfillment</h4>
+          {(data?.plans || []).filter(p => p.employee_id === employee.id).map(p => <p key={p.id} className="text-sm my-2">{p.title} · {p.duties_snapshot} · {toFacilityDateTimeLocal(p.scheduled_at)} Pennsylvania · {p.duration_minutes} minutes · {p.location} · {p.completed_event_id ? `Verified evidence ${p.completed_event_id}` : p.canceled_at ? "Canceled" : "Open"}</p>)}
+          <h4 className="font-semibold mt-4">Training transcript and evidence index</h4>
+          {(data?.events || []).filter(e => e.employee_id === employee.id).map(e => <p key={e.id} className="text-sm my-2">{e.title} · {e.completed_on} · {e.minutes} minutes · {e.provider} · {e.source_reference} · {e.status}. {e.review_note} Credit: {Object.entries(e.allocations).filter(([, minutes]) => minutes > 0).map(([key, minutes]) => `${key}: ${minutes} minutes`).join(", ") || "None"}</p>)}
+        </section>)}
       </TabsContent>
       <TabsContent value="settings"><Card><CardHeader><CardTitle>Document the facility training year</CardTitle></CardHeader><CardContent className="space-y-4"><p>Confirm the written facility policy and DHS interpretation before changing periods. Each revision is retained.</p>{policy && <p>Current policy: {policy.policy_reference} · effective {policy.effective_from}</p>}
         {canWrite && user?.role !== "trainer" && <form onSubmit={e => void submit("policy", e)} className="grid md:grid-cols-2 gap-4"><Field name="effective_from" label="Effective date" type="date" /><Options name="year_basis" label="Staff year" options={{ anniversary: "Employment anniversary", fixed: "Fixed annual date" }} /><Field name="year_start" label="Staff fixed start (MM-DD)" value="01-01" /><Options name="administrator_year_basis" label="Administrator year" options={{ anniversary: "Employment anniversary", fixed: "Fixed annual date" }} /><Field name="administrator_year_start" label="Administrator fixed start (MM-DD)" value="01-01" /><Field name="policy_reference" label="Written policy and basis / approval reference" /><Button disabled={save.isPending}>Save policy revision</Button></form>}

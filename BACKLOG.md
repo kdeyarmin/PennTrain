@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `706eaf8964d5f71652157979f5f3926497a910b0` (2026-09-24). Standalone Train review and implementation in progress; production approval, instructor/curriculum verification, payment configuration and pilot acceptance remain release gates. Prior production verification is historical and does not cover this branch.
+**Last verified against main:** `706eaf8964d5f71652157979f5f3926497a910b0` (2026-09-24). Standalone Train review and implementation in progress; DHS approval, instructor/curriculum verification, paid add-on pricing and pilot acceptance remain release gates. Prior production verification is historical and does not cover this branch.
 
 **Owner:** the owner-operator (single person, platform admin)
 
@@ -1230,6 +1230,6 @@ Release acceptance still required: H9/M10 billing activation and provider round 
 
 | ID | Status | Scope / verification |
 | --- | --- | --- |
-| TRAIN1 | in_progress | Dedicated Train workspace, training-owned evidence and annual schedules, facility-scoped review, printable readiness reports and batch issued certificates. Existing courses, student import and invitations are reused. |
-| TRAIN2 | in_progress | Independent complimentary/contract module terms preserve Train when a paid subscription ends; resident tables require a resident product. Server authorization and regression checks required before release. |
+| TRAIN1 | in_progress | Dedicated Train workspace, actual-work-hour deadline evidence, training-owned evidence and annual schedules, facility-scoped review, printable readiness reports and batch issued certificates. Existing courses, student import and invitations are reused. |
+| TRAIN2 | in_progress | Train signup and owner facility provisioning explicitly select Train-only; independent complimentary/contract module terms preserve Train when a paid subscription ends; resident tables require a resident product. Server authorization and regression checks required before release. |
 | TRAIN3 | open | DHS written determinations, approved instructor/curriculum evidence, content crosswalk activation and PCH/ALR pilot. Software readiness is not regulatory approval. |

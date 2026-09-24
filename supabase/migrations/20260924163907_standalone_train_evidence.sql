@@ -46,6 +46,7 @@ create table public.training_evidence_events (
   employee_id uuid not null references public.employees(id),
   title text not null check(length(btrim(title)) between 3 and 300),
   completed_on date not null,
+  completed_at timestamptz,
   minutes integer not null check(minutes between 1 and 1440),
   delivery text not null check(delivery in ('online','classroom','hybrid','ojt','observed_practice','external')),
   provider text not null check(length(btrim(provider)) between 2 and 500),
@@ -66,7 +67,8 @@ create table public.training_evidence_events (
   unique(employee_id,source_reference),
   unique(course_assignment_id),
   unique(legacy_record_id),
-  check(valid_until is null or valid_until>=completed_on)
+  check(valid_until is null or valid_until>=completed_on),
+  check(completed_at is null or (completed_at at time zone 'America/New_York')::date=completed_on)
 );
 create table public.training_annual_schedule (
   id uuid primary key default gen_random_uuid(),
@@ -185,9 +187,9 @@ begin
     if nullif(p_data->>'legacy_record_id','') is not null and not exists(select 1 from public.employee_training_records
       where id=(p_data->>'legacy_record_id')::uuid and employee_id=p_employee_id and organization_id=v_org) then
       raise exception 'Training record is outside this student' using errcode='42501'; end if;
-    insert into public.training_evidence_events(organization_id,facility_id,employee_id,title,completed_on,minutes,delivery,provider,source_reference,provider_qualification,topics,allocations,
+    insert into public.training_evidence_events(organization_id,facility_id,employee_id,title,completed_on,completed_at,minutes,delivery,provider,source_reference,provider_qualification,topics,allocations,
       evidence_document_id,course_assignment_id,legacy_record_id,valid_until,created_by)
-    values(v_org,p_facility_id,p_employee_id,p_data->>'title',(p_data->>'completed_on')::date,(p_data->>'minutes')::integer,p_data->>'delivery',p_data->>'provider',p_data->>'source_reference',
+    values(v_org,p_facility_id,p_employee_id,p_data->>'title',(p_data->>'completed_on')::date,nullif(p_data->>'completed_at','')::timestamptz,(p_data->>'minutes')::integer,p_data->>'delivery',p_data->>'provider',p_data->>'source_reference',
       coalesce(p_data->>'provider_qualification',''),array(select jsonb_array_elements_text(coalesce(p_data->'topics','[]'))),coalesce(p_data->'allocations','{}'),
       nullif(p_data->>'evidence_document_id','')::uuid,nullif(p_data->>'course_assignment_id','')::uuid,nullif(p_data->>'legacy_record_id','')::uuid,
       nullif(p_data->>'valid_until','')::date,auth.uid()) returning id into v_id;

@@ -37763,6 +37763,10 @@ export type Database = {
         Args: { p_class_id: string }
         Returns: undefined
       }
+      configure_train_signup: {
+        Args: { p_complimentary?: boolean; p_organization_id: string }
+        Returns: undefined
+      }
       confirm_resident_document_deletion: {
         Args: { p_document_id: string }
         Returns: boolean
@@ -41434,6 +41438,15 @@ export type Database = {
           p_organization_id: string
           p_source_revision: string
           p_version_id: string
+        }
+        Returns: Json
+      }
+      provision_training_facility: {
+        Args: {
+          p_facility_name: string
+          p_facility_type: string
+          p_organization_name: string
+          p_request_id: string
         }
         Returns: Json
       }

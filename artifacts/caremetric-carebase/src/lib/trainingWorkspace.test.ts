@@ -33,7 +33,7 @@ describe("standalone training evidence", () => {
     expect(assess([{ ...event, delivery: "ojt" }]).find(c => c.key === "base")?.detail).toContain("6.00 / 12");
   });
   it("does not reuse base hours for additional ALR dementia credit", () => {
-    expect(assess([{ ...event, minutes: 1200, allocations: { base: 1200 }, topics: ["dementia"] }], "ALR").find(c => c.key === "dementia_annual")?.status).toBe("missing");
+    expect(assess([{ ...event, minutes: 1200, allocations: { base: 1200 }, topics: ["dementia"] }], "ALR").find(c => c.key === "dementia_annual")?.status).toBe("review");
   });
   it("neutralizes spreadsheet formulas without dropping quoted content", () => {
     expect(trainingCsv([["=HYPERLINK(1)", 'a"b', "ordinary"]])).toBe('\uFEFF"\'=HYPERLINK(1)","a""b","ordinary"');

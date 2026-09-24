@@ -1,3 +1,4 @@
+import { CreateTrainingFacility } from "@/components/billing/CreateTrainingFacility";
 import { useId, useMemo, useState } from "react";
 import { useListOrganizations, useCreateOrganization } from "@/hooks/useOrganizations";
 import { useListPackages } from "@/hooks/usePackages";
@@ -174,6 +175,7 @@ export default function Organizations() {
 
   return (
     <div className="space-y-6">
+      <CreateTrainingFacility />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Organizations</h1>

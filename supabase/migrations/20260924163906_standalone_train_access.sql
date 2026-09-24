@@ -155,3 +155,36 @@ end;
 $$;
 revoke all on function public.configure_train_signup(uuid,boolean) from public,anon,authenticated;
 grant execute on function public.configure_train_signup(uuid,boolean) to service_role;
+
+create function public.provision_training_facility(p_request_id uuid,p_organization_name text,p_facility_name text,p_facility_type text)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare v_package uuid; v_facility uuid;
+begin
+  perform app_private.assert_billing_aal2();
+  if not public.is_platform_admin() then raise exception 'Platform administrator required' using errcode='42501'; end if;
+  if p_request_id is null or length(btrim(coalesce(p_organization_name,''))) not between 2 and 200
+    or length(btrim(coalesce(p_facility_name,''))) not between 2 and 200
+    or coalesce(p_facility_type,'') not in ('PCH','ALR') then raise exception 'Organization, facility and PCH/ALR license type are required' using errcode='22023'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text,0));
+  if exists(select 1 from public.organizations where id=p_request_id) then
+    if not exists(select 1 from app_private.module_access_terms where organization_id=p_request_id and granted_by=auth.uid()
+      and reason='Complimentary Train facility provisioning') then raise exception 'Provisioning request already used' using errcode='22023'; end if;
+    select id into v_facility from public.facilities where organization_id=p_request_id order by created_at,id limit 1;
+    return jsonb_build_object('organization_id',p_request_id,'facility_id',v_facility);
+  end if;
+  select id into v_package from public.packages where name='CareMetric Train' and is_active;
+  if v_package is null then raise exception 'Train package unavailable' using errcode='22023'; end if;
+  perform set_config('app.privileged_write','on',true);
+  insert into public.organizations(id,name,slug,package_id,subscription_status,trial_ends_at)
+    values(p_request_id,btrim(p_organization_name),'train-'||p_request_id::text,v_package,'trial',now());
+  insert into public.facilities(organization_id,name,facility_type)
+    values(p_request_id,btrim(p_facility_name),p_facility_type) returning id into v_facility;
+  insert into app_private.module_access_terms(organization_id,module_key,source,reason,granted_by)
+    values(p_request_id,'modules.train','complimentary','Complimentary Train facility provisioning',auth.uid());
+  insert into public.audit_logs(organization_id,actor_profile_id,action,entity_type,entity_id,metadata)
+    values(p_request_id,auth.uid(),'train_facility.provisioned','organizations',p_request_id::text,jsonb_build_object('facility_id',v_facility));
+  return jsonb_build_object('organization_id',p_request_id,'facility_id',v_facility);
+end;
+$$;
+revoke all on function public.provision_training_facility(uuid,text,text,text) from public,anon;
+grant execute on function public.provision_training_facility(uuid,text,text,text) to authenticated;

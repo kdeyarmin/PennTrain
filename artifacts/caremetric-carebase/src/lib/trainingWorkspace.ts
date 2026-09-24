@@ -9,7 +9,7 @@ export type TrainingProfile = {
   duties: string; first_work_date: string;
 };
 export type TrainingEvent = {
-  id: string; employee_id: string; title: string; completed_on: string; minutes: number;
+  id: string; employee_id: string; title: string; completed_on: string; completed_at?: string | null; minutes: number;
   delivery: string; provider: string; source_reference: string; provider_qualification: string;
   topics: string[]; allocations: Record<string, number>; valid_until: string | null;
   status: "pending" | "verified" | "rejected" | "void"; review_note: string | null;
@@ -95,8 +95,10 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     has("fire", undefined, p.first_work_date) && has("emergency", undefined, p.first_work_date), "Verify facility-specific first-day instruction and instructor qualifications.", p.first_work_date);
   const forty = fortiethWorkHour(input.shifts.filter(s => s.employee_id === p.employee_id), p.first_work_date);
   const orientation = ["rights", "emergency", "abuse", "incidents", ...(alr ? ["person_centered", "communication", "nutrition"] : [])];
-  const missingOrientation = orientation.filter(t => !has(t, p.first_work_date, forty ? paDay(new Date(forty)) : today));
-  add("40hours", "Orientation within 40 scheduled work hours", `${chapter}.65(b)`, forty ? (missingOrientation.length ? false : null) : null,
+  const missingOrientation = orientation.filter(t => !has(t, undefined, forty ? paDay(new Date(forty)) : today));
+  const orientationInTime = forty && orientation.every(topic => events.some(e => e.topics.includes(topic) && (
+    e.completed_on < paDay(new Date(forty)) || (e.completed_at && Date.parse(e.completed_at) <= Date.parse(forty)))));
+  add("40hours", "Orientation within 40 scheduled work hours", `${chapter}.65(b)`, forty ? (missingOrientation.length ? false : orientationInTime ? true : null) : null,
     forty ? `Deadline ${forty}; missing topics: ${missingOrientation.join(", ") || "none"}. Same-day completion requires time verification.` : "Enter enough actual scheduled shifts to establish the deadline.", forty ? paDay(new Date(forty)) : null);
   if (p.direct_care) {
     const topics = ["job_demonstration", "supervised_practice", "dhs_direct_care", "falls", "med_self_admin", "resident_needs", "dementia", "infection", "personal_care", "safe_management", ...(alr ? ["first_aid", "cpr", "airway"] : [])];
@@ -128,7 +130,7 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
       add("annual_topics", "Annual topics and population review", `${chapter}.65`, missing.length === 0, `Missing: ${missing.join(", ") || "none"}. Record a needs review even when the population is unchanged.`, period.end);
     }
     add("annual_fire", "Annual qualified fire-safety instruction", `${chapter}.65`, has("fire", from), "Retain instructor qualifications and completion evidence.", period.end);
-    if (alr) add("dementia_annual", "ALR annual dementia instruction", "2800.69", hours("dementia_annual", from, today) >= 2,
+    if (alr) add("dementia_annual", "ALR annual dementia instruction", "2800.69", today < inYear(Number(p.first_work_date.slice(0, 4)) + 1, p.first_work_date.slice(5)) ? null : hours("dementia_annual", from, today) >= 2,
       "2 additional hours in subsequent years; initial-year applicability requires review.", period.end);
     if (p.specialty_unit !== "none" && (alr || p.direct_care)) add("special_annual", "Special unit annual hours", `${chapter}.236`, hours("special_annual", from, today) >= (alr ? 8 : 6), `Additional ${alr ? 8 : 6} hours; no automatic overlap credit.`, period.end);
     if (p.administrator) {
