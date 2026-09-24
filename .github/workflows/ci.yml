@@ -483,7 +483,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: standalone-train-screen
-          path: artifacts/caremetric-carebase/test-results/standalone-train-report.png
+          path: |
+            artifacts/caremetric-carebase/test-results/standalone-train-report.png
+            artifacts/caremetric-carebase/test-results/standalone-train-report.pdf
           if-no-files-found: ignore
           retention-days: 7
 

@@ -61,6 +61,7 @@ test.describe("standalone Train", () => {
     expect(strFromU8(entries["training-report.csv"])).toContain("Taylor Learner");
     expect(JSON.parse(strFromU8(entries["evidence-index.json"])).evidence[0].status).toBe("verified");
     await page.screenshot({ path: "test-results/standalone-train-report.png", fullPage: true });
+    await page.pdf({ path: "test-results/standalone-train-report.pdf", format: "Letter", printBackground: true });
     await page.goto("/app/residents");
     await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");
 

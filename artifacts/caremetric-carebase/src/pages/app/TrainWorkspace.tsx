@@ -291,6 +291,6 @@ export default function TrainWorkspace() {
         <p><a className="underline" href="https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-training" target="_blank" rel="noreferrer">Pennsylvania DHS training requirements and approved pathways</a></p>
       </CardContent></Card></TabsContent>
     </Tabs></>}
-    <style>{`@media print { body * { visibility: hidden; } #train-workspace, #train-workspace * { visibility: visible; } #train-workspace { position: absolute; inset: 0; padding: 12mm; } #train-workspace .print\\:hidden { display: none; } }`}</style>
+    <style>{`@media print { @page { size: letter; margin: 12mm; } html, body, #root, #root > div, main#main-content { height: auto !important; max-height: none !important; overflow: visible !important; position: static !important; } body * { visibility: hidden; overflow: visible !important; } #train-workspace, #train-workspace * { visibility: visible; } #train-workspace { position: absolute; top: 0; left: 0; right: 0; padding: 0; } #train-workspace th, #train-workspace td { overflow-wrap: anywhere; } #train-workspace .print\\:hidden { display: none; } }`}</style>
   </div>;
 }
