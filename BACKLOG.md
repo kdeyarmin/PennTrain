@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `ec487747f93fd5b3e38bdb4ee17a9ede97bd4380` (2026-09-24). Standalone Train PR #556 review corrections verified on this branch against the same main baseline; DHS approval, instructor/curriculum verification, paid add-on pricing and pilot acceptance remain release gates. Prior production verification is historical and does not cover this branch.
+**Last verified against main:** `87a523d5443e3569a850f31b12913c911c7ed099` (2026-09-24). Standalone Train PR #556 review corrections verified on this branch against the same main baseline; DHS approval, instructor/curriculum verification, paid add-on pricing and pilot acceptance remain release gates. Prior production verification is historical and does not cover this branch.
 
 **Owner:** the owner-operator (single person, platform admin)
 

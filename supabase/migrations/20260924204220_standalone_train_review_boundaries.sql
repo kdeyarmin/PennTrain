@@ -57,7 +57,7 @@ begin
   select p.prosrc,pg_get_functiondef(p.oid) into strict v_body,v_def
     from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname='public' and p.proname='get_my_shift_workspace';
-  v_new:=regexp_replace(v_body,'(\mbegin\M)',E'\\1\n  if not app_private.has_product_module(''modules.workforce'') then raise exception ''Workforce access required'' using errcode=''42501''; end if;','i');
+  v_new:=regexp_replace(v_body,'(\mbegin\M)',E'\\1\n' || $guard$  if not app_private.has_product_module('modules.workforce') then raise exception 'Workforce access required' using errcode='42501'; end if;$guard$,'i');
   if position('where t.assigned_employee_id = v_employee.id' in v_new)=0 then
     raise exception 'Shift workspace resident-task query has changed'; end if;
   v_new:=replace(v_new,'where t.assigned_employee_id = v_employee.id','where app_private.has_resident_product() and t.assigned_employee_id = v_employee.id');
