@@ -214,7 +214,8 @@ select ok(
 select throws_ok(
   $$ select public.get_resident_clinical_chart('ca000000-0000-4000-8000-000000000203') $$,
   '42501',
-  'Clinical access is outside caller scope',
+  -- The product boundary now refuses this Train-only reader before clinical scope.
+  'A resident product is required',
   'and the chart RPC refuses that read instead of serving what PostgREST would have withheld'
 );
 
