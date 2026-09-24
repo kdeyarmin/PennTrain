@@ -1,3 +1,4 @@
+import { trainingActionError } from "@/lib/trainingWorkspace";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -23,7 +24,7 @@ export function IndependentModuleAccess({ organizationId }: { organizationId: st
       if (error) throw error;
       await Promise.all([client.invalidateQueries({ queryKey: ["module-access-terms"] }), client.invalidateQueries({ queryKey: ["product-module-entitlements"] }), client.invalidateQueries({ queryKey: ["organizations"] })]);
       toast({ title: revokeId ? "Module access revoked" : "Independent module access granted" });
-    } catch (error) { toast({ title: "Access update failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" }); }
+    } catch (error) { toast({ title: "Access update failed", description: trainingActionError(error), variant: "destructive" }); }
     finally { setBusy(false); }
   }
   return <Card><CardHeader><CardTitle>Independent module access</CardTitle></CardHeader><CardContent className="space-y-4">

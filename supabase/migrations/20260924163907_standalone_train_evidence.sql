@@ -180,7 +180,7 @@ begin
         raise exception 'Unknown training topic' using errcode='22023'; end if;
     end loop;
     if nullif(p_data->>'evidence_document_id','') is not null and not exists(select 1 from public.training_documents
-      where id=(p_data->>'evidence_document_id')::uuid and organization_id=v_org and facility_id=p_facility_id) then
+      where id=(p_data->>'evidence_document_id')::uuid and organization_id=v_org and facility_id=p_facility_id and (employee_id is null or employee_id=p_employee_id)) then
       raise exception 'Evidence document is outside this facility' using errcode='42501'; end if;
     if nullif(p_data->>'course_assignment_id','') is not null and not exists(select 1 from public.course_assignments
       where id=(p_data->>'course_assignment_id')::uuid and employee_id=p_employee_id and status='completed') then
@@ -230,7 +230,12 @@ create function public.get_training_workspace(p_facility_id uuid,p_employee_id u
 returns jsonb language plpgsql stable security invoker set search_path='' as $$
 declare v_limit integer:=least(greatest(coalesce(p_limit,500),1),500); v_offset integer:=greatest(coalesce(p_offset,0),0);
 begin
-  if not app_private.has_product_module('modules.train') or public.current_role() not in ('platform_admin','org_admin','facility_manager','trainer','auditor') then
+  if not coalesce(public.current_role() in ('platform_admin','org_admin','facility_manager','trainer','auditor'),false) then
+    raise exception 'Training workspace access required' using errcode='42501'; end if;
+  -- This is an invoker function: authenticated has no USAGE on app_private.
+  -- Use the public, caller-scoped resolver rather than resolving a private helper.
+  if not public.is_platform_admin() and not exists(select 1 from public.get_effective_entitlements()
+    where feature_key in ('modules.train','modules.carebase') and is_entitled) then
     raise exception 'Training workspace access required' using errcode='42501'; end if;
   if not exists(select 1 from public.facilities where id=p_facility_id) then raise exception 'Facility is outside your access' using errcode='42501'; end if;
   return jsonb_build_object(

@@ -1,3 +1,4 @@
+import { trainingActionError } from "@/lib/trainingWorkspace";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,7 +22,7 @@ export function CreateTrainingFacility() {
         setCreated((data as { organization_id: string }).organization_id); setRequestId(crypto.randomUUID()); form.reset();
         await Promise.all([client.invalidateQueries({ queryKey: ["organizations"] }), client.invalidateQueries({ queryKey: ["facilities"] })]);
         toast({ title: "Complimentary training facility created" });
-      } catch (error) { toast({ title: "Facility setup failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" }); }
+      } catch (error) { toast({ title: "Facility setup failed", description: trainingActionError(error), variant: "destructive" }); }
       finally { setBusy(false); }
     }}>
       <p className="text-sm">Creates the organization, facility, Train-only package and ongoing complimentary access together. Then invite its administrator from Users. No payment card is needed.</p>

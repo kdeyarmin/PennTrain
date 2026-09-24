@@ -1,3 +1,4 @@
+import { trainingActionError } from "@/lib/trainingWorkspace";
 import { certificatePrintPacket } from "@/lib/certificatePrintPacket";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal, formatDateForDisplay } from "@/lib/dateUtils";
 import { downloadBlob } from "@/lib/browserDownload";
@@ -39,12 +40,12 @@ export default function TrainWorkspace() {
   const facility = facilities.data?.find(f => f.id === facilityId);
   const employees = useListEmployees({ organizationId: org || undefined, facilityId }, { enabled: !!org && !!facilityId });
   const workspace = useTrainingWorkspace(facilityId);
-  const certificates = useListCertificates({}, { enabled: !!facilityId });
+  const certificates = useListCertificates({ facilityId }, { enabled: !!facilityId });
   const preparePdf = usePrepareCertificatePdf();
   const save = useSaveTrainingWorkspace();
   const { toast } = useToast();
   const [student, setStudent] = useState("");
-  const documents = useListDocuments({ facilityId, employeeId: student }, !!student && !!facilityId);
+  const documents = useListDocuments({ facilityId }, !!student && !!facilityId);
   const assignments = useListCourseAssignments({ facilityId, employeeId: student, status: "completed" }, { enabled: !!student && !!facilityId });
   const courses = useListCourses();
   const [batchBusy, setBatchBusy] = useState(false);
@@ -65,7 +66,7 @@ export default function TrainWorkspace() {
   const employeeMap = new Map(roster.map(e => [e.id, e]));
   const certs = (certificates.data || []).filter(c => employeeMap.has(c.employee_id) && (!student || c.employee_id === student));
   const studentEvents = (data?.events || []).filter(e => e.employee_id === student);
-  const message = (error: unknown) => toast({ title: "Training action failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+  const message = (error: unknown) => toast({ title: "Training action failed", description: trainingActionError(error), variant: "destructive" });
   async function submit(kind: string, event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget, fields = new FormData(form);
     const payload: Record<string, Json> = Object.fromEntries(Array.from(fields.entries()).map(([k, v]) => [k, String(v)]));
@@ -131,7 +132,7 @@ export default function TrainWorkspace() {
     </div>
     {!facilityId ? <p>Create a facility to begin. <Link href="/app/facilities" className="underline">Facility setup</Link></p> : loading ? <p role="status">Loading complete training records…</p> : <>
     <Tabs value={tab} onValueChange={setTab}>
-      <TabsList className="flex flex-wrap h-auto print:hidden">{["overview", "students", "evidence", "plans", "certificates", "reports", "settings"].map(t => <TabsTrigger key={t} value={t} className="capitalize">{t}</TabsTrigger>)}</TabsList>
+      <TabsList className="flex flex-wrap h-auto print:hidden">{["overview", "students", "evidence", "plans", "certificates", "reports", "settings"].map(t => <TabsTrigger key={t} value={t} className="capitalize">{t[0].toUpperCase() + t.slice(1)}</TabsTrigger>)}</TabsList>
       <TabsContent value="overview" className="space-y-4">
         <Card><CardHeader><CardTitle>Facility setup</CardTitle></CardHeader><CardContent className="space-y-2">
           <p>{roster.length} students · {data?.profiles.length || 0} duty profiles confirmed · {data?.events.filter(e => e.status === "pending").length || 0} evidence items awaiting review</p>
@@ -161,7 +162,7 @@ export default function TrainWorkspace() {
           <Field name="minutes" label="Actual duration in minutes" type="number" /><Options name="delivery" label="Delivery" options={{ online: "Online", classroom: "Classroom", hybrid: "Hybrid with observed practice", ojt: "On-the-job", observed_practice: "Observed practice", external: "External training" }} />
           <Field name="provider" label="Instructor / provider" /><Field name="source_reference" label="Unique event or certificate reference" />
           <Field name="provider_qualification" label="Instructor qualifications / approval reference" required={false} /><Field name="valid_until" label="Valid through (if applicable)" type="date" required={false} />
-          <Options name="evidence_document_id" label="Uploaded evidence" options={{ "": "Choose uploaded evidence (optional)", ...Object.fromEntries((documents.data || []).map(d => [d.id, d.file_name])) }} /><Options name="course_assignment_id" label="Completed course" options={{ "": "Choose completed course (optional)", ...Object.fromEntries((assignments.data || []).map(a => [a.id, `${courses.data?.find(c => c.id === a.course_id)?.title || "Completed course"} - ${a.completed_at || a.assigned_at}`])) }} />
+          <Options name="evidence_document_id" label="Uploaded evidence" options={{ "": "Choose uploaded evidence (optional)", ...Object.fromEntries((documents.data || []).filter(d => !d.employee_id || d.employee_id === student).map(d => [d.id, d.file_name])) }} /><Options name="course_assignment_id" label="Completed course" options={{ "": "Choose completed course (optional)", ...Object.fromEntries((assignments.data || []).map(a => [a.id, `${courses.data?.find(c => c.id === a.course_id)?.title || "Completed course"} - ${a.completed_at || a.assigned_at}`])) }} />
           {(documents.isError || assignments.isError || courses.isError) && <p role="alert">Evidence choices failed to load. Reload before linking a course or document.</p>}
           <fieldset className="md:col-span-2"><legend className="font-semibold">Topics evidenced</legend><div className="grid md:grid-cols-3 gap-2 text-sm">{Object.entries(TRAINING_TOPICS).map(([key, label]) => <label key={key}><input type="checkbox" name="topics" value={key} /> {label}</label>)}</div></fieldset>
           <fieldset className="md:col-span-2"><legend className="font-semibold">Allocate minutes once</legend><p className="text-sm">The total cannot exceed event duration. Additional dementia and special-unit hours are separate.</p><div className="grid md:grid-cols-3 gap-3 mt-2">{Object.entries(TRAINING_ALLOCATIONS).map(([key, label]) => <Field key={key} name={`credit_${key}`} label={label} type="number" value="0" />)}</div></fieldset>

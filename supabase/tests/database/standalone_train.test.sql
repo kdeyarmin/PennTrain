@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(28);
 insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
 select 'dd240000-0000-4000-8000-000000000001','Standalone Train test','standalone-train-test','trial',now()-interval '1 day',id
 from public.packages where name='CareMetric Train';
@@ -29,6 +29,8 @@ select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001
 select set_config('request.jwt.claims',jsonb_build_object('sub','dd240000-0000-4000-8000-000000000101','role','authenticated','aal','aal2','iat',extract(epoch from now())::bigint)::text,true);
 set local role authenticated;
 select lives_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"direct_care":true,"administrator":false,"specialty_unit":"none","duties":"Personal care assistance","first_work_date":"2026-01-01"}') $$,'Train administrator can record a confirmed duty profile');
+select lives_ok($$ select public.get_training_workspace('dd240000-0000-4000-8000-000000000011') $$,'Train workspace reads use authenticated grants and facility RLS');
+select throws_ok($$ select public.get_training_workspace('dd240000-0000-4000-8000-000000000012') $$,'42501',null,'workspace cannot read a different tenant facility');
 select throws_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000012','dd240000-0000-4000-8000-000000000021','{}') $$,'42501',null,'cross-organization facility writes are refused');
 select throws_ok($$ insert into public.training_evidence_events(employee_id) values('dd240000-0000-4000-8000-000000000021') $$,'42501',null,'direct evidence writes cannot bypass review rules');
 select throws_ok($$ select public.save_training_workspace_item('event','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"title":"Course","completed_on":"2026-01-02","minutes":60,"delivery":"online","provider":"Provider","source_reference":"ref1","allocations":{"base":60,"special_annual":60}}') $$,'22023',null,'one event cannot earn double credit');

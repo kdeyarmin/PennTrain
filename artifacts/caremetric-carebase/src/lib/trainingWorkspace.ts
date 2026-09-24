@@ -62,7 +62,7 @@ export function trainingPeriod(today: string, firstWork: string, basis: string, 
 export function fortiethWorkHour(shifts: TrainingShift[], firstWork: string): string | null {
   let milliseconds = 40 * 60 * 60 * 1000;
   let previousEnd = -Infinity;
-  for (const shift of [...shifts].sort((a, b) => a.starts_at.localeCompare(b.starts_at))) {
+  for (const shift of [...shifts].sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))) {
     const start = Date.parse(shift.starts_at), end = Date.parse(shift.ends_at);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || start < previousEnd) return null;
     previousEnd = end;
@@ -160,4 +160,9 @@ export function trainingCsv(rows: unknown[][]) {
     if (/^[\s]*[=+@-]/.test(s)) s = "'" + s;
     return '"' + s.replaceAll('"', '""') + '"';
   }).join(",")).join("\r\n");
+}
+
+export function trainingActionError(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return "The training action could not be completed. Please retry.";
 }

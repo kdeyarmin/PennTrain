@@ -468,6 +468,15 @@ jobs:
       - name: Role, public, guest, and accessibility browser journeys
         run: pnpm --filter @workspace/caremetric-carebase run test:e2e
 
+      - name: Upload Train workflow screenshot
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: standalone-train-screen
+          path: artifacts/caremetric-carebase/test-results/standalone-train-report.png
+          if-no-files-found: ignore
+          retention-days: 7
+
       # Playwright already writes a screenshot, video, and trace for every failure; without this they
       # are discarded with the runner. Diagnosing a browser failure from the log message alone means
       # one hypothesis per CI round -- five rounds went on a step whose screenshot would have shown
