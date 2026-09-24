@@ -118,6 +118,10 @@ do $$ declare t text; begin
     execute format('grant all on public.%I to service_role',t);
     execute format('create index %I on public.%I(organization_id,facility_id)',t||'_scope_idx',t);
     execute format('create trigger audit_log after insert or update or delete on public.%I for each row execute function public.audit_log_trigger()',t);
+    insert into app_private.audit_entity_manifest(table_name,audit_mode,contains_regulated_data,rationale)
+      values(t,'row_trigger',true,'Training evidence and facility policy changes are audited. Retention metadata follows the platform policy and requires facility review, not a DHS-prescribed blanket period.');
+    execute format('create policy sms_mfa_session_required on public.%I as restrictive for all to authenticated using ((select public.current_sms_mfa_satisfied())) with check ((select public.current_sms_mfa_satisfied()))',t);
+    execute format('create policy impersonation_session_lifetime on public.%I as restrictive for all to authenticated using ((select public.current_impersonation_session_live())) with check ((select public.current_impersonation_session_live()))',t);
     insert into app_private.product_module_resources(resource_schema,resource_name,module_key) values('public',t,'modules.train');
     execute format('create policy product_module_entitlement on public.%I as restrictive for all to authenticated using ((select app_private.has_product_module(''modules.train''))) with check ((select app_private.has_product_module(''modules.train'')))',t);
   end loop;

@@ -33047,6 +33047,93 @@ export type Database = {
           },
         ]
       }
+      training_annual_schedule: {
+        Row: {
+          canceled_at: string | null
+          completed_event_id: string | null
+          created_at: string
+          created_by: string
+          duration_minutes: number
+          duties_snapshot: string
+          employee_id: string
+          facility_id: string
+          id: string
+          location: string
+          organization_id: string
+          requirement_keys: string[]
+          scheduled_at: string
+          title: string
+        }
+        Insert: {
+          canceled_at?: string | null
+          completed_event_id?: string | null
+          created_at?: string
+          created_by: string
+          duration_minutes: number
+          duties_snapshot: string
+          employee_id: string
+          facility_id: string
+          id?: string
+          location: string
+          organization_id: string
+          requirement_keys?: string[]
+          scheduled_at: string
+          title: string
+        }
+        Update: {
+          canceled_at?: string | null
+          completed_event_id?: string | null
+          created_at?: string
+          created_by?: string
+          duration_minutes?: number
+          duties_snapshot?: string
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          location?: string
+          organization_id?: string
+          requirement_keys?: string[]
+          scheduled_at?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_annual_schedule_completed_event_id_fkey"
+            columns: ["completed_event_id"]
+            isOneToOne: false
+            referencedRelation: "training_evidence_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_annual_schedule_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_annual_schedule_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_annual_schedule_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_annual_schedule_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_attendance_evidence: {
         Row: {
           attendance_status: string
@@ -33439,6 +33526,205 @@ export type Database = {
           },
         ]
       }
+      training_evidence_events: {
+        Row: {
+          allocations: Json
+          completed_on: string
+          course_assignment_id: string | null
+          created_at: string
+          created_by: string
+          delivery: string
+          employee_id: string
+          evidence_document_id: string | null
+          facility_id: string
+          id: string
+          legacy_record_id: string | null
+          minutes: number
+          organization_id: string
+          provider: string
+          provider_qualification: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_reference: string
+          status: string
+          title: string
+          topics: string[]
+          valid_until: string | null
+        }
+        Insert: {
+          allocations?: Json
+          completed_on: string
+          course_assignment_id?: string | null
+          created_at?: string
+          created_by: string
+          delivery: string
+          employee_id: string
+          evidence_document_id?: string | null
+          facility_id: string
+          id?: string
+          legacy_record_id?: string | null
+          minutes: number
+          organization_id: string
+          provider: string
+          provider_qualification?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_reference: string
+          status?: string
+          title: string
+          topics?: string[]
+          valid_until?: string | null
+        }
+        Update: {
+          allocations?: Json
+          completed_on?: string
+          course_assignment_id?: string | null
+          created_at?: string
+          created_by?: string
+          delivery?: string
+          employee_id?: string
+          evidence_document_id?: string | null
+          facility_id?: string
+          id?: string
+          legacy_record_id?: string | null
+          minutes?: number
+          organization_id?: string
+          provider?: string
+          provider_qualification?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_reference?: string
+          status?: string
+          title?: string
+          topics?: string[]
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_evidence_events_course_assignment_id_fkey"
+            columns: ["course_assignment_id"]
+            isOneToOne: true
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_evidence_document_id_fkey"
+            columns: ["evidence_document_id"]
+            isOneToOne: false
+            referencedRelation: "training_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_legacy_record_id_fkey"
+            columns: ["legacy_record_id"]
+            isOneToOne: true
+            referencedRelation: "employee_training_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_facility_policies: {
+        Row: {
+          administrator_year_basis: string
+          administrator_year_start: string
+          created_at: string
+          created_by: string
+          effective_from: string
+          facility_id: string
+          id: string
+          organization_id: string
+          policy_reference: string
+          year_basis: string
+          year_start: string
+        }
+        Insert: {
+          administrator_year_basis: string
+          administrator_year_start?: string
+          created_at?: string
+          created_by: string
+          effective_from: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          policy_reference: string
+          year_basis: string
+          year_start?: string
+        }
+        Update: {
+          administrator_year_basis?: string
+          administrator_year_start?: string
+          created_at?: string
+          created_by?: string
+          effective_from?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          policy_reference?: string
+          year_basis?: string
+          year_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_facility_policies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_facility_policies_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_facility_policies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_passports: {
         Row: {
           created_at: string
@@ -33755,6 +34041,77 @@ export type Database = {
           },
         ]
       }
+      training_staff_profiles: {
+        Row: {
+          administrator: boolean
+          confirmed_at: string
+          confirmed_by: string
+          direct_care: boolean
+          duties: string
+          employee_id: string
+          facility_id: string
+          first_work_date: string
+          id: string
+          organization_id: string
+          specialty_unit: string
+        }
+        Insert: {
+          administrator?: boolean
+          confirmed_at?: string
+          confirmed_by: string
+          direct_care?: boolean
+          duties: string
+          employee_id: string
+          facility_id: string
+          first_work_date: string
+          id?: string
+          organization_id: string
+          specialty_unit?: string
+        }
+        Update: {
+          administrator?: boolean
+          confirmed_at?: string
+          confirmed_by?: string
+          direct_care?: boolean
+          duties?: string
+          employee_id?: string
+          facility_id?: string
+          first_work_date?: string
+          id?: string
+          organization_id?: string
+          specialty_unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_staff_profiles_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_staff_profiles_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_staff_profiles_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_staff_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_types: {
         Row: {
           accepted_evidence_types: Json | null
@@ -33856,6 +34213,71 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_work_shifts: {
+        Row: {
+          created_at: string
+          employee_id: string
+          ends_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          recorded_by: string
+          source_reference: string
+          starts_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          ends_at: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          recorded_by: string
+          source_reference: string
+          starts_at: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          ends_at?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          recorded_by?: string
+          source_reference?: string
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_work_shifts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_work_shifts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_work_shifts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_work_shifts_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -39492,22 +39914,6 @@ export type Database = {
         }[]
       }
       get_trainer_dashboard_summary: { Args: never; Returns: Json }
-      get_training_workspace: {
-        Args: { p_facility_id: string; p_employee_id?: string; p_limit?: number; p_offset?: number }
-        Returns: Json
-      }
-      save_training_workspace_item: {
-        Args: { p_kind: string; p_facility_id: string; p_employee_id: string; p_data: Json }
-        Returns: Json
-      }
-      manage_module_access_term: {
-        Args: { p_organization_id: string; p_module_key: string; p_source: string; p_reason: string; p_ends_at?: string; p_revoke_id?: string }
-        Returns: Json
-      }
-      list_module_access_terms: {
-        Args: { p_organization_id: string }
-        Returns: Json
-      }
       get_training_matrix_page: {
         Args: {
           p_due_within_days?: number
@@ -39521,6 +39927,15 @@ export type Database = {
           p_status_filter?: string
           p_today?: string
           p_trainer_only?: boolean
+        }
+        Returns: Json
+      }
+      get_training_workspace: {
+        Args: {
+          p_employee_id?: string
+          p_facility_id: string
+          p_limit?: number
+          p_offset?: number
         }
         Returns: Json
       }
@@ -40163,6 +40578,10 @@ export type Database = {
         }
         Returns: Json
       }
+      list_module_access_terms: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
       list_native_learning_provider_commands: {
         Args: { p_course_id: string; p_offset: number }
         Returns: Json
@@ -40371,6 +40790,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      manage_module_access_term: {
+        Args: {
+          p_ends_at?: string
+          p_module_key: string
+          p_organization_id: string
+          p_reason: string
+          p_revoke_id?: string
+          p_source: string
+        }
+        Returns: Json
       }
       map_fhir_patient: {
         Args: {
@@ -42990,6 +43420,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      save_training_workspace_item: {
+        Args: {
+          p_data: Json
+          p_employee_id: string
+          p_facility_id: string
+          p_kind: string
+        }
+        Returns: Json
+      }
       save_workflow_automation_rule: {
         Args: {
           p_actions: Json
@@ -44630,3 +45069,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

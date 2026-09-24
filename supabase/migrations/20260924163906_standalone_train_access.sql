@@ -1,14 +1,14 @@
 -- Independent commercial terms never grant another product or override suspension.
 create table app_private.module_access_terms (
   id uuid primary key default gen_random_uuid(),
-  organization_id uuid not null references public.organizations(id),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
   module_key text not null check (module_key in ('modules.train','modules.workforce','modules.compliance','modules.billing','modules.carebase')),
   source text not null check (source in ('complimentary','contract')),
   starts_at timestamptz not null default now(),
   ends_at timestamptz,
   revoked_at timestamptz,
   reason text not null check (length(btrim(reason)) between 10 and 1000),
-  granted_by uuid not null references public.profiles(id),
+  granted_by uuid references public.profiles(id),
   created_at timestamptz not null default now(),
   check (ends_at is null or ends_at > starts_at)
 );
@@ -34,7 +34,7 @@ language plpgsql stable security definer set search_path='' as $$
 declare v_org uuid:=coalesce(p_organization_id,public.current_org_id());
 begin
   if v_org is null then raise exception 'Organization is required' using errcode='22023'; end if;
-  if auth.uid() is not null and not public.is_platform_admin() and v_org is distinct from public.current_org_id() then
+  if coalesce(auth.role(),'')<>'service_role' and auth.uid() is not null and not public.is_platform_admin() and v_org is distinct from public.current_org_id() then
     raise exception 'Organization is outside your access' using errcode='42501'; end if;
   return query
   select e.feature_key,e.value_type,
@@ -128,3 +128,30 @@ create policy resident_product_access on public.residents as restrictive for all
   using ((select app_private.has_resident_product())) with check ((select app_private.has_resident_product()));
 create policy resident_product_access on public.resident_contacts as restrictive for all to authenticated
   using ((select app_private.has_resident_product())) with check ((select app_private.has_resident_product()));
+
+-- Called only by the abuse-protected signup service before the first user exists.
+-- Complimentary public signup is a server configuration decision, never a client field.
+create function public.configure_train_signup(p_organization_id uuid,p_complimentary boolean default false)
+returns void language plpgsql security definer set search_path='' as $$
+declare v_package uuid;
+begin
+  if coalesce(auth.role(),'')<>'service_role' then raise exception 'Signup service required' using errcode='42501'; end if;
+  perform 1 from public.organizations where id=p_organization_id and subscription_status='trial'
+    and created_at>now()-interval '10 minutes' for update;
+  if not found or exists(select 1 from public.profiles where organization_id=p_organization_id) then
+    raise exception 'Only a new unclaimed signup can be configured' using errcode='22023'; end if;
+  select id into v_package from public.packages where name='CareMetric Train' and is_active;
+  if v_package is null then raise exception 'Train signup is unavailable' using errcode='22023'; end if;
+  perform set_config('app.privileged_write','on',true);
+  update public.organizations set package_id=v_package where id=p_organization_id;
+  if p_complimentary then
+    insert into app_private.module_access_terms(organization_id,module_key,source,reason)
+      values(p_organization_id,'modules.train','complimentary','Server-configured complimentary Train signup');
+  end if;
+  insert into public.audit_logs(organization_id,action,entity_type,entity_id,metadata)
+    values(p_organization_id,'train_signup.configured','organizations',p_organization_id::text,
+      jsonb_build_object('complimentary',p_complimentary,'package_id',v_package));
+end;
+$$;
+revoke all on function public.configure_train_signup(uuid,boolean) from public,anon,authenticated;
+grant execute on function public.configure_train_signup(uuid,boolean) to service_role;

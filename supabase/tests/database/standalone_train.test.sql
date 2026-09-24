@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(20);
 insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
 select 'dd240000-0000-4000-8000-000000000001','Standalone Train test','standalone-train-test','trial',now()-interval '1 day',id
 from public.packages where name='CareMetric Train';
@@ -42,5 +42,12 @@ update public.organizations set subscription_status='active' where id='dd240000-
 update app_private.module_access_terms set revoked_at=now() where id='dd240000-0000-4000-8000-000000000031';
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),false,'revocation restores provider-derived access');
 select is((select permissive from pg_policies where schemaname='public' and tablename='residents' and policyname='resident_product_access'),'RESTRICTIVE','resident access requires a resident product at the database boundary');
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+select lives_ok($$ select public.configure_train_signup('dd240000-0000-4000-8000-000000000002',true) $$,'signup service can configure a fresh complimentary Train organization');
+select is((select p.name from public.organizations o join public.packages p on p.id=o.package_id where o.id='dd240000-0000-4000-8000-000000000002'),'CareMetric Train','Train signup selects only the Train package');
+select throws_ok($$ select public.configure_train_signup('dd240000-0000-4000-8000-000000000001',true) $$,'22023',null,'signup cannot change a claimed organization');
+reset role;
+select ok(not has_function_privilege('authenticated','public.configure_train_signup(uuid,boolean)','execute'),'self-service callers cannot directly grant free products');
 select * from finish();
 rollback;
