@@ -217,6 +217,7 @@ export const APP_COMMAND_ACTIONS: AppCommandAction[] = [
 ];
 
 export const APP_PAGES: AppPageDefinition[] = [
+  { path: "/app/train", label: "Train workspace", domain: "training", roles: ORG_ROLES, keywords: ["students", "certificates", "training reports", "education"] },
   { path: "/account/security", label: "Account security", domain: "self_service", roles: ANY_ROLE, keywords: ["mfa", "aal2", "authenticator", "two factor"] },
   { path: "/account/notifications", label: "Notification settings", domain: "self_service", roles: ANY_ROLE, keywords: ["sms", "email", "phone", "consent", "preferences", "text", "reminders"] },
   { path: "/account/announcements", label: "Announcements", domain: "support", roles: ANY_ROLE, keywords: ["broadcast", "manager message", "notice", "read receipt"] },

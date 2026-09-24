@@ -231,6 +231,7 @@ function getNavSections(
       {
         title: "Training",
         items: [
+          { href: "/app/train", label: "Train workspace", icon: Grid },
           { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
           { href: "/app/courses", label: "Training content", icon: GraduationCap },
           { href: "/app/course-assignments", label: "Assignments", icon: FileCheck },
@@ -346,6 +347,7 @@ function getNavSections(
       {
         title: "Training & credentials",
         items: [
+          { href: "/app/train", label: "Train workspace", icon: Grid },
           { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
           { href: "/app/course-assignments", label: "Assignments", icon: FileCheck },
           { href: "/app/training-plans", label: "Training plans", icon: ListChecks },
@@ -430,6 +432,7 @@ function getNavSections(
       {
         title: "Competency",
         items: [
+          { href: "/app/train", label: "Train workspace", icon: Grid },
           { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
           { href: "/app/competency-templates", label: "Competency templates", icon: ClipboardList },
           { href: "/app/competency-records", label: "Competency records", icon: ClipboardCheck },

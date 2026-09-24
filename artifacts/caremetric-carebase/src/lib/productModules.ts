@@ -84,6 +84,7 @@ const INTERNAL_APP_PREFIXES = ["/account", "/admin", "/app", "/trainer", "/me"] 
 export const CORE_PATHS = [
   "/account",
   "/admin",
+  "/app/invitations",
   "/app/facilities",
   "/app/employees",
   "/app/users",
@@ -100,6 +101,7 @@ export const CORE_PATHS = [
 ] as const;
 
 export const TRAIN_PATHS = [
+  "/app/train",
   "/app/training-matrix",
   "/app/training-types",
   "/app/courses",
@@ -243,7 +245,7 @@ export function moduleHomePathForRole(
     return "/me/help";
   }
   if (enabledModules.has("carebase")) return "/app/today";
-  if (enabledModules.has("train")) return "/app/training-matrix";
+  if (enabledModules.has("train")) return "/app/train";
   if (enabledModules.has("compliance")) return "/app/inspection-readiness";
   if (enabledModules.has("workforce")) return "/app/credentials";
   if (enabledModules.has("billing")) return "/app/resident-finance";

@@ -39492,6 +39492,22 @@ export type Database = {
         }[]
       }
       get_trainer_dashboard_summary: { Args: never; Returns: Json }
+      get_training_workspace: {
+        Args: { p_facility_id: string; p_employee_id?: string; p_limit?: number; p_offset?: number }
+        Returns: Json
+      }
+      save_training_workspace_item: {
+        Args: { p_kind: string; p_facility_id: string; p_employee_id: string; p_data: Json }
+        Returns: Json
+      }
+      manage_module_access_term: {
+        Args: { p_organization_id: string; p_module_key: string; p_source: string; p_reason: string; p_ends_at?: string; p_revoke_id?: string }
+        Returns: Json
+      }
+      list_module_access_terms: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
       get_training_matrix_page: {
         Args: {
           p_due_within_days?: number

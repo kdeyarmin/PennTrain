@@ -69,6 +69,7 @@ const DataImportCenter = lazy(() => import("@/pages/app/DataImportCenter"));
 const InvitationLifecycle = lazy(() => import("@/pages/app/InvitationLifecycle"));
 const EmployeeLifecycleCases = lazy(() => import("@/pages/app/EmployeeLifecycleCases"));
 const EmployeeDetail = lazy(() => import("@/pages/app/EmployeeDetail"));
+const TrainWorkspace = lazy(() => import("@/pages/app/TrainWorkspace"));
 const TrainingMatrix = lazy(() => import("@/pages/app/TrainingMatrix"));
 const TrainingTypes = lazy(() => import("@/pages/app/TrainingTypes"));
 const Courses = lazy(() => import("@/pages/app/Courses"));
@@ -723,6 +724,9 @@ function Router() {
       </Route>
       <Route path="/app/employees/:id">
         {() => <ProtectedRoute component={EmployeeDetail} allowedRoles={ORG_ROLES} />}
+      </Route>
+      <Route path="/app/train">
+        {() => <ProtectedRoute component={TrainWorkspace} allowedRoles={ORG_ROLES} />}
       </Route>
       <Route path="/app/training-matrix">
         {() => <ProtectedRoute component={TrainingMatrix} allowedRoles={ORG_ROLES} />}

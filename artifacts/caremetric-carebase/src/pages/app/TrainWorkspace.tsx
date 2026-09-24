@@ -1,0 +1,186 @@
+import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { useListDocuments } from "@/hooks/useDocuments";
+import { useListCourseAssignments } from "@/hooks/useCourseAssignments";
+import { useListCourses } from "@/hooks/useCourses";
+import { useState, type FormEvent } from "react";
+import { Link } from "wouter";
+import { useAuth } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
+import { useListFacilities } from "@/hooks/useFacilities";
+import { useListEmployees } from "@/hooks/useEmployees";
+import { useListCertificates, usePrepareCertificatePdf } from "@/hooks/useCertificates";
+import { useTrainingWorkspace, useSaveTrainingWorkspace } from "@/hooks/useTrainingWorkspace";
+import { assessTraining, paDay, TRAINING_ALLOCATIONS, TRAINING_TOPICS, trainingCsv } from "@/lib/trainingWorkspace";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import type { Json } from "@/lib/database.types";
+
+const selectClass = "h-10 rounded-md border bg-background px-3 text-sm w-full";
+function Field({ name, label, type = "text", required = true, value }: { name: string; label: string; type?: string; required?: boolean; value?: string }) {
+  return <label className="grid gap-1 text-sm">{label}<Input name={name} type={type} required={required} defaultValue={value} /></label>;
+}
+function Options({ name, label, options, value }: { name: string; label: string; options: Record<string, string>; value?: string }) {
+  return <label className="grid gap-1 text-sm">{label}<select name={name} className={selectClass} defaultValue={value}>{Object.entries(options).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>;
+}
+function download(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob), a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+export default function TrainWorkspace() {
+  const { user } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
+  const org = user?.role === "platform_admin" ? viewingOrgId : user?.organizationId;
+  const facilities = useListFacilities({ organizationId: org || undefined }, !!org);
+  const [facilityChoice, setFacility] = useState("");
+  const facilityId = facilities.data?.some(f => f.id === facilityChoice) ? facilityChoice : facilities.data?.[0]?.id || "";
+  const facility = facilities.data?.find(f => f.id === facilityId);
+  const employees = useListEmployees({ organizationId: org || undefined, facilityId }, { enabled: !!org && !!facilityId });
+  const workspace = useTrainingWorkspace(facilityId);
+  const certificates = useListCertificates({}, { enabled: !!facilityId });
+  const preparePdf = usePrepareCertificatePdf();
+  const save = useSaveTrainingWorkspace();
+  const { toast } = useToast();
+  const [student, setStudent] = useState("");
+  const documents = useListDocuments({ facilityId, employeeId: student }, !!student && !!facilityId);
+  const assignments = useListCourseAssignments({ facilityId, employeeId: student, status: "completed" }, { enabled: !!student && !!facilityId });
+  const courses = useListCourses();
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [tab, setTab] = useState("overview");
+  const [search, setSearch] = useState("");
+  const [selectedCerts, setSelectedCerts] = useState<Set<string>>(new Set());
+  const canWrite = user?.role !== "auditor";
+  const data = workspace.data;
+  const today = paDay();
+  const policy = data?.policies.filter(p => p.effective_from <= today).sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0];
+  const roster = employees.data || [];
+  const chosen = roster.find(e => e.id === student);
+  const profile = data?.profiles.find(p => p.employee_id === student);
+  const rows = roster.filter(e => `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase())).map(employee => ({ employee,
+    checks: assessTraining({ profile: data?.profiles.find(p => p.employee_id === employee.id), policy, events: data?.events || [], shifts: data?.shifts || [],
+      facilityType: facility?.facility_type || "", today, medications: employee.administers_medications, insulin: employee.administers_insulin }),
+  }));
+  const employeeMap = new Map(roster.map(e => [e.id, e]));
+  const certs = (certificates.data || []).filter(c => employeeMap.has(c.employee_id) && (!student || c.employee_id === student));
+  const studentEvents = (data?.events || []).filter(e => e.employee_id === student);
+  const message = (error: unknown) => toast({ title: "Training action failed", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+  async function submit(kind: string, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const form = event.currentTarget, fields = new FormData(form);
+    const payload: Record<string, Json> = Object.fromEntries(Array.from(fields.entries()).map(([k, v]) => [k, String(v)]));
+    if (kind === "profile") { payload.direct_care = fields.has("direct_care"); payload.administrator = fields.has("administrator"); }
+    if (kind === "event") {
+      payload.topics = fields.getAll("topics").map(String);
+      payload.allocations = Object.fromEntries(Object.keys(TRAINING_ALLOCATIONS).map(k => [k, Number(fields.get(`credit_${k}`) || 0)]));
+      for (const key of Object.keys(payload)) if (key.startsWith("credit_")) delete payload[key];
+    }
+    if (kind === "plan") payload.requirement_keys = String(fields.get("requirement_keys") || "").split(",").map(s => s.trim()).filter(Boolean);
+    // Date-time controls are explicitly PA offsets entered as ISO strings; never interpret in the browser's local timezone.
+    try {
+      await save.mutateAsync({ kind, facilityId, employeeId: kind === "policy" ? null : student, data: payload });
+      toast({ title: kind === "event" ? "Evidence saved for review" : "Training record saved" });
+      if (!["policy", "profile"].includes(kind)) form.reset();
+    } catch (error) { message(error); }
+  }
+  async function certificateDownload(batch: boolean) {
+    const targets = batch ? certs.filter(c => selectedCerts.has(c.id)) : [];
+    if (!targets.length) return;
+    if (targets.length > 100) { message(new Error("Select up to 100 certificates per archive.")); return; }
+    setBatchBusy(true);
+    try {
+      const { zipSync } = await import("fflate");
+      const files: Record<string, Uint8Array> = {};
+      // Sequential preparation bounds server work and identifies failures before issuing an incomplete archive.
+      for (const cert of targets) {
+        const result = await preparePdf.mutateAsync(cert.id);
+        const response = await fetch(result.url); if (!response.ok) throw new Error(`Could not download certificate ${cert.id}; no archive was created.`);
+        files[`certificate-${cert.id}.pdf`] = new Uint8Array(await response.arrayBuffer());
+      }
+      download(new Blob([new Uint8Array(zipSync(files))], { type: "application/zip" }), `training-certificates-${today}.zip`);
+    } catch (error) { message(error); } finally { setBatchBusy(false); }
+  }
+  function exportReport() {
+    const report: unknown[][] = [["Training evidence readiness (not facility compliance certification)", facility?.name, today],
+      ["Student", "Employee ID", "Requirement", "Rule", "Status", "Due", "Evidence / action"]];
+    rows.forEach(({ employee, checks }) => checks.forEach(c => report.push([`${employee.first_name} ${employee.last_name}`, employee.id, c.label, c.citation, c.status, c.due, c.detail])));
+    report.push([], ["Annual plan", "Student ID", "Duties", "Scheduled time", "Minutes", "Location", "Fulfillment evidence"]);
+    data?.plans.forEach(p => report.push([p.title, p.employee_id, p.duties_snapshot, p.scheduled_at, p.duration_minutes, p.location, p.completed_event_id || (p.canceled_at ? "canceled" : "open")]));
+    report.push([], ["Evidence", "Student ID", "Completion date", "Minutes", "Source", "Provider", "Topics", "Review", "Basis", "Credit allocations"]);
+    data?.events.forEach(e => report.push([e.title, e.employee_id, e.completed_on, e.minutes, e.source_reference, e.provider, e.topics.join("; "), e.status, e.review_note, JSON.stringify(e.allocations)]));
+    download(new Blob([trainingCsv(report)], { type: "text/csv;charset=utf-8" }), `training-evidence-${today}.csv`);
+  }
+  if (!org) return <p>Select an organization in the administrator workspace first.</p>;
+  if (facilities.isError || employees.isError || workspace.isError) return <div role="alert">Training data could not be loaded. <Button onClick={() => { void facilities.refetch(); void employees.refetch(); void workspace.refetch(); }}>Retry</Button></div>;
+  const loading = facilities.isLoading || employees.isLoading || workspace.isLoading;
+  return <div className="space-y-6" id="train-workspace">
+    <div><h1 className="text-2xl font-bold">CareMetric Train</h1><p className="text-muted-foreground">Staff learning, evidence, annual plans, certificates and inspection reports.</p></div>
+    <div className="flex flex-wrap gap-3 print:hidden">
+      <label className="min-w-64 text-sm">Facility<select aria-label="Training facility" className={selectClass} value={facilityId} onChange={e => { setFacility(e.target.value); setStudent(""); setSelectedCerts(new Set()); }}>{facilities.data?.map(f => <option value={f.id} key={f.id}>{f.name}</option>)}</select></label>
+      <Link href="/app/employees?action=add"><Button variant="outline">Add student</Button></Link>
+      <Link href="/app/employees?action=bulk-import"><Button variant="outline">Import students</Button></Link>
+      <Link href="/app/invitations"><Button variant="outline">Invite / resend access</Button></Link>
+      <Link href="/app/course-assignments"><Button>Assign courses / view progress</Button></Link>
+    </div>
+    {!facilityId ? <p>Create a facility to begin. <Link href="/app/facilities" className="underline">Facility setup</Link></p> : loading ? <p role="status">Loading complete training records…</p> : <>
+    <Tabs value={tab} onValueChange={setTab}>
+      <TabsList className="flex flex-wrap h-auto print:hidden">{["overview", "students", "evidence", "plans", "certificates", "reports", "settings"].map(t => <TabsTrigger key={t} value={t} className="capitalize">{t}</TabsTrigger>)}</TabsList>
+      <TabsContent value="overview" className="space-y-4">
+        <Card><CardHeader><CardTitle>Facility setup</CardTitle></CardHeader><CardContent className="space-y-2">
+          <p>{roster.length} students · {data?.profiles.length || 0} duty profiles confirmed · {data?.events.filter(e => e.status === "pending").length || 0} evidence items awaiting review</p>
+          <ol className="list-decimal pl-5 space-y-2"><li>Add or import students and send invitations.</li><li>Confirm each student's duties, first work date and training audience in Students.</li><li>Document the facility's training-year policy in Settings.</li><li>Assign courses, record practical or external evidence, and verify eligible credit.</li><li>Schedule annual training with dates, times and locations; export records for inspection.</li></ol>
+          {!policy && <p className="font-medium">Action needed: annual training-year policy has not been documented.</p>}
+          <p>Readiness covers recorded training evidence. Staffing coverage, authorization to work, facility operations and DHS approval require separate verification.</p>
+          <div className="flex gap-3"><Link href="/app/courses" className="underline">Course library</Link><Link href="/app/documents" className="underline">Upload evidence</Link><Link href="/app/training-matrix" className="underline">Existing training records</Link><Link href="/app/billing" className="underline">Optional modules and billing</Link></div>
+        </CardContent></Card>
+      </TabsContent>
+      {["students", "evidence", "plans"].includes(tab) && <label className="block my-4 max-w-lg">Student<select aria-label="Training student" className={selectClass} value={student} onChange={e => setStudent(e.target.value)}><option value="">Choose a student</option>{roster.map(e => <option key={e.id} value={e.id}>{e.last_name}, {e.first_name}</option>)}</select></label>}
+      <TabsContent value="students">{chosen && <Card><CardHeader><CardTitle>{chosen.first_name} {chosen.last_name}: duties and audience</CardTitle></CardHeader><CardContent>
+        {canWrite ? <form key={`${student}-${profile?.first_work_date}`} onSubmit={e => void submit("profile", e)} className="grid gap-4 max-w-xl">
+          <label><input type="checkbox" name="direct_care" defaultChecked={profile?.direct_care} /> Direct care staff</label><label><input type="checkbox" name="administrator" defaultChecked={profile?.administrator} /> Administrator</label>
+          <Options name="specialty_unit" label="Specialty unit" value={profile?.specialty_unit} options={{ none: "None", pch_dementia: "PCH secured dementia unit", alr_dementia: "ALR dementia special care", alr_inrbi: "ALR INRBI special care" }} />
+          <Field name="duties" label="Position and actual duties" value={profile?.duties || chosen.job_title || ""} /><Field name="first_work_date" label="First work date at this facility" type="date" value={profile?.first_work_date || chosen.hire_date || ""} />
+          <Button disabled={save.isPending}>Confirm duties and audience</Button>
+        </form> : <p>{profile?.duties || "Profile awaits confirmation."}</p>}
+        <h3 className="font-semibold mt-6">Actual scheduled shifts for the first 40 hours</h3>
+        <p className="text-sm">Enter ISO date/time with Pennsylvania offset, for example 2026-09-24T07:00:00-04:00. Use -05:00 during standard time.</p>
+        {canWrite && <form onSubmit={e => void submit("shift", e)} className="grid md:grid-cols-4 gap-3 mt-3"><Field name="starts_at" label="Shift start (with offset)" /><Field name="ends_at" label="Shift end (with offset)" /><Field name="source_reference" label="Schedule reference" /><Button disabled={save.isPending}>Add shift</Button></form>}
+        <ul className="mt-3 text-sm">{data?.shifts.filter(s => s.employee_id === student).map(s => <li key={s.id}>{s.starts_at} – {s.ends_at} · {s.source_reference}</li>)}</ul>
+      </CardContent></Card>}</TabsContent>
+      <TabsContent value="evidence" className="space-y-4">{chosen && <>
+        {canWrite && <Card><CardHeader><CardTitle>Record training or practical evidence</CardTitle></CardHeader><CardContent><form onSubmit={e => void submit("event", e)} className="grid md:grid-cols-2 gap-4">
+          <Field name="title" label="Training title / content" /><Field name="completed_on" label="Completion date" type="date" />
+          <Field name="minutes" label="Actual duration in minutes" type="number" /><Options name="delivery" label="Delivery" options={{ online: "Online", classroom: "Classroom", hybrid: "Hybrid with observed practice", ojt: "On-the-job", observed_practice: "Observed practice", external: "External training" }} />
+          <Field name="provider" label="Instructor / provider" /><Field name="source_reference" label="Unique event or certificate reference" />
+          <Field name="provider_qualification" label="Instructor qualifications / approval reference" required={false} /><Field name="valid_until" label="Valid through (if applicable)" type="date" required={false} />
+          <Options name="evidence_document_id" label="Uploaded evidence" options={{ "": "Choose uploaded evidence (optional)", ...Object.fromEntries((documents.data || []).map(d => [d.id, d.file_name])) }} /><Options name="course_assignment_id" label="Completed course" options={{ "": "Choose completed course (optional)", ...Object.fromEntries((assignments.data || []).map(a => [a.id, `${courses.data?.find(c => c.id === a.course_id)?.title || "Completed course"} - ${a.completed_at || a.assigned_at}`])) }} />
+          {(documents.isError || assignments.isError || courses.isError) && <p role="alert">Evidence choices failed to load. Reload before linking a course or document.</p>}
+          <fieldset className="md:col-span-2"><legend className="font-semibold">Topics evidenced</legend><div className="grid md:grid-cols-3 gap-2 text-sm">{Object.entries(TRAINING_TOPICS).map(([key, label]) => <label key={key}><input type="checkbox" name="topics" value={key} /> {label}</label>)}</div></fieldset>
+          <fieldset className="md:col-span-2"><legend className="font-semibold">Allocate minutes once</legend><p className="text-sm">The total cannot exceed event duration. Additional dementia and special-unit hours are separate.</p><div className="grid md:grid-cols-3 gap-3 mt-2">{Object.entries(TRAINING_ALLOCATIONS).map(([key, label]) => <Field key={key} name={`credit_${key}`} label={label} type="number" value="0" />)}</div></fieldset>
+          <Button disabled={save.isPending}>Save for review</Button>
+        </form></CardContent></Card>}
+        {studentEvents.map(e => <Card key={e.id}><CardContent className="pt-5 space-y-2"><p className="font-semibold">{e.title} · {e.status}</p><p>{e.completed_on} · {e.minutes} minutes · {e.provider} · {e.source_reference}</p><p className="text-sm">{e.topics.join(", ")} · {e.review_note}</p>
+          {canWrite && e.status !== "void" && <form onSubmit={ev => void submit("review", ev)} className="flex flex-wrap gap-3 items-end"><input type="hidden" name="id" value={e.id} /><Options name="status" label="Decision" options={e.status === "pending" ? { verified: "Verified eligible evidence", rejected: "Rejected", void: "Void" } : { void: "Void / correct evidence" }} /><Field name="review_note" label="Review basis, qualifications and evidence checked" /><Button disabled={save.isPending}>Record review</Button></form>}
+        </CardContent></Card>)}
+      </>}</TabsContent>
+      <TabsContent value="plans" className="space-y-4">{chosen && <>
+        {canWrite && <form onSubmit={e => void submit("plan", e)} className="grid md:grid-cols-2 gap-4"><Field name="title" label="Required course / instruction" /><Field name="duties_snapshot" label="Position and duties for this plan" value={profile?.duties} /><Field name="scheduled_at" label="Scheduled ISO time with PA offset" /><Field name="duration_minutes" label="Minutes" type="number" /><Field name="location" label="Location / online meeting" /><Field name="requirement_keys" label="Requirements (comma separated)" /><Button disabled={save.isPending}>Add annual plan entry</Button></form>}
+        {data?.plans.filter(p => p.employee_id === student).map(p => <Card key={p.id}><CardContent className="pt-5"><p className="font-semibold">{p.title}</p><p>{p.duties_snapshot} · {p.scheduled_at} · {p.location}</p><p>Fulfillment: {p.completed_event_id || "Open"}</p>{canWrite && !p.completed_event_id && !p.canceled_at && <form onSubmit={e => void submit("plan_complete", e)} className="flex gap-3 mt-2"><input type="hidden" name="id" value={p.id} /><Options name="event_id" label="Verified fulfillment" options={Object.fromEntries(studentEvents.filter(e => e.status === "verified").map(e => [e.id, `${e.title} (${e.completed_on})`]))} /><Button disabled={save.isPending || !studentEvents.some(e => e.status === "verified")}>Record fulfillment</Button></form>}</CardContent></Card>)}
+      </>}</TabsContent>
+      <TabsContent value="certificates" className="space-y-4"><p>Certificates are issued by the existing course-completion workflow. Training credit still requires an eligibility review.</p>
+        <Button onClick={() => void certificateDownload(true)} disabled={batchBusy || !certs.some(c => selectedCerts.has(c.id))}>{batchBusy ? "Preparing complete archive…" : "Download selected certificates (ZIP)"}</Button>
+        {certificates.isError ? <p role="alert">Certificates could not be loaded. <Button onClick={() => void certificates.refetch()}>Retry</Button></p> : certificates.isLoading ? <p>Loading certificates…</p> : certs.map(c => <div key={c.id} className="flex gap-3 items-center border-b py-3"><label><input type="checkbox" checked={selectedCerts.has(c.id)} onChange={e => setSelectedCerts(old => { const next = new Set(old); if (e.target.checked) next.add(c.id); else next.delete(c.id); return next; })} /> {employeeMap.get(c.employee_id)?.first_name} {employeeMap.get(c.employee_id)?.last_name} · {c.issued_at}</label><Button variant="outline" disabled={preparePdf.isPending} onClick={async () => { try { const result = await preparePdf.mutateAsync(c.id); openDocumentUrl(result.url); } catch (error) { message(error); } }}>Open PDF / print</Button></div>)}
+      </TabsContent>
+      <TabsContent value="reports" className="space-y-4">
+        <div className="flex gap-3 print:hidden"><Input aria-label="Filter report students" placeholder="Filter students" value={search} onChange={e => setSearch(e.target.value)} /><Button onClick={exportReport}>Export CSV and evidence index</Button><Button variant="outline" onClick={() => window.print()}>Print report</Button></div>
+        <h2 className="text-xl font-semibold">{facility?.name} · Training evidence readiness · {today}</h2><p className="text-sm">“Met” means the recorded evidence satisfies this check. Review items, staff authorization, on-site coverage and facility obligations remain separate. Pending, rejected and void evidence earns no credit.</p>
+        {rows.map(({ employee, checks }) => <section key={employee.id} className="break-inside-avoid"><h3 className="font-semibold mt-5">{employee.first_name} {employee.last_name}</h3><table className="w-full text-sm"><thead><tr className="text-left"><th>Requirement</th><th>Status / due</th><th>Evidence or action</th></tr></thead><tbody>{checks.map(c => <tr key={c.key} className="border-t align-top"><td className="p-2">{c.label}<br /><span className="text-muted-foreground">55 Pa. Code {c.citation}</span></td><td className="p-2">{c.status}<br />{c.due}</td><td className="p-2">{c.detail}</td></tr>)}</tbody></table></section>)}
+      </TabsContent>
+      <TabsContent value="settings"><Card><CardHeader><CardTitle>Document the facility training year</CardTitle></CardHeader><CardContent className="space-y-4"><p>Confirm the written facility policy and DHS interpretation before changing periods. Each revision is retained.</p>{policy && <p>Current policy: {policy.policy_reference} · effective {policy.effective_from}</p>}
+        {canWrite && user?.role !== "trainer" && <form onSubmit={e => void submit("policy", e)} className="grid md:grid-cols-2 gap-4"><Field name="effective_from" label="Effective date" type="date" /><Options name="year_basis" label="Staff year" options={{ anniversary: "Employment anniversary", fixed: "Fixed annual date" }} /><Field name="year_start" label="Staff fixed start (MM-DD)" value="01-01" /><Options name="administrator_year_basis" label="Administrator year" options={{ anniversary: "Employment anniversary", fixed: "Fixed annual date" }} /><Field name="administrator_year_start" label="Administrator fixed start (MM-DD)" value="01-01" /><Field name="policy_reference" label="Written policy and basis / approval reference" /><Button disabled={save.isPending}>Save policy revision</Button></form>}
+        <p><a className="underline" href="https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-training" target="_blank" rel="noreferrer">Pennsylvania DHS training requirements and approved pathways</a></p>
+      </CardContent></Card></TabsContent>
+    </Tabs></>}
+    <style>{`@media print { body * { visibility: hidden; } #train-workspace, #train-workspace * { visibility: visible; } #train-workspace { position: absolute; inset: 0; padding: 12mm; } #train-workspace .print\\:hidden { display: none; } }`}</style>
+  </div>;
+}
