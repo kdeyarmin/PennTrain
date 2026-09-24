@@ -10,8 +10,7 @@ create table public.training_facility_policies (
   administrator_year_start text not null default '01-01',
   policy_reference text not null check (length(btrim(policy_reference)) between 5 and 2000),
   created_by uuid not null references public.profiles(id),
-  created_at timestamptz not null default now(),
-  unique(facility_id,effective_from)
+  created_at timestamptz not null default now()
 );
 create table public.training_staff_profiles (
   id uuid primary key default gen_random_uuid(),
@@ -23,6 +22,7 @@ create table public.training_staff_profiles (
   specialty_unit text not null default 'none' check (specialty_unit in ('none','pch_dementia','alr_dementia','alr_inrbi')),
   duties text not null check(length(btrim(duties)) between 3 and 2000),
   first_work_date date not null,
+  applicability jsonb not null default '{}' check(jsonb_typeof(applicability)='object'),
   confirmed_by uuid not null references public.profiles(id),
   confirmed_at timestamptz not null default now()
 );
@@ -154,11 +154,14 @@ begin
       values(v_org,p_facility_id,(p_data->>'effective_from')::date,p_data->>'year_basis',p_data->>'year_start',
         p_data->>'administrator_year_basis',p_data->>'administrator_year_start',p_data->>'policy_reference',auth.uid()) returning id into v_id;
   elsif p_kind='profile' then
-    insert into public.training_staff_profiles(employee_id,organization_id,facility_id,direct_care,administrator,specialty_unit,duties,first_work_date,confirmed_by)
+    if exists(select 1 from jsonb_each(coalesce(p_data->'applicability','{}')) a
+      where a.key not in ('ancillary','annual_common','staff_supervision','mobility_needs','mental_health_population','new_population')
+      or jsonb_typeof(a.value)<>'boolean') then raise exception 'Invalid duty applicability' using errcode='22023'; end if;
+    insert into public.training_staff_profiles(employee_id,organization_id,facility_id,direct_care,administrator,specialty_unit,duties,first_work_date,applicability,confirmed_by)
       values(p_employee_id,v_org,p_facility_id,coalesce((p_data->>'direct_care')::boolean,false),coalesce((p_data->>'administrator')::boolean,false),
-        p_data->>'specialty_unit',p_data->>'duties',(p_data->>'first_work_date')::date,auth.uid())
+        p_data->>'specialty_unit',p_data->>'duties',(p_data->>'first_work_date')::date,coalesce(p_data->'applicability','{}'),auth.uid())
       on conflict(employee_id) do update set facility_id=excluded.facility_id,direct_care=excluded.direct_care,administrator=excluded.administrator,
-        specialty_unit=excluded.specialty_unit,duties=excluded.duties,first_work_date=excluded.first_work_date,confirmed_by=auth.uid(),confirmed_at=now();
+        specialty_unit=excluded.specialty_unit,duties=excluded.duties,first_work_date=excluded.first_work_date,applicability=excluded.applicability,confirmed_by=auth.uid(),confirmed_at=now();
     v_id:=p_employee_id;
   elsif p_kind='shift' then
     v_start:=(p_data->>'starts_at')::timestamptz; v_end:=(p_data->>'ends_at')::timestamptz;
@@ -176,7 +179,7 @@ begin
     if v_total>(p_data->>'minutes')::integer then raise exception 'Allocated minutes cannot exceed the single training event duration' using errcode='22023'; end if;
     for v_topic in select jsonb_array_elements_text(coalesce(p_data->'topics','[]')) loop
       if v_topic not in ('fire','emergency','rights','abuse','incidents','falls','med_self_admin','resident_needs','dementia','infection','personal_care','safe_management','mental_health',
-        'new_population','person_centered','communication','nutrition','job_demonstration','supervised_practice','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial') then
+        'facility_orientation','medical_emergency','adls','hygiene','normal_aging','assessment','recreation','gerontology','staff_supervision','hazard_prevention','universal_precautions','chapter_requirements','mobility','behavioral_management','ancillary_orientation','dhs_initial_orientation','initial_transfer','dementia_behaviors','safe_environment','brain_injury','brain_injury_behaviors','rehabilitation','coaching','new_population','person_centered','communication','nutrition','job_demonstration','supervised_practice','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial') then
         raise exception 'Unknown training topic' using errcode='22023'; end if;
     end loop;
     if nullif(p_data->>'evidence_document_id','') is not null and not exists(select 1 from public.training_documents
@@ -200,21 +203,24 @@ begin
     if p_data->>'status' not in ('verified','rejected','void') or length(btrim(coalesce(p_data->>'review_note','')))<10 then
       raise exception 'Select a review decision and record its basis' using errcode='22023'; end if;
     if v_event.status<>'pending' and p_data->>'status'<>'void' then raise exception 'Reviewed evidence is immutable; void and record a correction' using errcode='22023'; end if;
-    if p_data->>'status'='verified' and (v_event.topics && array['fire','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial']
+    if p_data->>'status'='verified' and (v_event.topics && array['fire','dhs_initial_orientation','initial_transfer','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial']
       or coalesce((v_event.allocations->>'administrator')::integer,0)>0) and length(btrim(v_event.provider_qualification))<10 then
       raise exception 'Verify the qualified instructor or approval reference before crediting this training' using errcode='22023'; end if;
-    if p_data->>'status'='verified' and (v_event.topics && array['dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial']
+    if p_data->>'status'='verified' and (v_event.topics && array['dhs_initial_orientation','initial_transfer','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial']
       or coalesce((v_event.allocations->>'administrator')::integer,0)>0) and v_event.evidence_document_id is null then
       raise exception 'Attach approval, qualification or external certification evidence before verifying this training' using errcode='22023'; end if;
     if p_data->>'status'='verified' and v_event.topics && array['job_demonstration','supervised_practice'] and v_event.delivery not in ('observed_practice','ojt','hybrid') then
       raise exception 'Practical skills require observed practice evidence' using errcode='22023'; end if;
     update public.training_evidence_events set status=p_data->>'status',review_note=p_data->>'review_note',reviewed_by=auth.uid(),reviewed_at=now() where id=v_event.id returning id into v_id;
+    if p_data->>'status'='void' then
+      update public.training_annual_schedule set completed_event_id=null where completed_event_id=v_event.id;
+    end if;
   elsif p_kind='plan' then
     insert into public.training_annual_schedule(organization_id,facility_id,employee_id,title,duties_snapshot,scheduled_at,duration_minutes,location,requirement_keys,created_by)
       values(v_org,p_facility_id,p_employee_id,p_data->>'title',p_data->>'duties_snapshot',(p_data->>'scheduled_at')::timestamptz,
         (p_data->>'duration_minutes')::integer,p_data->>'location',array(select jsonb_array_elements_text(coalesce(p_data->'requirement_keys','[]'))),auth.uid()) returning id into v_id;
   elsif p_kind='plan_complete' then
-    if not exists(select 1 from public.training_evidence_events where id=(p_data->>'event_id')::uuid and employee_id=p_employee_id and status='verified') then
+    if not exists(select 1 from public.training_evidence_events where id=(p_data->>'event_id')::uuid and employee_id=p_employee_id and facility_id=p_facility_id and status='verified') then
       raise exception 'Verified evidence for this student is required' using errcode='22023'; end if;
     update public.training_annual_schedule set completed_event_id=(p_data->>'event_id')::uuid
       where id=(p_data->>'id')::uuid and employee_id=p_employee_id and facility_id=p_facility_id and completed_event_id is null and canceled_at is null returning id into v_id;
@@ -239,7 +245,7 @@ begin
     raise exception 'Training workspace access required' using errcode='42501'; end if;
   if not exists(select 1 from public.facilities where id=p_facility_id) then raise exception 'Facility is outside your access' using errcode='42501'; end if;
   return jsonb_build_object(
-    'policies',coalesce((select jsonb_agg(to_jsonb(t) order by effective_from desc) from public.training_facility_policies t where facility_id=p_facility_id),'[]'),
+    'policies',coalesce((select jsonb_agg(to_jsonb(t) order by effective_from desc,created_at desc) from public.training_facility_policies t where facility_id=p_facility_id),'[]'),
     'profiles',coalesce((select jsonb_agg(to_jsonb(t)) from (select * from public.training_staff_profiles where facility_id=p_facility_id and (p_employee_id is null or employee_id=p_employee_id) order by employee_id limit v_limit offset v_offset)t),'[]'),
     'events',coalesce((select jsonb_agg(to_jsonb(t)) from (select * from public.training_evidence_events where facility_id=p_facility_id and (p_employee_id is null or employee_id=p_employee_id) order by id limit v_limit offset v_offset)t),'[]'),
     'shifts',coalesce((select jsonb_agg(to_jsonb(t)) from (select * from public.training_work_shifts where facility_id=p_facility_id and (p_employee_id is null or employee_id=p_employee_id) order by id limit v_limit offset v_offset)t),'[]'),

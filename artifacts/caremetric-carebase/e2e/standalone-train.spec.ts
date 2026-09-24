@@ -10,7 +10,7 @@ test.describe("standalone Train", () => {
     expect(new URL(url).hostname).toMatch(/^(localhost|127\.0\.0\.1)$/);
     const service = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
     const suffix = crypto.randomUUID();
-    const { data: org, error: orgError } = await service.from("organizations").insert({ name: `Train ${suffix}`, slug: `train-${suffix}`, is_demo: true }).select("id").single();
+    const { data: org, error: orgError } = await service.from("organizations").insert({ name: `Train ${suffix}`, slug: `train-${suffix}`, is_demo: true, demo_seed_version: 1 }).select("id").single();
     if (orgError) throw orgError;
     const configured = await service.rpc("configure_train_signup", { p_organization_id: org.id, p_complimentary: true });
     if (configured.error) throw configured.error;
@@ -21,7 +21,7 @@ test.describe("standalone Train", () => {
     if (authError) throw authError;
     const role = await service.rpc("admin_update_profile", { p_user_id: auth.user!.id, p_role: "org_admin", p_is_active: true, p_organization_id: org.id });
     if (role.error) throw role.error;
-    const { data: student, error: studentError } = await service.from("employees").insert({ organization_id: org.id, facility_id: facility.id, first_name: "Taylor", last_name: "Learner", job_title: "Direct care", status: "active" }).select("id").single();
+    const { data: student, error: studentError } = await service.from("employees").insert({ organization_id: org.id, facility_id: facility.id, first_name: "Taylor", last_name: "Learner", job_title: "Direct care", hire_date: "2026-01-01", status: "active" }).select("id").single();
     if (studentError) throw studentError;
 
     await signInAs(page, email, password, "/app/train");

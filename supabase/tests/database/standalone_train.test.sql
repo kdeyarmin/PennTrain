@@ -1,5 +1,5 @@
 begin;
-select plan(28);
+select plan(35);
 insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
 select 'dd240000-0000-4000-8000-000000000001','Standalone Train test','standalone-train-test','trial',now()-interval '1 day',id
 from public.packages where name='CareMetric Train';
@@ -37,6 +37,13 @@ select throws_ok($$ select public.save_training_workspace_item('event','dd240000
 select lives_ok($$ select public.save_training_workspace_item('event','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"title":"Course","completed_on":"2026-01-02","minutes":60,"delivery":"online","provider":"Provider","source_reference":"ref1","topics":["supervised_practice"],"allocations":{"base":60}}') $$,'valid event is recorded pending review');
 select is((select status from public.training_evidence_events where source_reference='ref1'),'pending','completion input cannot self-award verified credit');
 select throws_ok($$ select public.save_training_workspace_item('review','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_evidence_events where source_reference='ref1'),'status','verified','review_note','Checked supporting evidence')) $$,'22023',null,'online completion cannot replace observed practice');
+select throws_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"applicability":{"annual_common":"yes"}}') $$,'22023',null,'audience applicability requires explicit boolean decisions');
+select lives_ok($$ select public.save_training_workspace_item('event','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"title":"Rights instruction","completed_on":"2026-01-02","minutes":60,"delivery":"classroom","provider":"Provider","source_reference":"ref2","topics":["rights"],"allocations":{"base":60}}') $$,'ordinary evidence can be recorded');
+select lives_ok($$ select public.save_training_workspace_item('review','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_evidence_events where source_reference='ref2'),'status','verified','review_note','Checked attendance and content')) $$,'reviewer can verify supported ordinary evidence');
+select lives_ok($$ select public.save_training_workspace_item('plan','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"title":"Rights instruction","duties_snapshot":"Personal care","scheduled_at":"2026-01-02T10:00:00-05:00","duration_minutes":60,"location":"Training room","requirement_keys":["annual_common"]}') $$,'annual plan retains staff duties and scheduled delivery');
+select lives_ok($$ select public.save_training_workspace_item('plan_complete','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_annual_schedule where title='Rights instruction'),'event_id',(select id from public.training_evidence_events where source_reference='ref2'))) $$,'verified student evidence fulfills a plan');
+select lives_ok($$ select public.save_training_workspace_item('review','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_evidence_events where source_reference='ref2'),'status','void','review_note','Incorrect completion date; replacing evidence')) $$,'incorrect verified evidence can be voided with an audit basis');
+select is((select completed_event_id from public.training_annual_schedule where title='Rights instruction'),null::uuid,'voiding evidence reopens the linked plan rather than leaving false fulfillment');
 select throws_ok($$ select public.manage_module_access_term('dd240000-0000-4000-8000-000000000001','modules.carebase','complimentary','Attempt self upgrade') $$,'42501',null,'tenant administrator cannot grant commercial modules');
 reset role;
 select set_config('request.jwt.claims','{}',true);

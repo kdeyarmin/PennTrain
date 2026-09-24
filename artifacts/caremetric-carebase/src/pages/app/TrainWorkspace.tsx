@@ -61,7 +61,7 @@ export default function TrainWorkspace() {
   const profile = data?.profiles.find(p => p.employee_id === student);
   const rows = roster.filter(e => `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase())).map(employee => ({ employee,
     checks: assessTraining({ profile: data?.profiles.find(p => p.employee_id === employee.id), policy, events: data?.events || [], shifts: data?.shifts || [],
-      facilityType: facility?.facility_type || "", today, medications: employee.administers_medications, insulin: employee.administers_insulin }),
+      facilityType: facility?.facility_type || "", today, hireDate: employee.hire_date, medications: employee.administers_medications, insulin: employee.administers_insulin }),
   }));
   const employeeMap = new Map(roster.map(e => [e.id, e]));
   const certs = (certificates.data || []).filter(c => employeeMap.has(c.employee_id) && (!student || c.employee_id === student));
@@ -70,7 +70,10 @@ export default function TrainWorkspace() {
   async function submit(kind: string, event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget, fields = new FormData(form);
     const payload: Record<string, Json> = Object.fromEntries(Array.from(fields.entries()).map(([k, v]) => [k, String(v)]));
-    if (kind === "profile") { payload.direct_care = fields.has("direct_care"); payload.administrator = fields.has("administrator"); }
+    if (kind === "profile") { payload.direct_care = fields.has("direct_care"); payload.administrator = fields.has("administrator");
+      payload.applicability = Object.fromEntries(Array.from(fields.entries()).filter(([k, v]) => k.startsWith("applies_") && v !== "").map(([k, v]) => [k.slice(8), v === "true"]));
+      for (const key of Object.keys(payload)) if (key.startsWith("applies_")) delete payload[key];
+    }
     if (kind === "event") {
       payload.topics = fields.getAll("topics").map(String);
       payload.allocations = Object.fromEntries(Object.keys(TRAINING_ALLOCATIONS).map(k => [k, Number(fields.get(`credit_${k}`) || 0)]));
@@ -149,6 +152,8 @@ export default function TrainWorkspace() {
           <label><input type="checkbox" name="direct_care" defaultChecked={profile?.direct_care} /> Direct care staff</label><label><input type="checkbox" name="administrator" defaultChecked={profile?.administrator} /> Administrator</label>
           <Options name="specialty_unit" label="Specialty unit" value={profile?.specialty_unit} options={{ none: "None", pch_dementia: "PCH secured dementia unit", alr_dementia: "ALR dementia special care", alr_inrbi: "ALR INRBI special care" }} />
           <Field name="duties" label="Position and actual duties" value={profile?.duties || chosen.job_title || ""} /><Field name="first_work_date" label="First work date at this facility" type="date" value={profile?.first_work_date || chosen.hire_date || ""} />
+          <p className="text-sm">Recorded hire date: {chosen.hire_date || "Missing — edit the employee record"}. Hire dates determine ALR 30-day deadlines and employment anniversary years.</p>
+          <fieldset className="grid gap-3"><legend className="font-semibold">Confirm applicability; explain the basis in duties above</legend>{Object.entries({ ancillary: "Performs ancillary duties", annual_common: "Common annual topics apply (staff, substitutes, regular volunteers)", staff_supervision: "Supervises staff", mobility_needs: "Serves residents with mobility needs", mental_health_population: "Serves residents with mental illness or intellectual disability", new_population: "New population group served this training year" }).map(([key, label]) => <Options key={key} name={`applies_${key}`} label={label} options={{ "": "Needs review", true: "Yes", false: "No — basis documented in duties" }} value={profile?.applicability?.[key as keyof NonNullable<typeof profile.applicability>]?.toString() || ""} />)}</fieldset>
           <Button disabled={save.isPending}>Confirm duties and audience</Button>
         </form> : <p>{profile?.duties || "Profile awaits confirmation."}</p>}
         <h3 className="font-semibold mt-6">Actual scheduled shifts for the first 40 hours</h3>

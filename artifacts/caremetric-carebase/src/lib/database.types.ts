@@ -34047,6 +34047,7 @@ export type Database = {
       training_staff_profiles: {
         Row: {
           administrator: boolean
+          applicability: Json
           confirmed_at: string
           confirmed_by: string
           direct_care: boolean
@@ -34060,6 +34061,7 @@ export type Database = {
         }
         Insert: {
           administrator?: boolean
+          applicability?: Json
           confirmed_at?: string
           confirmed_by: string
           direct_care?: boolean
@@ -34073,6 +34075,7 @@ export type Database = {
         }
         Update: {
           administrator?: boolean
+          applicability?: Json
           confirmed_at?: string
           confirmed_by?: string
           direct_care?: boolean
