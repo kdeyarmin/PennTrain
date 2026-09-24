@@ -164,12 +164,29 @@ begin
       on conflict(employee_id) do update set facility_id=excluded.facility_id,direct_care=excluded.direct_care,administrator=excluded.administrator,
         specialty_unit=excluded.specialty_unit,duties=excluded.duties,first_work_date=excluded.first_work_date,hire_date=excluded.hire_date,applicability=excluded.applicability,confirmed_by=auth.uid(),confirmed_at=now();
     v_id:=p_employee_id;
+  elsif p_kind='lifecycle' then
+    if v_role not in ('platform_admin','org_admin','facility_manager') or p_data->>'transition' not in ('leave','return','transfer','terminate','rehire','suspend_access','restore_access') then
+      raise exception 'A training administrator and supported staff status change are required' using errcode='42501'; end if;
+    -- Shared identity/learning lifecycle, retaining its original facility permissions,
+    -- assurance check, session revocation, disposition rules and audit history.
+    v_id:=public.apply_employee_lifecycle_transition(p_employee_id,p_data->>'transition',(p_data->>'effective_on')::date,
+      coalesce(nullif(p_data->>'target_facility_id','')::uuid,p_facility_id),p_data->>'reason');
+    if p_data->>'transition' in ('rehire','transfer') then
+      delete from public.training_staff_profiles where employee_id=p_employee_id;
+    end if;
   elsif p_kind='shift' then
     v_start:=(p_data->>'starts_at')::timestamptz; v_end:=(p_data->>'ends_at')::timestamptz;
-    if exists(select 1 from public.training_work_shifts where employee_id=p_employee_id and starts_at<v_end and ends_at>v_start) then
+    v_id:=nullif(p_data->>'id','')::uuid;
+    if v_id is not null and not exists(select 1 from public.training_work_shifts where id=v_id and employee_id=p_employee_id and facility_id=p_facility_id) then
+      raise exception 'Shift is outside this student and facility' using errcode='42501'; end if;
+    if exists(select 1 from public.training_work_shifts where employee_id=p_employee_id and (v_id is null or id<>v_id) and starts_at<v_end and ends_at>v_start) then
       raise exception 'Scheduled shifts must not overlap' using errcode='22023'; end if;
-    insert into public.training_work_shifts(organization_id,facility_id,employee_id,starts_at,ends_at,source_reference,recorded_by)
-      values(v_org,p_facility_id,p_employee_id,v_start,v_end,p_data->>'source_reference',auth.uid()) returning id into v_id;
+    if v_id is null then
+      insert into public.training_work_shifts(organization_id,facility_id,employee_id,starts_at,ends_at,source_reference,recorded_by)
+        values(v_org,p_facility_id,p_employee_id,v_start,v_end,p_data->>'source_reference',auth.uid()) returning id into v_id;
+    else
+      update public.training_work_shifts set starts_at=v_start,ends_at=v_end,source_reference=p_data->>'source_reference',recorded_by=auth.uid() where id=v_id;
+    end if;
   elsif p_kind='event' then
     if (p_data->>'completed_on')::date>(now() at time zone 'America/New_York')::date
       or nullif(p_data->>'completed_at','')::timestamptz>now() then
@@ -220,6 +237,10 @@ begin
     insert into public.training_annual_schedule(organization_id,facility_id,employee_id,title,duties_snapshot,scheduled_at,duration_minutes,location,requirement_keys,created_by)
       values(v_org,p_facility_id,p_employee_id,p_data->>'title',p_data->>'duties_snapshot',(p_data->>'scheduled_at')::timestamptz,
         (p_data->>'duration_minutes')::integer,p_data->>'location',array(select jsonb_array_elements_text(coalesce(p_data->'requirement_keys','[]'))),auth.uid()) returning id into v_id;
+  elsif p_kind='plan_cancel' then
+    update public.training_annual_schedule set canceled_at=now()
+      where id=(p_data->>'id')::uuid and employee_id=p_employee_id and facility_id=p_facility_id and completed_event_id is null and canceled_at is null returning id into v_id;
+    if v_id is null then raise exception 'Open plan entry not found' using errcode='22023'; end if;
   elsif p_kind='plan_complete' then
     if not exists(select 1 from public.training_evidence_events where id=(p_data->>'event_id')::uuid and employee_id=p_employee_id and facility_id=p_facility_id and status='verified') then
       raise exception 'Verified evidence for this student is required' using errcode='22023'; end if;

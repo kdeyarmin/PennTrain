@@ -1,5 +1,5 @@
 begin;
-select plan(35);
+select plan(45);
 insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
 select 'dd240000-0000-4000-8000-000000000001','Standalone Train test','standalone-train-test','trial',now()-interval '1 day',id
 from public.packages where name='CareMetric Train';
@@ -44,6 +44,16 @@ select lives_ok($$ select public.save_training_workspace_item('plan','dd240000-0
 select lives_ok($$ select public.save_training_workspace_item('plan_complete','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_annual_schedule where title='Rights instruction'),'event_id',(select id from public.training_evidence_events where source_reference='ref2'))) $$,'verified student evidence fulfills a plan');
 select lives_ok($$ select public.save_training_workspace_item('review','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_evidence_events where source_reference='ref2'),'status','void','review_note','Incorrect completion date; replacing evidence')) $$,'incorrect verified evidence can be voided with an audit basis');
 select is((select completed_event_id from public.training_annual_schedule where title='Rights instruction'),null::uuid,'voiding evidence reopens the linked plan rather than leaving false fulfillment');
+select lives_ok($$ select public.save_training_workspace_item('lifecycle','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('transition','leave','effective_on',current_date,'reason','Approved staff leave for training lifecycle test')) $$,'Train administrator can manage shared staff leave without a Workforce license');
+select is((select status from public.employees where id='dd240000-0000-4000-8000-000000000021'),'on_leave','staff leave changes the shared employee state');
+select lives_ok($$ select public.save_training_workspace_item('lifecycle','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('transition','return','effective_on',current_date,'reason','Approved return from staff leave')) $$,'Train administrator can restore active staff after leave');
+select is((select status from public.employees where id='dd240000-0000-4000-8000-000000000021'),'active','return restores the shared employee state');
+select lives_ok($$ select public.save_training_workspace_item('shift','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"starts_at":"2026-01-01T08:00:00-05:00","ends_at":"2026-01-01T16:00:00-05:00","source_reference":"Verified initial schedule"}') $$,'initial scheduled shift can be recorded');
+select lives_ok($$ select public.save_training_workspace_item('shift','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_work_shifts where employee_id='dd240000-0000-4000-8000-000000000021'),'starts_at','2026-01-01T08:00:00-05:00','ends_at','2026-01-01T18:00:00-05:00','source_reference','Corrected against original ten-hour schedule')) $$,'shift correction preserves its identity and audit history');
+select is((select extract(epoch from ends_at-starts_at)::integer from public.training_work_shifts where employee_id='dd240000-0000-4000-8000-000000000021'),36000,'corrected duration is used for the scheduled-hour deadline');
+select throws_ok($$ select public.save_training_workspace_item('shift','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"starts_at":"2026-01-01T16:00:00-05:00","ends_at":"2026-01-01T20:00:00-05:00","source_reference":"Overlapping schedule"}') $$,'22023',null,'overlapping shift hours cannot be double counted');
+select lives_ok($$ select public.save_training_workspace_item('plan_cancel','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_annual_schedule where title='Rights instruction'))) $$,'an unfulfilled plan can be canceled rather than deleted');
+select ok((select canceled_at is not null from public.training_annual_schedule where title='Rights instruction'),'canceled annual plan remains in its history');
 select throws_ok($$ select public.manage_module_access_term('dd240000-0000-4000-8000-000000000001','modules.carebase','complimentary','Attempt self upgrade') $$,'42501',null,'tenant administrator cannot grant commercial modules');
 reset role;
 select set_config('request.jwt.claims','{}',true);

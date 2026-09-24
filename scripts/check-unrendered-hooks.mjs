@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Unrendered-hook check.
 //
@@ -24,17 +25,17 @@ import path from "node:path";
 // only caller of `get_workforce_readiness_forecast` and `route_workforce_readiness_remediation`,
 // and nothing imports the panel. Both gates passed -- the RPCs had hooks, the hooks had a .tsx --
 // and the capability was three layers deep in nothing. So reachability is now computed from the
-// import graph, seeded at `main.tsx` and following static imports and `lazy(() => import(...))`
+// import graph, seeded at the CareBase and Train HTML entries and following static imports and `lazy(() => import(...))`
 // alike. A file nobody imports is reported in its own right, because that is the same defect one
 // layer out.
 //
 // Legitimately-unrendered hooks belong in unrendered-hook-allowlist.json with a reason. "It will
 // have a screen soon" is not a reason; land the screen, or delete the hook.
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CLIENT_SRC = path.join(ROOT, "artifacts", "caremetric-carebase", "src");
 const ALLOWLIST = path.join(ROOT, "scripts", "unrendered-hook-allowlist.json");
-const ENTRY = path.join(CLIENT_SRC, "main.tsx");
+const ENTRIES = ["main.tsx", "train-main.tsx"].map(name => path.join(CLIENT_SRC, name));
 
 // Both declaration forms. The `const` half was missing from the first version, which meant the 20
 // hooks built by `useDietaryOperations`/`useResidentFinancialOperations`'s `rpcMutation` factory
@@ -242,6 +243,11 @@ function resolveSpecifier(fromFile, specifier, table = sources) {
 // Modules the application entry can actually reach. Anything outside this set is dead weight no
 // user can arrive at, however complete it looks.
 const reachableModules = new Set();
+// Both are real HTML entry points, built and exercised separately in CI. This is not an
+// orphan allowlist: a removed HTML script or missing source fails the reachability check.
+for (const [index, ENTRY] of ENTRIES.entries()) {
+const entryHtml = await readFile(path.join(CLIENT_SRC, "..", index === 0 ? "index.html" : "train.html"), "utf8");
+if (!entryHtml.includes(`/src/${path.basename(ENTRY)}`)) throw new Error(`HTML does not load declared entry ${ENTRY}`);
 if (sources.has(ENTRY)) {
   const queue = [ENTRY];
   reachableModules.add(ENTRY);
@@ -257,6 +263,7 @@ if (sources.has(ENTRY)) {
   }
 } else {
   throw new Error(`Unrendered-hook check cannot start: entry point ${path.relative(ROOT, ENTRY)} not found.`);
+}
 }
 
 // A hook is reachable if a .tsx renders it, or the body of a reachable hook calls it. Iterate to a
@@ -302,13 +309,13 @@ try {
 // dead hook is rendered or deleted.
 //
 // This asks a deliberately different question from hook reachability, and so it is seeded
-// differently. Hooks are seeded at `main.tsx` alone, because "a user can reach it" is the whole
-// point. Modules are seeded at `main.tsx` PLUS every test file and the build config, because a pure
+// differently. Hooks are seeded at the CareBase and Train HTML entries alone, because "a user can reach it" is the whole
+// point. Modules are seeded at the CareBase and Train HTML entries PLUS every test file and the build config, because a pure
 // helper exercised only by its own unit test is tested, not dead -- `lib/bulkActions.ts` is exactly
 // that. Merging the two seeds would reopen the hole this check exists to close: a component that
 // only a test imports still has no way in for a user.
 const consumerSeeds = [
-  ENTRY,
+  ...ENTRIES,
   ...(await walk(CLIENT_SRC, { includeTests: true })).filter((f) => /\.test\.(ts|tsx)$/.test(f)),
 ];
 const consumedModules = new Set();

@@ -34,6 +34,13 @@ export function useSaveTrainingWorkspace() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: ["training-workspace"] }),
+    onSuccess: (_data, input) => {
+      void client.invalidateQueries({ queryKey: ["training-workspace"] });
+      if (input.kind === "lifecycle") {
+        void client.invalidateQueries({ queryKey: ["employees"] });
+        void client.invalidateQueries({ queryKey: ["course_assignments"] });
+        void client.invalidateQueries({ queryKey: ["profiles"] });
+      }
+    },
   });
 }
