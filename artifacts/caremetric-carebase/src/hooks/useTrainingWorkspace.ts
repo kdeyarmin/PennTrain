@@ -18,6 +18,7 @@ export function useTrainingWorkspace(facilityId: string) {
         result.shifts.push(...page.shifts); result.plans.push(...page.plans);
         if ([page.profiles, page.events, page.shifts, page.plans].every(rows => rows.length < 500)) break;
       }
+      result.events.sort((a, b) => a.completed_on.localeCompare(b.completed_on) || a.id.localeCompare(b.id));
       return result;
     },
   });

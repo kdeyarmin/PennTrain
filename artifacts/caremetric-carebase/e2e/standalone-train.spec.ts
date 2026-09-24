@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { unzipSync, strFromU8 } from "fflate";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import { hasLiveSupabaseEnv, signInAs } from "./helpers/auth";
@@ -52,6 +54,12 @@ test.describe("standalone Train", () => {
     const downloaded = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export CSV and evidence index" }).click();
     expect((await downloaded).suggestedFilename()).toMatch(/^training-evidence-.*\.csv$/);
+    const packetDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download inspection packet (ZIP)" }).click();
+    const packet = await packetDownload;
+    const entries = unzipSync(await readFile((await packet.path())!));
+    expect(strFromU8(entries["training-report.csv"])).toContain("Taylor Learner");
+    expect(JSON.parse(strFromU8(entries["evidence-index.json"])).evidence[0].status).toBe("verified");
     await page.screenshot({ path: "test-results/standalone-train-report.png", fullPage: true });
     await page.goto("/app/residents");
     await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");

@@ -34055,6 +34055,7 @@ export type Database = {
           employee_id: string
           facility_id: string
           first_work_date: string
+          hire_date: string | null
           id: string
           organization_id: string
           specialty_unit: string
@@ -34069,6 +34070,7 @@ export type Database = {
           employee_id: string
           facility_id: string
           first_work_date: string
+          hire_date?: string | null
           id?: string
           organization_id: string
           specialty_unit?: string
@@ -34083,6 +34085,7 @@ export type Database = {
           employee_id?: string
           facility_id?: string
           first_work_date?: string
+          hire_date?: string | null
           id?: string
           organization_id?: string
           specialty_unit?: string

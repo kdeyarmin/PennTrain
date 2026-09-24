@@ -22,6 +22,7 @@ create table public.training_staff_profiles (
   specialty_unit text not null default 'none' check (specialty_unit in ('none','pch_dementia','alr_dementia','alr_inrbi')),
   duties text not null check(length(btrim(duties)) between 3 and 2000),
   first_work_date date not null,
+  hire_date date,
   applicability jsonb not null default '{}' check(jsonb_typeof(applicability)='object'),
   confirmed_by uuid not null references public.profiles(id),
   confirmed_at timestamptz not null default now()
@@ -157,11 +158,11 @@ begin
     if exists(select 1 from jsonb_each(coalesce(p_data->'applicability','{}')) a
       where a.key not in ('ancillary','annual_common','staff_supervision','mobility_needs','mental_health_population','new_population')
       or jsonb_typeof(a.value)<>'boolean') then raise exception 'Invalid duty applicability' using errcode='22023'; end if;
-    insert into public.training_staff_profiles(employee_id,organization_id,facility_id,direct_care,administrator,specialty_unit,duties,first_work_date,applicability,confirmed_by)
+    insert into public.training_staff_profiles(employee_id,organization_id,facility_id,direct_care,administrator,specialty_unit,duties,first_work_date,hire_date,applicability,confirmed_by)
       values(p_employee_id,v_org,p_facility_id,coalesce((p_data->>'direct_care')::boolean,false),coalesce((p_data->>'administrator')::boolean,false),
-        p_data->>'specialty_unit',p_data->>'duties',(p_data->>'first_work_date')::date,coalesce(p_data->'applicability','{}'),auth.uid())
+        p_data->>'specialty_unit',p_data->>'duties',(p_data->>'first_work_date')::date,nullif(p_data->>'hire_date','')::date,coalesce(p_data->'applicability','{}'),auth.uid())
       on conflict(employee_id) do update set facility_id=excluded.facility_id,direct_care=excluded.direct_care,administrator=excluded.administrator,
-        specialty_unit=excluded.specialty_unit,duties=excluded.duties,first_work_date=excluded.first_work_date,applicability=excluded.applicability,confirmed_by=auth.uid(),confirmed_at=now();
+        specialty_unit=excluded.specialty_unit,duties=excluded.duties,first_work_date=excluded.first_work_date,hire_date=excluded.hire_date,applicability=excluded.applicability,confirmed_by=auth.uid(),confirmed_at=now();
     v_id:=p_employee_id;
   elsif p_kind='shift' then
     v_start:=(p_data->>'starts_at')::timestamptz; v_end:=(p_data->>'ends_at')::timestamptz;

@@ -6,7 +6,7 @@ export type TrainingPolicy = {
 export type TrainingProfile = {
   employee_id: string; direct_care: boolean; administrator: boolean;
   specialty_unit: "none" | "pch_dementia" | "alr_dementia" | "alr_inrbi";
-  duties: string; first_work_date: string;
+  duties: string; first_work_date: string; hire_date?: string | null;
   applicability?: Partial<Record<"ancillary" | "annual_common" | "staff_supervision" | "mobility_needs" | "mental_health_population" | "new_population", boolean>>;
 };
 export type TrainingEvent = {
@@ -88,7 +88,8 @@ export type TrainingCheck = { key: string; label: string; citation: string; stat
   detail: string; due: string | null };
 export function assessTraining(input: { profile?: TrainingProfile; policy?: TrainingPolicy; events: TrainingEvent[];
   shifts: TrainingShift[]; facilityType: string; today: string; hireDate?: string | null; medications?: boolean; insulin?: boolean }): TrainingCheck[] {
-  const { profile: p, policy, today, hireDate } = input;
+  const { profile: p, policy, today } = input;
+  const hireDate = p?.hire_date || input.hireDate;
   const checks: TrainingCheck[] = [];
   const add = (key: string, label: string, citation: string, met: boolean | null, detail: string, due: string | null = null) =>
     checks.push({ key, label, citation, status: met === null ? "review" : met ? "met" : "missing", detail, due });
@@ -185,8 +186,8 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     if (needed) {
       const valid = events.some(e => {
         if (!e.topics.includes(topic) || !e.valid_until || e.valid_until < today) return false;
-        const date = utcDay(e.completed_on); date.setUTCMonth(date.getUTCMonth() + months);
-        return today < dayString(date);
+        const anniversary = inYear(Number(e.completed_on.slice(0, 4)) + months / 12, e.completed_on.slice(5));
+        return today < anniversary;
       });
       add(topic, label, `${chapter}.190`, valid, "Approved program, qualified trainer, applicable performance evidence and current validity required. Verify any licensed-professional exception separately.");
     }
