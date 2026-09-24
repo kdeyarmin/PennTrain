@@ -76,8 +76,11 @@ test.describe("standalone Train", () => {
     await page.goto("/app/residents");
     await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");
 
-    await page.goto("/report-safety");
-    await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");
+    // The public safety route belongs to the universal app; only Train's build excludes it.
+    if (process.env.PLAYWRIGHT_TRAIN_BUILD === "true") {
+      await page.goto("/report-safety");
+      await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");
+    }
 
     const member = createClient(url, process.env.VITE_SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
     const signedIn = await member.auth.signInWithPassword({ email, password });
