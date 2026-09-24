@@ -1,7 +1,7 @@
 # CareMetric CareBase — Living Backlog
 
 **Status:** Canonical forward backlog
-**Last verified against main:** `8241d486550d505b7ff410d790d300b66efe1380` (2026-09-24). Standalone Train PR #556 review corrections verified on this branch, retaining the shared (877) 521-2890 Help Center phone independently of the central Hub feature flag. DHS approval, instructor/curriculum verification, paid add-on pricing and pilot acceptance remain release gates. Prior production verification below is historical and does not cover this branch.
+**Last verified against main:** `ab4364acbef70ead86258a86259837e3ab8f26c3` (2026-09-24). Standalone Train PR #556 review corrections verified on this branch, retaining the shared (877) 521-2890 Help Center phone independently of the central Hub feature flag. DHS approval, instructor/curriculum verification, paid add-on pricing and pilot acceptance remain release gates. Prior production verification below is historical and does not cover this branch.
 
 Prior release verification: PR #553 merged after complete CI 34931145451 passed 5,843 database assertions, 70 browser journeys, actual Storage race/deletion tests, 2,314 application tests and 647 typed/runtime edge tests. Main CI 34931867194 and automatic Supabase deployment 34932460386 succeeded for that exact commit; Railway deployment 867ace20-c7e9-411e-bd00-1f51668cf0f5 is healthy. Read-only production checks verified both migration versions, 13 exact function-body hashes, enabled protection triggers/policies and public health. Follow-on FHIR conflicting-content detection and review-queue corrections are recorded in P13/P14. Billing/SMS credentials, actual privileged MFA/delivery and timed database plus Storage recovery remain open operational gates.
 
