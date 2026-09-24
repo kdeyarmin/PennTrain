@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
-import { writeFileSync } from "fs";
+import { writeFileSync, readFileSync } from "fs";
 import { proxyLearningPackage } from "./server/learning-package-proxy.mjs";
 import { createProviderBuildManifest } from "./server/provider-runtime-config.mjs";
 
@@ -58,6 +58,8 @@ const basePath = process.env.BASE_PATH ?? "/";
 const CENTRAL_SUPPORT_HUB_ORIGIN = "https://support-hub-web-production.up.railway.app";
 
 export default defineConfig(({ command, mode }) => {
+  const trainBuild = mode === "train";
+  const buildDirectory = trainBuild ? "dist-train" : "dist";
   const providerManifest = createProviderBuildManifest(loadEnv(mode, import.meta.dirname, "VITE_"));
   if (providerManifest.runtime === "railway" && !/^\/(?:[A-Za-z0-9_-]+\/)*$/.test(basePath)) {
     throw new Error("Railway provider BASE_PATH must be / or a root-relative path of plain segments ending in /.");
@@ -192,13 +194,18 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     base: basePath,
+    ...(trainBuild ? { define: { "import.meta.env.VITE_APP_PRODUCT": JSON.stringify("train"), "import.meta.env.VITE_CAREMETRIC_MODULES": JSON.stringify("train") } } : {}),
     plugins: [
+      ...(trainBuild ? [{
+        name: "standalone-train-entry",
+        transformIndexHtml: { order: "pre" as const, handler: () => readFileSync(path.resolve(import.meta.dirname, "train.html"), "utf8") },
+      }] : []),
       {
         name: "provider-runtime-manifest",
         apply: "build",
         writeBundle() {
           // Server-only build metadata lives outside the publicly served directory.
-          writeFileSync(path.resolve(import.meta.dirname, "dist/provider-runtime.json"), JSON.stringify(providerManifest));
+          writeFileSync(path.resolve(import.meta.dirname, `${buildDirectory}/provider-runtime.json`), JSON.stringify(providerManifest));
         },
       },
       packageDeliveryPlugin,
@@ -221,13 +228,13 @@ export default defineConfig(({ command, mode }) => {
         registerType: "autoUpdate",
         includeAssets: ["logo-mark.svg"],
         manifest: {
-          name: "CareMetric CareBase",
+          name: trainBuild ? "CareMetric Train" : "CareMetric CareBase",
           short_name: "CareMetric",
-          description: "Operations, workforce compliance, and survey readiness for personal care homes and assisted living facilities.",
+          description: trainBuild ? "Facility staff training, certificates and evidence reports." : "Operations, workforce compliance, and survey readiness for personal care homes and assisted living facilities.",
           theme_color: "#102a43",
           background_color: "#102a43",
           display: "standalone",
-          start_url: `${basePath}me`,
+          start_url: trainBuild ? basePath : `${basePath}me`,
           icons: [
             { src: "logo-mark.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
             { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },
@@ -298,7 +305,7 @@ export default defineConfig(({ command, mode }) => {
     },
     root: path.resolve(import.meta.dirname),
     build: {
-      outDir: path.resolve(import.meta.dirname, "dist/public"),
+      outDir: path.resolve(import.meta.dirname, `${buildDirectory}/public`),
       emptyOutDir: true,
       // Terser over the default esbuild minifier: measured ~11 KiB smaller across all
       // chunks and ~4 KiB off the entry chunk (the tightest scripts/check-bundle-budget.mjs
@@ -313,6 +320,10 @@ export default defineConfig(({ command, mode }) => {
       },
       rollupOptions: {
         output: {
+          // pdf-lib's lazy entry is also named "index". Give it a distinct name so the
+          // initial-shell budget does not count a download-only library as startup code.
+          chunkFileNames: (chunk) => chunk.facadeModuleId?.replaceAll("\\", "/").includes("/pdf-lib/")
+            ? "assets/certificate-pdf-[hash].js" : "assets/[name]-[hash].js",
           manualChunks: {
             router: ["wouter"],
             // lucide-react is deliberately NOT listed: forcing it

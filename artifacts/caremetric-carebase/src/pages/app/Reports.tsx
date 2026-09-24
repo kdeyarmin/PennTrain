@@ -134,7 +134,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Track initial and recertification training for all medication-administering staff.",
     icon: FileText,
     category: "Training",
-    requiredBy: "55 Pa. Code §2600.77",
+    requiredBy: "55 Pa. Code §§2600.190 and 2800.190",
   },
   {
     id: "diabetes-education-compliance",
@@ -152,7 +152,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Cross-reference matrix showing each employee's status across all required training types.",
     icon: Grid3X3,
     category: "Training",
-    requiredBy: "55 Pa. Code §2600.77",
+    requiredBy: "55 Pa. Code §§2600.65 and 2800.65",
   },
   {
     id: "practicum-status",
@@ -161,7 +161,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Completion status of required annual medication administration practicums.",
     icon: CheckCircle,
     category: "Practicum",
-    requiredBy: "55 Pa. Code §2600.78",
+    requiredBy: "DHS medication-administration program; §§2600.190 and 2800.190",
   },
   {
     id: "annual-practicum",
@@ -170,7 +170,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Detailed view of annual practicum records including MAR review and direct observation.",
     icon: CheckCircle,
     category: "Practicum",
-    requiredBy: "55 Pa. Code §2600.78",
+    requiredBy: "DHS medication-administration program; §§2600.190 and 2800.190",
   },
   {
     id: "annual-hours",
@@ -179,7 +179,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Annual training hour requirements across every licensed setting, from 12-hour PCH and NH/HHA/HOS aide in-services up to 24-hour group home direct-service-worker training, with completion tracking.",
     icon: Clock,
     category: "Hours",
-    requiredBy: "55 Pa. Code §2600.64",
+    requiredBy: "PCH/ALF staff: 55 Pa. Code §§2600.65 and 2800.65; administrators: §§2600.64 and 2800.64; other settings: applicable licensing requirements",
   },
   {
     id: "training-hours",
@@ -188,7 +188,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Detailed training hours breakdown by employee and training year.",
     icon: Clock,
     category: "Hours",
-    requiredBy: "55 Pa. Code §2600.64",
+    requiredBy: "PCH/ALF staff: 55 Pa. Code §§2600.65 and 2800.65; administrators: §§2600.64 and 2800.64; other settings: applicable licensing requirements",
   },
   {
     id: "trainer-certification",
@@ -197,16 +197,16 @@ const ALL_REPORTS: ReportDef[] = [
       "Track initial and recertification status for all designated trainers.",
     icon: GraduationCap,
     category: "Staff",
-    requiredBy: "55 Pa. Code §2600.77(g)",
+    requiredBy: "DHS program-specific instructor requirements; §§2600.68 and 2800.68 where applicable",
   },
   {
     id: "new-employee-training",
     title: "New Employee Training",
     description:
-      "Training completion for recently hired staff within their first 90 days.",
+      "Recent-hire training records; regulatory deadlines vary by requirement.",
     icon: Users,
     category: "Staff",
-    requiredBy: "55 Pa. Code §2600.77",
+    requiredBy: "55 Pa. Code §§2600.65 and 2800.65",
   },
   {
     id: "employee-transcript",

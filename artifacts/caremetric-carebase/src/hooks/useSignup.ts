@@ -3,6 +3,7 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
 export interface SignupOrganizationRequest {
+  product?: "train" | "carebase";
   email: string;
   firstName: string;
   lastName: string;
@@ -49,6 +50,7 @@ export function useSignupOrganization() {
         "signup-organization",
         {
           body: {
+            product: payload.product,
             email: payload.email,
             first_name: payload.firstName,
             last_name: payload.lastName,

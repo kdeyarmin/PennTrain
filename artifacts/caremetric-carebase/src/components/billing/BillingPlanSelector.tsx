@@ -1,6 +1,9 @@
 import { useId, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { packageMatchesModules } from "@/lib/modulePlanSelection";
+import type { PurchasableProductModuleId } from "@/lib/productModules";
 import {
   AlertTriangle,
   CalendarClock,
@@ -90,11 +93,21 @@ export function BillingPlanSelector() {
   const session = useCreateBillingSession();
   const isPlatformAdmin = user?.role === "platform_admin";
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
+  const [chooseModules, setChooseModules] = useState(false);
+  const [requestedModules, setRequestedModules] = useState<PurchasableProductModuleId[]>(["train"]);
   const [interval, setInterval] = useState<"month" | "year">("month");
   const organizationId = isPlatformAdmin
     ? selectedOrganizationId
     : user?.organizationId ?? "";
 
+  const independentEntitlements = useQuery({
+    queryKey: ["product-module-entitlements", organizationId], enabled: !!organizationId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_effective_entitlements", { p_organization_id: organizationId });
+      if (error) throw error; return data;
+    },
+  });
+  const independentModules = PRODUCT_MODULES.filter(module => independentEntitlements.data?.some(e => e.feature_key === module.entitlementKey && e.is_entitled && e.entitlement_source.startsWith("independent_"))).map(m => m.id);
   const organizationsQuery = useListOrganizations();
   const organizationQuery = useGetOrganization(organizationId || undefined);
   const packagesQuery = useListPackages();
@@ -106,6 +119,7 @@ export function BillingPlanSelector() {
     () => (packagesQuery.data ?? []).filter((pkg) => pkg.is_active),
     [packagesQuery.data],
   );
+  const selectedPackages = chooseModules ? packages.filter(pkg => packageMatchesModules(pkg.features, requestedModules, independentModules)) : packages;
   const currentSubscription = billingAccountQuery.data?.subscription;
   const trialPresentation = useMemo(
     () => (organizationQuery.data && billingAccountQuery.data
@@ -325,7 +339,7 @@ export function BillingPlanSelector() {
                 </Tabs>
               </div>
 
-              {trialPresentation.kind === "trialing" ? (
+              {independentModules.length ? <Alert><AlertTitle>Independent module access</AlertTitle><AlertDescription>{independentModules.map(id => PRODUCT_MODULES.find(m => m.id === id)?.name).join(", ")} access follows your complimentary or contract terms. Ending a paid subscription does not cancel an active independent grant.</AlertDescription></Alert> : trialPresentation.kind === "trialing" ? (
                 <Alert>
                   <CalendarClock className="h-4 w-4" />
                   <AlertTitle>
@@ -342,7 +356,7 @@ export function BillingPlanSelector() {
                   <AlertTitle>Trial ended — choose a plan to continue</AlertTitle>
                   <AlertDescription>
                     The free trial ended on {trialPresentation.endsAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}.
-                    Module access is paused until a plan is selected; starting secure checkout below restores it immediately.
+                    Paid module access resumes after the payment provider confirms the subscription. Starting checkout alone does not restore access.
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -408,9 +422,15 @@ export function BillingPlanSelector() {
         </CardContent>
       </Card>
 
-      {showPlanCards ? (
+      <Card><CardHeader><CardTitle>Choose your modules</CardTitle><CardDescription>Prices below apply to the selected organization and the stated package limits. Other modules require their own selected plan or contract.</CardDescription></CardHeader><CardContent className="space-y-3">
+        <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={chooseModules} onChange={e => setChooseModules(e.target.checked)} /> Show only plans matching my selected modules</label>
+        {chooseModules && <div className="flex flex-wrap gap-4">{PRODUCT_MODULES.map(m => <label key={m.id} className="flex gap-2 items-center text-sm"><input type="checkbox" checked={requestedModules.includes(m.id)} onChange={e => setRequestedModules(old => e.target.checked ? [...old, m.id] : old.filter(id => id !== m.id))} />{m.name}</label>)}</div>}
+        {chooseModules && !independentEntitlements.isLoading && !selectedPackages.length && <p className="text-sm">No published plan matches this combination. <Link className="underline" href={isPlatformAdmin ? "/admin/packages" : "/app/help"}>{isPlatformAdmin ? "Configure the exact package and its billing price" : "Request a quote for these modules"}</Link>.</p>}
+        {chooseModules && independentEntitlements.isError && <p role="alert">Independent access could not be loaded. Retry before selecting a plan. <Button variant="outline" onClick={() => void independentEntitlements.refetch()}>Retry</Button></p>}
+      </CardContent></Card>
+      {showPlanCards && (!chooseModules || (!independentEntitlements.isLoading && !independentEntitlements.isError)) ? (
         <div className="grid gap-4 xl:grid-cols-3">
-          {packages.map((pkg) => {
+          {selectedPackages.map((pkg) => {
             const price = selectPrimaryBillingPrice(pricesQuery.data ?? [], pkg.id, interval);
             const modules = enabledModuleNames(pkg.features);
             const metric = billingMetricDefinition(price?.billing_metric ?? "flat");

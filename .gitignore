@@ -79,3 +79,6 @@ artifacts/caremetric-carebase/playwright-report/
 # shadow the real `playwright.config.ts` for anyone who ran `--config` against it and send CI
 # looking for a binary that is not there. See AGENTS.md.
 artifacts/caremetric-carebase/playwright.local.config.ts
+
+# Independently deployable Train build
+artifacts/caremetric-carebase/dist-train/

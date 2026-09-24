@@ -103,7 +103,7 @@ describe("product module routing", () => {
     expect(canAccessProductPath("/app/credentials", trainOnly)).toBe(false);
     expect(canAccessProductPath("/app/inspection-readiness", trainOnly)).toBe(false);
     expect(canAccessProductPath("/app/resident-finance", trainOnly)).toBe(false);
-    expect(moduleHomePathForRole("org_admin", trainOnly)).toBe("/app/training-matrix");
+    expect(moduleHomePathForRole("org_admin", trainOnly)).toBe("/app/train");
     expect(moduleHomePathForRole("employee", trainOnly)).toBe("/me/courses");
   });
 

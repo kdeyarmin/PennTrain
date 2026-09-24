@@ -1,3 +1,4 @@
+import { IndependentModuleAccess } from "@/components/billing/IndependentModuleAccess";
 import { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -212,6 +213,7 @@ export default function OrganizationDetail() {
 
   return (
     <div className="space-y-6">
+      {id && <IndependentModuleAccess organizationId={id} />}
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link href="/admin/organizations">

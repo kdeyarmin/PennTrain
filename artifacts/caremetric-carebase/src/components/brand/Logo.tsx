@@ -36,10 +36,10 @@ export function LogoMark({ className, label }: { className?: string; label?: str
  * (set it to white on dark surfaces, brand blue on light ones); "CareBase"
  * uses the gray accent from the logo lockup.
  */
-export function BrandName({ className, style }: { className?: string; style?: CSSProperties }) {
+export function BrandName({ className, style, product = import.meta.env.VITE_APP_PRODUCT === "train" ? "Train" : "CareBase" }: { className?: string; style?: CSSProperties; product?: string }) {
   return (
     <span className={className} style={style}>
-      CareMetric <span style={{ color: BRAND_GRAY }}>CareBase</span>
+      CareMetric <span style={{ color: BRAND_GRAY }}>{product}</span>
     </span>
   );
 }

@@ -349,6 +349,16 @@ jobs:
         # stack in the first place, so one pass is the whole story.
         run: supabase start
 
+      - name: Snapshot generated database types for review
+        run: supabase gen types typescript --local > /tmp/database.types.generated.ts
+
+      - name: Upload generated database types
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: database-types
+          path: /tmp/database.types.generated.ts
+          retention-days: 7
+
       - name: Database and RLS tests
         run: supabase test db
 
@@ -457,6 +467,27 @@ jobs:
 
       - name: Role, public, guest, and accessibility browser journeys
         run: pnpm --filter @workspace/caremetric-carebase run test:e2e
+
+      - name: Build standalone Train and verify its application boundary
+        run: |
+          pnpm --filter @workspace/caremetric-carebase run build:train
+          node scripts/check-train-build.mjs
+
+      - name: Standalone Train browser journey
+        env:
+          PLAYWRIGHT_TRAIN_BUILD: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/standalone-train.spec.ts --project=chromium
+
+      - name: Upload Train workflow screenshot
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: standalone-train-screen
+          path: |
+            artifacts/caremetric-carebase/test-results/standalone-train-report.png
+            artifacts/caremetric-carebase/test-results/standalone-train-report.pdf
+          if-no-files-found: ignore
+          retention-days: 7
 
       # Playwright already writes a screenshot, video, and trace for every failure; without this they
       # are discarded with the runner. Diagnosing a browser failure from the log message alone means
