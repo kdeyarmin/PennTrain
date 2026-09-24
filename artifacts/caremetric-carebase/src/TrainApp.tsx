@@ -45,7 +45,6 @@ const Privacy = lazy(() => import("@/pages/marketing/Privacy"));
 const ProductChangelog = lazy(() => import("@/pages/app/ProductChangelog"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const RetrainingMonitor = lazy(() => import("@/pages/trainer/RetrainingMonitor"));
-const SafetyReport = lazy(() => import("@/pages/public/SafetyReport"));
 const Settings = lazy(() => import("@/pages/app/Settings"));
 const Signup = lazy(() => import("@/pages/auth/Signup"));
 const TakeCourse = lazy(() => import("@/pages/employee/TakeCourse"));
@@ -85,7 +84,6 @@ function TrainRouter() {
       <Route path="/" component={TrainHome} />
       <Route path="/app" component={TrainHome} />
       <Route path="/me" component={TrainHome} />
-      <Route path="/admin" component={TrainHome} />
       <Route path="/login" component={Login} />
       <Route path="/demo" component={Demo} />
       <Route path="/signup" component={Signup} />
@@ -94,46 +92,10 @@ function TrainRouter() {
       <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
       <Route path="/verify/:slug" component={VerifyCertificate} />
       <Route path="/passport/:slug" component={TrainingPassport} />
-      <Route path="/report-safety">{() => <MaintenanceGatedRoute component={SafetyReport} />}</Route>
-      <Route path="/signup" component={Signup} />
-      <Route path="/forgot-password" component={ForgotPassword} />
-      <Route path="/reset-password" component={ResetPassword} />
-      <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
-      <Route path="/verify/:slug" component={VerifyCertificate} />
-      <Route path="/passport/:slug" component={TrainingPassport} />
-      <Route path="/report-safety">{() => <MaintenanceGatedRoute component={SafetyReport} />}</Route>
-      <Route path="/forgot-password" component={ForgotPassword} />
-      <Route path="/reset-password" component={ResetPassword} />
-      <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
-      <Route path="/verify/:slug" component={VerifyCertificate} />
-      <Route path="/passport/:slug" component={TrainingPassport} />
-      <Route path="/report-safety">{() => <MaintenanceGatedRoute component={SafetyReport} />}</Route>
-      <Route path="/reset-password" component={ResetPassword} />
-      <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
-      <Route path="/verify/:slug" component={VerifyCertificate} />
-      <Route path="/passport/:slug" component={TrainingPassport} />
-      <Route path="/report-safety">{() => <MaintenanceGatedRoute component={SafetyReport} />}</Route>
-      <Route path="/legal/facility-signup" component={FacilitySignupLegal} />
-      <Route path="/verify/:slug" component={VerifyCertificate} />
-      <Route path="/passport/:slug" component={TrainingPassport} />
-      <Route path="/report-safety">{() => <MaintenanceGatedRoute component={SafetyReport} />}</Route>
-      <Route path="/verify/:slug" component={VerifyCertificate} />
-      <Route path="/passport/:slug" component={TrainingPassport} />
-      <Route path="/report-safety">{() => <MaintenanceGatedRoute component={SafetyReport} />}</Route>
-      <Route path="/passport/:slug" component={TrainingPassport} />
-      <Route path="/report-safety">{() => <MaintenanceGatedRoute component={SafetyReport} />}</Route>
       <Route path="/checkin/:token">{() => <MaintenanceGatedRoute component={CheckIn} />}</Route>
       <Route path="/checkin">{() => <MaintenanceGatedRoute component={CheckIn} />}</Route>
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
-
-      {/* Platform Admin routes */}
-      <Route path="/admin">
-        {() => <ProtectedRoute component={AdminDashboard} allowedRoles={PLATFORM_ADMIN} />}
-      </Route>
-      <Route path="/terms" component={Terms} />
-
-      {/* Platform Admin routes */}
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} allowedRoles={PLATFORM_ADMIN} />}
       </Route>

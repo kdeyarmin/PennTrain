@@ -679,9 +679,9 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           <LogoMark className="h-[30px] w-[30px]" />
         </div>
         <div className="flex flex-col">
-          <BrandName product={moduleAccess.canAccessModule("carebase") ? "CareBase" : "Train"} className="font-bold text-[15px] text-sidebar-foreground leading-tight" />
+          <BrandName product={import.meta.env.VITE_APP_PRODUCT === "train" ? "Train" : "CareBase"} className="font-bold text-[15px] text-sidebar-foreground leading-tight" />
           <span className="text-[11px] text-sidebar-foreground/50 font-medium">
-            {moduleAccess.canAccessModule("carebase") ? "CareBase Platform" : "Train Learning Platform"}
+            {import.meta.env.VITE_APP_PRODUCT === "train" ? "Train Learning Platform" : "CareBase Platform"}
           </span>
         </div>
       </div>

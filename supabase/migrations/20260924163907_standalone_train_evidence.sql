@@ -133,8 +133,11 @@ end $$;
 create function public.save_training_workspace_item(p_kind text,p_facility_id uuid,p_employee_id uuid,p_data jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_org uuid; v_id uuid; v_emp public.employees; v_role text:=public.current_role();
-  v_event public.training_evidence_events; v_total numeric; v_start timestamptz; v_end timestamptz; v_topic text;
+  v_plan public.training_annual_schedule; v_event public.training_evidence_events; v_total numeric; v_start timestamptz; v_end timestamptz; v_topic text;
 begin
+  if auth.uid() is null or not public.current_session_unlocked() then
+    raise exception 'Current unlocked session required' using errcode='42501'; end if;
+  perform public.assert_identity_assurance('compliance_profile_admin');
   select organization_id into v_org from public.facilities where id=p_facility_id;
   if v_org is null or not coalesce(app_private.can_read_train_scope(v_org,p_facility_id,p_employee_id),false)
     or not coalesce(v_role in ('platform_admin','org_admin','facility_manager','trainer'),false) then
@@ -236,6 +239,12 @@ begin
       update public.training_annual_schedule set completed_event_id=null where completed_event_id=v_event.id;
     end if;
   elsif p_kind='plan' then
+    if jsonb_array_length(coalesce(p_data->'requirement_keys','[]'))=0 then
+      raise exception 'Select the required topics for this course' using errcode='22023'; end if;
+    for v_topic in select jsonb_array_elements_text(p_data->'requirement_keys') loop
+      if v_topic not in ('fire','emergency','rights','abuse','incidents','falls','med_self_admin','resident_needs','dementia','infection','personal_care','safe_management','mental_health',
+        'facility_orientation','medical_emergency','adls','hygiene','normal_aging','assessment','recreation','gerontology','staff_supervision','hazard_prevention','universal_precautions','chapter_requirements','mobility','behavioral_management','ancillary_orientation','dhs_initial_orientation','initial_transfer','dementia_behaviors','safe_environment','brain_injury','brain_injury_behaviors','rehabilitation','coaching','new_population','person_centered','communication','nutrition','job_demonstration','supervised_practice','dhs_direct_care','first_aid','cpr','airway','medication_authorization','diabetes','administrator_initial') then raise exception 'Unknown planned training topic' using errcode='22023'; end if;
+    end loop;
     insert into public.training_annual_schedule(organization_id,facility_id,employee_id,title,duties_snapshot,scheduled_at,duration_minutes,location,requirement_keys,created_by)
       values(v_org,p_facility_id,p_employee_id,p_data->>'title',p_data->>'duties_snapshot',(p_data->>'scheduled_at')::timestamptz,
         (p_data->>'duration_minutes')::integer,p_data->>'location',array(select jsonb_array_elements_text(coalesce(p_data->'requirement_keys','[]'))),auth.uid()) returning id into v_id;
@@ -244,8 +253,19 @@ begin
       where id=(p_data->>'id')::uuid and employee_id=p_employee_id and facility_id=p_facility_id and completed_event_id is null and canceled_at is null returning id into v_id;
     if v_id is null then raise exception 'Open plan entry not found' using errcode='22023'; end if;
   elsif p_kind='plan_complete' then
-    if not exists(select 1 from public.training_evidence_events where id=(p_data->>'event_id')::uuid and employee_id=p_employee_id and facility_id=p_facility_id and status='verified') then
-      raise exception 'Verified evidence for this student is required' using errcode='22023'; end if;
+    select * into v_event from public.training_evidence_events where id=(p_data->>'event_id')::uuid
+      and employee_id=p_employee_id and facility_id=p_facility_id and status='verified' for update;
+    if not found then raise exception 'Verified evidence for this student is required' using errcode='22023'; end if;
+    select * into v_plan from public.training_annual_schedule where id=(p_data->>'id')::uuid
+      and employee_id=p_employee_id and facility_id=p_facility_id and completed_event_id is null and canceled_at is null for update;
+    if not found then raise exception 'Open plan entry not found' using errcode='22023'; end if;
+    -- Plans identify the actual topics being scheduled. Unknown/legacy requirement
+    -- codes cannot silently count as fulfillment; they require a corrected plan.
+    if cardinality(v_plan.requirement_keys)=0 or not (v_plan.requirement_keys <@ v_event.topics)
+      or lower(btrim(v_plan.title))<>lower(btrim(v_event.title))
+      or v_event.minutes<v_plan.duration_minutes
+      or v_event.completed_on<>(v_plan.scheduled_at at time zone 'America/New_York')::date then
+      raise exception 'Evidence must match all planned topics, course title, scheduled Pennsylvania date and duration; correct the plan or evidence before recording fulfillment' using errcode='22023'; end if;
     update public.training_annual_schedule set completed_event_id=(p_data->>'event_id')::uuid
       where id=(p_data->>'id')::uuid and employee_id=p_employee_id and facility_id=p_facility_id and completed_event_id is null and canceled_at is null returning id into v_id;
     if v_id is null then raise exception 'Open plan entry not found' using errcode='22023'; end if;

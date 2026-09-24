@@ -49,6 +49,17 @@ test.describe("standalone Train", () => {
     await page.getByLabel("Review basis, qualifications and evidence checked").fill("Reviewed course content, attendance and instructor evidence");
     await page.getByRole("button", { name: "Record review" }).click();
     await expect(page.getByText("Resident rights instruction · verified")).toBeVisible();
+    await page.getByRole("tab", { name: "Plans", exact: true }).click();
+    await page.getByLabel("Required course / instruction", { exact: true }).fill("Resident rights instruction");
+    await page.getByLabel("Position and duties for this plan").fill("Assists with activities of daily living");
+    await page.getByLabel("Scheduled time (Pennsylvania)").fill("2026-01-02T10:00");
+    await page.getByLabel("Minutes", { exact: true }).fill("60");
+    await page.getByLabel("Location / online meeting").fill("Training room");
+    await page.getByLabel("Resident rights", { exact: true }).check();
+    await page.getByRole("button", { name: "Add annual plan entry" }).click();
+    await expect(page.getByText("Fulfillment: Open", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Record fulfillment", exact: true }).click();
+    await expect(page.getByText("Fulfillment: Open", { exact: true })).toHaveCount(0);
     await page.getByRole("tab", { name: "Reports", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Taylor Learner", exact: true })).toBeVisible();
     const downloaded = page.waitForEvent("download");
@@ -65,11 +76,16 @@ test.describe("standalone Train", () => {
     await page.goto("/app/residents");
     await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");
 
+    await page.goto("/report-safety");
+    await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");
+
     const member = createClient(url, process.env.VITE_SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
     const signedIn = await member.auth.signInWithPassword({ email, password });
     if (signedIn.error) throw signedIn.error;
     const denied = await member.rpc("can_read_clinical_record", { p_org: org.id, p_fac: facility.id });
     expect(denied.error).toBeNull(); expect(denied.data).toBe(false);
+    const residentDirectory = await member.rpc("get_change_event_resident_options");
+    expect(residentDirectory.error?.code).toBe("42501");
     const forbiddenGrant = await member.rpc("manage_module_access_term", { p_organization_id: org.id, p_module_key: "modules.carebase", p_source: "complimentary", p_reason: "Unauthorized self-upgrade attempt" });
     expect(forbiddenGrant.error).not.toBeNull();
   });

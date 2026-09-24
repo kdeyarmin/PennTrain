@@ -33,9 +33,9 @@ export const TRAINING_TOPICS = {
   adls: "Assistance with ADLs and IADLs", hygiene: "Personal hygiene", normal_aging: "Normal cognitive, psychological and functional aging",
   assessment: "Assessment and support-plan implementation", recreation: "Recreation, socialization and community resources", gerontology: "Gerontology",
   staff_supervision: "Staff supervision", hazard_prevention: "Safety and hazard prevention", universal_precautions: "Universal precautions",
-  chapter_requirements: "Applicable PCH / ALR chapter requirements", mobility: "Mobility needs and associated pressure injury, incontinence, nutrition and hydration care",
+  chapter_requirements: "Applicable PCH / ALF chapter requirements", mobility: "Mobility needs and associated pressure injury, incontinence, nutrition and hydration care",
   behavioral_management: "Behavioral management", ancillary_orientation: "Ancillary job-specific orientation",
-  dhs_initial_orientation: "Department-approved ALR initial orientation",
+  dhs_initial_orientation: "Department-approved ALF initial orientation",
   initial_transfer: "Written verification of eligible initial training at another facility within the past year",
   dementia_behaviors: "Managing dementia-related behaviors", safe_environment: "Maintaining a safe care environment",
   brain_injury: "Brain injury and its cognitive, physical and behavioral effects", brain_injury_behaviors: "Managing brain-injury-related behaviors",
@@ -48,7 +48,7 @@ export const TRAINING_TOPICS = {
 } as const;
 export const TRAINING_ALLOCATIONS = {
   base: "Direct care annual", administrator: "Administrator annual", initial: "Initial direct care",
-  dementia_initial: "ALR dementia initial", dementia_annual: "ALR dementia annual",
+  dementia_initial: "ALF dementia initial", dementia_annual: "ALF dementia annual",
   special_initial: "Special unit initial", special_annual: "Special unit annual",
 } as const;
 export function paDay(instant = new Date()): string {
@@ -95,7 +95,7 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     checks.push({ key, label, citation, status: met === null ? "review" : met ? "met" : "missing", detail, due });
   if (!p) { add("profile", "Confirm staff duties and audience", "2600/2800.65", null, "A job title does not establish regulatory applicability."); return checks; }
   const alr = input.facilityType === "ALR", pch = input.facilityType === "PCH", chapter = alr ? "2800" : "2600";
-  if (!alr && !pch) { add("scope", "Facility license type", "2600/2800", null, "This workspace supports PCH and ALR facilities."); return checks; }
+  if (!alr && !pch) { add("scope", "Facility license type", "2600/2800", null, "This workspace supports PCH and ALF facilities."); return checks; }
   const events = input.events.filter(e => e.employee_id === p.employee_id && e.status === "verified" && e.completed_on <= today);
   const has = (topic: string, from?: string, through = today) => events.some(e => e.topics.includes(topic) && (!from || e.completed_on >= from) && e.completed_on <= through);
   const missingTopics = (topics: string[], from?: string, through = today) => topics.filter(t => !has(t, from, through));
@@ -130,7 +130,7 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
   }
   if (p.direct_care) {
     if (alr) {
-      add("before_direct_care", "ALR prerequisites before any direct care", "2800.65(b)-(d)",
+      add("before_direct_care", "ALF prerequisites before any direct care", "2800.65(b)-(d)",
         has("dhs_initial_orientation") && current("first_aid") && current("cpr") ? null : false,
         "Department-approved initial orientation and current first-aid / CPR certificates are required. Verify completion before direct care and sufficient airway-certified shift coverage.", "Before direct care");
     }
@@ -145,7 +145,7 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     conditionalTopic("mobility_needs", "mobility", `${chapter}.65(${alr ? "g" : "d"})`);
   }
   const hireDue = hireDate ? addDays(hireDate, 30) : null;
-  if (alr) add("dementia_initial", "ALR initial dementia instruction (all staff)", "2800.69", hireDate && hireDue ? hours("dementia_initial", hireDate, hireDue) >= 4 && has("dementia", hireDate, hireDue) : null,
+  if (alr) add("dementia_initial", "ALF initial dementia instruction (all staff)", "2800.69", hireDate && hireDue ? hours("dementia_initial", hireDate, hireDue) >= 4 && has("dementia", hireDate, hireDue) : null,
     "4 additional hours within 30 days of hire. Use the employee's recorded hire date, which may differ from the first work date.", hireDue);
   const validUnit = p.specialty_unit !== "none" && (pch ? p.specialty_unit === "pch_dementia" : p.specialty_unit.startsWith("alr_"));
   if (p.specialty_unit !== "none" && !validUnit) add("unit", "Confirm specialty unit", `${chapter}.236`, null, "The selected unit does not match this license type.");
@@ -170,7 +170,7 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
         `Direct care, ancillary, substitutes and regularly scheduled volunteers: missing ${names(missing)}. Fire instruction requires the qualified expert or trained on-site instructor. Confirm audience in the duty profile.`, period.end);
       conditionalTopic("new_population", "new_population", `${chapter}.65(${alr ? "j" : "g"})`, from, period.end);
     }
-    if (alr) add("dementia_annual", "ALR annual dementia instruction", "2800.69", !hireDate || today < inYear(Number(hireDate.slice(0, 4)) + 1, hireDate.slice(5)) ? null : hours("dementia_annual", from, today) >= 2 && has("dementia", from),
+    if (alr) add("dementia_annual", "ALF annual dementia instruction", "2800.69", !hireDate || today < inYear(Number(hireDate.slice(0, 4)) + 1, hireDate.slice(5)) ? null : hours("dementia_annual", from, today) >= 2 && has("dementia", from),
       "2 additional hours annually thereafter; verify first-year applicability and documented training-year policy.", period.end);
     if (p.direct_care && validUnit) add("special_annual", "Special unit annual hours and topics", `${chapter}.236`, hours("special_annual", from, today) >= (alr ? 8 : 6) && missingTopics(alr ? specialTopics : ["dementia"], from).length === 0,
       `Additional ${alr ? 8 : 6} hours for direct-care staff in this unit. Required topics: ${names(alr ? specialTopics : ["dementia"])}.`, period.end);

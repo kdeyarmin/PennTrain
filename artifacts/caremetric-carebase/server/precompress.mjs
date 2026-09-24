@@ -13,7 +13,7 @@ import { brotliCompress, constants, gzip } from "node:zlib";
 const brotli = promisify(brotliCompress);
 const gz = promisify(gzip);
 
-const DIST_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "..", "dist", "public");
+const DIST_DIR = join(fileURLToPath(new URL(".", import.meta.url)), "..", process.argv.includes("--train") ? "dist-train" : "dist", "public");
 
 // Must match COMPRESSIBLE_EXTENSIONS in server/index.mjs.
 const COMPRESSIBLE_EXTENSIONS = new Set([

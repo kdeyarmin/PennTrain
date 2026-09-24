@@ -1,5 +1,5 @@
 begin;
-select plan(50);
+select no_plan();
 insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
 select 'dd240000-0000-4000-8000-000000000001','Standalone Train test','standalone-train-test','trial',now()-interval '1 day',id
 from public.packages where name='CareMetric Train';
@@ -17,17 +17,29 @@ on conflict(id) do update set organization_id=excluded.organization_id,role=excl
 insert into public.profiles(id,email,first_name,last_name,role,is_active) values('dd240000-0000-4000-8000-000000000102','train-platform@test.local','Platform','Owner','platform_admin',true) on conflict(id) do update set role=excluded.role,is_active=true;
 insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,status)
 values('dd240000-0000-4000-8000-000000000021','dd240000-0000-4000-8000-000000000001','dd240000-0000-4000-8000-000000000011','Test','Student','Direct care','active');
+insert into public.residents(id,organization_id,facility_id,first_name,last_name,admission_date)
+values('dd240000-0000-4000-8000-000000000091','dd240000-0000-4000-8000-000000000001','dd240000-0000-4000-8000-000000000011','Retained','Resident',current_date-20);
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),false,'expired trial denies Train before independent grant');
 insert into app_private.module_access_terms(id,organization_id,module_key,source,reason,granted_by)
 values('dd240000-0000-4000-8000-000000000031','dd240000-0000-4000-8000-000000000001','modules.train','complimentary','Complimentary facility education','dd240000-0000-4000-8000-000000000101');
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),true,'independent Train survives expired trial');
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.carebase'),false,'free Train does not grant CareBase');
-update public.billing_accounts set billing_state='canceled',state_source='stripe' where organization_id='dd240000-0000-4000-8000-000000000001';
+update public.billing_accounts set billing_state='canceled',provider_state='canceled',state_source='stripe' where organization_id='dd240000-0000-4000-8000-000000000001';
 update public.organizations set subscription_status='canceled' where id='dd240000-0000-4000-8000-000000000001';
 select is((select subscription_status from public.organizations where id='dd240000-0000-4000-8000-000000000001'),'active','paid cancellation preserves independent tenant identity');
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),true,'free Train survives canceled paid billing');
 select set_config('request.jwt.claims',jsonb_build_object('sub','dd240000-0000-4000-8000-000000000101','role','authenticated','aal','aal2','iat',extract(epoch from now())::bigint)::text,true);
 set local role authenticated;
+
+select set_config('request.jwt.claims',jsonb_build_object('sub','dd240000-0000-4000-8000-000000000101','role','authenticated','aal','aal1','iat',extract(epoch from now())::bigint)::text,true);
+select throws_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{}') $$,'42501',null,'unverified manager session cannot write training records');
+select set_config('request.jwt.claims',jsonb_build_object('sub','dd240000-0000-4000-8000-000000000101','role','authenticated','aal','aal2','iat',extract(epoch from now()-interval '9 hours')::bigint)::text,true);
+select throws_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{}') $$,'42501',null,'stale manager session cannot write training records');
+select set_config('request.jwt.claims',jsonb_build_object('sub','dd240000-0000-4000-8000-000000000101','role','authenticated','aal','aal2','iat',extract(epoch from now())::bigint)::text,true);
+select throws_ok($$ select public.get_change_event_resident_options() $$,'42501',null,'Train-only administrator cannot read the resident directory via definer RPC');
+select throws_ok($$ select public.get_resident_administrative_packet('dd240000-0000-4000-8000-000000000091') $$,'42501',null,'Train-only administrator cannot read resident packets via definer RPC');
+select is((select count(*)::integer from public.get_clinical_chart_resident_options()),0,'Train-only administrator cannot read clinical resident options');
+select is((select count(*)::integer from public.get_clinical_chart_resident_photos()),0,'Train-only administrator cannot read resident photo paths');
 select lives_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"direct_care":true,"administrator":false,"specialty_unit":"none","duties":"Personal care assistance","first_work_date":"2026-01-01"}') $$,'Train administrator can record a confirmed duty profile');
 select lives_ok($$ select public.get_training_workspace('dd240000-0000-4000-8000-000000000011') $$,'Train workspace reads use authenticated grants and facility RLS');
 select throws_ok($$ select public.get_training_workspace('dd240000-0000-4000-8000-000000000012') $$,'42501',null,'workspace cannot read a different tenant facility');
@@ -42,7 +54,22 @@ select throws_ok($$ select public.save_training_workspace_item('review','dd24000
 select throws_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"applicability":{"annual_common":"yes"}}') $$,'22023',null,'audience applicability requires explicit boolean decisions');
 select lives_ok($$ select public.save_training_workspace_item('event','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"title":"Rights instruction","completed_on":"2026-01-02","minutes":60,"delivery":"classroom","provider":"Provider","source_reference":"ref2","topics":["rights"],"allocations":{"base":60}}') $$,'ordinary evidence can be recorded');
 select lives_ok($$ select public.save_training_workspace_item('review','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_evidence_events where source_reference='ref2'),'status','verified','review_note','Checked attendance and content')) $$,'reviewer can verify supported ordinary evidence');
-select lives_ok($$ select public.save_training_workspace_item('plan','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"title":"Rights instruction","duties_snapshot":"Personal care","scheduled_at":"2026-01-02T10:00:00-05:00","duration_minutes":60,"location":"Training room","requirement_keys":["annual_common"]}') $$,'annual plan retains staff duties and scheduled delivery');
+select lives_ok($$ select public.save_training_workspace_item('plan','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"title":"Rights instruction","duties_snapshot":"Personal care","scheduled_at":"2026-01-02T10:00:00-05:00","duration_minutes":60,"location":"Training room","requirement_keys":["rights"]}') $$,'annual plan retains staff duties and scheduled delivery');
+
+-- An unrelated course, wrong day or insufficient duration cannot fulfill a plan.
+select lives_ok($$ select public.save_training_workspace_item('plan','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"title":"Annual fire instruction","duties_snapshot":"Personal care","scheduled_at":"2026-01-02T10:00:00-05:00","duration_minutes":60,"location":"Training room","requirement_keys":["fire"]}') $$,'fire plan can be scheduled');
+select throws_ok($$ select public.save_training_workspace_item('plan_complete','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_annual_schedule where title='Annual fire instruction'),'event_id',(select id from public.training_evidence_events where source_reference='ref2'))) $$,'22023',null,'rights evidence cannot fulfill annual fire instruction');
+reset role;
+update public.training_annual_schedule set scheduled_at=scheduled_at+interval '1 day' where title='Rights instruction';
+set local role authenticated;
+select throws_ok($$ select public.save_training_workspace_item('plan_complete','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_annual_schedule where title='Rights instruction'),'event_id',(select id from public.training_evidence_events where source_reference='ref2'))) $$,'22023',null,'matching topics on the wrong scheduled day do not fulfill the plan');
+reset role;
+update public.training_annual_schedule set scheduled_at=scheduled_at-interval '1 day',duration_minutes=90 where title='Rights instruction';
+set local role authenticated;
+select throws_ok($$ select public.save_training_workspace_item('plan_complete','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_annual_schedule where title='Rights instruction'),'event_id',(select id from public.training_evidence_events where source_reference='ref2'))) $$,'22023',null,'insufficient event duration does not fulfill the plan');
+reset role;
+update public.training_annual_schedule set duration_minutes=60 where title='Rights instruction';
+set local role authenticated;
 select lives_ok($$ select public.save_training_workspace_item('plan_complete','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_annual_schedule where title='Rights instruction'),'event_id',(select id from public.training_evidence_events where source_reference='ref2'))) $$,'verified student evidence fulfills a plan');
 select lives_ok($$ select public.save_training_workspace_item('review','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021',jsonb_build_object('id',(select id from public.training_evidence_events where source_reference='ref2'),'status','void','review_note','Incorrect completion date; replacing evidence')) $$,'incorrect verified evidence can be voided with an audit basis');
 select is((select completed_event_id from public.training_annual_schedule where title='Rights instruction'),null::uuid,'voiding evidence reopens the linked plan rather than leaving false fulfillment');
@@ -68,7 +95,26 @@ select lives_ok($$ select public.set_organization_suspension('dd240000-0000-4000
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),true,'reactivation restores the independent Train term');
 reset role;
 select set_config('request.jwt.claims','{}',true);
-update app_private.module_access_terms set revoked_at=now() where id='dd240000-0000-4000-8000-000000000031';
+
+select set_config('request.jwt.claims',jsonb_build_object('sub','dd240000-0000-4000-8000-000000000102','role','authenticated','aal','aal2','iat',extract(epoch from now())::bigint)::text,true);
+set local role authenticated;
+select lives_ok($$ select public.manage_module_access_term('dd240000-0000-4000-8000-000000000001','modules.workforce','complimentary','Complimentary workforce for regression') $$,'grant a different independent module');
+select lives_ok($$ select public.manage_module_access_term('dd240000-0000-4000-8000-000000000001','modules.workforce','complimentary','Revoke Train while Workforce stays',null,'dd240000-0000-4000-8000-000000000031') $$,'revoke the Train term with a different selected module');
+reset role;
+select is((select metadata->>'module' from public.audit_logs where action='module_access.revoked' and entity_id='dd240000-0000-4000-8000-000000000031'),'modules.train','revocation audits the stored module, not the selected UI module');
+select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.workforce'),true,'Workforce-only independent membership is preserved');
+select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),false,'Workforce-only term does not restore package-derived Train after paid cancellation');
+select set_config('test.workforce_term',(select id::text from app_private.module_access_terms where organization_id='dd240000-0000-4000-8000-000000000001' and module_key='modules.workforce'),true);
+set local role authenticated;
+select lives_ok($$ select public.manage_module_access_term('dd240000-0000-4000-8000-000000000001','modules.train','complimentary','Revoke the final independent term',null,current_setting('test.workforce_term')::uuid) $$,'revoke the final term through the owner RPC');
+reset role;
+select is((select subscription_status from public.organizations where id='dd240000-0000-4000-8000-000000000001'),'canceled','final revocation restores canceled membership');
+select set_config('request.jwt.claims',jsonb_build_object('sub','dd240000-0000-4000-8000-000000000101','role','authenticated','aal','aal2','iat',extract(epoch from now())::bigint)::text,true);
+set local role authenticated;
+select is(public.current_role(),null::text,'canceled tenant no longer has a shared-shell role');
+reset role;
+select set_config('request.jwt.claims','{}',true);
+
 select is(public.has_effective_entitlement('dd240000-0000-4000-8000-000000000001','modules.train'),false,'revocation restores provider-derived access');
 select is((select permissive from pg_policies where schemaname='public' and tablename='residents' and policyname='resident_product_access'),'RESTRICTIVE','resident access requires a resident product at the database boundary');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);

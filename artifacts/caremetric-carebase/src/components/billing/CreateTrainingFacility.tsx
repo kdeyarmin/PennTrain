@@ -28,7 +28,7 @@ export function CreateTrainingFacility() {
       <p className="text-sm">Creates the organization, facility, Train-only package and ongoing complimentary access together. Then invite its administrator from Users. No payment card is needed.</p>
       <label className="text-sm">Organization name<Input name="organization" required minLength={2} maxLength={200} /></label>
       <label className="text-sm">Facility name<Input name="facility" required minLength={2} maxLength={200} /></label>
-      <label className="text-sm">License type<select name="type" className="w-full border rounded p-2"><option value="PCH">Pennsylvania personal care home</option><option value="ALR">Pennsylvania assisted living residence</option></select></label>
+      <label className="text-sm">License type<select name="type" className="w-full border rounded p-2"><option value="PCH">Pennsylvania personal care home</option><option value="ALR">Pennsylvania Assisted Living Facility (ALF)</option></select></label>
       <Button disabled={busy}>Create free Train access</Button>
       {created && <p>Created. <Link href={`/admin/organizations/${created}`} className="underline">Open organization</Link> · <Link href="/admin/users" className="underline">Invite its administrator</Link></p>}
     </form>}

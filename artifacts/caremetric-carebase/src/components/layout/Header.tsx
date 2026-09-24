@@ -276,7 +276,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   // index.html's single static title. Marketing pages set their own via usePageMeta and never
   // render this Header, so there is no conflict.
   useEffect(() => {
-    document.title = `${pageTitle} · CareMetric ${moduleAccess.canAccessModule("carebase") ? "CareBase" : "Train"}`;
+    document.title = `${pageTitle} · CareMetric ${import.meta.env.VITE_APP_PRODUCT === "train" ? "Train" : "CareBase"}`;
   }, [pageTitle, moduleAccess]);
 
   const getBreadcrumbs = () => {

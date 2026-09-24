@@ -74,7 +74,7 @@ create trigger zz_preserve_independent_module_membership before update on public
 create function public.manage_module_access_term(p_organization_id uuid,p_module_key text,p_source text,
   p_reason text,p_ends_at timestamptz default null,p_revoke_id uuid default null)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare v_id uuid; v_old text;
+declare v_id uuid; v_old text; v_module text;
 begin
   perform app_private.assert_billing_aal2();
   if not public.is_platform_admin() then raise exception 'Platform administrator required' using errcode='42501'; end if;
@@ -84,9 +84,16 @@ begin
   if not found then raise exception 'Organization not found' using errcode='22023'; end if;
   if p_revoke_id is not null then
     update app_private.module_access_terms set revoked_at=now()
-      where id=p_revoke_id and organization_id=p_organization_id and revoked_at is null returning id into v_id;
+      where id=p_revoke_id and organization_id=p_organization_id and revoked_at is null returning id,module_key into v_id,v_module;
     if v_id is null then raise exception 'Active access term not found' using errcode='22023'; end if;
+    -- Reconcile membership immediately, keeping an administrative suspension intact.
+    if v_old<>'suspended' and not app_private.has_independent_module_access(p_organization_id)
+      and exists(select 1 from public.billing_accounts where organization_id=p_organization_id and billing_state='canceled') then
+      perform set_config('app.privileged_write','on',true);
+      update public.organizations set subscription_status='canceled' where id=p_organization_id;
+    end if;
   else
+    v_module:=p_module_key;
     insert into app_private.module_access_terms(organization_id,module_key,source,ends_at,reason,granted_by)
       values(p_organization_id,p_module_key,p_source,p_ends_at,btrim(p_reason),auth.uid()) returning id into v_id;
     if v_old='canceled' then
@@ -96,7 +103,7 @@ begin
   end if;
   insert into public.audit_logs(organization_id,actor_profile_id,action,entity_type,entity_id,metadata)
     values(p_organization_id,auth.uid(),case when p_revoke_id is null then 'module_access.granted' else 'module_access.revoked' end,
-      'module_access_terms',v_id::text,jsonb_build_object('module',p_module_key,'reason',p_reason));
+      'module_access_terms',v_id::text,jsonb_build_object('module',v_module,'reason',p_reason));
   return jsonb_build_object('id',v_id);
 end;
 $$;

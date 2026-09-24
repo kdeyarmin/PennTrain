@@ -4,7 +4,7 @@ export function TrainLanding() {
   return <main className="mx-auto max-w-4xl px-6 py-12 space-y-8">
     <nav className="flex items-center justify-between gap-4"><span className="text-xl font-bold">CareMetric Train</span><Link href="/login" className="underline">Sign in</Link></nav>
     <section className="space-y-5 py-8"><h1 className="text-4xl font-bold">Staff training for Pennsylvania care facilities</h1>
-      <p className="text-lg text-muted-foreground">Set up students, assign learning, review training evidence and print certificates and reports for personal care homes and assisted living residences.</p>
+      <p className="text-lg text-muted-foreground">Set up students, assign learning, review training evidence and print certificates and reports for personal care homes and Assisted Living Facilities (ALFs).</p>
       <div className="flex flex-wrap gap-4"><Link href="/signup?product=train" className="rounded-md bg-primary px-5 py-3 text-primary-foreground font-medium">Set up your training facility</Link><Link href="/login" className="rounded-md border px-5 py-3">Continue learning</Link></div>
     </section>
     <div className="grid gap-6 md:grid-cols-3">{[

@@ -179,7 +179,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Annual training hour requirements across every licensed setting, from 12-hour PCH and NH/HHA/HOS aide in-services up to 24-hour group home direct-service-worker training, with completion tracking.",
     icon: Clock,
     category: "Hours",
-    requiredBy: "Applicable staff §.65 or administrator §.64 requirements",
+    requiredBy: "PCH/ALF staff: 55 Pa. Code §§2600.65 and 2800.65; administrators: §§2600.64 and 2800.64; other settings: applicable licensing requirements",
   },
   {
     id: "training-hours",
@@ -188,7 +188,7 @@ const ALL_REPORTS: ReportDef[] = [
       "Detailed training hours breakdown by employee and training year.",
     icon: Clock,
     category: "Hours",
-    requiredBy: "Applicable staff §.65 or administrator §.64 requirements",
+    requiredBy: "PCH/ALF staff: 55 Pa. Code §§2600.65 and 2800.65; administrators: §§2600.64 and 2800.64; other settings: applicable licensing requirements",
   },
   {
     id: "trainer-certification",
