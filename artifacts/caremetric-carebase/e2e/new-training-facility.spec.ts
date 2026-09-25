@@ -1,3 +1,4 @@
+import { PDFDocument } from "pdf-lib";
 import AxeBuilder from "@axe-core/playwright";
 import { readAuthEmail, setPasswordFromEmail } from "./helpers/mailbox";
 import { readFile } from "node:fs/promises";
@@ -336,6 +337,17 @@ test.describe("new training facility administrator", () => {
       await page.getByLabel("Training student").selectOption(studentId);
       await expect(page.getByRole("checkbox", { name: new RegExp(fixture.courseTitle) })).toBeVisible();
       await expect(page.getByRole("button", { name: "Open PDF / print", exact: true })).toBeVisible();
+      await page.getByRole("checkbox", { name: new RegExp(fixture.courseTitle) }).check();
+      const packetDownload = page.waitForEvent("download", { timeout: 60_000 });
+      await page.getByRole("button", { name: "Download selected for printing (PDF)", exact: true }).click();
+      const packet = await packetDownload;
+      expect(packet.suggestedFilename()).toMatch(/\.pdf$/);
+      const packetPdf = await PDFDocument.load(await readFile((await packet.path())!));
+      expect(packetPdf.getPageCount()).toBe(1);
+      const { data: generatedCertificate, error: certificateError } = await service.from("certificates")
+        .select("pdf_status,course_title_snapshot").eq("employee_id", studentId).eq("course_id", fixture.courseId).single();
+      if (certificateError) throw certificateError;
+      expect(generatedCertificate).toMatchObject({ pdf_status: "ready", course_title_snapshot: fixture.courseTitle });
       await expect(page.getByText("No certificates match these filters. Certificates become available after eligible course completion.")).toHaveCount(0);
       await page.goto("/app/residents");
       await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");
@@ -385,7 +397,12 @@ test.describe("new training facility administrator", () => {
     await page.getByLabel("Administrator first name", { exact: true }).fill("Facility");
     await page.getByLabel("Administrator last name", { exact: true }).fill("Administrator");
     await page.getByLabel("Administrator email", { exact: true }).fill(administratorEmail);
+    // Exercise the recoverable boundary after provisioning but before sending the first email.
+    await page.route("**/functions/v1/invite-user", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Disposable invitation outage" }) }), { times: 1 });
     await page.getByRole("button", { name: "Create free Train access", exact: true }).click();
+    await expect(page.getByText("Training-only facility created. Administrator invitation needs attention.", { exact: true })).toBeVisible();
+    await page.reload();
+    await page.getByRole("button", { name: "Retry administrator invitation", exact: true }).click();
     await expect(page.getByText("Training-only facility created. Administrator invitation sent.", { exact: true })).toBeVisible();
     const { data: organization, error: organizationError } = await service.from("organizations")
       .select("id,is_demo").eq("name", organizationName).single();

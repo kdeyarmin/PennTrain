@@ -144,9 +144,9 @@ export default function MyCertificates() {
                 return (
                   <div
                     key={cert.id}
-                    className="flex items-center justify-between gap-4 p-3 rounded-lg border"
+                    className="flex flex-wrap items-center justify-between gap-4 p-3 rounded-lg border"
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 basis-48">
                       <p className="font-medium text-sm truncate">
                         {cert.course_title_snapshot ?? courseTitleById.get(cert.course_id) ?? `Course #${cert.course_id.slice(0, 8)}`}
                       </p>
@@ -156,7 +156,7 @@ export default function MyCertificates() {
                           <> &middot; {expired ? "Expired" : "Expires"} {formatDateForDisplay(cert.expires_at)}</>
                         )}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                      <p className="text-xs text-muted-foreground mt-0.5 font-mono break-all">
                         {cert.credential_number}
                       </p>
                       {cert.pdf_status !== "ready" && (
@@ -165,7 +165,7 @@ export default function MyCertificates() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex flex-wrap items-center gap-3">
                       <Badge variant={expired ? "destructive" : "default"}>
                         {expired ? "Expired" : "Valid"}
                       </Badge>

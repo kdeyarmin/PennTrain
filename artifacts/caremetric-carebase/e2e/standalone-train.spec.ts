@@ -28,8 +28,8 @@ test.describe("standalone Train", () => {
 
     await signInAs(page, email, password, "/app/train");
     await expect(page.getByRole("heading", { name: "CareMetric Train", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Import students", exact: true })).toBeVisible();
     await page.getByRole("tab", { name: "Staff", exact: true }).click();
+    await expect(page.getByRole("link", { name: "Import students", exact: true })).toBeVisible();
     await page.getByLabel("Training student").selectOption(student.id);
     await page.getByLabel("Direct care staff", { exact: true }).check();
     await page.getByLabel("Position and actual duties").fill("Assists with activities of daily living");

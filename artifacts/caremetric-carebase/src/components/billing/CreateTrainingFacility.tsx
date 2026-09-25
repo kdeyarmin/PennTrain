@@ -77,10 +77,10 @@ export function CreateTrainingFacility() {
     {created && <div role="status" className="rounded-lg border p-4 space-y-2">
       <p className="font-medium">Training-only facility created. {invitationSent ? "Administrator invitation sent." : "Administrator invitation needs attention."}</p>
       <p className="text-sm">Administrator: {administrator.email}. They will set their own password, sign in, complete account security, and follow the facility setup checklist. Retrying the invitation uses this saved facility.</p>
-      {!invitationSent && <Button disabled={invite.isPending} onClick={async () => { try { await sendAdministratorInvitation(created); } catch (error) { toast({ title: "Invitation needs attention", description: trainingActionError(error), variant: "destructive" }); } }}>Retry administrator invitation</Button>}
+      {!invitationSent && <Button disabled={busy || invite.isPending} onClick={async () => { try { await sendAdministratorInvitation(created); } catch (error) { toast({ title: "Invitation needs attention", description: trainingActionError(error), variant: "destructive" }); } }}>Retry administrator invitation</Button>}
       <div className="flex flex-wrap gap-3"><Link href={trainingAdministratorInviteHref(created)} className="underline">Review / change administrator invitation</Link><Link href={`/admin/organizations/${created}`} className="underline">Open organization</Link></div>
       <Link href={`/app/invitations?search=${encodeURIComponent(administrator.email)}`} className="underline text-sm">Check invitation delivery and activation</Link>
-      <Button variant="outline" onClick={() => { try { sessionStorage.removeItem(receiptKey); } catch { /* No persisted receipt in this browser. */ } setSaved(null); setAdministrator({ firstName: "", lastName: "", email: "" }); setCreated(""); setInvitationSent(false); setRequestId(crypto.randomUUID()); setOpen(true); }}>Create another complimentary facility</Button>
+      <Button variant="outline" disabled={busy || invite.isPending} onClick={() => { try { sessionStorage.removeItem(receiptKey); } catch { /* No persisted receipt in this browser. */ } setSaved(null); setAdministrator({ firstName: "", lastName: "", email: "" }); setCreated(""); setInvitationSent(false); setRequestId(crypto.randomUUID()); setOpen(true); }}>Create another complimentary facility</Button>
     </div>}
   </div>;
 }

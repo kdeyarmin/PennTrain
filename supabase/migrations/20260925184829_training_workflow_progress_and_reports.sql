@@ -725,6 +725,23 @@ begin
     from public.training_plans p cross join lateral jsonb_array_elements(public.get_training_plan_progress(p.id)) entry
     where p.facility_id=p_facility_id and (p_training_year is null or p.training_year=p_training_year)
     group by (entry->>'employee_id')::uuid
+  ), assignment_rows as materialized (
+    -- Evaluate assignment RLS and effective purpose once for the facility. Historical
+    -- canceled rows cannot contribute to any dashboard metric and are excluded early.
+    select ca.employee_id,ca.status,ca.due_date,
+      (ca.is_required or public.training_assignment_is_required(ca.id)) as required
+    from public.course_assignments ca left join public.training_plans tp on tp.id=ca.training_plan_id
+    where ca.facility_id=p_facility_id and ca.status<>'canceled' and (p_training_year is null or
+      coalesce(tp.training_year,extract(year from coalesce(ca.due_date,(ca.assigned_at at time zone 'America/New_York')::date))::integer)=p_training_year)
+  ), assignment_totals as materialized (
+    select employee_id,count(*) filter(where required) as required_total,
+      count(*) filter(where required and status='completed') as required_completed,
+      count(*) filter(where not required) as optional_total,
+      count(*) filter(where required and status not in ('completed','paused') and due_date<public.pa_today()) as overdue,
+      count(*) filter(where required and status not in ('completed','paused') and due_date between public.pa_today() and public.pa_today()+7) as due_soon,
+      count(*) filter(where required and status in ('in_progress','overdue')) as started,
+      min(due_date) filter(where required and status not in ('completed','paused')) as next_due
+    from assignment_rows group by employee_id
   ), roster as materialized (
     select e.id as employee_id,e.first_name,e.last_name,concat_ws(' ',e.first_name,e.last_name) as student,e.email,e.department,e.profile_id,
       invite.id as invitation_id,invite.last_sent_at,invite.last_error,
@@ -746,16 +763,7 @@ begin
     left join public.training_assignment_exemptions exemption on exemption.employee_id=e.id and exemption.facility_id=e.facility_id
       and exemption.training_year=coalesce(p_training_year,extract(year from public.pa_today())::int)
     left join plan_progress pp on pp.employee_id=e.id
-    left join lateral(select count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status<>'canceled') as required_total,
-      count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status='completed') as required_completed,
-      count(*) filter(where not (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status<>'canceled') as optional_total,
-      count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status not in ('completed','canceled','paused') and ca.due_date<public.pa_today()) as overdue,
-      count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status not in ('completed','canceled','paused') and ca.due_date between public.pa_today() and public.pa_today()+7) as due_soon,
-      count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status in ('in_progress','overdue')) as started,
-      min(ca.due_date) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status not in ('completed','canceled','paused')) as next_due
-      from public.course_assignments ca left join public.training_plans tp on tp.id=ca.training_plan_id
-      where ca.employee_id=e.id and ca.facility_id=p_facility_id and (p_training_year is null or
-        coalesce(tp.training_year,extract(year from coalesce(ca.due_date,(ca.assigned_at at time zone 'America/New_York')::date))::integer)=p_training_year)) a on true
+    left join assignment_totals a on a.employee_id=e.id
     where e.facility_id=p_facility_id and e.status='active'
   ), searched as materialized (
     select * from roster where coalesce(p_search,'')='' or strpos(lower(student||' '||coalesce(email,'')),lower(p_search))>0

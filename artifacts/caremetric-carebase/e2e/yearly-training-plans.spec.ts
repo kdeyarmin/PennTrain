@@ -163,8 +163,8 @@ async function applyToBoth(page: Page, name: string,
   } else {
     await expect(result).not.toContainText("Needs attention:");
   }
-  // The shared dialog also has an X named Close. Select the footer beside Apply.
-  await applyButton.locator("..").getByRole("button", { name: "Close", exact: true }).click();
+  // The completed preview returns to its first step; either close control closes the dialog.
+  await dialog.getByRole("button", { name: "Close", exact: true }).first().click();
   await expect(dialog).not.toBeVisible();
 }
 

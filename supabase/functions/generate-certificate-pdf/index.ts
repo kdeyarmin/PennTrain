@@ -414,7 +414,7 @@ async function loadCertificateDetail(
   // depending on how it resolves the relationship, so accept both rather than guessing.
   const rawProfile = cert.courses?.course_provider_profiles ?? null;
   const profile = Array.isArray(rawProfile) ? rawProfile[0] ?? null : rawProfile;
-  const catalogCode = cert.courses?.catalog_code ?? null;
+  const catalogCode = cert.course_title_snapshot !== null ? cert.course_code_snapshot : cert.courses?.catalog_code ?? null;
   const wording = catalogCode ? CERTIFICATE_STATEMENTS[catalogCode] ?? null : null;
 
   let courseVersion: string | null = null;
