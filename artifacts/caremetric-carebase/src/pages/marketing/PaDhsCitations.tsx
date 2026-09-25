@@ -500,7 +500,7 @@ function OfficialTable({
       <div className="border-b border-[#eef2f6] bg-[#fafbfc] px-[18px] py-3">
         <h3 className="text-[14px] font-bold text-[#0d2742]">{heading}</h3>
       </div>
-      <div className="overflow-x-auto">
+      <div role="region" aria-label={heading} tabIndex={0} className="overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary">
         <table className="min-w-[420px] border-collapse text-[13px]">
           <thead className="font-mono text-[10px] uppercase tracking-[0.08em] text-[#5d7084]">
             <tr>

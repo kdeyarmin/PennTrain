@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { declaredRoutes, governedPrefixes, isInAppPath, routeMatches } from "./lib/appRoutes.mjs";
 import { blankJsComments } from "./lib/jsComments.mjs";
@@ -26,7 +27,7 @@ import { blankJsComments } from "./lib/jsComments.mjs";
 // as good as whatever produced them, and the producers that live in SQL are already covered by the
 // server check. This reads literals, which is where a typo or a renamed route actually lands.
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const APP_SRC = path.join(ROOT, "artifacts", "caremetric-carebase", "src");
 const APP_TSX = path.join(APP_SRC, "App.tsx");
 const ALLOWLIST = path.join(ROOT, "scripts", "frontend-route-link-allowlist.json");

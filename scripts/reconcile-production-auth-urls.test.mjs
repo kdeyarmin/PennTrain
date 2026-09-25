@@ -248,7 +248,7 @@ test("CLI output and exit status distinguish dry observations from verified muta
 });
 
 test("workflow applies only after trusted CI and before publishing deployment success", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/deploy-migrations.yml", import.meta.url), "utf8");
+  const workflow = (await readFile(new URL("../.github/workflows/deploy-migrations.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   const step = workflow.split("      - name: Reconcile production Auth URL configuration\n")[1]?.split("\n      - name:")[0];
   assert.ok(step);
   assert.match(step, /if: env\.DRY_RUN != 'true' && github\.event_name == 'workflow_run'/);

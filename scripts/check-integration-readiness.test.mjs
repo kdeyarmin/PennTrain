@@ -241,7 +241,7 @@ test("CLI writer failures have a distinct fixed diagnostic without exception con
 });
 
 test("deploy workflow reports after backend success including no-op, without broadening token access or release gates", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/deploy-migrations.yml", import.meta.url), "utf8");
+  const workflow = (await readFile(new URL("../.github/workflows/deploy-migrations.yml", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   const reportStep = workflow.split("      - name: Report integration configuration readiness\n")[1]?.split("\n      - name:")[0];
   assert.ok(reportStep, "Missing production report step");
   assert.match(reportStep, /if: success\(\)/);

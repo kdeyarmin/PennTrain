@@ -67,6 +67,7 @@ export function blankLiterals(source) {
   const blank = (from, to) => { for (let i = from; i < to; i += 1) if (out[i] !== "\n") out[i] = " "; };
   let i = 0;
   let lastSignificant = "";
+  const operandKeywords = new Set(["return", "throw", "case", "delete", "void", "typeof", "new", "in", "instanceof", "yield", "await", "of"]);
   while (i < source.length) {
     const ch = source[i];
     const next = source[i + 1];
@@ -87,10 +88,18 @@ export function blankLiterals(source) {
         else if (ch !== "`" && source[j] === "\n") break;
         j += 1;
       }
-      blank(i + 1, Math.min(j, source.length)); i = j + 1; lastSignificant = ch; continue;
+      blank(i + 1, Math.min(j, source.length)); i = j + 1; lastSignificant = "literal"; continue;
+    }
+    if (/[A-Za-z_$]/.test(ch)) {
+      let j = i + 1;
+      while (j < source.length && /[\w$]/.test(source[j])) j += 1;
+      // Keywords such as `return` expect an operand, but `object.return` is a property value.
+      lastSignificant = lastSignificant === "." ? "identifier" : source.slice(i, j);
+      i = j; continue;
     }
     // A slash starts a regex literal only where an operand can start; after an operand it divides.
-    if (ch === "/" && !/[\w$)\]]/.test(lastSignificant)) {
+    // Track whole keywords so `return /}/` cannot expose the regex brace as a catch boundary.
+    if (ch === "/" && (operandKeywords.has(lastSignificant) || !/[\w$)\]]/.test(lastSignificant))) {
       let j = i + 1;
       let inClass = false;
       while (j < source.length && source[j] !== "\n") {
@@ -100,7 +109,7 @@ export function blankLiterals(source) {
         else if (source[j] === "/" && !inClass) break;
         j += 1;
       }
-      if (j < source.length && source[j] === "/") { blank(i + 1, j); i = j + 1; lastSignificant = "/"; continue; }
+      if (j < source.length && source[j] === "/") { blank(i + 1, j); i = j + 1; lastSignificant = "literal"; continue; }
     }
     if (!/\s/.test(ch)) lastSignificant = ch;
     i += 1;
@@ -236,6 +245,13 @@ if (process.argv.includes("--self-test")) {
     // A brace inside a string or a comment does not close the catch block early.
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\ntry { x(); } catch (error) { log("}"); log(error); }', 1],
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\ntry { x(); } catch (error) { log("}"); /* } */ log(error); }\nif (error) return x;', 0],
+    // Regex literals after an operand-taking keyword must not close the shadowing catch early.
+    ['const { data, error } = await c.from("t").select("*").maybeSingle();\nexisting = data;\ntry { x(); } catch (error) { return /}/.test(error.message); }', 1],
+    ['const { data, error } = await c.from("t").select("*").maybeSingle();\ntry { x(); } catch (error) { log(/}/.test(error.message)); }\nif (error) return x;', 0],
+    // Real division must leave the catch boundary and subsequent outer-error guard visible.
+    ['const { data, error } = await c.from("t").select("*").maybeSingle();\ntry { x(); } catch (error) { log(error.count / total); }\nif (error) return /fallback/;', 0],
+    ['const { data, error } = await c.from("t").select("*").maybeSingle();\ntry { x(); } catch (error) { log("12" / total); }\nif (error) return /fallback/;', 0],
+    ['const { data, error } = await c.from("t").select("*").maybeSingle();\ntry { x(); } catch (error) { log(error.return / total); }\nif (error) return /fallback/;', 0],
     // A read inside a template literal outside any catch block is still a read.
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nif (!data) throw new Error(`lookup failed: ${error?.message}`);', 0],
     // An alias TO `error` is a new binding of it.

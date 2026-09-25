@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useOrgDashboardSummary } from "@/hooks/useDashboardSummary";
+import { useFacilityBenchmarkComparison } from "@/hooks/useFacilityBenchmarkComparison";
 import { complianceBand, complianceBandTextClass } from "@/lib/complianceScore";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { RoleQuickStart } from "@/components/RoleQuickStart";
@@ -36,6 +36,7 @@ interface RecentUpload {
 interface FacilityComplianceSummary {
   facilityId: string;
   facilityName: string;
+  isActive: boolean;
   complianceScore: number;
 }
 
@@ -211,7 +212,7 @@ export default function OrgDashboard() {
       id: d.id, fileName: d.fileName, documentType: d.documentType, createdAt: d.createdAt,
     })),
     facilityCompliance: (dashboard?.facilities ?? []).map(f => ({
-      facilityId: f.id, facilityName: f.name, complianceScore: f.complianceScore,
+      facilityId: f.id, facilityName: f.name, isActive: f.isActive, complianceScore: f.complianceScore,
     })),
   }), [dashboard]);
 
@@ -270,32 +271,8 @@ export default function OrgDashboard() {
     criticalAlertsCount,
     facilities: summary.facilityCompliance,
   });
-  const benchmarkFacility = summary.facilityCompliance[0];
-  const benchmarkQuery = useQuery({
-    queryKey: ["facility-benchmark-comparison", benchmarkFacility?.facilityId],
-    enabled: Boolean(benchmarkFacility?.facilityId && ["platform_admin","org_admin","facility_manager","auditor"].includes(user?.role ?? "")),
-    retry: false,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_facility_benchmark_comparison", { p_facility_id: benchmarkFacility!.facilityId });
-      if (error) return { available: false } as const;
-      return data as {
-        available: boolean;
-        cohort?: { organizationCount: number; facilityCount: number; kThreshold: number; jurisdictionCode: string };
-        metrics?: {
-          trainingComplianceRate?: { p25: number; p50: number; p75: number };
-          medianCredentialRenewalDays?: { p50: number };
-          incidentsPer100OccupiedBeds?: { p50: number };
-          topCitationTopics?: Array<{ citationRef: string | null; title: string; organizationCount: number; violationCount: number }>;
-        };
-        facilityMetrics?: {
-          trainingComplianceRate: number;
-          medianCredentialRenewalDays: number;
-          incidentsPer100OccupiedBeds: number;
-          topCitationTopics: Array<{ citationRef: string | null; title: string; violationCount: number }>;
-        };
-      };
-    },
-  });
+  const benchmarkQuery = useFacilityBenchmarkComparison(summary.facilityCompliance);
+  const benchmarkFacility = benchmarkQuery.facility;
 
   useEffect(() => {
     if (!benchmarkQuery.data?.available) return;

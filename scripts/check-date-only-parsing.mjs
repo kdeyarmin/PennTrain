@@ -75,6 +75,11 @@ const SRC = resolve(HERE, "../artifacts/caremetric-carebase/src");
 const MIGRATIONS = resolve(HERE, "../supabase/migrations");
 const ROOT = resolve(HERE, "..");
 
+// Allowlists use repository paths, even when path.relative runs on Windows.
+function normalizeSourcePath(path) {
+  return path.replaceAll("\\", "/");
+}
+
 // The column list is DERIVED from the migrations rather than hand-maintained.
 //
 // It used to be a literal array, on the reasoning that the check runs without a database. That was
@@ -426,9 +431,14 @@ if (process.argv.includes("--self-test")) {
     }
   }
 
+  for (const path of ["src/pages/employee/MyCourses.tsx", "src\\pages\\employee\\MyCourses.tsx"]) {
+    if (!SORT_ONLY_ALLOWLIST.has(normalizeSourcePath(path))) {
+      fail(`sort-only allowlist did not recognize ${path}`);
+    }
+  }
   if (failures) throw new Error(`Date-only parsing self-test failed (${failures} case(s)).`);
   process.stdout.write(
-    `Date-only parsing self-test passed (${derived.length + ts.length + cases.length + sliceCases.length + 3} cases).\n`,
+    `Date-only parsing self-test passed (${derived.length + ts.length + cases.length + sliceCases.length + 5} cases).\n`,
   );
   process.exit(0);
 }
@@ -481,7 +491,7 @@ if (DATE_COLUMNS.length < MINIMUM_EXPECTED_COLUMNS) {
 
 const problems = [];
 for (const file of walk(SRC)) {
-  const rel = relative(join(ROOT, "artifacts/caremetric-carebase"), file);
+  const rel = normalizeSourcePath(relative(join(ROOT, "artifacts/caremetric-carebase"), file));
   if (SORT_ONLY_ALLOWLIST.has(rel)) continue;
   const text = readFileSync(file, "utf8");
   // The WHOLE file, not line by line -- see offendingCallSites. Line numbers are derived from the

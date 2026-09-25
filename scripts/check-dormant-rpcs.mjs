@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { stripSqlComments } from "./lib/sqlComments.mjs";
 
 // Dormant-RPC check.
@@ -35,7 +36,7 @@ import { stripSqlComments } from "./lib/sqlComments.mjs";
 // Legitimately-dormant functions belong in dormant-rpc-allowlist.json with a reason, in the same
 // change set that makes them dormant. "It will have a caller soon" is not a reason; land the caller.
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATIONS = path.join(ROOT, "supabase", "migrations");
 const CLIENT_SRC = path.join(ROOT, "artifacts", "caremetric-carebase", "src");
 const EDGE_FUNCTIONS = path.join(ROOT, "supabase", "functions");

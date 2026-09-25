@@ -408,7 +408,7 @@ export default function Savings() {
             </p>
           </Reveal>
 
-          <Reveal className="mt-8 overflow-x-auto rounded-[14px] border border-[#dfe6ee] shadow-[0_10px_30px_rgba(13,39,66,0.05)]">
+          <Reveal role="region" aria-label="CareBase capability comparison" tabIndex={0} className="mt-8 overflow-x-auto rounded-[14px] border border-[#dfe6ee] shadow-[0_10px_30px_rgba(13,39,66,0.05)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
             <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">
               <thead>
                 <tr className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-[#5d7084]">

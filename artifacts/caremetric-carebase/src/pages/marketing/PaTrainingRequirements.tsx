@@ -211,7 +211,7 @@ export default function PaTrainingRequirements() {
             </p>
           </Reveal>
           <Reveal delay={0.08}>
-            <div className="mt-5 overflow-x-auto rounded-[14px] border border-[#dfe6ee]">
+            <div role="region" aria-label="Annual training requirements by setting" tabIndex={0} className="mt-5 overflow-x-auto rounded-[14px] border border-[#dfe6ee] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
               <table className="min-w-[640px] border-collapse text-left text-[13.5px]">
                 <thead className="bg-[#fafbfc] font-mono text-[10.5px] uppercase tracking-[0.08em] text-[#5d7084]">
                   <tr>
@@ -268,7 +268,7 @@ export default function PaTrainingRequirements() {
           </Reveal>
           <Reveal delay={0.08}>
             <div className="mt-5 overflow-hidden rounded-[14px] border border-[#dfe6ee] bg-white">
-              <div className="overflow-x-auto">
+              <div role="region" aria-label="Annual training hours by subject" tabIndex={0} className="overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary">
                 <table className="min-w-[640px] border-collapse text-[13.5px]">
                   <thead className="bg-[#fafbfc] font-mono text-[10.5px] uppercase tracking-[0.08em] text-[#5d7084]">
                     <tr>

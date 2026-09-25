@@ -337,7 +337,7 @@ for (const seed of consumerSeeds) {
 
 const deadModules = [...sources.keys()]
   .filter((file) => !consumedModules.has(file))
-  .filter((file) => !allowlist[path.relative(ROOT, file)])
+  .filter((file) => !allowlist[path.relative(ROOT, file).replaceAll("\\", "/")])
   .sort();
 
 const findings = [];
