@@ -1,3 +1,4 @@
+import { hasStateFormPrefill } from "../../../../supabase/functions/_shared/stateFormPrefill";
 import { facilityDaysUntil } from "./dateUtils";
 import { getRequiredStateFormInfo } from "./residentCompliance";
 import { isDigitalFormEligible } from "./residentAssessmentFormSchema";
@@ -244,6 +245,18 @@ export function deriveStateFormWorkflow(
         { key: "download_prefilled_start", label: "Download prefilled form", documentId: prefillDoc.id },
         downloadOfficialBlank,
       ],
+    };
+  }
+  // The ALF quarterly support plan review (2800.227(c)) is documented on the resident's ASP, but it
+  // is none of the four reasons the ASP form records, so it is neither drafted digitally nor
+  // prefilled: the official form is where it starts.
+  if (!hasStateFormPrefill(item.item_type)) {
+    return {
+      ...base,
+      step: "not_started",
+      steps: buildSteps(stepDefs, 0),
+      primaryAction: downloadOfficialBlank,
+      secondaryActions: [uploadSigned],
     };
   }
   return {

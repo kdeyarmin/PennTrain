@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { STATE_FORM_PREFILL_ITEM_TYPES } from "../../../../supabase/functions/_shared/stateFormPrefill";
 import {
   assessmentFormDocumentLabel,
   deriveStateFormWorkflow,
@@ -138,6 +141,34 @@ describe("deriveStateFormWorkflow", () => {
     expect(state.step).toBe("awaiting_signed_upload");
     expect(state.primaryAction?.key).toBe("upload_signed_form");
     expect(state.secondaryActions.find((a) => a.key === "download_prefilled_start")?.documentId).toBe("prefill-doc");
+  });
+
+  it("still offers the prefill for the annual medical evaluation, which shares the DME template", () => {
+    const state = deriveStateFormWorkflow(item({ item_type: "annual_medical_evaluation" }), [], [], "ALR");
+    expect(state.primaryAction?.key).toBe("generate_prefilled_start");
+  });
+
+  it("starts the ALF quarterly review from the official ASP, never from a prefill the endpoint refuses", () => {
+    const state = deriveStateFormWorkflow(item({ item_type: "support_plan_quarterly_review" }), [], [], "ALR");
+    expect(state.isDigitalEligible).toBe(false);
+    expect(state.step).toBe("not_started");
+    expect(state.primaryAction?.key).toBe("download_official_blank");
+    expect(state.primaryAction?.label).toBe("Download official ASP (Assessment-Support Plan)");
+    expect(state.secondaryActions.map((a) => a.key)).toEqual(["upload_signed_form"]);
+    expect([state.primaryAction, ...state.secondaryActions].some((a) => a?.key === "generate_prefilled_start")).toBe(false);
+  });
+});
+
+describe("prefill availability", () => {
+  it("lists exactly the item types generate-state-form-prefill holds a DHS template for", () => {
+    const source = readFileSync(
+      join(__dirname, "..", "..", "..", "..", "supabase", "functions", "generate-state-form-prefill", "index.ts"),
+      "utf8",
+    );
+    const block = source.slice(source.indexOf("const DHS_PREFILL_TEMPLATES"));
+    const body = block.slice(block.indexOf("{") + 1, block.indexOf("\n};"));
+    const keys = [...body.matchAll(/^ {2}([a-z_]+):/gm)].map((m) => m[1]);
+    expect(keys.sort()).toEqual([...STATE_FORM_PREFILL_ITEM_TYPES].sort());
   });
 });
 
