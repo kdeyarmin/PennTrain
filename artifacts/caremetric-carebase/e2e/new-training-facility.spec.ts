@@ -222,10 +222,17 @@ test.describe("new training facility administrator", () => {
         const nativePrint = window.print;
         window.print = () => {
           const printable = document.querySelector("[data-training-report-print]");
-          (window as Window & { trainingPrintSnapshot?: { text: string; rows: string[][] } }).trainingPrintSnapshot = {
+          const base = document.createElement("base");
+          base.href = document.baseURI;
+          (window as Window & { trainingPrintSnapshot?: { text: string; rows: string[][]; html: string; head: string } }).trainingPrintSnapshot = {
             text: printable?.textContent ?? "",
             rows: Array.from(printable?.querySelectorAll("tbody tr") ?? []).map(row =>
               Array.from(row.querySelectorAll("td")).map(cell => cell.textContent ?? "")),
+            html: printable?.outerHTML ?? "",
+            // Preserve the actual document's styling and local asset URLs without scripts
+            // that could boot the application inside the static print-evidence page.
+            head: base.outerHTML + Array.from(document.head.querySelectorAll('link[rel="stylesheet"], style'))
+              .map(element => element.outerHTML).join(""),
           };
           window.print = nativePrint;
         };
@@ -235,13 +242,24 @@ test.describe("new training facility administrator", () => {
         (window as Window & { trainingPrintSnapshot?: { rows: string[][] } }).trainingPrintSnapshot?.rows.length,
       )).toBe(1);
       const printed = await page.evaluate(() =>
-        (window as Window & { trainingPrintSnapshot?: { text: string; rows: string[][] } }).trainingPrintSnapshot!,
+        (window as Window & { trainingPrintSnapshot?: { text: string; rows: string[][]; html: string; head: string } }).trainingPrintSnapshot!,
       );
       expect(printed.text).toContain("1 enrollments; 1 distinct students; 1 completed / 1 non-canceled; 1 issued certificates");
       expect(printed.rows[0]).toEqual(expect.arrayContaining(["Everly Newlearner", fixture.facility.name, fixture.courseTitle, "100"]));
       expect(printed.text).not.toContain("Aspen other facility");
-      await page.screenshot({ path: "test-results/new-training-facility-report.png", fullPage: true });
-      await page.pdf({ path: "test-results/new-training-facility-report.pdf", format: "Letter", printBackground: true });
+      await page.getByText("Marked complete", { exact: true }).waitFor({ state: "hidden", timeout: 10_000 });
+      await report.screenshot({ path: "test-results/new-training-facility-report.png" });
+      const printEvidence = await page.context().newPage();
+      try {
+        await printEvidence.emulateMedia({ media: "print" });
+        await printEvidence.setContent(`<!doctype html><html lang="en"><head><meta charset="utf-8">${printed.head}</head><body>${printed.html}</body></html>`, { waitUntil: "load" });
+        await printEvidence.evaluate(async () => { await document.fonts.ready; });
+        await expect(printEvidence.locator("[data-training-report-print]")).toBeVisible();
+        await expect(printEvidence.getByRole("row")).toHaveCount(printed.rows.length + 1);
+        await printEvidence.pdf({ path: "test-results/new-training-facility-report.pdf", format: "Letter", preferCSSPageSize: true, printBackground: true });
+      } finally {
+        await printEvidence.close();
+      }
       await page.getByRole("tab", { name: "Certificates", exact: true }).click();
       await page.getByLabel("Training student").selectOption(studentId);
       await expect(page.getByRole("checkbox", { name: new RegExp(fixture.courseTitle) })).toBeVisible();
@@ -327,7 +345,7 @@ test.describe("new training facility administrator", () => {
     expect(invited).toMatchObject({ role: "org_admin", organization_id: organization.id });
 
     await page.goto(`/admin/training-reports?organizationId=${organization.id}`);
-    await expect(page.getByRole("heading", { name: "Facility training reports", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Facility training reports", exact: true })).toBeVisible();
     await expect(page.getByLabel("Report organization", { exact: true })).toHaveValue(organization.id);
     const report = page.getByRole("region", { name: "Enrollment, completion & certificates", exact: true });
     await report.getByRole("combobox", { name: "Report facility", exact: true }).selectOption(facility.id);
