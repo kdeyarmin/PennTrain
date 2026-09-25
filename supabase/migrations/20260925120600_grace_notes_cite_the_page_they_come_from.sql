@@ -15,6 +15,12 @@
 --     2800.225(a) is "Additional assessments" -- the annual, significant-change and Department-
 --     requested cycle -- and the same guide's grace list names its (a)(1) for 15 days. The guide
 --     contradicts itself; the row keeps 15 days on the reading its label and its grace list share.
+--   * The ALF initial medical evaluation rows said "the 15-day figure both RCGs give for this
+--     citation is an annual-cycle grace". The 2800 guide also gives one following admission: "The
+--     Department allows a 15-day grace period following admission for completion of the initial
+--     medical evaluation for all residents" (2800.22(a)(1) discussion, p.25). Its exclusion list
+--     names the same evaluation. Grace stays 0, and BACKLOG REG25 carries the decision; the note
+--     now says why.
 --
 -- Notes only. grace_period_days and every other column are untouched.
 
@@ -39,3 +45,13 @@ set notes = '15-day grace: PA DHS 2800 RCG p.4 Grace Periods list names "Complet
       'annual and significant-change cycle takes 15 days and the initial assessment stays at zero.'
 where organization_id is null and state = 'PA' and facility_type = 'ALR'
   and item_type = 'annual_reassessment' and citation_ref = '2800.225';
+
+update public.resident_compliance_rule_packs
+set notes = 'The INITIAL evaluation only, since 20260804170000 split the annual cycle into '
+      'annual_medical_evaluation. Grace stays 0, and the 2800 RCG contradicts itself on it: the p.5 '
+      '"does NOT apply" list (Q/A April 2016) names "2800.141(a)- Initial medical evaluations", while '
+      'the 2800.22(a)(1) discussion (p.25) says "The Department allows a 15-day grace period following '
+      'admission for completion of the initial medical evaluation for all residents". This row follows '
+      'the exclusion list and the regulation text; BACKLOG REG25 holds the decision.'
+where organization_id is null and state = 'PA' and facility_type = 'ALR'
+  and item_type = 'medical_evaluation';

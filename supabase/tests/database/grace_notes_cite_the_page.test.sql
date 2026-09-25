@@ -3,7 +3,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(4);
+select plan(5);
 
 select is(
   (select count(*)::int from public.resident_compliance_rule_packs
@@ -41,6 +41,17 @@ select is(
      and item_type = 'annual_medical_evaluation'),
   true,
   'the PCH annual medical evaluation cites p.4 and names 2600.141(a) as the list''s only medical-evaluation entry'
+);
+
+select is(
+  (select string_agg(admission_track || ':' || grace_period_days || ':'
+                     || (notes like '%15-day grace period following admission%'
+                         and notes not like '%is an annual-cycle grace%')::text,
+                     ',' order by admission_track)
+   from public.resident_compliance_rule_packs
+   where organization_id is null and state = 'PA' and facility_type = 'ALR' and item_type = 'medical_evaluation'),
+  'expedited:0:true,standard:0:true',
+  'the ALF initial medical evaluation keeps grace 0 and its note quotes the 2800 RCG''s post-admission grace instead of denying it exists'
 );
 
 select * from finish();
