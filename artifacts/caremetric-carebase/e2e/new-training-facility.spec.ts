@@ -353,9 +353,16 @@ test.describe("new training facility administrator", () => {
         await printEvidence.close();
       }
       // A profile correction must not silently restate the award during its first PDF render.
-      const { error: renameError } = await service.from("employees")
-        .update({ first_name: "Updated", last_name: "Profile" }).eq("id", studentId);
-      if (renameError) throw renameError;
+      await page.getByRole("tab", { name: "Staff", exact: true }).click();
+      await page.getByRole("link", { name: "Staff details", exact: true }).click();
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      const editEmployee = page.getByRole("dialog", { name: "Edit Employee", exact: true });
+      await editEmployee.getByLabel("First Name *", { exact: true }).fill("Updated");
+      await editEmployee.getByLabel("Last Name *", { exact: true }).fill("Profile");
+      await editEmployee.getByRole("button", { name: "Save Changes", exact: true }).click();
+      await expect(editEmployee).not.toBeVisible();
+      await expect(page.getByRole("heading", { name: "Updated Profile", exact: true })).toBeVisible();
+      await page.getByRole("link", { name: "Back to training", exact: true }).click();
       await page.getByRole("tab", { name: "Certificates", exact: true }).click();
       await page.getByLabel("Training student").selectOption(studentId);
       await expect(page.getByRole("checkbox", { name: new RegExp(fixture.courseTitle) })).toBeVisible();
