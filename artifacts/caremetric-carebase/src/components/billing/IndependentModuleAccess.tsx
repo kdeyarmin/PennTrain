@@ -1,3 +1,4 @@
+import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 import { trainingActionError } from "@/lib/trainingWorkspace";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,8 +20,9 @@ export function IndependentModuleAccess({ organizationId }: { organizationId: st
   async function change(revokeId?: string) {
     setBusy(true);
     try {
+      const endsAt = ends ? facilityDateTimeLocalToUtcIso(ends) : undefined;
       const { error } = await supabase.rpc("manage_module_access_term", { p_organization_id: organizationId, p_module_key: module, p_source: source,
-        p_reason: reason, ...(ends ? { p_ends_at: ends } : {}), ...(revokeId ? { p_revoke_id: revokeId } : {}) });
+        p_reason: reason, ...(endsAt ? { p_ends_at: endsAt } : {}), ...(revokeId ? { p_revoke_id: revokeId } : {}) });
       if (error) throw error;
       await Promise.all([client.invalidateQueries({ queryKey: ["module-access-terms"] }), client.invalidateQueries({ queryKey: ["product-module-entitlements"] }), client.invalidateQueries({ queryKey: ["organizations"] })]);
       toast({ title: revokeId ? "Module access revoked" : "Independent module access granted" });
@@ -32,7 +34,7 @@ export function IndependentModuleAccess({ organizationId }: { organizationId: st
     <form className="grid md:grid-cols-2 gap-3" onSubmit={e => { e.preventDefault(); void change(); }}>
       <label className="text-sm">Module<select className="w-full border rounded p-2" value={module} onChange={e => setModule(e.target.value)}>{PRODUCT_MODULES.map(m => <option key={m.id} value={m.entitlementKey}>{m.name}</option>)}</select></label>
       <label className="text-sm">Basis<select className="w-full border rounded p-2" value={source} onChange={e => setSource(e.target.value)}><option value="complimentary">Complimentary</option><option value="contract">Separately executed contract</option></select></label>
-      <label className="text-sm">Ends at (optional ISO timestamp with offset)<Input value={ends} onChange={e => setEnds(e.target.value)} placeholder="Leave blank for ongoing access" /></label>
+      <label className="text-sm">Ends at (optional, Pennsylvania time)<Input type="datetime-local" value={ends} onChange={e => setEnds(e.target.value)} /></label>
       <label className="text-sm">Business reason / contract reference<Input minLength={10} maxLength={1000} required value={reason} onChange={e => setReason(e.target.value)} /></label>
       <Button disabled={busy}>Grant module access</Button>
     </form>

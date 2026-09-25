@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { billingSessionFailureCopy, type BillingSessionErrorCopy } from "@/lib/billingErrors";
-import { isLiveSubscriptionState, resolveTrialPresentation } from "@/lib/trialStatus";
+import { isLiveSubscriptionState, resolveTrialPresentation, visibleBillingNotices } from "@/lib/trialStatus";
 import { cn } from "@/lib/utils";
 import type { Json } from "@/lib/database.types";
 import {
@@ -131,6 +131,7 @@ export function BillingPlanSelector() {
       : { kind: "none" as const }),
     [organizationQuery.data, billingAccountQuery.data],
   );
+  const billingNotices = visibleBillingNotices(trialPresentation.kind, independentModules.length > 0);
   const currentPackageId = currentSubscription?.package_id ?? organizationQuery.data?.package_id;
   const hasManagedSubscription = !!currentSubscription;
   const hasCustomerPortal = !!billingAccountQuery.data?.account?.stripe_customer_id;
@@ -339,7 +340,8 @@ export function BillingPlanSelector() {
                 </Tabs>
               </div>
 
-              {independentModules.length ? <Alert><AlertTitle>Independent module access</AlertTitle><AlertDescription>{independentModules.map(id => PRODUCT_MODULES.find(m => m.id === id)?.name).join(", ")} access follows your complimentary or contract terms. Ending a paid subscription does not cancel an active independent grant.</AlertDescription></Alert> : trialPresentation.kind === "trialing" ? (
+              {billingNotices.independent ? <Alert><AlertTitle>Independent module access</AlertTitle><AlertDescription>{independentModules.map(id => PRODUCT_MODULES.find(m => m.id === id)?.name).join(", ")} access follows your complimentary or contract terms. Ending a paid subscription does not cancel an active independent grant.</AlertDescription></Alert> : null}
+              {trialPresentation.kind === "trialing" ? (
                 <Alert>
                   <CalendarClock className="h-4 w-4" />
                   <AlertTitle>
@@ -350,7 +352,8 @@ export function BillingPlanSelector() {
                     Choose a plan before the trial ends to keep uninterrupted access to your subscribed modules.
                   </AlertDescription>
                 </Alert>
-              ) : trialPresentation.kind === "ended" ? (
+              ) : null}
+              {billingNotices.trialEnded && trialPresentation.kind === "ended" ? (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Trial ended — choose a plan to continue</AlertTitle>

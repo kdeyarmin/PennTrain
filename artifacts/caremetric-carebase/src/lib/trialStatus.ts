@@ -85,3 +85,12 @@ export function resolveTrialPresentation(input: TrialPresentationInput): TrialPr
 
   return { kind: "none" };
 }
+
+/** Independent access must not hide an active trial, and a complimentary term must not look like a lapsed trial. */
+export function visibleBillingNotices(trialKind: TrialPresentation["kind"], hasIndependentAccess: boolean) {
+  return {
+    independent: hasIndependentAccess,
+    trialing: trialKind === "trialing",
+    trialEnded: trialKind === "ended" && !hasIndependentAccess,
+  };
+}
