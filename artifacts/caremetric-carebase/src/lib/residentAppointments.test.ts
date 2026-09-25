@@ -68,6 +68,12 @@ describe("stage", () => {
       .toBe("awaiting_outcome");
   });
 
+  it("shows the resident out once transport departs, before the provider visit starts", () => {
+    expect(appointmentStage(appointment({
+      starts_at: hoursFromNow(1), pickup_at: hoursAgo(1),
+    }), NOW)).toBe("in_progress");
+  });
+
   it("moves to follow-up open once there is a summary, and to closed once it is signed off", () => {
     const attended = appointment({ status: "attended", outcome_summary: "Dose increased" });
     expect(appointmentStage(attended, NOW)).toBe("follow_up_open");
@@ -113,6 +119,21 @@ describe("preparation", () => {
   it("is overdue only once the resident has actually left with something missing", () => {
     expect(prep({ starts_at: hoursFromNow(1) }).overdue).toBe(false);
     expect(prep({ starts_at: hoursAgo(1) }).overdue).toBe(true);
+  });
+
+  it("anchors preparation to pickup, including when transport leaves before the visit starts", () => {
+    const upcoming = prep({ starts_at: hoursFromNow(25), pickup_at: hoursFromNow(23) });
+    expect(upcoming.due).toBe(true);
+    expect(upcoming.dueAt).toBe(hoursAgo(1));
+    expect(prep({ starts_at: hoursFromNow(1), pickup_at: hoursAgo(1) }).overdue).toBe(true);
+  });
+
+  it("falls back to the visit start for missing, invalid or later pickup times", () => {
+    for (const pickup_at of [null, "invalid", hoursFromNow(2)]) {
+      const state = prep({ starts_at: hoursAgo(1), pickup_at });
+      expect(state.overdue).toBe(true);
+      expect(state.dueAt).toBe(hoursAgo(25));
+    }
   });
 
   it("is not overdue once every required item is ready, however late it was done", () => {

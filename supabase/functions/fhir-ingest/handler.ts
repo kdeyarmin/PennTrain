@@ -7,6 +7,7 @@ import {
   phase2IntegrationSha256,
 } from "../_shared/phase2Integration.ts";
 import { mapFhirBundle } from "../_shared/fhirMapping.ts";
+import { hasValidFhirMappingShape } from "../_shared/fhirValidation.ts";
 import { readTextBody, RequestBodyError } from "../_shared/requestBody.ts";
 
 // fhir.bundle.import is a registered per-command contract: the versioned command inbox requires
@@ -119,7 +120,10 @@ export function createFhirIngestHandler({
     return response(req, { error: { code: "invalid_fhir_resource" }, meta: { correlationId } }, 400, correlationId, rate);
   }
   const bundle = parsed as Record<string, unknown>;
-  if (typeof bundle.resourceType !== "string") {
+  // TypeScript interfaces cannot validate vendor JSON. Validate consumed nested fields before
+  // mapping so malformed coding/reaction/entry arrays receive a stable 400, with no partial inbox
+  // command and no resource contents leaked through an uncaught runtime error.
+  if (!hasValidFhirMappingShape(bundle)) {
     return response(req, { error: { code: "invalid_fhir_resource" }, meta: { correlationId } }, 400, correlationId, rate);
   }
 

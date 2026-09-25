@@ -1,3 +1,5 @@
+import { useUploadLearningPackage } from "@/hooks/useLearningPackageIngestion";
+import { NativeLearningPackagePanel } from "@/components/learning/NativeLearningPackagePanel";
 import { useId, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -19,9 +21,8 @@ import {
   useListHeygenOptions, useGenerateCourseVideo, useCheckCourseVideoStatus, useAutoCheckVideoStatuses,
 } from "@/hooks/useCourseVideoGeneration";
 import { useRegenerateCourseBlock, useListCourseAiGenerations, useMarkAiGenerationReviewed } from "@/hooks/useAiCourseGeneration";
-import { useListDocuments, useUploadDocument } from "@/hooks/useDocuments";
-import { useRegisterLearningPackage } from "@/hooks/useLearningRuntime";
-import { useListFacilities } from "@/hooks/useFacilities";
+import { useListDocuments } from "@/hooks/useDocuments";
+import { } from "@/hooks/useLearningRuntime";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
@@ -41,6 +42,7 @@ import {
   AddBlockDialog, QuizPromptDialog, RegenerateBlockDialog, DeleteBlockAlertDialog, DiscardConfirmAlertDialog,
 } from "./course-detail/BlockDialogs";
 import { VideoGenDialog, BulkVideoGenDialog } from "./course-detail/VideoGenDialogs";
+import { NativeGovernedDraftEditor } from "@/components/learning/NativeGovernedDraftEditor";
 
 export default function CourseDetail() {
   const __fieldIds = useId();
@@ -131,28 +133,21 @@ export default function CourseDetail() {
 
   const { data: blocks, isLoading: blocksLoading, isError: blocksError, refetch: refetchBlocks } = useListCourseBlocks(selectedVersion?.id);
   const courseDocumentPrefix = course ? `${course.organization_id ?? "system"}/${course.id}/` : undefined;
-  const { data: courseDocuments, isLoading: courseDocumentsLoading } = useListDocuments(
+  const { data: courseDocuments } = useListDocuments(
     courseDocumentPrefix
       ? { storageBucket: "course-documents", storagePathPrefix: courseDocumentPrefix }
       : {},
     !!courseDocumentPrefix,
   );
-  const { data: facilities } = useListFacilities(
-    course?.organization_id ? { organizationId: course.organization_id } : {},
-    canManage && !!course,
-  );
-  const uploadCourseDocument = useUploadDocument();
-  const registerLearningPackage = useRegisterLearningPackage();
+  const uploadLearningPackage = useUploadLearningPackage();
+  const packageVersionRef = useRef(selectedVersion?.id);
+  packageVersionRef.current = selectedVersion?.id;
   const courseDocumentInputRef = useRef<HTMLInputElement | null>(null);
   const courseDocumentById = useMemo(
     () => new Map((courseDocuments ?? []).map(document => [document.id, document])),
     [courseDocuments],
   );
-  const courseDocumentUploadFacility = useMemo(
-    () => facilities?.find(f => !course?.organization_id || f.organization_id === course.organization_id) ?? facilities?.[0],
-    [facilities, course?.organization_id],
-  );
-  const { data: publishIssues, isLoading: publishIssuesLoading } = useCourseVersionPublishIssues(
+  const { data: publishIssues, isLoading: publishIssuesLoading, isError: publishIssuesError } = useCourseVersionPublishIssues(
     selectedVersion?.id,
     !!selectedVersion && canManage,
   );
@@ -197,15 +192,15 @@ export default function CourseDetail() {
       },
       {
         label: "Videos are ready with captions or transcript",
-        passed: videoBlocks.length === 0 || (videoBlocks.every(block => !!block.video_url) && videoBlocks.every(block => !!videoTranscriptContent(block))),
+        passed: videoBlocks.length === 0 || (videoBlocks.every(block => !!(block.video_url || block.media_asset_id)) && videoBlocks.every(block => !!videoTranscriptContent(block))),
         detail: videoBlocks.length === 0
           ? "No video blocks in this version."
           : "Every video should have a finished URL and a script or transcript.",
       },
       {
         label: "PDF and SCORM resources are attached",
-        passed: documentBlocks.length === 0 || documentBlocks.every(block => !!block.document_id),
-        detail: documentBlocks.length === 0 ? "No document blocks in this version." : "Document blocks point to uploaded files.",
+        passed: documentBlocks.length === 0 || (!publishIssuesLoading && !publishIssuesError && !hasIssue(["attach a document"])),
+        detail: documentBlocks.length === 0 ? "No document blocks in this version." : "PDF blocks reference documents; SCORM blocks use a document or a verified accepted runtime package.",
       },
       {
         label: "Quiz questions and answers pass validation",
@@ -218,7 +213,7 @@ export default function CourseDetail() {
         detail: "Open the student preview and confirm the content is easy to take on an employee-sized screen.",
       },
     ];
-  }, [blocks, publishIssues, publishIssuesLoading, studentPreviewChecked]);
+  }, [blocks, publishIssues, publishIssuesLoading, publishIssuesError, studentPreviewChecked]);
 
   // --- Course metadata edit ---
   const [showEditCourse, setShowEditCourse] = useState(false);
@@ -322,6 +317,10 @@ export default function CourseDetail() {
   const [publishingVersionId, setPublishingVersionId] = useState<string | null>(null);
 
   const handlePublish = async (version: CourseVersion) => {
+    if (governedDraftDirty) {
+      toast({ title: 'Save or discard the draft edits first', variant: 'destructive' });
+      return;
+    }
     if (!course) return;
     if (version.id !== selectedVersionId || !studentPreviewChecked) {
       setSelectedVersionId(version.id);
@@ -414,81 +413,18 @@ export default function CourseDetail() {
     event.target.value = "";
     if (!file || !course || !courseDocumentPrefix) return;
 
-    if (!courseDocumentUploadFacility) {
-      toast({
-        title: "No facility available for document ownership",
-        description: "Create or select a facility before uploading a training document.",
-        variant: "destructive",
-      });
+    if (blockForm.block_type === "scorm") {
+      const versionId = selectedVersion?.id;
+      if (!versionId || selectedVersion?.status !== "draft") return;
+      try {
+        await uploadLearningPackage.mutateAsync({ file, versionId });
+        if (packageVersionRef.current === versionId) toast({ title: "Original package registered", description: "Accept this course-owned package in Governed Learning before publication." });
+      } catch (error) {
+        if (packageVersionRef.current === versionId) toast({ title: "Package upload did not finish", description: (error as Error).message, variant: "destructive" });
+      }
       return;
     }
 
-    try {
-      const document = await uploadCourseDocument.mutateAsync({
-        file,
-        bucket: "course-documents",
-        organizationId: courseDocumentUploadFacility.organization_id,
-        facilityId: courseDocumentUploadFacility.id,
-        documentType: "other",
-        storagePrefix: courseDocumentPrefix,
-      });
-      setBlockForm(f => ({ ...f, documentId: document.id }));
-
-      // SCORM/xAPI zips also register into the governed learning package control plane so
-      // Accept/Quarantine on Governed Learning can make them launchable.
-      if (blockForm.block_type === "scorm" && selectedVersion && file.name.toLowerCase().endsWith(".zip")) {
-        let packagePath: string | null = null;
-        let uploadedNewObject = false;
-        try {
-          const buf = await file.arrayBuffer();
-          const digest = await crypto.subtle.digest("SHA-256", buf);
-          const sha = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
-          const orgId = course.organization_id ?? courseDocumentUploadFacility.organization_id;
-          packagePath = `${orgId}/${selectedVersion.id}/${sha}.zip`;
-          const { error: pkgUploadError } = await supabase.storage
-            .from("learning-packages")
-            .upload(packagePath, file, { contentType: "application/zip", upsert: false });
-          if (pkgUploadError && !String(pkgUploadError.message).toLowerCase().includes("already exists")) {
-            throw pkgUploadError;
-          }
-          uploadedNewObject = !pkgUploadError;
-          await registerLearningPackage.mutateAsync({
-            courseVersionId: selectedVersion.id,
-            standardType: "scorm_1_2",
-            storagePath: packagePath,
-            contentSha256: sha,
-            compressedBytes: file.size,
-            entryPoint: "index.html",
-          });
-          toast({
-            title: "SCORM package registered",
-            description: `${file.name} is pending accept on Governed Learning → Standards.`,
-          });
-        } catch (regErr) {
-          if (uploadedNewObject && packagePath) {
-            const { error: cleanupError } = await supabase.storage.from("learning-packages").remove([packagePath]);
-            if (cleanupError) {
-              toast({
-                title: "Document attached; package register incomplete",
-                description: `${(regErr as Error).message} (also failed to remove uploaded package: ${cleanupError.message})`,
-                variant: "destructive",
-              });
-              return;
-            }
-          }
-          toast({
-            title: "Document attached; package register incomplete",
-            description: (regErr as Error).message,
-            variant: "destructive",
-          });
-          return;
-        }
-      } else {
-        toast({ title: "Document uploaded", description: `${document.file_name} is attached to this block.` });
-      }
-    } catch (e) {
-      toast({ title: "Failed to upload document", description: (e as Error).message, variant: "destructive" });
-    }
   };
 
   const handleRequestCloseAddBlock = () => {
@@ -514,7 +450,7 @@ export default function CourseDetail() {
           ? { transcript: blockForm.videoTranscript.trim() }
           : null,
       video_url: blockForm.block_type === "video" ? (blockForm.videoUrl || null) : null,
-      document_id: (blockForm.block_type === "pdf" || blockForm.block_type === "scorm") ? (blockForm.documentId || null) : null,
+      document_id: blockForm.block_type === "pdf" ? (blockForm.documentId || null) : null,
     };
     createBlock(payload, {
       onSuccess: (newBlock) => {
@@ -637,8 +573,9 @@ export default function CourseDetail() {
         voiceId: videoGenForm.voiceId,
         script: videoGenForm.script.trim(),
         title: videoGenRequestTitle.current,
-        replaceExisting: Boolean(videoGenBlock.video_url),
+        replaceExisting: Boolean(videoGenBlock.video_url || videoGenBlock.media_asset_id),
         expectedVideoUrl: videoGenBlock.video_url,
+        expectedMediaAssetId: videoGenBlock.media_asset_id,
       },
       {
         onSuccess: () => {
@@ -694,7 +631,9 @@ export default function CourseDetail() {
   // self-review acknowledgment before they can be published (the DB trigger from
   // Part 3 is the real enforcement; this is a UX courtesy pointing at the same rule). ---
   const [reviewChecked, setReviewChecked] = useState(false);
-  useEffect(() => { setReviewChecked(false); }, [selectedVersionId]);
+  const [governedDraft, setGovernedDraft] = useState<boolean | null>(null);
+  const [governedDraftDirty, setGovernedDraftDirty] = useState(false);
+  useEffect(() => { setReviewChecked(false); setGovernedDraft(false); }, [selectedVersionId]);
 
   const needsAiReview = !!selectedVersion?.ai_generated && !selectedVersion?.ai_reviewed_at;
   const { data: aiGenerations } = useListCourseAiGenerations(course?.id, needsAiReview && !!course?.id);
@@ -787,7 +726,7 @@ export default function CourseDetail() {
 
       <PrePublishSection
         canManage={canManage}
-        needsAiReview={needsAiReview}
+        needsAiReview={needsAiReview && governedDraft === false}
         reviewChecked={reviewChecked}
         setReviewChecked={setReviewChecked}
         markingReviewed={markingReviewed}
@@ -801,7 +740,13 @@ export default function CourseDetail() {
         setStudentPreviewChecked={setStudentPreviewChecked}
       />
 
+      {canManage && selectedVersion?.status === 'draft' && user && <NativeGovernedDraftEditor key={selectedVersion.id}
+        versionId={selectedVersion.id} userId={user.id} onGovernedChange={setGovernedDraft} onDirtyChange={setGovernedDraftDirty} />}
+      {canManage && selectedVersion?.status === 'draft' && user && <NativeLearningPackagePanel key={`${user.id}:${selectedVersion.id}`}
+        versionId={selectedVersion.id} userId={user.id} disabled={governedDraftDirty} />}
+
       <ContentBlocksCard
+        structureManaged={selectedVersion?.status === 'draft' && governedDraft !== false}
         selectedVersion={selectedVersion}
         canManage={canManage}
         onPreviewAsStudent={() => setShowStudentPreview(true)}
@@ -864,12 +809,9 @@ export default function CourseDetail() {
         onCancel={() => setShowAddBlock(false)}
         blockForm={blockForm}
         setBlockForm={setBlockForm}
-        courseDocumentsLoading={courseDocumentsLoading}
-        courseDocuments={courseDocuments}
         courseDocumentInputRef={courseDocumentInputRef}
         handleCourseDocumentUpload={handleCourseDocumentUpload}
-        uploadingDocument={uploadCourseDocument.isPending}
-        courseDocumentUploadFacility={courseDocumentUploadFacility}
+        uploadingDocument={uploadLearningPackage.isPending}
         courseDocumentById={courseDocumentById}
         onAdd={handleAddBlock}
         creatingBlock={creatingBlock}
@@ -896,7 +838,7 @@ export default function CourseDetail() {
         heygenOptionsLoading={heygenOptionsLoading}
         onGenerate={handleGenerateVideo}
         generatingVideo={generatingVideo}
-        replacingVideo={Boolean(videoGenBlock?.video_url)}
+        replacingVideo={Boolean(videoGenBlock?.video_url || videoGenBlock?.media_asset_id)}
         fieldIds={__fieldIds}
       />
 

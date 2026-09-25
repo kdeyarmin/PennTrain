@@ -336,6 +336,11 @@ jobs:
         # "port 54322 already in use". Stopping first ensures a clean slate.
         run: supabase stop --no-backup 2>/dev/null || true
 
+      - name: Allow invitation callbacks to the disposable browser-test app
+        # Loaded only by this local stack. Real UI invitations use the browser's origin;
+        # production retains the default localhost deny rule.
+        run: echo 'ALLOW_LOCALHOST_SIGNUP_REDIRECTS=true' > supabase/functions/.env
+
       - name: Start clean local Supabase stack and apply the full migration chain
         # Browser journeys need Auth, PostgREST, and the API gateway in addition
         # to Postgres. `supabase db start` starts only the database service.
@@ -348,6 +353,16 @@ jobs:
         # inserts. `[db.seed] enabled = false` in supabase/config.toml keeps them out of this
         # stack in the first place, so one pass is the whole story.
         run: supabase start
+
+      - name: Snapshot generated database types for review
+        run: supabase gen types typescript --local > /tmp/database.types.generated.ts
+
+      - name: Upload generated database types
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: database-types
+          path: /tmp/database.types.generated.ts
+          retention-days: 7
 
       - name: Database and RLS tests
         run: supabase test db
@@ -384,6 +399,7 @@ jobs:
         run: |
           eval "$(supabase status -o env)"
           echo "SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "SUPABASE_DB_URL=$DB_URL" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
           echo "VITE_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
           echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
@@ -395,6 +411,36 @@ jobs:
           # journey needs the accounts to render, and this bundle is a throwaway:
           # the password above is scoped to one workflow run and never deployed.
           echo "VITE_ENABLE_PUBLIC_DEMO=true" >> "$GITHUB_ENV"
+
+      - name: Concurrent native central administrator commands (local stack only)
+        env:
+          CAREMETRIC_LOCAL_COMMAND_TESTS: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/platform-admin-database.test.mjs server/platform-admin-configuration-database.test.mjs
+
+      - name: Native central billing query contracts (local stack only)
+        env:
+          CAREMETRIC_LOCAL_BILLING_READ_TESTS: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/platform-admin-billing-database.test.mjs server/platform-admin-checkout-database.test.mjs
+
+      - name: Immutable package Storage and native authorization (local stack only)
+        env:
+          CAREMETRIC_LOCAL_PACKAGE_TESTS: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/platform-admin-packages-database.test.mjs
+
+      - name: Immutable course media Storage and native authorization (local stack only)
+        env:
+          CAREMETRIC_LOCAL_MEDIA_TESTS: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/platform-admin-media-database.test.mjs
+
+      - name: Resident document retention and durable Storage deletion (local stack only)
+        env:
+          CAREMETRIC_LOCAL_RESIDENT_DOCUMENT_TESTS: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/resident-document-deletion-database.test.mjs
+
+      - name: Concurrent FHIR administration replay and conflicting content (local stack only)
+        env:
+          CAREMETRIC_LOCAL_FHIR_TESTS: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec node --test server/fhir-administration-conflicts-database.test.mjs
 
       - name: Seed course-video placeholders (non-production Storage assets only)
         # See BACKLOG.md SG-3 and the script's own header. The 3 HeyGen New Employee Orientation
@@ -426,6 +472,29 @@ jobs:
 
       - name: Role, public, guest, and accessibility browser journeys
         run: pnpm --filter @workspace/caremetric-carebase run test:e2e
+
+      - name: Build standalone Train and verify its application boundary
+        run: |
+          pnpm --filter @workspace/caremetric-carebase run build:train
+          node scripts/check-train-build.mjs
+
+      - name: Standalone Train browser journey
+        env:
+          PLAYWRIGHT_TRAIN_BUILD: "true"
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/standalone-train.spec.ts e2e/new-training-facility.spec.ts --project=chromium
+
+      - name: Upload Train workflow screenshot
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: standalone-train-screen
+          path: |
+            artifacts/caremetric-carebase/test-results/standalone-train-report.png
+            artifacts/caremetric-carebase/test-results/standalone-train-report.pdf
+            artifacts/caremetric-carebase/test-results/new-training-facility-report.png
+            artifacts/caremetric-carebase/test-results/new-training-facility-report.pdf
+          if-no-files-found: ignore
+          retention-days: 7
 
       # Playwright already writes a screenshot, video, and trace for every failure; without this they
       # are discarded with the runner. Diagnosing a browser failure from the log message alone means

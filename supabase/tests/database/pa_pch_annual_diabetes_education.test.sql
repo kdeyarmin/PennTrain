@@ -817,9 +817,13 @@ select results_eq(
 -- have when this certificate was issued, and the certificate must not acquire one.
 select set_config('app.privileged_write', 'on', true);
 
+-- Trusted fixture changes an out-of-editor credential column to test immutable issuance evidence.
+-- Current native/Hub editors intentionally cannot write this field. Reader assertions still run as the learner.
+reset role;
 update public.course_provider_profiles
 set credential = 'ADDED-AFTER-ISSUANCE'
 where course_id = (select id from public.courses where catalog_code = 'PA-PCH-DIABETES-ANNUAL');
+set local role authenticated;
 
 select results_eq(
   $$
@@ -832,9 +836,11 @@ select results_eq(
   'and editing the provider afterwards cannot put a credential on a certificate issued without one'
 );
 
+reset role;
 update public.course_provider_profiles
 set credential = null
 where course_id = (select id from public.courses where catalog_code = 'PA-PCH-DIABETES-ANNUAL');
+set local role authenticated;
 
 select set_config('app.privileged_write', 'off', true);
 

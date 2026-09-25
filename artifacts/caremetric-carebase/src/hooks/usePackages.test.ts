@@ -55,6 +55,7 @@ beforeEach(() => {
   mocks.useQuery.mockImplementation(({ queryKey }: { queryKey: unknown[] }) => {
     switch (queryKey[0]) {
       case "organization-billing-account": return billingQuery;
+      case "product-module-entitlements": return query([]);
       case "packages": return query([{
         id: "train", name: "Train", is_active: true, contact_sales: false,
         features: {}, trial_days: 14, annual_discount_percent: 0,

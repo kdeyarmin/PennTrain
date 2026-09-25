@@ -696,6 +696,14 @@ export default function HelpCenter() {
         </p>
       </div>
 
+      <Card>
+        <CardContent className="py-5">
+          <p className="font-semibold">CareMetric support and customer service</p>
+          <p className="mt-1 text-sm text-muted-foreground">Help with CareBase and all CareMetric software.</p>
+          <a className="mt-2 inline-block font-medium text-primary underline" href="tel:+18775212890">(877) 521-2890</a>
+        </CardContent>
+      </Card>
+
       {centralSupportHub.isActive && centralSupportHubUrl && (
         <Card className="border-primary/40 bg-primary/5">
           <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center">

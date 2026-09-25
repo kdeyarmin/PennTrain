@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, Eye, Lock, Plus, RefreshCw, Sparkles, Trash2, Video, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NativeCourseMediaPanel } from "@/components/learning/NativeCourseMediaPanel";
 import { EmergencyBlockCorrection } from "./EmergencyBlockCorrection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CourseBlock, CourseVersion } from "@/hooks/useCourses";
@@ -10,6 +11,7 @@ import { documentDisplayName, videoTranscriptContent } from "./helpers";
 import { QueryError } from "@/components/QueryState";
 
 export function ContentBlocksCard({
+  structureManaged = false,
   selectedVersion,
   canManage,
   onPreviewAsStudent,
@@ -32,6 +34,7 @@ export function ContentBlocksCard({
   onRegenerateBlock,
   onDeleteBlock,
 }: {
+  structureManaged?: boolean;
   selectedVersion: CourseVersion | undefined;
   canManage: boolean;
   onPreviewAsStudent: () => void;
@@ -76,7 +79,7 @@ export function ContentBlocksCard({
                 <Video className="mr-2 h-3.5 w-3.5" /> Generate All Videos
               </Button>
             )}
-            {canManage && !isVersionLocked && (
+            {canManage && !isVersionLocked && !structureManaged && (
               <Button size="sm" onClick={onAddBlock}>
                 <Plus className="mr-2 h-3.5 w-3.5" /> Add Block
               </Button>
@@ -121,7 +124,7 @@ export function ContentBlocksCard({
                   )}
                   {b.block_type === "video" && (
                     <>
-                      <p className="text-xs text-muted-foreground mt-1 truncate">{b.video_url ?? "No video URL set."}</p>
+                      <p className="text-xs text-muted-foreground mt-1 truncate">{b.media_asset_id ? "Course-owned video attached." : b.video_url ?? "No video URL set."}</p>
                       {videoTranscriptContent(b) && (
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                           Transcript: {videoTranscriptContent(b)}
@@ -141,7 +144,7 @@ export function ContentBlocksCard({
                   )}
                   {(b.block_type === "pdf" || b.block_type === "scorm") && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      {b.document_id ? `Document: ${documentDisplayName(courseDocumentById.get(b.document_id)) || b.document_id}` : "No document attached."}
+                      {b.media_asset_id ? "Course-owned PDF attached." : b.document_id ? `Document: ${documentDisplayName(courseDocumentById.get(b.document_id)) || b.document_id}` : "No document attached."}
                     </p>
                   )}
                   {b.block_type === "quiz" && (
@@ -149,11 +152,12 @@ export function ContentBlocksCard({
                       <QuizBlockSummary
                         blockId={b.id}
                         onConfigure={() => onConfigureQuiz(b)}
-                        canManage={canManage}
+                        canManage={canManage && !structureManaged}
                         role={userRole}
                       />
                     </div>
                   )}
+                  {canManage && (b.block_type === "pdf" || b.block_type === "video") && <NativeCourseMediaPanel key={`${b.id}:${selectedVersion.id}`} versionId={selectedVersion.id} blockId={b.id} type={b.block_type} locked={isVersionLocked} />}
                   {/* Only where the lock actually bites, and only for the one role the server
                       accepts. Per block, because a correction that rewrites a whole version is the
                       re-version this deliberately is not. Inside the block's own column so the
@@ -168,7 +172,7 @@ export function ContentBlocksCard({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground"
-                      disabled={idx === 0 || reorderingBlocks}
+                      disabled={structureManaged || idx === 0 || reorderingBlocks}
                       onClick={() => onMoveBlock(idx, -1)}
                       aria-label="Move block up"
                     >
@@ -178,7 +182,7 @@ export function ContentBlocksCard({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-muted-foreground"
-                      disabled={idx === blocks.length - 1 || reorderingBlocks}
+                      disabled={structureManaged || idx === blocks.length - 1 || reorderingBlocks}
                       onClick={() => onMoveBlock(idx, 1)}
                       aria-label="Move block down"
                     >
@@ -220,6 +224,8 @@ export function ContentBlocksCard({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground shrink-0"
+                    disabled={b.block_type === "video" && !!b.media_asset_id}
+                    title={b.block_type === "video" && b.media_asset_id ? "Reviewed media prevents script regeneration" : undefined}
                     onClick={() => onRegenerateBlock(b)}
                     aria-label="Regenerate with AI"
                   >
@@ -231,6 +237,7 @@ export function ContentBlocksCard({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                    disabled={structureManaged}
                     onClick={() => onDeleteBlock(b)}
                     aria-label="Delete block"
                   >

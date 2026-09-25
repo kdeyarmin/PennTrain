@@ -1,0 +1,218 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createHash } from 'node:crypto';
+import { createLearningAuthoringHandler, parseAuthoringOperation, projectAuthoringResult, validDraftPatch } from './platform-admin-authoring.mjs';
+import { readPlatformAdminConfig } from './platform-admin-auth.mjs';
+import { validCourseCreation } from '../../../supabase/functions/_shared/learningCreation.ts';
+const id = n => `abc00000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const env = { CAREMETRIC_ADMIN_ENABLED: 'true', CAREMETRIC_ADMIN_COMMANDS_ENABLED: 'true', HUB_SUPABASE_URL: 'https://hub.example.test',
+  HUB_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_fixture', SUPABASE_URL: 'https://native.example.test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_fixture',
+  CAREMETRIC_ADMIN_IDENTITY_MAP_JSON: JSON.stringify({ [id(1)]: id(2) }) };
+const config = readPlatformAdminConfig(key => env[key]);
+const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
+const request = (body, headers = {}) => new Request('https://cmcarebase.com/api/learning-admin/authoring', { method: 'POST',
+  headers: { Authorization: 'Bearer a.b.c', 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+const inspect = { operation: 'inspect', courseId: id(4) };
+const preview = { operation: 'preview', requestId: id(8), action: 'learning.cloneVersion', courseId: id(4),
+  parameters: { versionId: id(5), sourceRevision: 'a'.repeat(64), title: 'A new governed draft' }, reason: 'Reviewed the source and its policies' };
+const apply = { operation: 'apply', commandId: id(7), expectedDigest: 'b'.repeat(64) };
+const create = { ...preview, action: 'learning.createCourse', parameters: { versionId: id(5),
+  course: { title: 'New global course', description: null, category: null, estimatedDurationMinutes: 60, trainingTypeId: null },
+  version: { title: 'First draft', description: 'Human entered description\nSecond line' } } };
+const created = { commandId: id(7), action: 'learning.createCourse', courseId: id(4), versionId: id(5), versionNumber: 1,
+  status: 'draft', courseStatus: 'draft', currentVersionId: null, contentStandard: 'comprehensive', sourceRevision: 'c'.repeat(64),
+  appliedAt: '2026-09-11T15:00:00Z', replayed: false };
+
+test('creation accepts only human draft fields and rejects state, tenancy, source and approval injection', () => {
+  assert.deepEqual(parseAuthoringOperation(create), create);
+  for (const parameters of [{ versionId: create.parameters.versionId, sourceRevision: 'a'.repeat(64) },
+    { ...create.parameters, sourceRevision: 'a'.repeat(64) },
+    { ...create.parameters, course: { ...create.parameters.course, organizationId: id(1) } },
+    { ...create.parameters, version: { ...create.parameters.version, aiReviewedAt: 'now' } },
+    { ...create.parameters, version: { ...create.parameters.version, contentStandard: 'legacy' } },
+    { ...create.parameters, course: { ...create.parameters.course, estimatedDurationMinutes: 0 } },
+    { ...create.parameters, course: { ...create.parameters.course, title: 'Control\u0085title' } },
+    { ...create.parameters, version: { ...create.parameters.version, description: 'https://example.test?token=private' } }]) {
+    assert.equal(validCourseCreation(parameters), false); assert.throws(() => parseAuthoringOperation({ ...create, parameters }));
+  }
+  assert.throws(() => parseAuthoringOperation({ ...create, courseId: create.parameters.versionId }));
+});
+test('creation preview projection binds absence and the complete new draft state to the reviewed request', () => {
+  const value = { commandId: id(7), action: create.action, courseId: create.courseId, reason: create.reason, previewDigest: 'b'.repeat(64), expiresAt: '2026-09-11T15:05:00Z',
+    before: { courseId: id(4), versionId: id(5), exists: false }, after: { courseId: id(4), versionId: id(5), courseStatus: 'draft', status: 'draft',
+      versionNumber: 1, title: create.parameters.version.title, currentVersionId: null, aiReviewRequired: false, contentStandard: 'comprehensive' } };
+  assert.deepEqual(projectAuthoringResult(value, create), value);
+  for (const after of [{ ...value.after, status: 'published' }, { ...value.after, title: 'Other title' }, { ...value.after, currentVersionId: id(5) },
+    { ...value.after, contentStandard: 'legacy' }, { ...value.after, sourceVersionId: id(9) }]) assert.throws(() => projectAuthoringResult({ ...value, after }, create));
+});
+test('creation result rejects fake publication, missing revision and wrong recovery receipt', () => {
+  assert.deepEqual(projectAuthoringResult(created, apply), created);
+  for (const value of [{ ...created, sourceRevision: null }, { ...created, courseStatus: 'published' }, { ...created, versionNumber: 2 }])
+    assert.throws(() => projectAuthoringResult(value, apply));
+  const status = { operation: 'creationStatus', courseId: id(4), versionId: id(5), requestId: id(8) };
+  assert.deepEqual(projectAuthoringResult({ status: 'applied', result: created }, status), { status: 'applied', result: created });
+  assert.deepEqual(projectAuthoringResult({ status: 'absent', result: null }, status), { status: 'absent', result: null });
+  assert.throws(() => projectAuthoringResult({ status: 'applied', result: { ...created, versionId: id(9) } }, status));
+  assert.throws(() => projectAuthoringResult({ status: 'applied', result: { ...created, replayed: true } }, status));
+});
+test('creation options and receipt reads retain fresh mapped authority and closed bounded results', async () => {
+  const options = { operation: 'creationOptions', offset: 0 };
+  const optionsValue = { trainingTypes: [{ id: id(9), label: 'Actual native training type' }], nextOffset: null };
+  const f = fixture({ result: optionsValue });
+  assert.deepEqual(await (await f.handler(request(options))).json(), optionsValue);
+  assert.equal(f.calls.at(-1).body.p_actor, id(2)); assert.equal(f.calls.at(-1).body.p_offset, 0);
+  assert.throws(() => projectAuthoringResult({ ...optionsValue, nextOffset: 200 }, options));
+  assert.deepEqual(parseAuthoringOperation({ operation: 'creationOptions', offset: 9950 }), { operation: 'creationOptions', offset: 9950 });
+  assert.deepEqual(projectAuthoringResult(optionsValue, { operation: 'creationOptions', offset: 9950 }), optionsValue);
+  assert.throws(() => projectAuthoringResult({ ...optionsValue, nextOffset: 10050 }, { operation: 'creationOptions', offset: 9950 }));
+  assert.throws(() => projectAuthoringResult({ trainingTypes: Array(101).fill(optionsValue.trainingTypes[0]), nextOffset: null }, options));
+  assert.equal((await fixture({ profile: { id: id(2), role: 'employee', is_active: true } }).handler(request(options))).status, 403);
+  const recovery = fixture({ result: { status: 'applied', result: created } });
+  const op = { operation: 'creationStatus', courseId: id(4), versionId: id(5), requestId: id(8) };
+  assert.deepEqual(await (await recovery.handler(request(op))).json(), { status: 'applied', result: created });
+  assert.equal(recovery.calls.at(-1).body.p_request_id, id(8));
+});
+test('draft patch size counts actual prose spaces at the same 24KiB boundary as SQL', () => {
+  const patch = { version: { title: 't'.repeat(300), description: ' '.repeat(12000) },
+    blocks: [{ blockId: id(80), content: 'y'.repeat(12000), title: '' }] };
+  patch.blocks[0].title = 'z'.repeat(24576 - Buffer.byteLength(JSON.stringify(patch)));
+  assert.equal(Buffer.byteLength(JSON.stringify(patch)), 24576);
+  assert.equal(validDraftPatch(patch), true);
+  patch.blocks[0].title += 'z';
+  assert.equal(validDraftPatch(patch), false);
+});
+function fixture(overrides = {}) {
+  const calls = []; const state = { actor: { user_id: id(1), role: 'platform_admin', aal: 'aal2', session_id: id(3),
+    session_started_at: '2026-09-11T14:00:00Z', assurance_expires_at: '2026-09-11T22:00:00Z' },
+    user: { id: id(2) }, profile: { id: id(2), role: 'platform_admin', is_active: true },
+    result: { courseId: id(4), title: 'Synthetic course', currentVersionId: id(5), versions: [] }, ...overrides };
+  const fetcher = async (input, init) => {
+    const url = new URL(String(input)); calls.push({ url, body: init.body ? JSON.parse(init.body) : null });
+    assert.equal(init.redirect, 'error'); assert.ok(init.signal instanceof AbortSignal);
+    if (url.origin === 'https://support-hub-web-production.up.railway.app') {
+      assert.equal(url.pathname, '/api/internal/learning/carebase/authorize'); return json(state.actor);
+    }
+    if (url.origin === env.HUB_SUPABASE_URL) { assert.equal(url.pathname, '/rest/v1/rpc/authorize_platform_command'); return json(state.actor); }
+    if (url.pathname.startsWith('/auth/')) return json({ user: state.user });
+    if (url.pathname === '/rest/v1/profiles') return json([state.profile]);
+    return state.rpcError ? json({ code: state.rpcError, message: 'private failure detail' }, 400) : json(state.result);
+  };
+  return { calls, state, handler: createLearningAuthoringHandler({ config, enabled: true, fetcher, now: () => new Date('2026-09-11T15:00:00Z') }) };
+}
+test('authoring defaults off without sending any authority', async () => {
+  const handler = createLearningAuthoringHandler({ config, fetcher: () => { throw Error('Unexpected network'); } });
+  assert.equal((await handler(request(inspect))).status, 503);
+});
+test('closed authoring parser rejects actor injection and incompatible action fields', () => {
+  for (const value of [{ ...inspect, actor: id(9) }, { ...preview, action: 'users.setActive' },
+    { ...preview, parameters: { ...preview.parameters, video_url: 'secret' } },
+    { ...preview, action: 'learning.publishVersion' }, { ...preview, reason: 'short' }, { ...apply, expectedDigest: 'A'.repeat(64) }])
+    assert.throws(() => parseAuthoringOperation(value));
+  assert.deepEqual(parseAuthoringOperation(preview), preview);
+});
+test('draft patch and review have closed fields without media or approval injection', () => {
+  const patch = { version: { title: 'Updated title', description: null }, blocks: [{ blockId: id(6), content: 'Edited lesson\nSecond line', estimatedMinutes: 3 }] };
+  const op = { ...preview, action: 'learning.patchDraft', parameters: { versionId: id(5), sourceRevision: 'a'.repeat(64), patch } };
+  assert.deepEqual(parseAuthoringOperation(op), op);
+  for (const invalid of [{}, { version: { aiGenerated: false } }, { blocks: [{ blockId: id(6), video_url: 'private' }] },
+    { blocks: [{ blockId: id(6), content: 'https://media.test?token=private' }] }, { blocks: [{ blockId: id(6), transcript: null }] },
+    { blocks: [{ blockId: id(6), estimatedMinutes: 1.5 }] }, { blocks: [{ blockId: id(6), title: 'A' }, { blockId: id(6).toUpperCase(), title: 'B' }] },
+    { version: { description: 'x'.repeat(12001) } }]) assert.equal(validDraftPatch(invalid), false, JSON.stringify(invalid).slice(0, 100));
+  const review = { ...preview, action: 'learning.reviewDraft', parameters: { versionId: id(5), sourceRevision: 'a'.repeat(64), reviewed: true } };
+  assert.deepEqual(parseAuthoringOperation(review), review);
+  assert.throws(() => parseAuthoringOperation({ ...review, parameters: { ...review.parameters, reviewed: false } }));
+  assert.throws(() => parseAuthoringOperation({ ...review, parameters: { ...review.parameters, reviewedBy: id(9) } }));
+});
+test('draft patch transports its exact reviewed fields and returns the resulting source revision', async () => {
+  const op = { ...preview, action: 'learning.patchDraft', parameters: { versionId: id(5), sourceRevision: 'a'.repeat(64), patch: { version: { description: 'x'.repeat(6000) } } } };
+  const f = fixture({ result: { commandId: id(7), courseId: id(4), action: op.action, reason: op.reason, previewDigest: 'b'.repeat(64),
+    expiresAt: '2026-09-11T15:04:00Z', before: { status: 'draft', title: 'Draft', versionNumber: 2 }, after: { status: 'draft', title: 'Draft', versionNumber: 2, aiReviewRequired: true } } });
+  assert.equal((await f.handler(request(op))).status, 200); assert.deepEqual(f.calls.at(-1).body.p_parameters, op.parameters);
+  const result = { commandId: id(7), courseId: id(4), action: op.action, versionId: id(5), versionNumber: 2, status: 'draft', sourceRevision: 'c'.repeat(64), appliedAt: '2026-09-11T15:00:00Z', replayed: true };
+  assert.deepEqual(projectAuthoringResult(result, apply), result);
+  assert.throws(() => projectAuthoringResult({ ...result, sourceRevision: undefined }, apply));
+});
+test('fresh native and Hub authority is forwarded independently of untrusted operation', async () => {
+  const f = fixture(); const response = await f.handler(request(inspect)); assert.equal(response.status, 200);
+  assert.deepEqual(f.calls.at(-1).body, { p_course_id: id(4), p_actor: id(2), p_hub_user: id(1), p_hub_session: id(3),
+    p_session_started_at: '2026-09-11T14:00:00Z', p_assurance_expires_at: '2026-09-11T22:00:00Z', p_authentication_method: 'jwt_aal2' });
+});
+test('cross-origin, expired session, native demotion and native ban fail before authoring RPC', async () => {
+  const origin = fixture(); assert.equal((await origin.handler(request(inspect, { Origin: 'https://help.caremetric.ai' }))).status, 403); assert.equal(origin.calls.length, 0);
+  for (const overrides of [{ actor: { user_id: id(1), role: 'platform_admin', aal: 'aal2', session_id: id(3), session_started_at: '2026-09-10T14:00:00Z', assurance_expires_at: '2026-09-10T22:00:00Z' } },
+    { profile: { id: id(2), role: 'employee', is_active: true } }, { user: { id: id(2), banned_until: '2027-01-01T00:00:00Z' } }]) {
+    const f = fixture(overrides); assert.equal((await f.handler(request(inspect))).status, 403);
+    assert.ok(f.calls.every(call => !call.url.pathname.includes('inspect_learning')));
+  }
+});
+test('SMS authoring consumes only an exact payload-bound learning capability', async () => {
+  const f = fixture(); f.state.actor = { ...f.state.actor, method: 'sms', operation: inspect }; delete f.state.actor.aal;
+  assert.equal((await f.handler(request(inspect, { Authorization: `Bearer cmh_${'x'.repeat(43)}` }))).status, 200);
+  assert.equal(f.calls.at(-1).body.p_authentication_method, 'app_sms');
+  f.state.actor.operation = { operation: 'list', limit: 1 };
+  const before = f.calls.length; assert.equal((await f.handler(request(inspect, { Authorization: `Bearer cmh_${'x'.repeat(43)}` }))).status, 403);
+  assert.equal(f.calls.length, before + 1);
+});
+test('inspect projects only bounded course definitions and IDs', async () => {
+  const f = fixture(); f.state.result.private = 'private storage details';
+  const response = await f.handler(request(inspect)); assert.equal(response.status, 200); assert.ok(!(await response.text()).includes('private'));
+  f.state.result.versions = Array(21).fill({}); assert.equal((await f.handler(request(inspect))).status, 502);
+});
+test('apply projects immutable result and rejects mismatched command identity', async () => {
+  const f = fixture({ result: { commandId: id(7), courseId: id(4), action: 'learning.cloneVersion', versionId: id(6), versionNumber: 2,
+    status: 'draft', appliedAt: '2026-09-11T15:00:00Z', replayed: true, private: 'hidden' } });
+  const response = await f.handler(request(apply)); assert.equal(response.status, 200); assert.equal((await response.json()).replayed, true);
+  assert.equal(f.calls.at(-1).body.p_expected_digest, apply.expectedDigest);
+  f.state.result.commandId = id(9); assert.equal((await f.handler(request(apply))).status, 502);
+});
+test('native readiness and stale-state errors are sanitized', async () => {
+  for (const code of ['40001', '23514', 'P0002']) {
+    const f = fixture({ rpcError: code }); const response = await f.handler(request(apply));
+    assert.equal(response.status, 409); assert.deepEqual(await response.json(), { error: { code: 'conflict' } });
+  }
+});
+const sourceOp = { operation: 'source', courseId: id(4), versionId: id(5) };
+function sourceResult(extra = {}) {
+  const payload = JSON.stringify({ contract: 'carebase.course.v1', sourceCourseId: id(4), sourceVersionId: id(5), ...extra });
+  return { courseId: id(4), versionId: id(5), sourceRevision: createHash('sha256').update(payload).digest('hex'), payload };
+}
+test('source response binds exact raw bytes and rejects hidden playback credentials', () => {
+  const valid = sourceResult(); assert.deepEqual(projectAuthoringResult(valid, sourceOp), valid);
+  assert.throws(() => projectAuthoringResult({ ...valid, payload: valid.payload + ' ' }, sourceOp));
+  assert.throws(() => projectAuthoringResult(sourceResult({ body: { playback_url: 'private' } }), sourceOp));
+  assert.throws(() => projectAuthoringResult(sourceResult({ body: 'https://example.test/movie?token=private' }), sourceOp));
+});
+test('source credentials are rejected across snake/camel case and escaped JSON keys', () => {
+  for (const key of ['playbackToken', 'PLAYBACK_TOKEN', 'signedUrl', 'api_key', 'apiKey', 'clientSecret', 'token', 'secretKey', 'signing_secret', 'storagePath', 'videoUrl']) {
+    assert.throws(() => projectAuthoringResult(sourceResult({ body: { [key]: 'synthetic excluded value' } }), sourceOp), key);
+  }
+  const value = sourceResult({ body: { playbackToken: 'synthetic excluded value' } });
+  value.payload = value.payload.replace('playbackToken', 'playback\\u0054oken');
+  value.sourceRevision = createHash('sha256').update(value.payload).digest('hex');
+  assert.throws(() => projectAuthoringResult(value, sourceOp));
+});
+test('large escaped source fits its specific bound without increasing unrelated reads', async () => {
+  const source = sourceResult({ body: '"'.repeat(650000) }); assert.ok(Buffer.byteLength(JSON.stringify(source)) > 2 * 1024 * 1024);
+  const f = fixture({ result: source }); const response = await f.handler(request(sourceOp)); assert.equal(response.status, 200);
+  assert.equal((await response.json()).sourceRevision, source.sourceRevision);
+  const ordinary = fixture({ result: source }); assert.equal((await ordinary.handler(request(inspect))).status, 503);
+  f.state.result = sourceResult({ body: 'x'.repeat(2000001) }); assert.equal((await f.handler(request(sourceOp))).status, 502);
+});
+
+test('credit policy carries only version definitions with exact cents, retained IDs and resulting source hash', async () => {
+  const parameters = { versionId: id(5), sourceRevision: 'a'.repeat(64), policy: { versionLabel: 'Edition one' }, credits: [
+    { creditId: id(10), preserve: true }, { creditId: id(11), trainingTypeId: id(12), topicCode: 'SAFETY', creditHours: '1.25', creditMode: 'verified_only', citationNote: 'Reviewed source citation', isActive: true }], removedCreditIds: [id(13)] };
+  const op = { ...preview, action: 'learning.editCreditPolicy', parameters };
+  assert.deepEqual(parseAuthoringOperation(op), op);
+  for (const invalid of [{ ...parameters, policy: { providerApproved: true } }, { ...parameters, credits: [{ ...parameters.credits[1], creditHours: 1.25 }] },
+    { ...parameters, credits: [{ ...parameters.credits[1], creditHours: '0.00' }] }, { ...parameters, removedCreditIds: [id(10)] }, { ...parameters, policy: { versionLabel: 'A', authorization: 'secret' } }]) {
+    assert.throws(() => parseAuthoringOperation({ ...op, parameters: invalid }));
+  }
+  const f = fixture({ result: { commandId: id(7), courseId: id(4), action: op.action, reason: op.reason, previewDigest: 'b'.repeat(64),
+    expiresAt: '2026-09-11T15:04:00Z', before: { status: 'draft', title: 'Draft', versionNumber: 2 }, after: { status: 'draft', title: 'Draft', versionNumber: 2, aiReviewRequired: true } } });
+  assert.equal((await f.handler(request(op))).status, 200); assert.deepEqual(f.calls.at(-1).body.p_parameters, parameters);
+  const result = { commandId: id(7), courseId: id(4), action: op.action, versionId: id(5), versionNumber: 2, status: 'draft', sourceRevision: 'c'.repeat(64), appliedAt: '2026-09-11T15:00:00Z', replayed: true };
+  assert.deepEqual(projectAuthoringResult(result, apply), result);
+  assert.throws(() => projectAuthoringResult({ ...result, sourceRevision: undefined }, apply));
+  assert.throws(() => projectAuthoringResult({ ...result, status: 'published' }, apply));
+});

@@ -2467,6 +2467,108 @@ export type Database = {
           },
         ]
       }
+      cm_integration_daily_budget: {
+        Row: {
+          app_id: string
+          attempts: number
+          budget_day: string
+          subject: string
+        }
+        Insert: {
+          app_id: string
+          attempts: number
+          budget_day: string
+          subject: string
+        }
+        Update: {
+          app_id?: string
+          attempts?: number
+          budget_day?: string
+          subject?: string
+        }
+        Relationships: []
+      }
+      cm_integration_files: {
+        Row: {
+          app_id: string
+          content_type: string
+          created_at: string
+          id: string
+          object_path: string
+          sha256: string
+          size_bytes: number
+          subject: string
+        }
+        Insert: {
+          app_id: string
+          content_type: string
+          created_at?: string
+          id: string
+          object_path: string
+          sha256: string
+          size_bytes: number
+          subject: string
+        }
+        Update: {
+          app_id?: string
+          content_type?: string
+          created_at?: string
+          id?: string
+          object_path?: string
+          sha256?: string
+          size_bytes?: number
+          subject?: string
+        }
+        Relationships: []
+      }
+      cm_integration_jobs: {
+        Row: {
+          app_id: string
+          attempt_count: number
+          claim: string
+          created_at: string
+          finished_at: string | null
+          id: string
+          operation: string
+          payload_hash: string
+          request_id: string
+          result_encrypted: string | null
+          result_expires_at: string | null
+          state: string
+          subject: string
+        }
+        Insert: {
+          app_id: string
+          attempt_count?: number
+          claim: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          operation: string
+          payload_hash: string
+          request_id: string
+          result_encrypted?: string | null
+          result_expires_at?: string | null
+          state: string
+          subject: string
+        }
+        Update: {
+          app_id?: string
+          attempt_count?: number
+          claim?: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          operation?: string
+          payload_hash?: string
+          request_id?: string
+          result_encrypted?: string | null
+          result_expires_at?: string | null
+          state?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       competency_record_items: {
         Row: {
           competency_record_id: string
@@ -4731,6 +4833,7 @@ export type Database = {
           created_at: string
           document_id: string | null
           id: string
+          media_asset_id: string | null
           organization_id: string | null
           sort_order: number
           title: string | null
@@ -4743,6 +4846,7 @@ export type Database = {
           created_at?: string
           document_id?: string | null
           id?: string
+          media_asset_id?: string | null
           organization_id?: string | null
           sort_order?: number
           title?: string | null
@@ -4755,6 +4859,7 @@ export type Database = {
           created_at?: string
           document_id?: string | null
           id?: string
+          media_asset_id?: string | null
           organization_id?: string | null
           sort_order?: number
           title?: string | null
@@ -33044,6 +33149,93 @@ export type Database = {
           },
         ]
       }
+      training_annual_schedule: {
+        Row: {
+          canceled_at: string | null
+          completed_event_id: string | null
+          created_at: string
+          created_by: string
+          duration_minutes: number
+          duties_snapshot: string
+          employee_id: string
+          facility_id: string
+          id: string
+          location: string
+          organization_id: string
+          requirement_keys: string[]
+          scheduled_at: string
+          title: string
+        }
+        Insert: {
+          canceled_at?: string | null
+          completed_event_id?: string | null
+          created_at?: string
+          created_by: string
+          duration_minutes: number
+          duties_snapshot: string
+          employee_id: string
+          facility_id: string
+          id?: string
+          location: string
+          organization_id: string
+          requirement_keys?: string[]
+          scheduled_at: string
+          title: string
+        }
+        Update: {
+          canceled_at?: string | null
+          completed_event_id?: string | null
+          created_at?: string
+          created_by?: string
+          duration_minutes?: number
+          duties_snapshot?: string
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          location?: string
+          organization_id?: string
+          requirement_keys?: string[]
+          scheduled_at?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_annual_schedule_completed_event_id_fkey"
+            columns: ["completed_event_id"]
+            isOneToOne: false
+            referencedRelation: "training_evidence_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_annual_schedule_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_annual_schedule_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_annual_schedule_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_annual_schedule_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_attendance_evidence: {
         Row: {
           attendance_status: string
@@ -33436,6 +33628,208 @@ export type Database = {
           },
         ]
       }
+      training_evidence_events: {
+        Row: {
+          allocations: Json
+          completed_at: string | null
+          completed_on: string
+          course_assignment_id: string | null
+          created_at: string
+          created_by: string
+          delivery: string
+          employee_id: string
+          evidence_document_id: string | null
+          facility_id: string
+          id: string
+          legacy_record_id: string | null
+          minutes: number
+          organization_id: string
+          provider: string
+          provider_qualification: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_reference: string
+          status: string
+          title: string
+          topics: string[]
+          valid_until: string | null
+        }
+        Insert: {
+          allocations?: Json
+          completed_at?: string | null
+          completed_on: string
+          course_assignment_id?: string | null
+          created_at?: string
+          created_by: string
+          delivery: string
+          employee_id: string
+          evidence_document_id?: string | null
+          facility_id: string
+          id?: string
+          legacy_record_id?: string | null
+          minutes: number
+          organization_id: string
+          provider: string
+          provider_qualification?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_reference: string
+          status?: string
+          title: string
+          topics?: string[]
+          valid_until?: string | null
+        }
+        Update: {
+          allocations?: Json
+          completed_at?: string | null
+          completed_on?: string
+          course_assignment_id?: string | null
+          created_at?: string
+          created_by?: string
+          delivery?: string
+          employee_id?: string
+          evidence_document_id?: string | null
+          facility_id?: string
+          id?: string
+          legacy_record_id?: string | null
+          minutes?: number
+          organization_id?: string
+          provider?: string
+          provider_qualification?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_reference?: string
+          status?: string
+          title?: string
+          topics?: string[]
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_evidence_events_course_assignment_id_fkey"
+            columns: ["course_assignment_id"]
+            isOneToOne: true
+            referencedRelation: "course_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_evidence_document_id_fkey"
+            columns: ["evidence_document_id"]
+            isOneToOne: false
+            referencedRelation: "training_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_legacy_record_id_fkey"
+            columns: ["legacy_record_id"]
+            isOneToOne: true
+            referencedRelation: "employee_training_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_evidence_events_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_facility_policies: {
+        Row: {
+          administrator_year_basis: string
+          administrator_year_start: string
+          created_at: string
+          created_by: string
+          effective_from: string
+          facility_id: string
+          id: string
+          organization_id: string
+          policy_reference: string
+          year_basis: string
+          year_start: string
+        }
+        Insert: {
+          administrator_year_basis: string
+          administrator_year_start?: string
+          created_at?: string
+          created_by: string
+          effective_from: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          policy_reference: string
+          year_basis: string
+          year_start?: string
+        }
+        Update: {
+          administrator_year_basis?: string
+          administrator_year_start?: string
+          created_at?: string
+          created_by?: string
+          effective_from?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          policy_reference?: string
+          year_basis?: string
+          year_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_facility_policies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_facility_policies_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_facility_policies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_passports: {
         Row: {
           created_at: string
@@ -33752,6 +34146,83 @@ export type Database = {
           },
         ]
       }
+      training_staff_profiles: {
+        Row: {
+          administrator: boolean
+          applicability: Json
+          confirmed_at: string
+          confirmed_by: string
+          direct_care: boolean
+          duties: string
+          employee_id: string
+          facility_id: string
+          first_work_date: string
+          hire_date: string | null
+          id: string
+          organization_id: string
+          specialty_unit: string
+        }
+        Insert: {
+          administrator?: boolean
+          applicability?: Json
+          confirmed_at?: string
+          confirmed_by: string
+          direct_care?: boolean
+          duties: string
+          employee_id: string
+          facility_id: string
+          first_work_date: string
+          hire_date?: string | null
+          id?: string
+          organization_id: string
+          specialty_unit?: string
+        }
+        Update: {
+          administrator?: boolean
+          applicability?: Json
+          confirmed_at?: string
+          confirmed_by?: string
+          direct_care?: boolean
+          duties?: string
+          employee_id?: string
+          facility_id?: string
+          first_work_date?: string
+          hire_date?: string | null
+          id?: string
+          organization_id?: string
+          specialty_unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_staff_profiles_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_staff_profiles_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_staff_profiles_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_staff_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_types: {
         Row: {
           accepted_evidence_types: Json | null
@@ -33853,6 +34324,71 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_work_shifts: {
+        Row: {
+          created_at: string
+          employee_id: string
+          ends_at: string
+          facility_id: string
+          id: string
+          organization_id: string
+          recorded_by: string
+          source_reference: string
+          starts_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          ends_at: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          recorded_by: string
+          source_reference: string
+          starts_at: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          ends_at?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          recorded_by?: string
+          source_reference?: string
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_work_shifts_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_work_shifts_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_work_shifts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_work_shifts_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -35860,14 +36396,6 @@ export type Database = {
           was_duplicate: boolean
         }[]
       }
-      accept_learning_package: {
-        Args: {
-          p_entry_point?: string
-          p_package_id: string
-          p_reason?: string
-        }
-        Returns: boolean
-      }
       accept_move_in_guest_terms: {
         Args: { p_fingerprint?: string; p_token: string }
         Returns: Json
@@ -35891,6 +36419,15 @@ export type Database = {
       acknowledge_hospital_return_new_order: {
         Args: { p_episode_id: string; p_note: string }
         Returns: boolean
+      }
+      acknowledge_learning_receipt: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_event_id: string
+          p_source_digest: string
+        }
+        Returns: undefined
       }
       acknowledge_notification_spend_alert: {
         Args: { p_alert_id: string }
@@ -36179,6 +36716,9 @@ export type Database = {
           p_body?: Json
           p_course_block_id: string
           p_document_id?: string
+          p_expected_block?: Json
+          p_expected_media_asset_id?: string
+          p_expected_source_revision?: string
           p_reason: string
           p_title?: string
           p_video_url?: string
@@ -36267,8 +36807,55 @@ export type Database = {
         Args: { p_batch_size?: number; p_import_run_id: string }
         Returns: Json
       }
+      apply_learning_authoring_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      apply_learning_provider_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       apply_medication_integration_command: {
         Args: { p_command_id: string }
+        Returns: Json
+      }
+      apply_native_learning_draft_command: {
+        Args: { p_command_id: string; p_expected_digest: string }
+        Returns: Json
+      }
+      apply_native_learning_provider_command: {
+        Args: { p_command_id: string; p_expected_digest: string }
+        Returns: Json
+      }
+      apply_operational_configuration_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
         Returns: Json
       }
       apply_scim_change: {
@@ -36640,6 +37227,14 @@ export type Database = {
         }
         Returns: Json
       }
+      authorize_native_checkout: {
+        Args: {
+          p_organization_id: string
+          p_parameters: Json
+          p_request_key: string
+        }
+        Returns: string
+      }
       authorize_resident_portal_document_download: {
         Args: {
           p_request_fingerprint_sha256?: string
@@ -36681,6 +37276,15 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      begin_resident_document_deletion: {
+        Args: { p_document_id: string }
+        Returns: {
+          document_id: string
+          resident_id: string
+          storage_bucket: string
+          storage_path: string
+        }[]
       }
       begin_system_job: {
         Args: {
@@ -36837,6 +37441,7 @@ export type Database = {
       claim_course_video_generation: {
         Args: {
           p_block_id: string
+          p_expected_media_asset_id?: string
           p_expected_video_url?: string
           p_payload: Json
           p_replace_existing?: boolean
@@ -36957,6 +37562,19 @@ export type Database = {
           timeout_ms: number
         }[]
       }
+      claim_native_checkout: {
+        Args: {
+          p_actor: string
+          p_grant_id: string
+          p_provider_parameters: Json
+          p_source_snapshot: Json
+        }
+        Returns: Json
+      }
+      claim_native_checkout_recovery: {
+        Args: { p_actor: string; p_command_id: string; p_grant_id: string }
+        Returns: Json
+      }
       claim_open_shift: {
         Args: { p_opportunity_id: string }
         Returns: {
@@ -37033,6 +37651,16 @@ export type Database = {
         Args: { p_schedule_id: string }
         Returns: number
       }
+      clone_course_version: {
+        Args: {
+          p_course_id: string
+          p_organization_id?: string
+          p_source_version_id: string
+          p_title: string
+          p_version_number: number
+        }
+        Returns: string
+      }
       close_own_support_ticket: {
         Args: { p_ticket_id: string }
         Returns: undefined
@@ -37103,6 +37731,44 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      cm_integration_expire_results: { Args: never; Returns: number }
+      cm_integration_file_get: {
+        Args: { p_app_id: string; p_id: string; p_subject: string }
+        Returns: Json
+      }
+      cm_integration_file_record: {
+        Args: {
+          p_app_id: string
+          p_content_type: string
+          p_id: string
+          p_object_path: string
+          p_sha256: string
+          p_size: number
+          p_subject: string
+        }
+        Returns: boolean
+      }
+      cm_integration_finish: {
+        Args: {
+          p_claim: string
+          p_id: string
+          p_result: string
+          p_state: string
+        }
+        Returns: boolean
+      }
+      cm_integration_reserve: {
+        Args: {
+          p_app_id: string
+          p_claim: string
+          p_daily_limit: number
+          p_operation: string
+          p_payload_hash: string
+          p_request_id: string
+          p_subject: string
+        }
+        Returns: Json
       }
       commit_learning_runtime_state: {
         Args: {
@@ -37245,6 +37911,14 @@ export type Database = {
       complete_training_class: {
         Args: { p_class_id: string }
         Returns: undefined
+      }
+      configure_train_signup: {
+        Args: { p_complimentary?: boolean; p_organization_id: string }
+        Returns: undefined
+      }
+      confirm_resident_document_deletion: {
+        Args: { p_document_id: string }
+        Returns: boolean
       }
       consume_integration_rate_limit: {
         Args: { p_cost?: number; p_credential_id: string }
@@ -38156,6 +38830,16 @@ export type Database = {
         }
         Returns: Json
       }
+      execute_native_learning_draft_command: {
+        Args: {
+          p_action: string
+          p_course_id: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       execute_registered_sql_job: {
         Args: {
           p_correlation_id: string
@@ -38275,6 +38959,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      finish_checkout_reservation: {
+        Args: {
+          p_lease_id: string
+          p_outcome: string
+          p_reservation_id: string
+          p_session: Json
+          p_subscription_status: string
+        }
+        Returns: undefined
+      }
       finish_course_video_submission: {
         Args: {
           p_attempt_id: string
@@ -38282,6 +38976,30 @@ export type Database = {
           p_lease_id: string
           p_outcome: string
           p_video_id?: string
+        }
+        Returns: Json
+      }
+      finish_delegated_course_media_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      finish_delegated_learning_package_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation_id: string
+          p_session_started_at: string
         }
         Returns: Json
       }
@@ -38304,6 +39022,14 @@ export type Database = {
           p_status?: string
         }
         Returns: boolean
+      }
+      finish_native_course_media_operation: {
+        Args: { p_operation_id: string }
+        Returns: Json
+      }
+      finish_native_learning_package_operation: {
+        Args: { p_operation_id: string }
+        Returns: Json
       }
       finish_organization_export_job: {
         Args: {
@@ -38490,6 +39216,70 @@ export type Database = {
         Returns: Json
       }
       get_data_lifecycle_status: { Args: never; Returns: Json }
+      get_delegated_course_media_context: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_block_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      get_delegated_course_media_read: {
+        Args: {
+          p_actor: string
+          p_asset_id: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_block_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      get_delegated_course_media_status: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      get_delegated_learning_package_context: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_package_id: string
+          p_session_started_at: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      get_delegated_learning_package_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_request_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       get_effective_access: {
         Args: { p_at?: string }
         Returns: {
@@ -38581,6 +39371,10 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_fhir_integration_review_queue: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
       get_governed_learning_control_plane: { Args: never; Returns: Json }
       get_guest_access_health: {
         Args: { p_hours?: number }
@@ -38646,6 +39440,86 @@ export type Database = {
         Args: { p_organization_id?: string }
         Returns: Json
       }
+      get_learning_authoring_source: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      get_learning_creation_options: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_offset: number
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      get_learning_creation_status: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_request_id: string
+          p_session_started_at: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      get_learning_distribution_context: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      get_learning_distribution_status: {
+        Args: { p_course_ids: string[] }
+        Returns: Json
+      }
+      get_learning_provider_context: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      get_learning_provider_status: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       get_managed_billing_subscriptions: {
         Args: {
           p_for_quantity_sync?: boolean
@@ -38688,6 +39562,50 @@ export type Database = {
       get_my_mfa_policy: { Args: never; Returns: Json }
       get_my_mfa_status: { Args: never; Returns: Json }
       get_my_shift_workspace: { Args: never; Returns: Json }
+      get_native_course_media_context: {
+        Args: { p_block_id: string; p_version_id: string }
+        Returns: Json
+      }
+      get_native_course_media_read: {
+        Args: { p_asset_id: string; p_block_id: string; p_version_id: string }
+        Returns: Json
+      }
+      get_native_course_media_status: {
+        Args: { p_operation_id: string }
+        Returns: Json
+      }
+      get_native_learning_creation_options: {
+        Args: { p_offset: number }
+        Returns: Json
+      }
+      get_native_learning_creation_status: {
+        Args: {
+          p_course_id: string
+          p_request_id: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      get_native_learning_draft_source: {
+        Args: { p_version_id: string }
+        Returns: Json
+      }
+      get_native_learning_package_context: {
+        Args: { p_package_id?: string; p_version_id?: string }
+        Returns: Json
+      }
+      get_native_learning_package_operation: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
+      get_native_learning_provider_context: {
+        Args: { p_course_id: string }
+        Returns: Json
+      }
+      get_native_learning_provider_status: {
+        Args: { p_command_id: string; p_expected_digest: string }
+        Returns: Json
+      }
       get_notification_delivery_evidence: {
         Args: { p_delivery_id: string }
         Returns: Json
@@ -38709,6 +39627,31 @@ export type Database = {
       }
       get_notification_template_library: {
         Args: { p_organization_id?: string }
+        Returns: Json
+      }
+      get_operational_configuration: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+          p_target: Json
+        }
+        Returns: Json
+      }
+      get_operational_configuration_command_status: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
         Returns: Json
       }
       get_operations_command_center: {
@@ -39124,6 +40067,20 @@ export type Database = {
         }[]
       }
       get_trainer_dashboard_summary: { Args: never; Returns: Json }
+      get_training_enrollment_report: {
+        Args: {
+          p_course_search?: string
+          p_date_basis?: string
+          p_date_from?: string
+          p_date_through?: string
+          p_facility_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_organization_id: string
+          p_status?: string
+        }
+        Returns: Json
+      }
       get_training_matrix_page: {
         Args: {
           p_due_within_days?: number
@@ -39137,6 +40094,15 @@ export type Database = {
           p_status_filter?: string
           p_today?: string
           p_trainer_only?: boolean
+        }
+        Returns: Json
+      }
+      get_training_workspace: {
+        Args: {
+          p_employee_id?: string
+          p_facility_id: string
+          p_limit?: number
+          p_offset?: number
         }
         Returns: Json
       }
@@ -39531,6 +40497,18 @@ export type Database = {
         }
         Returns: string
       }
+      inspect_learning_authoring_course: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       inspection_item_due_soon_lead_days: {
         Args: { p_interval_days: number; p_item_type: string }
         Returns: number
@@ -39710,6 +40688,10 @@ export type Database = {
           sequence_number: number
         }[]
       }
+      list_learning_authoring_dependencies: {
+        Args: { p_version_id?: string }
+        Returns: Json
+      }
       list_learning_packages_admin: {
         Args: { p_course_version_id?: string }
         Returns: {
@@ -39741,6 +40723,59 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      list_learning_provider_commands: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_offset: number
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      list_learning_receipt_outbox: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_limit?: number
+        }
+        Returns: Json
+      }
+      list_module_access_terms: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      list_native_learning_provider_commands: {
+        Args: { p_course_id: string; p_offset: number }
+        Returns: Json
+      }
+      list_operational_configuration_commands: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_offset?: number
+          p_session_started_at: string
+          p_target: Json
+        }
+        Returns: Json
+      }
+      list_pending_resident_document_deletions: {
+        Args: { p_resident_id?: string }
+        Returns: {
+          document_id: string
+          file_name: string
+          requested_at: string
+          resident_id: string
+          storage_bucket: string
+          storage_path: string
+        }[]
       }
       list_plan_of_correction_versions: {
         Args: { p_violation_id: string }
@@ -39922,6 +40957,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      manage_module_access_term: {
+        Args: {
+          p_ends_at?: string
+          p_module_key: string
+          p_organization_id: string
+          p_reason: string
+          p_revoke_id?: string
+          p_source: string
+        }
+        Returns: Json
       }
       map_fhir_patient: {
         Args: {
@@ -40137,6 +41183,240 @@ export type Database = {
         Args: { p_from: string; p_organization_id?: string; p_to: string }
         Returns: string
       }
+      platform_admin_apply_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_checkout_catalog: {
+        Args: { p_limit?: number; p_offset?: number; p_search?: string }
+        Returns: Json
+      }
+      platform_admin_claim_billing_portal: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_configuration: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_return_url: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_claim_checkout: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_check_only: boolean
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_finish_billing_portal: {
+        Args: {
+          p_command_id: string
+          p_lease_id: string
+          p_outcome: string
+          p_session: Json
+        }
+        Returns: undefined
+      }
+      platform_admin_preview_billing_portal: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_provider_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: string
+        }
+        Returns: Json
+      }
+      platform_admin_preview_checkout: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_provider_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_source_snapshot: Json
+          p_target: string
+        }
+        Returns: Json
+      }
+      platform_admin_preview_command: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: string
+        }
+        Returns: Json
+      }
+      platform_admin_read_billing_portal_result: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_replayed: boolean
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_read_checkout_result: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_command_id: string
+          p_expected_digest: string
+          p_hub_session: string
+          p_hub_user: string
+          p_replayed: boolean
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_read_operations: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_limit: number
+          p_offset: number
+          p_operation: string
+          p_search: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_recover_checkout: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: string
+        }
+        Returns: Json
+      }
+      platform_admin_training: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation: Json
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_training_invitation_authorize: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_dispatch_token: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation: Json
+          p_session_started_at: string
+        }
+        Returns: boolean
+      }
+      platform_admin_training_invitation_finalize: {
+        Args: {
+          p_actor: string
+          p_delivery_status?: string
+          p_dispatch_token: string
+          p_hub_session: string
+          p_hub_user: string
+          p_invitation_id: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      platform_admin_training_invitation_provision: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_dispatch_token: string
+          p_hub_session: string
+          p_hub_user: string
+          p_invited_user_id: string
+          p_request_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_training_invitation_record: {
+        Args: {
+          p_actor: string
+          p_dispatch_token: string
+          p_hub_session: string
+          p_hub_user: string
+          p_invited_user_id: string
+          p_redirect_to: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      platform_admin_training_invitation_reserve: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation: Json
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
       policy_choices_are_valid: { Args: { p_choices: Json }; Returns: boolean }
       post_resident_financial_transaction: {
         Args: { p_entry: Json; p_resident_id: string }
@@ -40174,6 +41454,38 @@ export type Database = {
         }
         Returns: Json
       }
+      prepare_delegated_course_media_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_request: Json
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      prepare_delegated_learning_package_operation: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_request: Json
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      prepare_native_course_media_operation: {
+        Args: { p_request: Json }
+        Returns: Json
+      }
+      prepare_native_learning_package_operation: {
+        Args: { p_request: Json }
+        Returns: Json
+      }
       prepare_offline_course_bundle: {
         Args: {
           p_assignment_id: string
@@ -40201,6 +41513,58 @@ export type Database = {
         }
         Returns: Json
       }
+      preview_learning_authoring_command: {
+        Args: {
+          p_action: string
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      preview_learning_provider_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_context_revision: string
+          p_course_id: string
+          p_hub_session: string
+          p_hub_user: string
+          p_patch: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      preview_native_learning_draft_command: {
+        Args: {
+          p_action: string
+          p_course_id: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      preview_native_learning_provider_command: {
+        Args: {
+          p_context_revision: string
+          p_course_id: string
+          p_patch: Json
+          p_reason: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       preview_notification_template: {
         Args: { p_template_id: string; p_variables?: Json }
         Returns: Json
@@ -40211,6 +41575,22 @@ export type Database = {
           p_body_template: string
           p_subject_template: string
           p_variables?: Json
+        }
+        Returns: Json
+      }
+      preview_operational_configuration_command: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_configuration_revision: string
+          p_hub_session: string
+          p_hub_user: string
+          p_parameters: Json
+          p_reason: string
+          p_request_id: string
+          p_session_started_at: string
+          p_target: Json
         }
         Returns: Json
       }
@@ -40283,6 +41663,30 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      provision_learning_receipt_mapping: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_course_id: string
+          p_employee_id: string
+          p_hub_tenant_id: string
+          p_hub_user_id: string
+          p_mapping_id: string
+          p_organization_id: string
+          p_source_revision: string
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      provision_training_facility: {
+        Args: {
+          p_facility_name: string
+          p_facility_type: string
+          p_organization_name: string
+          p_request_id: string
+        }
+        Returns: Json
       }
       publish_course_version: {
         Args: { p_course_version_id: string }
@@ -40370,6 +41774,15 @@ export type Database = {
       reactivate_integration_webhook_endpoint: {
         Args: { p_endpoint_id: string }
         Returns: undefined
+      }
+      read_native_checkout_result: {
+        Args: {
+          p_actor: string
+          p_command_id: string
+          p_grant_id: string
+          p_replayed: boolean
+        }
+        Returns: Json
       }
       recalculate_all_compliance: { Args: never; Returns: undefined }
       recalculate_compliance_core: {
@@ -40531,6 +41944,15 @@ export type Database = {
         Args: { p_assignment_id: string; p_block_id: string }
         Returns: string
       }
+      record_course_media_artifact: {
+        Args: {
+          p_byte_size: number
+          p_content_sha256: string
+          p_mime_type: string
+          p_operation_id: string
+        }
+        Returns: undefined
+      }
       record_credential_renewal_extraction: {
         Args: {
           p_confidence: Json
@@ -40588,6 +42010,18 @@ export type Database = {
       }
       record_idle_session_unlock: {
         Args: { p_lock_event_id: string }
+        Returns: undefined
+      }
+      record_learning_package_artifact: {
+        Args: {
+          p_bridge_sha256?: string
+          p_entry_point?: string
+          p_operation_id: string
+          p_runtime_bytes?: number
+          p_runtime_sha256?: string
+          p_source_bytes: number
+          p_source_sha256: string
+        }
         Returns: undefined
       }
       record_mock_inspection_run: {
@@ -41067,6 +42501,10 @@ export type Database = {
         Args: { p_result: string; p_work_item_id: string }
         Returns: boolean
       }
+      recover_native_checkout: {
+        Args: { p_actor: string; p_grant_id: string }
+        Returns: Json
+      }
       refresh_benchmark_snapshots: {
         Args: { p_k_threshold?: number; p_period_end?: string }
         Returns: number
@@ -41421,6 +42859,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      resolve_learning_authoring_package: {
+        Args: {
+          p_replacement_package_id: string
+          p_source_package_id: string
+          p_version_id: string
+        }
+        Returns: undefined
+      }
+      resolve_learning_receipt_identity: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_employee_id: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       resolve_medication_integration_exception: {
         Args: {
           p_exception_id: string
@@ -41499,6 +42954,15 @@ export type Database = {
       retract_clinical_progress_note: {
         Args: { p_note_id: string; p_reason: string }
         Returns: boolean
+      }
+      retract_learning_receipt: {
+        Args: {
+          p_actor_id: string
+          p_assignment_id: string
+          p_authentication_method?: string
+          p_expected_sequence: number
+        }
+        Returns: string
       }
       retry_document_analyzer_job: {
         Args: { p_job_id: string }
@@ -41647,6 +43111,14 @@ export type Database = {
       }
       revoke_integration_api_credential: {
         Args: { p_credential_id: string; p_reason: string }
+        Returns: undefined
+      }
+      revoke_learning_receipt_mapping: {
+        Args: {
+          p_actor_id: string
+          p_authentication_method?: string
+          p_mapping_id: string
+        }
         Returns: undefined
       }
       revoke_move_in_guest_grant: {
@@ -42198,6 +43670,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      save_training_workspace_item: {
+        Args: {
+          p_data: Json
+          p_employee_id: string
+          p_facility_id: string
+          p_kind: string
+        }
+        Returns: Json
       }
       save_workflow_automation_rule: {
         Args: {

@@ -5,7 +5,7 @@ import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 const SERVER_DIR = fileURLToPath(new URL(".", import.meta.url));
@@ -13,8 +13,10 @@ const REPO_DIR = fileURLToPath(new URL("../../../", import.meta.url));
 const APP_DIR = fileURLToPath(new URL("../", import.meta.url));
 const SUPABASE_URL = "https://fixture.example.test";
 const SERVER_FILES = [
-  "index.mjs", "learning-package-proxy.mjs", "provider-handlers.mjs",
-  "provider-router.mjs", "provider-runtime-config.mjs",
+  "platform-admin-training.mjs", "platform-admin-training-invitations.mjs",
+  "platform-admin-distribution.mjs", "learning-distribution-status.mjs",
+  "index.mjs", "learning-package-proxy.mjs", "provider-handlers.mjs", "platform-admin-operations.mjs", "platform-admin-configuration.mjs",
+  "provider-router.mjs", "provider-runtime-config.mjs", "platform-admin.mjs", "platform-admin-auth.mjs", "platform-admin-commands.mjs", "platform-admin-learning.mjs", "platform-admin-authoring.mjs", "platform-admin-packages.mjs", "platform-admin-media.mjs", "platform-admin-provider.mjs", "platform-admin-data.mjs", "platform-admin-billing.mjs", "platform-admin-billing-commands.mjs", "platform-admin-checkout.mjs", "platform-admin-billing-catalog.mjs", "platform-admin-support-identity.mjs",
 ];
 const FIXTURE_ENV = {
   VITE_PROVIDER_RUNTIME: "railway",
@@ -53,12 +55,12 @@ async function availablePort() {
 
 /** Each fixture runs the actual server sources with no inherited account credentials. */
 async function launch(t, {
-  legacy = false, basePath = "/", envOverrides = {}, manifestOverrides = {}, expectStartup = true,
+  legacy = false, train = false, basePath = "/", envOverrides = {}, manifestOverrides = {}, expectStartup = true,
 } = {}) {
   const root = await mkdtemp(join(tmpdir(), "penntrain-provider-server-"));
   const app = join(root, "artifacts", "caremetric-carebase");
   const server = join(app, "server");
-  const dist = join(app, "dist");
+  const dist = join(app, train ? "dist-train" : "dist");
   const auditPath = join(root, "unexpected-fetch.txt");
   let child;
   let exited;
@@ -78,9 +80,9 @@ async function launch(t, {
   await mkdir(join(dist, "public"), { recursive: true });
   await Promise.all([
     ...SERVER_FILES.map((name) => copyFile(join(SERVER_DIR, name), join(server, name))),
-    symlink(join(REPO_DIR, "supabase"), join(root, "supabase"), "dir"),
-    symlink(join(APP_DIR, "node_modules"), join(app, "node_modules"), "dir"),
-    writeFile(join(dist, "public", "index.html"), "<!doctype html><title>Server fixture</title><main>App fixture</main>"),
+    symlink(join(REPO_DIR, "supabase"), join(root, "supabase"), process.platform === "win32" ? "junction" : "dir"),
+    symlink(join(APP_DIR, "node_modules"), join(app, "node_modules"), process.platform === "win32" ? "junction" : "dir"),
+    writeFile(join(dist, "public", "index.html"), `<!doctype html><title>Server fixture</title><main>${train ? "Standalone Train fixture" : "App fixture"}</main>`),
     // All provider transports use fetch. Blocking it in the child both prevents
     // external traffic and proves these rejected requests stop before provider use.
     writeFile(join(root, "no-provider-network.mjs"),
@@ -100,7 +102,7 @@ async function launch(t, {
     ...(!legacy ? FIXTURE_ENV : {}), ...envOverrides,
   };
   for (const key of Object.keys(env)) if (env[key] === undefined) delete env[key];
-  child = spawn(process.execPath, ["--import", join(root, "no-provider-network.mjs"), join(server, "index.mjs")], {
+  child = spawn(process.execPath, ["--import", pathToFileURL(join(root, "no-provider-network.mjs")).href, join(server, "index.mjs"), ...(train ? ["--train"] : [])], {
     cwd: root, env, stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
@@ -182,6 +184,24 @@ test("actual Railway server reports runtime health and wires all four guarded pr
   const app = await request(server, "/");
   assert.equal(app.status, 200);
   assert.match(app.body, /App fixture/);
+});
+
+test("standalone Train serves its own build and runtime manifest with guarded provider routes", { timeout: 20_000 }, async (t) => {
+  const server = await launch(t, { train: true });
+  const app = await request(server, "/app/train");
+  assert.equal(app.status, 200);
+  assert.match(app.body, /Standalone Train fixture/);
+  assert.doesNotMatch(app.body, /App fixture/);
+  assert.equal(JSON.parse((await request(server, "/health")).body).providerRuntime, "railway");
+  await assertRejectedRoutes(server);
+});
+
+test("standalone Train rejects a mismatched provider manifest before listening", { timeout: 20_000 }, async (t) => {
+  const server = await launch(t, { train: true, manifestOverrides: { supabaseUrl: "https://wrong-project.example.test" }, expectStartup: false });
+  const result = await deadline(server.exited, "mismatched Train manifest shutdown");
+  assert.notEqual(result.code, 0);
+  assert.doesNotMatch(server.output(), /server listening on/);
+  await server.assertNoProviderFetch();
 });
 
 test("actual server supports browser BASE_PATH while keeping root cron and webhook URLs stable", { timeout: 20_000 }, async (t) => {
@@ -268,5 +288,44 @@ test("legacy default server starts without provider credentials and keeps provid
     assert.equal(response.status, 503, name);
     assert.deepEqual(JSON.parse(response.body), { error: { code: "provider_runtime_unavailable" } });
   }
+  await server.assertNoProviderFetch();
+});
+
+test("actual server keeps central administration default-off without external requests", { timeout: 20_000 }, async (t) => {
+  const server = await launch(t, { legacy: true });
+  const response = await request(server, "/api/platform-admin/read", { method: "POST", body: '{"operation":"overview"}' });
+  assert.equal(response.status, 503);
+  assert.deepEqual(JSON.parse(response.body), { error: { code: "unconfigured" } });
+  assert.equal(response.headers["cache-control"], "no-store");
+  await server.assertNoProviderFetch();
+});
+
+test('actual server wires the machine distribution observer without forwarding browser cookies', {timeout:20000}, async t=>{
+  const server=await launch(t,{legacy:true,envOverrides:{CAREMETRIC_ADMIN_ENABLED:'true',HUB_SUPABASE_URL:'https://hub.example.test',
+    HUB_SUPABASE_PUBLISHABLE_KEY:'sb_publishable_fixture',SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY:'fixture-server-only-key',
+    CAREBASE_DISTRIBUTION_OBSERVER_TOKEN:'a'.repeat(43),
+    CAREMETRIC_ADMIN_IDENTITY_MAP_JSON:JSON.stringify({'11111111-1111-4111-8111-111111111111':'22222222-2222-4222-8222-222222222222'})}});
+  const response=await request(server,'/api/internal/learning/distribution-status',{method:'POST',body:'{}',headers:{
+    'content-type':'application/json',authorization:'Bearer '+'a'.repeat(43),cookie:'browser=must-deny'}});
+  assert.equal(response.status,403);assert.deepEqual(JSON.parse(response.body),{error:{code:'forbidden'}});
+  await server.assertNoProviderFetch();
+});
+
+test("actual server wires central administration independently of provider mode and SPA base", { timeout: 20_000 }, async (t) => {
+  const server = await launch(t, { legacy: true, basePath: "/app/", envOverrides: {
+    CAREMETRIC_ADMIN_ENABLED: "true", HUB_SUPABASE_URL: "https://hub.example.test",
+    HUB_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_fixture", SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: "fixture-server-only-key",
+    CAREMETRIC_ADMIN_IDENTITY_MAP_JSON: JSON.stringify({
+      "11111111-1111-4111-8111-111111111111": "22222222-2222-4222-8222-222222222222",
+    }),
+  } });
+  const response = await request(server, "/api/platform-admin/read", {
+    method: "POST", body: '{"operation":"overview"}', headers: { "content-type": "application/json" },
+  });
+  assert.equal(response.status, 401);
+  assert.deepEqual(JSON.parse(response.body), { error: { code: "unauthenticated" } });
+  assert.equal((await request(server, "/app/")).status, 200);
+  assert.equal(JSON.parse((await request(server, "/health")).body).providerRuntime, "supabase");
   await server.assertNoProviderFetch();
 });

@@ -142,6 +142,7 @@ function getNavSections(
           { href: "/admin/courses", label: "Courses", icon: GraduationCap },
           { href: "/admin/courses/new-ai", label: "AI Course Builder", icon: Sparkles },
           { href: "/admin/training-plans", label: "Training Plans", icon: ListChecks },
+          { href: "/admin/training-reports", label: "Training Reports", icon: BarChart3 },
           { href: "/admin/ai-generations", label: "AI Generation Log", icon: BarChart3 },
           { href: "/admin/document-analyzer", label: "Document Analyzer", icon: ScanText },
           { href: "/admin/help-content", label: "Help Center Content", icon: HelpCircle },
@@ -231,6 +232,7 @@ function getNavSections(
       {
         title: "Training",
         items: [
+          { href: "/app/train", label: "Train workspace", icon: Grid },
           { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
           { href: "/app/courses", label: "Training content", icon: GraduationCap },
           { href: "/app/course-assignments", label: "Assignments", icon: FileCheck },
@@ -346,6 +348,7 @@ function getNavSections(
       {
         title: "Training & credentials",
         items: [
+          { href: "/app/train", label: "Train workspace", icon: Grid },
           { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
           { href: "/app/course-assignments", label: "Assignments", icon: FileCheck },
           { href: "/app/training-plans", label: "Training plans", icon: ListChecks },
@@ -430,6 +433,7 @@ function getNavSections(
       {
         title: "Competency",
         items: [
+          { href: "/app/train", label: "Train workspace", icon: Grid },
           { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
           { href: "/app/competency-templates", label: "Competency templates", icon: ClipboardList },
           { href: "/app/competency-records", label: "Competency records", icon: ClipboardCheck },
@@ -676,9 +680,9 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           <LogoMark className="h-[30px] w-[30px]" />
         </div>
         <div className="flex flex-col">
-          <BrandName className="font-bold text-[15px] text-sidebar-foreground leading-tight" />
+          <BrandName product={import.meta.env.VITE_APP_PRODUCT === "train" ? "Train" : "CareBase"} className="font-bold text-[15px] text-sidebar-foreground leading-tight" />
           <span className="text-[11px] text-sidebar-foreground/50 font-medium">
-            {moduleAccess.canAccessModule("carebase") ? "CareBase Platform" : "Train Learning Platform"}
+            {import.meta.env.VITE_APP_PRODUCT === "train" ? "Train Learning Platform" : "CareBase Platform"}
           </span>
         </div>
       </div>

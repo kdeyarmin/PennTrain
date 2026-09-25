@@ -14,6 +14,30 @@ see `ARCHITECTURE.md` and `README.md` for the architecture.
 
 ## Architecture at a glance
 
+### Governed draft editing and exact AI review (2026-09-11)
+
+The forward migration `20260911185611_governed_learning_draft_reviews.sql` adds
+bounded existing-draft edits and explicit AI review to the authoring command
+transport. The release owner applied the exact reviewed SQL after full CI
+`34640472481` passed at `8aba6ab`, before deploying the paired native/Hub editors.
+No new runtime credential or learner writer is introduced.
+
+The native editor captures the canonical draft before the form opens and uses the
+same transaction as Hub preview/apply. Native authority requires a current
+platform administrator and an actual native Auth session no older than eight
+hours; native sessions are recorded as `native_session`, independently of delegated
+`app_sms` or `jwt_aal2` authority. A lost response retains the exact request for
+idempotent recovery. A changed source requires an explicit reload and new review.
+
+For AI-generated global governed drafts, publication requires immutable approval
+evidence for the exact current material. Every material version, block, quiz,
+answer, explanation, credit, provider, course or package change invalidates that
+approval. The approval timestamp is excluded only from the material hash to avoid
+self-invalidating evidence; the raw reviewed source hash is retained separately.
+Native media/package acceptance and existing publication quality checks still
+apply. Published artifact quarantine and provider maintenance remain available.
+Non-AI and existing ungoverned courses retain their existing review policy.
+
 - **Railway** hosts and runs `artifacts/caremetric-carebase` -- a static Vite/React build served by a small
   Node process (`artifacts/caremetric-carebase/server/index.mjs`), the learning-package proxy, and
   four optional `/api/providers/` routes for SMS MFA and billing. Application data still uses
@@ -790,6 +814,221 @@ provider routes. Rebuild after changing browser `VITE_*` configuration. Railway 
 rejects mode/project mismatches, but it cannot certify live Checkout, carrier delivery, or webhook
 reconciliation; complete the checks in the provider rollout section.
 
+## Central CareMetric administration
+
+The Node server supports a separately gated `POST /api/platform-admin/read` endpoint. It stays
+at the origin root regardless of `BASE_PATH`, defaults off, and does not require activating the
+Railway Stripe/SMS runtime. Configure only on the server:
+
+| Variable | Value |
+| --- | --- |
+| `CAREMETRIC_ADMIN_ENABLED` | `true` to activate; unset or `false` to disable |
+| `HUB_SUPABASE_URL` | The trusted Hub Supabase HTTPS origin |
+| `HUB_SUPABASE_PUBLISHABLE_KEY` | The Hub's `sb_publishable_` key |
+| `CAREMETRIC_ADMIN_IDENTITY_MAP_JSON` | Explicit JSON object mapping each Hub user UUID to one distinct native CareBase profile/Auth UUID |
+| `SUPABASE_URL` | This CareBase project's HTTPS origin; falls back to `VITE_SUPABASE_URL` and must match it when both exist |
+| `SUPABASE_SERVICE_ROLE_KEY` | Existing CareBase server credential; never use a `VITE_` prefix |
+| `RAILWAY_GIT_COMMIT_SHA` | Railway-provided source revision; capabilities reports a valid full Git SHA or `null` |
+
+An enabled runtime refuses missing/malformed configuration. Identity mappings are explicit
+deployment grants, never inferred from email. Revoke a mapping through configuration and restart,
+or immediately disable/demote the native CareBase profile. Do not place these mappings in frontend
+configuration. No mappings, account grants or production settings are provisioned by the code.
+
+For legacy Hub JWTs, the backend forwards `Authorization: Bearer <Hub access token>` plus JSON.
+The CareBase adapter calls `hub.authorize_platform_admin()` with that token on every request;
+the Hub RPC must validate the current usable account, live session, AAL2, verified TOTP and
+current unscoped platform-admin permission and return
+`{user_id, role: "platform_admin", aal: "aal2"}`. CareBase then checks the mapped native Auth
+user is usable and the current profile is active with `role = platform_admin`. The Hub's verified
+MFA session supplies session assurance for this delegated API; no native browser session is minted.
+There is no cross-origin browser API or generic RPC proxy. `Origin` headers are refused, and
+cookies, caller API keys and arbitrary headers never cross into database requests.
+
+| Request body | `data` in successful response |
+| --- | --- |
+| `{ "operation": "capabilities" }` | `{apiVersion: 1, operations, sourceRevision}`; requires the same administrator authorization as all reads |
+| `{ "operation": "overview" }` | `{organizationCount, activeUserCount, globalCourseCount}`; active-user count means active profiles, not current signed-in sessions |
+| `{ "operation": "courses.list", "limit": 25, "offset": 0, "search": "diabetes" }` | `{items, total, limit, offset}`; optional limit 1–50, offset 0–10000 and title substring up to 100 characters |
+| `{ "operation": "courses.get", "courseId": "<UUID>" }` | `{course, lessons, lessonsTruncated}` |
+| `{ "operation": "organizations.list", "limit": 25, "offset": 0, "search": "Care" }` | `{items, total, limit, offset}`; organization name search |
+| `{ "operation": "users.list", "limit": 25, "offset": 0, "search": "example.com" }` | `{items, total, limit, offset}`; application profile email search |
+| `{ "operation": "billing.overview" }` | `{source: "application_database", subscriptionCount, statusCounts: [{status, count}]}` |
+| `{ "operation": "billing.subscriptions.list", "limit": 25, "offset": 0, "search": "sub_" }` | `{source: "application_database", items, total, limit, offset}`; provider subscription ID search |
+| `{ "operation": "billing.invoices.list", "limit": 25, "offset": 0, "search": "in_" }` | `{source: "application_database", items, total, limit, offset}`; recorded provider invoice ID search |
+| `{ "operation": "billing.invoices.get", "id": "<native invoice UUID>" }` | `{recorded, provider, comparison}` |
+| `{ "operation": "billing.subscriptions.verify", "id": "<native subscription UUID>" }` | `{recorded, applicationAccess, provider, comparison}` |
+
+Success envelopes are `{contractVersion: 1, product: "carebase", operation, generatedAt, data}`.
+Course metadata has `id`, `title`, `description`, `category`, `status`,
+`estimatedDurationMinutes` and `updatedAt`. Lesson metadata has `id`, nullable `title`, `type`
+and `position`, capped at 200 with explicit truncation. Only global courses/versions/blocks
+(`organization_id IS NULL`) are accessible. Current versions must belong to the requested
+course. Draft and archived global courses are included in this administration inventory.
+Search escapes SQL wildcard characters; `*` and control characters are rejected. Unknown
+operations, extra fields, tenant scopes and mutation requests are rejected.
+
+All lists share the course-list pagination/search bounds and exact filtered counts. Ordering is
+stable by name/email/title (ascending) or subscription `updated_at` (descending), then native UUID.
+List offsets are subject to normal changes in the underlying live records; they are not snapshots.
+Directory metadata is deliberately limited to these fields (nullable keys are always present):
+
+- Organization: `{id, name, slug, status, createdAt}`. Status is the recorded
+  `organizations.subscription_status`, not a live provider status.
+- User: `{id, displayName, email, role, status, createdAt}` from `profiles` only. Status
+  `active`/`inactive` reflects `profiles.is_active`; it does not certify Auth-account usability,
+  bans or current sessions. These are application accounts, not employee or clinical records.
+- Subscription: `{id, organizationId, organizationName, planCode, planName, status,
+  providerStatus, providerCustomerId, providerSubscriptionId, currentPeriodEnd, updatedAt}`.
+  Native identifiers are UUIDs. `planCode` is always `null` because CareBase has no plan-code
+  field. `planName` comes from the subscription's package; absent links stay `null`.
+
+Subscription inventory reads list **recorded application subscriptions**, including canceled history, excluding
+`is_provider_placeholder` rows. `status` is the cached application `billing_state` and
+`providerStatus` is the cached Stripe status. These are not the managed-subscription candidates
+used by native seat synchronization, the current organization entitlement decision, or a live
+Stripe query. Explicit foreign keys bind package, billing account and organization metadata;
+an inconsistent joined organization/account fails closed. Billing overview counts all seven
+database-enforced states (`trial`, `active`, `grace`, `past_due`, `canceled`, `comped`, `suspended`)
+using exact HEAD requests. Any source error or disagreement with the independently read total
+(including a concurrent webhook update) returns an error; retry to obtain a consistent result.
+No recurring revenue or monetary total is inferred from package prices or mixed currencies.
+The existing Stripe integration remains pinned to `2026-02-25.clover`; inventory reads perform no
+Stripe requests and change no Checkout, portal, webhook or seat-sync behavior.
+
+Invoice inventory and provider checks use the same current Hub/native administrator authorization.
+Invoice metadata is `{id, organizationId, organizationName, subscriptionId, providerInvoiceId,
+providerSubscriptionId, status, currency, amountDueMinor, amountPaidMinor, amountRemainingMinor,
+issuedAt, dueAt, paidAt, updatedAt}`. Native IDs are UUIDs. Organization name, both subscription
+references and timestamps retain explicit nulls when unavailable. Amounts are canonical unsigned
+decimal strings in the currency's Stripe API minor units, bounded by PostgreSQL bigint. Source
+queries [cast bigint columns to text before JSON serialization](https://docs.postgrest.org/en/v13/references/api/tables_views.html#casting-columns).
+The Node 24 parser preserves the provider's original integer tokens, including values beyond
+JavaScript's safe integer range. Do not coerce them to Number or use the native catalog's generic
+cents formatter. Stripe has [currency-specific minor-unit rules](https://docs.stripe.com/currencies#minor-units-in-api-amounts),
+including zero-decimal currencies and ISK/UGX exceptions; unknown currencies should display the
+raw currency and minor-unit amount. Never aggregate unlike currencies.
+
+The two detail checks reuse server-only `STRIPE_SECRET_KEY`, the established `phase2StripeGet`
+helper, current Stripe account and pinned API version. No new key or environment setting is needed.
+An absent key leaves cached reads working and reports `unconfigured`. Calls retrieve only the
+provider invoice/subscription already identified by a native UUID; there is no provider search
+or arbitrary ID/URL input. The invoice's organization, linked subscription, billing account and
+customer must agree. Legacy invoices without a native subscription link may resolve their recorded
+provider subscription only within the same organization/account; standalone invoices must also be
+standalone at Stripe. Incorrect provider object/customer/subscription identities expose no provider
+data. [Invoice retrieval](https://docs.stripe.com/api/invoices/retrieve?api-version=2026-02-25.clover)
+and [subscription retrieval](https://docs.stripe.com/api/subscriptions/retrieve?api-version=2026-02-25.clover)
+are fixed GETs, bounded to five seconds and 2 MiB with no redirects. They never apply events,
+change entitlements, create portal/Checkout sessions or issue provider writes.
+
+`provider` is `{source: "stripe", apiVersion: "2026-02-25.clover", availability, checkedAt, data}`.
+Availability is `available`, `unconfigured`, `unavailable`, `notfound` or `identity_mismatch`;
+all unavailable variants keep `data: null` and preserve validated recorded data. Available invoice
+data is `{id, customerId, subscriptionId, status, currency, amountDueMinor, amountPaidMinor,
+amountRemainingMinor, createdAt, dueAt, paidAt, livemode}`. Available subscription data is
+`{id, customerId, status, cancelAtPeriodEnd, canceledAt, livemode}`. Nullable legacy values stay
+null; `livemode` describes the retrieved provider object. No provider address, email, metadata,
+payment method, description, invoice PDF or hosted URL is returned.
+
+`comparison` is `{status: "matches" | "differences" | "not_checked", fields: []}`. Available
+invoice comparisons include only `status`, `currency` and the three amount field names. Subscription
+comparison includes only `providerStatus`. Unavailable provider checks have `not_checked` with no
+differences; they never report invented provider zeroes. Subscription `applicationAccess` separately
+reports the native account's `{billingState, stateSource, compedUntil, graceEndsAt, updatedAt}`.
+This may deliberately disagree with Stripe due to manual comp, suspension or native grace rules.
+The read never turns that comparison into a billing-access change. Recorded/provider timestamps
+are independent observations, not a distributed transactional snapshot.
+
+Directory names/emails are intentional sensitive administrator fields: keep response bodies,
+search text and access-token headers out of proxy logs. Responses contain no organization contact
+information, clinical data, Auth directory objects, lesson bodies, answer keys or media/invoice URLs.
+Course title/description metadata is truncated to 500/4000 characters.
+The transport bounds ingress to 2 KiB, source responses to 2 MiB, emitted responses to 1 MiB,
+execution to 30 seconds and concurrent execution to eight requests. Error bodies contain only
+`{error: {code}}`; responses are `no-store`. Keep access-token headers out of proxy logs.
+
+Before activation, install the Hub authorization RPC, verify the intended native and Hub UUIDs,
+enroll the owner's MFA and test allowed and denied operations with real owner-controlled sessions.
+Automated fixtures exercise both successful reads and fail-closed authorization/projection cases;
+they do not certify a configured production connection. Disable `CAREMETRIC_ADMIN_ENABLED` to
+roll back without changing CareBase's native application data or authentication flows.
+
+### Preview and apply access controls
+
+`POST /api/platform-admin/command` is separately disabled unless
+`CAREMETRIC_ADMIN_COMMANDS_ENABLED=true` on the server. Install migration
+`20260911154400_delegated_platform_admin_commands.sql` and the Hub's
+command authorization service before enabling it. Legacy JWT authorization uses the
+`hub.authorize_platform_command()` RPC. The capabilities read advertises
+`commands.preview` and `commands.apply` only when this flag is enabled.
+
+The legacy command RPC must first perform the existing read authorization and additionally return
+`session_id`, `session_started_at`, and `assurance_expires_at`. The Hub verifies these against its
+actual live Auth session; expiry is no later than session creation plus 480 minutes and any
+session `not_after` deadline. The original session must be within 480 minutes and the JWT issue
+time no more than five minutes in the future. This preserves CareBase's native platform-admin
+freshness window from `identity_assurance_is_current`. Normal token refresh cannot extend it.
+Both the adapter and native transaction recheck the mapped native administrator and freshness.
+The foreign session is never represented as a fabricated native JWT or `auth.uid()`.
+
+For Hub SMS sign-in, the Hub backend instead sends a single-use `cmh_` capability with 43
+base64url characters. CareBase consumes it only at
+`https://support-hub-web-production.up.railway.app/api/internal/command/carebase/authorize`,
+whose audience is `carebase.command`. The result must contain
+`{user_id, role: "platform_admin", method: "sms", session_id, session_started_at,
+assurance_expires_at, operation}`. The operation must exactly match the parsed preview/apply
+request. Native checks enforce the same original-session 480-minute window and five-minute
+future skew independently. Read capabilities are consumed at the separate `/api/internal/admin/authorize`
+endpoint and cannot authorize commands. Failed SMS consumption never falls back to a JWT or read path.
+The Hub verifies its SMS session and current relational permission when it consumes each ticket;
+CareBase still checks the explicitly mapped native account on every request.
+
+Preview requests contain exactly `{operation: "preview", requestId, action, targetId, parameters,
+reason}`. The three action/parameter pairs are:
+
+- `users.setActive`: `{active: boolean}`. Excludes the caller and every platform-admin target.
+  Deactivation calls the native profile core, which deletes the target's native sessions; later
+  activation does not recover those sessions. Activation refuses anonymous, deleted or banned accounts.
+- `organizations.setSuspension`: `{suspended: boolean}`. The existing native core writes the
+  organization and billing account together; manual suspension survives future billing events.
+  Lifting it restores the provider-derived state, which can still be canceled or suspended.
+- `billing.setAccessOverride`: `{state: "comped" | "provider", expiresAt: ISO timestamp | null}`.
+  Complimentary access may have a future expiry or be indefinite. Returning to provider state
+  requires `expiresAt: null`. These are application-access decisions and never cancel, charge,
+  restart or alter a Stripe subscription.
+
+Identifiers are UUIDs; reasons must be 10–500 characters without control characters. The adapter
+accepts no caller-supplied identity, provider request, arbitrary RPC, account credential or email.
+Preview returns `{commandId, action, targetId, reason, expiresAt, previewDigest, changes}`. Changes
+are `{field, before, after}` with string/null values and only `active`, `status`, `billingState`,
+`stateSource`, or `compedUntil`. Apply accepts exactly `{operation: "apply", commandId,
+expectedDigest}` and returns `{commandId, action, targetId, appliedAt, replayed, changes}`. Both use
+the existing version-1 envelope with operation `preview`/`apply`. HTTP 409 `conflict` means the
+preview expired, the target changed, or the expected digest/request identifier no longer matches.
+
+Native previews are immutable, bound to both actors, authentication method and Hub session, and expire within five
+minutes. Reusing an identical request identifier returns the same preview; different inputs are
+rejected. Apply locks the receipt and target, revalidates state, invokes the same cores as native
+administration, verifies the outcome matches the preview, and commits the native audit and stored
+result together. Audit failure rolls back the change. A repeated or concurrent apply returns the
+stored outcome without another mutation or audit. No-op commands still create an audit that
+explicitly records `unchanged: true`. Records contain only safe state projections and the supplied
+operational reason; operators should keep clinical/personal details out of reasons.
+
+The command audit attributes the mapped native actor and the Hub subject/session explicitly,
+including trusted `authenticationMethod: "jwt_aal2" | "app_sms"`; SMS is never labeled JWT AAL2.
+Only the adapter supplies this required native RPC argument after checking the corresponding authority.
+Native row-trigger evidence retains its normal system attribution and shares the command's
+request/correlation identifiers. The service credential has no direct read/write grants on the
+private ledger or private business cores. Native interactive RPC wrappers retain their own checks.
+Disable `CAREMETRIC_ADMIN_COMMANDS_ENABLED` to stop new previews/applies while retaining the
+read-only administration endpoint and all receipts.
+
+CI runs pgTAP transaction tests and an additional real loopback-Supabase concurrency test against
+the disposable database. The latter refuses remote URLs and requires
+`CAREMETRIC_LOCAL_COMMAND_TESTS=true`. No production action is part of automated verification.
+
 ## Limitations / manual steps remaining
 
 Deployment-setting verification on 2026-09-08 (BACKLOG K11):
@@ -831,3 +1070,82 @@ Deployment-setting verification on 2026-09-08 (BACKLOG K11):
   emails `dispatch-notifications` sends to actually go out -- without it, those deliveries are
   logged as `skipped` rather than failing loudly. Routing Supabase Auth's own password-reset/
   email-change mail through SendGrid too requires the hosted Send Email hook and matching signing configuration in step 1.6; setting the Edge Function key alone does not change Auth delivery.
+
+### Hub app-owned SMS delegation
+
+The central administrator adapter also accepts opaque cmh_ capabilities from the Hub's Node server. It introspects each capability at the fixed HTTPS Hub application endpoint, validates the SMS method and exact read operation, and retains the existing explicit identity map and native account/role checks. Capabilities are single-use and expire after 30 seconds; the Hub rechecks the session and permissions at consumption. No new CareBase environment variables are required. Deploy this adapter before activating the paired Hub app-session frontend. Existing legacy Hub AAL2 tokens retain their original verification path. Live SMS receipt and administrator access must be verified after the paired release.
+
+### Prospective Hub learning receipts
+
+The opt-in `/api/learning-admin/receipt` Node route requires `CAREMETRIC_LEARNING_RECEIPTS_ENABLED=true` plus the existing administrator/command flags and explicit Hub-to-native administrator mapping. It accepts only current legacy JWT/TOTP authority or a single-use, exact-operation SMS delegation consumed at `https://support-hub-web-production.up.railway.app/api/internal/learning/carebase/authorize` with audience `carebase.learning`. The source ledger records the actual authentication method. No browser origin can call the native route directly.
+
+Apply the reviewed prospective receipt migration before enabling this route; deploy the corresponding Hub receipt inbox, canonical identity setup, learning delegation and required feature manifest first. Setup and reconciliation are explicit owner actions. No automated key provisioning, learner history export, or publication cutover is included. The native completion transaction remains the sole credit/certificate writer and contains no network call. Local receipt-ledger integrity failures intentionally roll back bound completion; Hub outages only delay reconciliation. Policy drift remains quarantined, and reporting withdrawal leaves earned native records intact. New source identifiers have no foreign keys that would add blockers to native erasure paths; a governed bridge retention policy remains separate work.
+
+### Delegated billing portal sessions
+
+The fixed Node endpoint `/api/platform-admin/billing/command` accepts only `billing.portal.create` previews and their reviewed applies. It requires the existing administrator and command flags plus `CAREMETRIC_ADMIN_BILLING_COMMANDS_ENABLED=true`. Leave this new flag off until migration `20260911190112_delegated_billing_portal_sessions.sql`, the paired Hub command contract, and source CI are verified. The existing server Stripe key, explicit CareBase portal configuration, and configured native return origin are reused; no new provider key or account is introduced. The return path is fixed to `/admin/enterprise` and browser input cannot select a customer, provider configuration, price or URL.
+
+The existing `carebase.command` SMS audience binds the complete parsed preview/apply; legacy JWTs use the fresh Hub command RPC. Every preview, claim and result retrieval rechecks the native mapped administrator. Preview intent expires after five minutes. A private transaction records a 30-second lease before any Stripe POST; retries retain exactly the same provider parameters and idempotency key. Indeterminate provider responses return `pending`, a null session and a 30-second retry delay. Retries beyond 23 hours require investigation and never generate a new key automatically. Definitive provider rejection returns `failed`. Completion receipts and bounded audits commit before a successful portal URL can be disclosed. Receipt persistence remains possible after native actor deletion or revocation; retrieval still requires current authority.
+
+The portal link is an ephemeral provider capability: store it only in the private command receipt and the requesting administrator's current view. Never copy it into application logs, audit metadata, support tickets or shared exports. Stripe portal responses do not provide a reliable expiry, so `expiresAt` is explicitly null. Replayed results retain the original creation time and link and do not imply the provider still accepts an old link. Creating a portal session itself does not modify a subscription; actions subsequently taken in the portal follow the existing provider configuration and signed webhooks. Checkout creation from the Hub remains unavailable pending a common organization reservation across native and Hub entry points. The shared native Checkout planner already refuses linked nonterminal provider subscriptions, including paused/unpaid and pending placeholders, rather than allowing a second subscription.
+
+URL validation accepts the legacy `/p/session/<token>` form and the [documented `/p/session?secret=<token>` response](https://docs.stripe.com/api/customer_portal/sessions/create), only on the exact `https://billing.stripe.com` origin. Either form requires one 1–2048-character ASCII letter/digit/underscore/hyphen token. Credentials, explicit ports, fragments, encoded tokens, extra query parameters and additional path segments are rejected by both the native response validator and the private receipt writer.
+
+### Shared native and Hub Checkout
+
+Deploy the updated `create-billing-session` handler to every callable runtime, including Supabase Edge if its function remains reachable. Selecting Railway in the browser does not disable an older Edge deployment; an older callable handler must not remain available to bypass the shared reservation.
+
+Fresh sessions recover an organization's original reservation with the closed Hub `recover` operation and `billing.checkout.recover` action, or native `checkout_recover`. Recovery creates a separate current-session observation intent, preserves original terms, and only performs provider GETs. Its five-minute preview can expire without disabling subsequent checks; apply is always rejected. An empty result includes explicit native subscription eligibility. Current native catalog retirement withholds open links while allowing terminal provider evidence to be observed. Audit attribution follows the current lease-owning intent, while the first intent and provider parameters remain immutable.
+
+Apply the reviewed `20260911195531_shared_checkout_reservations.sql` migration before deploying its native billing handler. The existing native Checkout handler always uses this common reservation; it has no legacy fallback that could bypass the organization lock. Hub Checkout additionally requires `CAREMETRIC_ADMIN_CHECKOUT_COMMANDS_ENABLED=true`, alongside the existing administrator, command and billing-command flags. The new flag defaults off. Existing Stripe account credentials, pinned API version and tax settings are preserved.
+
+The Hub preview selects an explicit package and month/year interval from `billing.packages.list`, with native current price, cadence count, quantity and remaining trial resolved on the server. Catalog amounts are stored display amounts, returned as strings with currency; they are not provider-verified invoice totals. Apply includes `action: billing.checkout.create` so it cannot be confused with the existing portal command. `check` uses the same command identity/digest and performs provider reads only. Both operations require current Hub authority and native mapping. Native callers mint a short-lived protected grant through their real authenticated database session; no native JWT is fabricated.
+
+Only one unresolved Checkout reservation may exist for an organization across either interface. Provider parameters and the idempotency key are immutable. A known session is checked with Stripe GET before any link is disclosed; the URL must belong to the exact `checkout.stripe.com/c/pay/<session ID>` path, with only the documented optional opaque fragment. Provider customer, organization, price, quantity, cadence, currency and live/test mode are verified. POST success followed by a failed GET remains indeterminate and preserves the known session identifier for a GET-only retry. A retry failure cannot erase a possibly successful earlier creation. Unknown operations without an identifier may reuse their original key for at most 23 hours, and remain reserved thereafter.
+
+Provider-confirmed expiration or a definitive rejection of the first dispatch releases the reservation. A completed Checkout remains reserved while its subscription is payable or uncertain; a separate exact subscription GET must confirm `canceled` or `incomplete_expired` before replacement is possible. New native billing eligibility checks still apply. These observations do not write entitlements or bypass signed webhook reconciliation. Receipts and audits persist transactionally before disclosure, and current authorization is checked again afterward. No provider capability URL belongs in logs, audit metadata, Hub persistence, support tickets or exports.
+
+An expired preview that never acquired a reservation can be checked without provider dispatch. It reports no created session and allows a new preview only when no current payable reservation or blocking subscription exists. Checking old terminal evidence also checks for later reservations. Open-session disclosure requires the provider price to remain active, recurring and in the configured test/live mode; archived prices do not prevent checking an already completed or expired session's terminal disposition.
+
+References: [Checkout Session retrieval](https://docs.stripe.com/api/checkout/sessions/retrieve), [Checkout state](https://docs.stripe.com/api/checkout/sessions/object), [Checkout line items](https://docs.stripe.com/api/checkout/sessions/line_items), [Price fields](https://docs.stripe.com/api/prices/object), and [Stripe idempotency](https://docs.stripe.com/api/idempotent_requests).
+
+### Governed Hub course authoring
+
+`CAREMETRIC_LEARNING_AUTHORING_ENABLED=true` enables the closed `/api/learning-admin/authoring` route only when the existing administrator and command flags are enabled. It remains off until the paired Hub release is verified. Source, inspect, preview and apply all require the current mapped native administrator and a fresh Hub learning capability (or the supported current AAL2 session). Source responses preserve exact governed bytes up to 2,000,000 bytes; only the fixed source RPC permits the larger escaped response, up to 4,100,000 bytes.
+
+A clone uses the same atomic database core as the native editor. It copies definitions and credit policy into a new draft, retains private media locators only inside CareBase, and carries no learner history or approval. Package requirements appear under Admin → Governed content and training → Standards. Upload a replacement from the new draft using a new storage path, accept it through the existing package review flow, then verify the replacement. AI-generated drafts require their own existing native review before publication. Publication continues through the current native readiness rules and does not issue learner credits or certificates. Imported Hub drafts remain guarded against generic Hub publication.
+
+### Immutable course package ingestion
+
+Deploy migration 20260911220017 and both ingest-learning-package / accept-learning-package Edge Functions together before enabling the new native UI. The learning-package-originals bucket is private with no browser access. Original archives are retained at new immutable paths; accepted runtime archives use a reserved managed/ prefix in learning-packages. Existing accepted objects are unchanged. Deploy the package asset helper as well: its bounded archive reader is shared, and its legacy launch contract remains unchanged.
+
+The Railway Hub endpoint is POST /api/learning-admin/package. CAREMETRIC_ADMIN_PACKAGE_INGESTION_ENABLED=true also requires the existing central-administration and command flags. It defaults off. Upload uses application/zip and a bounded base64url JSON x-caremetric-package-request header, which is bound to its exact fresh carebase.learning delegation. Other operations use application/json. Upload and accept stage bytes only; a separately authorized finish is mandatory after the Hub rechecks its current session. Status observes an uploader's persisted receipt across current verified sessions without replaying old write authority. Archive input is limited to50 MiB compressed/100 MiB expanded; the Node router admits one operation at a time and applies a120-second request timeout. Neither transport accepts external URLs, bucket names or storage paths.
+
+## Course-owned media (N19)
+
+The private `course-media` bucket retains PDF (25 MiB), MP4 and WebM (100 MiB)
+originals under generated course/asset/hash paths. Upload workers stream to an
+invocation-local temporary file, verify actual bytes and never upsert objects.
+The upload stage does not alter a course; a separately authorized finish checks
+current native authority, original session, source revision and unresolved video
+jobs before attaching the immutable asset. Old facility documents and accepted
+course packages retain their existing readers and history.
+
+Deploy the reviewed `course-media` Edge worker with `verify_jwt=true` and the
+updated `generate-course-video`, `check-course-video-status` and
+`poll-heygen-video-statuses` sources together with migration
+`20260911235550_immutable_course_media.sql` and the native
+web bundle. Drain the old generation writers before applying changed RPC
+signatures, using the maximum invocation duration of the hosted plan. No live
+upload or generation is part of deployment verification.
+
+The Hub route `/api/learning-admin/media` is off by default. Set
+`CAREMETRIC_ADMIN_MEDIA_ENABLED=true` only after the paired Hub protocol is live
+and the existing central admin and command flags/identity mapping are ready.
+It advertises `learning.media.v1`; the same existing learning delegation audience
+binds each exact operation. JSON metadata is capped at8 KiB/3 seconds; authorized
+byte transfers are capped at120 seconds with one active transfer. Hub byte reads
+return current-authorized bytes and checked range/hash headers, never Storage
+URLs. Native learners receive a short-lived authorized Storage link (60 seconds
+for PDFs, 900 seconds for video), with current authority checked again before
+link disclosure.

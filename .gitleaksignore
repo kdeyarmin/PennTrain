@@ -8,3 +8,13 @@ d3f81bd91acb577a13d9d5f74c65ea091e20077c:supabase/functions/_shared/marketingEma
 # on entropy by the generic-api-key heuristic.
 6de70ec84a37c8bc48c96d518b0f459c662da12c:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:473
 6de70ec84a37c8bc48c96d518b0f459c662da12c:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:477
+# The same two reviewed public template identifiers in the earlier historical UI
+# revision, independently confirmed against that commit after the weekly scan.
+0df5a8e21838bea949c0c37aea7905e96e2f0911:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:470
+0df5a8e21838bea949c0c37aea7905e96e2f0911:artifacts/caremetric-carebase/src/pages/admin/EnterpriseFoundation.tsx:generic-api-key:474
+
+# Public synthetic Web Push test auth bytes 0..15, base64url encoded (no real credential).
+# The literal was replaced by visible byte synthesis; these exact immutable-history
+# fingerprints cover only the two reviewed test fixtures, not files or scanner rules.
+527eb4a42f4c28bac4d1da316fe9bcb345c1acc9:supabase/functions/_shared/webPush.test.ts:generic-api-key:12
+527eb4a42f4c28bac4d1da316fe9bcb345c1acc9:supabase/functions/push-subscriptions/handler.test.ts:generic-api-key:12

@@ -184,12 +184,16 @@ select is(
 -- Reading a calendar day back as an instant. `d::timestamptz` and `d::timestamp at time zone ''UTC''`
 -- both place the day at midnight UTC, which is 20:00 the previous evening in Pennsylvania.
 --
--- Three functions use UTC on purpose and are listed by name, not pattern-matched, so that adding a
--- fourth is a decision somebody makes rather than a regex somebody widens:
+-- These functions use UTC on purpose and are explicitly listed, not pattern-matched, so adding
+-- another is a decision somebody makes rather than a regex somebody widens:
 --   * compute_audit_event_hash canonicalises a hash input -- changing its timezone would invalidate
 --     every audit hash already written;
 --   * the notification spend functions bound a monthly BILLING period, which is not a facility
---     calendar day, and all of them agree with each other.
+--     calendar day, and all of them agree with each other;
+--   * the exact cm_integration_reserve signature bounds an operational provider quota by UTC day,
+--     consistently with the recovered daily-budget ledger. It does not date facility records.
+--     Moving its reset to Pennsylvania midnight would change existing quota semantics. The
+--     recovered_integration_history test pins this boundary and exercises opposite session zones.
 select is(
   (select coalesce(string_agg(distinct n.nspname || '.' || p.proname, ', ' order by n.nspname || '.' || p.proname), '(none)')
    from pg_catalog.pg_proc p
@@ -201,9 +205,10 @@ select is(
        'begin_notification_delivery_attempt',
        'get_notification_delivery_operations',
        'raise_notification_spend_alerts'
-     )),
+     )
+     and p.oid <> 'public.cm_integration_reserve(text,text,text,text,text,uuid,integer)'::regprocedure),
   '(none)',
-  'only the audit-hash and billing-period functions interpret anything in UTC'
+  'only the explicit audit-hash, billing-period and provider-quota functions interpret anything in UTC'
 );
 
 -- A UTC week begins at 19:00 or 20:00 on Sunday in Pennsylvania, so a Sunday evening shift falls in

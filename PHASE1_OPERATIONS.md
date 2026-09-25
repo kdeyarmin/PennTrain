@@ -262,25 +262,31 @@ exactly like a quiet week.
 
 ## Backups, and the part they do not cover
 
-Verified against the production project on 2026-09-05. Everything here is a
-fact about the platform or a number read from the database; the one thing that
-cannot be read from outside the dashboard is called out as such.
+Database inventory rechecked on 2026-09-15. Plan and PostgreSQL-version details
+below were observed on 2026-09-05. Actual retained backup availability, PITR
+configuration and completed recovery remain unverified. Retain source inventory
+and capture reports in the protected operator evidence directory described in
+the executable verification procedure below, outside the repository.
 
 **What is running already.** Project `xsqobvvreaovwibxwyvv` (region us-west-2,
 Postgres 17.6.1.141) sits in a **Pro** organization, so Supabase takes an
-automatic **daily** backup and keeps **the last seven days**. Nobody enabled
-this and nobody can forget to: it is a property of the plan. Postgres is newer
-than 15.8.1.079, so these are physical backups.
+automatic **daily** backup with **seven-day** plan retention. That entitlement
+does not prove that a particular backup exists or can be restored; check actual
+backup timestamps and status. Postgres is newer than 15.8.1.079, so these are
+physical backups.
 
 **Point-in-Time Recovery is a paid add-on and Pro does not include it.**
 Whether it has been bought for this project is the one thing to check in
 Database → Backups → Point in Time; it is not visible from the database or the
 Management API without an access token. The difference is the whole recovery
-point objective: without PITR the worst case is **one day of lost data**, with
-it about **two minutes**. The 7-day tier is roughly $100/month.
+point objective: daily backups normally permit up to a day of data loss, while
+PITR usually offers much more recent recovery. The actual recoverable window
+must be read from the backup service; a plan entitlement is not a guaranteed
+RPO. The 7-day PITR tier is roughly $100/month.
 
-**The database is 579 MB.** That is what sets restore downtime, and the project
-is inaccessible while a restore runs.
+**The database is 469,691,539 bytes** as of 2026-09-15 00:12:45 UTC. Volume is
+one input to restore duration, which must be measured. A production in-place
+restore makes the project inaccessible while it runs.
 
 **There are zero replication slots** (`select count(*) from
 pg_replication_slots` returns 0), so the documented "drop subscriptions and
@@ -290,20 +296,21 @@ handled by the platform either way.
 
 **What the backup does not contain, which is the part that matters here.**
 Database backups do not include Storage objects -- the database holds only
-metadata about them. Today that is **84 objects and about 943 MB** across 27
-private buckets, and it is not incidental content:
+metadata about them. On 2026-09-15 there are **85 objects, 988,542,909 bytes**
+and **29 bucket definitions**, and it is not incidental content:
 
 | Bucket | Objects |
 | --- | --- |
 | `course-videos` | 66 (988,407,298 bytes -- essentially all of the volume) |
 | `binder-exports` | 12 |
 | `policy-documents` | 2 |
+| `certificates` | 1 |
 | `class-notices`, `incident-reports`, `resident-documents`, `violation-documents` | 1 each |
 
 A database restore brings back the rows that point at those objects. If an
 object was deleted after the backup was taken, the restore does not bring it
-back, and the row now points at nothing. The buckets that are empty today are
-the ones a pilot fills first -- `certificates`, `credential-documents`,
+back, and the row now points at nothing. The buckets that a pilot fills include
+`certificates`, `credential-documents`,
 `incident-documents`, `compliance-evidence` -- so this gap grows the moment a
 real facility starts using the product. For a deployment holding PHI under a
 signed BAA, "we have backups" is a statement about the database only, and
@@ -323,21 +330,88 @@ rehearsed *for*.
 1. Write down the restore point and, from production, the row counts you intend
    to check (`organizations`, `profiles`, `employees`, `residents`,
    `audit_logs`) and `select count(*) from storage.objects`.
-2. Database → Backups → restore to a new project. With PITR enabled the
-   Management API equivalent is
-   `POST /v1/projects/{ref}/database/backups/restore-pitr` with
-   `recovery_time_target_unix`.
+2. Use **Database → Backups → Restore to a New Project**, review the selected
+   backup and target cost, and confirm the target is a separately authorized
+   isolated project. **Do not call
+   `POST /v1/projects/{ref}/database/backups/restore-pitr` for this rehearsal:**
+   that restores the referenced project in place; it is not the new-project
+   equivalent. A preview branch without production data is also not a restore.
 3. Time it. The number is the input to every future decision about whether to
    restore in place during an incident.
-4. On the clone, re-run the counts and compare. Then check whether the Storage
-   metadata still resolves to real objects -- that is the finding this rehearsal
-   exists to produce, not the row counts.
-5. Delete the clone.
+4. Isolate the clone before exercising it: prevent outbound cron, webhooks,
+   billing and notifications, restrict access, and do not direct real users to
+   it. Supabase's clone flow copies database extensions, which can retain
+   schedules or outbound configuration. Keep production credentials out of
+   clone application runtimes.
+5. On the clone, compare the selected restore-point baseline, then restore
+   Storage bytes from a separately retained object backup and compare their
+   SHA256 hashes. Database-only metadata cannot meet this gate. Use the
+   executable verification procedure below and complete authenticated
+   application smoke checks. Retain discrepancies instead of treating matching
+   row counts as success.
+6. Retain non-sensitive evidence and remove the isolated clone using the
+   separately authorized cleanup procedure. Do not remove production.
 
 **Evidence to keep:** the restore point and the elapsed time, the count
 comparison, the Storage finding, and one screenshot of the backups page showing
 the retention that is actually configured. Until that exists, treat the recovery
 posture as unproven regardless of what the plan says.
+
+### Executable recovery verification
+
+`scripts/verify-recovery.mjs` performs only read-only database queries and
+Storage GET requests. It creates no backup, restore, bucket, project or network
+configuration. Its source and target reports contain counts, per-object byte
+sizes and SHA256 hashes. Customer rows remain inside PostgreSQL; object names,
+file contents and credentials are not written to reports or logs. Streams avoid
+buffering large videos.
+
+Provide `SUPABASE_ACCESS_TOKEN` and `RECOVERY_STORAGE_SERVICE_KEY` through the
+approved secret environment. Use the source Storage service key for the first
+capture and the isolated target's key for the second; never paste either into
+the command line. Write reports to a protected operator directory outside the
+repository:
+
+```sh
+node scripts/verify-recovery.mjs capture xsqobvvreaovwibxwyvv /secure/recovery/source.json
+# After the independently authorized restore, supply the target's Storage key:
+node scripts/verify-recovery.mjs capture "$RECOVERY_TARGET_REF" /secure/recovery/restored.json
+node scripts/verify-recovery.mjs compare /secure/recovery/source.json /secure/recovery/restored.json
+```
+
+Each capture hashes five critical tables (`organizations`, `profiles`,
+`employees`, `residents`, `audit_logs`), migration versions, public/Storage RLS
+policies and flags, Storage metadata identities, and every Storage object's
+actual bytes. This scope does not prove that every application table or schema
+object was recovered. The run fails on incomplete pagination, missing or
+corrupt files, malformed responses, and source database changes during capture.
+It also rejects an attempted same-project comparison. It does not overwrite an
+existing report. `elapsedMs` measures verification time, **not restore time**.
+
+Use a baseline corresponding to the actual backup point. For exact comparison,
+coordinate a quiet source window and retain the backup's own snapshot metadata;
+comparing an old backup to later production activity correctly reports drift.
+Do not freeze production or choose a later PITR point implicitly. A comparison
+with status `matched` is evidence of matching content in the stated scope;
+`recoveryVerified` deliberately remains false until the operator also retains
+backup/restore provenance, restore timings, retention configuration and
+authenticated application results.
+
+**2026-09-15 verification:** the generated snapshot SQL ran successfully against
+production; 12 synthetic automated verifier tests passed, including 503 objects
+across multiple pages, missing files and same-size corruption. Full production
+object hashing and an actual restore were not performed: this session has no
+Management API/Storage service credentials, database dump credentials, backup
+download capability or authorized isolated target. Two `policy-documents`
+metadata rows report zero bytes and both filenames contain demo/sample/test
+markers; actual bytes were not downloaded. Verify intended content during the
+object pass. The storage backup and timed recovery launch gate remains open.
+
+Platform references, checked 2026-09-15:
+[database backups](https://supabase.com/docs/guides/platform/backups),
+[restore to a new project](https://supabase.com/docs/guides/platform/clone-project),
+[CLI database and Storage recovery](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore),
+[read-only query flag](https://supabase.com/docs/reference/api/v1-run-a-query).
 
 ## Incident response
 

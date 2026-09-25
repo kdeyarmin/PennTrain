@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { rangeFor } from "@/lib/utils";
@@ -84,9 +84,10 @@ export interface ListCourseAssignmentsPaginatedFilters extends ListCourseAssignm
 // useListCourseAssignments above (left unbounded -- MyCourses.tsx, TrainingPlans.tsx, and
 // EmployeeDashboard.tsx all still need "every assignment matching this filter" rather than one
 // page of it), this variant is for the paginated admin list only.
-export function useListCourseAssignmentsPaginated(filters: ListCourseAssignmentsPaginatedFilters) {
+export function useListCourseAssignmentsPaginated(filters: ListCourseAssignmentsPaginatedFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["course_assignments", "paginated", filters],
+    enabled: options.enabled,
     queryFn: async () => {
       let query = supabase.from("course_assignments").select("*", { count: "exact" });
       if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
@@ -220,6 +221,52 @@ export function useSelfEnrollCourse() {
   });
 }
 
+/** Also used when a fresh read confirms completion after a failed final save or lost response. */
+export function invalidateCompletedCourseEvidence(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+  queryClient.invalidateQueries({ queryKey: ["course_progress"] });
+  queryClient.invalidateQueries({ queryKey: ["certificates"] });
+  // complete_course_assignment() bridges into employee_training_records and
+  // runs recalculate_compliance_core (statuses, hour buckets, alerts) --
+  // refresh those caches too so the training matrix and annual-hours
+  // widgets don't stay stale for a full staleTime window.
+  queryClient.invalidateQueries({ queryKey: ["training_records"] });
+  queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
+  queryClient.invalidateQueries({ queryKey: ["alerts"] });
+  // "Overall compliance" on the Dashboard is get_org_dashboard_summary, which is exactly the
+  // number a completion moves -- and it carries a 60-second staleTime, so the tile disagreed
+  // with the matrix the same completion had just refreshed (BACKLOG J74, P3 tail).
+  queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
+  // record_course_completion_credits (trigger on course_assignments) writes the per-course
+  // credit rows the employee page lists under the annual-hours bucket.
+  queryClient.invalidateQueries({ queryKey: ["course_completion_credits"] });
+}
+
+/** A bounded, uncached read: React Query's online queries can pause indefinitely when offline. */
+export async function verifyCourseAssignmentCompleted(assignmentId: string, employeeId: string) {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<null>((resolve) => {
+    timeout = setTimeout(() => { controller.abort(); resolve(null); }, 5_000);
+  });
+  try {
+    const result = await Promise.race([
+      supabase.from("course_assignments").select("id,employee_id,status")
+        .eq("id", assignmentId).eq("employee_id", employeeId)
+        .abortSignal(controller.signal).maybeSingle(),
+      deadline,
+    ]);
+    if (!result) return false;
+    if (result.error) throw result.error;
+    return result.data?.id === assignmentId
+      && result.data.employee_id === employeeId
+      && result.data.status === "completed";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function useCompleteCourseAssignment() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -228,25 +275,9 @@ export function useCompleteCourseAssignment() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["course_progress"] });
-      queryClient.invalidateQueries({ queryKey: ["certificates"] });
-      // complete_course_assignment() bridges into employee_training_records and
-      // runs recalculate_compliance_core (statuses, hour buckets, alerts) --
-      // refresh those caches too so the training matrix and annual-hours
-      // widgets don't stay stale for a full staleTime window.
-      queryClient.invalidateQueries({ queryKey: ["training_records"] });
-      queryClient.invalidateQueries({ queryKey: ["training_hour_buckets"] });
-      queryClient.invalidateQueries({ queryKey: ["alerts"] });
-      // "Overall compliance" on the Dashboard is get_org_dashboard_summary, which is exactly the
-      // number a completion moves -- and it carries a 60-second staleTime, so the tile disagreed
-      // with the matrix the same completion had just refreshed (BACKLOG J74, P3 tail).
-      queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
-      // record_course_completion_credits (trigger on course_assignments) writes the per-course
-      // credit rows the employee page lists under the annual-hours bucket.
-      queryClient.invalidateQueries({ queryKey: ["course_completion_credits"] });
-    },
+    // A transport error can arrive after the database committed. Refresh the dependent views on
+    // either outcome so a lost response cannot leave an issued certificate hidden in stale data.
+    onSettled: () => invalidateCompletedCourseEvidence(queryClient),
   });
 }
 

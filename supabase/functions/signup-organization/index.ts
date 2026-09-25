@@ -176,6 +176,7 @@ Deno.serve(async (req: Request) => {
     last_name?: string;
     organization_name?: string;
     legal_accepted?: boolean;
+    product?: "train" | "carebase";
     turnstile_token?: string;
     redirect_to?: string;
     service_agreement_version?: string;
@@ -191,6 +192,7 @@ Deno.serve(async (req: Request) => {
   // readJsonBody guarantees an object, not the type of each field: a number or array in any of
   // these used to throw `trim is not a function` before Turnstile or the rate limiter ran -- a
   // repeatable, unauthenticated 500 outside the error envelope.
+  if (body.product !== undefined && body.product !== "train" && body.product !== "carebase") return json(req, { error: "Unsupported product" }, 400);
   const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
   const email = str(body.email).toLowerCase();
   const firstName = str(body.first_name);
@@ -289,6 +291,14 @@ Deno.serve(async (req: Request) => {
     }
     if (!organization) {
       throw new HttpError(500, "organization_slug_failed", "Could not allocate a unique organization slug -- try again");
+    }
+
+    if (body.product === "train") {
+      const { error: trainError } = await adminClient.rpc("configure_train_signup", {
+        p_organization_id: organization.id,
+        p_complimentary: Deno.env.get("TRAIN_SIGNUP_COMPLIMENTARY") === "true",
+      });
+      if (trainError) throw new HttpError(500, "train_signup_failed", "Training signup is temporarily unavailable.", trainError.message);
     }
 
     const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {

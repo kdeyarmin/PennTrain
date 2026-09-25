@@ -80,6 +80,7 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
   const savePlan = useSaveClinicalCarePlan();
   const [goalPlanId, setGoalPlanId] = useState<string | null>(null);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [goalConditionRef, setGoalConditionRef] = useState<string | null>(null);
   const [goalDescription, setGoalDescription] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
   const [goalStatus, setGoalStatus] = useState("active");
@@ -184,9 +185,11 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
       await saveGoal.mutateAsync({
         residentId, carePlanId: goalPlanId, description: goalDescription.trim(),
         targetMeasure: goalTarget.trim() || null, status: goalStatus,
+        // The save RPC replaces this clinical link even when only the status changes.
+        addressesConditionRef: goalConditionRef,
         ...(editingGoalId ? { goalId: editingGoalId } : {}),
       });
-      setGoalPlanId(null); setEditingGoalId(null); setGoalDescription(""); setGoalTarget(""); setGoalStatus("active");
+      setGoalPlanId(null); setEditingGoalId(null); setGoalConditionRef(null); setGoalDescription(""); setGoalTarget(""); setGoalStatus("active");
       toast({ title: editingGoalId ? "Goal updated" : "Goal added" });
     } catch (error) {
       toast({ title: editingGoalId ? "Goal could not be updated" : "Goal could not be added", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
@@ -340,6 +343,7 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
                             size="sm" variant="ghost" className="h-6 px-2 text-xs"
                             onClick={() => {
                               setGoalPlanId(plan.id); setEditingGoalId(goal.id);
+                              setGoalConditionRef(goal.addresses_condition_ref);
                               setGoalDescription(goal.description ?? "");
                               setGoalTarget(goal.target_measure ?? "");
                               setGoalStatus(goal.status ?? "active");
@@ -352,7 +356,7 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
                     ))}
                   </ul>
                 )}
-                {canChart && <Button size="sm" variant="ghost" onClick={() => { setGoalPlanId(plan.id); setEditingGoalId(null); setGoalDescription(""); setGoalTarget(""); setGoalStatus("active"); }}><Plus className="mr-1 h-3.5 w-3.5" />Add goal</Button>}
+                {canChart && <Button size="sm" variant="ghost" onClick={() => { setGoalPlanId(plan.id); setEditingGoalId(null); setGoalConditionRef(null); setGoalDescription(""); setGoalTarget(""); setGoalStatus("active"); }}><Plus className="mr-1 h-3.5 w-3.5" />Add goal</Button>}
               </CardContent>
             </Card>
           ))}

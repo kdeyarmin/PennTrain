@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   normalizeRuntimeCommitState,
@@ -48,7 +49,8 @@ export function useAcceptedLearningPackages(courseVersionId: string | undefined)
         .select("id, standard_type, entry_point, storage_bucket, storage_path, validation_status, course_version_id")
         .eq("course_version_id", courseVersionId!)
         .eq("validation_status", "accepted")
-        .order("validated_at", { ascending: false });
+        .order("validated_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
@@ -204,55 +206,53 @@ export function useAdminLearningPackages(courseVersionId?: string | null) {
   });
 }
 
-export function useRegisterLearningPackage() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      courseVersionId: string;
-      standardType?: string;
-      storagePath: string;
-      contentSha256: string;
-      compressedBytes: number;
-      entryPoint?: string;
-    }) => {
-      const { data, error } = await rpc().rpc("register_learning_package", {
-        p_course_version_id: input.courseVersionId,
-        p_standard_type: input.standardType ?? "scorm_1_2",
-        p_storage_path: input.storagePath,
-        p_content_sha256: input.contentSha256,
-        p_compressed_bytes: input.compressedBytes,
-        p_entry_point: input.entryPoint ?? "index.html",
-      });
-      if (error) throw new Error(error.message);
-      return data as string;
-    },
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["learning_packages"] });
-    },
-  });
-}
-
 export function useAcceptLearningPackage() {
   const client = useQueryClient();
+  const attempts = useRef(new Map<string, { requestId: string; sourceRevision: string }>());
   return useMutation({
     mutationFn: async (input: { packageId: string; entryPoint?: string; reason: string }) => {
-      // Routes through the accept-learning-package edge function so bridge injection
-      // happens server-side (clients cannot skip it). The function downloads the zip,
-      // injects carebase/learning-runtime-bridge.js, re-uploads, and calls the RPC.
+      const key = JSON.stringify(input);
+      let attempt = attempts.current.get(key);
+      if (attempt) {
+        const prior = await rpc().rpc("get_native_learning_package_operation", { p_request_id: attempt.requestId });
+        if (prior.error) throw new Error(prior.error.message);
+        const status = prior.data as { status?: string; result?: { packageId?: string; status?: string } } | null;
+        if (status?.status === "committed" && status.result?.packageId === input.packageId && status.result.status === "accepted") return;
+        if (status?.status === "expired") { attempts.current.delete(key); attempt = undefined; }
+      }
+      if (!attempt) {
+        const context = await rpc().rpc("get_native_learning_package_context", { p_version_id: null, p_package_id: input.packageId });
+        if (context.error) throw new Error(context.error.message);
+        const source = context.data as { package?: { id?: string }; sourceRevision?: string } | null;
+        if (source?.package?.id !== input.packageId || !/^[0-9a-f]{64}$/.test(source.sourceRevision ?? "")) throw new Error("Refresh the package before accepting it.");
+        attempt = { requestId: crypto.randomUUID(), sourceRevision: source.sourceRevision! }; attempts.current.set(key, attempt);
+      }
+      // The worker retains original bytes and stages a separate verified bridge
+      // artifact. Only its final current-authorized CAS marks the package accepted.
       const { data, error } = await supabase.functions.invoke("accept-learning-package", {
         body: {
           package_id: input.packageId,
           entry_point: input.entryPoint ?? null,
           reason: input.reason,
+          request_id: attempt.requestId,
+          source_revision: attempt.sourceRevision,
         },
       });
       if (error) throw new Error(error.message);
       if (data && typeof data === "object" && "error" in data) {
         throw new Error(String((data as Record<string, unknown>).error));
       }
+      if (!data || typeof data !== "object" || data.packageId !== input.packageId || data.status !== "accepted"
+        || typeof data.runtimeSha256 !== "string" || !/^[0-9a-f]{64}$/.test(data.runtimeSha256)
+        || typeof data.sourceSha256 !== "string" || !/^[0-9a-f]{64}$/.test(data.sourceSha256)
+        || typeof data.entryPoint !== "string" || !data.entryPoint) throw new Error("The package acceptance receipt could not be verified.");
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["learning_packages"] });
+      void client.invalidateQueries({ queryKey: ["learning_authoring_dependencies"] });
+      void client.invalidateQueries({ queryKey: ["governed_draft_source"] });
+      void client.invalidateQueries({ queryKey: ["learning_package_context"] });
+      void client.invalidateQueries({ queryKey: ["courses"] });
     },
   });
 }
@@ -269,6 +269,9 @@ export function useQuarantineLearningPackage() {
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["learning_packages"] });
+      void client.invalidateQueries({ queryKey: ["courses"] });
+      void client.invalidateQueries({ queryKey: ["learning_package_context"] });
+      void client.invalidateQueries({ queryKey: ["governed_draft_source"] });
     },
   });
 }

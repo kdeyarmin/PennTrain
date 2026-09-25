@@ -3,6 +3,9 @@ const APP_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function sanitizePostLoginPath(value: string | null | undefined): string {
   if (!value) return DEFAULT_POST_LOGIN_PATH;
+  // URL parsing removes tabs/newlines before resolving the destination. Reject controls before
+  // checking its prefix so `/\t/host` cannot become a network-path URL after validation.
+  if (/[\u0000-\u001f\u007f]/.test(value)) return DEFAULT_POST_LOGIN_PATH;
   // `/\` has to be rejected alongside `//`. The URL parser treats a backslash in the authority
   // position as a forward slash, so "/\evil.example" normalizes to "//evil.example" -- a
   // protocol-relative, cross-origin URL. Login.tsx feeds this value to wouter's setLocation, whose
@@ -25,12 +28,8 @@ export function postLoginPathFromSearch(search: string, base = APP_BASE): string
   const suffix = match?.[2] ?? "";
 
   const stripped = stripAppBaseFromPath(pathname, base);
-
-  // Sanitize again AFTER the base strip, not only before it: under a base-path deploy
-  // "/train//evil.example" passes the first pass (it starts with a single "/") and strips to
-  // "//evil.example" -- the protocol-relative shape the sanitizer exists to reject, and the one
-  // that makes wouter's pushState throw inside the login mutation. The second pass also covers
-  // the /login recursion check. postLoginPathFromLocation already strips first.
+  // Removing an app base can expose a new authority prefix (`/train//host` -> `//host`).
+  // Validate the exact path handed to the router, after every transformation.
   return sanitizePostLoginPath(`${stripped}${suffix}`);
 }
 

@@ -6,7 +6,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: {
   auth: { getSession: mocks.getSession }, functions: { invoke: mocks.invoke },
 } }));
 
-import { useCreateBillingSession, type BillingSessionRequest } from "./useEnterpriseFoundation";
+import { useCreateBillingSession, recoverBillingCheckout, type BillingSessionRequest } from "./useEnterpriseFoundation";
 import { BillingSessionError, billingSessionFailureCopy } from "@/lib/billingErrors";
 
 const request: BillingSessionRequest = {
@@ -33,6 +33,19 @@ afterEach(() => {
 });
 
 describe("billing provider runtime", () => {
+  it("uses a closed GET-only recovery action without query caching and binds empty evidence to the requested organization", async () => {
+    const result={kind:"checkout_recovery",targetId:"organization",preview:null,result:null,canStartNewCheckout:false};
+    mocks.fetch.mockResolvedValueOnce(Response.json({data:result}));
+    await expect(recoverBillingCheckout("organization","recovery-request")).resolves.toEqual(result);
+    expect(mocks.useMutation).not.toHaveBeenCalled();
+    expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith("/api/providers/create-billing-session",expect.objectContaining({
+      body:JSON.stringify({action:"checkout_recover",organizationId:"organization",idempotencyKey:"recovery-request"}),
+    }));
+    for(const data of [{...result,targetId:"other"},{kind:"checkout_recovery",targetId:"organization",canStartNewCheckout:true}]) {
+      mocks.fetch.mockResolvedValueOnce(Response.json({data}));
+      await expect(recoverBillingCheckout("organization","recovery-request")).rejects.toBeInstanceOf(BillingSessionError);
+    }
+  });
   it("posts one checkout request to Railway with the original idempotency key and disables query retries", async () => {
     const response = { data: { kind: "checkout", sessionId: "session", url: "https://checkout.stripe.com/test-session" }, meta: { requestId: "request" } };
     mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify(response), { headers: { "Content-Type": "application/json" } }));

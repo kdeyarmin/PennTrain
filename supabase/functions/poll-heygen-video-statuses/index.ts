@@ -37,6 +37,7 @@ interface PollableCourseBlock {
   block_type: string;
   title: string | null;
   video_url: string | null;
+  media_asset_id?: string | null;
   body: (Record<string, unknown> & { heygen?: HeygenJobState }) | null;
 }
 

@@ -1,7 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { cloneCourseVideoBody } from "@/lib/courseVideoGeneration";
+import { executeNativeDraft, nativeDraftIntent, type GovernedDraftSource, type NativeDraftIntent } from "@/lib/governedLearningDraft";
+import { executeNativeCreation, nativeCreationIntent, readNativeCreationOptions, type CourseCreationForm, type NativeCreationIntent } from "@/lib/governedLearningCreation";
 
 export type Course = Tables<"courses">;
 export type CourseInsert = TablesInsert<"courses">;
@@ -86,14 +89,20 @@ export function useGetCourse(id: string | undefined) {
 
 export function useCreateCourse() {
   const queryClient = useQueryClient();
+  const intent = useRef<NativeCreationIntent | null>(null);
   return useMutation({
-    mutationFn: async (payload: CourseInsert) => {
-      const { data, error } = await supabase.from("courses").insert(payload).select().single();
-      if (error) throw error;
-      return data;
+    mutationFn: async (payload: CourseCreationForm) => {
+      intent.current = nativeCreationIntent(intent.current, payload);
+      return executeNativeCreation(intent.current, payload);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["courses"] }),
+    onSuccess: () => { intent.current = null; return queryClient.invalidateQueries({ queryKey: ["courses"] }); },
   });
+}
+
+export function useLearningCreationOptions(enabled: boolean) {
+  return useInfiniteQuery({ queryKey: ['learning_creation_options'], initialPageParam: 0,
+    queryFn: ({ pageParam }) => readNativeCreationOptions(pageParam),
+    getNextPageParam: page => page.nextOffset ?? undefined, enabled });
 }
 
 export function useUpdateCourse() {
@@ -147,13 +156,14 @@ export function useListCourseVersionsByIds(ids: string[]) {
     queryKey: ["courses", "versions", "by-ids", normalizedIds],
     queryFn: async () => {
       if (normalizedIds.length === 0) return [] as CourseVersion[];
-      const { data, error } = await supabase
-        .from("course_versions")
-        .select("*")
-        .in("id", normalizedIds)
-        .order("version_number");
-      if (error) throw error;
-      return data;
+      const versions: CourseVersion[] = [];
+      for (let offset = 0; offset < normalizedIds.length; offset += 200) {
+        const { data, error } = await supabase.from("course_versions").select("*")
+          .in("id", normalizedIds.slice(offset, offset + 200)).order("version_number").order("id");
+        if (error) throw error;
+        versions.push(...(data ?? []));
+      }
+      return versions;
     },
   });
 }
@@ -202,156 +212,20 @@ export interface CloneCourseVersionPayload {
   title: string;
 }
 
-// Deep-copies a source version's blocks -> (for quiz blocks) quiz -> questions -> answers +
-// explanations into a brand-new draft version, client IDs generated up front so every table can
-// be bulk-inserted in one request instead of round-tripping server-assigned IDs block by block.
-// Not wrapped in a single DB transaction (this is a sequence of client requests, not an RPC) --
-// if a later step fails, the catch below deletes the version row it already created so a botched
-// clone doesn't leave a half-populated draft behind; the caller sees one clean error either way.
-// Cascading tables (course_blocks/quizzes/quiz_questions/quiz_answers) key off
-// course_version_id/course_block_id/quiz_id/question_id FKs, so deleting the version is enough
-// to let the FK's own ON DELETE behavior (or a retried clone attempt) clean up the rest.
+// The native and Hub paths share one transaction for definitions and policy copying.
 export function useCloneCourseVersion() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: CloneCourseVersionPayload) => {
-      const { data: sourceVersion, error: sourceError } = await supabase
-        .from("course_versions")
-        .select("ai_generated, description")
-        .eq("id", payload.sourceVersionId)
-        .single();
-      if (sourceError) throw sourceError;
-
-      const { data: newVersion, error: versionError } = await supabase
-        .from("course_versions")
-        .insert({
-          course_id: payload.courseId,
-          organization_id: payload.organizationId,
-          version_number: payload.versionNumber,
-          title: payload.title,
-          description: sourceVersion.description,
-          // A version cloned from AI-generated content is itself still AI-authored content --
-          // it needs the same mandatory self-review acknowledgment before it can publish, even
-          // though the source version was already reviewed once.
-          ai_generated: sourceVersion.ai_generated,
-        })
-        .select()
-        .single();
-      if (versionError) throw versionError;
-
-      try {
-        const { data: sourceBlocks, error: blocksError } = await supabase
-          .from("course_blocks")
-          .select("*")
-          .eq("course_version_id", payload.sourceVersionId)
-          .order("sort_order");
-        if (blocksError) throw blocksError;
-        if (!sourceBlocks || sourceBlocks.length === 0) return newVersion;
-
-        const blockIdMap = new Map(sourceBlocks.map((b) => [b.id, crypto.randomUUID()]));
-        const newBlocks: CourseBlockInsert[] = sourceBlocks.map((b) => ({
-          id: blockIdMap.get(b.id),
-          course_version_id: newVersion.id,
-          organization_id: b.organization_id,
-          block_type: b.block_type,
-          title: b.title,
-          body: b.block_type === "video" ? cloneCourseVideoBody(b.body) : b.body,
-          video_url: b.video_url,
-          document_id: b.document_id,
-          sort_order: b.sort_order,
-        }));
-        const { error: insertBlocksError } = await supabase.from("course_blocks").insert(newBlocks);
-        if (insertBlocksError) throw insertBlocksError;
-
-        const quizBlockIds = sourceBlocks.filter((b) => b.block_type === "quiz").map((b) => b.id);
-        if (quizBlockIds.length === 0) return newVersion;
-
-        const { data: sourceQuizzes, error: quizzesError } = await supabase
-          .from("quizzes").select("*").in("course_block_id", quizBlockIds);
-        if (quizzesError) throw quizzesError;
-        if (!sourceQuizzes || sourceQuizzes.length === 0) return newVersion;
-
-        const quizIdMap = new Map(sourceQuizzes.map((q) => [q.id, crypto.randomUUID()]));
-        const newQuizzes: TablesInsert<"quizzes">[] = sourceQuizzes.map((q) => ({
-          id: quizIdMap.get(q.id),
-          course_block_id: blockIdMap.get(q.course_block_id)!,
-          organization_id: q.organization_id,
-          title: q.title,
-          passing_score_percent: q.passing_score_percent,
-          max_attempts: q.max_attempts,
-          // Behaviour columns, not decoration. quiz_kind defaults to 'assessment', so a clone that
-          // omitted it turned the source's final exam into a practice quiz --
-          // complete_course_assignment then found no final-exam attempt and the certificate printed
-          // no examination score, the renewal record stored a null score, and the compliance
-          // report's exam CTE (and its "Areas to review" panel) saw nothing. The three shuffle/
-          // reveal flags default to false the same way, quietly changing how the quiz behaves.
-          // Revising the annual course is a clone, so every one of these has to travel with it.
-          quiz_kind: q.quiz_kind,
-          shuffle_questions: q.shuffle_questions,
-          shuffle_answers: q.shuffle_answers,
-          reveals_answers_after_attempt: q.reveals_answers_after_attempt,
-        }));
-        const { error: insertQuizzesError } = await supabase.from("quizzes").insert(newQuizzes);
-        if (insertQuizzesError) throw insertQuizzesError;
-
-        const { data: sourceQuestions, error: questionsError } = await supabase
-          .from("quiz_questions").select("*").in("quiz_id", [...quizIdMap.keys()]);
-        if (questionsError) throw questionsError;
-        if (!sourceQuestions || sourceQuestions.length === 0) return newVersion;
-
-        const questionIdMap = new Map(sourceQuestions.map((q) => [q.id, crypto.randomUUID()]));
-        const newQuestions: TablesInsert<"quiz_questions">[] = sourceQuestions.map((q) => ({
-          id: questionIdMap.get(q.id),
-          quiz_id: quizIdMap.get(q.quiz_id)!,
-          organization_id: q.organization_id,
-          question_text: q.question_text,
-          question_type: q.question_type,
-          points: q.points,
-          sort_order: q.sort_order,
-          // The topic a missed question maps back to. Dropping these left the clone's exam results
-          // untopiced, so "Areas to review" had nothing to group by.
-          topic_code: q.topic_code,
-          topic_label: q.topic_label,
-        }));
-        const { error: insertQuestionsError } = await supabase.from("quiz_questions").insert(newQuestions);
-        if (insertQuestionsError) throw insertQuestionsError;
-
-        const sourceQuestionIds = [...questionIdMap.keys()];
-        const [answersRes, explanationsRes] = await Promise.all([
-          supabase.from("quiz_answers").select("*").in("question_id", sourceQuestionIds),
-          supabase.from("quiz_question_explanations").select("*").in("question_id", sourceQuestionIds),
-        ]);
-        if (answersRes.error) throw answersRes.error;
-        if (explanationsRes.error) throw explanationsRes.error;
-
-        if (answersRes.data.length > 0) {
-          const newAnswers: TablesInsert<"quiz_answers">[] = answersRes.data.map((a) => ({
-            question_id: questionIdMap.get(a.question_id)!,
-            organization_id: a.organization_id,
-            answer_text: a.answer_text,
-            is_correct: a.is_correct,
-            sort_order: a.sort_order,
-          }));
-          const { error: insertAnswersError } = await supabase.from("quiz_answers").insert(newAnswers);
-          if (insertAnswersError) throw insertAnswersError;
-        }
-
-        if (explanationsRes.data.length > 0) {
-          const newExplanations: TablesInsert<"quiz_question_explanations">[] = explanationsRes.data.map((e) => ({
-            question_id: questionIdMap.get(e.question_id)!,
-            organization_id: e.organization_id,
-            explanation: e.explanation,
-          }));
-          const { error: insertExplanationsError } = await supabase.from("quiz_question_explanations").insert(newExplanations);
-          if (insertExplanationsError) throw insertExplanationsError;
-        }
-
-        return newVersion;
-      } catch (err) {
-        const { error: cleanupError } = await supabase.from("course_versions").delete().eq("id", newVersion.id);
-        if (cleanupError) throw new Error(`Clone failed and cleanup failed: ${cleanupError.message}`, { cause: err });
-        throw err;
-      }
+      const { data, error } = await supabase.rpc("clone_course_version", {
+        p_source_version_id: payload.sourceVersionId,
+        p_course_id: payload.courseId,
+        p_organization_id: payload.organizationId ?? undefined,
+        p_version_number: payload.versionNumber,
+        p_title: payload.title,
+      });
+      if (error) throw error;
+      return { id: data, course_id: payload.courseId };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["courses", "versions", data.course_id] });
@@ -367,8 +241,19 @@ export function useCloneCourseVersion() {
 // but we don't try to pre-guess/suppress the DB error here beyond that.
 export function useUpdateCourseVersion() {
   const queryClient = useQueryClient();
+  const intent = useRef<NativeDraftIntent | null>(null);
   return useMutation({
-    mutationFn: async ({ id, ...payload }: TablesUpdate<"course_versions"> & { id: string }) => {
+    mutationFn: async ({ id, governedSource, reason, ...payload }: TablesUpdate<"course_versions"> & { id: string; governedSource?: GovernedDraftSource; reason?: string }) => {
+      if (governedSource) {
+        if (id !== governedSource.versionId || Object.keys(payload).some(key => !['title', 'description'].includes(key))) throw new Error('Invalid governed version edit.');
+        const patch = { version: { ...(payload.title !== undefined ? { title: payload.title } : {}), ...(payload.description !== undefined ? { description: payload.description } : {}) } };
+        const explanation = reason?.trim() ?? '';
+        intent.current = nativeDraftIntent(intent.current, { sourceRevision: governedSource.sourceRevision, patch, reason: explanation });
+        await executeNativeDraft(governedSource, 'learning.patchDraft', intent.current.requestId, explanation, patch);
+        const { data, error } = await supabase.from('course_versions').select('*').eq('id', id).single();
+        if (error) throw error;
+        return data;
+      }
       const { data, error } = await supabase.from("course_versions").update(payload).eq("id", id).select().single();
       if (error) throw error;
       return data;
@@ -510,12 +395,18 @@ export function useEmergencyUpdateCourseBlock(courseVersionId: string | undefine
       body?: unknown;
       videoUrl?: string;
       documentId?: string;
+      expectedMediaAssetId?: string | null;
+      expectedSourceRevision?: string | null;
+      expectedBlock?: CourseBlock;
     }) => {
       // Only the fields being corrected are sent. The function coalesces each against the current
       // value, so omitting one leaves it alone rather than blanking it.
       const { error } = await supabase.rpc("admin_emergency_update_course_block" as never, {
         p_course_block_id: input.blockId,
         p_reason: input.reason,
+        p_expected_media_asset_id: input.expectedMediaAssetId ?? null,
+        p_expected_source_revision: input.expectedSourceRevision ?? null,
+        p_expected_block: input.expectedBlock ?? null,
         ...(input.title !== undefined ? { p_title: input.title } : {}),
         ...(input.body !== undefined ? { p_body: input.body } : {}),
         ...(input.videoUrl !== undefined ? { p_video_url: input.videoUrl } : {}),

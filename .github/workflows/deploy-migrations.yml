@@ -302,6 +302,7 @@ jobs:
                 scripts/stamp-edge-function-deploy.mjs \
                 scripts/prune-removed-edge-functions.mjs \
                 scripts/reconcile-production-auth-urls.mjs \
+                scripts/reconcile-production-password-protection.mjs \
                 scripts/removed-edge-functions.json \
                 .github/workflows/deploy-migrations.yml \
                 .github/actions/setup-supabase-cli/action.yml \
@@ -437,6 +438,16 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/reconcile-production-auth-urls.mjs --apply
+
+      # Same trusted deploy boundary as Auth URL repair. Patch one nonsecret boolean;
+      # never enable paid phone MFA, upgrade the plan, rotate credentials or enroll users.
+      # Failure/readback mismatch must prevent the successful deployment stamp below.
+      - name: Reconcile production leaked-password protection
+        if: env.DRY_RUN != 'true' && github.event_name == 'workflow_run'
+        timeout-minutes: 2
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/reconcile-production-password-protection.mjs --apply
 
       - name: Stamp deployed function content digests
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'

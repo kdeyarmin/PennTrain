@@ -1,6 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { useListCourses, useCreateCourse, type Course } from "@/hooks/useCourses";
-import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useListCourses, useCreateCourse, useLearningCreationOptions, type Course } from "@/hooks/useCourses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, Search, ChevronRight, Plus, Sparkles } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { courseDetailPath } from "@/lib/courseRoutes";
@@ -81,7 +80,10 @@ export default function Courses() {
     systemOnly,
   });
   const { mutate: createCourse, isPending: creating } = useCreateCourse();
-  const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
+  const creationOptions = useLearningCreationOptions(canCreate);
+  const trainingTypes = [...new Map((creationOptions.data?.pages.flatMap(page => page.trainingTypes) ?? []).map(row => [row.id, row])).values()];
+  const [, navigate] = useLocation();
+  const [creationReviewed, setCreationReviewed] = useState(false);
 
   const allCourses = courses ?? [];
 
@@ -105,22 +107,23 @@ export default function Courses() {
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
+    setCreationReviewed(false);
     setShowForm(true);
   };
 
-  const field = (k: keyof CourseFormData, v: string) =>
+  const field = (k: keyof CourseFormData, v: string) => {
+    setCreationReviewed(false);
     setForm(f => ({ ...f, [k]: v }));
+  };
 
   const handleSubmit = () => {
+    if (!creationReviewed) return;
     if (!form.title.trim()) {
       toast({ title: "Title is required", variant: "destructive" });
       return;
     }
-    // Only platform_admin can reach this handler now (canCreate above); unlike
-    // org_admin/trainer, platform_admin isn't scoped to an organization, so its
-    // organizationId is expected to be null -- that's what makes the created
-    // course a system-catalog course (organization_id IS NULL) rather than
-    // blocking creation outright.
+    // The native transaction verifies current authority and creates the global
+    // course and its first draft together; clients cannot supply tenancy or state.
     if (!user) return;
 
     const durationMinutes = form.estimatedDurationMinutes.trim()
@@ -129,18 +132,17 @@ export default function Courses() {
 
     createCourse(
       {
-        title: form.title.trim(),
-        description: form.description || null,
-        category: form.category || null,
-        estimated_duration_minutes: Number.isFinite(durationMinutes) ? durationMinutes : null,
-        organization_id: user.organizationId,
-        training_type_id: form.trainingTypeId === NO_TRAINING_TYPE ? null : form.trainingTypeId,
+        course: { title: form.title.trim(), description: form.description || null, category: form.category.trim() || null,
+          estimatedDurationMinutes: durationMinutes, trainingTypeId: form.trainingTypeId === NO_TRAINING_TYPE ? null : form.trainingTypeId },
+        version: { title: form.title.trim(), description: form.description || null },
       },
       {
-        onSuccess: () => {
-          toast({ title: "Training content created" });
+        onSuccess: (data) => {
+          toast({ title: "Course and first governed draft created" });
           setShowForm(false);
           setForm(EMPTY_FORM);
+          setCreationReviewed(false);
+          navigate(courseDetailPath(data.courseId, user.role));
         },
         onError: (e: Error) => toast({ title: "Failed to create training content", description: e.message, variant: "destructive" }),
       },
@@ -312,7 +314,9 @@ export default function Courses() {
                 <Label htmlFor={`${__fieldIds}-estimated-duration-minutes`} className="text-[13px]">Estimated Duration (minutes)</Label>
                 <Input id={`${__fieldIds}-estimated-duration-minutes`}
                   type="number"
-                  min="0"
+                  min="1"
+                  max="1440"
+                  step="1"
                   value={form.estimatedDurationMinutes}
                   onChange={e => field("estimatedDurationMinutes", e.target.value)}
                   placeholder="60"
@@ -327,18 +331,22 @@ export default function Courses() {
                 <SelectContent>
                   <SelectItem value={NO_TRAINING_TYPE}>Not linked to a compliance requirement</SelectItem>
                   {(trainingTypes ?? []).map(tt => (
-                    <SelectItem key={tt.id} value={tt.id}>{tt.name}</SelectItem>
+                    <SelectItem key={tt.id} value={tt.id}>{tt.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {creationOptions.isError && <QueryError what="current global training types" error={creationOptions.error} onRetry={() => void creationOptions.refetch()} />}
+              {creationOptions.hasNextPage && <Button type="button" variant="outline" disabled={creationOptions.isFetchingNextPage} onClick={() => void creationOptions.fetchNextPage()}>Load more training types</Button>}
               <p className="text-xs text-muted-foreground">
                 Optional. Link this course to a training requirement so completing it records the matching training record automatically.
               </p>
             </div>
           </div>
+          <p className="text-sm text-muted-foreground">Creates an empty first draft with the same title and description. The comprehensive content, duration and assessment checks must pass before it can be published.</p>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={creationReviewed} disabled={creating} onChange={event => setCreationReviewed(event.target.checked)} />I reviewed these initial course details.</label>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={creating} className="shadow-sm">
+            <Button onClick={handleSubmit} disabled={creating || !creationReviewed} className="shadow-sm">
               {creating ? "Creating..." : "Create Training Content"}
             </Button>
           </DialogFooter>

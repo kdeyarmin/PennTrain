@@ -12,7 +12,7 @@ export type BulkVideoGenStatus = "queued" | "confirming" | "processing" | "compl
 // than guessed at -- the admin has to add a script manually first. ---
 export function useBulkVideoGeneration(blocks: CourseBlock[] | undefined) {
   const { toast } = useToast();
-  const eligibleVideoBlocks = (blocks ?? []).filter(b => b.block_type === "video" && !b.video_url && !hasPendingCourseVideoGeneration(b.body));
+  const eligibleVideoBlocks = (blocks ?? []).filter(b => b.block_type === "video" && !b.video_url && !b.media_asset_id && !hasPendingCourseVideoGeneration(b.body));
   const eligibleVideoBlocksWithScript = eligibleVideoBlocks.filter(
     b => !!(b.body as { script?: string } | null)?.script?.trim(),
   );

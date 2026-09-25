@@ -22,7 +22,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const APP_DIR = resolve(__dirname, "..");
 // Must mirror the DIST layout server/precompress.mjs and server/index.mjs use.
-const DIST_DIR = join(APP_DIR, "dist", "public");
+const DIST_DIR = join(APP_DIR, process.argv.includes("--train") ? "dist-train" : "dist", "public");
 const PRERENDER_DIR = join(DIST_DIR, "__prerendered");
 
 // esbuild is a direct dependency of vite, not of this app package. Under pnpm's
@@ -215,6 +215,14 @@ async function main() {
     throw error;
   }
 
+  if (process.argv.includes("--train")) {
+    // Train has its own noindex public entry, not the universal marketing routes.
+    await mkdir(PRERENDER_DIR, { recursive: true });
+    await writeFile(join(PRERENDER_DIR, "root.html"), baseHtml);
+    await writeFile(join(DIST_DIR, "sitemap.xml"), '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>');
+    console.log("prerender-heads: standalone Train entry retained; universal marketing routes excluded.");
+    return;
+  }
   const esbuild = await loadEsbuild();
   const { SITE_URL, MARKETING_ROUTE_META, FAQS, buildSitemapXml, sitemapPaths } =
     await loadMarketingData(esbuild);

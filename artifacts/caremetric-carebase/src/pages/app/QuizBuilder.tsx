@@ -1,4 +1,7 @@
 import { useId, useEffect, useState } from "react";
+import { useQuery } from '@tanstack/react-query';
+import { loadGovernedDraftSource } from '@/lib/governedLearningDraft';
+import { NativeGovernedDraftEditor } from '@/components/learning/NativeGovernedDraftEditor';
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +50,7 @@ const EMPTY_QUESTION_FORM: QuestionFormState = {
   points: "1",
   explanation: "",
 };
+const ignoreGovernedChange = () => {};
 
 function AnswerRow({
   answer,
@@ -288,16 +292,18 @@ export default function QuizBuilder() {
   const canManage = user?.role === "platform_admin";
 
   const { data: quiz, isLoading: quizLoading, isError: quizError, error: quizErr, refetch: refetchQuiz } = useGetQuiz(quizId);
-  const { data: courseBlock } = useGetCourseBlock(quiz?.course_block_id);
-  const { data: courseVersion } = useGetCourseVersion(courseBlock?.course_version_id);
+  const { data: courseBlock, isError: blockError, error: blockErr, refetch: refetchBlock } = useGetCourseBlock(quiz?.course_block_id);
+  const { data: courseVersion, isError: versionError, error: versionErr, refetch: refetchVersion } = useGetCourseVersion(courseBlock?.course_version_id);
   const { data: course } = useGetCourse(courseVersion?.course_id);
+  const governed = useQuery({ queryKey: ['governed_draft_source', courseVersion?.id],
+    queryFn: () => loadGovernedDraftSource(courseVersion!.id), enabled: canManage && courseVersion?.status === 'draft', refetchOnWindowFocus: false });
   const { data: questions, isLoading: questionsLoading, isError: questionsError, error: questionsErr, refetch: refetchQuestions } = useListQuizQuestions(quizId);
   const { data: questionStats, isLoading: questionStatsLoading, isError: questionStatsError } = useQuizQuestionStats((questions ?? []).map(q => q.id));
   // Batches every question's answers into one request instead of each QuestionCard fetching its
   // own (previously 20 requests for a 20-question quiz) -- see useQuizAnswersByQuestionIds.
   const { data: answersByQuestion, isLoading: answersLoading, isError: answersError } = useQuizAnswersByQuestionIds((questions ?? []).map(q => q.id));
 
-  const isLocked = !canManage || courseVersion?.status === "published";
+  const isLocked = !canManage || courseVersion?.status !== 'draft' || !governed.isSuccess || !!governed.data;
 
   // --- Quiz metadata edit ---
   const [showEditQuiz, setShowEditQuiz] = useState(false);
@@ -479,6 +485,15 @@ export default function QuizBuilder() {
       </div>
     );
   }
+
+  if (canManage && (blockError || versionError)) return <QueryError what="quiz version" error={blockErr ?? versionErr} onRetry={() => { void refetchBlock(); void refetchVersion(); }} />;
+  if (canManage && (!courseBlock || !courseVersion || courseVersion.status === 'draft' && !governed.isSuccess)) {
+    return governed.isError ? <QueryError what="governed quiz source" error={governed.error} onRetry={() => void governed.refetch()} /> : <Skeleton className="h-32" />;
+  }
+  if (canManage && courseVersion?.status === 'draft' && governed.data && user) return <div className="space-y-4">
+    <Button asChild variant="outline"><Link href={courseDetailPath(courseVersion.course_id, user.role)}>Back to course</Link></Button>
+    <NativeGovernedDraftEditor key={courseVersion.id} versionId={courseVersion.id} userId={user.id} onGovernedChange={ignoreGovernedChange} onDirtyChange={ignoreGovernedChange} />
+  </div>;
 
   return (
     <div className="space-y-6">

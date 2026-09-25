@@ -147,6 +147,11 @@ select ok(
         format('%I.%I', n.nspname, c.relname),
         required.privilege_name
       )
+      -- Course media reserves one column for the common attachment writer.
+      -- All ten historical columns retain explicit INSERT/UPDATE grants;
+      -- course_media.sql verifies that exact set and denies media_asset_id.
+      and not (c.relname='course_blocks' and required.privilege_name in ('INSERT','UPDATE')
+        and has_any_column_privilege('authenticated',c.oid,required.privilege_name))
   ),
   'every authenticated public-table RLS command has its matching table grant'
 );
@@ -211,6 +216,8 @@ select ok(
       format('public.%I', required.table_name),
       required.privilege_name
     )
+    and not (required.table_name='course_blocks' and required.privilege_name='INSERT'
+      and has_any_column_privilege('service_role','public.course_blocks','INSERT'))
   ),
   'trusted service workflows have every required direct table command'
 );

@@ -82,9 +82,9 @@ begin
 end;
 $$;
 
-select ok(not has_function_privilege('anon','public.claim_course_video_generation(uuid,uuid,jsonb,boolean,text)','execute'),
+select ok(not has_function_privilege('anon','public.claim_course_video_generation(uuid,uuid,jsonb,boolean,text,uuid)','execute'),
  'anonymous callers cannot reserve a billed job');
-select ok(has_function_privilege('authenticated','public.claim_course_video_generation(uuid,uuid,jsonb,boolean,text)','execute'),
+select ok(has_function_privilege('authenticated','public.claim_course_video_generation(uuid,uuid,jsonb,boolean,text,uuid)','execute'),
  'authenticated callers reach the claim RPC authorization checks');
 select ok(not has_function_privilege('authenticated','public.finish_course_video_submission(uuid,uuid,text,text,text)','execute'),
  'a browser cannot assert that the provider accepted a paid request');

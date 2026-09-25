@@ -45,37 +45,85 @@ function resolveRedirectTo(candidate: string | undefined, getEnv: EnvReader): st
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ClientFactory = (url: string, key: string, options?: Record<string, unknown>) => any;
 
+/** Server-injected authority for one exact, durably reserved Hub invitation.
+ * This is never read from a request header or body, and never represents a native JWT/AAL2.
+ */
+export interface DelegatedInviteAuthority {
+  actorId: string;
+  organizationId: string;
+  role: "org_admin" | "employee";
+  email: string;
+  firstName: string;
+  lastName: string;
+  employeeId: string | null;
+  facilityId: string | null;
+  revalidate: () => Promise<void>;
+  /** Locks the returned Auth profile and binds it to this reservation before any
+   * privileged provisioning. Throws on conflict/uncertainty; never delete that
+   * profile, which may have been claimed by a concurrent invitation.
+   */
+  provisionProfile: (invitedUserId: string) => Promise<unknown>;
+  beforeEmailDispatch?: () => void;
+  deliveryRejected?: () => void;
+  /** Atomically ties the lifecycle receipt to this exact reserved external attempt.
+   * Throw on an uncertain response so ordinary cleanup cannot delete an account
+   * whose receipt may already have committed.
+   */
+  recordInvitationSent?: (invitedUserId: string, redirectTo: string) => Promise<string>;
+}
+
 export interface InviteUserDependencies {
   createClient: ClientFactory;
   getEnv?: EnvReader;
+  resolveDelegatedAuthority?: () => Promise<DelegatedInviteAuthority>;
 }
 
 export function createInviteUserHandler({
   createClient,
   getEnv = (name) => Deno.env.get(name),
+  resolveDelegatedAuthority,
 }: InviteUserDependencies) {
   return async (req: Request): Promise<Response> => {
     if (req.method === "OPTIONS") return corsPreflightResponse(req);
     if (req.method !== "POST") return json(req, { error: "Method not allowed" }, 405);
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json(req, { error: "Missing Authorization header" }, 401);
+    if (!authHeader && !resolveDelegatedAuthority) return json(req, { error: "Missing Authorization header" }, 401);
 
     const supabaseUrl = getEnv("SUPABASE_URL");
     const anonKey = getEnv("SUPABASE_ANON_KEY");
     const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    if (!supabaseUrl || (!anonKey && !resolveDelegatedAuthority) || !serviceRoleKey) {
       return json(req, { error: "Service is not configured" }, 503);
+    }
+
+    let delegated: DelegatedInviteAuthority | undefined;
+    if (resolveDelegatedAuthority) {
+      try {
+        delegated = await resolveDelegatedAuthority();
+        if (!delegated || typeof delegated.provisionProfile !== "function" || !UUID_PATTERN.test(delegated.actorId) || !UUID_PATTERN.test(delegated.organizationId)
+          || !["org_admin", "employee"].includes(delegated.role)
+          || (delegated.role === "org_admin" && (delegated.employeeId !== null || delegated.facilityId !== null))
+          || (delegated.role === "employee" && (!delegated.employeeId || !UUID_PATTERN.test(delegated.employeeId)
+            || !delegated.facilityId || !UUID_PATTERN.test(delegated.facilityId)))) {
+          return json(req, { error: "Invalid delegated invitation authority" }, 403);
+        }
+        await delegated.revalidate();
+      } catch {
+        return json(req, { error: "Delegated invitation authority could not be verified" }, 403);
+      }
     }
 
     // Caller-scoped client: identifies who is actually calling and respects RLS. Never used to
     // perform the privileged invite -- only to resolve the caller's own role/org (same pattern as
     // create-user).
-    const callerClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const callerClient = delegated
+      ? createClient(supabaseUrl, serviceRoleKey)
+      : createClient(supabaseUrl, anonKey!, { global: { headers: { Authorization: authHeader } } });
 
-    const { data: { user: callerUser }, error: callerAuthError } = await callerClient.auth.getUser();
+    const { data: { user: callerUser }, error: callerAuthError } = delegated
+      ? { data: { user: { id: delegated.actorId } }, error: null }
+      : await callerClient.auth.getUser();
     if (callerAuthError || !callerUser) return json(req, { error: "Invalid or expired session" }, 401);
 
     const { data: callerProfile, error: callerProfileError } = await callerClient
@@ -83,7 +131,7 @@ export function createInviteUserHandler({
       .select("role, organization_id, is_active")
       .eq("id", callerUser.id)
       .single();
-    if (callerProfileError || !callerProfile || !callerProfile.is_active) {
+    if (callerProfileError || !callerProfile || !callerProfile.is_active || (delegated && callerProfile.role !== "platform_admin")) {
       return json(req, { error: "Caller profile not found or inactive" }, 403);
     }
 
@@ -129,6 +177,11 @@ export function createInviteUserHandler({
     }
     if (employee_id && !UUID_PATTERN.test(employee_id)) {
       return json(req, { error: "employee_id must be a valid UUID" }, 400);
+    }
+    if (delegated && (role !== delegated.role || organization_id !== delegated.organizationId
+      || email !== delegated.email.trim().toLowerCase() || first_name !== delegated.firstName
+      || last_name !== delegated.lastName || (employee_id ?? null) !== delegated.employeeId || redirect_to !== undefined)) {
+      return json(req, { error: "Invitation does not match delegated authority" }, 403);
     }
 
     const callerRole = callerProfile.role as string;
@@ -180,8 +233,10 @@ export function createInviteUserHandler({
       return json(req, { error: "Unable to verify demo workspace" }, 500);
     }
 
-    const assurance = await requireFreshAal2(callerClient, "identity_admin");
-    if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
+    if (!delegated) {
+      const assurance = await requireFreshAal2(callerClient, "identity_admin");
+      if (!assurance.ok) return json(req, { error: assurance.error }, assurance.status);
+    }
 
     // Employee self-service depends on employees.profile_id. Inviting an employee without linking
     // that row produces a valid login that can only show "No employee profile is linked" across
@@ -198,6 +253,7 @@ export function createInviteUserHandler({
         .from("employees")
         .select("id, profile_id, email")
         .eq("organization_id", effectiveOrgId);
+      if (delegated) employeeQuery = employeeQuery.eq("facility_id", delegated.facilityId);
       // ilike here means "case-insensitive equality", not a pattern match -- but '%' and '_' are LIKE
       // metacharacters, so an unescaped term matched more than the address asked for. The exact
       // re-check below already refuses a mismatched row, so this was never a way to invite someone
@@ -244,11 +300,24 @@ export function createInviteUserHandler({
       return json(req, { error: error instanceof Error ? error.message : "Invalid invite redirect URL" }, 400);
     }
 
+    // Recheck the native authority and exact durable reservation immediately before sending.
+    // Ordinary callers still use the native identity-assurance policy above.
+    if (delegated) {
+      try { await delegated.revalidate(); }
+      catch { return json(req, { error: "Delegated invitation authority is no longer current" }, 403); }
+    }
+
+    delegated?.beforeEmailDispatch?.();
     const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: { first_name, last_name },
       redirectTo,
     });
-    if (inviteError) return json(req, { error: inviteError.message }, 400);
+    if (inviteError) {
+      if (inviteError.status >= 400 && inviteError.status < 500 && ["email_exists", "user_already_exists",
+        "email_address_invalid", "over_email_send_rate_limit", "email_address_not_authorized", "signup_disabled",
+        "email_provider_disabled"].includes(inviteError.code)) delegated?.deliveryRejected?.();
+      return json(req, { error: inviteError.message }, 400);
+    }
 
     // handle_new_user() already inserted a profiles row from the invite's auth.users INSERT, but it
     // only ever defaults to role="employee"/organization_id=null there -- an invite has no
@@ -270,6 +339,11 @@ export function createInviteUserHandler({
     // through the same trusted RPC in its own call, placed BEFORE provisioning so the
     // compensating delete below still covers a failure here.
     const provisionInvitedProfile = async () => {
+      // A check before GoTrue is insufficient: it may return the same unconfirmed
+      // identity to competing requests. The delegated writer checks scope while
+      // holding the returned profile lock. A thrown conflict must bypass the
+      // ordinary compensating delete below, preserving the winning account.
+      if (delegated) return { data: await delegated.provisionProfile(invited.user.id), error: null };
       if (!employeeToLink) {
         return await adminClient.rpc("admin_update_profile", {
           p_user_id: invited.user.id,
@@ -316,7 +390,9 @@ export function createInviteUserHandler({
     // Make this part of the same compensating transaction boundary: an untracked pending identity is
     // deleted so the manager can retry cleanly instead of being left with an email that now appears
     // "already registered" but has no invitation status in CareBase.
-    const { data: invitationId, error: invitationError } = await adminClient.rpc("record_user_invitation_sent", {
+    const { data: invitationId, error: invitationError } = delegated?.recordInvitationSent
+      ? { data: await delegated.recordInvitationSent(invited.user.id, redirectTo), error: null }
+      : await adminClient.rpc("record_user_invitation_sent", {
       p_invited_user_id: invited.user.id,
       p_email: email,
       p_first_name: first_name,

@@ -1,5 +1,6 @@
 import { useId, useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
+import { trainingAdministratorFromSearch } from "@/lib/trainingOnboarding";
 import {
   useListProfiles, useUpdateProfile, useCreateUserViaAdmin, useInviteUser, useAdminUpdateUser,
   useResetUserMfa,
@@ -93,6 +94,8 @@ export default function Users() {
   const { toast } = useToast();
   const { viewingOrgId } = useViewingOrg();
   const [, navigate] = useLocation();
+  const locationSearch = useSearch();
+  const trainingHandoff = new URLSearchParams(locationSearch).get("source") === "train";
 
   const isPlatformAdmin = user?.role === "platform_admin";
   const assignableRoles = ASSIGNABLE_ROLES[(user?.role as Role) ?? "employee"] ?? [];
@@ -116,7 +119,7 @@ export default function Users() {
   const [inviteMode, setInviteMode] = useState(true);
   const [createForm, setCreateForm] = useState<CreateFormData>({
     email: "", password: randomPassword(), firstName: "", lastName: "",
-    role: assignableRoles[0] ?? "employee", organizationId: "none",
+    role: trainingHandoff ? "org_admin" : assignableRoles[0] ?? "employee", organizationId: "none",
   });
 
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
@@ -146,10 +149,22 @@ export default function Users() {
   const { data: profiles, isLoading, isError, error, refetch } = useListProfiles(
     isPlatformAdmin ? {} : { organizationId: user?.organizationId ?? undefined },
   );
-  const { data: organizations } = useListOrganizations();
+  const { data: organizations, isLoading: organizationsLoading } = useListOrganizations();
+  const trainingOrganization = trainingAdministratorFromSearch(locationSearch, organizations, isPlatformAdmin);
   const orgMap = new Map((organizations ?? []).map(o => [o.id, o.name]));
   const isDemoOrganization = !isPlatformAdmin
     && organizations?.some(o => o.id === user?.organizationId && o.is_demo) === true;
+
+  useEffect(() => {
+    const params = new URLSearchParams(locationSearch);
+    if (params.get("action") !== "invite" || !trainingOrganization) return;
+    setCreateForm({ email: "", password: randomPassword(), firstName: "", lastName: "", role: "org_admin", organizationId: trainingOrganization.id });
+    setOrgFilter(trainingOrganization.id);
+    setInviteMode(true);
+    setShowCreate(true);
+    params.delete("action");
+    navigate(`/admin/users?${params}`, { replace: true });
+  }, [locationSearch, trainingOrganization?.id, navigate]);
 
   const { mutate: createUser, isPending: creating } = useCreateUserViaAdmin();
   const { mutate: inviteUser, isPending: inviting } = useInviteUser();
@@ -205,9 +220,10 @@ export default function Users() {
     sortField === field ? (sortDir === "asc" ? " ↑" : " ↓") : "";
 
   const openCreate = () => {
+    if (trainingHandoff && !trainingOrganization) return;
     setCreateForm({
       email: "", password: randomPassword(), firstName: "", lastName: "",
-      role: assignableRoles[0] ?? "employee", organizationId: "none",
+      role: trainingHandoff ? "org_admin" : assignableRoles[0] ?? "employee", organizationId: trainingOrganization?.id ?? "none",
     });
     setInviteMode(true);
     setShowCreate(true);
@@ -217,6 +233,10 @@ export default function Users() {
     setCreateForm(f => ({ ...f, [k]: v }));
 
   const handleCreate = () => {
+    if (trainingHandoff && (!trainingOrganization || createForm.role !== "org_admin" || createForm.organizationId !== trainingOrganization.id || !inviteMode)) {
+      toast({ title: "Reopen the facility administrator invitation from the training facility", variant: "destructive" });
+      return;
+    }
     const requiredFieldsPresent = inviteMode
       ? createForm.email.trim() && createForm.firstName.trim() && createForm.lastName.trim()
       : createForm.email.trim() && createForm.password.trim() && createForm.firstName.trim() && createForm.lastName.trim();
@@ -478,12 +498,17 @@ export default function Users() {
             </Button>
           )}
           {!isDemoOrganization && (
-            <Button onClick={openCreate} className="shadow-sm">
-              <UserPlus className="mr-2 h-4 w-4" /> Add User
+            <Button onClick={openCreate} disabled={trainingHandoff && !trainingOrganization} className="shadow-sm">
+              <UserPlus className="mr-2 h-4 w-4" /> {trainingHandoff ? "Invite facility administrator" : "Add User"}
             </Button>
           )}
         </div>
       </div>
+
+      {trainingHandoff && <div className="rounded-lg border p-4 space-y-2">
+        <p>{trainingOrganization ? `Invite the administrator for ${trainingOrganization.name}. They will receive an email to set a password, secure their account, and begin training setup.` : organizationsLoading ? "Loading the training organization…" : "This training organization is unavailable. Open its setup page to start a new administrator invitation."}</p>
+        <Link href={trainingOrganization ? `/admin/organizations/${trainingOrganization.id}` : "/admin/organizations"} className="underline">Back to facility setup</Link>
+      </div>}
 
       {isDemoOrganization && (
         <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3 text-sm text-blue-950">
@@ -753,17 +778,17 @@ export default function Users() {
         <span>{filtered.length} user{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
 
-      <Dialog open={showCreate} onOpenChange={o => { if (!o) { setShowCreate(false); setCreateForm({ email: "", password: randomPassword(), firstName: "", lastName: "", role: assignableRoles[0] ?? "employee", organizationId: "none" }); setInviteMode(true); } }}>
+      <Dialog open={showCreate} onOpenChange={o => { if (!o) { setShowCreate(false); setCreateForm({ email: "", password: randomPassword(), firstName: "", lastName: "", role: trainingHandoff ? "org_admin" : assignableRoles[0] ?? "employee", organizationId: trainingOrganization?.id ?? "none" }); setInviteMode(true); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{inviteMode ? "Invite User" : "Add User"}</DialogTitle>
+            <DialogTitle>{trainingHandoff ? "Invite facility administrator" : inviteMode ? "Invite User" : "Add User"}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
               <Switch
                 checked={inviteMode}
                 onCheckedChange={setInviteMode}
-                disabled={createForm.role === "employee"}
+                disabled={trainingHandoff || createForm.role === "employee"}
                 id="invite-mode"
               />
               <label htmlFor="invite-mode" className="text-[13px] cursor-pointer">
@@ -805,6 +830,7 @@ export default function Users() {
               <Label htmlFor={`${__fieldIds}-role`} className="text-[13px]">Role *</Label>
               <Select
                 value={createForm.role}
+                disabled={trainingHandoff}
                 onValueChange={v => {
                   createField("role", v as Role);
                   if (v === "employee") setInviteMode(true);
@@ -827,7 +853,7 @@ export default function Users() {
             {isPlatformAdmin && createForm.role !== "platform_admin" && (
               <div className="space-y-1.5">
                 <Label htmlFor={`${__fieldIds}-organization`} className="text-[13px]">Organization *</Label>
-                <Select value={createForm.organizationId} onValueChange={v => createField("organizationId", v)}>
+                <Select value={createForm.organizationId} onValueChange={v => createField("organizationId", v)} disabled={trainingHandoff}>
                   <SelectTrigger id={`${__fieldIds}-organization`} className="h-9"><SelectValue placeholder="Select organization" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Select organization</SelectItem>

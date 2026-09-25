@@ -170,13 +170,14 @@ export function useSaveClinicalCarePlan() {
 export function useSaveCarePlanGoal() {
   return useCareMutation(async (input: {
     residentId: string; carePlanId: string; description: string; targetMeasure?: string | null;
-    status?: string; goalId?: string;
+    status?: string; goalId?: string; addressesConditionRef?: string | null;
   }) => {
     const { error } = await supabase.rpc("save_care_plan_goal", {
       p_care_plan_id: input.carePlanId, p_description: input.description,
       ...(input.targetMeasure ? { p_target_measure: input.targetMeasure } : {}),
       ...(input.status ? { p_status: input.status } : {}),
       ...(input.goalId ? { p_goal_id: input.goalId } : {}),
+      ...(input.addressesConditionRef ? { p_addresses_condition_ref: input.addressesConditionRef } : {}),
     });
     if (error) throw error;
   }, (input) => input.residentId);

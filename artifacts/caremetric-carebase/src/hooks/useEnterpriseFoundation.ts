@@ -251,6 +251,44 @@ export interface BillingSessionResponse {
   };
 }
 
+export interface BillingCheckoutRecovery {
+  kind: "checkout_recovery";
+  targetId: string;
+  preview: {commandId: string; action: "billing.checkout.recover"; summary: {
+    organizationName: string; packageId: string; billingInterval: "month" | "year"; intervalCount: number;
+    quantity: number; trialDays: number; providerPriceId: string;
+  }} | null;
+  result: {commandId: string; action: "billing.checkout.recover"; targetId: string;
+    outcome: "open" | "complete" | "expired" | "failed" | "pending"; availability: "available" | "unavailable";
+    checkedAt: string | null; canStartNewCheckout: boolean;
+    session: {id: string; url: string; expiresAt: string; livemode: boolean} | null;
+  } | null;
+  canStartNewCheckout: boolean;
+}
+
+/** Explicit observation only. Keep provider URLs out of query/mutation caches. */
+export async function recoverBillingCheckout(organizationId: string, requestId: string): Promise<BillingCheckoutRecovery> {
+  const {data, error} = await invokeProviderFunction("create-billing-session", {
+    body: {action: "checkout_recover", organizationId, idempotencyKey: requestId},
+  });
+  if (error) {
+    if (error instanceof FunctionsHttpError) {
+      let code: string | null = null;
+      try { const body = await error.context.json(); if (typeof body?.error?.code === "string") code = body.error.code; } catch { /* Safe generic error below. */ }
+      throw new BillingSessionError(code, error.message);
+    }
+    throw error;
+  }
+  const value = (data as {data?: unknown} | null)?.data as BillingCheckoutRecovery | undefined;
+  if (!value || value.kind !== "checkout_recovery" || value.targetId !== organizationId
+    || !Object.hasOwn(value, "preview") || !Object.hasOwn(value, "result")
+    || typeof value.canStartNewCheckout !== "boolean" || (value.preview === null) !== (value.result === null)
+    || (value.result && (value.result.targetId !== organizationId || value.result.commandId !== value.preview?.commandId
+      || value.result.action !== "billing.checkout.recover" || value.preview?.action !== "billing.checkout.recover"
+      || value.result.canStartNewCheckout !== value.canStartNewCheckout))) throw new BillingSessionError("billing_state_unavailable", "Checkout recovery unavailable");
+  return value;
+}
+
 export function useCreateBillingSession() {
   return useMutation({
     retry: false,

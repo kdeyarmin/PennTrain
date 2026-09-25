@@ -1,5 +1,6 @@
-import { assertEquals } from "jsr:@std/assert@1.0.14";
+import { assertEquals, assertRejects } from "jsr:@std/assert@1.0.14";
 import { createInviteUserHandler } from "./handler.ts";
+import type { DelegatedInviteAuthority } from "./handler.ts";
 
 // Re-inviting someone whose invitation was revoked produced a permanently deactivated account:
 // revoke_user_invitation sets profiles.is_active = false, and GoTrue re-invites an unconfirmed
@@ -62,14 +63,19 @@ function makeHandler(opts: {
   callerRole?: string;
   callerOrgId?: string | null;
   demoOrgIds?: string[];
+  delegatedAuthority?: DelegatedInviteAuthority;
+  assuranceAllowed?: boolean;
+  inviteError?: { code: string; status: number; message: string };
+  inviteThrows?: boolean;
 } = {}) {
   const rpcCalls: RpcCall[] = [];
+  const observations = { invites: 0, deletes: 0, authLookups: 0, assuranceChecks: 0, employeeFilters: [] as [string,unknown][] };
   const demoOrgIds = new Set(opts.demoOrgIds ?? []);
   const callerRole = opts.callerRole ?? "org_admin";
   const callerOrgId = opts.callerOrgId === undefined ? ORG_ID : opts.callerOrgId;
 
   const callerClient = {
-    auth: { getUser: async () => ({ data: { user: { id: CALLER_ID } }, error: null }) },
+    auth: { getUser: async () => { observations.authLookups++; return { data: { user: { id: CALLER_ID } }, error: null }; } },
     from: (table: string) => {
       if (table === "profiles") {
         return chainable({
@@ -89,17 +95,21 @@ function makeHandler(opts: {
           }),
         };
       }
-      if (table === "employees") return chainable({ data: opts.employeeMatches ?? [], error: null });
+      if (table === "employees") {
+        const query=chainable({ data: opts.employeeMatches ?? [], error: null });
+        query.eq=(column:string,value:unknown)=>{observations.employeeFilters.push([column,value]);return query;};
+        return query;
+      }
       throw new Error(`unexpected caller table: ${table}`);
     },
-    rpc: async () => ({ data: true, error: null }),
+    rpc: async () => { observations.assuranceChecks++; return { data: opts.assuranceAllowed ?? true, error: null }; },
   };
 
   const adminClient = {
     auth: {
       admin: {
-        inviteUserByEmail: async () => ({ data: { user: { id: INVITED_ID, email: EMAIL } }, error: null }),
-        deleteUser: async () => ({ data: null, error: null }),
+        inviteUserByEmail: async () => { observations.invites++; if(opts.inviteThrows)throw new Error("provider timeout"); return { data: { user: { id: INVITED_ID, email: EMAIL } }, error: opts.inviteError ?? null }; },
+        deleteUser: async () => { observations.deletes++; return { data: null, error: null }; },
       },
     },
     from: () => chainable({ data: null, error: null }),
@@ -115,7 +125,8 @@ function makeHandler(opts: {
     callCount += 1;
     return callCount === 1 ? callerClient : adminClient;
   };
-  return { handler: createInviteUserHandler({ createClient, getEnv }), rpcCalls };
+  return { handler: createInviteUserHandler({ createClient, getEnv,
+    ...(opts.delegatedAuthority ? { resolveDelegatedAuthority: async () => opts.delegatedAuthority! } : {}) }), rpcCalls, observations };
 }
 
 Deno.test("invite-user reactivates the profile when provisioning a non-employee invite", async () => {
@@ -188,4 +199,111 @@ Deno.test("invite-user refuses a platform_admin inviting into a demo tenant", as
   assertEquals(response.status, 403);
   assertEquals(body.error, "Demo workspaces cannot invite or provision users");
   assertEquals(rpcCalls, []);
+});
+
+const FACILITY_ID = "77777777-7777-4777-8777-777777777777";
+const delegatedAuthority = (patch: Partial<DelegatedInviteAuthority> = {}): DelegatedInviteAuthority => ({
+  actorId: CALLER_ID, organizationId: ORG_ID, role: "org_admin", email: EMAIL,
+  firstName: "Rae", lastName: "Nolan", employeeId: null, facilityId: null,
+  revalidate: async () => {}, provisionProfile: async invitedId => ({ id: invitedId, is_active: true }), ...patch,
+});
+const delegatedBody = { email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "org_admin", organization_id: ORG_ID };
+const internalRequest = (body: unknown) => new Request("https://example.test/internal/invitation", {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+});
+
+Deno.test("ordinary invite authentication cannot be replaced by body fields or an absent header", async () => {
+  const { handler, observations } = makeHandler();
+  const response = await handler(internalRequest({ ...delegatedBody, delegatedAuthority: delegatedAuthority() }));
+  assertEquals(response.status, 401);
+  assertEquals(observations.invites, 0);
+});
+
+Deno.test("ordinary invite still requires current native MFA", async () => {
+  const { handler, observations } = makeHandler({ assuranceAllowed: false });
+  const response = await handler(makeRequest(delegatedBody));
+  assertEquals(response.status, 403);
+  assertEquals(observations.authLookups, 1);
+  assertEquals(observations.assuranceChecks, 1);
+  assertEquals(observations.invites, 0);
+});
+
+Deno.test("server-injected Hub invite uses exact scoped authority and existing profile/lifecycle writes", async () => {
+  let checks = 0, provisionedId = "";
+  const { handler, observations, rpcCalls } = makeHandler({ callerRole: "platform_admin", callerOrgId: null,
+    delegatedAuthority: delegatedAuthority({ revalidate: async () => { checks++; }, provisionProfile: async invitedId => { provisionedId=invitedId;return { id: invitedId }; } }) });
+  const response = await handler(internalRequest(delegatedBody));
+  assertEquals(response.status, 200);
+  assertEquals(checks, 2);
+  assertEquals(observations.authLookups, 0, "no native user session is fabricated");
+  assertEquals(observations.assuranceChecks, 0, "delegated SMS does not claim native AAL2");
+  assertEquals(observations.invites, 1);
+  assertEquals(provisionedId, INVITED_ID);
+  assertEquals(rpcCalls.map(call=>call.name), ["record_user_invitation_sent"]);
+  assertEquals(rpcCalls[0].args.p_created_by, CALLER_ID);
+});
+
+for(const changed of [{role:"platform_admin"},{organization_id:DEMO_ORG_ID},{email:"other@example.test"},
+  {first_name:"Changed"},{employee_id:EMPLOYEE_ID},{redirect_to:"https://cmcarebase.com/reset-password"}]) {
+  Deno.test(`delegated invite rejects a changed ${Object.keys(changed)[0]} before email`, async () => {
+    const {handler,observations}=makeHandler({callerRole:"platform_admin",callerOrgId:null,delegatedAuthority:delegatedAuthority()});
+    assertEquals((await handler(internalRequest({...delegatedBody,...changed}))).status,403);
+    assertEquals(observations.invites,0);
+  });
+}
+
+Deno.test("delegated employee lookup includes its exact facility and employee", async () => {
+  const {handler,observations}=makeHandler({callerRole:"platform_admin",callerOrgId:null,
+    employeeMatches:[{id:EMPLOYEE_ID,profile_id:null,email:EMAIL}],
+    delegatedAuthority:delegatedAuthority({role:"employee",facilityId:FACILITY_ID,employeeId:EMPLOYEE_ID})});
+  assertEquals((await handler(internalRequest({...delegatedBody,role:"employee",employee_id:EMPLOYEE_ID}))).status,200);
+  assertEquals(observations.employeeFilters,[["organization_id",ORG_ID],["facility_id",FACILITY_ID],["id",EMPLOYEE_ID]]);
+});
+
+Deno.test("delegated authority revoked before sending cannot dispatch email", async () => {
+  let checks=0;
+  const {handler,observations}=makeHandler({callerRole:"platform_admin",callerOrgId:null,
+    delegatedAuthority:delegatedAuthority({revalidate:async()=>{if(++checks===2)throw new Error("revoked");}})});
+  assertEquals((await handler(internalRequest(delegatedBody))).status,403);
+  assertEquals(observations.invites,0);
+});
+
+Deno.test("delegated invite still refuses a demoted native actor", async () => {
+  const {handler,observations}=makeHandler({delegatedAuthority:delegatedAuthority()});
+  assertEquals((await handler(internalRequest(delegatedBody))).status,403);
+  assertEquals(observations.invites,0);
+});
+
+Deno.test("delegated profile race conflict never invokes broad provisioning or deletes the winning identity", async () => {
+  const {handler,observations,rpcCalls}=makeHandler({callerRole:"platform_admin",callerOrgId:null,
+    delegatedAuthority:delegatedAuthority({provisionProfile:async()=>{throw new Error("Identity claimed by another organization");}})});
+  await assertRejects(()=>handler(internalRequest(delegatedBody)),Error,"Identity claimed");
+  assertEquals(observations.invites,1);
+  assertEquals(observations.deletes,0);
+  assertEquals(rpcCalls,[]);
+});
+
+for(const failure of [
+  {code:"email_exists",status:422,rejected:true},
+  {code:"over_email_send_rate_limit",status:429,rejected:true},
+  {code:"unexpected_failure",status:500,rejected:false},
+  {code:"unknown_client_error",status:400,rejected:false},
+  {code:"email_exists",status:500,rejected:false},
+]) Deno.test(`delegated delivery classifies only definite rejection ${failure.code}/${failure.status}`,async()=>{
+  let started=0,rejected=0;
+  const {handler,observations,rpcCalls}=makeHandler({callerRole:"platform_admin",callerOrgId:null,
+    inviteError:{...failure,message:"provider rejected"},delegatedAuthority:delegatedAuthority({
+      beforeEmailDispatch:()=>{started++;},deliveryRejected:()=>{rejected++;},
+    })});
+  assertEquals((await handler(internalRequest(delegatedBody))).status,400);
+  assertEquals(started,1);assertEquals(rejected,failure.rejected?1:0);
+  assertEquals(observations.deletes,0);assertEquals(rpcCalls,[]);
+});
+
+Deno.test("delegated transport failure remains uncertain after dispatch begins",async()=>{
+  let started=0,rejected=0;
+  const {handler}=makeHandler({callerRole:"platform_admin",callerOrgId:null,inviteThrows:true,
+    delegatedAuthority:delegatedAuthority({beforeEmailDispatch:()=>{started++;},deliveryRejected:()=>{rejected++;}})});
+  await assertRejects(()=>handler(internalRequest(delegatedBody)),Error,"provider timeout");
+  assertEquals(started,1);assertEquals(rejected,0);
 });

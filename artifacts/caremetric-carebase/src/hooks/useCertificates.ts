@@ -6,6 +6,7 @@ import type { Tables } from "@/lib/database.types";
 export type Certificate = Tables<"certificates">;
 
 export interface ListCertificatesFilters {
+  facilityId?: string;
   employeeId?: string;
   courseId?: string;
 }
@@ -43,6 +44,7 @@ export function useListCertificates(
           .order("issued_at", { ascending: false })
           .order("id", { ascending: false })
           .range(from, from + pageSize - 1);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
         if (filters.courseId) query = query.eq("course_id", filters.courseId);
         const { data, error } = await query;

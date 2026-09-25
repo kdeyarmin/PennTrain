@@ -70,6 +70,18 @@ const BILLING_SESSION_ERROR_COPY: Record<string, BillingSessionErrorCopy> = {
     description:
       "We could not load this organization's subscription state. Refresh and try again.",
   },
+  checkout_pending: {
+    title: "Checkout still needs verification",
+    description: "An earlier Checkout may still be available. Use Check existing Checkout before starting another session.",
+  },
+  checkout_conflict: {
+    title: "Checkout state changed",
+    description: "Check the existing Checkout and its original terms, then refresh the plan catalog before reviewing a new session.",
+  },
+  checkout_expired: {
+    title: "Checkout expired",
+    description: "Check the existing Checkout to confirm its status, then review a new session using the current plan catalog.",
+  },
   invalid_return_url: {
     title: "Return URL not allowed",
     description:

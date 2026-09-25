@@ -16,6 +16,7 @@
  */
 
 import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "./dateUtils";
+import { residentFallEvidence } from "./residentFallEvidence";
 
 export type ChangeSignalKind =
   | "increased_assistance"
@@ -95,12 +96,14 @@ export interface DetectionUnscheduledService {
 }
 
 export interface DetectionChangeEvent {
+  incident_id?: string | null;
   category: string;
   identified_at: string;
   status: string;
 }
 
 export interface DetectionIncident {
+  id?: string;
   incident_type: string;
   occurred_at: string;
 }
@@ -183,12 +186,8 @@ export function detectResidentChangeSignals(input: ChangeDetectionInput): Change
   // --- Multiple falls -----------------------------------------------------------------------
   // Counted from incidents AND condition changes: a fall without injury is routinely recorded only
   // as a condition change, so one source alone undercounts.
-  const falls: ChangeSignalEvidence[] = [
-    ...input.incidents.filter((entry) => /fall/i.test(entry.incident_type) && withinWindow(entry.occurred_at, now, FALL_WINDOW_DAYS))
-      .map((entry) => ({ label: `Incident: ${entry.incident_type.replace(/_/g, " ")}`, at: entry.occurred_at })),
-    ...input.changeEvents.filter((entry) => entry.category === "fall" && withinWindow(entry.identified_at, now, FALL_WINDOW_DAYS))
-      .map((entry) => ({ label: "Condition change: fall", at: entry.identified_at })),
-  ];
+  const falls: ChangeSignalEvidence[] = residentFallEvidence(input.incidents, input.changeEvents)
+    .filter((entry) => withinWindow(entry.at, now, FALL_WINDOW_DAYS));
   if (falls.length >= FALL_COUNT_THRESHOLD) {
     signals.push({
       kind: "multiple_falls",

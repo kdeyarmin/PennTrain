@@ -142,6 +142,12 @@ export default function AdminDashboard() {
 
   const launchActions = [
     {
+      href: "/admin/training-reports",
+      label: "Facility training reports",
+      description: "Select an organization to report on enrollment, completion, progress, and issued certificates.",
+      Icon: GraduationCap,
+    },
+    {
       href: "/admin/organizations",
       label: "Set up an organization",
       description: "Create tenants, assign packages, and open the customer workspace.",

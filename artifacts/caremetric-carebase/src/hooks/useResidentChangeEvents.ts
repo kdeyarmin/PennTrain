@@ -79,19 +79,31 @@ export function useListResidentChangeEvents(filters: {
   return useQuery({
     queryKey: ["resident-change-events", "list", filters],
     queryFn: async () => {
-      let query = supabase
-        .from("resident_change_events")
-        .select(CHANGE_EVENT_SELECT)
-        .order("follow_up_due_at");
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.residentId) query = query.eq("resident_id", filters.residentId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.assignedProfileId) query = query.eq("assigned_profile_id", filters.assignedProfileId);
-      if (filters.category) query = query.eq("category", filters.category);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as unknown as ResidentChangeEventWithRelations[];
+      // The active queue filters closed history after fetching. A single capped response can
+      // therefore contain only old closed events and hide every current follow-up. Read all
+      // pages, using id to keep equal deadlines in a stable order across page boundaries.
+      const pageSize = 1000;
+      const rows: ResidentChangeEventWithRelations[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase
+          .from("resident_change_events")
+          .select(CHANGE_EVENT_SELECT)
+          .order("follow_up_due_at")
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.residentId) query = query.eq("resident_id", filters.residentId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.assignedProfileId) query = query.eq("assigned_profile_id", filters.assignedProfileId);
+        if (filters.category) query = query.eq("category", filters.category);
+        const { data, error } = await query;
+        if (error) throw error;
+        const batch = (data ?? []) as unknown as ResidentChangeEventWithRelations[];
+        rows.push(...batch);
+        if (batch.length < pageSize) break;
+      }
+      return rows;
     },
   });
 }

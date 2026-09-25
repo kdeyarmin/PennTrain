@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, useSearch, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,10 @@ declare global {
 }
 
 export default function Signup() {
-  usePageMeta({ ...MARKETING_ROUTE_META["/signup"], path: "/signup" });
+  const trainingOnly = new URLSearchParams(useSearch()).get("product") === "train" || import.meta.env.VITE_CAREMETRIC_MODULES === "train";
+  usePageMeta(trainingOnly
+    ? { title: "Create your training organization | CareMetric CareBase", description: "Set up your facility training workspace, invite staff, assign courses and track completion.", path: "/signup", noindex: true }
+    : { ...MARKETING_ROUTE_META["/signup"], path: "/signup" });
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileError, setTurnstileError] = useState<string | null>(null);
@@ -141,6 +144,7 @@ export default function Signup() {
     signup(
       {
         email,
+        product: trainingOnly ? "train" : "carebase",
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         organizationName: form.organizationName.trim(),
@@ -176,17 +180,17 @@ export default function Signup() {
             <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
               <BrandName />
             </h1>
-            <p className="text-sm text-muted-foreground">Operations & Compliance Platform</p>
+            <p className="text-sm text-muted-foreground">{trainingOnly ? "Facility staff training and education" : "Operations & Compliance Platform"}</p>
           </div>
         </div>
 
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] ring-1 ring-primary/10 backdrop-blur-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">{submittedEmail ? "Check your email" : "Create your organization"}</CardTitle>
+            <CardTitle className="text-lg">{submittedEmail ? "Check your email" : trainingOnly ? "Create your training organization" : "Create your organization"}</CardTitle>
             <CardDescription>
               {submittedEmail
                 ? `We sent an invite link to ${submittedEmail}.`
-                : "Set up your facility's account to start tracking training and compliance."}
+                : trainingOnly ? "Set up your facility, enroll staff in training and track their progress." : "Set up your facility's account to start tracking training and compliance."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -198,6 +202,7 @@ export default function Signup() {
                 <p className="text-sm text-muted-foreground">
                   Open the link from your email to verify the address and choose a password.
                 </p>
+                {trainingOnly && <p className="text-sm text-muted-foreground">After signing in, set up your authenticator for secure administrator access. Your training workspace will guide you through adding students, assigning courses and running reports.</p>}
                 <Button type="button" className="w-full h-10" onClick={() => setLocation("/login")}>
                   Back to sign in
                 </Button>
@@ -301,7 +306,7 @@ export default function Signup() {
             {!submittedEmail && (
               <div>
                 <p className="mt-4 text-center text-[13px] text-muted-foreground">
-                  Creating your organization starts a {MARKETING_TRIAL_DAYS}-day free trial.
+                  {trainingOnly ? "Your organization receives access to CareMetric Train only. Ongoing complimentary access is available when enabled by the provider; otherwise the standard training trial applies." : <>Creating your organization starts a {MARKETING_TRIAL_DAYS}-day free trial.</>}
                 </p>
                 <p className="mt-2 text-center text-[13px] text-muted-foreground">
                   Already have an account?{" "}
