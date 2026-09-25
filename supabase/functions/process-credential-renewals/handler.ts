@@ -113,7 +113,8 @@ export function createProcessCredentialRenewalsHandler({
   if (runClaimError) return json(req, { error: runClaimError.message }, 500);
   const run = Array.isArray(claimRows) ? claimRows[0] : claimRows;
   if (!run?.should_execute) {
-    return json(req, { success: true, rejected, skipped: true, status: run?.existing_status ?? "skipped" });
+    // Nothing was processed, so nothing was rejected; the counter is declared further down.
+    return json(req, { success: true, rejected: 0, skipped: true, status: run?.existing_status ?? "skipped" });
   }
   const runId = run.run_id;
   const finishRun = async (

@@ -6,7 +6,7 @@ const ENV: Record<string, string> = {
   SUPABASE_URL: "https://project.test", SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_ROLE_KEY: "service",
 };
 
-function fixture(assurance: unknown, error: { code: string } | null = null) {
+function fixture(assurance: unknown, error: { code: string } | null = null, shouldExecute = true) {
   const privilegedCalls: string[] = [];
   let callerChecks = 0;
   let cronChecks = 0;
@@ -16,7 +16,9 @@ function fixture(assurance: unknown, error: { code: string } | null = null) {
     createClient: ((_: string, key: string, options: unknown) => key === "service" ? {
       rpc: async (name: string) => {
         privilegedCalls.push(name);
-        if (name === "claim_system_job_execution") return { data: [{ should_execute: true, run_id: "run-1" }], error: null };
+        if (name === "claim_system_job_execution") {
+          return { data: [{ should_execute: shouldExecute, run_id: "run-1", existing_status: shouldExecute ? null : "running" }], error: null };
+        }
         if (name === "claim_credential_renewal_submissions") return { data: [], error: null };
         if (name === "finish_system_job") return { data: null, error: null };
         throw new Error(`unexpected privileged RPC: ${name}`);
@@ -72,4 +74,16 @@ Deno.test("renewal worker rejects invalid cron secret without user fallback", as
   assertEquals(response.status, 401);
   assertEquals(privilegedCalls, []);
   assertEquals(counts(), { callerChecks: 0, cronChecks: 1 });
+});
+
+Deno.test("renewal worker reports a skipped run when another execution holds the claim", async () => {
+  // `rejected` is declared after this branch; the skip response used to read it inside the
+  // temporal dead zone and throw a ReferenceError instead of answering.
+  const { handler, privilegedCalls } = fixture(true, null, false);
+  const response = await handler(new Request("https://function.test", { method: "POST",
+    headers: { [CRON_SECRET_HEADER]: "valid-worker-secret" },
+  }));
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), { success: true, rejected: 0, skipped: true, status: "running" });
+  assertEquals(privilegedCalls, ["claim_system_job_execution"]);
 });

@@ -360,7 +360,9 @@ export function mapFhirBundle(bundle: FhirBundle | FhirResource, nowIso: string)
   const targets = new Map<string, FhirResource | null>();
   if (bundle.resourceType === "Bundle") {
     for (const entry of entries) {
-      const fullUrl = entry?.fullUrl?.trim();
+      // hasValidFhirMappingShape refuses a non-string fullUrl before the handler maps, but the
+      // mapper is also called directly; a malformed entry is unresolved, not a throw.
+      const fullUrl = typeof entry?.fullUrl === "string" ? entry.fullUrl.trim() : "";
       if (!fullUrl) continue;
       targets.set(fullUrl, targets.has(fullUrl) ? null : entry.resource ?? null);
     }

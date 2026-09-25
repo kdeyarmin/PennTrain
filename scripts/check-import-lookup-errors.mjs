@@ -57,6 +57,40 @@ function errorBindingIn(pattern) {
 }
 
 /**
+ * Blank the body of every `catch (<name>)` block so the shadowing parameter, and every mention of
+ * it inside the block, cannot pass for a read of an outer binding of the same name. Offsets are
+ * preserved (each blanked character becomes a space), so an index into the result indexes the
+ * original. An unbalanced block leaves the text untouched rather than guessing.
+ */
+export function blankCatchBlocks(source, name) {
+  const re = new RegExp(String.raw`\bcatch\s*\(\s*${name}\b[^)]*\)\s*\{`, "g");
+  let out = source;
+  for (const match of source.matchAll(re)) {
+    const open = match.index + match[0].length - 1;
+    let depth = 0;
+    let close = -1;
+    for (let i = open; i < source.length; i += 1) {
+      if (source[i] === "{") depth += 1;
+      else if (source[i] === "}") {
+        depth -= 1;
+        if (depth === 0) { close = i; break; }
+      }
+    }
+    if (close === -1) continue;
+    out = out.slice(0, match.index) + out.slice(match.index, close + 1).replace(/[^\n]/g, " ") + out.slice(close + 1);
+  }
+  return out;
+}
+
+/** Index of the first re-declaration of `name` (a new binding), or the text length if none. */
+export function rebindIndex(source, name) {
+  const at = source.search(new RegExp(
+    String.raw`\b(?:const|let|var)\s+(?:\{[^}]*\b${name}\b[^}]*\}|${name}\b)\s*=`,
+  ));
+  return at === -1 ? source.length : at;
+}
+
+/**
  * Reads whose `error` is never bound, or is bound and then never mentioned again.
  * Returns `{ line, binding, reason }` for each.
  */
@@ -74,16 +108,14 @@ export function findUncheckedReads(source) {
     const binding = match[1];
     const line = source.slice(0, match.index).split("\n").length;
     const after = source.slice(end === -1 ? source.length : end + 1);
-    // Only the text before the name is bound again counts as reading THIS binding. Searching the
+    // Only text where the name still means THIS binding counts as a read of it. Searching the
     // whole remainder let an unrelated later `catch (error)` or a second
     // `const { data: d2, error } = ...` destructure certify a read whose own error was dropped --
     // the exact fail-open shape (RLS denial read as "no such record") this gate exists for.
-    const scopeOf = (name) => {
-      const rebind = after.search(new RegExp(
-        String.raw`\b(?:const|let|var)\s+(?:\{[^}]*\b${name}\b[^}]*\}|${name}\b)\s*=|\bcatch\s*\(\s*${name}\b`,
-      ));
-      return rebind === -1 ? after : after.slice(0, rebind);
-    };
+    // A catch parameter shadows only inside its own block, so that block is blanked and the
+    // search continues past it (a real `if (error)` after the try/catch is still a read); a
+    // re-declaration ends the search, since everything after it names the new binding.
+    const scopeOf = (name) => blankCatchBlocks(after, name).slice(0, rebindIndex(after, name));
     if (binding.startsWith("{")) {
       const errorName = errorBindingIn(binding);
       if (!errorName) {
@@ -119,6 +151,9 @@ if (process.argv.includes("--self-test")) {
     // The plain-name form of the same abandonment: a later, unrelated `error` (a catch clause or a
     // second destructure) is not a read of this one.
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\ntry { x(); } catch (error) { log(error); }', 1],
+    // A catch parameter shadows only its own block: a read after the try/catch is still a read.
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\ntry { x(); } catch (error) { log(error); }\nif (error) return x;', 0],
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\ntry { x(); } catch (error) { if (error) { log({ nested: error }); } }\nif (error) return x;', 0],
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\nconst { data: d2, error } = await c.from("u").select("*").limit(1).maybeSingle();\nif (error) return x;', 1],
     // Reading the binding before it is rebound is still a read.
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nif (error) return x;\nconst { data: d2, error } = await c.from("u").select("*").limit(1).maybeSingle();\nif (error) return y;', 0],

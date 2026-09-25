@@ -9,6 +9,8 @@ import {
 import { useListOrganizations } from "@/hooks/useOrganizations";
 import { useStartImpersonation } from "@/hooks/useImpersonation";
 import { useViewingOrg } from "@/lib/viewingOrg";
+import { useListEmployees } from "@/hooks/useEmployees";
+import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
 import { Button } from "@/components/ui/button";
 import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
@@ -305,11 +307,22 @@ export default function Users() {
     );
   };
 
-  // update_profile_contact_preferences lets a facility_manager edit only profiles rostered at an
-  // assigned facility (trainer / employee rows) plus their own; the pencil used to render on every
-  // row and fail with "Profile is outside the caller scope".
+  // update_profile_contact_preferences lets a facility_manager edit only a profile whose employee
+  // row sits at one of the manager's assigned facilities (is_assigned_to_facility(e.facility_id)),
+  // plus their own. profiles_select is organization-wide, so the roster and the manager's
+  // assignments decide which rows get a pencil; it used to render on every row and fail with
+  // "Profile is outside the caller scope".
+  const isFacilityManager = user?.role === "facility_manager";
+  const { data: myAssignments } = useListMyFacilityAssignments(user?.id, isFacilityManager);
+  const { data: rosterForScope } = useListEmployees({}, { enabled: isFacilityManager });
+  const assignedFacilityIds = new Set((myAssignments ?? []).map(a => a.facility_id));
+  const rosteredProfileIds = new Set(
+    (rosterForScope ?? [])
+      .filter(e => e.profile_id && assignedFacilityIds.has(e.facility_id))
+      .map(e => e.profile_id as string),
+  );
   const canEditContact = (p: Profile) =>
-    user?.role !== "facility_manager" || p.id === user.id || ["trainer", "employee"].includes(p.role);
+    !isFacilityManager || p.id === user?.id || rosteredProfileIds.has(p.id);
   // The same RPC refuses anyone but the recipient turning text-message consent ON; turning it off
   // for someone else is allowed.
   const editingSelf = !!editProfile && editProfile.id === user?.id;

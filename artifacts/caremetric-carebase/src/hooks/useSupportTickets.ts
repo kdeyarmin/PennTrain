@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { storageSafeFileName } from "@/lib/storagePaths";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
 import { containsFilterValue } from "@/lib/utils";
 
@@ -98,7 +99,7 @@ const ATTACHMENT_BUCKET = "support-ticket-attachments";
 // parse -- see 20260706170704_support_ticket_attachments.sql. Uploaded before the message row
 // exists (the write policy reverse-joins to support_tickets, which already exists by then).
 async function uploadTicketAttachment(organizationId: string, ticketId: string, file: File) {
-  const path = `${organizationId}/${ticketId}/${crypto.randomUUID()}-${file.name}`;
+  const path = `${organizationId}/${ticketId}/${crypto.randomUUID()}-${storageSafeFileName(file.name)}`;
   const { error } = await supabase.storage.from(ATTACHMENT_BUCKET).upload(path, file);
   if (error) throw error;
   return {
