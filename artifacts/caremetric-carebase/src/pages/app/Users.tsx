@@ -31,6 +31,7 @@ import { Users as UsersIcon, Search, ChevronLeft, ChevronRight, UserPlus, Pencil
 import { useAuth, useSignOut, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { absoluteAppUrl } from "@/lib/appUrl";
+import { canToggleSmsConsent } from "./Users.contactPolicy";
 
 const ROLE_LABELS: Record<string, string> = {
   platform_admin: "Platform Admin",
@@ -327,15 +328,13 @@ export default function Users() {
   // for someone else is allowed, and so is restoring the persisted value after an accidental
   // untick (that grants no new consent) -- hence the ORIGINAL profile value, not the draft.
   const editingSelf = !!editProfile && editProfile.id === user?.id;
-  // Mirrors public.notification_phone_key: digits only, a bare 10-digit number gets the country
-  // code. The RPC compares the persisted and submitted numbers this way, and refuses a non-owner's
-  // opt-in whenever they differ -- so restoring consent is offered only for an unchanged number.
-  const phoneKey = (value: string | null | undefined) => {
-    const digits = (value ?? "").replace(/\D/g, "");
-    return digits.length === 10 ? `1${digits}` : digits;
-  };
-  const canEnableSms = editingSelf
-    || (editProfile?.sms_opt_in === true && phoneKey(editForm.phone) === phoneKey(editProfile.phone));
+  const canToggleSms = canToggleSmsConsent({
+    editingSelf,
+    currentOptIn: editForm.smsOptIn,
+    persistedOptIn: editProfile?.sms_opt_in === true,
+    persistedPhone: editProfile?.phone,
+    phone: editForm.phone,
+  });
 
   const openEdit = (e: React.MouseEvent, p: Profile) => {
     e.preventDefault();
@@ -917,7 +916,7 @@ export default function Users() {
             <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
               <input
                 type="checkbox" id="sms-opt-in" checked={editForm.smsOptIn}
-                disabled={!canEnableSms}
+                disabled={!canToggleSms}
                 onChange={e => setEditForm(f => ({
                   ...f,
                   smsOptIn: e.target.checked,
