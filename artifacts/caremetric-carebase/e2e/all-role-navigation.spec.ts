@@ -8,6 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 import { gotoAppRoute, hasLiveSupabaseEnv, requireLiveSupabaseEnv, signInAs } from "./helpers/auth";
 import { totpCode } from "./helpers/totp";
+import { monitorQueryFailures } from "./helpers/queryFailures";
 
 const ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const;
 type Role = typeof ROLES[number];
@@ -236,14 +237,8 @@ test.describe("all role navigation and sensitive route boundaries", () => {
       }
 
       const runtimeErrors: string[] = [];
-      const queryErrors: string[] = [];
+      const queryFailures = monitorQueryFailures(page, supabaseUrl);
       page.on("pageerror", error => runtimeErrors.push(error.message));
-      page.on("response", response => {
-        const url = new URL(response.url());
-        if (url.origin === new URL(supabaseUrl).origin && url.pathname.startsWith("/rest/v1/") && response.status() >= 400) {
-          queryErrors.push(`${response.status()} ${url.pathname}`);
-        }
-      });
       await signInAs(page, email, password, HOMES[role]);
       if (["platform_admin", "org_admin", "facility_manager"].includes(role)) await enrollRequiredMfa(page);
 
@@ -268,10 +263,15 @@ test.describe("all role navigation and sensitive route boundaries", () => {
           await expect.soft(page.locator("main#main-content h1").first()).toHaveText(heading, { timeout: 15_000 });
           // Do not accept the title alone while a failed query is still about to replace its data.
           await page.waitForLoadState("networkidle", { timeout: 15_000 });
+          // React Query retries can start after networkidle's 500ms quiet window. Give exact
+          // successful retries time to recover, while retaining persistent 400/403 failures.
+          await expect.soft.poll(() => queryFailures.unresolved(), {
+            message: `unresolved data queries on ${path}`, timeout: 8_000, intervals: [250, 500, 1_000],
+          }).toEqual([]);
+          queryFailures.clear();
           await expect.soft(page.locator('main#main-content [aria-busy="true"]')).toHaveCount(0);
           await expect.soft(page.locator("main#main-content").getByText(/^(?:Couldn.t load|Could not load|Failed to load|Something went wrong)/)).toHaveCount(0);
           expect.soft(runtimeErrors.splice(0), `uncaught browser errors on ${path}`).toEqual([]);
-          expect.soft(queryErrors.splice(0), `failed data queries on ${path}`).toEqual([]);
         });
       }
 

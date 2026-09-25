@@ -270,15 +270,18 @@ export function useVoiceSession(facilityId: string) {
 
     ws.onmessage = (event: MessageEvent<ArrayBuffer | string>) => {
       if (event.data instanceof ArrayBuffer) {
+        if (event.data.byteLength % Int16Array.BYTES_PER_ELEMENT !== 0) return;
         playback.enqueue(new Int16Array(event.data));
         return;
       }
-      let msg: Record<string, unknown>;
+      let parsed: unknown;
       try {
-        msg = JSON.parse(event.data) as Record<string, unknown>;
+        parsed = JSON.parse(event.data);
       } catch {
         return;
       }
+      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      const msg = parsed as Record<string, unknown>;
       switch (msg.type) {
         case "ready":
           setStatus("active");

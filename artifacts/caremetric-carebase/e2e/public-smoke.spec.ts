@@ -36,6 +36,41 @@ test.describe("public release smoke journeys", () => {
     });
   }
 
+  test("keyboard users can reach and horizontally scroll public reference tables", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    const tables = [
+      ["/savings", ["CareBase capability comparison"]],
+      ["/pa-training-requirements", ["Annual training requirements by setting", "Annual training hours by subject"]],
+      ["/pa-dhs-citations", ["Personal care homes — 55 Pa. Code Ch. 2600", "Assisted living facilities — 55 Pa. Code Ch. 2800"]],
+    ] as const;
+    for (const [path, labels] of tables) {
+      await page.goto(path);
+      for (const label of labels) {
+        await test.step(label, async () => {
+          const region = page.getByRole("region", { name: label, exact: true });
+          await region.scrollIntoViewIfNeeded();
+          await expect(region).toBeVisible();
+          expect(await region.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+          await region.focus();
+          await expect(region).toBeFocused();
+          const initialLeft = await region.evaluate((element) => element.scrollLeft);
+          await page.keyboard.press("ArrowRight");
+          await expect.poll(() => region.evaluate((element) => element.scrollLeft)).toBeGreaterThan(initialLeft);
+          await page.keyboard.press("ArrowLeft");
+          await expect.poll(() => region.evaluate((element) => element.scrollLeft)).toBe(initialLeft);
+          // Confirm the table remains in normal sequential keyboard navigation.
+          // Tabbing into a wide table can scroll its links into view, so check
+          // horizontal keyboard movement before changing that scroll position.
+          await page.keyboard.press("Tab");
+          await expect(region).not.toBeFocused();
+          await page.keyboard.press("Shift+Tab");
+          await expect(region).toBeFocused();
+        });
+      }
+      await expectNoHorizontalOverflow(page);
+    }
+  });
+
   test("landing page exposes the primary conversion and sign-in paths", async ({ page }) => {
     await page.goto("/");
 

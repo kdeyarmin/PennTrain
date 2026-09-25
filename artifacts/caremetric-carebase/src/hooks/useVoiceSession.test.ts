@@ -54,7 +54,7 @@ class FakeSocket {
   static OPEN = 1;
   readyState = 0;
   binaryType = "";
-  onmessage: ((event: { data: string }) => void) | null = null;
+  onmessage: ((event: { data: string | ArrayBuffer }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
   close = vi.fn();
@@ -193,6 +193,25 @@ describe("voice session setup lifecycle", () => {
     sockets[0].onmessage?.({ data: JSON.stringify({ type: "closed", reason: "access_denied" }) });
     expect(mocks.states[0]).toBe("ended");
     expect(mocks.states[6]).toBe("Your access to the voice assistant has changed. Contact your administrator.");
+    expect(mocks.stopTrack).toHaveBeenCalledOnce();
+  });
+
+  it("ignores null and non-object control frames without breaking the live session", async () => {
+    await useVoiceSession("facility-a").start();
+    for (const data of ["null", "[]", "true", '"text"', "42"]) {
+      expect(() => sockets[0].onmessage?.({ data })).not.toThrow();
+    }
+    sockets[0].onmessage?.({ data: JSON.stringify({ type: "ready" }) });
+    expect(mocks.states[0]).toBe("active");
+    sockets[0].onmessage?.({ data: JSON.stringify({ type: "closed", reason: "agent_ended" }) });
+    expect(mocks.stopTrack).toHaveBeenCalledOnce();
+  });
+
+  it("ignores incomplete PCM16 frames and still processes the gateway closure", async () => {
+    await useVoiceSession("facility-a").start();
+    expect(() => sockets[0].onmessage?.({ data: new ArrayBuffer(3) })).not.toThrow();
+    sockets[0].onmessage?.({ data: JSON.stringify({ type: "closed", reason: "agent_ended" }) });
+    expect(mocks.states[0]).toBe("ended");
     expect(mocks.stopTrack).toHaveBeenCalledOnce();
   });
 });
