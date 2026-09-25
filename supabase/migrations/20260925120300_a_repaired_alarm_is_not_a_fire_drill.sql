@@ -49,6 +49,11 @@ begin
   if position(v_old in v_def) = 0 then
     raise exception 'verify_work_order no longer contains the inspection-event insert this migration guards';
   end if;
+  -- Gating the event is only enough because 20260906270000 (J74) replaced the unconditional
+  -- `status = 'compliant'` overwrite that followed it with a recalculation from the events.
+  if position($old$status = 'compliant'$old$ in v_def) > 0 then
+    raise exception 'verify_work_order still asserts the inspection item compliant after a repair';
+  end if;
   v_new := $patch$      -- A verified repair tests the equipment it fixed. It is not a fire drill (2600.132(a), (c)),
       -- a fire safety expert's evacuation letter (132(d)) or an emergency plan review (2600.107),
       -- so a procedural item gets no event and stays due until the procedure is logged.
