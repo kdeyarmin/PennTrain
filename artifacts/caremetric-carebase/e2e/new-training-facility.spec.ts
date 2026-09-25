@@ -362,7 +362,7 @@ test.describe("new training facility administrator", () => {
       await editEmployee.getByRole("button", { name: "Save Changes", exact: true }).click();
       await expect(editEmployee).not.toBeVisible();
       await expect(page.getByRole("heading", { name: "Updated Profile", exact: true })).toBeVisible();
-      await page.getByRole("link", { name: "Back to training", exact: true }).click();
+      await page.getByRole("link", { name: "Training progress, transcript & certificates", exact: true }).click();
       await page.getByRole("tab", { name: "Certificates", exact: true }).click();
       await page.getByLabel("Training student").selectOption(studentId);
       await expect(page.getByRole("checkbox", { name: new RegExp(fixture.courseTitle) })).toBeVisible();
