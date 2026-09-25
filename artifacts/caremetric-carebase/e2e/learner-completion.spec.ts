@@ -52,6 +52,7 @@ async function provisionLearner(service: SupabaseClient, url: string, password: 
     title: courseTitle, status: "draft", content_standard: "legacy",
   }).select("id").single();
   if (versionError) throw versionError;
+  const textBlockId = crypto.randomUUID();
   const videoBlockId = crypto.randomUUID();
   const quizBlockId = crypto.randomUUID();
   const videoPath = `${organizationId}/${videoBlockId}.mp4`;
@@ -60,14 +61,16 @@ async function provisionLearner(service: SupabaseClient, url: string, password: 
     { contentType: "video/mp4", upsert: false },
   );
   if (uploadError) throw uploadError;
+  // PostgREST bulk inserts share one column list: omitted values become NULL when another
+  // row supplies that column. Keep every row explicit, including the generated primary key.
   const { error: blocksError } = await service.from("course_blocks").insert([
-    { course_version_id: version.id, organization_id: organizationId, block_type: "text", sort_order: 0,
-      title: "Read the orientation", body: { content: LESSON_TEXT } },
+    { id: textBlockId, course_version_id: version.id, organization_id: organizationId, block_type: "text", sort_order: 0,
+      title: "Read the orientation", video_url: null, body: { content: LESSON_TEXT } },
     { id: videoBlockId, course_version_id: version.id, organization_id: organizationId, block_type: "video", sort_order: 1,
       title: "Watch the orientation", video_url: `storage://course-videos/${videoPath}`,
       body: { transcript: "Synthetic local video used to verify watched-through progress." } },
     { id: quizBlockId, course_version_id: version.id, organization_id: organizationId, block_type: "quiz", sort_order: 2,
-      title: "Orientation check", body: {} },
+      title: "Orientation check", video_url: null, body: {} },
   ]);
   if (blocksError) throw blocksError;
   const { data: quiz, error: quizError } = await service.from("quizzes").insert({
