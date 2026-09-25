@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -64,6 +64,9 @@ function taskReady(task: MoveInTaskWithOwner): boolean {
 export default function MoveInWorkspaceDetail() {
   const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
+  // Router navigation, not window.location: the app can be served under a base path
+  // (BASE_URL), and a hard reload also drops the SPA state for no reason.
+  const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
   const workspace = useGetMoveInWorkspace(id);
@@ -308,7 +311,7 @@ export default function MoveInWorkspaceDetail() {
           <CardHeader><CardTitle className="flex items-center gap-2"><UserRoundCheck className="h-5 w-5 text-emerald-600" />One-click admission</CardTitle><CardDescription>Atomically activates census, occupies the reserved bed, completes the workspace, and preserves the readiness snapshot.</CardDescription></CardHeader>
           <CardContent className="flex flex-wrap items-end gap-3">
             <div className="min-w-[280px] grow space-y-1"><Label htmlFor={`${__fieldIds}-admission-decision-reason`}>Admission decision reason *</Label><Input id={`${__fieldIds}-admission-decision-reason`} value={admitReason} onChange={event => setAdmitReason(event.target.value)} placeholder="All admission requirements verified" /></div>
-            <Button disabled={admitReason.trim().length < 5 || admit.isPending} onClick={() => admit.mutate({ workspaceId: data.id, reason: admitReason }, { onSuccess: residentId => { toast({ title: "Resident admitted to active census" }); window.location.href = `/app/residents/${residentId}`; }, onError: (error: Error) => toast({ title: "Couldn't complete admission", description: error.message, variant: "destructive" }) })}>{admit.isPending ? "Admitting..." : "Admit resident"}</Button>
+            <Button disabled={admitReason.trim().length < 5 || admit.isPending} onClick={() => admit.mutate({ workspaceId: data.id, reason: admitReason }, { onSuccess: residentId => { toast({ title: "Resident admitted to active census" }); navigate(`/app/residents/${residentId}`); }, onError: (error: Error) => toast({ title: "Couldn't complete admission", description: error.message, variant: "destructive" }) })}>{admit.isPending ? "Admitting..." : "Admit resident"}</Button>
           </CardContent>
         </Card>
       )}

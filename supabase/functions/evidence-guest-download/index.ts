@@ -21,6 +21,9 @@ import { guestCallerForwardHeaders } from "../_shared/guestCallerKey.ts";
 // widens what the grant already allows.
 
 const SIGNED_URL_TTL_SECONDS = 300;
+// The RPC parameter is uuid; a malformed id used to reach it and come back as a 22P02 the
+// function reported (and logged) as an authorization failure.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const CORS_OPTIONS = {
   headers: "authorization, x-client-info, apikey, content-type",
@@ -58,7 +61,7 @@ Deno.serve(async (req: Request) => {
     if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
     return json(req, { error: "Invalid JSON body" }, 400);
   }
-  if (typeof body.token !== "string" || body.token.length < 16 || typeof body.artifactId !== "string") {
+  if (typeof body.token !== "string" || body.token.length < 16 || typeof body.artifactId !== "string" || !UUID_PATTERN.test(body.artifactId)) {
     return json(req, { error: "token and artifactId are required" }, 400);
   }
 

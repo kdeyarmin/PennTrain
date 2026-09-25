@@ -56,6 +56,9 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
   if (!body.course_block_id) return json(req, { error: "course_block_id is required" }, 400);
 
   const { data: block, error: blockError } = await callerClient

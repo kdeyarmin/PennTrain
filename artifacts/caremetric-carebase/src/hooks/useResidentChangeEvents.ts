@@ -46,6 +46,9 @@ function invalidateChangeEvents(queryClient: ReturnType<typeof useQueryClient>) 
   queryClient.invalidateQueries({ queryKey: ["incidents"] });
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
   queryClient.invalidateQueries({ queryKey: ["service-task-alerts"] });
+  // get_resident_360_snapshot counts open change events; the timeline lists them.
+  queryClient.invalidateQueries({ queryKey: ["resident-360"] });
+  queryClient.invalidateQueries({ queryKey: ["resident-timeline"] });
 }
 
 export function useChangeEventResidentOptions() {

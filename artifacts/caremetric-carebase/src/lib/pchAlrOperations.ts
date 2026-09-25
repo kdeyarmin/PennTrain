@@ -1,4 +1,5 @@
 import { csvEscape } from "./csv";
+import { facilityTypeMatchesQuery } from "./facilityTypes";
 import type { PchAlrOperationsQueueItem } from "./pchAlrOperationalSnapshot";
 
 export type FacilityProgram = "PCH" | "ALR";
@@ -181,8 +182,10 @@ export function searchPchAlrOperations(query: string): PchAlrOperationsItem[] {
     item.cadence,
     ...item.citations,
     ...item.evidenceSources,
-    ...item.programs,
-  ].some((value) => value.toLowerCase().includes(normalized)));
+  ].some((value) => value.toLowerCase().includes(normalized))
+    // Programs hold the stored codes ("ALR"), but the page shows the product's label ("ALF"), so
+    // the search answers to both -- the same rule facilityTypes.ts documents for facility search.
+    || item.programs.some((program) => facilityTypeMatchesQuery(program, normalized)));
 }
 
 export function buildInspectionDayChecklist(items: PchAlrOperationsItem[] = PCH_ALR_OPERATIONS_ITEMS): string[] {

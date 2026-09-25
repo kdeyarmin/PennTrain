@@ -254,13 +254,17 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
 
   const { generation_mode, organization_id, plan_name, course_count, title_hint, category, training_type_id, source_material, desired_module_count, desired_duration_minutes, notes } = body;
   const isTrainingPlan = generation_mode === "training_plan";
   if (isTrainingPlan && !organization_id) {
     return json(req, { error: "organization_id is required when generating a training plan" }, 400);
   }
-  if (!title_hint?.trim() && !source_material?.trim() && !notes?.trim() && !plan_name?.trim()) {
+  const hasText = (value: unknown) => typeof value === "string" && value.trim().length > 0;
+  if (!hasText(title_hint) && !hasText(source_material) && !hasText(notes) && !hasText(plan_name)) {
     return json(req, { error: "at least one of plan_name, title_hint, source_material, or notes is required" }, 400);
   }
 

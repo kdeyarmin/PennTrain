@@ -206,6 +206,7 @@ describe("VoiceBridge tool loop", () => {
     });
   });
 
+
   it("maps a dispatcher failure to a generic model-facing result", async () => {
     const dispatcher: ToolDispatcher = {
       dispatch: vi

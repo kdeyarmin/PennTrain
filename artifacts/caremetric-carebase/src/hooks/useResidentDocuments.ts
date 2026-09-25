@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { describeFunctionError } from "./useResidentAssessmentForms";
+import { storageSafeFileName } from "@/lib/storagePaths";
 
 export type ResidentDocument = Tables<"resident_documents">;
 
@@ -44,7 +45,7 @@ export function useUploadResidentDocument() {
       if (isStateForm && !stateFormSourceLabel) {
         throw new Error("State-form uploads must include the official PA DHS source label.");
       }
-      const path = `${organizationId}/${facilityId}/${crypto.randomUUID()}-${file.name}`;
+      const path = `${organizationId}/${facilityId}/${crypto.randomUUID()}-${storageSafeFileName(file.name)}`;
       const { error: uploadError } = await supabase.storage.from("resident-documents").upload(path, file);
       if (uploadError) throw uploadError;
 

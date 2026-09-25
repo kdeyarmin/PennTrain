@@ -203,6 +203,9 @@ Deno.serve(async (req: Request) => {
     } catch {
       return json(req, { error: "Invalid JSON body" }, 400);
     }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return json(req, { error: "Invalid JSON body" }, 400);
+    }
   }
   // A provided-but-degenerate filter (empty array, non-strings) must never widen into an
   // export-everything request -- validate instead of sanitize.

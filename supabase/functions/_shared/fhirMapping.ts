@@ -148,7 +148,8 @@ export interface NormalizedFhirBundle {
 
 /** "Patient/abc", "urn:uuid:..", or a bare id -> bare id. */
 export function referenceId(reference: string | undefined | null): string | null {
-  if (!reference) return null;
+  // A partner can send a number or an object where FHIR says string; that is bad input, not a crash.
+  if (typeof reference !== "string" || !reference) return null;
   const trimmed = reference.trim();
   if (trimmed === "") return null;
   if (trimmed.startsWith("urn:uuid:")) return trimmed.slice("urn:uuid:".length);
@@ -213,9 +214,12 @@ export function mapMedicationAdministration(resource: FhirResource): NormalizedM
 
 export function mapAllergyIntolerance(resource: FhirResource, nowIso: string): NormalizedAllergy {
   const coding = firstCoding(resource.code);
-  const categories = (resource.category ?? []).filter((value): value is string => typeof value === "string");
-  const manifestations = (resource.reaction ?? [])
-    .flatMap((reaction) => reaction.manifestation ?? [])
+  // `category: "food"` (a bare string) and `reaction: {}` are common real-world mistakes; every
+  // nested collection is checked for array shape rather than assumed.
+  const categories = (Array.isArray(resource.category) ? resource.category : [])
+    .filter((value): value is string => typeof value === "string");
+  const manifestations = (Array.isArray(resource.reaction) ? resource.reaction : [])
+    .flatMap((reaction) => (Array.isArray(reaction?.manifestation) ? reaction.manifestation : []))
     .map((concept) => conceptDisplay(concept))
     .filter((value): value is string => Boolean(value));
   return {
@@ -301,8 +305,9 @@ export function mapFhirBundle(bundle: FhirBundle | FhirResource, nowIso: string)
     documentReferences: [],
     unsupported: [],
   };
+  const entries = (bundle as FhirBundle).entry;
   const resources: FhirResource[] = bundle.resourceType === "Bundle"
-    ? ((bundle as FhirBundle).entry ?? [])
+    ? (Array.isArray(entries) ? entries : [])
       .map((entry) => entry?.resource)
       .filter((resource): resource is FhirResource => Boolean(resource))
     : bundle.resourceType

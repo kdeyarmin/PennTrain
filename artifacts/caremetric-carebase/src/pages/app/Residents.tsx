@@ -44,10 +44,13 @@ interface ResidentFormData {
   admissionTrack: "standard" | "expedited";
 }
 
-const EMPTY_FORM: ResidentFormData = {
+// A function, not a constant: `facilityToday()` must be evaluated when the dialog opens, not when
+// the chunk loads, or a tab left open across midnight pre-fills yesterday's admission date (and
+// every RASP/ASP deadline derived from it). Incidents.tsx fixed the same pattern for occurredAt.
+const emptyForm = (): ResidentFormData => ({
   facilityId: "", firstName: "", lastName: "", room: "",
   admissionDate: facilityToday(), sdcu: false, hospice: false, admissionTrack: "standard",
-};
+});
 
 const RESIDENTS_URL_DEFAULTS = { search: "", facility: "all", status: "active", page: "1" };
 
@@ -61,7 +64,7 @@ export default function Residents() {
   const page = Math.max(1, Number(urlState.page) || 1);
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<ResidentFormData>(EMPTY_FORM);
+  const [form, setForm] = useState<ResidentFormData>(emptyForm);
 
   // Mirrors residents_insert/update RLS -- trainer and self-service are both excluded (residents
   // have no accounts of their own), same sensitivity model as violations/incidents.
@@ -139,7 +142,7 @@ export default function Residents() {
   }, [showForm, facilities]);
 
   const openCreate = () => {
-    setForm(EMPTY_FORM);
+    setForm(emptyForm());
     setShowForm(true);
   };
 
@@ -328,7 +331,7 @@ export default function Residents() {
         )}
       </div>
 
-      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(EMPTY_FORM); } }}>
+      <Dialog open={showForm} onOpenChange={(o) => { if (!o) { setShowForm(false); setForm(emptyForm()); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Resident</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">

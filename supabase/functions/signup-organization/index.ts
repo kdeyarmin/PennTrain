@@ -188,13 +188,17 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
 
-  const email = body.email?.trim().toLowerCase();
-  const firstName = body.first_name?.trim();
-  const lastName = body.last_name?.trim();
-  const organizationName = body.organization_name?.trim();
+  // readJsonBody guarantees an object, not the type of each field: a number or array in any of
+  // these used to throw `trim is not a function` before Turnstile or the rate limiter ran -- a
+  // repeatable, unauthenticated 500 outside the error envelope.
+  const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  const email = str(body.email).toLowerCase();
+  const firstName = str(body.first_name);
+  const lastName = str(body.last_name);
+  const organizationName = str(body.organization_name);
   const legalAccepted = body.legal_accepted === true;
-  const serviceAgreementVersion = body.service_agreement_version?.trim();
-  const baaVersion = body.baa_version?.trim();
+  const serviceAgreementVersion = str(body.service_agreement_version);
+  const baaVersion = str(body.baa_version);
 
   if (!email || !firstName || !lastName || !organizationName) {
     return json(req, { error: "email, first_name, last_name, and organization_name are required" }, 400);

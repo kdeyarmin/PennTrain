@@ -603,6 +603,9 @@ export default function OrgDashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* employees_insert admits org_admin / facility_manager only; an auditor following this
+            tile used to land in an enabled Add Employee dialog whose submit could only fail. */}
+        {["org_admin", "facility_manager"].includes(user?.role ?? "") && (
         <Link href="/app/employees?action=add" className="group flex rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-primary/20 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="flex w-full items-center gap-3 sm:flex-col sm:gap-2">
             <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center group-hover:bg-primary/12 transition-colors">
@@ -611,6 +614,7 @@ export default function OrgDashboard() {
             <span className="text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground sm:text-xs">Add Employee</span>
           </div>
         </Link>
+        )}
         <Link href="/app/reports" className="group flex rounded-xl border border-border/60 bg-card p-4 transition-all hover:border-primary/20 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <div className="flex w-full items-center gap-3 sm:flex-col sm:gap-2">
             <div className="h-10 w-10 rounded-lg bg-primary/8 flex items-center justify-center group-hover:bg-primary/12 transition-colors">

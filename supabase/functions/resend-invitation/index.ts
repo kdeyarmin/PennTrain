@@ -112,6 +112,9 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
 
   const invitationId = typeof body.invitation_id === "string" ? body.invitation_id.trim() : "";
   if (!UUID_PATTERN.test(invitationId)) {
@@ -157,6 +160,17 @@ Deno.serve(async (req: Request) => {
     }
     if (callerRole === "facility_manager" && !["trainer", "employee"].includes(invitation.invited_role)) {
       return json(req, { error: "Facility managers may only resend trainer or employee invitations" }, 403);
+    }
+    // invite-user scopes a facility manager's employee invitations through RLS on `employees`;
+    // the resend path read the row with the service role and checked only the organization, so a
+    // manager could regenerate and re-send the link for an employee at any facility in the org.
+    if (callerRole === "facility_manager" && invitation.invited_role === "employee") {
+      const employeeId = typeof invitation.employee_id === "string" ? invitation.employee_id : null;
+      const { data: visibleEmployee, error: visibleEmployeeError } = employeeId
+        ? await callerClient.from("employees").select("id").eq("id", employeeId).maybeSingle()
+        : { data: null, error: null };
+      if (visibleEmployeeError) return json(req, { error: "Unable to load invitation" }, 500);
+      if (!visibleEmployee) return json(req, { error: "Invitation not found" }, 404);
     }
   }
 

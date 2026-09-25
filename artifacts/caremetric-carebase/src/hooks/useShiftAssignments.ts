@@ -91,6 +91,11 @@ export function useCreateShiftAssignment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] });
+      // The acuity roster and the command-center / shift workspace read shift_assignments too;
+      // the update mutation already refreshes them, and add/remove moved the same rows.
+      queryClient.invalidateQueries({ queryKey: ["schedule-acuity-roster"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
+      queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
     },
   });
 }
@@ -126,6 +131,11 @@ export function useDeleteShiftAssignment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] });
+      // The acuity roster and the command-center / shift workspace read shift_assignments too;
+      // the update mutation already refreshes them, and add/remove moved the same rows.
+      queryClient.invalidateQueries({ queryKey: ["schedule-acuity-roster"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
+      queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
     },
   });
 }

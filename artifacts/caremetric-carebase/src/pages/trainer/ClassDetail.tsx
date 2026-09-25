@@ -86,6 +86,7 @@ import { errorText } from "@/lib/errorText";
 import { SessionRosterCard } from "@/components/training/SessionRosterCard";
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { storageSafeFileName } from "@/lib/storagePaths";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -520,7 +521,7 @@ export default function ClassDetail() {
 
     setUploadingRoster(true);
     try {
-      const path = `${user.organizationId}/${cls.facility_id}/${classId}/${file.name}`;
+      const path = `${user.organizationId}/${cls.facility_id}/${classId}/${storageSafeFileName(file.name)}`;
       const { error: uploadError } = await supabase.storage
         .from("signin-sheets")
         .upload(path, file, { upsert: true });

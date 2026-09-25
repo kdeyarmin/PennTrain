@@ -319,8 +319,8 @@ async function callSyncRpc(deviceId: string, draft: OfflineFloorDraft) {
 // invalidateChangeEvents) rather than guessed, so the offline path refreshes exactly what the online
 // path does.
 const DOMAIN_QUERY_KEYS_BY_KIND: Record<OfflineDraftKind, string[][]> = {
-  service_task: [["resident-service-tasks"], ["service-task-alerts"], ["resident-360"], ["work-items"]],
-  unscheduled_service: [["resident-care-delivery"], ["resident-service-tasks"], ["work-items"], ["daily-operations-command-center"]],
+  service_task: [["resident-service-tasks"], ["service-task-alerts"], ["resident-360"], ["work-items"], ["resident-service-exceptions"], ["resident-service-utilization"], ["resident-service-requirements"]],
+  unscheduled_service: [["resident-care-delivery"], ["resident-service-tasks"], ["work-items"], ["daily-operations-command-center"], ["unscheduled-services"], ["resident-360"], ["resident-service-utilization"]],
   change_observation: [["resident-change-events"], ["resident_compliance_items"], ["work-items"]],
 };
 

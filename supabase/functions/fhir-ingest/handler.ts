@@ -123,7 +123,15 @@ export function createFhirIngestHandler({
     return response(req, { error: { code: "invalid_fhir_resource" }, meta: { correlationId } }, 400, correlationId, rate);
   }
 
-  const mapped = mapFhirBundle(bundle, new Date().toISOString());
+  // Valid JSON with a FHIR-shaped root can still carry wrong-shaped nested fields; the mappers
+  // tolerate the common ones, and anything they still refuse is bad input, not a bare 500 that
+  // skips the envelope, the correlation id and the rate-limit headers.
+  let mapped: ReturnType<typeof mapFhirBundle>;
+  try {
+    mapped = mapFhirBundle(bundle, new Date().toISOString());
+  } catch {
+    return response(req, { error: { code: "invalid_fhir_resource" }, meta: { correlationId } }, 400, correlationId, rate);
+  }
   const supportedCount = mapped.medicationRequests.length + mapped.medicationAdministrations.length +
     mapped.allergies.length + mapped.conditions.length + mapped.serviceRequests.length +
     mapped.documentReferences.length;

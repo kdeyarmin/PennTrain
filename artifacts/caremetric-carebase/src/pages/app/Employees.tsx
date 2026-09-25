@@ -183,7 +183,11 @@ export default function Employees() {
   useEffect(() => {
     const params = new URLSearchParams(locationSearch);
     const action = params.get("action");
-    if (action !== "add" && !(action === "bulk-import" && canManage)) return;
+    // Both deep links open a write dialog, so neither is honoured for a read-only role: the
+    // insert policy on employees is org_admin / facility_manager only, and an auditor or trainer
+    // arriving here with ?action=add used to get a fully enabled "Create & Send Invite" form
+    // whose submit could only fail.
+    if (!canManage || (action !== "add" && action !== "bulk-import")) return;
     if (action === "add") {
       // The guided/dashboard onboarding action opens the practical combined
       // flow by default: roster record plus a linked self-service login.

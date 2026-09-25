@@ -75,7 +75,7 @@ const TOP_15: Citation[] = [
     requires:
       "A complete, accurate medication administration record (MAR) for every resident: the drug, dose, route, time, the prescriber's order behind it, and a staff initial for every dose given, refused, or held.",
     why:
-      "The single most-cited regulation in Pennsylvania. Surveyors find blank boxes on the MAR (a dose with no initial can't be proven given), doses initialed at the wrong time, PRN medications with no reason or effect documented, discontinued drugs still listed, or a MAR that doesn't match the current physician order. The care may have happened -- but if it isn't documented correctly, the regulation treats it as not done.",
+      "The highest single citation rate in Pennsylvania personal care homes in 2025, and second for assisted living. Surveyors find blank boxes on the MAR (a dose with no initial can't be proven given), doses initialed at the wrong time, PRN medications with no reason or effect documented, discontinued drugs still listed, or a MAR that doesn't match the current physician order. The care may have happened -- but if it isn't documented correctly, the regulation treats it as not done.",
     avoid:
       "Reconcile the MAR against current orders every cycle, require real-time initialing (not end-of-shift catch-up), and audit a sample of MARs weekly for blanks before the surveyor does.",
     carebase:
@@ -600,9 +600,9 @@ export default function PaDhsCitations() {
                   #1
                 </div>
                 <p className="mt-2 text-[13px] leading-5 text-[#44566b]">
-                  most-cited section statewide, both settings:{" "}
-                  <span className="font-mono text-xs">§_.187</span>, medication
-                  records.
+                  most-cited section for personal care homes (and #2 for assisted
+                  living): <span className="font-mono text-xs">§_.187</span>,
+                  medication records.
                 </p>
               </div>
               <div className="rounded-xl border border-[#dfe6ee] bg-[#fafbfc] p-4">

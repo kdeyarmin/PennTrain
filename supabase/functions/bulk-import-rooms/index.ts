@@ -145,6 +145,10 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: `${message}${alsoFailed}`, job_id: jobId }, 500);
   }
 
+  // The header set: an update writes only the columns this CSV actually carries (the rule
+  // bulk-import-employees already follows).
+  const presentColumns = new Set(Object.keys(rows[0] ?? {}));
+
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
     const rowNumber = index + 2;
@@ -172,7 +176,7 @@ Deno.serve(async (req: Request) => {
       // second facility_rooms row for a room number that already exists. Stop the run instead:
       // abortRun receipts what this chunk has already done before refusing, so re-posting this
       // job_id resumes rather than repeats.
-      const { data, error: existingRoomError } = await callerClient.from("facility_rooms").select("id, room_number, room_type, is_active")
+      const { data, error: existingRoomError } = await callerClient.from("facility_rooms").select("id, room_number, room_type, is_active, residential_unit_id, building_id")
         .eq("facility_id", facilityId).eq("room_number", roomNumber!).limit(1).maybeSingle();
       if (existingRoomError) return await abortRun(`Row ${rowNumber}: existing room lookup failed: ${existingRoomError.message}`);
       existingRoom = data;
@@ -184,10 +188,50 @@ Deno.serve(async (req: Request) => {
       else if (duplicateStrategy === "skip") warnings.push("Existing room matched and will be skipped.");
       else warnings.push("Existing room will be upserted via create_room_with_beds.");
     }
-    const roomType = capacity === 1 ? "private" : capacity === 2 ? "semi_private" : "shared";
+    // create_room_with_beds is an upsert that overwrites room_type and the unit and then
+    // reconciles the bed count, so the defaults for absent columns (1 bed, private, unit "Main",
+    // active) collapsed a two-bed "East Wing" room to one private bed in a new "Main" unit and
+    // deleted its spare bed -- which the ledger snapshot cannot restore. For an update, absent
+    // columns carry the stored inventory instead; the ledger records those effective values so
+    // the durable worker replays the same room.
+    let bedCount = capacity;
+    let roomType = capacity === 1 ? "private" : capacity === 2 ? "semi_private" : "shared";
+    let unitName = unit || "Main";
+    let buildingName = "Main";
+    let isActive = statusRaw !== "inactive";
+    if (action === "update" && existingRoom) {
+      if (!presentColumns.has("capacity")) {
+        const { count: bedTotal, error: bedCountError } = await callerClient.from("facility_beds")
+          .select("id", { count: "exact", head: true }).eq("room_id", existingRoom.id);
+        if (bedCountError) return await abortRun(`Row ${rowNumber}: existing bed lookup failed: ${bedCountError.message}`);
+        bedCount = Math.max(1, Math.min(8, bedTotal ?? 1));
+        roomType = existingRoom.room_type ?? roomType;
+      }
+      if (!presentColumns.has("unit")) {
+        if (existingRoom.residential_unit_id) {
+          const { data: existingUnit, error: unitError } = await callerClient.from("residential_units")
+            .select("name").eq("id", existingRoom.residential_unit_id).maybeSingle();
+          if (unitError) return await abortRun(`Row ${rowNumber}: existing unit lookup failed: ${unitError.message}`);
+          unitName = existingUnit?.name ?? "";
+        } else {
+          // A blank unit name keeps residential_unit_id null: the RPC creates a unit only for a
+          // non-blank name.
+          unitName = "";
+        }
+      }
+      if (existingRoom.building_id) {
+        // The unit upsert keys on (building_id, name), so the existing building keeps an
+        // existing unit from being re-created under a "Main" building.
+        const { data: existingBuilding, error: buildingError } = await callerClient.from("facility_buildings")
+          .select("name").eq("id", existingRoom.building_id).maybeSingle();
+        if (buildingError) return await abortRun(`Row ${rowNumber}: existing building lookup failed: ${buildingError.message}`);
+        buildingName = existingBuilding?.name || "Main";
+      }
+      if (!presentColumns.has("status")) isActive = existingRoom.is_active ?? isActive;
+    }
     const payload = {
-      facility_id: facilityId, room_number: roomNumber, unit_name: unit || "Main",
-      bed_count: capacity, room_type: roomType, building_name: "Main", is_active: statusRaw !== "inactive",
+      facility_id: facilityId, room_number: roomNumber, unit_name: unitName,
+      bed_count: bedCount, room_type: roomType, building_name: buildingName, is_active: isActive,
     };
     if (rowErrors.length) {
       results.push({ row: rowNumber, success: false, error: rowErrors.join("; "), action, preview: mode === "validate" });
@@ -206,15 +250,15 @@ Deno.serve(async (req: Request) => {
     }
     const { data, error } = await callerClient.rpc("create_room_with_beds", {
       p_facility_id: facilityId,
-      p_building_name: "Main",
-      p_unit_name: unit || "Main",
+      p_building_name: buildingName,
+      p_unit_name: unitName,
       p_room_number: roomNumber,
       p_room_type: roomType,
-      p_bed_count: capacity,
+      p_bed_count: bedCount,
       p_gender_restriction: "none",
       // The table's UPDATE grant is deliberately revoked from authenticated, so the CSV
       // status must land through the SECURITY DEFINER upsert, not a follow-up update.
-      p_is_active: statusRaw !== "inactive",
+      p_is_active: isActive,
     });
     if (error) {
       results.push({ row: rowNumber, success: false, error: error.message, action });

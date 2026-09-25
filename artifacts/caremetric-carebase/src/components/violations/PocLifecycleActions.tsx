@@ -110,6 +110,7 @@ export function PocLifecycleActions({
           <>
             <Input
               placeholder="Amendment reason (if resubmitting)"
+              aria-label="Amendment reason"
               value={amendmentReason}
               onChange={(e) => setAmendmentReason(e.target.value)}
               className="h-9 w-56"
@@ -216,6 +217,7 @@ export function PocLifecycleActions({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="What was observed? Who reviewed? Any residual risk?"
+            aria-label="Effectiveness review notes"
             rows={4}
           />
           <AlertDialogFooter>

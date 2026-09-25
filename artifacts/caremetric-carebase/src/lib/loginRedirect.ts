@@ -25,9 +25,13 @@ export function postLoginPathFromSearch(search: string, base = APP_BASE): string
   const suffix = match?.[2] ?? "";
 
   const stripped = stripAppBaseFromPath(pathname, base);
-  if (stripped.startsWith("/login")) return DEFAULT_POST_LOGIN_PATH;
 
-  return `${stripped}${suffix}`;
+  // Sanitize again AFTER the base strip, not only before it: under a base-path deploy
+  // "/train//evil.example" passes the first pass (it starts with a single "/") and strips to
+  // "//evil.example" -- the protocol-relative shape the sanitizer exists to reject, and the one
+  // that makes wouter's pushState throw inside the login mutation. The second pass also covers
+  // the /login recursion check. postLoginPathFromLocation already strips first.
+  return sanitizePostLoginPath(`${stripped}${suffix}`);
 }
 
 export function stripAppBaseFromPath(pathname: string, base = APP_BASE): string {

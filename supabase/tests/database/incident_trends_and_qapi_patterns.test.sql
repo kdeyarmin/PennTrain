@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(18);
 
 select has_function('public', 'get_incident_trend_records', array['uuid', 'timestamptz', 'timestamptz'],
   'the trend read path exists');
@@ -122,6 +122,34 @@ select is(
   (select count(*)::int from public.qapi_projects where organization_id = 'f3000000-0000-4000-8000-000000000001'),
   1,
   'and no duplicate project was created'
+);
+
+-- A closed project no longer owns its pattern (20260925100100): the recommendation engine
+-- re-surfaces a pattern whose project closed, and "Open project" must then open a NEW project
+-- rather than hand back the closed one and toast that it was opened.
+reset role;
+update public.qapi_projects
+set status = 'closed', final_closure_approved_at = now(), closed_at = now()
+where organization_id = 'f3000000-0000-4000-8000-000000000001'
+  and pattern_key = 'repeated_falls_resident:f3000000-0000-4000-8000-000000000301';
+select pg_temp.act_as('f3000000-0000-4000-8000-000000000101');
+select isnt(
+  public.create_qapi_project(
+    'f3000000-0000-4000-8000-000000000011', 'Repeated falls - Frances Resident (after closure)',
+    'The falls continued after the first project closed.',
+    '3 more falls in the last 90 days', '3 falls', 'Reduce falls', 'Zero falls in 90 days',
+    0, public.pa_today() + 90, 'f3000000-0000-4000-8000-000000000101',
+    null, null, 'repeated_falls_resident:f3000000-0000-4000-8000-000000000301'),
+  (select id from public.qapi_projects
+   where organization_id = 'f3000000-0000-4000-8000-000000000001' and status = 'closed'),
+  'a pattern whose project closed opens a new project instead of returning the closed one'
+);
+select is(
+  (select count(*)::int from public.qapi_projects
+   where organization_id = 'f3000000-0000-4000-8000-000000000001'
+     and pattern_key = 'repeated_falls_resident:f3000000-0000-4000-8000-000000000301'),
+  2,
+  'the closed project and the new one both carry the pattern key'
 );
 
 -- The project-lead access check from 20260726000400 must survive every later re-declaration of

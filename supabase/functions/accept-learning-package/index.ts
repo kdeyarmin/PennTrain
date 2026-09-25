@@ -65,7 +65,12 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
-  if (!body.package_id) return json(req, { error: "package_id is required" }, 400);
+  // Type-check the body up front. `reason` used to be read only at step 9 -- after the package
+  // had been downloaded, rewritten, re-uploaded and re-hashed -- so a non-string value threw a
+  // bare 500 with the storage object already mutated and the package never accepted.
+  if (typeof body.package_id !== "string" || !body.package_id) return json(req, { error: "package_id is required" }, 400);
+  if (body.entry_point != null && typeof body.entry_point !== "string") return json(req, { error: "entry_point must be a string" }, 400);
+  if (body.reason != null && typeof body.reason !== "string") return json(req, { error: "reason must be a string" }, 400);
 
   // 1. Load the package record
   const { data: pkg, error: pkgError } = await admin
@@ -211,8 +216,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // 9. Mark accepted via RPC (uses the caller JWT so auth.uid() is correct in audit log)
-  const reason = (body.reason ?? "").trim().length >= 8
-    ? body.reason!.trim()
+  const reason = typeof body.reason === "string" && body.reason.trim().length >= 8
+    ? body.reason.trim()
     : "Accepted after structural authoring review";
   const { error: rpcError } = await caller.rpc("accept_learning_package", {
     p_package_id: body.package_id,

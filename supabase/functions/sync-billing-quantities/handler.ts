@@ -169,6 +169,9 @@ export function createSyncBillingQuantitiesHandler({
   } catch {
     return json({ error: "invalid_json" }, 400);
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json({ error: "invalid_json" }, 400);
+  }
   const parsedBatchSize = Number(body.batchSize ?? 50);
   const batchSize = Number.isFinite(parsedBatchSize)
     ? Math.min(Math.max(Math.trunc(parsedBatchSize), 1), 50)

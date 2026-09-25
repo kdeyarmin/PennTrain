@@ -102,3 +102,21 @@ Deno.test("FHIR invalid bodies cannot bypass authentication or rate limits", asy
   assertEquals((await limited.json()).error.code, "rate_limit_exceeded");
   assertEquals(throttled.calls.length, 2);
 });
+
+Deno.test("FHIR bundles with wrong-shaped nested fields answer inside the error envelope", async () => {
+  const { handler, calls } = fixture();
+  const response = await handler(request(JSON.stringify({ resourceType: "Bundle", entry: {} })));
+  assertEquals(response.status, 422);
+  assertEquals((await response.json()).error.code, "no_supported_resources");
+  assertEquals(calls.length, 2);
+
+  const tolerated = await fixture().handler(request(JSON.stringify({
+    resourceType: "AllergyIntolerance",
+    id: "a1",
+    category: "food",
+    reaction: {},
+    code: { coding: "abc" },
+    patient: { reference: "Patient/patient-1" },
+  })));
+  assertEquals(tolerated.status, 202);
+});

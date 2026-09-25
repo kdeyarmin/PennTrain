@@ -146,8 +146,16 @@ describe("termSummary", () => {
       .toContain("becomes true immediately");
   });
 
-  it("names the end date when there is one", () => {
-    expect(termSummary(form({ effectiveTo: "2027-01-01T00:00:00.000Z" }), NOW)).toMatch(/until/);
+  it("names the last included day when there is an end date", () => {
+    expect(termSummary(form({ effectiveTo: "2027-01-01T00:00:00.000Z" }), NOW)).toMatch(/through/);
+  });
+
+  it("reads both boundaries as facility calendar days, whatever zone the browser is in", () => {
+    // Eastern midnight bounds, as the card sends them: 9/1 00:00 ET starts the term and 1/1 00:00 ET
+    // is the first instant AFTER the last included day, 12/31.
+    const summary = termSummary(form({ effectiveFrom: "2026-09-01T04:00:00.000Z", effectiveTo: "2027-01-01T05:00:00.000Z" }), NOW);
+    expect(summary).toContain("from 9/1/2026");
+    expect(summary).toContain("through 12/31/2026");
   });
 
   it("does not pretend a bad value parsed", () => {
