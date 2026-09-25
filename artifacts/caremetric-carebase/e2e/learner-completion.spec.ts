@@ -73,29 +73,32 @@ async function provisionLearner(service: SupabaseClient, url: string, password: 
       title: "Orientation check", video_url: null, body: {} },
   ]);
   if (blocksError) throw blocksError;
-  const { data: quiz, error: quizError } = await service.from("quizzes").insert({
+  // Org-scoped legacy authoring uses the same authenticated writes as useQuizzes.
+  // The service role intentionally cannot write these tables. Governed draft RPCs apply
+  // only to global drafts; using them here would change which authoring path is tested.
+  const publisherClient = createClient(url, process.env.VITE_SUPABASE_ANON_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error: signInError } = await publisherClient.auth.signInWithPassword({ email: publisher.email, password });
+  if (signInError) throw signInError;
+  const { data: quiz, error: quizError } = await publisherClient.from("quizzes").insert({
     course_block_id: quizBlockId, organization_id: organizationId, title: "Orientation check",
     quiz_kind: "knowledge_check", passing_score_percent: 100, max_attempts: 3,
     shuffle_questions: true, shuffle_answers: true, reveals_answers_after_attempt: false,
   }).select("id").single();
   if (quizError) throw quizError;
-  const { data: question, error: questionError } = await service.from("quiz_questions").insert({
+  const { data: question, error: questionError } = await publisherClient.from("quiz_questions").insert({
     quiz_id: quiz.id, organization_id: organizationId, question_text: "What should you do with a concern?",
     question_type: "single_choice", sort_order: 0,
   }).select("id").single();
   if (questionError) throw questionError;
-  const { error: answersError } = await service.from("quiz_answers").insert([
+  const { error: answersError } = await publisherClient.from("quiz_answers").insert([
     { question_id: question.id, organization_id: organizationId, answer_text: "Report it to the supervisor", is_correct: true, sort_order: 0 },
     { question_id: question.id, organization_id: organizationId, answer_text: "Ignore it", is_correct: false, sort_order: 1 },
   ]);
   if (answersError) throw answersError;
 
   // Use ordinary publication and assignment authorization; never bypass the readiness checks.
-  const publisherClient = createClient(url, process.env.VITE_SUPABASE_ANON_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { error: signInError } = await publisherClient.auth.signInWithPassword({ email: publisher.email, password });
-  if (signInError) throw signInError;
   const { error: publicationError } = await publisherClient.rpc("publish_course_version", { p_course_version_id: version.id });
   if (publicationError) throw publicationError;
   const { error: activationError } = await publisherClient.from("courses").update({ status: "published" }).eq("id", course.id);
@@ -120,6 +123,13 @@ test.describe("learner course completion", () => {
     const service = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
     const password = process.env.E2E_ACCOUNT_PASSWORD!;
     const fixture = await provisionLearner(service, url, password);
+    // Read back evidence through the learner's own RLS boundary. Service-role SELECT on
+    // course_progress is intentionally revoked, and no elevated evidence access is needed.
+    const learnerClient = createClient(url, process.env.VITE_SUPABASE_ANON_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: learnerSignInError } = await learnerClient.auth.signInWithPassword({ email: fixture.learner.email, password });
+    if (learnerSignInError) throw learnerSignInError;
     page.setDefaultTimeout(15_000);
 
     await test.step("the assigned learner reads the lesson and must watch the video", async () => {
@@ -157,7 +167,7 @@ test.describe("learner course completion", () => {
       await expect(page.getByText("You passed!", { exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Back to Training", exact: true }).click();
       await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toBeEnabled();
-      const { data: prematureCertificates, error } = await service.from("certificates").select("id").eq("course_assignment_id", fixture.assignmentId);
+      const { data: prematureCertificates, error } = await learnerClient.from("certificates").select("id").eq("course_assignment_id", fixture.assignmentId);
       if (error) throw error;
       expect(prematureCertificates, "passing a quiz alone must not issue a certificate").toEqual([]);
     });
@@ -165,7 +175,7 @@ test.describe("learner course completion", () => {
     await test.step("completion persists watch and quiz evidence and issues a publicly verifiable certificate", async () => {
       // Even a tiny synthetic course enforces one real minute of seat time on the server.
       // Honor it instead of backdating progress, replacing clocks, or completing as an administrator.
-      const { data: started, error: startedError } = await service.from("course_progress")
+      const { data: started, error: startedError } = await learnerClient.from("course_progress")
         .select("started_at").eq("assignment_id", fixture.assignmentId).single();
       if (startedError) throw startedError;
       expect(Number.isFinite(Date.parse(started.started_at))).toBe(true);
@@ -178,20 +188,20 @@ test.describe("learner course completion", () => {
       await page.getByRole("button", { name: "Skip", exact: true }).click();
       await expect(page.getByRole("heading", { name: "My Certificates", exact: true })).toBeVisible();
       await expect(page.getByText(fixture.courseTitle, { exact: true })).toBeVisible();
-      const { data: assignment, error: assignmentError } = await service.from("course_assignments").select("status,completed_at").eq("id", fixture.assignmentId).single();
+      const { data: assignment, error: assignmentError } = await learnerClient.from("course_assignments").select("status,completed_at").eq("id", fixture.assignmentId).single();
       if (assignmentError) throw assignmentError;
       expect(assignment.status).toBe("completed");
       expect(assignment.completed_at).toBeTruthy();
-      const { data: progress, error: progressError } = await service.from("course_progress").select("video_state,last_block_id,percent_complete").eq("assignment_id", fixture.assignmentId).single();
+      const { data: progress, error: progressError } = await learnerClient.from("course_progress").select("video_state,last_block_id,percent_complete").eq("assignment_id", fixture.assignmentId).single();
       if (progressError) throw progressError;
       expect(progress.last_block_id).toBe(fixture.quizBlockId);
       expect(progress.percent_complete).toBe(100);
       expect(progress.video_state[fixture.videoBlockId].completedAt).toBeTruthy();
       expect(progress.video_state[fixture.videoBlockId].maxWatched).toBeGreaterThan(0);
-      const { data: attempts, error: attemptsError } = await service.from("quiz_attempts").select("passed,score_percent").eq("assignment_id", fixture.assignmentId).eq("quiz_id", fixture.quizId).order("attempt_number");
+      const { data: attempts, error: attemptsError } = await learnerClient.from("quiz_attempts").select("passed,score_percent").eq("assignment_id", fixture.assignmentId).eq("quiz_id", fixture.quizId).order("attempt_number");
       if (attemptsError) throw attemptsError;
       expect(attempts).toEqual([{ passed: false, score_percent: 0 }, { passed: true, score_percent: 100 }]);
-      const { data: certificate, error: certificateError } = await service.from("certificates").select("slug").eq("course_assignment_id", fixture.assignmentId).single();
+      const { data: certificate, error: certificateError } = await learnerClient.from("certificates").select("slug").eq("course_assignment_id", fixture.assignmentId).single();
       if (certificateError) throw certificateError;
       await expect(page.locator(`a[href="/verify/${certificate.slug}"]`)).toBeVisible();
 
