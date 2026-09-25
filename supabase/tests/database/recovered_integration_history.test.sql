@@ -11,6 +11,15 @@ select is((select count(*)::integer from app_private.audit_entity_manifest
   where table_name in ('cm_integration_jobs','cm_integration_files','cm_integration_daily_budget')
     and audit_mode='not_required' and length(rationale)>100),3,
   'all recovered service-only tables have explicit audit classifications');
+select is((select count(*)::integer from app_private.product_module_shell_resources
+  where resource_schema='public'
+    and resource_name in ('cm_integration_jobs','cm_integration_files','cm_integration_daily_budget')
+    and length(rationale)>100),3,
+  'all recovered integration tables are explicitly classified as shared service infrastructure');
+select is((select count(*)::integer from app_private.product_module_resources
+  where resource_schema='public'
+    and resource_name in ('cm_integration_jobs','cm_integration_files','cm_integration_daily_budget')),0,
+  'shared integration enforcement infrastructure is not assigned to a customer product module');
 select is((select count(*)::integer from app_private.audit_entity_manifest
   where table_name in ('cm_integration_jobs','cm_integration_files') and contains_regulated_data),2,
   'encrypted results and private file bindings are classified as potentially regulated');
@@ -75,6 +84,34 @@ select is((select attempts from public.cm_integration_daily_budget
   where app_id='recovered_history_test' and subject=repeat('a',64)
     and budget_day=(now() at time zone 'UTC')::date),2,
   'daily quota counts safe retries but not conflicting or in-flight replay');
+
+-- This is an operational UTC quota, not a facility calendar date. Pin the
+-- intentional boundary as well as exercising the actual reservation caller in
+-- opposite session timezones: a session-dependent day would split its counter.
+select ok(position('today date := (now() at time zone ''UTC'')::date' in
+  pg_get_functiondef('public.cm_integration_reserve(text,text,text,text,text,uuid,integer)'::regprocedure))>0,
+  'the provider quota intentionally resets on a UTC day, independently of facility dates');
+set local role service_role;
+set local timezone = 'Pacific/Kiritimati';
+select is(public.cm_integration_reserve('recovered_utc_quota',repeat('d',64),'InvokeLLM',
+  'utc-plus-fourteen',repeat('e',64),'fc000000-0000-4000-8000-000000000003',2)->>'outcome','owned',
+  'a UTC+14 session acquires the first provider quota attempt');
+set local timezone = 'Pacific/Niue';
+select is(public.cm_integration_reserve('recovered_utc_quota',repeat('d',64),'InvokeLLM',
+  'utc-minus-eleven',repeat('f',64),'fc000000-0000-4000-8000-000000000004',2)->>'outcome','owned',
+  'a UTC-11 session acquires the second attempt in the same provider quota day');
+select is(public.cm_integration_reserve('recovered_utc_quota',repeat('d',64),'InvokeLLM',
+  'quota-exhausted',repeat('a',64),'fc000000-0000-4000-8000-000000000005',2)->>'outcome','quota',
+  'changing session timezone does not bypass the shared daily provider quota');
+reset role;
+reset timezone;
+select is((select count(*)::integer from public.cm_integration_daily_budget
+  where app_id='recovered_utc_quota' and subject=repeat('d',64)),1,
+  'opposite session timezones create only one daily provider counter');
+select is((select attempts from public.cm_integration_daily_budget
+  where app_id='recovered_utc_quota' and subject=repeat('d',64)
+    and budget_day=(now() at time zone 'UTC')::date),2,
+  'both admitted attempts are charged to UTC today and a denied attempt does not increment it');
 
 select * from finish();
 rollback;

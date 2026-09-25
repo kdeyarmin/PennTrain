@@ -59,7 +59,9 @@ export function createPlatformTrainingHandler({ config, createClient, fetcher = 
       let projected;
       try { projected = projectTrainingResponse(result, operation, config.supabaseUrl, now().getTime()); }
       catch { throw new AdminError(502, 'upstream'); }
-      if (Buffer.byteLength(JSON.stringify(projected)) > (operation.operation === 'enrollments.report' ? 12_000_000 : 2_000_000)) throw new AdminError(502, 'upstream');
+      if (Buffer.byteLength(JSON.stringify(projected)) > (operation.operation === 'enrollments.report' ? 12_000_000 : 2_000_000)) {
+        throw operation.operation === 'enrollments.report' ? new AdminError(413, 'report_too_large') : new AdminError(502, 'upstream');
+      }
       return json(projected);
     } catch (error) {
       return json({ error: { code: error instanceof AdminError ? error.code : 'upstream' } }, error instanceof AdminError ? error.status : 503);

@@ -14,6 +14,19 @@ begin
   end loop;
 end $$;
 
+-- These are server-side integration infrastructure shared across products, not
+-- tenant-facing module data. Classification does not grant access: the tables
+-- retain RLS, no browser privileges and no permissive browser policies.
+insert into app_private.product_module_shell_resources(resource_schema,resource_name,rationale)
+values
+  ('public','cm_integration_jobs',
+   'Shared service-only integration execution receipts and encrypted result cache, keyed by application and hashed actor rather than a facility module. Idempotency, ownership and outcome tracking protect all integration operations. Browser access remains revoked; this classification grants no customer data access or product entitlement.'),
+  ('public','cm_integration_files',
+   'Shared service-only private integration file bindings, keyed by application and hashed actor. File registration and object ownership support integration operations across products; they are not a tenant-facing module directory. Browser access remains revoked and the integration storage bucket remains private.'),
+  ('public','cm_integration_daily_budget',
+   'Shared service-only integration rate-limit counters per application, hashed actor and UTC day. These operational provider quotas govern attempts across products, not Pennsylvania facility clinical or training dates. Browser access remains revoked; classification does not grant an entitlement or permit an operation.')
+on conflict(resource_schema,resource_name) do update set rationale=excluded.rationale;
+
 insert into app_private.audit_entity_manifest(table_name,audit_mode,contains_regulated_data,rationale)
 values
   ('cm_integration_jobs','not_required',true,

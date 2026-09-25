@@ -32,6 +32,8 @@ select ok(not has_function_privilege('anon','public.platform_admin_training(uuid
 select ok(has_function_privilege('service_role','public.platform_admin_training(uuid,uuid,uuid,timestamptz,timestamptz,text,jsonb)','execute'),'only backend service can transport verified delegation');
 select ok(not has_function_privilege('service_role','app_private.provision_training_facility_core(uuid,uuid,text,text,text)','execute'),'service cannot call unaudited provisioning core directly');
 select ok(not has_function_privilege('authenticated','app_private.training_admin_enrollment_report(uuid,uuid,text,text,text,date,date,integer,integer)','execute'),'private all-tenant report query is not a client RPC');
+select ok(not has_function_privilege('service_role','app_private.apply_employee_lifecycle_transition_core(uuid,uuid,text,date,uuid,text)','execute'),'service transport cannot call the explicit-actor lifecycle core directly');
+select ok(not has_function_privilege('authenticated','app_private.apply_employee_lifecycle_transition_core(uuid,uuid,text,date,uuid,text)','execute'),'native browser sessions cannot supply a lifecycle actor');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 
@@ -108,6 +110,23 @@ select is((pg_temp.training_read('enrollments.report','ce250000-0000-4000-8000-0
 select throws_ok($$select public.platform_admin_training('ce250000-0000-4000-8000-000000000001','ce250000-0000-4000-8000-000000000002','ce250000-0000-4000-8000-000000000003',now()-interval '9 hours',now()+interval '1 hour','jwt_aal2',
  '{"domain":"training.v1","operation":"access.list","organizationId":"ce250000-0000-4000-8000-000000000100"}')$$,'42501',null,'stale original Hub session is denied');
 reset role;
+select is((select actor_profile_id from public.employment_lifecycle_events
+ where employee_id=(pg_temp.fixture('student')->'result'->>'employeeId')::uuid and event_type='terminated'
+ order by created_at desc,id desc limit 1),'ce250000-0000-4000-8000-000000000001'::uuid,
+ 'Hub termination evidence records the mapped native administrator, not a null service actor');
+select is((select reason from public.employment_lifecycle_events
+ where employee_id=(pg_temp.fixture('student')->'result'->>'employeeId')::uuid and event_type='terminated'
+ order by created_at desc,id desc limit 1),'Reviewed training administration fixture',
+ 'attributed lifecycle evidence retains the reviewed reason');
+set local role service_role;
+select lives_ok($$select pg_temp.training_apply('ce250000-0000-4000-8000-000000000601','students.setActive','ce250000-0000-4000-8000-000000000100',
+ jsonb_build_object('employeeId',pg_temp.fixture('student')->'result'->>'employeeId','active',true,'effectiveDate',public.pa_today()))$$,
+ 'Hub reactivation uses the same lifecycle state machine with an explicit actor');
+reset role;
+select is((select actor_profile_id from public.employment_lifecycle_events
+ where employee_id=(pg_temp.fixture('student')->'result'->>'employeeId')::uuid and event_type='rehired'
+ order by created_at desc,id desc limit 1),'ce250000-0000-4000-8000-000000000001'::uuid,
+ 'Hub rehire evidence records the same mapped administrator');
 select ok(exists(select 1 from public.audit_logs where actor_profile_id='ce250000-0000-4000-8000-000000000001' and action='hub.training.students.setActive' and metadata->>'hubUserId'='ce250000-0000-4000-8000-000000000002'),'central writes retain mapped actor and original Hub authority in audit');
 select throws_ok($$update app_private.training_admin_commands set result='{}'$$,'42501',null,'completed command receipts cannot be rewritten');
 select set_config('request.jwt.claims',jsonb_build_object('sub','ce250000-0000-4000-8000-000000000001','role','authenticated','aal','aal2','iat',extract(epoch from now())::bigint)::text,true);

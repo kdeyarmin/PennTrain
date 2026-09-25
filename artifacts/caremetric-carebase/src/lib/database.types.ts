@@ -15,146 +15,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      cm_integration_daily_budget: {
-        Row: {
-          app_id: string
-          attempts: number
-          budget_day: string
-          subject: string
-        }
-        Insert: {
-          app_id: string
-          attempts: number
-          budget_day: string
-          subject: string
-        }
-        Update: {
-          app_id?: string
-          attempts?: number
-          budget_day?: string
-          subject?: string
-        }
-        Relationships: []
-      }
-      cm_integration_expire_results: { Args: never; Returns: number }
-      cm_integration_file_get: {
-        Args: { p_app_id: string; p_id: string; p_subject: string }
-        Returns: Json
-      }
-      cm_integration_file_record: {
-        Args: {
-          p_app_id: string
-          p_content_type: string
-          p_id: string
-          p_object_path: string
-          p_sha256: string
-          p_size: number
-          p_subject: string
-        }
-        Returns: boolean
-      }
-      cm_integration_files: {
-        Row: {
-          app_id: string
-          content_type: string
-          created_at: string
-          id: string
-          object_path: string
-          sha256: string
-          size_bytes: number
-          subject: string
-        }
-        Insert: {
-          app_id: string
-          content_type: string
-          created_at?: string
-          id: string
-          object_path: string
-          sha256: string
-          size_bytes: number
-          subject: string
-        }
-        Update: {
-          app_id?: string
-          content_type?: string
-          created_at?: string
-          id?: string
-          object_path?: string
-          sha256?: string
-          size_bytes?: number
-          subject?: string
-        }
-        Relationships: []
-      }
-      cm_integration_finish: {
-        Args: {
-          p_claim: string
-          p_id: string
-          p_result: string
-          p_state: string
-        }
-        Returns: boolean
-      }
-      cm_integration_jobs: {
-        Row: {
-          app_id: string
-          attempt_count: number
-          claim: string
-          created_at: string
-          finished_at: string | null
-          id: string
-          operation: string
-          payload_hash: string
-          request_id: string
-          result_encrypted: string | null
-          result_expires_at: string | null
-          state: string
-          subject: string
-        }
-        Insert: {
-          app_id: string
-          attempt_count?: number
-          claim: string
-          created_at?: string
-          finished_at?: string | null
-          id?: string
-          operation: string
-          payload_hash: string
-          request_id: string
-          result_encrypted?: string | null
-          result_expires_at?: string | null
-          state: string
-          subject: string
-        }
-        Update: {
-          app_id?: string
-          attempt_count?: number
-          claim?: string
-          created_at?: string
-          finished_at?: string | null
-          id?: string
-          operation?: string
-          payload_hash?: string
-          request_id?: string
-          result_encrypted?: string | null
-          result_expires_at?: string | null
-          state?: string
-          subject?: string
-        }
-        Relationships: []
-      }
-      cm_integration_reserve: {
-        Args: {
-          p_app_id: string
-          p_claim: string
-          p_daily_limit: number
-          p_operation: string
-          p_payload_hash: string
-          p_request_id: string
-          p_subject: string
-        }
-        Returns: Json
-      }
       graphql: {
         Args: {
           extensions?: Json
@@ -2606,6 +2466,108 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cm_integration_daily_budget: {
+        Row: {
+          app_id: string
+          attempts: number
+          budget_day: string
+          subject: string
+        }
+        Insert: {
+          app_id: string
+          attempts: number
+          budget_day: string
+          subject: string
+        }
+        Update: {
+          app_id?: string
+          attempts?: number
+          budget_day?: string
+          subject?: string
+        }
+        Relationships: []
+      }
+      cm_integration_files: {
+        Row: {
+          app_id: string
+          content_type: string
+          created_at: string
+          id: string
+          object_path: string
+          sha256: string
+          size_bytes: number
+          subject: string
+        }
+        Insert: {
+          app_id: string
+          content_type: string
+          created_at?: string
+          id: string
+          object_path: string
+          sha256: string
+          size_bytes: number
+          subject: string
+        }
+        Update: {
+          app_id?: string
+          content_type?: string
+          created_at?: string
+          id?: string
+          object_path?: string
+          sha256?: string
+          size_bytes?: number
+          subject?: string
+        }
+        Relationships: []
+      }
+      cm_integration_jobs: {
+        Row: {
+          app_id: string
+          attempt_count: number
+          claim: string
+          created_at: string
+          finished_at: string | null
+          id: string
+          operation: string
+          payload_hash: string
+          request_id: string
+          result_encrypted: string | null
+          result_expires_at: string | null
+          state: string
+          subject: string
+        }
+        Insert: {
+          app_id: string
+          attempt_count?: number
+          claim: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          operation: string
+          payload_hash: string
+          request_id: string
+          result_encrypted?: string | null
+          result_expires_at?: string | null
+          state: string
+          subject: string
+        }
+        Update: {
+          app_id?: string
+          attempt_count?: number
+          claim?: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          operation?: string
+          payload_hash?: string
+          request_id?: string
+          result_encrypted?: string | null
+          result_expires_at?: string | null
+          state?: string
+          subject?: string
+        }
+        Relationships: []
       }
       competency_record_items: {
         Row: {
@@ -37769,6 +37731,44 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      cm_integration_expire_results: { Args: never; Returns: number }
+      cm_integration_file_get: {
+        Args: { p_app_id: string; p_id: string; p_subject: string }
+        Returns: Json
+      }
+      cm_integration_file_record: {
+        Args: {
+          p_app_id: string
+          p_content_type: string
+          p_id: string
+          p_object_path: string
+          p_sha256: string
+          p_size: number
+          p_subject: string
+        }
+        Returns: boolean
+      }
+      cm_integration_finish: {
+        Args: {
+          p_claim: string
+          p_id: string
+          p_result: string
+          p_state: string
+        }
+        Returns: boolean
+      }
+      cm_integration_reserve: {
+        Args: {
+          p_app_id: string
+          p_claim: string
+          p_daily_limit: number
+          p_operation: string
+          p_payload_hash: string
+          p_request_id: string
+          p_subject: string
+        }
+        Returns: Json
       }
       commit_learning_runtime_state: {
         Args: {

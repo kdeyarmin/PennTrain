@@ -197,7 +197,7 @@ create function public.platform_admin_training(
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare
  op text:=p_operation->>'operation'; org uuid; fac uuid; lim integer; off integer; search text; action text;
- params jsonb; reason text; request_id uuid; receipt app_private.training_admin_commands; result jsonb; payload jsonb;
+ params jsonb; reason text; v_request_id uuid; receipt app_private.training_admin_commands; result jsonb; payload jsonb;
  employee public.employees; assignment public.course_assignments; cert public.certificates;
  target uuid; version_id uuid; event_id uuid; previous_write text:=coalesce(current_setting('app.privileged_write',true),'');
 begin
@@ -207,12 +207,12 @@ begin
  org:=(p_operation->>'organizationId')::uuid;
  if op='apply' then
   if not app_private.training_admin_keys(p_operation,array['domain','operation','requestId','action','organizationId','parameters','reason']) then raise exception 'Invalid training command' using errcode='22023'; end if;
-  request_id:=(p_operation->>'requestId')::uuid; action:=p_operation->>'action'; params:=p_operation->'parameters'; reason:=btrim(p_operation->>'reason');
-  if request_id is null or jsonb_typeof(params) is distinct from 'object' or reason is null or length(reason) not between 10 and 500 or reason ~ '[[:cntrl:]]'
+  v_request_id:=(p_operation->>'requestId')::uuid; action:=p_operation->>'action'; params:=p_operation->'parameters'; reason:=btrim(p_operation->>'reason');
+  if v_request_id is null or jsonb_typeof(params) is distinct from 'object' or reason is null or length(reason) not between 10 and 500 or reason ~ '[[:cntrl:]]'
    or action is null or action not in ('facilities.provision','students.create','students.update','students.setActive','enrollments.assign','enrollments.cancel','access.grant','access.revoke')
    or (action='facilities.provision') is distinct from (org is null) then raise exception 'Invalid training command' using errcode='22023'; end if;
-  perform pg_advisory_xact_lock(hashtextextended(p_hub_user::text||request_id::text,0));
-  select * into receipt from app_private.training_admin_commands where hub_user_id=p_hub_user and training_admin_commands.request_id=platform_admin_training.request_id;
+  perform pg_advisory_xact_lock(hashtextextended(p_hub_user::text||v_request_id::text,0));
+  select * into receipt from app_private.training_admin_commands c where c.hub_user_id=p_hub_user and c.request_id=v_request_id;
   if found then
    if receipt.operation is distinct from p_operation or receipt.actor_profile_id is distinct from p_actor then raise exception 'Request ID already used' using errcode='40001'; end if;
    return receipt.result || jsonb_build_object('replayed',true);
@@ -221,7 +221,13 @@ begin
   if op not in ('facilities.list','students.list','courses.list','access.list','enrollments.report','certificates.read') or op is null then raise exception 'Invalid training read' using errcode='22023'; end if;
  end if;
  if org is not null then
-  perform 1 from public.organizations where id=org and (op<>'apply' or not is_demo) for update;
+  if op='apply' then
+   perform 1 from public.organizations where id=org and not is_demo for update;
+  else
+   -- Scoped reads use their MVCC snapshot; they must not serialize roster/report
+   -- requests behind an exclusive organization lock or a long-running export.
+   perform 1 from public.organizations where id=org;
+  end if;
   if not found then raise exception 'Organization unavailable' using errcode='P0002'; end if;
  elsif op<>'apply' then raise exception 'Explicit organization required' using errcode='22023'; end if;
  -- A queued request can wait on organization or receipt locks; authority must remain fresh.
@@ -278,7 +284,7 @@ begin
  elsif op='apply' then
   if action='facilities.provision' then
    if not app_private.training_admin_keys(params,array['organizationName','facilityName','facilityType']) then raise exception 'Invalid provision parameters' using errcode='22023'; end if;
-   result:=app_private.provision_training_facility_core(p_actor,request_id,params->>'organizationName',params->>'facilityName',params->>'facilityType');
+   result:=app_private.provision_training_facility_core(p_actor,v_request_id,params->>'organizationName',params->>'facilityName',params->>'facilityType');
    org:=(result->>'organization_id')::uuid;
    result:=jsonb_build_object('organizationId',org,'facilityId',result->>'facility_id');
   elsif action='students.create' then
@@ -303,7 +309,7 @@ begin
     update public.employees set first_name=btrim(params->>'firstName'),last_name=btrim(params->>'lastName'),email=lower(params->>'email'),job_title=btrim(params->>'jobTitle') where id=employee.id;
    else
     if jsonb_typeof(params->'active') is distinct from 'boolean' or params->>'effectiveDate' is null then raise exception 'Invalid lifecycle parameters' using errcode='22023'; end if;
-    event_id:=public.apply_employee_lifecycle_transition(employee.id,
+    event_id:=app_private.apply_employee_lifecycle_transition_core(p_actor,employee.id,
      case when (params->>'active')::boolean then case employee.status when 'terminated' then 'rehire' when 'on_leave' then 'return' else 'hire' end else 'terminate' end,
      (params->>'effectiveDate')::date,null,reason);
    end if;
@@ -344,14 +350,14 @@ begin
    result:=jsonb_build_object('termId',result->>'id');
   end if;
   perform set_config('app.privileged_write',previous_write,true);
-  payload:=jsonb_build_object('requestId',request_id,'action',action,'organizationId',org,'replayed',false,'result',result);
+  payload:=jsonb_build_object('requestId',v_request_id,'action',action,'organizationId',org,'replayed',false,'result',result);
   insert into app_private.training_admin_commands(hub_user_id,request_id,actor_profile_id,hub_session_id,authentication_method,operation,result)
-   values(p_hub_user,request_id,p_actor,p_hub_session,p_authentication_method,p_operation,payload);
+   values(p_hub_user,v_request_id,p_actor,p_hub_session,p_authentication_method,p_operation,payload);
  end if;
  perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
  insert into public.audit_logs(organization_id,actor_profile_id,action,entity_type,entity_id,metadata)
   values(org,p_actor,'hub.training.'||coalesce(action,op),'organizations',org::text,
-   jsonb_build_object('hubUserId',p_hub_user,'hubSessionId',p_hub_session,'authenticationMethod',p_authentication_method,'requestId',request_id,'reason',reason));
+   jsonb_build_object('hubUserId',p_hub_user,'hubSessionId',p_hub_session,'authenticationMethod',p_authentication_method,'requestId',v_request_id,'reason',reason));
  return payload;
 end;
 $$;

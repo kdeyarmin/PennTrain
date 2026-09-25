@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createPlatformTrainingHandler } from './platform-admin-training.mjs';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createPlatformTrainingHandler, projectTrainingResponse } from './platform-admin-training.mjs';
 import { readPlatformAdminConfig } from './platform-admin-auth.mjs';
 import { parseTrainingOperation } from '../../../supabase/functions/_shared/trainingProtocol.ts';
 const id = n => `ce250000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -25,7 +26,7 @@ function fixture(overrides={}) {
   if(url.pathname.startsWith('/storage/'))return Response.json({signedURL:state.signedURL??`/object/sign/certificates/${id(4)}/${id(8)}.pdf?token=safe`});
   return state.rpcError?Response.json({code:state.rpcError,message:'Private upstream detail'}, {status:400}):Response.json(state.result);
  };
- return {calls,state,handler:createPlatformTrainingHandler({config,fetcher,now})};
+ return {calls,state,handler:createPlatformTrainingHandler({config,fetcher,now,createClient:state.createClient})};
 }
 test('training reads transmit mapped native actor and original fresh Hub session, never native claims',async()=>{
  const f=fixture(),r=await f.handler(request(list));assert.equal(r.status,200);assert.deepEqual(await r.json(),facilities);
@@ -86,4 +87,28 @@ test('mutation receipts are projected to the requested target and errors disclos
  const good=await fixture({result}).handler(request(op));assert.equal(good.status,200);assert.equal((await good.json()).result.secret,undefined);
  assert.equal((await fixture({result:{...result,result:{employeeId:id(7)}}}).handler(request(op))).status,502);
  const conflict=await fixture({rpcError:'40001'}).handler(request(op));assert.equal(conflict.status,409);assert.deepEqual(await conflict.json(),{error:{code:'conflict'}});
+});
+
+test('valid reports below the enrollment cap report their byte cap at both upstream and projected boundaries',async()=>{
+ const op={domain,operation:'enrollments.report',organizationId:id(4),facilityId:null,courseSearch:'',status:'all',dateBasis:'assigned',dateFrom:null,dateThrough:null,limit:10000,offset:0};
+ const rows=Array.from({length:3000},(_,n)=>({id:id(100+n),employee_id:id(6),student:'學'.repeat(400),facility_id:id(5),facility:'院'.repeat(400),course_id:id(7),course:'訓'.repeat(900),status:'assigned',assigned_at:'2026-09-25T12:00:00Z',due_date:null,completed_at:null,percent_complete:0,certificate_id:null,credential_number:null,certificate_issued_at:null,certificate_pdf_status:null}));
+ const result={organization_name:'Customer',facility_name:null,generated_at:'2026-09-25T12:00:00Z',date_basis:'assigned',limit:10000,offset:0,total:rows.length,students:1,completed:0,in_progress:0,not_started:rows.length,canceled:0,completion_denominator:rows.length,certificates:0,rows};
+ assert.ok(rows.length<10000);
+ assert.ok(Buffer.byteLength(JSON.stringify(projectTrainingResponse(result,op)))>12_000_000);
+ const streamed=fixture({result}),streamedResponse=await streamed.handler(request(op));
+ assert.equal(streamedResponse.status,413);assert.deepEqual(await streamedResponse.json(),{error:{code:'report_too_large'}});
+ assert.equal(streamed.calls.filter(c=>c.url.pathname==='/rest/v1/rpc/platform_admin_training').length,1);
+ // Bypass only the RPC transport to independently exercise the serialized projection guard.
+ const createClient=(url,key,options)=>{
+   const client=createSupabaseClient(url,key,options),rpc=client.rpc.bind(client);
+   client.rpc=(name,args)=>name==='platform_admin_training'?Promise.resolve({data:result,error:null}):rpc(name,args);
+   return client;
+ };
+ const projected=await fixture({createClient}).handler(request(op));
+ assert.equal(projected.status,413);assert.deepEqual(await projected.json(),{error:{code:'report_too_large'}});
+ // Neither roster reads nor the report's identity checks inherit the export limit or category.
+ const ordinary=await fixture({result:{...facilities,privateDetail:'x'.repeat(2*1024*1024)}}).handler(request(list));
+ assert.equal(ordinary.status,503);assert.deepEqual(await ordinary.json(),{error:{code:'upstream'}});
+ const authority=await fixture({profile:{id:id(2),role:'platform_admin',is_active:true,privateDetail:'x'.repeat(2*1024*1024)}}).handler(request(op));
+ assert.equal(authority.status,503);assert.deepEqual(await authority.json(),{error:{code:'upstream'}});
 });

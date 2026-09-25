@@ -80,12 +80,12 @@ create function public.platform_admin_training_invitation_reserve(
  p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_session_started_at timestamptz,p_assurance_expires_at timestamptz,
  p_authentication_method text,p_operation jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare receipt app_private.training_admin_invitations; request_id uuid:=(p_operation->>'requestId')::uuid;
+declare receipt app_private.training_admin_invitations; v_request_id uuid:=(p_operation->>'requestId')::uuid;
 begin
  perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
- if request_id is null then raise exception 'Invalid training invitation' using errcode='22023'; end if;
- perform pg_advisory_xact_lock(hashtextextended(p_hub_user::text||request_id::text,0));
- select * into receipt from app_private.training_admin_invitations i where i.hub_user_id=p_hub_user and i.request_id=platform_admin_training_invitation_reserve.request_id;
+ if v_request_id is null then raise exception 'Invalid training invitation' using errcode='22023'; end if;
+ perform pg_advisory_xact_lock(hashtextextended(p_hub_user::text||v_request_id::text,0));
+ select * into receipt from app_private.training_admin_invitations i where i.hub_user_id=p_hub_user and i.request_id=v_request_id;
  if found then
   if receipt.operation is distinct from p_operation or receipt.actor_profile_id is distinct from p_actor then raise exception 'Request ID already used' using errcode='40001'; end if;
   -- A fresh login can observe the original outcome, but never gains its dispatch token.
@@ -94,10 +94,10 @@ begin
  perform app_private.assert_training_invitation_scope(p_operation);
  perform app_private.assert_platform_admin_delegate(p_actor,p_hub_user,p_hub_session,p_session_started_at,p_assurance_expires_at,p_authentication_method);
  insert into app_private.training_admin_invitations(hub_user_id,request_id,actor_profile_id,hub_session_id,authentication_method,operation)
-  values(p_hub_user,request_id,p_actor,p_hub_session,p_authentication_method,p_operation) returning * into receipt;
+  values(p_hub_user,v_request_id,p_actor,p_hub_session,p_authentication_method,p_operation) returning * into receipt;
  insert into public.audit_logs(organization_id,actor_profile_id,action,entity_type,entity_id,metadata)
   values((p_operation->>'organizationId')::uuid,p_actor,'hub.training.invitation_reserved','organizations',p_operation->>'organizationId',
-   jsonb_build_object('hubUserId',p_hub_user,'hubSessionId',p_hub_session,'authenticationMethod',p_authentication_method,'requestId',request_id,'reason',p_operation->>'reason'));
+   jsonb_build_object('hubUserId',p_hub_user,'hubSessionId',p_hub_session,'authenticationMethod',p_authentication_method,'requestId',v_request_id,'reason',p_operation->>'reason'));
  return jsonb_build_object('execute',true,'receipt',app_private.training_invitation_result(receipt,false),'dispatchToken',receipt.dispatch_token);
 end;
 $$;
