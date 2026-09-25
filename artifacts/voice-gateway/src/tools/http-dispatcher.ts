@@ -20,7 +20,7 @@ export interface HttpToolDispatcherOptions {
    * refresh token, not the gateway — so the session must end and SAY SO,
    * rather than answering every remaining question with an apology.
    */
-  onAuthRejected?: () => void;
+  onAuthRejected?: (status: 401 | 403) => void;
 }
 
 export class HttpToolDispatcher implements ToolDispatcher {
@@ -56,7 +56,7 @@ export class HttpToolDispatcher implements ToolDispatcher {
         // somebody to sign in again fixes the first and does nothing for the second, so the model
         // was telling a deactivated user to do the one thing that could not help them.
         if (res.status === 401 || res.status === 403) {
-          this.opts.onAuthRejected?.();
+          this.opts.onAuthRejected?.(res.status);
           return {
             ok: false,
             error: `tool_http_${res.status}`,

@@ -28,7 +28,7 @@ const FILE = "artifacts/caremetric-carebase/src/lib/database.types.ts";
 const WRAP_COLUMN = 80;
 
 const problems = [];
-const lines = readFileSync(FILE, "utf8").split("\n");
+const lines = readFileSync(FILE, "utf8").split(/\r?\n/);
 
 // ---------------------------------------------------------------------------
 // Walk the file, tracking which section each top-level key belongs to.
@@ -191,6 +191,10 @@ for (let i = 0; i < lines.length; i += 1) {
       );
     }
   }
+}
+
+if (tableEntries.length === 0) {
+  problems.push(`${FILE}: no table/view entries were recognized; refusing to pass without validating the schema.`);
 }
 
 if (problems.length > 0) {

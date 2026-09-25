@@ -84,7 +84,7 @@ export interface VoiceSessionDeps {
 }
 
 const CAP_WARNING_LEAD_MS = 60_000;
-// Let the model deliver the "your sign-in expired" line it was just handed
+// Let the model explain the authentication or access failure it was just handed
 // before the socket goes away. Long enough for one short sentence, short
 // enough that a session with a dead token cannot keep asking for more.
 const AUTH_EXPIRED_GRACE_MS = 6_000;
@@ -94,7 +94,7 @@ export class VoiceSession {
   private readonly deps: VoiceSessionDeps;
   private readonly timers: NodeJS.Timeout[] = [];
   private idleTimer: NodeJS.Timeout | null = null;
-  private authExpired = false;
+  private authRejected = false;
 
   constructor(deps: VoiceSessionDeps) {
     this.deps = deps;
@@ -124,7 +124,7 @@ export class VoiceSession {
       // longer opens. Route creation also refuses a token that cannot last the
       // session, so reaching here means the token was revoked mid-session or
       // the cap was raised past the token's life.
-      onAuthRejected: () => this.onAuthRejected(),
+      onAuthRejected: (status) => this.onAuthRejected(status),
     });
 
     const client = new RealtimeClient({
@@ -237,22 +237,26 @@ export class VoiceSession {
   }
 
   /** The tool endpoint stopped accepting this session's token. */
-  private onAuthRejected(): void {
-    if (this.authExpired) return;
-    this.authExpired = true;
-    this.log("voice.session.auth_expired", {});
+  private onAuthRejected(status: 401 | 403): void {
+    if (this.authRejected) return;
+    this.authRejected = true;
+    const expired = status === 401;
+    const reason = expired ? "token_expired" : "access_denied";
+    this.log(expired ? "voice.session.auth_expired" : "voice.session.access_denied", {});
     this.deps.sendControl({
       type: "warning",
-      code: "session_token_expired",
-      message:
-        "Your sign-in expired, so the assistant can no longer look anything up. "
-        + "This session is ending — sign in again to start a new one.",
+      code: expired ? "session_token_expired" : "session_access_denied",
+      message: expired
+        ? "Your sign-in expired, so the assistant can no longer look anything up. "
+          + "This session is ending — sign in again to start a new one."
+        : "Your access to the voice assistant has changed, so this session is ending. "
+          + "Contact your administrator for help.",
     });
     // The dispatcher's reply is on its way to the model; give it a beat to say
     // the line, then close with a reason the client can render.
     this.timers.push(
       setTimeout(() => {
-        void this.bridge.end("token_expired");
+        void this.bridge.end(reason);
       }, AUTH_EXPIRED_GRACE_MS),
     );
   }

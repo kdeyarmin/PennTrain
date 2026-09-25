@@ -43,6 +43,7 @@ const END_REASON_TEXT: Record<string, string> = {
   // accepting. Before this, the session stayed open and every question came back
   // as an apology from the assistant, with nothing anywhere saying why.
   token_expired: "Your sign-in expired, so the session ended. Sign in again to start a new one.",
+  access_denied: "Your access to the voice assistant has changed. Contact your administrator.",
 };
 
 interface LiveResources {
@@ -62,10 +63,14 @@ export function useVoiceSession(facilityId: string) {
   const [endMessage, setEndMessage] = useState<string | null>(null);
 
   const resources = useRef<LiveResources>({ ws: null, ctx: null, stream: null, playback: null });
+  const attempt = useRef(0);
   const statusRef = useRef<VoiceSessionStatus>("idle");
   statusRef.current = status;
 
   const teardown = useCallback(() => {
+    // Pending permission prompts and network/audio setup can settle after a facility
+    // switch, stop, or unmount. They must not reconnect the previous session.
+    attempt.current += 1;
     const live = resources.current;
     live.playback?.clear();
     if (live.ws) {
@@ -99,6 +104,7 @@ export function useVoiceSession(facilityId: string) {
           : "The session ended.",
       );
       setStatus("ended");
+      statusRef.current = "ended";
     },
     [teardown],
   );
@@ -108,6 +114,7 @@ export function useVoiceSession(facilityId: string) {
       teardown();
       setError(message);
       setStatus("error");
+      statusRef.current = "error";
     },
     [teardown],
   );
@@ -115,6 +122,8 @@ export function useVoiceSession(facilityId: string) {
   const start = useCallback(async () => {
     if (!voiceAssistantEnabled || !facilityId) return;
     if (statusRef.current === "requesting" || statusRef.current === "connecting" || statusRef.current === "active") return;
+    const currentAttempt = ++attempt.current;
+    const isCurrentAttempt = () => attempt.current === currentAttempt;
 
     setTurns([]);
     setLivePartial(null);
@@ -122,9 +131,18 @@ export function useVoiceSession(facilityId: string) {
     setError(null);
     setEndMessage(null);
     setStatus("requesting");
+    statusRef.current = "requesting";
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    let token = sessionData.session?.access_token;
+    let token: string | undefined;
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!isCurrentAttempt()) return;
+      if (sessionError) throw sessionError;
+      token = sessionData.session?.access_token;
+    } catch {
+      if (isCurrentAttempt()) fail("Your session could not be checked. Sign in again to use the voice assistant.");
+      return;
+    }
     if (!token) {
       fail("Your session has expired. Sign in again to use the voice assistant.");
       return;
@@ -143,9 +161,14 @@ export function useVoiceSession(facilityId: string) {
         },
       });
     } catch {
-      fail("Microphone access is required. Allow the microphone and try again.");
+      if (isCurrentAttempt()) fail("Microphone access is required. Allow the microphone and try again.");
       return;
     }
+    if (!isCurrentAttempt()) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    resources.current.stream = stream;
 
     // The gateway refuses a token that cannot outlast the session it would open
     // (`token_expiring`): it holds no refresh token, and a session that outlives
@@ -165,6 +188,7 @@ export function useVoiceSession(facilityId: string) {
     let wsUrl: string;
     try {
       let res = await requestSession(token);
+      if (!isCurrentAttempt()) return;
       if (res.status === 401) {
         let firstCode = "";
         try {
@@ -172,17 +196,19 @@ export function useVoiceSession(facilityId: string) {
         } catch {
           // Non-JSON body; treated as an ordinary 401 below.
         }
+        if (!isCurrentAttempt()) return;
         if (firstCode === "token_expiring" || firstCode === "invalid_token") {
           const { data: refreshed } = await supabase.auth.refreshSession();
+          if (!isCurrentAttempt()) return;
           const nextToken = refreshed.session?.access_token;
           if (nextToken) {
             token = nextToken;
             res = await requestSession(nextToken);
+            if (!isCurrentAttempt()) return;
           }
         }
       }
       if (!res.ok) {
-        stream.getTracks().forEach((track) => track.stop());
         // 503 is both "not configured" and the daily budget kill-switch —
         // the body's error code tells them apart.
         let errorCode = "";
@@ -191,6 +217,7 @@ export function useVoiceSession(facilityId: string) {
         } catch {
           // Non-JSON body; fall through to the status-based message.
         }
+        if (!isCurrentAttempt()) return;
         if (res.status === 503 && errorCode === "voice_budget_exhausted") fail("The voice assistant has reached its daily usage limit. It resets overnight — until then, the Ask tab answers the same questions.");
         else if (res.status === 503) fail("The voice assistant isn't set up yet. Ask your administrator to configure the voice gateway.");
         else if (res.status === 429) fail("A voice session is already running for your account. Close it and try again.");
@@ -201,35 +228,45 @@ export function useVoiceSession(facilityId: string) {
         return;
       }
       wsUrl = ((await res.json()) as { wsUrl: string }).wsUrl;
+      if (!isCurrentAttempt()) return;
     } catch {
-      stream.getTracks().forEach((track) => track.stop());
-      fail("The voice gateway could not be reached. Check your connection and try again.");
+      if (isCurrentAttempt()) fail("The voice gateway could not be reached. Check your connection and try again.");
       return;
     }
 
     setStatus("connecting");
-    const ctx = new AudioContext({ sampleRate: VOICE_SAMPLE_RATE });
-    const playback = new PcmPlaybackQueue(ctx);
-    const ws = new WebSocket(wsUrl);
-    ws.binaryType = "arraybuffer";
-    resources.current = { ws, ctx, stream, playback };
+    statusRef.current = "connecting";
+    let ctx: AudioContext;
+    let playback: PcmPlaybackQueue;
+    let ws: WebSocket;
 
     try {
+      ctx = new AudioContext({ sampleRate: VOICE_SAMPLE_RATE });
+      resources.current.ctx = ctx;
+      playback = new PcmPlaybackQueue(ctx);
+      resources.current.playback = playback;
       await ctx.audioWorklet.addModule(pcmCaptureWorkletUrl());
+      if (!isCurrentAttempt()) return;
+      const source = ctx.createMediaStreamSource(stream);
+      const capture = new AudioWorkletNode(ctx, PCM_CAPTURE_PROCESSOR_NAME);
+      source.connect(capture);
+      // Keep the node pulled by the graph without hearing the mic locally.
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      capture.connect(mute).connect(ctx.destination);
+
+      // Connect only after the asynchronous audio setup. Otherwise the gateway's
+      // one-time ready/closed frame can arrive before onmessage is installed.
+      ws = new WebSocket(wsUrl);
+      ws.binaryType = "arraybuffer";
+      resources.current.ws = ws;
+      capture.port.onmessage = (event: MessageEvent<Int16Array>) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(event.data.buffer);
+      };
     } catch {
-      fail("This browser can't capture audio for the voice assistant.");
+      if (isCurrentAttempt()) fail("This browser can't capture audio for the voice assistant.");
       return;
     }
-    const source = ctx.createMediaStreamSource(stream);
-    const capture = new AudioWorkletNode(ctx, PCM_CAPTURE_PROCESSOR_NAME);
-    source.connect(capture);
-    // Keep the node pulled by the graph without hearing the mic locally.
-    const mute = ctx.createGain();
-    mute.gain.value = 0;
-    capture.connect(mute).connect(ctx.destination);
-    capture.port.onmessage = (event: MessageEvent<Int16Array>) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(event.data.buffer);
-    };
 
     ws.onmessage = (event: MessageEvent<ArrayBuffer | string>) => {
       if (event.data instanceof ArrayBuffer) {
@@ -245,6 +282,7 @@ export function useVoiceSession(facilityId: string) {
       switch (msg.type) {
         case "ready":
           setStatus("active");
+          statusRef.current = "active";
           break;
         case "transcript.delta": {
           const role = msg.role as "user" | "assistant";
@@ -304,6 +342,7 @@ export function useVoiceSession(facilityId: string) {
     () => () => {
       teardown();
       setStatus("idle");
+      statusRef.current = "idle";
       setTurns([]);
       setLivePartial(null);
       setNotice(null);

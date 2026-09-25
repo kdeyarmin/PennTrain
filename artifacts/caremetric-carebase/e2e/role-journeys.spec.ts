@@ -7,6 +7,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { totpCode } from "./helpers/totp";
 import {
   expectNoHorizontalOverflow,
   gotoAppRoute,
@@ -80,7 +81,6 @@ const JOURNEYS: Record<Role, { path: string; heading?: RegExp }[]> = {
 
 test.describe("authenticated role journeys", () => {
   test.skip(!hasLiveSupabaseEnv(), "live Supabase credentials required");
-  test.describe.configure({ mode: "serial" });
 
   let admin: SupabaseClient;
   let organizationId: string;
@@ -174,51 +174,36 @@ test.describe("authenticated role journeys", () => {
   for (const role of Object.keys(JOURNEYS) as Role[]) {
     test(`${role} can open core workflow destinations`, async ({ page }) => {
       const account = accounts.get(role)!;
-      // Privileged roles may land on MFA gate; for this suite we only enroll org_admin
-      // in role-routing. Here we accept either home or MFA gate, then navigate paths
-      // that do not require AAL2 when possible.
-      await page.goto("/login");
-      await page.getByLabel("Email").fill(account.email);
-      await page.getByLabel("Password").fill(account.password);
-      await page.getByRole("button", { name: "Sign in" }).click();
-      await expect.poll(() => new URL(page.url()).pathname, { timeout: 20_000 }).not.toBe("/login");
+      await signInAs(page, account.email, account.password, account.home);
 
-      const mfaGate = page.getByText(/multi-factor verification required/i);
-      if (await mfaGate.isVisible().catch(() => false)) {
-        // MFA-gated roles: verify gate is present and stop (full AAL2 covered in role-routing).
-        await expect(mfaGate).toBeVisible();
-        return;
+      // These accounts are distinct from role-routing.spec.ts. Enroll each privileged
+      // account here so this journey actually reaches its destinations instead of
+      // reporting success after checking only the MFA wall.
+      if (["platform_admin", "org_admin", "facility_manager"].includes(role)) {
+        await test.step("complete required authenticator enrollment", async () => {
+          await expect(page.getByRole("heading", { name: "Multi-factor verification required" })).toBeVisible();
+          await page.getByRole("link", { name: "Open account security" }).click();
+          await page.getByRole("button", { name: "Add authenticator app", exact: true }).click();
+          const setupKey = page.getByText("Manual setup key", { exact: true }).locator("..").locator("code");
+          await expect(setupKey).toBeVisible();
+          await page.getByLabel("Authenticator code", { exact: true }).fill(totpCode((await setupKey.innerText()).trim()));
+          await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
+          await expect(page.getByText(/This session is already verified/)).toBeVisible();
+          await page.getByRole("button", { name: "Continue to the page you were opening" }).click();
+          await expect.poll(() => new URL(page.url()).pathname).toBe(account.home);
+        });
       }
 
       for (const step of JOURNEYS[role]) {
-        // MfaPolicyGate renders its children while the policy query is still unresolved
-        // (`mustVerify` is falsy until `policy.data` arrives), so on a privileged route the page
-        // content paints first and the MFA screen replaces it a moment later. Checking the gate
-        // once before this loop is therefore not enough, and checking it immediately after
-        // navigation only narrows the window rather than closing it.
-        //
-        // Waiting for *either* outcome closes it: the route's h1, or the gate's own level-1
-        // heading. Whichever settles is the real state of the page. gotoAppRoute applies the same
-        // rule to the shell itself and reports which one it found, so a policy that resolves
-        // during navigation is handled there rather than timing out on a shell the app unmounted.
-        const { mfaGated } = await gotoAppRoute(page, step.path);
-        if (mfaGated) {
-          await expect(mfaGate).toBeVisible();
-          return;
-        }
-
-        const routeHeading = page.locator("h1").first();
-        await expect(routeHeading.or(mfaGate)).toBeVisible({ timeout: 20_000 });
-        if (await mfaGate.isVisible().catch(() => false)) {
-          await expect(mfaGate).toBeVisible();
-          return;
-        }
-
-        await expect(routeHeading).toBeVisible({ timeout: 20_000 });
-        if (step.heading) {
-          await expect(page.locator("body")).toContainText(step.heading);
-        }
-        await expectNoHorizontalOverflow(page);
+        await test.step(`open ${step.path}`, async () => {
+          const { mfaGated } = await gotoAppRoute(page, step.path);
+          expect(mfaGated, `${role} should reach ${step.path} after verification`).toBe(false);
+          await expect.poll(() => new URL(page.url()).pathname).toBe(step.path);
+          const routeHeading = page.locator("h1").first();
+          await expect(routeHeading).toBeVisible({ timeout: 20_000 });
+          if (step.heading) await expect(routeHeading).toHaveText(step.heading);
+          await expectNoHorizontalOverflow(page);
+        });
       }
 
       const critical = (await new AxeBuilder({ page }).analyze()).violations

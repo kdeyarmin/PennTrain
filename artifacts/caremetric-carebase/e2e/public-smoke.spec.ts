@@ -1,11 +1,40 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { expectNoHorizontalOverflow } from "./helpers/auth";
 
 test.describe("public release smoke journeys", () => {
   // The marketing pages fade content in on scroll (the Reveal primitive).
   // Axe must measure settled colors, not mid-fade opacity blends, so run the
   // suite with reduced motion — Reveal renders static content in that mode.
   test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+  const marketingPages = [
+    ["/features", /Everything CareBase does/i],
+    ["/security", /Security controls/i],
+    ["/how-it-works", /spreadsheet chaos/i],
+    ["/savings", /Where the money comes from/i],
+    ["/pa-training-requirements", /Pennsylvania annual training requirements/i],
+    ["/pa-dhs-citations", /most common DHS citations/i],
+    ["/regulatory-updates", /Regulatory updates/i],
+    ["/faq", /Frequently asked questions/i],
+    ["/about", /Built in Pennsylvania/i],
+    ["/privacy", /Privacy Policy/i],
+    ["/terms", /Terms of Service/i],
+  ] as const;
+
+  for (const [path, heading] of marketingPages) {
+    test(`${path} renders its own accessible page on direct navigation`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(path);
+      await expect(page).toHaveURL(new RegExp(`${path}$`));
+      await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations).toEqual([]);
+      expect(errors).toEqual([]);
+    });
+  }
 
   test("landing page exposes the primary conversion and sign-in paths", async ({ page }) => {
     await page.goto("/");

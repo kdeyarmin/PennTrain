@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
 import { ArrowRight, CheckCircle2, LogIn, type LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,12 @@ export function Reveal({
   children,
   className,
   delay = 0,
+  ...props
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
-}) {
+} & Pick<HTMLAttributes<HTMLDivElement>, "tabIndex" | "role" | "aria-label">) {
   const ref = useRef<HTMLDivElement>(null);
   // Start hidden; flip to visible when the element scrolls into view (or
   // immediately when the environment can't/shouldn't animate).
@@ -58,6 +59,7 @@ export function Reveal({
 
   return (
     <div
+      {...props}
       ref={ref}
       className={className}
       style={

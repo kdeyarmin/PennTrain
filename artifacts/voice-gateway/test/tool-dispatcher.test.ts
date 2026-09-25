@@ -10,7 +10,7 @@ import { HttpToolDispatcher } from "../src/tools/http-dispatcher.js";
 
 const URL = "https://project.supabase.co/functions/v1/voice-tools";
 
-function dispatcher(status: number, onAuthRejected?: () => void) {
+function dispatcher(status: number, onAuthRejected?: (status: 401 | 403) => void) {
   const fetchImpl: typeof fetch = async () =>
     status === 200
       ? Response.json({ ok: true, result: { score: 82 } })
@@ -35,6 +35,7 @@ describe("tool dispatcher failure translation", () => {
       message: string;
     };
     expect(onAuthRejected).toHaveBeenCalledTimes(1);
+    expect(onAuthRejected).toHaveBeenCalledWith(401);
     expect(result.ok).toBe(false);
     expect(result.error).toBe("tool_http_401");
     expect(result.message).toContain("sign-in has expired");
@@ -54,6 +55,7 @@ describe("tool dispatcher failure translation", () => {
       message: string;
     };
     expect(onAuthRejected).toHaveBeenCalledTimes(1);
+    expect(onAuthRejected).toHaveBeenCalledWith(403);
     expect(result.error).toBe("tool_http_403");
     expect(result.message).toContain("no longer permitted");
     expect(result.message).not.toContain("sign-in has expired");

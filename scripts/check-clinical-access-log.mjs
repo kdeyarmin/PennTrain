@@ -162,7 +162,7 @@ const allowlist = new Map(
 
 const problems = [];
 for (const file of walk(SRC)) {
-  const rel = relative(join(ROOT, "artifacts/caremetric-carebase"), file);
+  const rel = relative(join(ROOT, "artifacts/caremetric-carebase"), file).replaceAll("\\", "/");
   const source = readFileSync(file, "utf8");
   for (const { table, index } of tableReadsIn(source, tables)) {
     if (allowlist.get(rel)?.has(table)) continue;

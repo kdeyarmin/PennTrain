@@ -24,9 +24,8 @@ export async function signInAs(
 const APP_SHELL_READY = "main#main-content";
 
 /**
- * The MFA enrollment screen's own heading. This is the *other* settled outcome of navigating to
- * a privileged route: MfaPolicyGate renders its children while the policy query is unresolved,
- * so the shell can paint and then be replaced by this a moment later (see role-journeys.spec.ts).
+ * The MFA enrollment screen's own heading. This is the other settled outcome of navigating to
+ * a privileged route: after resolving its policy, MfaPolicyGate opens the shell or requests MFA.
  *
  * Matched by role, not by tag. SessionSecurityGates renders it as a CardTitle -- a div carrying
  * role="heading" aria-level={1} -- precisely so the gate announces itself to assistive tech, so
@@ -52,13 +51,8 @@ const MFA_GATE_HEADING = /multi-factor verification required/i;
  * Splitting the wait also makes a real failure legible: "the shell never came up" and "this route
  * rendered no h1" stop being the same error message.
  *
- * The MFA gate counts as settled too. Waiting only for the shell reintroduced the very race this
- * helper exists to close, one layer up: on a privileged route MfaPolicyGate paints the shell while
- * its policy query is in flight and swaps in the enrollment screen when the answer arrives. A
- * caller that checked for the gate before navigating (role-journeys does) has already passed that
- * check, so when the policy resolves mid-navigation the shell disappears and never returns, and
- * the helper burns its whole timeout waiting for an element the app has deliberately unmounted.
- * Which role that hits is purely down to timing, which is why it presents as a wandering flake.
+ * An MFA gate counts as settled, but callers that exercise a workspace must verify their factor
+ * and assert mfaGated is false. Seeing the gate alone does not prove a workflow is reachable.
  */
 export async function gotoAppRoute(page: Page, path: string, timeout = 45_000): Promise<{ mfaGated: boolean }> {
   await page.goto(path);
