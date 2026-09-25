@@ -558,7 +558,7 @@ begin
     select a.id, a.employee_id,
       coalesce(nullif(btrim(concat_ws(' ',e.first_name,e.last_name)),''),'Student record '||a.employee_id::text) as student,
       a.facility_id, f.name as facility, a.course_id, coalesce(cv.title,c.title,'Course unavailable') as course,
-      (a.is_required or public.training_assignment_is_required(a.id)) as is_required,a.assignment_origin,a.training_plan_id,plan.name as plan_name,plan.training_year,
+      (a.is_required or public.training_assignment_is_required(a.id)) as is_required,a.is_required as assignment_is_required,a.assignment_origin,a.training_plan_id,plan.name as plan_name,plan.training_year,
       e.department,coalesce(cv.version_label,'v'||cv.version_number::text) as course_version,
       coalesce(credits.hours,0) as credit_hours,
       a.status, a.assigned_at, a.due_date, a.completed_at,
@@ -693,8 +693,26 @@ declare v_org uuid; v_result jsonb;
 begin
   select organization_id into v_org from public.facilities where id=p_facility_id;
   if v_org is null then raise exception 'Facility is outside your access' using errcode='42501'; end if;
-  -- Reuse the current report's role, tenant, entitlement and fresh-session checks.
-  perform public.get_training_enrollment_report(v_org,p_facility_id,p_limit=>1);
+  -- Apply report authorization without executing an unrelated enrollment scan.
+  if auth.uid() is null or not public.current_session_unlocked()
+    or not coalesce(public.current_role() in ('platform_admin','org_admin','facility_manager','trainer','auditor'),false) then
+    raise exception 'Training reporting access required' using errcode='42501';
+  end if;
+  -- Full staff exports use the same assurance policy as the training evidence workspace.
+  -- Trainers/auditors retain their configured policy; privileged sessions must still be fresh.
+  perform public.assert_identity_assurance('compliance_profile_admin');
+  if v_org is null or (not public.is_platform_admin() and v_org is distinct from public.current_org_id())
+    or not exists(select 1 from public.organizations where id=v_org) then
+    raise exception 'Organization is outside your access' using errcode='42501';
+  end if;
+  if not public.is_platform_admin() and not exists(select 1 from public.get_effective_entitlements()
+    where feature_key in ('modules.train','modules.carebase') and is_entitled) then
+    raise exception 'Training reporting access required' using errcode='42501';
+  end if;
+  if p_facility_id is not null and not exists(select 1 from public.facilities
+    where id=p_facility_id and organization_id=v_org) then
+    raise exception 'Facility is outside your access' using errcode='42501';
+  end if;
   if p_limit is null or p_limit not between 1 and 200 or p_offset is null or p_offset<0
     or length(coalesce(p_search,''))>200 or p_state is null
     or p_state not in ('all','exempt','no_assignments','overdue','due_soon','complete','in_progress','not_started','plan_attention','needs_invite','needs_activation')
@@ -776,7 +794,25 @@ declare v_org uuid; v_result jsonb;
 begin
   select organization_id into v_org from public.facilities where id=p_facility_id;
   if v_org is null then raise exception 'Facility is outside your access' using errcode='42501'; end if;
-  perform public.get_training_enrollment_report(v_org,p_facility_id,p_limit=>1);
+  if auth.uid() is null or not public.current_session_unlocked()
+    or not coalesce(public.current_role() in ('platform_admin','org_admin','facility_manager','trainer','auditor'),false) then
+    raise exception 'Training reporting access required' using errcode='42501';
+  end if;
+  -- Full staff exports use the same assurance policy as the training evidence workspace.
+  -- Trainers/auditors retain their configured policy; privileged sessions must still be fresh.
+  perform public.assert_identity_assurance('compliance_profile_admin');
+  if v_org is null or (not public.is_platform_admin() and v_org is distinct from public.current_org_id())
+    or not exists(select 1 from public.organizations where id=v_org) then
+    raise exception 'Organization is outside your access' using errcode='42501';
+  end if;
+  if not public.is_platform_admin() and not exists(select 1 from public.get_effective_entitlements()
+    where feature_key in ('modules.train','modules.carebase') and is_entitled) then
+    raise exception 'Training reporting access required' using errcode='42501';
+  end if;
+  if p_facility_id is not null and not exists(select 1 from public.facilities
+    where id=p_facility_id and organization_id=v_org) then
+    raise exception 'Facility is outside your access' using errcode='42501';
+  end if;
   if p_limit is null or p_limit not between 1 and 500 or p_offset is null or p_offset<0 then
     raise exception 'Invalid evidence page' using errcode='22023'; end if;
   select coalesce(jsonb_agg(to_jsonb(t) order by t.id),'[]') into v_result from (
@@ -955,7 +991,7 @@ begin
   join public.profiles p on p.id=e.profile_id join public.organizations o on o.id=ca.organization_id
   join public.courses c on c.id=ca.course_id left join public.course_versions cv on cv.id=ca.course_version_id
   where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status in ('assigned','in_progress','overdue') and ca.due_date<=public.pa_today()+7
-    and e.status='active' and p.is_active and o.subscription_status not in ('suspended','canceled')
+    and e.status='active' and p.is_active and o.subscription_status<>'suspended'
     and exists(select 1 from public.get_effective_entitlements(ca.organization_id) ent where ent.feature_key='modules.train' and ent.is_entitled)
     and not exists(select 1 from public.notifications n where n.profile_id=e.profile_id
       and n.notification_type='course_assignment_due_soon' and n.link='/me/courses/'||ca.id and n.created_at>now()-interval '7 days');
@@ -968,7 +1004,7 @@ begin
   join public.organizations o on o.id=f.organization_id
   join public.profiles p on p.organization_id=f.organization_id and p.is_active and p.role in ('org_admin','facility_manager')
   where f.is_active and e.status='active' and (a.is_required or public.training_assignment_is_required(a.id)) and a.status in ('assigned','in_progress','overdue') and a.due_date<public.pa_today()
-    and o.subscription_status not in ('suspended','canceled')
+    and o.subscription_status<>'suspended'
     and exists(select 1 from public.get_effective_entitlements(f.organization_id) ent where ent.feature_key='modules.train' and ent.is_entitled)
     and (p.role='org_admin' or exists(select 1 from public.facility_assignments fa where fa.profile_id=p.id and fa.facility_id=f.id))
     and not exists(select 1 from public.notifications n where n.profile_id=p.id and n.notification_type='training_overdue_summary'
@@ -987,7 +1023,25 @@ begin
   if auth.uid() is null or not public.current_session_unlocked() then raise exception 'Current unlocked session required' using errcode='42501'; end if;
   select organization_id into v_org from public.facilities where id=p_facility_id;
   if not coalesce(app_private.can_read_train_scope(v_org,p_facility_id),false) then raise exception 'Facility is outside your access' using errcode='42501'; end if;
-  perform public.get_training_enrollment_report(v_org,p_facility_id,p_limit=>1);
+  if auth.uid() is null or not public.current_session_unlocked()
+    or not coalesce(public.current_role() in ('platform_admin','org_admin','facility_manager','trainer','auditor'),false) then
+    raise exception 'Training reporting access required' using errcode='42501';
+  end if;
+  -- Full staff exports use the same assurance policy as the training evidence workspace.
+  -- Trainers/auditors retain their configured policy; privileged sessions must still be fresh.
+  perform public.assert_identity_assurance('compliance_profile_admin');
+  if v_org is null or (not public.is_platform_admin() and v_org is distinct from public.current_org_id())
+    or not exists(select 1 from public.organizations where id=v_org) then
+    raise exception 'Organization is outside your access' using errcode='42501';
+  end if;
+  if not public.is_platform_admin() and not exists(select 1 from public.get_effective_entitlements()
+    where feature_key in ('modules.train','modules.carebase') and is_entitled) then
+    raise exception 'Training reporting access required' using errcode='42501';
+  end if;
+  if p_facility_id is not null and not exists(select 1 from public.facilities
+    where id=p_facility_id and organization_id=v_org) then
+    raise exception 'Facility is outside your access' using errcode='42501';
+  end if;
   select coalesce(jsonb_agg(to_jsonb(t) order by t.created_at desc),'[]') into v_result from (
     select n.id,concat_ws(' ',e.first_name,e.last_name) as student,n.created_at,n.read_at,
       coalesce(cv.title,c.title) as course,a.due_date,

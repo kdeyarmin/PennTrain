@@ -87,6 +87,7 @@ export default function MyCertificates() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">My Certificates</h1>
+        <p className="text-sm">Need a name or award correction? <Link className="underline" href="/me/help">Contact support</Link> with the certificate number and correction reason.</p>
         <p className="text-muted-foreground">View and verify certificates you've earned from completed training.</p>
       </div>
 

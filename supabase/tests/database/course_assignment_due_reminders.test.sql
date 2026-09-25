@@ -117,5 +117,16 @@ update public.notifications set created_at=now()-interval '8 days'
 where organization_id='14000000-0000-4000-8000-000000000001' and notification_type='course_assignment_due_soon';
 select public.queue_course_assignment_due_reminders();
 select is((select count(*)::int from public.notifications where organization_id='14000000-0000-4000-8000-000000000001' and notification_type='course_assignment_due_soon'),4,'unfinished work receives another reminder after the frequency limit');
+-- A partner remains entitled after a paid subscription is canceled.
+insert into app_private.module_access_terms(organization_id,module_key,source,reason)
+values('14000000-0000-4000-8000-000000000001','modules.train','complimentary','Owner-approved complimentary training partner');
+update public.organizations set subscription_status='canceled' where id='14000000-0000-4000-8000-000000000001';
+update public.notifications set created_at=now()-interval '8 days' where organization_id='14000000-0000-4000-8000-000000000001';
+select public.queue_course_assignment_due_reminders();
+select is((select count(*)::int from public.notifications where organization_id='14000000-0000-4000-8000-000000000001' and notification_type='course_assignment_due_soon'),6,'complimentary training reminders survive paid subscription cancellation');
+update public.organizations set subscription_status='suspended' where id='14000000-0000-4000-8000-000000000001';
+update public.notifications set created_at=now()-interval '8 days' where organization_id='14000000-0000-4000-8000-000000000001';
+select public.queue_course_assignment_due_reminders();
+select is((select count(*)::int from public.notifications where organization_id='14000000-0000-4000-8000-000000000001' and notification_type='course_assignment_due_soon'),6,'administrative suspension still suppresses reminders');
 select * from finish();
 rollback;

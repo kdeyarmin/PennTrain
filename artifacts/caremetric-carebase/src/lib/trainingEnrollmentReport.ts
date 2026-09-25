@@ -13,7 +13,7 @@ export interface TrainingEnrollmentFilters {
   dateThrough: string;
 }
 export interface TrainingEnrollmentRow {
-  is_required?: boolean; assignment_origin?: string; training_plan_id?: string | null; plan_name?: string | null; training_year?: number | null; department?: string | null; course_version?: string | null; credit_hours?: number;
+  is_required?: boolean; assignment_is_required?: boolean; assignment_origin?: string; training_plan_id?: string | null; plan_name?: string | null; training_year?: number | null; department?: string | null; course_version?: string | null; credit_hours?: number;
   id: string; employee_id: string; student: string; facility_id: string; facility: string;
   course_id: string; course: string; status: string; assigned_at: string; due_date: string | null;
   completed_at: string | null; percent_complete: number; certificate_id: string | null;

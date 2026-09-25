@@ -117,6 +117,7 @@ insert into public.course_assignments(organization_id,facility_id,employee_id,co
 select pg_temp.id(1),pg_temp.id(11),pg_temp.id(202),pg_temp.id(n),pg_temp.id(n+100),pg_temp.id(102),public.pa_today()+1 from generate_series(301,303) n;
 select is((public.apply_yearly_training_plan(pg_temp.id(501),pg_temp.id(202))->>'assigned')::int,0,'all-conflict application creates zero plan-owned assignments');
 select is((select (v->>'unresolved')::int from jsonb_array_elements(public.get_training_plan_progress(pg_temp.id(501))) v where v->>'employee_id'=pg_temp.id(202)::text),3,'all-conflict employee retains all three unresolved requirements');
+select is((public.get_training_roster_progress(pg_temp.id(11),p_state=>'due_soon')->>'total')::int,(public.get_training_roster_progress(pg_temp.id(11))->>'due_soon')::int,'due-soon card includes staff who also have plan conflicts');
 select throws_ok($$update public.training_plan_enrollments set applied_snapshot='{}' where employee_id=pg_temp.id(201)$$,'42501',null,'direct snapshot forgery is rejected');
 select throws_ok($$select public.resolve_training_plan_assignment(pg_temp.id(501),pg_temp.id(202),pg_temp.id(801))$$,'22023',null,'resolution cannot borrow another employee completion');
 insert into yearly_results values('copy',to_jsonb(public.copy_yearly_training_plan(pg_temp.id(501),2027,'2027-12-31','Next annual plan')));
@@ -187,9 +188,11 @@ select set_config('request.jwt.claims','{}',true);
 select set_config('app.privileged_write','on',true);
 insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,status)
 select pg_temp.id(1000+n),pg_temp.id(1),pg_temp.id(11),'Scale',lpad(n::text,3,'0'),'Aide','active' from generate_series(1,200) n;
-insert into public.course_assignments(organization_id,facility_id,employee_id,course_id,course_version_id,due_date,assigned_at,status)
+insert into public.course_assignments(organization_id,facility_id,employee_id,course_id,course_version_id,due_date,assigned_at,status,canceled_at,cancellation_reason)
 select pg_temp.id(1),pg_temp.id(11),pg_temp.id(1000+n),pg_temp.id(c),pg_temp.id(c+100),make_date(y,12,31),make_timestamptz(y,1,1,12,0,0,'America/New_York'),
-case when y=2026 then 'assigned' else 'canceled' end
+case when y=2026 then 'assigned' else 'canceled' end,
+case when y<2026 then make_timestamptz(y,12,31,12,0,0,'America/New_York') end,
+case when y<2026 then 'Prior annual fixture closed with retained history' end
 from generate_series(1,200) n cross join generate_series(301,303) c cross join generate_series(2024,2026) y;
 select set_config('app.privileged_write','off',true);
 analyze public.employees;

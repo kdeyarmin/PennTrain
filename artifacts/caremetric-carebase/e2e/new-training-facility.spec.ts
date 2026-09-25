@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { readAuthEmail, setPasswordFromEmail } from "./helpers/mailbox";
 import { readFile } from "node:fs/promises";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -221,6 +222,9 @@ test.describe("new training facility administrator", () => {
         await expect(learnerPage.getByText("Your next required course", { exact: true })).toBeVisible();
         await expect(learnerPage.getByText(/Due .*2027/).first()).toBeVisible();
         await expectNoHorizontalOverflow(learnerPage);
+        const accessibility = await new AxeBuilder({ page: learnerPage }).withTags(["wcag2a", "wcag2aa"]).analyze();
+        const blockingAccessibility = accessibility.violations.filter(v => v.impact === "critical" || v.impact === "serious");
+        expect(blockingAccessibility, JSON.stringify(blockingAccessibility, null, 2)).toEqual([]);
         // Keyboard navigation reaches and activates the same real learner action.
         const start = learnerPage.getByRole("link", { name: "Start required course", exact: true });
         await start.focus(); await expect(start).toBeFocused(); await learnerPage.keyboard.press("Enter");

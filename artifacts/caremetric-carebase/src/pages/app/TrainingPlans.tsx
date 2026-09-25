@@ -278,7 +278,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
 
   const { mutate: addItem, isPending: addingItem } = useAddTrainingPlanItem();
-  const { mutateAsync: updateItem } = useUpdateTrainingPlanItem();
+  const { mutateAsync: updateItem, isPending: updatingItem } = useUpdateTrainingPlanItem();
   const { mutate: removeItem, isPending: removingItem } = useRemoveTrainingPlanItem();
 
   const [showAddItem, setShowAddItem] = useState(false);
@@ -390,7 +390,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
             const notAssignable = isCourse && !!itemCourse
               && (itemCourse.status !== "published" || !itemCourse.current_version_id);
             return (
-              <div key={item.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card">
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border bg-card">
                 <div className="flex items-center gap-3 min-w-0">
                   <ItemTypeBadge isCourse={isCourse} />
                   <span className="font-medium text-sm truncate">{label}</span>
@@ -406,7 +406,11 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
                   )}
                 </div>
                 {canManage && (
-                  <div className="flex items-center gap-0.5 shrink-0">
+                  <div className="flex flex-wrap items-center justify-end gap-0.5 shrink-0">
+                    <Button size="sm" variant="ghost" disabled={updatingItem} aria-label={`Make ${label} ${item.is_required ? "optional" : "required"}`} onClick={async () => {
+                      try { await updateItem({ id: item.id, trainingPlanId: plan.id, is_required: !item.is_required }); toast({ title: "Requirement updated", description: "Review plan coverage and reapply to enrolled staff." }); }
+                      catch (error) { toast({ title: "Could not change requirement", description: (error as Error).message, variant: "destructive" }); }
+                    }}>{item.is_required ? "Make optional" : "Make required"}</Button>
                     <Button
                       variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
                       onClick={() => moveItem(idx, -1)}
