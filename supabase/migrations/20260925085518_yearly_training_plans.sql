@@ -124,9 +124,10 @@ begin
   if tg_op = 'UPDATE' and new.training_plan_id is distinct from old.training_plan_id then
     raise exception 'Move a course by removing and adding the training plan item' using errcode = '55000';
   end if;
-  -- Every item edit and application locks the parent, giving apply one bundle.
+  -- Serialize item edits and applications without conflicting with assignment
+  -- provenance's KEY SHARE lock during a concurrent course completion.
   select * into v_plan from public.training_plans
-    where id = case when tg_op = 'DELETE' then old.training_plan_id else new.training_plan_id end for update;
+    where id = case when tg_op = 'DELETE' then old.training_plan_id else new.training_plan_id end for no key update;
   if tg_op = 'DELETE' then return old; end if;
   if v_plan.facility_id is not null and new.course_id is null then
     raise exception 'Yearly training plans contain courses only' using errcode = '23514';
@@ -176,9 +177,19 @@ begin
   if v_plan.facility_id is not null and (
     new.organization_id is distinct from v_plan.organization_id
     or (tg_op = 'INSERT' and (new.facility_id is distinct from v_plan.facility_id
-      or new.training_plan_item_id is null or new.due_date is distinct from v_plan.due_date))
+      or new.due_date is distinct from v_plan.due_date
+      or not exists (select 1 from public.training_plan_items i
+        where i.training_plan_id = v_plan.id and i.course_id = new.course_id)))
   ) then
     raise exception 'Yearly assignment must match the plan facility, course, and explicit deadline' using errcode = '23514';
+  end if;
+  if tg_op = 'INSERT' and v_plan.facility_id is not null then
+    -- Annual provenance is the stable plan/course pair, not an editable item.
+    -- Any supplied item was checked above; do not acquire its FK row lock.
+    -- DELETE already locks that item before its trigger waits for the parent,
+    -- so retaining this FK would invert apply's parent -> item lock order.
+    -- Legacy assignments and existing annual references remain supported.
+    new.training_plan_item_id := null;
   end if;
   -- Existing protect_course_assignment_evidence_identity rejects direct UPDATE
   -- scope changes. The authorized workforce lifecycle can move unfinished
@@ -248,11 +259,45 @@ $$;
 revoke all on function public.cancel_course_assignment(uuid, text) from public, anon;
 grant execute on function public.cancel_course_assignment(uuid, text) to authenticated;
 
+-- Trainers administer training without permission to UPDATE employee rows, so
+-- an invoker row lock would wrongly exclude them. This definer helper does only
+-- caller-scoped validation and locking; it returns no employee data and grants
+-- no table or private-schema access. The apply RPC itself remains an invoker.
+create function public.assert_yearly_training_plan_employee(p_plan_id uuid, p_employee_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_plan public.training_plans; v_employee public.employees;
+begin
+  if auth.uid() is null or not public.current_session_unlocked() then
+    raise exception 'Current unlocked session required' using errcode = '42501';
+  end if;
+  perform public.assert_identity_assurance('workforce_admin');
+  select * into v_plan from public.training_plans where id = p_plan_id;
+  if not found or not coalesce(app_private.can_manage_training_plan(v_plan.organization_id, v_plan.facility_id), false) then
+    raise exception 'Training manager access required for this plan' using errcode = '42501';
+  end if;
+  if v_plan.facility_id is null or v_plan.training_year is null or v_plan.due_date is null then
+    raise exception 'Choose a yearly plan with a facility, year, and explicit required-completion date' using errcode = '22023';
+  end if;
+  -- Lifecycle transitions take this employee FOR UPDATE before changing status
+  -- or facility and reconciling assignments. SHARE serializes the entire apply
+  -- with that transition. Read and validate the authoritative row after waiting.
+  select * into v_employee from public.employees where id = p_employee_id
+    and organization_id = v_plan.organization_id and facility_id = v_plan.facility_id for share;
+  if not found or v_employee.organization_id is distinct from v_plan.organization_id
+    or v_employee.facility_id is distinct from v_plan.facility_id or v_employee.status <> 'active' then
+    raise exception 'Choose an active student in the plan facility' using errcode = '42501';
+  end if;
+end;
+$$;
+revoke all on function public.assert_yearly_training_plan_employee(uuid, uuid) from public, anon;
+grant execute on function public.assert_yearly_training_plan_employee(uuid, uuid) to authenticated;
+comment on function public.assert_yearly_training_plan_employee(uuid, uuid) is
+  'Authorize and hold an active student stable for a yearly plan transaction, including assigned trainers without employee UPDATE rights. Returns no student data.';
+
 create function public.apply_yearly_training_plan(p_plan_id uuid, p_employee_id uuid)
 returns jsonb language plpgsql security invoker set search_path = '' as $$
 declare
   v_plan public.training_plans;
-  v_employee public.employees;
   v_item record;
   v_assignment public.course_assignments;
   v_id uuid;
@@ -266,21 +311,18 @@ begin
     raise exception 'Current unlocked session required' using errcode = '42501';
   end if;
   perform public.assert_identity_assurance('workforce_admin');
-  -- SELECT FOR UPDATE applies both SELECT and UPDATE USING policies. The
+  -- A locking SELECT applies both SELECT and UPDATE USING policies. The
   -- latter is the manager-scope predicate above, so a readable plan alone is
-  -- insufficient. Keep this RPC invoker and the private schema inaccessible.
-  select * into v_plan from public.training_plans where id = p_plan_id for update;
+  -- insufficient. NO KEY UPDATE serializes plan edits and apply calls while
+  -- allowing assignment completion to take its parent KEY SHARE lock.
+  select * into v_plan from public.training_plans where id = p_plan_id for no key update;
   if not found then
     raise exception 'Training manager access required for this plan' using errcode = '42501';
   end if;
   if v_plan.facility_id is null or v_plan.training_year is null or v_plan.due_date is null then
     raise exception 'Choose a yearly plan with a facility, year, and explicit required-completion date' using errcode = '22023';
   end if;
-  select * into v_employee from public.employees where id = p_employee_id;
-  if not found or v_employee.organization_id is distinct from v_plan.organization_id
-    or v_employee.facility_id is distinct from v_plan.facility_id or v_employee.status <> 'active' then
-    raise exception 'Choose an active student in the plan facility' using errcode = '42501';
-  end if;
+  perform public.assert_yearly_training_plan_employee(p_plan_id, p_employee_id);
   -- Validate every current item before any assignment is changed. Empty bundles
   -- deliberately allow withdrawing all unfinished plan-owned courses.
   if exists (
@@ -330,9 +372,9 @@ begin
       end if;
       v_id := null;
       insert into public.course_assignments(organization_id, facility_id, employee_id, course_id,
-        course_version_id, assigned_by, due_date, training_plan_id, training_plan_item_id)
+        course_version_id, assigned_by, due_date, training_plan_id)
       values(v_plan.organization_id, v_plan.facility_id, p_employee_id, v_item.course_id,
-        v_item.current_version_id, auth.uid(), v_plan.due_date, v_plan.id, v_item.id)
+        v_item.current_version_id, auth.uid(), v_plan.due_date, v_plan.id)
       on conflict (employee_id, course_id) where status in ('assigned', 'in_progress', 'overdue', 'paused')
         do nothing returning id into v_id;
       if v_id is not null then

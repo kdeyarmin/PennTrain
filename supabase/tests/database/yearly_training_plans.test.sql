@@ -27,14 +27,14 @@ insert into public.facilities(id, organization_id, name, facility_type) values
 insert into auth.users(id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 select pg_temp.id(n), 'authenticated', 'authenticated', 'year-plan-' || n || '@test.local',
-  'x', now(), '{}', '{}', now(), now() from generate_series(101, 105) n;
+  'x', now(), '{}', '{}', now(), now() from generate_series(101, 106) n;
 select set_config('app.privileged_write', 'on', true);
 insert into public.profiles(id, organization_id, role, email, first_name, last_name, is_active)
 select pg_temp.id(n), case when n = 105 then null else pg_temp.id(1) end,
   case n when 101 then 'org_admin' when 102 then 'facility_manager' when 103 then 'employee'
-    when 104 then 'trainer' else 'platform_admin' end,
+    when 104 then 'trainer' when 105 then 'platform_admin' else 'auditor' end,
   'year-plan-' || n || '@test.local', 'Year', 'Plan', true
-from generate_series(101, 105) n
+from generate_series(101, 106) n
 on conflict(id) do update set organization_id = excluded.organization_id, role = excluded.role, is_active = true;
 -- Use normal role/facility provisioning. Do not add an artificial organization-wide
 -- grant: it would hide the manager cancellation permission regression.
@@ -46,7 +46,8 @@ insert into public.employees(id, organization_id, facility_id, profile_id, first
   (pg_temp.id(202), pg_temp.id(1), pg_temp.id(11), null, 'Second', 'Student', 'Aide', 'active'),
   (pg_temp.id(203), pg_temp.id(1), pg_temp.id(12), null, 'Other', 'Facility', 'Aide', 'active'),
   (pg_temp.id(204), pg_temp.id(1), pg_temp.id(11), null, 'Former', 'Student', 'Aide', 'terminated'),
-  (pg_temp.id(205), pg_temp.id(2), pg_temp.id(13), null, 'Other', 'Tenant', 'Aide', 'active');
+  (pg_temp.id(205), pg_temp.id(2), pg_temp.id(13), null, 'Other', 'Tenant', 'Aide', 'active'),
+  (pg_temp.id(206), pg_temp.id(1), pg_temp.id(11), null, 'Direct', 'Assignment', 'Aide', 'active');
 insert into public.courses(id, organization_id, title, status)
 select pg_temp.id(n), case when n = 302 then null when n = 305 then pg_temp.id(2) else pg_temp.id(1) end,
   'Yearly course ' || n, 'draft' from generate_series(301, 305) n;
@@ -73,6 +74,9 @@ create temp table yearly_evidence as select id, course_assignment_id, slug, issu
 grant all on yearly_evidence to authenticated;
 
 select ok(not has_function_privilege('anon', 'public.apply_yearly_training_plan(uuid,uuid)', 'execute'), 'anonymous callers cannot apply plans');
+select ok(not has_function_privilege('anon', 'public.assert_yearly_training_plan_employee(uuid,uuid)', 'execute'), 'anonymous callers cannot invoke employee lock helper');
+select is((select prorettype from pg_proc where oid = 'public.assert_yearly_training_plan_employee(uuid,uuid)'::regprocedure), 'void'::regtype::oid,
+  'scoped lock helper returns no employee data');
 select is((select prosecdef from pg_proc where oid = 'public.apply_yearly_training_plan(uuid,uuid)'::regprocedure), false, 'apply keeps table RLS active');
 select ok(not has_schema_privilege('authenticated', 'app_private', 'usage'), 'private schema remains inaccessible to client queries');
 select pg_temp.act(102);
@@ -98,16 +102,46 @@ select lives_ok($$insert into public.training_plan_items(id, training_plan_id, c
   (pg_temp.id(602), pg_temp.id(501), pg_temp.id(302), 1)$$, 'annual plan accepts own and global catalog courses');
 select throws_ok($$insert into public.training_plan_items(training_plan_id, course_id)
   values(pg_temp.id(501), pg_temp.id(305))$$, '23514', null, 'plan cannot contain another tenant course');
+select throws_ok($$insert into public.course_assignments(organization_id, facility_id, employee_id, course_id,
+  course_version_id, assigned_by, due_date, training_plan_id, training_plan_item_id)
+  values(pg_temp.id(1), pg_temp.id(11), pg_temp.id(206), pg_temp.id(302), pg_temp.id(402),
+    pg_temp.id(102), '2027-01-15', pg_temp.id(501), pg_temp.id(601))$$, '23514', null,
+  'annual insert refuses mismatched supplied item before canonicalizing provenance');
+select throws_ok($$insert into public.course_assignments(organization_id, facility_id, employee_id, course_id,
+  course_version_id, assigned_by, due_date, training_plan_id)
+  values(pg_temp.id(1), pg_temp.id(11), pg_temp.id(206), pg_temp.id(303), pg_temp.id(403),
+    pg_temp.id(102), '2027-01-15', pg_temp.id(501))$$, '23514', null,
+  'omitting annual item reference cannot bypass current plan course membership');
+select lives_ok($$insert into public.course_assignments(id, organization_id, facility_id, employee_id, course_id,
+  course_version_id, assigned_by, due_date, training_plan_id, training_plan_item_id)
+  values(pg_temp.id(807), pg_temp.id(1), pg_temp.id(11), pg_temp.id(206), pg_temp.id(301), pg_temp.id(401),
+    pg_temp.id(102), '2027-01-15', pg_temp.id(501), pg_temp.id(601))$$,
+  'valid supplied annual item is accepted and normalized to stable plan/course provenance');
+select is((select training_plan_item_id from public.course_assignments where id = pg_temp.id(807)), null::uuid,
+  'direct annual insert does not retain the editable-item foreign key');
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(502), pg_temp.id(203))$$, '42501', null, 'manager cannot apply other facility plan');
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(203))$$, '42501', null, 'student must be in plan facility');
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(204))$$, '42501', null, 'inactive student cannot receive or reconcile plan');
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(205))$$, '42501', null, 'student must be in plan tenant');
+select throws_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(502), pg_temp.id(203))$$, '42501', null,
+  'direct employee helper cannot target an unassigned facility plan');
+select throws_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(503), pg_temp.id(205))$$, '42501', null,
+  'direct employee helper cannot target another tenant plan');
+select throws_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(501), pg_temp.id(203))$$, '42501', null,
+  'direct employee helper validates student facility independently');
+select throws_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(501), pg_temp.id(205))$$, '42501', null,
+  'direct employee helper validates student tenant independently');
+select throws_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(501), pg_temp.id(204))$$, '42501', null,
+  'direct employee helper refuses inactive student');
 
 insert into yearly_results values('first', public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(201)));
 select is((select result from yearly_results where name = 'first'),
   '{"assigned":2,"updated":0,"canceled":0,"already_completed":0,"conflicts":[]}'::jsonb, 'first apply assigns complete bundle atomically');
 select is((select count(*)::int from public.course_assignments where employee_id = pg_temp.id(201)
   and due_date = '2027-01-15' and training_plan_id = pg_temp.id(501)), 2, 'all course deadlines equal exact entered date');
+select is((select count(*)::int from public.course_assignments where employee_id = pg_temp.id(201)
+  and training_plan_id = pg_temp.id(501) and training_plan_item_id is null), 2,
+  'annual apply records stable source plan/course without acquiring editable item foreign-key locks');
 select is(public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(201)),
   '{"assigned":0,"updated":0,"canceled":0,"already_completed":0,"conflicts":[]}'::jsonb, 'retry makes no duplicate assignments or unnecessary updates');
 select is((public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(202))->>'assigned')::int, 2, 'same plan can be applied to another selected student');
@@ -130,6 +164,11 @@ select throws_ok($$update public.course_assignments set training_plan_id = pg_te
   where employee_id = pg_temp.id(201) and course_id = pg_temp.id(303)$$,
   '55000', null, 'unrelated assignment cannot be adopted through a direct provenance update');
 
+-- Support historical annual references as well as fresh normalized rows.
+update public.course_assignments set training_plan_item_id = pg_temp.id(602)
+where training_plan_id = pg_temp.id(501) and course_id = pg_temp.id(302);
+select is((select count(*)::int from public.course_assignments where training_plan_id = pg_temp.id(501)
+  and training_plan_item_id = pg_temp.id(602)), 2, 'historical annual item references remain supported');
 -- Removing an item invokes its FK SET NULL action on existing assignments.
 select lives_ok($$delete from public.training_plan_items where id = pg_temp.id(602)$$, 'used course can be removed while its assignments retain source plan');
 select is((select count(*)::int from public.course_assignments where course_id = pg_temp.id(302)
@@ -190,14 +229,28 @@ select is((select status from public.course_assignments where employee_id = pg_t
 select pg_temp.act(103);
 select is((select count(*)::int from public.training_plans where id = pg_temp.id(501)), 1,
   'same-facility learner can read the plan without management rights');
-select is((select count(*)::int from (select id from public.training_plans where id = pg_temp.id(501) for update) locked), 0,
+select is((select count(*)::int from (select id from public.training_plans where id = pg_temp.id(501) for no key update) locked), 0,
   'UPDATE policy independently refuses the readable plan lock to a learner');
+select throws_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(501), pg_temp.id(201))$$, '42501', null,
+  'learner cannot invoke employee lock helper despite reading their facility plan');
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(201))$$, '42501', null, 'learner cannot apply their own plan');
 select throws_ok($$insert into public.training_plans(organization_id, facility_id, training_year, due_date, name)
   values(pg_temp.id(1), pg_temp.id(11), 2026, '2026-12-12', 'Learner plan')$$, '42501', null, 'learner cannot author plan');
 select pg_temp.act(102, 'aal1');
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(201))$$, '42501', null, 'unverified manager session cannot apply plan');
+select throws_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(501), pg_temp.id(201))$$, '42501', null,
+  'unverified manager session cannot invoke employee lock helper');
+select pg_temp.act(106);
+select is((select count(*)::int from public.training_plans where id = pg_temp.id(501)), 1, 'auditor can read annual plan');
+select throws_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(501), pg_temp.id(201))$$, '42501', null,
+  'auditor cannot invoke employee lock helper despite facility visibility');
+select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(201))$$, '42501', null,
+  'auditor cannot apply annual plan');
 select pg_temp.act(104);
+select is((select count(*)::int from (select id from public.employees where id = pg_temp.id(202) for update) locked), 0,
+  'trainer still lacks employee UPDATE scope');
+select lives_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(501), pg_temp.id(202))$$,
+  'assigned trainer can use the narrow employee validation lock');
 select lives_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(202))$$, 'assigned trainer may apply annual plan');
 select pg_temp.act(101);
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(504), pg_temp.id(201))$$, '22023', null, 'annual RPC does not silently convert legacy plan');

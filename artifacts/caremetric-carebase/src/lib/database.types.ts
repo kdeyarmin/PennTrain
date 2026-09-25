@@ -37061,6 +37061,10 @@ export type Database = {
         Args: { p_compliance_item_id: string; p_resident_id: string }
         Returns: undefined
       }
+      assert_yearly_training_plan_employee: {
+        Args: { p_employee_id: string; p_plan_id: string }
+        Returns: undefined
+      }
       assign_compliance_instance: {
         Args: { p_instance_id: string; p_note?: string; p_profile_id: string }
         Returns: {
