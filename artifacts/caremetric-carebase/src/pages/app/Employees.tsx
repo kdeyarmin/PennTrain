@@ -11,6 +11,7 @@ import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
 import { facilityScopedErrorText } from "@/lib/rlsErrors";
 import { useInviteUser } from "@/hooks/useProfiles";
 import { useUrlState } from "@/hooks/useUrlState";
+import { trainingFacilityFromSearch, trainingWorkspaceHref } from "@/lib/trainingOnboarding";
 import { EmployeeFormFields, EMPTY_EMPLOYEE_FORM, employeeToFormData, type EmpFormData } from "@/components/employees/EmployeeFormFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,7 +80,7 @@ const EMPLOYEES_URL_DEFAULTS = {
 export default function Employees() {
   const __fieldIds = useId();
   const [urlState, setUrlState] = useUrlState(EMPLOYEES_URL_DEFAULTS);
-  const facilityId = urlState.facilityId;
+  const requestedFacilityId = urlState.facilityId;
   const status = urlState.status;
   const sortField = urlState.sortField as EmployeeSortField;
   const sortDir = urlState.sortDir as "asc" | "desc";
@@ -107,12 +108,20 @@ export default function Employees() {
   // Query string, e.g. "?action=add" -- distinct from the free-text `search` state above,
   // which is the employee name/role/department search box.
   const locationSearch = useSearch();
+  const trainingHandoff = new URLSearchParams(locationSearch).get("source") === "train";
   const [, navigate] = useLocation();
   const basePath = user?.role === "platform_admin" ? "/admin/employees"
     : user?.role === "trainer" ? "/trainer/employees"
     : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const { data: facilities, isLoading: facilitiesLoading } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
+  // A facility manager can read the organization's directory but may only add students to
+  // assigned facilities. Validate the handoff against that same write-scoped picker.
+  const assignableFacilities = useAssignableFacilities(facilities);
+  const trainingFacility = trainingFacilityFromSearch(locationSearch, assignableFacilities, user?.role === "platform_admin" ? viewingOrgId : user?.organizationId);
+  const facilityId = trainingHandoff ? trainingFacility?.id ?? "all" : requestedFacilityId;
+  const invalidTrainingFacility = trainingHandoff && requestedFacilityId !== "all" && !facilitiesLoading && !trainingFacility;
 
   // Debounce the free-text box before it drives a server request, so typing doesn't fire a query
   // per keystroke; the page-reset on change below still happens immediately. The box's raw value
@@ -138,12 +147,6 @@ export default function Employees() {
     page,
     pageSize: PAGE_SIZE,
   });
-  const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
-  // The filter above may span the organization; the create/edit dialog may not. employees_insert
-  // requires is_assigned_to_facility(facility_id), so a facility_manager offered a facility they
-  // hold no assignment for could only ever get an RLS error after filling in the whole form.
-  const assignableFacilities = useAssignableFacilities(facilities);
-
   const { mutate: createEmployee, isPending: creating } = useCreateEmployee();
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
   const { mutate: inviteUser, isPending: inviting } = useInviteUser();
@@ -165,7 +168,8 @@ export default function Employees() {
   // roster down to one facility is almost always about to add someone at that same facility.
   const openCreate = (withPortalInvite = false) => {
     setEditEmp(null);
-    setForm({ ...EMPTY_EMPLOYEE_FORM, facilityId: facilityId !== "all" ? facilityId : "none" });
+    const allowedFacility = assignableFacilities.find(facility => facility.id === facilityId);
+    setForm({ ...EMPTY_EMPLOYEE_FORM, facilityId: allowedFacility?.id ?? (assignableFacilities.length === 1 ? assignableFacilities[0].id : "none") });
     setSendPortalInvite(withPortalInvite);
     setShowForm(true);
   };
@@ -183,7 +187,10 @@ export default function Employees() {
   useEffect(() => {
     const params = new URLSearchParams(locationSearch);
     const action = params.get("action");
-    if (action !== "add" && !(action === "bulk-import" && canManage)) return;
+    if (!canManage || (action !== "add" && action !== "bulk-import")) return;
+    // A URL cannot authorize a facility. Wait for the write-scoped picker before prefilling;
+    // an unavailable/cross-organization ID leaves an explanation rather than opening a bad form.
+    if (trainingHandoff && (facilitiesLoading || (requestedFacilityId !== "all" && !trainingFacility))) return;
     if (action === "add") {
       // The guided/dashboard onboarding action opens the practical combined
       // flow by default: roster record plus a linked self-service login.
@@ -206,7 +213,7 @@ export default function Employees() {
     // Listing them anyway costs nothing -- after the navigate above the URL carries no `action`,
     // so any extra run returns at the guard -- and it means a role that did somehow arrive late
     // would retry the deep link instead of stranding it.
-  }, [locationSearch, canManage, basePath]);
+  }, [locationSearch, canManage, basePath, trainingHandoff, facilitiesLoading, requestedFacilityId, trainingFacility?.id]);
 
   const openEdit = (e: React.MouseEvent, emp: Employee) => {
     e.preventDefault();
@@ -224,6 +231,10 @@ export default function Employees() {
     }
     if (!editEmp && form.facilityId === "none") {
       toast({ title: "A facility is required", variant: "destructive" });
+      return;
+    }
+    if (!editEmp && !assignableFacilities.some(facility => facility.id === form.facilityId)) {
+      toast({ title: "Choose a facility you can manage", variant: "destructive" });
       return;
     }
     if (!editEmp && sendPortalInvite && !form.email.trim()) {
@@ -411,6 +422,10 @@ export default function Employees() {
 
   return (
     <div className="space-y-6">
+      {trainingHandoff && <div className="rounded-lg border p-4 space-y-2">
+        <Link href={trainingWorkspaceHref(trainingFacility?.id)} className="underline">Back to training</Link>
+        <p className="text-sm">{trainingFacility ? `Add or import students for ${trainingFacility.name}, then return to training to invite imported students and enroll them in courses.` : invalidTrainingFacility ? "The linked facility is unavailable or you cannot manage it. Choose an available facility below." : "Add your students, then return to training to invite them and enroll them in courses."}</p>
+      </div>}
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Employees</h1>
@@ -421,7 +436,7 @@ export default function Employees() {
             <Button variant="outline" onClick={openBulkImport} className="shadow-sm">
               <Upload className="mr-2 h-4 w-4" /> Bulk Import
             </Button>
-            <Button onClick={() => openCreate()} className="shadow-sm">
+            <Button onClick={() => openCreate(trainingHandoff)} className="shadow-sm">
               <UserPlus className="mr-2 h-4 w-4" /> Add Employee
             </Button>
           </div>
@@ -678,6 +693,7 @@ export default function Employees() {
             <DialogTitle>Bulk Import Employees</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {trainingHandoff && <p className="text-sm">{trainingFacility ? `Use “${trainingFacility.name}” in each student's facility_name column for this facility. ` : ""}Import adds roster records. Return to the training workspace's Students tab to send portal invitations, then use Assign courses to enroll them.</p>}
             <p className="text-[13px] text-muted-foreground leading-relaxed">
               Upload a CSV file with a header row. Required columns:{" "}
               <span className="font-medium text-foreground">first_name, last_name, job_title, facility_name</span>.

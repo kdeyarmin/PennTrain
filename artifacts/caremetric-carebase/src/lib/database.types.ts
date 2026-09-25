@@ -39927,6 +39927,20 @@ export type Database = {
         }[]
       }
       get_trainer_dashboard_summary: { Args: never; Returns: Json }
+      get_training_enrollment_report: {
+        Args: {
+          p_course_search?: string
+          p_date_basis?: string
+          p_date_from?: string
+          p_date_through?: string
+          p_facility_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_organization_id: string
+          p_status?: string
+        }
+        Returns: Json
+      }
       get_training_matrix_page: {
         Args: {
           p_due_within_days?: number

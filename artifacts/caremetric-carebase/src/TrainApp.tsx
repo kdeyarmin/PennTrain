@@ -13,6 +13,7 @@ import { ProductTelemetry } from "@/components/ProductTelemetry";
 import { TrainLanding } from "@/pages/TrainLanding";
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
+const TrainingReports = lazy(() => import("@/pages/admin/TrainingReports"));
 const Announcements = lazy(() => import("@/pages/app/Announcements"));
 const Billing = lazy(() => import("@/pages/app/Billing"));
 const CheckIn = lazy(() => import("@/pages/CheckIn"));
@@ -98,6 +99,9 @@ function TrainRouter() {
       <Route path="/terms" component={Terms} />
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/training-reports">
+        {() => <ProtectedRoute component={TrainingReports} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/account/security">
         {() => <ProtectedRoute component={MfaSettings} allowedRoles={ANY_ROLE} />}

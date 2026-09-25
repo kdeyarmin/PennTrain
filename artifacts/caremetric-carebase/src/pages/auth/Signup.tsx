@@ -47,7 +47,9 @@ declare global {
 
 export default function Signup() {
   const trainingOnly = new URLSearchParams(useSearch()).get("product") === "train" || import.meta.env.VITE_CAREMETRIC_MODULES === "train";
-  usePageMeta({ ...MARKETING_ROUTE_META["/signup"], path: "/signup" });
+  usePageMeta(trainingOnly
+    ? { title: "Create your training organization | CareMetric CareBase", description: "Set up your facility training workspace, invite staff, assign courses and track completion.", path: "/signup", noindex: true }
+    : { ...MARKETING_ROUTE_META["/signup"], path: "/signup" });
   const [form, setForm] = useState<SignupForm>(EMPTY_FORM);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileError, setTurnstileError] = useState<string | null>(null);
@@ -178,7 +180,7 @@ export default function Signup() {
             <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
               <BrandName />
             </h1>
-            <p className="text-sm text-muted-foreground">Operations & Compliance Platform</p>
+            <p className="text-sm text-muted-foreground">{trainingOnly ? "Facility staff training and education" : "Operations & Compliance Platform"}</p>
           </div>
         </div>
 
@@ -188,7 +190,7 @@ export default function Signup() {
             <CardDescription>
               {submittedEmail
                 ? `We sent an invite link to ${submittedEmail}.`
-                : "Set up your facility's account to start tracking training and compliance."}
+                : trainingOnly ? "Set up your facility, enroll staff in training and track their progress." : "Set up your facility's account to start tracking training and compliance."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -200,6 +202,7 @@ export default function Signup() {
                 <p className="text-sm text-muted-foreground">
                   Open the link from your email to verify the address and choose a password.
                 </p>
+                {trainingOnly && <p className="text-sm text-muted-foreground">After signing in, set up your authenticator for secure administrator access. Your training workspace will guide you through adding students, assigning courses and running reports.</p>}
                 <Button type="button" className="w-full h-10" onClick={() => setLocation("/login")}>
                   Back to sign in
                 </Button>

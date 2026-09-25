@@ -1,4 +1,8 @@
 import { useId, useEffect, useMemo, useState } from "react";
+import { Link, useSearch } from "wouter";
+import { useUrlState } from "@/hooks/useUrlState";
+import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
+import { trainingFacilityFromSearch, trainingWorkspaceHref } from "@/lib/trainingOnboarding";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import {
   useListCourseAssignmentsPaginated,
@@ -38,6 +42,7 @@ import { useToast } from "@/hooks/use-toast";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const PAGE_SIZE = 15;
+const ASSIGNMENTS_URL_DEFAULTS = { facilityId: "all" };
 
 // `canceled` is here because this page can now produce one (see the cancel action below). Without
 // it a cancelled assignment is unreachable from the filter bar -- it is excluded from every other
@@ -137,7 +142,9 @@ export default function CourseAssignments() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [facilityId, setFacilityId] = useState<string>("all");
+  const locationSearch = useSearch();
+  const trainingHandoff = new URLSearchParams(locationSearch).get("source") === "train";
+  const [urlState, setUrlState] = useUrlState(ASSIGNMENTS_URL_DEFAULTS);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -182,7 +189,12 @@ export default function CourseAssignments() {
   // of this page uses is exactly the server's own rule here; narrowing further by facility
   // assignment would hide a control the database would have accepted.
 
-  const { data: facilities } = useListFacilities();
+  const { data: facilities, isLoading: facilitiesLoading } = useListFacilities();
+  const assignableFacilities = useAssignableFacilities(facilities);
+  const trainingFacility = trainingFacilityFromSearch(locationSearch, assignableFacilities, user?.organizationId);
+  const facilityId = trainingHandoff ? trainingFacility?.id ?? "all" : urlState.facilityId;
+  const setFacilityId = (id: string) => setUrlState({ facilityId: id });
+  const invalidTrainingFacility = trainingHandoff && urlState.facilityId !== "all" && !facilitiesLoading && !trainingFacility;
   // Historical assignments survive leave and termination. Keep those employees available for
   // row labels and search; the new-assignment picker uses activeEmployees below.
   const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees();
@@ -390,7 +402,7 @@ export default function CourseAssignments() {
     setAssignForm(EMPTY_ASSIGN_FORM);
     setSelectedEmployeeIds(new Set());
     setAssignEmployeeSearch("");
-    setAssignFacilityFilter("all");
+    setAssignFacilityFilter(assignableFacilities.some(facility => facility.id === facilityId) ? facilityId : "all");
     setShowAssignForm(true);
   };
 
@@ -584,6 +596,10 @@ export default function CourseAssignments() {
 
   return (
     <div className="space-y-6">
+      {trainingHandoff && <div className="rounded-lg border p-4 space-y-2">
+        <Link href={trainingWorkspaceHref(trainingFacility?.id)} className="underline">Back to training</Link>
+        <p className="text-sm">{trainingFacility ? `Enroll students at ${trainingFacility.name} and follow their course progress here. Reports and certificate printing are in the training workspace.` : invalidTrainingFacility ? "The linked facility is unavailable or you cannot manage it. Choose an available facility below." : "Enroll students and follow their course progress here. Reports and certificate printing are in the training workspace."}</p>
+      </div>}
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Training Assignments</h1>

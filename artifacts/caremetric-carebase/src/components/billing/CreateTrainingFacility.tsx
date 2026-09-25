@@ -1,4 +1,5 @@
 import { trainingActionError } from "@/lib/trainingWorkspace";
+import { trainingAdministratorInviteHref } from "@/lib/trainingOnboarding";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,7 +31,11 @@ export function CreateTrainingFacility() {
       <label className="text-sm">Facility name<Input name="facility" required minLength={2} maxLength={200} /></label>
       <label className="text-sm">License type<select name="type" className="w-full border rounded p-2"><option value="PCH">Pennsylvania personal care home</option><option value="ALR">Pennsylvania Assisted Living Facility (ALF)</option></select></label>
       <Button disabled={busy}>Create free Train access</Button>
-      {created && <p>Created. <Link href={`/admin/organizations/${created}`} className="underline">Open organization</Link> · <Link href="/admin/users" className="underline">Invite its administrator</Link></p>}
     </form>}
+    {created && <div role="status" className="rounded-lg border p-4 space-y-2">
+      <p className="font-medium">Training facility created. Next, invite its administrator.</p>
+      <p className="text-sm">The invitation will be set to this organization and the organization administrator role. They will set their own password, complete account security, and open the training workspace.</p>
+      <div className="flex flex-wrap gap-3"><Link href={trainingAdministratorInviteHref(created)} className="underline">Invite facility administrator</Link><Link href={`/admin/organizations/${created}`} className="underline">Open organization</Link></div>
+    </div>}
   </div>;
 }

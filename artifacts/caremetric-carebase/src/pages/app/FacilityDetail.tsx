@@ -23,6 +23,8 @@ import { useListFacilityUnits } from "@/hooks/useFacilityUnits";
 import { useListEmployeeSchedulePreferences } from "@/hooks/useEmployeeSchedulePreferences";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/lib/auth";
+import { useProductModuleAccess } from "@/lib/productModuleAccess";
+import { trainingWorkspaceHref } from "@/lib/trainingOnboarding";
 import { FacilityClinicalCard } from "@/components/facilities/FacilityClinicalCard";
 import { useToast } from "@/hooks/use-toast";
 import { FACILITY_TYPES, PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeBadgeClass, facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
@@ -67,6 +69,11 @@ export default function FacilityDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const moduleAccess = useProductModuleAccess();
+  const hasWorkforce = moduleAccess.canAccessPath("/app/credentials");
+  const hasCompliance = moduleAccess.canAccessPath("/app/inspections");
+  const hasResidentOperations = moduleAccess.canAccessPath("/app/residents");
+  const hasSpecialCare = hasWorkforce && hasResidentOperations;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [rotatingSafetyToken, setRotatingSafetyToken] = useState(false);
@@ -87,11 +94,11 @@ export default function FacilityDetail() {
   const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
   // Matches incidents_select RLS -- trainer is excluded (the incident data itself is sensitive),
   // unlike the inspection-compliance card below, which every viewer of this page can see.
-  const canViewIncidents = ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
+  const canViewIncidents = hasCompliance && ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
   // Matches RESIDENT_ROLES in App.tsx (the actual /app/residents* route gate) exactly -- unlike
   // canViewIncidents above, platform_admin is deliberately left out here since there's no
   // /admin/residents route for a "View all"/row link to land on.
-  const canViewResidents = ["org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
+  const canViewResidents = hasResidentOperations && ["org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
   // Incidents/Inspections are only reachable via /app/incidents and /app/inspections -- there's no
   // /admin/incidents or /admin/inspections *list* route (only .../:id, for Alerts deep links), so a
   // platform_admin viewing this page via /admin/facilities/:id has nowhere for a "View all" link to go.
@@ -111,7 +118,7 @@ export default function FacilityDetail() {
     isError: residentsError,
     error: residentsErrorDetail,
     refetch: refetchResidents,
-  } = useListResidents({ facilityId: id });
+  } = useListResidents({ facilityId: id }, { enabled: hasResidentOperations });
   const {
     data: trainingRecords,
     isLoading: recordsLoading,
@@ -127,30 +134,30 @@ export default function FacilityDetail() {
     isError: practicumsError,
     error: practicumsErrorDetail,
     refetch: refetchPracticums,
-  } = useListPracticums({ facilityId: id });
+  } = useListPracticums({ facilityId: id }, { enabled: hasWorkforce });
   const {
     data: incidents,
     isLoading: incidentsLoading,
     isError: incidentsError,
     error: incidentsErrorDetail,
     refetch: refetchIncidents,
-  } = useListIncidents({ facilityId: id });
+  } = useListIncidents({ facilityId: id }, { enabled: canViewIncidents });
   const {
     data: inspectionItems,
     isLoading: inspectionsLoading,
     isError: inspectionsError,
     error: inspectionsErrorDetail,
     refetch: refetchInspections,
-  } = useListInspectionItems({ facilityId: id, isActive: true });
-  const { data: administratorProfiles, isLoading: administratorsLoading } = useListAdministratorProfiles(user?.organizationId ?? undefined);
+  } = useListInspectionItems({ facilityId: id, isActive: true }, { enabled: hasCompliance });
+  const { data: administratorProfiles, isLoading: administratorsLoading } = useListAdministratorProfiles(hasWorkforce ? user?.organizationId ?? undefined : undefined);
   const {
     data: administratorCeEntries,
     isLoading: administratorCeLoading,
     isError: administratorCeError,
-  } = useListAdministratorCeEntriesByOrganization(user?.organizationId ?? undefined);
+  } = useListAdministratorCeEntriesByOrganization(hasWorkforce ? user?.organizationId ?? undefined : undefined);
   const administratorRuleBusy = administratorsLoading || administratorCeLoading || administratorCeError;
-  const unitsQuery = useListFacilityUnits({ facilityId: id });
-  const schedulePreferencesQuery = useListEmployeeSchedulePreferences({ facilityId: id });
+  const unitsQuery = useListFacilityUnits({ facilityId: id }, { enabled: hasSpecialCare });
+  const schedulePreferencesQuery = useListEmployeeSchedulePreferences({ facilityId: id }, { enabled: hasSpecialCare });
   const { data: units } = unitsQuery;
   const { data: schedulePreferences } = schedulePreferencesQuery;
   const specialCareBusy =
@@ -244,8 +251,8 @@ export default function FacilityDetail() {
         administrator_name: form.administratorName || null,
         administrator_email: form.administratorEmail || null,
         is_active: form.isActive,
-        default_care_responsible_party: form.defaultCareResponsibleParty || null,
-        default_care_frequency: form.defaultCareFrequency || null,
+        ...(hasResidentOperations ? { default_care_responsible_party: form.defaultCareResponsibleParty || null,
+          default_care_frequency: form.defaultCareFrequency || null } : {}),
       },
       {
         onSuccess: () => { toast({ title: "Facility updated" }); setShowEdit(false); },
@@ -289,6 +296,7 @@ export default function FacilityDetail() {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Link>
         </Button>
+        {moduleAccess.canAccessPath("/app/train") && user?.role !== "platform_admin" && <Button asChild variant="outline" size="sm"><Link href={trainingWorkspaceHref(facility.id)}>Facility training, reports &amp; certificates</Link></Button>}
       </div>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -353,7 +361,7 @@ export default function FacilityDetail() {
             {facility.administrator_email && <p className="text-xs text-muted-foreground truncate">{facility.administrator_email}</p>}
           </CardContent>
         </Card>
-        {(PCH_ALR_ONLY_FACILITY_TYPES as readonly string[]).includes(facility.facility_type) && (
+        {hasWorkforce && (PCH_ALR_ONLY_FACILITY_TYPES as readonly string[]).includes(facility.facility_type) && (
           <Card>
             <CardContent className="pt-4">
               <p className="text-xs text-muted-foreground">Admin Rule Pack</p>
@@ -378,9 +386,9 @@ export default function FacilityDetail() {
       <div className="sticky top-[68px] z-[5] -mx-1 flex flex-wrap gap-2 border-b bg-background/95 px-1 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         {[
           { id: "facility-overview", label: "Overview" },
-          { id: "facility-licensing", label: "Licensing" },
+          ...(hasResidentOperations ? [{ id: "facility-licensing", label: "Licensing" }] : []),
           { id: "facility-people", label: "People" },
-          { id: "facility-safety", label: "Safety" },
+          ...(canViewIncidents ? [{ id: "facility-safety", label: "Safety" }] : []),
         ].map((section) => (
           <button
             key={section.id}
@@ -394,7 +402,7 @@ export default function FacilityDetail() {
       </div>
       <div id="facility-overview" className="scroll-mt-28" />
 
-      <div id="facility-licensing" className="scroll-mt-28" />
+      {hasResidentOperations && <><div id="facility-licensing" className="scroll-mt-28" />
       <FacilityLicensingWorkspace
         facilityId={facility.id}
         facilityType={facility.facility_type}
@@ -406,10 +414,10 @@ export default function FacilityDetail() {
         facilityName={facility.name}
         clinicalEnabled={facility.clinical_enabled}
         canManage={["platform_admin", "org_admin"].includes(user?.role ?? "")}
-      />
+      /></>}
 
       {/* Public safety-report poster QR — opaque token, never show facility UUID */}
-      {["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "") && (
+      {hasCompliance && ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "") && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -491,7 +499,7 @@ export default function FacilityDetail() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType) && (
+        {hasSpecialCare && PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType) && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -561,7 +569,7 @@ export default function FacilityDetail() {
             )}
           </CardContent>
         </Card>
-        <Card>
+        {hasWorkforce && <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <BarChart3 className="h-4 w-4 text-muted-foreground" /> Additional Requirements
@@ -592,7 +600,7 @@ export default function FacilityDetail() {
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card>}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -707,7 +715,7 @@ export default function FacilityDetail() {
             </CardContent>
           </Card>
         )}
-        <Card>
+        {hasCompliance && <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <Flame className="h-4 w-4 text-muted-foreground" /> Inspection Compliance
@@ -746,7 +754,7 @@ export default function FacilityDetail() {
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card>}
       </div>
 
       <div id="facility-people" className="scroll-mt-28" />
@@ -783,7 +791,7 @@ export default function FacilityDetail() {
                 </Link>
               ))}
               {employees.length > 8 && (
-                <Link href={canLinkToOrgLists ? `/app/employees?facility=${id}` : `/admin/employees?facility=${id}`} className="block pt-1">
+                <Link href={`${employeeBasePath}?facilityId=${id}${!hasResidentOperations ? "&source=train" : ""}`} className="block pt-1">
                   <p className="text-center text-sm text-primary hover:underline">
                     View all staff ({employees.length})
                   </p>
@@ -908,7 +916,7 @@ export default function FacilityDetail() {
                 </SelectContent>
               </Select>
             </div>
-            {PCH_ALR_ONLY_FACILITY_TYPES.includes(form.facilityType) && (
+            {hasResidentOperations && PCH_ALR_ONLY_FACILITY_TYPES.includes(form.facilityType) && (
               <>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${__fieldIds}-default-care-responsible-party`} className="text-[13px]">Default Care Responsible Party</Label>
