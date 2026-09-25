@@ -89,12 +89,14 @@ const SECTIONS: Section[] = [
   {
     title: "Training Plans & Competency Tracking",
     paragraphs: [
-      "Training Plans (/app/training-plans) let you bundle a set of required trainings into a single named plan -- for example, a new-hire onboarding plan, or an annual refresher plan for medication aides -- and assign that whole bundle to an employee at once rather than assigning each training individually.",
+      "Facility administrators build yearly course bundles in Train under Yearly course plans, or at /app/training-plans. Choose the facility and training year, enter the required completion deadline, and add the courses your staff need. Completion deadlines start blank and are never calculated from the training year or an employee's hire date.",
+      "Apply the plan to selected employees in its facility together. After changing its courses or deadline, apply it again to update unfinished assignments and cancel removed unfinished courses. Completed training and certificates remain in the employee's history. Assignments created outside this plan keep their deadline and are listed for your attention.",
       "Competency Templates and Competency Records (/app/competency-templates, /app/competency-records) support skills validation that goes beyond a course quiz: a template defines a checklist of discrete competencies (for example, individual steps of a medication pass or a fire-safety procedure), and a competency record captures a specific employee being observed and signed off against that checklist by a qualified evaluator.",
       "Together, training plans and competency tracking cover both halves of staff readiness: that someone has completed the required training, and that someone has demonstrably shown they can do the task correctly.",
     ],
     bullets: [
-      "Build a training plan from a set of required trainings and assign it to employees",
+      "Choose a facility, training year, and completion deadline; add or remove courses to suit your facility",
+      "Apply the course bundle to selected staff, and reapply it after edits to update their unfinished training",
       "Create a competency template listing the specific skills to validate",
       "Record a completed competency check-off against an employee",
     ],

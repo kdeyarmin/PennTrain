@@ -297,6 +297,9 @@ export function useGetCourseProgress(assignmentId: string | undefined) {
       return data;
     },
     enabled: !!assignmentId,
+    // A new player session hydrates its local lesson/video/notes exactly once.
+    // Always reconcile its cached row before that initial adoption.
+    refetchOnMount: "always",
   });
 }
 
@@ -312,8 +315,13 @@ export function useUpsertCourseProgress() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["course_progress", data.assignment_id] });
+    onSuccess: async (data) => {
+      const queryKey = ["course_progress", data.assignment_id];
+      // A checkpoint can finish after the course player unmounts for its quiz.
+      // Publish the server's canonical row even with no active query observer,
+      // and prevent an older in-flight read from replacing it on the return trip.
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData(queryKey, data);
     },
   });
 }

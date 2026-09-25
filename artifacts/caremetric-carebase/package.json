@@ -11,6 +11,7 @@
     "start:train": "node server/index.mjs --train",
     "test": "vitest run --exclude \"e2e/**\" --exclude \"server/**\" && pnpm run test:server",
     "test:server": "node --test server/*.test.mjs",
+    "test:yearly-plan-concurrency": "node --test server/yearly-training-plan-concurrency-database.test.mjs",
     "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:train": "vite build --config vite.config.ts --mode train && node server/prerender-heads.mjs --train && node server/precompress.mjs --train",

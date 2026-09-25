@@ -6,9 +6,10 @@ const h = vi.hoisted(() => ({
   memos: [] as Array<{ deps: unknown[]; value: unknown }>,
   effectDeps: [] as Array<unknown[] | undefined>, effects: [] as Array<() => unknown>,
   stateIndex: 0, refIndex: 0, memoIndex: 0, effectIndex: 0, dirty: false,
-  routeId: "assignment-a", save: vi.fn(), complete: vi.fn(), toast: vi.fn(), refetch: vi.fn(), verifyCompletion: vi.fn(), refreshCompletion: vi.fn(),
+  routeId: "assignment-a", save: vi.fn(), complete: vi.fn(), toast: vi.fn(), refetch: vi.fn(), verifyCompletion: vi.fn(), refreshCompletion: vi.fn(), navigate: vi.fn(),
   assignment: {} as Record<string, unknown>, blocks: [] as Array<Record<string, unknown>>,
-  progress: {} as Record<string, unknown>,
+  progress: {} as Record<string, unknown>, progressFetching: false, progressFetchedAfterMount: true,
+  quizAttempts: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("react", async (original) => ({
@@ -40,7 +41,7 @@ vi.mock("react", async (original) => ({
     }
   },
 }));
-vi.mock("wouter", () => ({ useParams: () => ({ assignmentId: h.routeId }), useLocation: () => ["", vi.fn()], Link: "a" }));
+vi.mock("wouter", () => ({ useParams: () => ({ assignmentId: h.routeId }), useLocation: () => ["", h.navigate], Link: "a" }));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({}) }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "profile-a", role: "employee" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
@@ -51,14 +52,17 @@ vi.mock("@/hooks/useCourses", () => ({
 }));
 vi.mock("@/hooks/useCourseAssignments", () => ({
   useGetCourseAssignment: () => ({ data: h.assignment, refetch: h.refetch }),
-  useGetCourseProgress: () => ({ data: h.progress }),
+  useGetCourseProgress: () => ({ data: h.progress, isFetching: h.progressFetching, isFetchedAfterMount: h.progressFetchedAfterMount }),
   useUpsertCourseProgress: () => ({ mutateAsync: h.save }),
   useCompleteCourseAssignment: () => ({ mutateAsync: h.complete }),
   useStartCourseAssignment: () => ({ isPending: false, mutate: vi.fn() }),
   invalidateCompletedCourseEvidence: h.refreshCompletion,
   verifyCourseAssignmentCompleted: h.verifyCompletion,
 }));
-vi.mock("@/hooks/useQuizzes", () => ({ useGetQuizByBlockId: () => ({}), useListQuizAttempts: () => ({ data: [] }) }));
+vi.mock("@/hooks/useQuizzes", () => ({
+  useGetQuizByBlockId: (blockId: string | undefined) => ({ data: blockId === "quiz-block" ? { id: "quiz-a" } : undefined }),
+  useListQuizAttempts: () => ({ data: h.quizAttempts }),
+}));
 vi.mock("@/hooks/useLearningRuntime", () => ({ useAssignmentPackageCompleted: () => ({ data: false }) }));
 vi.mock("@/hooks/useDocuments", () => ({ useGetDocument: () => ({}), useDocumentSignedUrl: () => ({}) }));
 vi.mock("@/hooks/useCourseFeedback", () => ({ useGetCourseFeedbackForAssignment: () => ({}), useCreateCourseFeedback: () => ({}) }));
@@ -110,11 +114,33 @@ function completeButton(tree: ReactNode) {
   return nodes(tree).find((node) => text(node.props.children as ReactNode) === "Mark Training Complete"
     && typeof node.props.onClick === "function")!;
 }
+function prepareQuizStep() {
+  h.blocks = [
+    { id: "text-block", title: "Read the lesson", block_type: "text", sort_order: 0, body: { content: "Read the lesson." } },
+    { id: "video-block", title: "Watch the lesson", block_type: "video", sort_order: 1, video_url: "https://example.com/video.mp4", body: {} },
+    { id: "quiz-block", title: "Knowledge check", block_type: "quiz", sort_order: 2, body: {} },
+  ];
+  h.progress = { ...h.progress, last_block_id: "quiz-block", percent_complete: 100,
+    learning_tools: { notes: { "text-block": "Saved lesson note" }, confidence: {} },
+    video_state: { "video-block": { position: 2, maxWatched: 2, duration: 2, completedAt: "2026-09-15T12:00:00Z" } } };
+}
+function quizLink(tree: ReactNode) {
+  return nodes(tree).find(node => node.props.href === "/me/courses/assignment-a/quiz/quiz-a")!;
+}
+function clickQuiz(tree: ReactNode) {
+  const preventDefault = vi.fn();
+  const click = quizLink(tree).props.onClick as (event: unknown) => void | Promise<void>;
+  expect(click, "quiz navigation must wait for its checkpoint").toBeTypeOf("function");
+  const pending = click({ preventDefault, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false });
+  expect(preventDefault).toHaveBeenCalled();
+  return pending;
+}
 
 beforeEach(() => {
   h.state = []; h.refs = []; h.memos = []; h.effectDeps = []; h.effects = []; h.routeId = "assignment-a";
   h.save.mockReset().mockResolvedValue({}); h.complete.mockReset().mockResolvedValue(undefined); h.toast.mockReset();
   h.refreshCompletion.mockReset();
+  h.navigate.mockReset(); h.progressFetching = false; h.progressFetchedAfterMount = true; h.quizAttempts = [];
   h.verifyCompletion.mockReset().mockResolvedValue(false);
   h.assignment = { id: "assignment-a", employee_id: "employee-a", course_id: "course-a", course_version_id: "version-a", status: "in_progress" };
   h.refetch.mockReset().mockImplementation(async () => ({ data: h.assignment, isSuccess: true, isError: false, error: null }));
@@ -125,6 +151,93 @@ beforeEach(() => {
     setTimeout: vi.fn(() => 1), clearTimeout: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
   });
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+});
+
+describe("quiz navigation and progress restoration", () => {
+  it("waits for the latest quiz checkpoint before navigating, and deduplicates pending clicks", async () => {
+    prepareQuizStep();
+    const tree = render();
+    await vi.waitFor(() => expect(h.save).toHaveBeenCalled());
+    h.save.mockClear();
+    const checkpoint = deferred();
+    h.save.mockReturnValue(checkpoint.promise);
+    const pending = clickQuiz(tree);
+    clickQuiz(tree);
+    const keydown = vi.mocked(window.addEventListener).mock.calls.filter(([event]) => event === "keydown").at(-1)![1] as (event: KeyboardEvent) => void;
+    keydown({ key: "ArrowLeft" } as KeyboardEvent);
+    expect(quizLink(render()), "Keyboard shortcuts cannot change lessons while the quiz handoff saves").toBeDefined();
+    await vi.waitFor(() => expect(h.save).toHaveBeenCalledTimes(1));
+    expect(h.save.mock.calls[0][0]).toMatchObject({ assignment_id: "assignment-a", last_block_id: "quiz-block", percent_complete: 100,
+      learning_tools: { notes: { "text-block": "Saved lesson note" } },
+      video_state: { "video-block": { maxWatched: 2, completedAt: "2026-09-15T12:00:00Z" } } });
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(h.complete).not.toHaveBeenCalled();
+    checkpoint.resolve({});
+    await pending;
+    await vi.waitFor(() => expect(h.navigate).toHaveBeenCalledExactlyOnceWith("/me/courses/assignment-a/quiz/quiz-a"));
+    expect(h.complete).not.toHaveBeenCalled();
+  });
+
+  it("stays on the failed quiz checkpoint and lets the learner retry without weakening completion", async () => {
+    prepareQuizStep();
+    const tree = render();
+    await vi.waitFor(() => expect(h.save).toHaveBeenCalled());
+    h.save.mockClear();
+    h.save.mockRejectedValueOnce(new Error("Quiz checkpoint unavailable"));
+    await clickQuiz(tree);
+    await vi.waitFor(() => expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({
+      description: "Quiz checkpoint unavailable", variant: "destructive",
+    })));
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(h.complete).not.toHaveBeenCalled();
+    const retryTree = render();
+    expect(completeButton(retryTree).props.disabled).toBe(true);
+    h.save.mockResolvedValue({});
+    await clickQuiz(retryTree);
+    await vi.waitFor(() => expect(h.navigate).toHaveBeenCalledExactlyOnceWith("/me/courses/assignment-a/quiz/quiz-a"));
+  });
+
+  it("waits for fresh progress before adopting a cached earlier video on return from a quiz", async () => {
+    prepareQuizStep();
+    const canonicalProgress = h.progress;
+    h.progress = { ...canonicalProgress, last_block_id: "video-block", percent_complete: 67,
+      learning_tools: { notes: {}, confidence: {} }, video_state: {} };
+    h.progressFetching = true; h.progressFetchedAfterMount = false;
+    render();
+    await Promise.resolve();
+    expect(h.save).not.toHaveBeenCalled();
+
+    // A paused initial request is not fetching, but its cached row is still not authoritative.
+    h.progressFetching = false;
+    render();
+    await Promise.resolve();
+    expect(h.save).not.toHaveBeenCalled();
+
+    h.progress = canonicalProgress;
+    h.progressFetchedAfterMount = true;
+    const returned = render();
+    expect(quizLink(returned)).toBeDefined();
+    expect(completeButton(returned).props.disabled, "A failed quiz still blocks completion after restoring its lesson").toBe(true);
+    await vi.waitFor(() => expect(h.save).toHaveBeenCalled());
+    expect(h.save.mock.calls.every(([payload]) => payload.last_block_id === "quiz-block")).toBe(true);
+    expect(h.save.mock.calls.at(-1)![0]).toMatchObject({
+      learning_tools: { notes: { "text-block": "Saved lesson note" } },
+      video_state: { "video-block": { maxWatched: 2, completedAt: "2026-09-15T12:00:00Z" } },
+    });
+    h.progress = { ...canonicalProgress, last_block_id: "video-block", video_state: {}, learning_tools: {} };
+    h.progressFetching = true;
+    const backgroundRefresh = render();
+    expect(quizLink(backgroundRefresh)).toBeDefined();
+    expect(completeButton(backgroundRefresh).props.disabled).toBe(true);
+    await clickQuiz(backgroundRefresh);
+    expect(h.save.mock.calls.at(-1)![0]).toMatchObject({ last_block_id: "quiz-block",
+      learning_tools: { notes: { "text-block": "Saved lesson note" } },
+      video_state: { "video-block": { maxWatched: 2, completedAt: "2026-09-15T12:00:00Z" } },
+    });
+    h.quizAttempts = [{ quiz_id: "quiz-a", passed: true, score_percent: 100 }];
+    expect(completeButton(render()).props.disabled).toBe(false);
+    expect(h.complete).not.toHaveBeenCalled();
+  });
 });
 
 describe("course completion from the rendered player", () => {

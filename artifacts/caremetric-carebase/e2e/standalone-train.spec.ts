@@ -49,14 +49,14 @@ test.describe("standalone Train", () => {
     await page.getByLabel("Review basis, qualifications and evidence checked").fill("Reviewed course content, attendance and instructor evidence");
     await page.getByRole("button", { name: "Record review" }).click();
     await expect(page.getByText("Resident rights instruction · verified")).toBeVisible();
-    await page.getByRole("tab", { name: "Plans", exact: true }).click();
+    await page.getByRole("tab", { name: "Scheduled instruction", exact: true }).click();
     await page.getByLabel("Required course / instruction", { exact: true }).fill("Resident rights instruction");
     await page.getByLabel("Position and duties for this plan").fill("Assists with activities of daily living");
     await page.getByLabel("Scheduled time (Pennsylvania)").fill("2026-01-02T10:00");
     await page.getByLabel("Minutes", { exact: true }).fill("60");
     await page.getByLabel("Location / online meeting").fill("Training room");
     await page.getByLabel("Resident rights", { exact: true }).check();
-    await page.getByRole("button", { name: "Add annual plan entry" }).click();
+    await page.getByRole("button", { name: "Add scheduled instruction" }).click();
     await expect(page.getByText("Fulfillment: Open", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Record fulfillment", exact: true }).click();
     await expect(page.getByText("Fulfillment: Open", { exact: true })).toHaveCount(0);

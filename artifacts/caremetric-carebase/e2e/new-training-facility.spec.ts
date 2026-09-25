@@ -169,6 +169,11 @@ test.describe("new training facility administrator", () => {
       await expect(page.getByRole("listbox")).toBeInViewport({ ratio: 1 });
       await page.getByRole("option", { name: fixture.courseTitle, exact: true }).click();
       await dialog.getByRole("checkbox", { name: /Newlearner, Everly/ }).check();
+      await expect(dialog.getByLabel("Completion required by *", { exact: true })).toBeEmpty();
+      await dialog.getByRole("button", { name: "Assign to 1 Employee", exact: true }).click();
+      await expect(dialog).toBeVisible();
+      await expect(page.getByText("Enter a completion required-by date", { exact: true })).toBeVisible();
+      await dialog.getByLabel("Completion required by *", { exact: true }).fill("2027-03-15");
       await dialog.getByRole("button", { name: "Assign to 1 Employee", exact: true }).click();
       await expect(dialog).not.toBeVisible();
       const row = page.getByRole("row").filter({ hasText: fixture.courseTitle });

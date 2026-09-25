@@ -4,6 +4,7 @@ import { useUrlState } from "@/hooks/useUrlState";
 import { useTrainingFacilityScope } from "@/hooks/useFacilityAssignments";
 import { trainingFacilityFromSearch, trainingWorkspaceHref } from "@/lib/trainingOnboarding";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { isExplicitCompletionDeadline } from "@/lib/trainingPlanEditing";
 import {
   useListCourseAssignmentsPaginated,
   useCreateCourseAssignment,
@@ -425,6 +426,10 @@ export default function CourseAssignments() {
       toast({ title: "Select at least one employee and training item", variant: "destructive" });
       return;
     }
+    if (!isExplicitCompletionDeadline(assignForm.dueDate)) {
+      toast({ title: "Enter a completion required-by date", variant: "destructive" });
+      return;
+    }
     const course = courseById.get(assignForm.courseId);
     // Captured as plain local consts (rather than referencing user.organizationId/user.id
     // directly inside the .map() closure below) so the narrowing from this guard unambiguously
@@ -458,7 +463,7 @@ export default function CourseAssignments() {
           course_version_id: versionId,
           facility_id: employee.facility_id,
           organization_id: organizationId,
-          due_date: assignForm.dueDate || null,
+          due_date: assignForm.dueDate,
           assigned_by: assignedBy,
         }),
       ),
@@ -924,8 +929,9 @@ export default function CourseAssignments() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${__fieldIds}-due-date`} className="text-[13px]">Due Date</Label>
-              <Input id={`${__fieldIds}-due-date`} type="date" value={assignForm.dueDate} onChange={e => field("dueDate", e.target.value)} className="h-9" />
+              <Label htmlFor={`${__fieldIds}-due-date`} className="text-[13px]">Completion required by *</Label>
+              <Input id={`${__fieldIds}-due-date`} type="date" required value={assignForm.dueDate} onChange={e => field("dueDate", e.target.value)} className="h-9" />
+              <p className="text-xs text-muted-foreground">Enter the facility's deadline. No completion date is calculated automatically.</p>
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">

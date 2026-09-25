@@ -97,7 +97,7 @@ const TOP_15: Citation[] = [
     avoid:
       "Track hours per employee against their hire-date anniversary, tie completion to signed rosters that name the subject and duration, and flag anyone approaching their window before it closes.",
     carebase:
-      "Role-based training plans assign the exact required hours by role and setting, track every employee against their own hire-date anniversary, and warn managers before a window closes — the compliance reporting center shows the whole roster's status at a glance.",
+      "Facility administrators build yearly plans, choose the courses their staff need, and enter the completion deadline. They can apply the course bundle to selected staff together and follow completion progress across the roster.",
   },
   {
     rank: 3,
