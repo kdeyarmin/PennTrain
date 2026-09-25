@@ -138,6 +138,7 @@ test.describe("new training facility administrator", () => {
       await expect.poll(() => new URL(page.url()).searchParams.get("facilityId")).toBe(fixture.facility.id);
       // A Train-only administrator must not be encouraged into licensed operational modules.
       await expect(page.locator('a[href^="/app/residents"], a[href^="/app/workforce"], a[href^="/app/incidents"], a[href^="/app/today"]')).toHaveCount(0);
+      await expect(page.getByRole("region", { name: "Personalized workflow guidance" })).toHaveCount(0);
       expect(initialDetailRequests, "dashboard should not download the evidence or certificate ledger").toEqual([]);
       await page.getByRole("tab", { name: "Staff", exact: true }).click();
       await expect(page.getByText("No students yet. Add one student or import your roster to begin.")).toBeVisible();
@@ -221,7 +222,8 @@ test.describe("new training facility administrator", () => {
         await setPasswordFromEmail(learnerPage, invitation.url, password);
         await signInAs(learnerPage, studentEmail, password, "/me/courses");
         await expect(learnerPage.getByRole("heading", { name: "My Learning", exact: true })).toBeVisible();
-        await expect(learnerPage.getByText("Your next required course", { exact: true })).toBeVisible();
+        await expect(learnerPage.getByRole("region", { name: "Personalized workflow guidance" })).toHaveCount(0);
+        await expect(learnerPage.getByText("Your next required course", { exact: true })).toBeInViewport();
         await expect(learnerPage.getByText(/Due .*2027/).first()).toBeVisible();
         await expectNoHorizontalOverflow(learnerPage);
         const accessibility = await new AxeBuilder({ page: learnerPage }).withTags(["wcag2a", "wcag2aa"]).analyze();

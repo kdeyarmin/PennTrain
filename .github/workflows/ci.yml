@@ -487,8 +487,13 @@ jobs:
       - name: Install Chromium and WebKit
         run: pnpm --filter @workspace/caremetric-carebase exec playwright install --with-deps chromium webkit
 
+      - name: Training invitation, recovery, and certificate journeys
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/new-training-facility.spec.ts --project=chromium --project=mobile-safari
+
       - name: Role, public, guest, and accessibility browser journeys
-        run: pnpm --filter @workspace/caremetric-carebase run test:e2e
+        # The full onboarding path runs first for fast feedback; the complementary
+        # filter preserves the complete matrix without repeating those journeys.
+        run: pnpm --filter @workspace/caremetric-carebase run test:e2e --grep-invert "new training facility administrator"
 
       - name: Build standalone Train and verify its application boundary
         run: |
