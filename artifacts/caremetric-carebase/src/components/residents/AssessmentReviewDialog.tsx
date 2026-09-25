@@ -27,11 +27,12 @@ import type { Json } from "@/lib/database.types";
  * which is why `finalize_resident_assessment_review` deliberately does not re-implement it in SQL.
  */
 export function AssessmentReviewDialog({
-  open, onOpenChange, residentId, template, existing,
+  open, onOpenChange, residentId, facilityType, template, existing,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   residentId: string;
+  facilityType: string | null | undefined;
   template: AssessmentTemplate;
   existing?: ResidentAssessmentReview;
 }) {
@@ -58,7 +59,7 @@ export function AssessmentReviewDialog({
 
   const issues = validateTemplateAnswers(template, answers);
   const progress = templateProgress(template, answers);
-  const citation = templateCitation(template);
+  const citation = templateCitation(template, facilityType);
   const setAnswer = (key: string, value: unknown) => setAnswers((prev) => ({ ...prev, [key]: value }));
 
   const handleSaveDraft = async () => {

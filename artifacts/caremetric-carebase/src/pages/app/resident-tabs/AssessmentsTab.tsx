@@ -165,7 +165,7 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
             <div className="grid gap-2 md:grid-cols-2">
               {templates.map((template) => {
                 const latest = (reviews ?? []).find((review) => review.template_key === template.key);
-                const citation = templateCitation(template);
+                const citation = templateCitation(template, facility?.facility_type);
                 return (
                   <div key={template.key} className="rounded-md border p-2.5 text-sm">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -229,6 +229,7 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
           open={!!openTemplate}
           onOpenChange={(next) => !next && setOpenTemplate(null)}
           residentId={resident.id}
+          facilityType={facility?.facility_type}
           template={openTemplate}
           existing={(reviews ?? []).find((review) => review.template_key === openTemplate.key && review.status === "draft")}
         />
