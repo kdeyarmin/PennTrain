@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { storageSafeFileName } from "@/lib/storagePaths";
 import type { Tables } from "@/lib/database.types";
 
 export type IncidentDocument = Tables<"incident_documents">;
@@ -29,7 +30,7 @@ export function useUploadIncidentDocument() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ file, organizationId, facilityId, incidentId, documentLabel }: UploadIncidentDocumentInput) => {
-      const path = `${organizationId}/${facilityId}/${crypto.randomUUID()}-${file.name}`;
+      const path = `${organizationId}/${facilityId}/${crypto.randomUUID()}-${storageSafeFileName(file.name)}`;
       const { error: uploadError } = await supabase.storage.from("incident-documents").upload(path, file);
       if (uploadError) throw uploadError;
 

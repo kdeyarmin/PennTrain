@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { storageSafeFileName } from "@/lib/storagePaths";
 import type { Tables, TablesInsert } from "@/lib/database.types";
 
 export type AdministratorProfile = Tables<"administrator_profiles">;
@@ -142,7 +143,7 @@ export function useAdministratorDocumentSignedUrl() {
 export function useUploadAdministratorDocument() {
   return useMutation({
     mutationFn: async ({ file, organizationId, profileId }: { file: File; organizationId: string; profileId: string }) => {
-      const path = `${organizationId}/${profileId}/${crypto.randomUUID()}-${file.name}`;
+      const path = `${organizationId}/${profileId}/${crypto.randomUUID()}-${storageSafeFileName(file.name)}`;
       const { error } = await supabase.storage.from("administrator-documents").upload(path, file);
       if (error) throw error;
       return path;
