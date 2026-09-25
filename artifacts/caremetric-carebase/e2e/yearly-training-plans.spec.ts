@@ -150,7 +150,8 @@ async function applyToBoth(page: Page, name: string,
   await expect(dialog.getByRole("checkbox", { name: "PlanFirst Learner", exact: true })).toBeVisible();
   await expect(dialog.getByRole("checkbox", { name: "PlanSecond Learner", exact: true })).toBeVisible();
   await dialog.getByRole("checkbox", { name: "Select all matching employees in this facility", exact: true }).check();
-  await dialog.getByRole("button", { name: "Apply to 2 Employees", exact: true }).click();
+  const applyButton = dialog.getByRole("button", { name: "Apply to 2 Employees", exact: true });
+  await applyButton.click();
   const result = dialog.getByRole("status");
   await expect(result).toContainText(`${counts.assigned} assignments created; ${counts.updated} deadlines updated; ${counts.canceled} removed-course assignments canceled; ${counts.completed} completed assignments preserved.`);
   if (expectedConflict) {
@@ -160,7 +161,8 @@ async function applyToBoth(page: Page, name: string,
   } else {
     await expect(result).not.toContainText("Needs attention:");
   }
-  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  // The shared dialog also has an X named Close. Select the footer beside Apply.
+  await applyButton.locator("..").getByRole("button", { name: "Close", exact: true }).click();
   await expect(dialog).not.toBeVisible();
 }
 
