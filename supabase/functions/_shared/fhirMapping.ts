@@ -187,7 +187,8 @@ export function referenceId(reference: string | undefined | null, expectedType?:
 function resourceReferenceId(reference: Reference | undefined, expectedType: string, targets?: ReferenceTargets): string | null {
   if (reference?.type && reference.type !== expectedType &&
     reference.type !== `http://hl7.org/fhir/StructureDefinition/${expectedType}`) return null;
-  const literal = reference?.reference?.trim();
+  // A partner can send a number or an object where FHIR says string; that is bad input, not a crash.
+  const literal = typeof reference?.reference === "string" ? reference.reference.trim() : undefined;
   if (!literal || /[\s\\?#]/.test(literal)) return null;
   if (targets?.has(literal)) {
     const target = targets.get(literal);
