@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
@@ -187,6 +187,8 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   const {
     data: progress,
     isLoading: progressLoading,
+    isFetching: progressFetching,
+    isFetchedAfterMount: progressFetchedAfterMount,
     isError: progressError,
     error: progressErrorDetail,
     refetch: refetchProgress,
@@ -195,13 +197,20 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   const packageCompleted = useAssignmentPackageCompleted(assignmentId);
   const progressWriter = useMemo(() => createCourseProgressWriter(), [assignmentId]);
   const [completionPending, setCompletionPending] = useState(false);
+  const [quizNavigationPending, setQuizNavigationPending] = useState(false);
+  const quizNavigationPendingRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const ownsAssignment = !!assignment && !!employee && assignment.employee_id === employee.id;
   const completionEvidenceLocked = assignment?.status === "completed";
   const canMutateEvidence = canMutateCourseEvidence(
     assignment?.employee_id,
     employee?.id,
     assignment?.status,
-  ) && !completionPending;
+  ) && !completionPending && !quizNavigationPending;
 
   const upsertProgress = useUpsertCourseProgress();
   const startAssignment = useStartCourseAssignment();
@@ -269,7 +278,7 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   // debounced save below then persists them).
   useEffect(() => {
     const key = lessonStorageKey(assignmentId);
-    if (!key || !ownsAssignment || progressLoading || progressError || lessonToolsLoadedForId === assignmentId) return;
+    if (!key || !ownsAssignment || progressLoading || progressFetching || !progressFetchedAfterMount || progressError || lessonToolsLoadedForId === assignmentId) return;
     setLearningToolsStorageError(null);
     let local: LearningToolsState = { notes: {}, confidence: {} };
     try {
@@ -287,7 +296,7 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
     learningToolsRef.current = adopted;
     setLessonToolsLoadedForId(assignmentId);
     setLastStudyToolsSavedAt(null);
-  }, [assignmentId, ownsAssignment, progress?.learning_tools, progressLoading, progressError, lessonToolsLoadedForId]);
+  }, [assignmentId, ownsAssignment, progress?.learning_tools, progressLoading, progressFetching, progressFetchedAfterMount, progressError, lessonToolsLoadedForId]);
 
   // Keep the ref in step with state; declared before the persistence effects so they
   // always read the current values.
@@ -313,15 +322,15 @@ useEffect(() => {
   return () => window.clearTimeout(timeoutId);
 }, [assignmentId, lessonNotes, lessonConfidence, lessonToolsLoadedForId, ownsAssignment]);
 
-  // Hydrate video watch state once per assignment (progress refetches after every
-  // checkpoint upsert; re-hydrating from those echoes would clobber newer local ticks).
+  // Hydrate video watch state once per assignment (checkpoint responses update
+  // the progress cache; re-hydrating from those echoes would clobber newer local ticks).
   useEffect(() => {
-    if (!ownsAssignment || videoStateLoadedForId === assignmentId || progressLoading || progressError) return;
+    if (!ownsAssignment || videoStateLoadedForId === assignmentId || progressLoading || progressFetching || !progressFetchedAfterMount || progressError) return;
     const parsed = sanitizeVideoState(progress?.video_state);
     videoStateRef.current = parsed;
     setVideoState(parsed);
     setVideoStateLoadedForId(assignmentId);
-  }, [assignmentId, ownsAssignment, progress?.video_state, progressLoading, progressError, videoStateLoadedForId]);
+  }, [assignmentId, ownsAssignment, progress?.video_state, progressLoading, progressFetching, progressFetchedAfterMount, progressError, videoStateLoadedForId]);
 
   const handleVideoStateChange = (blockId: string, next: VideoBlockState) => {
     if (!canMutateEvidence) return;
@@ -339,16 +348,18 @@ useEffect(() => {
   // stepIndex/furthestIndex and the started_at ref so an in-place switch to a different
   // assignment cannot carry the previous one's position or start time into its checkpoints.
   // A failed progress read is never adopted: resuming at 0 over an unknown server row would
-  // checkpoint over state the employee actually reached.
+  // checkpoint over state the employee actually reached. Cached data during an in-flight
+  // refresh is not adopted either: hydration is once per session, so a later response could
+  // otherwise leave the player on an old lesson with an empty video/notes snapshot.
   useEffect(() => {
-    if (!ownsAssignment || resumed || !blocks || blocks.length === 0 || progressLoading || progressError) return;
+    if (!ownsAssignment || resumed || !blocks || blocks.length === 0 || progressLoading || progressFetching || !progressFetchedAfterMount || progressError) return;
     const lastIdx = progress?.last_block_id ? blocks.findIndex(b => b.id === progress.last_block_id) : -1;
     const landingIndex = lastIdx >= 0 ? lastIdx : 0;
     setStepIndex(landingIndex);
     setFurthestIndex(landingIndex);
     progressStartedAtRef.current = progress?.started_at ?? null;
     setResumedForId(assignmentId);
-  }, [assignmentId, ownsAssignment, resumed, blocks, progress, progressLoading, progressError]);
+  }, [assignmentId, ownsAssignment, resumed, blocks, progress, progressLoading, progressFetching, progressFetchedAfterMount, progressError]);
 
   // Single coalesced progress writer: video ticks, notes, step navigation, and tab-hide
   // all funnel through one payload builder so concurrent debounce timers cannot stampede
@@ -454,6 +465,32 @@ useEffect(() => {
 
   const { data: currentQuiz } = useGetQuizByBlockId(isQuizBlock ? currentBlock?.id : undefined);
 
+  const handleOpenQuiz = async (event: MouseEvent<HTMLAnchorElement>) => {
+    // Keep ordinary link semantics (including opening another tab) while making
+    // this player's in-app handoff wait for its current lesson and video evidence.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (!currentQuiz || !canMutateEvidence || quizNavigationPendingRef.current || progressWriter.isClosed()) return;
+    const checkpoint = buildProgressCheckpoint();
+    if (!checkpoint) return;
+    const destination = `/me/courses/${assignmentId}/quiz/${currentQuiz.id}`;
+    quizNavigationPendingRef.current = true;
+    setQuizNavigationPending(true);
+    try {
+      await progressWriter.checkpoint(() => upsertProgress.mutateAsync(checkpoint));
+      if (mountedRef.current) setLocation(destination);
+    } catch (error) {
+      if (mountedRef.current) toast({
+        title: "Could not save progress",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      quizNavigationPendingRef.current = false;
+      if (mountedRef.current) setQuizNavigationPending(false);
+    }
+  };
+
   const attemptsForCurrentQuiz = useMemo(
     () => (quizAttempts ?? []).filter(a => a.quiz_id === currentQuiz?.id),
     [quizAttempts, currentQuiz?.id],
@@ -555,7 +592,7 @@ useEffect(() => {
   };
 
   const jumpToBlock = (blockId: string) => {
-    if (!blocks) return;
+    if (!blocks || quizNavigationPending) return;
     const idx = blocks.findIndex(block => block.id === blockId);
     if (idx >= 0 && idx <= furthestIndex) setStepIndex(idx);
   };
@@ -603,7 +640,7 @@ useEffect(() => {
     showClearLearningToolsConfirm,
   })) return;
   const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableShortcutTarget(event.target)) return;
+    if (quizNavigationPendingRef.current || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableShortcutTarget(event.target)) return;
     if (event.key === "ArrowLeft" && stepIndex > 0) {
       event.preventDefault();
       setStepIndex(i => Math.max(0, i - 1));
@@ -697,7 +734,8 @@ useEffect(() => {
     );
   };
 
-  if (employeeLoading || assignmentLoading) {
+  if (employeeLoading || assignmentLoading || (ownsAssignment && !assignmentError && !progressError
+    && !resumed && (progressFetching || !progressFetchedAfterMount))) {
     return (
       <div className="space-y-6">
         <div className="h-8 w-64 bg-muted animate-pulse rounded" />
@@ -926,7 +964,7 @@ useEffect(() => {
                       aria-current={isCurrent ? "step" : undefined}
                       aria-label={`Lesson ${i + 1}${b.title ? `: ${b.title}` : ""}${isCurrent ? " (current)" : !isVisited ? " (not yet visited)" : ""}`}
                       title={b.title ?? `Lesson ${i + 1}`}
-                      disabled={!isVisited}
+                      disabled={!isVisited || quizNavigationPending}
                       onClick={() => setStepIndex(i)}
                       className={`min-h-9 max-w-full px-2.5 rounded-full text-[11px] font-medium border transition-colors flex items-center gap-1.5 ${
                         isCurrent
@@ -975,7 +1013,7 @@ useEffect(() => {
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={locked}
+                            disabled={locked || quizNavigationPending}
                             onClick={() => jumpToBlock(block.id)}
                           >
                             {blockIndex + 1}. {block.title ?? getBlockLabel(block.block_type)}
@@ -1093,8 +1131,9 @@ useEffect(() => {
                     </p>
                   ) : currentQuiz ? (
                     <Button asChild>
-                      <Link href={`/me/courses/${assignmentId}/quiz/${currentQuiz.id}`}>
-                        <ListChecks className="mr-2 h-4 w-4" /> Take Quiz
+                      <Link href={`/me/courses/${assignmentId}/quiz/${currentQuiz.id}`}
+                        onClick={handleOpenQuiz} aria-busy={quizNavigationPending} aria-disabled={quizNavigationPending}>
+                        <ListChecks className={`mr-2 h-4 w-4${quizNavigationPending ? " animate-pulse" : ""}`} /> Take Quiz
                       </Link>
                     </Button>
                   ) : (
@@ -1242,7 +1281,7 @@ useEffect(() => {
             <Button
               variant="outline"
               onClick={() => setStepIndex(i => Math.max(0, i - 1))}
-              disabled={stepIndex === 0}
+              disabled={stepIndex === 0 || quizNavigationPending}
             >
               <ArrowLeft className="mr-2 h-4 w-4" /> Previous
             </Button>
@@ -1265,7 +1304,7 @@ useEffect(() => {
                   )}
                 </div>
               ) : (
-                <Button onClick={handleComplete} disabled={!canAdvance || completionPending}>
+                <Button onClick={handleComplete} disabled={!canAdvance || completionPending || quizNavigationPending}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   {completionPending ? "Completing..." : "Mark Training Complete"}
                 </Button>
@@ -1275,13 +1314,13 @@ useEffect(() => {
                 <Button
                   variant="outline"
                   onClick={handleMarkReadyAndContinue}
-                  disabled={!canAdvance || completionEvidenceLocked}
+                  disabled={!canAdvance || completionEvidenceLocked || quizNavigationPending}
                 >
                   <ClipboardCheck className="mr-2 h-4 w-4" /> Mark ready & next
                 </Button>
                 <Button
                   onClick={() => setStepIndex(i => Math.min(blocks.length - 1, i + 1))}
-                  disabled={!canAdvance}
+                  disabled={!canAdvance || quizNavigationPending}
                 >
                   Next <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
