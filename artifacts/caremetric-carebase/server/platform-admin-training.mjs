@@ -57,7 +57,7 @@ export function createPlatformTrainingHandler({ config, createClient, fetcher = 
           ? await certificateResult(native, response.data, operation, config, now) : response.data;
       }
       let projected;
-      try { projected = projectTrainingResponse(result, operation, config.supabaseUrl); }
+      try { projected = projectTrainingResponse(result, operation, config.supabaseUrl, now().getTime()); }
       catch { throw new AdminError(502, 'upstream'); }
       if (Buffer.byteLength(JSON.stringify(projected)) > (operation.operation === 'enrollments.report' ? 12_000_000 : 2_000_000)) throw new AdminError(502, 'upstream');
       return json(projected);

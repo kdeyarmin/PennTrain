@@ -27,7 +27,7 @@ export async function executeTrainingInvitation({ authority, operation, config, 
   if (reservation.execute !== true || typeof reservation.dispatchToken !== 'string' || !UUID.test(reservation.dispatchToken)
     || receipt.replayed !== false || receipt.result.deliveryStatus !== 'unknown' || receipt.result.invitationId !== null) throw new AdminError(503,'upstream');
 
-  let invitationId = null, completedReceipt = null;
+  let invitationId = null, completedReceipt = null, dispatchAttempted = false, deliveryRejected = false;
   try {
     const revalidate = async () => {
       const check = await native.rpc('platform_admin_training_invitation_authorize',{
@@ -40,6 +40,13 @@ export async function executeTrainingInvitation({ authority, operation, config, 
       getEnv:name=>name==='SUPABASE_URL'?config.supabaseUrl:name==='SUPABASE_SERVICE_ROLE_KEY'?config.serviceKey:getEnv(name),
       resolveDelegatedAuthority:async()=>({actorId:nativeId,organizationId:op.organizationId,role:p.role,
         email:p.email,firstName:p.firstName,lastName:p.lastName,employeeId:p.employeeId,facilityId:p.facilityId,revalidate,
+        beforeEmailDispatch:()=>{dispatchAttempted=true;},deliveryRejected:()=>{deliveryRejected=true;},
+        provisionProfile:async(invitedUserId)=>{
+          const provisioned=await native.rpc('platform_admin_training_invitation_provision',{
+            ...common,p_request_id:op.requestId,p_dispatch_token:reservation.dispatchToken,p_invited_user_id:invitedUserId});
+          if(provisioned.error)throw rpcError(provisioned.error);
+          return provisioned.data;
+        },
         recordInvitationSent:async(invitedUserId,redirectTo)=>{
           const saved=await native.rpc('platform_admin_training_invitation_record',{p_actor:nativeId,p_hub_user:actor.user_id,
             p_hub_session:actor.session_id,p_request_id:op.requestId,p_dispatch_token:reservation.dispatchToken,
@@ -62,7 +69,8 @@ export async function executeTrainingInvitation({ authority, operation, config, 
   }
   if(completedReceipt)return completedReceipt;
   const finalized=await native.rpc('platform_admin_training_invitation_finalize',{p_actor:nativeId,p_hub_user:actor.user_id,
-    p_hub_session:actor.session_id,p_request_id:op.requestId,p_dispatch_token:reservation.dispatchToken,p_invitation_id:invitationId});
+    p_hub_session:actor.session_id,p_request_id:op.requestId,p_dispatch_token:reservation.dispatchToken,p_invitation_id:invitationId,
+    p_delivery_status:!dispatchAttempted||deliveryRejected?'failed':'unknown'});
   // Every failure here follows a possibly accepted external send. Even a native
   // conflict can mean atomic recording committed before its response was lost;
   // never label it as a safe pre-dispatch rejection that permits a new request ID.

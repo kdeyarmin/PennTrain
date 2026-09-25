@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@1.0.14";
+import { assertEquals, assertRejects } from "jsr:@std/assert@1.0.14";
 import { createInviteUserHandler } from "./handler.ts";
 import type { DelegatedInviteAuthority } from "./handler.ts";
 
@@ -65,9 +65,11 @@ function makeHandler(opts: {
   demoOrgIds?: string[];
   delegatedAuthority?: DelegatedInviteAuthority;
   assuranceAllowed?: boolean;
+  inviteError?: { code: string; status: number; message: string };
+  inviteThrows?: boolean;
 } = {}) {
   const rpcCalls: RpcCall[] = [];
-  const observations = { invites: 0, authLookups: 0, assuranceChecks: 0, employeeFilters: [] as [string,unknown][] };
+  const observations = { invites: 0, deletes: 0, authLookups: 0, assuranceChecks: 0, employeeFilters: [] as [string,unknown][] };
   const demoOrgIds = new Set(opts.demoOrgIds ?? []);
   const callerRole = opts.callerRole ?? "org_admin";
   const callerOrgId = opts.callerOrgId === undefined ? ORG_ID : opts.callerOrgId;
@@ -106,8 +108,8 @@ function makeHandler(opts: {
   const adminClient = {
     auth: {
       admin: {
-        inviteUserByEmail: async () => { observations.invites++; return { data: { user: { id: INVITED_ID, email: EMAIL } }, error: null }; },
-        deleteUser: async () => ({ data: null, error: null }),
+        inviteUserByEmail: async () => { observations.invites++; if(opts.inviteThrows)throw new Error("provider timeout"); return { data: { user: { id: INVITED_ID, email: EMAIL } }, error: opts.inviteError ?? null }; },
+        deleteUser: async () => { observations.deletes++; return { data: null, error: null }; },
       },
     },
     from: () => chainable({ data: null, error: null }),
@@ -203,7 +205,7 @@ const FACILITY_ID = "77777777-7777-4777-8777-777777777777";
 const delegatedAuthority = (patch: Partial<DelegatedInviteAuthority> = {}): DelegatedInviteAuthority => ({
   actorId: CALLER_ID, organizationId: ORG_ID, role: "org_admin", email: EMAIL,
   firstName: "Rae", lastName: "Nolan", employeeId: null, facilityId: null,
-  revalidate: async () => {}, ...patch,
+  revalidate: async () => {}, provisionProfile: async invitedId => ({ id: invitedId, is_active: true }), ...patch,
 });
 const delegatedBody = { email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "org_admin", organization_id: ORG_ID };
 const internalRequest = (body: unknown) => new Request("https://example.test/internal/invitation", {
@@ -227,17 +229,18 @@ Deno.test("ordinary invite still requires current native MFA", async () => {
 });
 
 Deno.test("server-injected Hub invite uses exact scoped authority and existing profile/lifecycle writes", async () => {
-  let checks = 0;
+  let checks = 0, provisionedId = "";
   const { handler, observations, rpcCalls } = makeHandler({ callerRole: "platform_admin", callerOrgId: null,
-    delegatedAuthority: delegatedAuthority({ revalidate: async () => { checks++; } }) });
+    delegatedAuthority: delegatedAuthority({ revalidate: async () => { checks++; }, provisionProfile: async invitedId => { provisionedId=invitedId;return { id: invitedId }; } }) });
   const response = await handler(internalRequest(delegatedBody));
   assertEquals(response.status, 200);
   assertEquals(checks, 2);
   assertEquals(observations.authLookups, 0, "no native user session is fabricated");
   assertEquals(observations.assuranceChecks, 0, "delegated SMS does not claim native AAL2");
   assertEquals(observations.invites, 1);
-  assertEquals(rpcCalls.map(call=>call.name), ["admin_update_profile", "record_user_invitation_sent"]);
-  assertEquals(rpcCalls[1].args.p_created_by, CALLER_ID);
+  assertEquals(provisionedId, INVITED_ID);
+  assertEquals(rpcCalls.map(call=>call.name), ["record_user_invitation_sent"]);
+  assertEquals(rpcCalls[0].args.p_created_by, CALLER_ID);
 });
 
 for(const changed of [{role:"platform_admin"},{organization_id:DEMO_ORG_ID},{email:"other@example.test"},
@@ -269,4 +272,38 @@ Deno.test("delegated invite still refuses a demoted native actor", async () => {
   const {handler,observations}=makeHandler({delegatedAuthority:delegatedAuthority()});
   assertEquals((await handler(internalRequest(delegatedBody))).status,403);
   assertEquals(observations.invites,0);
+});
+
+Deno.test("delegated profile race conflict never invokes broad provisioning or deletes the winning identity", async () => {
+  const {handler,observations,rpcCalls}=makeHandler({callerRole:"platform_admin",callerOrgId:null,
+    delegatedAuthority:delegatedAuthority({provisionProfile:async()=>{throw new Error("Identity claimed by another organization");}})});
+  await assertRejects(()=>handler(internalRequest(delegatedBody)),Error,"Identity claimed");
+  assertEquals(observations.invites,1);
+  assertEquals(observations.deletes,0);
+  assertEquals(rpcCalls,[]);
+});
+
+for(const failure of [
+  {code:"email_exists",status:422,rejected:true},
+  {code:"over_email_send_rate_limit",status:429,rejected:true},
+  {code:"unexpected_failure",status:500,rejected:false},
+  {code:"unknown_client_error",status:400,rejected:false},
+  {code:"email_exists",status:500,rejected:false},
+]) Deno.test(`delegated delivery classifies only definite rejection ${failure.code}/${failure.status}`,async()=>{
+  let started=0,rejected=0;
+  const {handler,observations,rpcCalls}=makeHandler({callerRole:"platform_admin",callerOrgId:null,
+    inviteError:{...failure,message:"provider rejected"},delegatedAuthority:delegatedAuthority({
+      beforeEmailDispatch:()=>{started++;},deliveryRejected:()=>{rejected++;},
+    })});
+  assertEquals((await handler(internalRequest(delegatedBody))).status,400);
+  assertEquals(started,1);assertEquals(rejected,failure.rejected?1:0);
+  assertEquals(observations.deletes,0);assertEquals(rpcCalls,[]);
+});
+
+Deno.test("delegated transport failure remains uncertain after dispatch begins",async()=>{
+  let started=0,rejected=0;
+  const {handler}=makeHandler({callerRole:"platform_admin",callerOrgId:null,inviteThrows:true,
+    delegatedAuthority:delegatedAuthority({beforeEmailDispatch:()=>{started++;},deliveryRejected:()=>{rejected++;}})});
+  await assertRejects(()=>handler(internalRequest(delegatedBody)),Error,"provider timeout");
+  assertEquals(started,1);assertEquals(rejected,0);
 });

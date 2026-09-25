@@ -101,7 +101,7 @@ function page<T>(r:Record<string,unknown>,op:{limit:number;offset:number},projec
   const items=r.items.map(project);if(new Set(items.map(x=>(x as {id:string}).id)).size!==items.length)bad();
   return {items,total,limit:op.limit,offset:op.offset};
 }
-export function projectTrainingResponse(input:unknown,op:TrainingOperation,certificateOrigin='https://xsqobvvreaovwibxwyvv.supabase.co'):TrainingResponse {
+export function projectTrainingResponse(input:unknown,op:TrainingOperation,certificateOrigin='https://xsqobvvreaovwibxwyvv.supabase.co',now=Date.now()):TrainingResponse {
   const r=object(input);
   if(op.operation==='facilities.list')return page(r,op,v=>{const x=object(v);return {id:uuid(x.id),name:str(x.name),facilityType:choice(x.facilityType,['PCH','ALR']),isActive:bool(x.isActive)};});
   if(op.operation==='students.list')return page(r,op,v=>{const x=object(v);return {id:uuid(x.id),firstName:str(x.firstName,100),lastName:str(x.lastName,100),email:nullable(x.email,email),jobTitle:str(x.jobTitle),hireDate:nullable(x.hireDate,day),isActive:bool(x.isActive),status:str(x.status,80),profileId:nullable(x.profileId,uuid)};});
@@ -115,7 +115,10 @@ export function projectTrainingResponse(input:unknown,op:TrainingOperation,certi
     const url=nullable(r.url,v=>str(v,4096)),expiresAt=nullable(r.expiresAt,instant);
     if(status==='ready'){
       if(!url||!expiresAt)bad();const parsed=new URL(url);
-      if(parsed.protocol!=='https:'||parsed.origin!==certificateOrigin||parsed.port||parsed.username||parsed.password||parsed.hash||!parsed.pathname.startsWith('/storage/v1/object/sign/certificates/')||!parsed.searchParams.get('token'))bad();
+      if(parsed.protocol!=='https:'||parsed.origin!==certificateOrigin||parsed.port||parsed.username||parsed.password||parsed.hash||parsed.pathname!==`/storage/v1/object/sign/certificates/${op.organizationId}/${op.certificateId}.pdf`||!parsed.searchParams.get('token'))bad();
+      // Native signs for ten minutes. Permit one minute of clock skew, never an
+      // already-expired response or an unbounded bearer link.
+      const remaining=Date.parse(expiresAt)-now;if(!Number.isFinite(remaining)||remaining<=0||remaining>660_000)bad();
     }else if(url!==null||expiresAt!==null)bad();
     return {certificateId,status,url,expiresAt};
   }
@@ -125,6 +128,8 @@ export function projectTrainingResponse(input:unknown,op:TrainingOperation,certi
     if(r.rows.length!==Math.min(op.limit,Math.max(0,counts.total-op.offset))||op.limit===10000&&counts.total>10000||counts.completion_denominator!==counts.total-counts.canceled||counts.completed>counts.completion_denominator||counts.students>counts.total||counts.certificates>counts.total)bad();
     const rows=r.rows.map(v=>{const x=object(v),percent=x.percent_complete;if(typeof percent!=='number'||!Number.isFinite(percent)||percent<0||percent>100)bad();
       const facility_id=uuid(x.facility_id);if(op.facilityId&&facility_id!==op.facilityId)bad();
+      if(op.status!=='all'&&x.status!==op.status)bad();
+      if(op.dateBasis==='certificate'&&(!x.certificate_id||!x.certificate_issued_at))bad();
       return {id:uuid(x.id),employee_id:uuid(x.employee_id),student:str(x.student,500),facility_id,facility:str(x.facility,500),course_id:uuid(x.course_id),course:str(x.course,1000),status:choice(x.status,enrollmentStatuses.slice(1)),assigned_at:instant(x.assigned_at),due_date:nullable(x.due_date,day),completed_at:nullable(x.completed_at,instant),percent_complete:percent,certificate_id:nullable(x.certificate_id,uuid),credential_number:nullable(x.credential_number,v=>str(v,200)),certificate_issued_at:nullable(x.certificate_issued_at,instant),certificate_pdf_status:nullable(x.certificate_pdf_status,v=>str(v,80))};});
     if(new Set(rows.map(x=>x.id)).size!==rows.length)bad();
     return {...counts,organization_name:str(r.organization_name),facility_name:nullable(r.facility_name,v=>str(v)),generated_at:instant(r.generated_at),date_basis:op.dateBasis,limit:op.limit,offset:op.offset,rows};

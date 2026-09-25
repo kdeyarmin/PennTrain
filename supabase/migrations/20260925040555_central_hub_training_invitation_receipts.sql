@@ -4,7 +4,7 @@ create table app_private.training_admin_invitations (
  hub_user_id uuid not null, request_id uuid not null, actor_profile_id uuid not null,
  hub_session_id uuid not null, authentication_method text not null check(authentication_method in ('jwt_aal2','app_sms')),
  operation jsonb not null, dispatch_token uuid not null default gen_random_uuid(),
- invitation_id uuid, delivery_status text not null default 'unknown' check(delivery_status in ('sent','unknown')),
+ invitation_id uuid, delivery_status text not null default 'unknown' check(delivery_status in ('sent','failed','unknown')),
  created_at timestamptz not null default clock_timestamp(), finalized_at timestamptz,
  primary key(hub_user_id,request_id), check((delivery_status='sent')=(invitation_id is not null))
 );
@@ -119,18 +119,20 @@ end;
 $$;
 
 create function public.platform_admin_training_invitation_finalize(
- p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_request_id uuid,p_dispatch_token uuid,p_invitation_id uuid)
+ p_actor uuid,p_hub_user uuid,p_hub_session uuid,p_request_id uuid,p_dispatch_token uuid,p_invitation_id uuid,p_delivery_status text default 'unknown')
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare receipt app_private.training_admin_invitations;
 begin
  -- Finalization records an already-attempted external effect. Expiry or deactivation
  -- must not erase its outcome; it grants no authority to dispatch another message.
  if coalesce(auth.jwt()->>'role','')<>'service_role' then raise exception 'Service role required' using errcode='42501'; end if;
+ if coalesce(p_delivery_status,'') not in ('sent','failed','unknown') or (p_delivery_status='sent') is distinct from (p_invitation_id is not null) then
+  raise exception 'Invalid invitation result' using errcode='22023'; end if;
  select * into receipt from app_private.training_admin_invitations i where i.hub_user_id=p_hub_user and i.request_id=p_request_id
   and i.actor_profile_id=p_actor and i.hub_session_id=p_hub_session and i.dispatch_token=p_dispatch_token for update;
  if not found then raise exception 'Invitation reservation unavailable' using errcode='42501'; end if;
  if receipt.finalized_at is not null then
-  if receipt.invitation_id is distinct from p_invitation_id then raise exception 'Invitation result already recorded' using errcode='40001'; end if;
+  if receipt.invitation_id is distinct from p_invitation_id or receipt.delivery_status is distinct from p_delivery_status then raise exception 'Invitation result already recorded' using errcode='40001'; end if;
   return app_private.training_invitation_result(receipt,true);
  end if;
  if p_invitation_id is not null and not exists(select 1 from public.user_invitation_lifecycle i
@@ -142,7 +144,7 @@ begin
   raise exception 'Invitation receipt does not match reservation' using errcode='42501';
  end if;
  update app_private.training_admin_invitations i set invitation_id=p_invitation_id,
-  delivery_status=case when p_invitation_id is null then 'unknown' else 'sent' end,finalized_at=clock_timestamp()
+  delivery_status=p_delivery_status,finalized_at=clock_timestamp()
   where i.hub_user_id=p_hub_user and i.request_id=p_request_id returning * into receipt;
  insert into public.audit_logs(organization_id,actor_profile_id,action,entity_type,entity_id,metadata)
   values((receipt.operation->>'organizationId')::uuid,p_actor,'hub.training.invitation_result','organizations',receipt.operation->>'organizationId',
@@ -152,10 +154,10 @@ end;
 $$;
 revoke all on function public.platform_admin_training_invitation_reserve(uuid,uuid,uuid,timestamptz,timestamptz,text,jsonb),
  public.platform_admin_training_invitation_authorize(uuid,uuid,uuid,timestamptz,timestamptz,text,jsonb,uuid),
- public.platform_admin_training_invitation_finalize(uuid,uuid,uuid,uuid,uuid,uuid) from public,anon,authenticated;
+ public.platform_admin_training_invitation_finalize(uuid,uuid,uuid,uuid,uuid,uuid,text) from public,anon,authenticated;
 grant execute on function public.platform_admin_training_invitation_reserve(uuid,uuid,uuid,timestamptz,timestamptz,text,jsonb),
  public.platform_admin_training_invitation_authorize(uuid,uuid,uuid,timestamptz,timestamptz,text,jsonb,uuid),
- public.platform_admin_training_invitation_finalize(uuid,uuid,uuid,uuid,uuid,uuid) to service_role;
+ public.platform_admin_training_invitation_finalize(uuid,uuid,uuid,uuid,uuid,uuid,text) to service_role;
 
 -- Record the ordinary invitation lifecycle and the exact command result together.
 -- A lost response after COMMIT is recoverable by replaying reserve; no email is retried.
@@ -181,7 +183,7 @@ begin
  if not found then raise exception 'Invited identity does not match reservation' using errcode='42501'; end if;
  invitation_id:=public.record_user_invitation_sent(p_invited_user_id,p->>'email',p->>'firstName',p->>'lastName',p->>'role',
   (receipt.operation->>'organizationId')::uuid,(p->>'employeeId')::uuid,p_redirect_to,p_actor);
- return public.platform_admin_training_invitation_finalize(p_actor,p_hub_user,p_hub_session,p_request_id,p_dispatch_token,invitation_id);
+ return public.platform_admin_training_invitation_finalize(p_actor,p_hub_user,p_hub_session,p_request_id,p_dispatch_token,invitation_id,'sent');
 end;
 $$;
 revoke all on function public.platform_admin_training_invitation_record(uuid,uuid,uuid,uuid,uuid,uuid,text) from public,anon,authenticated;

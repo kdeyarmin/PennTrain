@@ -2,7 +2,7 @@ begin;
 select no_plan();
 
 select ok(not has_function_privilege('authenticated','public.platform_admin_training_invitation_reserve(uuid,uuid,uuid,timestamptz,timestamptz,text,jsonb)','EXECUTE'),'native sessions cannot mint delegated invitations');
-select ok(not has_function_privilege('anon','public.platform_admin_training_invitation_finalize(uuid,uuid,uuid,uuid,uuid,uuid)','EXECUTE'),'anonymous callers cannot finalize invitations');
+select ok(not has_function_privilege('anon','public.platform_admin_training_invitation_finalize(uuid,uuid,uuid,uuid,uuid,uuid,text)','EXECUTE'),'anonymous callers cannot finalize invitations');
 select ok(has_function_privilege('service_role','public.platform_admin_training_invitation_reserve(uuid,uuid,uuid,timestamptz,timestamptz,text,jsonb)','EXECUTE'),'verified adapter can reserve invitations');
 select ok(not has_table_privilege('service_role','app_private.training_admin_invitations','UPDATE'),'adapter cannot edit durable invitation intent directly');
 
@@ -38,9 +38,9 @@ create function pg_temp.authorize(p_operation jsonb,p_token uuid,p_session uuid 
  select public.platform_admin_training_invitation_authorize('9e100000-0000-4000-8000-000000000001','9e100000-0000-4000-8000-000000000002',
   p_session,now()-interval '1 hour',now()+interval '7 hours','app_sms',p_operation,p_token);
 $$;
-create function pg_temp.finalize(p_request uuid,p_token uuid,p_invitation uuid default null) returns jsonb language sql as $$
+create function pg_temp.finalize(p_request uuid,p_token uuid,p_invitation uuid default null,p_status text default 'unknown') returns jsonb language sql as $$
  select public.platform_admin_training_invitation_finalize('9e100000-0000-4000-8000-000000000001','9e100000-0000-4000-8000-000000000002',
-  '9e100000-0000-4000-8000-000000000003',p_request,p_token,p_invitation);
+  '9e100000-0000-4000-8000-000000000003',p_request,p_token,p_invitation,p_status);
 $$;
 create function pg_temp.record(p_request uuid,p_token uuid) returns jsonb language sql as $$
  select public.platform_admin_training_invitation_record('9e100000-0000-4000-8000-000000000001','9e100000-0000-4000-8000-000000000002',
@@ -87,7 +87,7 @@ select throws_ok($$select pg_temp.authorize(operation,(reservation->>'dispatchTo
  '42501','Invitation reservation unavailable','dispatch is bound to the originating session');
 select throws_ok($$select pg_temp.finalize('9e100000-0000-4000-8000-000000000100','9e100000-0000-4000-8000-000000000099')$$,
  '42501','Invitation reservation unavailable','finalization needs its private reservation token');
-select throws_ok($$select pg_temp.finalize('9e100000-0000-4000-8000-000000000100',(select (reservation->>'dispatchToken')::uuid from invite_fixture where label='admin'),'9e100000-0000-4000-8000-000000000099')$$,
+select throws_ok($$select pg_temp.finalize('9e100000-0000-4000-8000-000000000100',(select (reservation->>'dispatchToken')::uuid from invite_fixture where label='admin'),'9e100000-0000-4000-8000-000000000099','sent')$$,
  '42501','Invitation receipt does not match reservation','cannot claim sent without the matching lifecycle receipt');
 
 select is((pg_temp.record('9e100000-0000-4000-8000-000000000100',
@@ -107,6 +107,12 @@ insert into invite_fixture(label,operation) values('student',pg_temp.invite_oper
  '{"role":"employee","firstName":"Synthetic","lastName":"Student","email":"student@test.invalid","facilityId":"9e100000-0000-4000-8000-000000000020","employeeId":"9e100000-0000-4000-8000-000000000030"}'));
 update invite_fixture set reservation=pg_temp.reserve(operation) where label='student';
 select is((select pg_temp.authorize(operation,(reservation->>'dispatchToken')::uuid) from invite_fixture where label='student'),true,'linked student scope is authorized before sending');
+insert into invite_fixture(label,operation) values('failed',pg_temp.invite_operation('9e100000-0000-4000-8000-000000000104'));
+update invite_fixture set reservation=pg_temp.reserve(operation) where label='failed';
+select is((pg_temp.finalize('9e100000-0000-4000-8000-000000000104',
+ (select (reservation->>'dispatchToken')::uuid from invite_fixture where label='failed'),null,'failed')->'result'->>'deliveryStatus'),'failed','definitive no-send outcome is recorded separately from uncertain delivery');
+select is(pg_temp.reserve((select operation from invite_fixture where label='failed'))->'receipt'->'result'->>'deliveryStatus','failed','retry observes confirmed failure without dispatching again');
+select is(pg_temp.reserve((select operation from invite_fixture where label='failed'))->>'execute','false','confirmed failure never automatically resends');
 reset role;
 select set_config('app.privileged_write','on',true);
 update public.profiles set is_active=false where id='9e100000-0000-4000-8000-000000000001';
@@ -119,9 +125,9 @@ select is((pg_temp.finalize('9e100000-0000-4000-8000-000000000103',
 reset role;
 select throws_ok($$update app_private.training_admin_invitations set operation='{}'$$,'42501','Invitation receipts retain their original intent and outcome','receipt intent cannot be rewritten');
 select throws_ok($$delete from app_private.training_admin_invitations$$,'42501','Invitation receipts retain their original intent and outcome','receipt cannot be deleted');
-select is((select count(*) from app_private.training_admin_invitations),2::bigint,'retries and rejected scopes create no additional reservations');
-select is((select count(*) from public.audit_logs where action='hub.training.invitation_reserved'),2::bigint,'reservation audit records each intent once');
-select is((select count(*) from public.audit_logs where action='hub.training.invitation_result'),2::bigint,'result audit records each finalized outcome once');
+select is((select count(*) from app_private.training_admin_invitations),3::bigint,'retries and rejected scopes create no additional reservations');
+select is((select count(*) from public.audit_logs where action='hub.training.invitation_reserved'),3::bigint,'reservation audit records each intent once');
+select is((select count(*) from public.audit_logs where action='hub.training.invitation_result'),3::bigint,'result audit records each finalized outcome once');
 
 select * from finish();
 rollback;

@@ -58,6 +58,13 @@ export interface DelegatedInviteAuthority {
   employeeId: string | null;
   facilityId: string | null;
   revalidate: () => Promise<void>;
+  /** Locks the returned Auth profile and binds it to this reservation before any
+   * privileged provisioning. Throws on conflict/uncertainty; never delete that
+   * profile, which may have been claimed by a concurrent invitation.
+   */
+  provisionProfile: (invitedUserId: string) => Promise<unknown>;
+  beforeEmailDispatch?: () => void;
+  deliveryRejected?: () => void;
   /** Atomically ties the lifecycle receipt to this exact reserved external attempt.
    * Throw on an uncertain response so ordinary cleanup cannot delete an account
    * whose receipt may already have committed.
@@ -94,7 +101,7 @@ export function createInviteUserHandler({
     if (resolveDelegatedAuthority) {
       try {
         delegated = await resolveDelegatedAuthority();
-        if (!delegated || !UUID_PATTERN.test(delegated.actorId) || !UUID_PATTERN.test(delegated.organizationId)
+        if (!delegated || typeof delegated.provisionProfile !== "function" || !UUID_PATTERN.test(delegated.actorId) || !UUID_PATTERN.test(delegated.organizationId)
           || !["org_admin", "employee"].includes(delegated.role)
           || (delegated.role === "org_admin" && (delegated.employeeId !== null || delegated.facilityId !== null))
           || (delegated.role === "employee" && (!delegated.employeeId || !UUID_PATTERN.test(delegated.employeeId)
@@ -300,11 +307,17 @@ export function createInviteUserHandler({
       catch { return json(req, { error: "Delegated invitation authority is no longer current" }, 403); }
     }
 
+    delegated?.beforeEmailDispatch?.();
     const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: { first_name, last_name },
       redirectTo,
     });
-    if (inviteError) return json(req, { error: inviteError.message }, 400);
+    if (inviteError) {
+      if (inviteError.status >= 400 && inviteError.status < 500 && ["email_exists", "user_already_exists",
+        "email_address_invalid", "over_email_send_rate_limit", "email_address_not_authorized", "signup_disabled",
+        "email_provider_disabled"].includes(inviteError.code)) delegated?.deliveryRejected?.();
+      return json(req, { error: inviteError.message }, 400);
+    }
 
     // handle_new_user() already inserted a profiles row from the invite's auth.users INSERT, but it
     // only ever defaults to role="employee"/organization_id=null there -- an invite has no
@@ -326,6 +339,11 @@ export function createInviteUserHandler({
     // through the same trusted RPC in its own call, placed BEFORE provisioning so the
     // compensating delete below still covers a failure here.
     const provisionInvitedProfile = async () => {
+      // A check before GoTrue is insufficient: it may return the same unconfirmed
+      // identity to competing requests. The delegated writer checks scope while
+      // holding the returned profile lock. A thrown conflict must bypass the
+      // ordinary compensating delete below, preserving the winning account.
+      if (delegated) return { data: await delegated.provisionProfile(invited.user.id), error: null };
       if (!employeeToLink) {
         return await adminClient.rpc("admin_update_profile", {
           p_user_id: invited.user.id,

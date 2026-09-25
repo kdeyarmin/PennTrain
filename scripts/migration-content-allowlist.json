@@ -1,4 +1,7 @@
 {
+  "20260916163258": {
+    "reason": "Recovered deployed SQL was verified against the production migration ledger on 2026-09-25. Its COMMENT ON POLICY alone is retained as a source comment because the clean Supabase migration role does not own storage.objects (CI 36094543155). The restrictive policy, roles, predicates and all authorization behavior are unchanged; production migration history is untouched."
+  },
   "20260704073204": {
     "reason": "Post-deploy edit to comments or formatting only: the file and the deployed statements parse to identical SQL (verified 2026-07-27 with libpg_query), so nothing about what runs changed."
   },

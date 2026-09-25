@@ -41370,11 +41370,26 @@ export type Database = {
       platform_admin_training_invitation_finalize: {
         Args: {
           p_actor: string
+          p_delivery_status?: string
           p_dispatch_token: string
           p_hub_session: string
           p_hub_user: string
           p_invitation_id: string
           p_request_id: string
+        }
+        Returns: Json
+      }
+      platform_admin_training_invitation_provision: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_dispatch_token: string
+          p_hub_session: string
+          p_hub_user: string
+          p_invited_user_id: string
+          p_request_id: string
+          p_session_started_at: string
         }
         Returns: Json
       }
@@ -45305,4 +45320,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

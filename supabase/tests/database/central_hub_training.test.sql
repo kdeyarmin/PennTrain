@@ -64,9 +64,11 @@ select is((pg_temp.fixture('assignment')->'result'->>'alreadyAssigned')::boolean
 select is((pg_temp.training_apply('ce250000-0000-4000-8000-000000000401','enrollments.assign','ce250000-0000-4000-8000-000000000100',
  jsonb_build_object('employeeId',pg_temp.fixture('student')->'result'->>'employeeId','courseId','ce250000-0000-4000-8000-000000000301','versionId','ce250000-0000-4000-8000-000000000311','dueDate',null))->'result'->>'alreadyAssigned')::boolean,true,'another request cannot duplicate an open enrollment');
 insert into training_hub_fixture values('reportOperation',jsonb_build_object('facilityId',null,'courseSearch','Original safety','status','all','dateBasis','assigned','dateFrom',null,'dateThrough',null,'limit',10000,'offset',0));
+insert into training_hub_fixture values('certificateReportOperation',jsonb_build_object('facilityId',null,'courseSearch','Original safety','status','all','dateBasis','certificate','dateFrom',null,'dateThrough',null,'limit',10000,'offset',0));
 select is((pg_temp.training_read('enrollments.report','ce250000-0000-4000-8000-000000000100',pg_temp.fixture('reportOperation'))->>'total')::int,1,'central report uses selected organization and full filtered totals');
 select is(pg_temp.training_read('enrollments.report','ce250000-0000-4000-8000-000000000100',pg_temp.fixture('reportOperation'))->'rows'->0->>'course','Original safety version','central report preserves assigned-version title');
 select is((pg_temp.training_read('enrollments.report','ce250000-0000-4000-8000-000000000101',pg_temp.fixture('reportOperation'))->>'total')::int,0,'another organization has no leaked enrollment rows');
+select is((pg_temp.training_read('enrollments.report','ce250000-0000-4000-8000-000000000100',pg_temp.fixture('certificateReportOperation'))->>'total')::int,0,'unbounded certificate-date report excludes an enrollment with no issued certificate');
 
 -- Record a legitimate course completion under a real native operator fixture.
 reset role;
@@ -81,6 +83,15 @@ select throws_ok($$select pg_temp.training_read('certificates.read','ce250000-00
 select throws_ok($$select pg_temp.training_apply('ce250000-0000-4000-8000-000000000402','enrollments.cancel','ce250000-0000-4000-8000-000000000100',jsonb_build_object('assignmentId',pg_temp.fixture('assignment')->'result'->>'assignmentId'))$$,'55000',null,'Hub cannot cancel immutable completed enrollment');
 insert into training_hub_fixture values('renewal',pg_temp.training_apply('ce250000-0000-4000-8000-000000000403','enrollments.assign','ce250000-0000-4000-8000-000000000100',
  jsonb_build_object('employeeId',pg_temp.fixture('student')->'result'->>'employeeId','courseId','ce250000-0000-4000-8000-000000000301','versionId','ce250000-0000-4000-8000-000000000311','dueDate',null)));
+-- Match the Hub Certificates tab exactly: certificate date basis, all statuses,
+-- no lower/upper date bound. Include both a real issued certificate and an open
+-- annual enrollment so this cannot pass merely because the fixture is empty.
+select is((pg_temp.training_read('enrollments.report','ce250000-0000-4000-8000-000000000100',pg_temp.fixture('reportOperation'))->>'total')::int,2,'mixed report fixture contains certified and uncertified annual enrollments');
+insert into training_hub_fixture values('certificateOnlyReport',pg_temp.training_read('enrollments.report','ce250000-0000-4000-8000-000000000100',pg_temp.fixture('certificateReportOperation')));
+select is((pg_temp.fixture('certificateOnlyReport')->>'total')::int,1,'unbounded certificate-date totals exclude the uncertified annual enrollment');
+select is(jsonb_array_length(pg_temp.fixture('certificateOnlyReport')->'rows'),1,'complete certificate export contains only the issued-certificate enrollment');
+select is(pg_temp.fixture('certificateOnlyReport')->'rows'->0->>'id',pg_temp.fixture('assignment')->'result'->>'assignmentId','certificate-date report keeps the actual certified assignment');
+select is(pg_temp.fixture('certificateOnlyReport')->'rows'->0->'certificate_id',pg_temp.fixture('certificate'),'certificate-date report contains the issued certificate identity, never a null placeholder');
 select lives_ok($$select pg_temp.training_apply('ce250000-0000-4000-8000-000000000404','enrollments.cancel','ce250000-0000-4000-8000-000000000100',jsonb_build_object('assignmentId',pg_temp.fixture('renewal')->'result'->>'assignmentId'))$$,'Hub can close an open annual enrollment with its reason');
 select is((pg_temp.training_read('enrollments.report','ce250000-0000-4000-8000-000000000100',pg_temp.fixture('reportOperation'))->>'completion_denominator')::int,1,'canceled annual enrollment does not inflate completion denominator');
 insert into training_hub_fixture values('term',pg_temp.training_apply('ce250000-0000-4000-8000-000000000500','access.grant','ce250000-0000-4000-8000-000000000100',
