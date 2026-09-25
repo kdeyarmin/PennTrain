@@ -57,21 +57,76 @@ function errorBindingIn(pattern) {
 }
 
 /**
+ * Blank the contents of comments, string and template literals and regex literals, preserving
+ * offsets, so that a brace inside `log("}")` or a comment cannot pass for syntax. Used only to
+ * LOCATE block boundaries: reads inside a template (`${error.message}`) still count, because the
+ * blanking is applied to the boundaries found, never to the text that is searched for reads.
+ */
+export function blankLiterals(source) {
+  const out = source.split("");
+  const blank = (from, to) => { for (let i = from; i < to; i += 1) if (out[i] !== "\n") out[i] = " "; };
+  let i = 0;
+  let lastSignificant = "";
+  while (i < source.length) {
+    const ch = source[i];
+    const next = source[i + 1];
+    if (ch === "/" && next === "/") {
+      const end = source.indexOf("\n", i);
+      const stop = end === -1 ? source.length : end;
+      blank(i, stop); i = stop; continue;
+    }
+    if (ch === "/" && next === "*") {
+      const end = source.indexOf("*/", i + 2);
+      const stop = end === -1 ? source.length : end + 2;
+      blank(i, stop); i = stop; continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      let j = i + 1;
+      while (j < source.length && source[j] !== ch) {
+        if (source[j] === "\\") j += 1;
+        else if (ch !== "`" && source[j] === "\n") break;
+        j += 1;
+      }
+      blank(i + 1, Math.min(j, source.length)); i = j + 1; lastSignificant = ch; continue;
+    }
+    // A slash starts a regex literal only where an operand can start; after an operand it divides.
+    if (ch === "/" && !/[\w$)\]]/.test(lastSignificant)) {
+      let j = i + 1;
+      let inClass = false;
+      while (j < source.length && source[j] !== "\n") {
+        if (source[j] === "\\") { j += 2; continue; }
+        if (source[j] === "[") inClass = true;
+        else if (source[j] === "]") inClass = false;
+        else if (source[j] === "/" && !inClass) break;
+        j += 1;
+      }
+      if (j < source.length && source[j] === "/") { blank(i + 1, j); i = j + 1; lastSignificant = "/"; continue; }
+    }
+    if (!/\s/.test(ch)) lastSignificant = ch;
+    i += 1;
+  }
+  return out.join("");
+}
+
+/**
  * Blank the body of every `catch (<name>)` block so the shadowing parameter, and every mention of
  * it inside the block, cannot pass for a read of an outer binding of the same name. Offsets are
  * preserved (each blanked character becomes a space), so an index into the result indexes the
- * original. An unbalanced block leaves the text untouched rather than guessing.
+ * original. Block boundaries are found on the literal-blanked text, so a `}` inside a string or a
+ * comment does not close the block early. An unbalanced block leaves the text untouched rather
+ * than guessing.
  */
 export function blankCatchBlocks(source, name) {
+  const syntax = blankLiterals(source);
   const re = new RegExp(String.raw`\bcatch\s*\(\s*${name}\b[^)]*\)\s*\{`, "g");
   let out = source;
-  for (const match of source.matchAll(re)) {
+  for (const match of syntax.matchAll(re)) {
     const open = match.index + match[0].length - 1;
     let depth = 0;
     let close = -1;
-    for (let i = open; i < source.length; i += 1) {
-      if (source[i] === "{") depth += 1;
-      else if (source[i] === "}") {
+    for (let i = open; i < syntax.length; i += 1) {
+      if (syntax[i] === "{") depth += 1;
+      else if (syntax[i] === "}") {
         depth -= 1;
         if (depth === 0) { close = i; break; }
       }
@@ -178,6 +233,11 @@ if (process.argv.includes("--self-test")) {
     // shadowing catch block is that block's own and does not end the outer scope either.
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nconst { error: other } = await d();\nif (error) return x;', 0],
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\ntry { x(); } catch (error) { const error2 = error; let error = null; }\nif (error) return x;', 0],
+    // A brace inside a string or a comment does not close the catch block early.
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\ntry { x(); } catch (error) { log("}"); log(error); }', 1],
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\ntry { x(); } catch (error) { log("}"); /* } */ log(error); }\nif (error) return x;', 0],
+    // A read inside a template literal outside any catch block is still a read.
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nif (!data) throw new Error(`lookup failed: ${error?.message}`);', 0],
     // An alias TO `error` is a new binding of it.
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\nconst { err: error } = await d();\nif (error) return x;', 1],
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\nconst { data: d2, error } = await c.from("u").select("*").limit(1).maybeSingle();\nif (error) return x;', 1],

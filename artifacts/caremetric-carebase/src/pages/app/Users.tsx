@@ -327,7 +327,15 @@ export default function Users() {
   // for someone else is allowed, and so is restoring the persisted value after an accidental
   // untick (that grants no new consent) -- hence the ORIGINAL profile value, not the draft.
   const editingSelf = !!editProfile && editProfile.id === user?.id;
-  const canEnableSms = editingSelf || editProfile?.sms_opt_in === true;
+  // Mirrors public.notification_phone_key: digits only, a bare 10-digit number gets the country
+  // code. The RPC compares the persisted and submitted numbers this way, and refuses a non-owner's
+  // opt-in whenever they differ -- so restoring consent is offered only for an unchanged number.
+  const phoneKey = (value: string | null | undefined) => {
+    const digits = (value ?? "").replace(/\D/g, "");
+    return digits.length === 10 ? `1${digits}` : digits;
+  };
+  const canEnableSms = editingSelf
+    || (editProfile?.sms_opt_in === true && phoneKey(editForm.phone) === phoneKey(editProfile.phone));
 
   const openEdit = (e: React.MouseEvent, p: Profile) => {
     e.preventDefault();
@@ -924,7 +932,7 @@ export default function Users() {
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {editingSelf
                     ? "Requires your explicit consent to receive text messages. Also requires SMS reminders to be turned on for the organization in Settings."
-                    : "Only the person can turn text reminders on, from their own notification preferences; you can turn them off here."}
+                    : "Only the person can turn text reminders on, from their own notification preferences; you can turn them off here, and turn them back on only while the phone number is unchanged."}
                 </p>
               </label>
             </div>
