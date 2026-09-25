@@ -158,7 +158,7 @@ export function ReleaseCohortMembershipCard() {
               {membership.reason && <p className="text-xs text-muted-foreground">{membership.reason}</p>}
               {removing?.id === membership.id && (
                 <div className="space-y-2 pt-1">
-                  <Input value={removeReason} onChange={(e) => setRemoveReason(e.target.value)} placeholder="Why they are coming out of the cohort" />
+                  <Input value={removeReason} onChange={(e) => setRemoveReason(e.target.value)} placeholder="Why they are coming out of the cohort" aria-label="Removal reason" />
                   {removeReason.trim().length > 0 && removeReason.trim().length < MIN_UNASSIGN_REASON && (
                     <p className="text-xs text-muted-foreground">
                       At least {MIN_UNASSIGN_REASON} characters — the server requires it.

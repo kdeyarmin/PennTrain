@@ -19,8 +19,11 @@ const FACILITY_ALL = "all";
 // Matches request_binder_export()'s own role model: facility_manager gets an auto-derived
 // facility scope from facility_assignments server-side, which this picker must never
 // override, so facility_manager isn't offered the control at all. platform_admin doesn't
-// reach this page (see REPORTS_VIEW_ROLES in App.tsx).
-const FACILITY_PICKER_ROLES: Role[] = ["org_admin", "auditor"];
+// reach this page (see REPORTS_VIEW_ROLES in App.tsx). auditor was dropped from the RPC by
+// 20260905130000 (read-only; an export renders PHI), so it gets neither the picker nor the button --
+// it keeps the export list and downloads below, which binder_export_jobs_select still admits.
+const FACILITY_PICKER_ROLES: Role[] = ["org_admin"];
+const EXPORT_REQUEST_ROLES: Role[] = ["org_admin", "facility_manager"];
 
 const EXPORT_STATUS_STYLE: Record<string, string> = {
   pending: "bg-blue-100 text-blue-900",
@@ -35,6 +38,7 @@ export default function ComplianceBinder() {
   const [facilityId, setFacilityId] = useState<string>(FACILITY_ALL);
 
   const canScopeFacility = !!user && FACILITY_PICKER_ROLES.includes(user.role);
+  const canRequestExport = !!user && EXPORT_REQUEST_ROLES.includes(user.role);
   const { data: facilityRows } = useListFacilities({}, canScopeFacility);
   const facilities = facilityRows?.filter((facility) => !facility.is_sandbox);
   const { data: exports, isLoading: exportsLoading, isError: exportsError, error: exportsErrorDetail, refetch: refetchExports } = useListBinderExports();
@@ -181,10 +185,17 @@ export default function ComplianceBinder() {
               </p>
             </div>
           )}
-          <BinderExportButton
-            facilityIds={canScopeFacility && facilityId !== FACILITY_ALL ? [facilityId] : undefined}
-            label="Export Binder PDF"
-          />
+          {canRequestExport ? (
+            <BinderExportButton
+              facilityIds={canScopeFacility && facilityId !== FACILITY_ALL ? [facilityId] : undefined}
+              label="Export Binder PDF"
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Your role is read-only here: finished exports below can still be downloaded, and an organization
+              administrator or facility manager can generate a new one.
+            </p>
+          )}
         </CardContent>
       </Card>
 

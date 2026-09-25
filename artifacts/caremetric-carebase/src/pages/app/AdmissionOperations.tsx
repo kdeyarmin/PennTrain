@@ -397,6 +397,15 @@ export default function AdmissionOperations() {
   const beds = useListFacilityBeds({ organizationId, facilityId: facilityId === "all" ? undefined : facilityId });
   const workspaces = useListMoveInWorkspaces({ organizationId, facilityId: facilityId === "all" ? undefined : facilityId });
   const residents = useListResidents({ facilityId: facilityId === "all" ? undefined : facilityId });
+  // residents_select admits a platform admin across every tenant and useListResidents carries no
+  // organization filter, so "All facilities" for a platform admin viewing one organization listed
+  // every tenant's residents in the census and divided them by that organization's capacity. Scope
+  // to the organization's own facilities, which the facility list already is.
+  const orgFacilityIds = useMemo(() => new Set((facilities ?? []).map(facility => facility.id)), [facilities]);
+  const scopedResidentRows = useMemo(
+    () => (residents.data ?? []).filter(resident => orgFacilityIds.has(resident.facility_id)),
+    [residents.data, orgFacilityIds],
+  );
   const censusEvents = useListCensusEvents({ organizationId, facilityId: facilityId === "all" ? undefined : facilityId });
   const createSource = useCreateReferralSource();
   const setBed = useSetBedAvailability();
@@ -423,14 +432,14 @@ export default function AdmissionOperations() {
   // bare update never wrote. Without them here the bed was stuck for good, since set_bed_availability
   // refuses to release an occupied bed outside the census workflow.
   const censusSelectableResidents = useMemo(
-    () => (residents.data ?? []).filter(resident => {
+    () => scopedResidentRows.filter(resident => {
       if (resident.status === "reserved") return false;
       if (resident.status === "discharged" || resident.status === "deceased") {
         return Boolean(resident.bed_id) || residentIdsHoldingABed.has(resident.id);
       }
       return true;
     }),
-    [residents.data, residentIdsHoldingABed],
+    [scopedResidentRows, residentIdsHoldingABed],
   );
   // What THIS picker may offer, per the resident selected (BACKLOG J94). The resident dialog got
   // the transition graph in J92/J93 and this second picker did not, so it went on listing all five
@@ -457,7 +466,7 @@ export default function AdmissionOperations() {
       && (resident.status === "discharged" || resident.status === "deceased"),
   );
   const openWorkspaces = (workspaces.data ?? []).filter(workspace => ["active", "ready"].includes(workspace.state));
-  const activeResidents = (residents.data ?? []).filter(resident => resident.status === "active");
+  const activeResidents = scopedResidentRows.filter(resident => resident.status === "active");
   const occupiedBeds = (beds.data ?? []).filter(bed => bed.status === "occupied").length;
   const licensedCapacity = useMemo(() => {
     const buildings = new Map<string, number>();
@@ -467,7 +476,9 @@ export default function AdmissionOperations() {
   const metricsBlocked = prospects.isError || beds.isError || workspaces.isError || residents.isError;
   const metricsLoading = prospects.isLoading || beds.isLoading || workspaces.isLoading || residents.isLoading;
   const metrics: { label: string; value: string | number; icon: LucideIcon; className: string }[] = [
-    { label: "Active leads", value: filteredProspects.length, icon: Users, className: "text-blue-600" },
+    // Counted from the whole pipeline, not from the stage/search filter: with "Lost" selected the
+    // tile labelled Active leads used to show the number of lost prospects.
+    { label: "Active leads", value: (prospects.data ?? []).filter(item => activeStages.includes(item.stage)).length, icon: Users, className: "text-blue-600" },
     { label: "Approved", value: (prospects.data ?? []).filter(item => item.stage === "approved").length, icon: CheckCircle2, className: "text-emerald-600" },
     { label: "Available beds", value: availableBeds.length, icon: BedDouble, className: "text-emerald-600" },
     { label: "Open move-ins", value: openWorkspaces.length, icon: ClipboardList, className: "text-purple-600" },
@@ -545,7 +556,7 @@ export default function AdmissionOperations() {
 
         <TabsContent value="census" className="mt-4">
           <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
-            <Card><CardHeader><CardTitle>Current census</CardTitle><CardDescription>Admitted, temporarily out, hospital leave, discharged, and deceased states.</CardDescription></CardHeader><CardContent className="space-y-3">{residents.isLoading ? <p className="py-6 text-center text-sm text-muted-foreground">Loading census…</p> : residents.isError ? <QueryError what="current census" error={residents.error} onRetry={() => residents.refetch()} /> : !(residents.data ?? []).length ? <p className="py-6 text-center text-sm text-muted-foreground">No residents in this view.</p> : (residents.data ?? []).map(resident => <div key={resident.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3"><div><p className="font-medium">{resident.first_name} {resident.last_name}</p><p className="text-xs text-muted-foreground">Room {resident.room ?? "—"}</p></div><Badge variant="outline">{humanize(resident.status)}</Badge></div>)}</CardContent></Card>
+            <Card><CardHeader><CardTitle>Current census</CardTitle><CardDescription>Admitted, temporarily out, hospital leave, discharged, and deceased states.</CardDescription></CardHeader><CardContent className="space-y-3">{residents.isLoading ? <p className="py-6 text-center text-sm text-muted-foreground">Loading census…</p> : residents.isError ? <QueryError what="current census" error={residents.error} onRetry={() => residents.refetch()} /> : !scopedResidentRows.length ? <p className="py-6 text-center text-sm text-muted-foreground">No residents in this view.</p> : scopedResidentRows.map(resident => <div key={resident.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3"><div><p className="font-medium">{resident.first_name} {resident.last_name}</p><p className="text-xs text-muted-foreground">Room {resident.room ?? "—"}</p></div><Badge variant="outline">{humanize(resident.status)}</Badge></div>)}</CardContent></Card>
             <Card><CardHeader><CardTitle>Census and transfer history</CardTitle><CardDescription>Append-only admission, leave, return, transfer, discharge, and death events.</CardDescription></CardHeader><CardContent className="space-y-3">{canManage && <div className="grid gap-2 border-b pb-4 sm:grid-cols-2"><Select value={censusResidentId} onValueChange={value => { setCensusResidentId(value); const picked = censusSelectableResidents.find(resident => resident.id === value); if (picked && (picked.status === "discharged" || picked.status === "deceased")) setCensusTarget(picked.status); }}><SelectTrigger aria-label="Census resident"><SelectValue placeholder="Select resident" /></SelectTrigger><SelectContent>{censusSelectableResidents.map(resident => <SelectItem key={resident.id} value={resident.id}>{resident.first_name} {resident.last_name}{resident.status === "discharged" || resident.status === "deceased" ? ` · ${humanize(resident.status)}, bed still occupied` : ""}</SelectItem>)}</SelectContent></Select><Select value={censusTarget} onValueChange={setCensusTarget}><SelectTrigger aria-label="Census target status"><SelectValue /></SelectTrigger><SelectContent>{censusTargetOptions.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>{censusRepairResident && <p className="text-xs text-muted-foreground sm:col-span-2">{censusRepairResident.first_name} {censusRepairResident.last_name} is already {humanize(censusRepairResident.status).toLowerCase()} but still holds a bed. Recording the same status again releases it and writes the census event that was missed.</p>}<Input className="sm:col-span-2" value={censusReason} onChange={event => setCensusReason(event.target.value)} placeholder="Reason for census change" /><Button className="sm:col-span-2" disabled={!censusResidentId || censusReason.trim().length < 3 || transitionCensus.isPending} onClick={() => transitionCensus.mutate({ residentId: censusResidentId, targetStatus: censusTarget, reason: censusReason }, { onSuccess: () => { toast({ title: "Census updated" }); setCensusReason(""); }, onError: (error: Error) => toast({ title: "Couldn't update census", description: error.message, variant: "destructive" }) })}><RefreshCw className="mr-2 h-4 w-4" />Record census change</Button></div>}{censusEvents.isLoading ? <p className="text-sm text-muted-foreground">Loading census history…</p> : censusEvents.isError ? <QueryError what="census history" error={censusEvents.error} onRetry={() => censusEvents.refetch()} /> : !(censusEvents.data ?? []).length ? <p className="text-sm text-muted-foreground">No census events recorded yet.</p> : (censusEvents.data ?? []).slice(0, 30).map(event => <div key={event.id} className="flex justify-between gap-3 border-b pb-2 text-sm"><div><p className="font-medium">{event.resident?.first_name} {event.resident?.last_name} · {humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{event.reason ?? `${humanize(event.prior_status ?? "")} → ${humanize(event.resulting_status)}`}</p></div><span className="shrink-0 text-xs text-muted-foreground">{new Date(event.effective_at).toLocaleString()}</span></div>)}</CardContent></Card>
           </div>
         </TabsContent>
@@ -556,7 +567,15 @@ export default function AdmissionOperations() {
           every value still in it, and opening it for the NEXT referral showed the previous
           person's name, date of birth, phone and contact details, pre-filled and ready to save. */}
       <ProspectDialog key={showProspect ? "prospect-open" : "prospect-closed"} open={showProspect} onClose={() => setShowProspect(false)} facilityId={facilityId === "all" ? "" : facilityId} sources={sources.data ?? []} />
-      <ProspectReviewDialog key={selectedProspect?.id} prospect={selectedProspect} availableBeds={availableBeds} onClose={() => setSelectedProspect(null)} />
+      {/* The live row, not the click-time snapshot: the dialog's stage-gated sections ("Room and
+          move-in" after approval, "Open move-in workspace" after a reservation) never appeared
+          until the reviewer closed and re-opened it. The key still resets the form per prospect. */}
+      <ProspectReviewDialog
+        key={selectedProspect?.id}
+        prospect={selectedProspect ? ((prospects.data ?? []).find(p => p.id === selectedProspect.id) ?? selectedProspect) : null}
+        availableBeds={availableBeds}
+        onClose={() => setSelectedProspect(null)}
+      />
       <RoomDialog key={showRoom ? "room-open" : "room-closed"} open={showRoom} onClose={() => setShowRoom(false)} facilityId={facilityId === "all" ? "" : facilityId} />
     </div>
   );

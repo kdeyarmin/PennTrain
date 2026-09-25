@@ -1,5 +1,5 @@
 import { useId, lazy, Suspense, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { BarChart3, ChevronRight, Plus, Target } from "lucide-react";
 import { BarChart } from "@/components/charts";
 import { useAuth } from "@/lib/auth";
@@ -62,6 +62,10 @@ export default function QapiDashboard() {
     org = viewingOrgId ?? user?.organizationId ?? undefined;
   const [fac, setFac] = useState(""),
     [open, setOpen] = useState(false);
+  // create_qapi_project runs assert_admission_manager (org_admin / facility_manager / platform_admin);
+  // the route also admits auditors, who used to get the button and a refusal after filling the form.
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const [, navigate] = useLocation();
   const facilities = useListFacilities({ organizationId: org }),
     profiles = useListProfiles({ organizationId: org });
   const projects = useListQapiProjects({
@@ -128,7 +132,8 @@ export default function QapiDashboard() {
         onSuccess: (id) => {
           toast({ title: "QAPI project created" });
           setOpen(false);
-          location.href = `/app/qapi/projects/${id}`;
+          // Router navigation: a bare location.href ignores the deploy base path (BASE_PATH).
+          navigate(`/app/qapi/projects/${id}`);
         },
         onError: (e: Error) =>
           toast({
@@ -154,10 +159,12 @@ export default function QapiDashboard() {
             operational documentation.
           </p>
         </div>
-        <Button disabled={!fac} onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          New QAPI project
-        </Button>
+        {canManage && (
+          <Button disabled={!fac} onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            New QAPI project
+          </Button>
+        )}
       </div>
       {loadFailure && (
         <QueryError

@@ -143,7 +143,7 @@ const SECTIONS: Section[] = [
       "For personal care home and Assisted Living Facilities (ALF), Residents (/app/residents) maintains a compliance-oriented resident registry. Each resident detail page now includes a Resident 360 summary and chronological operational timeline spanning compliance, incidents, service delivery, financial activity, and external medication records while preserving the source and authorization rules of each record.",
       "Resident Compliance (/app/resident-compliance) reports on resident-level compliance items -- assessments and other resident-specific requirements -- against their due dates, using the same Compliant / Due Soon / Expired / Missing status model used everywhere else in the app. Resident Assessment Forms let you configure the specific assessment content used for a facility's residents.",
       "Authorized managers can issue an expiring, permission-limited designated-person portal from a resident record. The portal stores only a hash of its high-entropy access token, removes the token from the browser URL, requires acceptance of current terms, logs access, and can expose only the selected schedule, finance summary, document index, and routine messaging permissions. It is not an emergency or clinical communication channel.",
-      "Like Practicums and the Medication Administration Roster, resident modules only appear for facilities of the applicable type, and are restricted to org_admin, facility_manager, and auditor.",
+      "Resident modules only appear for facilities of the applicable type, and are restricted to org_admin, facility_manager, and auditor. Practicums and the Medication Administration Roster are likewise facility-type-restricted but are visible to every organization role, trainer included.",
     ],
     bullets: [
       "Maintain your resident census, including SDCU and hospice flags",
@@ -179,7 +179,7 @@ const SECTIONS: Section[] = [
     title: "Inspections & Equipment",
     paragraphs: [
       "Inspection Items (/app/inspections) tracks recurring physical-plant and equipment compliance requirements -- fire extinguisher inspections, generator testing, and similar items -- each with a next-due date and status. Inspection Readiness (/app/inspection-readiness) rolls this up into a facility-level readiness view so you can see at a glance which facilities are prepared for a walkthrough and which have open items.",
-      "This is the one facility-type-restricted module that trainer can also see, reflecting that physical-plant compliance is generally less sensitive than staff credentialing or resident data.",
+      "Trainers can also see this module, reflecting that physical-plant compliance is generally less sensitive than staff credentialing or resident data.",
     ],
     bullets: [
       "Log inspection items and their recurring due dates",
@@ -235,7 +235,7 @@ const SECTIONS: Section[] = [
   {
     title: "Audit Log",
     paragraphs: [
-      "The Audit Log (/app/audit) is a chronological record of who changed what, and when, across your organization's data. It is available to org_admin and auditor. facility_manager is deliberately excluded from this particular page, since the audit log is organization-wide by design and is not scoped down to a facility_manager's assigned facilities the way most other modules are.",
+      "The Audit Log (/app/audit) is a chronological record of who changed what, and when, across your organization's data. It is available to org_admin, auditor and facility_manager; a facility_manager's view is limited to their assigned facilities, the same scope the rest of the app applies to that role.",
       "The audit log is often the first place to look when reconciling an unexpected change to a record, or when responding to a question about who took a particular action.",
     ],
   },

@@ -377,6 +377,9 @@ function portfolioStatusVariant(status: PortfolioReadinessStatus): "destructive"
 }
 
 function OperationsCard({ item }: { item: PchAlrOperationsItem }) {
+  const { user } = useAuth();
+  // ProtectedRoute would bounce an auditor to /app; better to say where the workflow lives.
+  const canOpen = !item.managerOnly || user?.role !== "auditor";
   const Icon = DOMAIN_ICONS[item.domain];
   return (
     <Card>
@@ -397,7 +400,11 @@ function OperationsCard({ item }: { item: PchAlrOperationsItem }) {
           <div className="md:col-span-2"><dt className="font-medium">Survey prompt</dt><dd className="text-muted-foreground">{item.surveyPrompt}</dd></div>
           <div className="md:col-span-2"><dt className="font-medium">Documentation sources</dt><dd className="text-muted-foreground">{item.evidenceSources.join(" · ")}</dd></div>
         </dl>
-        <Button asChild variant="outline" size="sm"><Link href={item.route}>Open owning workflow</Link></Button>
+        {canOpen ? (
+          <Button asChild variant="outline" size="sm"><Link href={item.route}>Open owning workflow</Link></Button>
+        ) : (
+          <p className="text-xs text-muted-foreground">The owning workflow is managed by organization administrators and facility managers.</p>
+        )}
       </CardContent>
     </Card>
   );

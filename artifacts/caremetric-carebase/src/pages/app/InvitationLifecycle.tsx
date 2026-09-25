@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { Link } from "wouter";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,6 +87,11 @@ export default function InvitationLifecycle() {
   const total = invitations.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const canManage = user?.role === "org_admin" || user?.role === "facility_manager" || user?.role === "platform_admin";
+  const isPlatformAdmin = user?.role === "platform_admin";
+  const { viewingOrgId } = useViewingOrg();
+  // invite-user rejects a non-platform_admin row with no organization_id; the platform operator's
+  // own profile has none, so the "Viewing as" tenant is the organization the invitations belong to.
+  const inviteOrganizationId = viewingOrgId ?? user?.organizationId ?? null;
 
   const onResend = async (invitation: UserInvitation) => {
     try {
@@ -129,7 +135,7 @@ export default function InvitationLifecycle() {
     try {
       const results = await bulkInvite.mutateAsync({
         rows: parsed.rows,
-        organizationId: user?.organizationId ?? null,
+        organizationId: inviteOrganizationId,
         redirectTo: absoluteAppUrl("/reset-password"),
       });
       setBulkResults(results);
@@ -159,9 +165,13 @@ export default function InvitationLifecycle() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href="/app/users"><Users className="mr-2 h-4 w-4" /> User directory</Link>
-          </Button>
+          {/* /app/users is ORG_MANAGE_ROLES; the platform operator's directory is /admin/users and
+              the auditor has none to open. */}
+          {user?.role !== "auditor" && (
+            <Button asChild variant="outline">
+              <Link href={isPlatformAdmin ? "/admin/users" : "/app/users"}><Users className="mr-2 h-4 w-4" /> User directory</Link>
+            </Button>
+          )}
           {canManage && (
             <Button onClick={() => { setBulkCsv(""); setBulkResults(null); setBulkOpen(true); }}>
               <MailPlus className="mr-2 h-4 w-4" /> Bulk invite
@@ -255,7 +265,7 @@ export default function InvitationLifecycle() {
                     )}
                     {invitation.employee_id && (
                       <Button asChild size="sm" variant="link" className="h-auto px-0">
-                        <Link href={`/app/employees/${invitation.employee_id}`}>Linked employee record</Link>
+                        <Link href={`${isPlatformAdmin ? "/admin" : "/app"}/employees/${invitation.employee_id}`}>Linked employee record</Link>
                       </Button>
                     )}
                   </div>

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useAnnouncements } from "@/hooks/useProductExperience";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,9 @@ export default function Announcements() {
   const { viewingOrgId } = useViewingOrg();
   const scopedOrgId = viewingOrgId ?? user?.organizationId ?? null;
   const { data: facilities = [] } = useListFacilities({ organizationId: user?.organizationId ?? undefined }, !!user?.organizationId);
+  // publish_org_announcement raises "outside your active scope" for a facility the caller is not
+  // assigned to, so a facility_manager is offered only the facilities the RPC will accept.
+  const assignableFacilities = useAssignableFacilities(facilities);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [roles, setRoles] = useState<string[]>([]);
@@ -92,7 +96,7 @@ export default function Announcements() {
             <div className="space-y-1.5"><Label htmlFor="announcement-body">Message</Label><Textarea id="announcement-body" value={body} onChange={(event) => setBody(event.target.value)} maxLength={5000} rows={5} /></div>
             <div className="grid gap-4 md:grid-cols-2">
               <fieldset className="space-y-2 rounded-lg border p-3"><legend className="px-1 text-sm font-medium">Roles</legend>{ROLES.map((role) => <label key={role} className="flex items-center gap-2 text-sm"><Checkbox checked={roles.includes(role)} onCheckedChange={(checked) => setRoles(toggle(roles, role, checked === true))} /><span className="capitalize">{role.replace(/_/g, " ")}</span></label>)}</fieldset>
-              <fieldset className="space-y-2 rounded-lg border p-3"><legend className="px-1 text-sm font-medium">Facilities</legend>{facilities.filter((facility) => !facility.is_sandbox).map((facility) => <label key={facility.id} className="flex items-center gap-2 text-sm"><Checkbox checked={facilityIds.includes(facility.id)} onCheckedChange={(checked) => setFacilityIds(toggle(facilityIds, facility.id, checked === true))} /><span>{facility.name}</span></label>)}</fieldset>
+              <fieldset className="space-y-2 rounded-lg border p-3"><legend className="px-1 text-sm font-medium">Facilities</legend>{assignableFacilities.filter((facility) => !facility.is_sandbox).map((facility) => <label key={facility.id} className="flex items-center gap-2 text-sm"><Checkbox checked={facilityIds.includes(facility.id)} onCheckedChange={(checked) => setFacilityIds(toggle(facilityIds, facility.id, checked === true))} /><span>{facility.name}</span></label>)}</fieldset>
             </div>
             <Button onClick={submit} disabled={announcements.publish.isPending || title.trim().length < 3 || body.trim().length < 3}><Send className="mr-2 h-4 w-4" />Publish and notify</Button>
           </CardContent>

@@ -79,6 +79,14 @@ describe("buildCourseSnapshot", () => {
 });
 
 describe("validateCourseSnapshot", () => {
+  it("reports an unreadable snapshot as a blocking finding instead of throwing", () => {
+    for (const snapshot of [null, undefined, {}, { title: 3, blocks: [] }, { title: "x", blocks: "nope" }]) {
+      const findings = validateCourseSnapshot(snapshot as never);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({ code: "snapshot_unreadable", severity: "error" });
+    }
+  });
+
   it("passes a published version with real blocks and an assessment", () => {
     const snapshot = buildCourseSnapshot(version, [
       block(),

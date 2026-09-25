@@ -52,7 +52,12 @@ export function useUpsertAdministratorProfile() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["administrator_profiles"] }),
+    onSuccess: (row) => {
+      // Seed the by-profile cache with the row the server returned so the form reflects the save
+      // immediately, then refetch.
+      queryClient.setQueryData(["administrator_profiles", "by-profile", row.profile_id], row);
+      return queryClient.invalidateQueries({ queryKey: ["administrator_profiles"] });
+    },
   });
 }
 

@@ -60,6 +60,9 @@ function DrillDialog({
   bucket: { label: string; incidentIds: string[] } | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { user } = useAuth();
+  // /app/incidents/:id is INCIDENT_ROLES; the platform operator's copy is mounted under /admin.
+  const incidentBase = user?.role === "platform_admin" ? "/admin/incidents" : "/app/incidents";
   return (
     <Dialog open={bucket !== null} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[80vh] overflow-y-auto">
@@ -72,7 +75,7 @@ function DrillDialog({
         <ul className="space-y-1 text-sm">
           {(bucket?.incidentIds ?? []).map((id) => (
             <li key={id}>
-              <Link href={`/app/incidents/${id}`} className="flex items-center gap-1.5 text-primary hover:underline">
+              <Link href={`${incidentBase}/${id}`} className="flex items-center gap-1.5 text-primary hover:underline">
                 <ExternalLink className="h-3.5 w-3.5" /> Open incident
               </Link>
             </li>
@@ -99,6 +102,9 @@ function RecommendationCard({
   const { user } = useAuth();
   const { toast } = useToast();
   const create = useCreateQapiProject();
+  // create_qapi_project refuses auditors and employees server-side; keep the dialog honest so a
+  // read-only viewer is not offered a button that can only fail.
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const { data: profiles } = useListProfiles();
   const [open, setOpen] = useState(false);
   const [lead, setLead] = useState(user?.id ?? "");
@@ -147,6 +153,7 @@ function RecommendationCard({
         <p className="mt-1 text-[11px] text-muted-foreground">
           Threshold: {recommendation.threshold}
         </p>
+        {canManage && (
         <Button
           size="sm"
           variant="outline"
@@ -160,6 +167,7 @@ function RecommendationCard({
         >
           Open a QAPI project
         </Button>
+        )}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -206,7 +214,7 @@ function RecommendationCard({
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={submit} disabled={!lead || problem.trim().length < 10 || create.isPending}>
+            <Button onClick={submit} disabled={!canManage || !lead || problem.trim().length < 10 || create.isPending}>
               {create.isPending ? "Opening..." : "Open project"}
             </Button>
           </DialogFooter>

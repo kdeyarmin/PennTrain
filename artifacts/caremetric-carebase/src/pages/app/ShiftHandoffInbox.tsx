@@ -76,7 +76,10 @@ export default function ShiftHandoffInbox() {
   const submit = async () => {
     if (!selected || note.trim().length < 5) return;
     try {
-      if (mode === "triage") await triage.mutateAsync({ entryId: selected.id, ownerProfileId: ownerId || null, action, note: note.trim() });
+      // "Assign to me" is the empty option; triage_shift_report_entry coalesces a null owner onto the
+      // EXISTING owner, so an explicit self-assignment on an already-owned handoff used to keep the
+      // previous owner (and notify them again). Send the caller's id, not null.
+      if (mode === "triage") await triage.mutateAsync({ entryId: selected.id, ownerProfileId: ownerId || user?.id || null, action, note: note.trim() });
       if (mode === "convert") await convert.mutateAsync({ entryId: selected.id, destination, reason: note.trim() });
       if (mode === "resolve") await resolve.mutateAsync({ entryId: selected.id, note: note.trim() });
       toast({ title: mode === "convert" ? "Handoff routed" : mode === "resolve" ? "Handoff resolved" : "Handoff triaged" });

@@ -73,17 +73,27 @@ export function findUncheckedReads(source) {
     reads += 1;
     const binding = match[1];
     const line = source.slice(0, match.index).split("\n").length;
-    const rest = source.slice(end === -1 ? source.length : end + 1);
+    const after = source.slice(end === -1 ? source.length : end + 1);
+    // Only the text before the name is bound again counts as reading THIS binding. Searching the
+    // whole remainder let an unrelated later `catch (error)` or a second
+    // `const { data: d2, error } = ...` destructure certify a read whose own error was dropped --
+    // the exact fail-open shape (RLS denial read as "no such record") this gate exists for.
+    const scopeOf = (name) => {
+      const rebind = after.search(new RegExp(
+        String.raw`\b(?:const|let|var)\s+(?:\{[^}]*\b${name}\b[^}]*\}|${name}\b)\s*=|\bcatch\s*\(\s*${name}\b`,
+      ));
+      return rebind === -1 ? after : after.slice(0, rebind);
+    };
     if (binding.startsWith("{")) {
       const errorName = errorBindingIn(binding);
       if (!errorName) {
         findings.push({ line, binding, reason: "destructures data without error" });
         continue;
       }
-      if (!new RegExp(`\\b${errorName}\\b`).test(rest)) {
+      if (!new RegExp(`\\b${errorName}\\b`).test(scopeOf(errorName))) {
         findings.push({ line, binding, reason: `binds ${errorName} but never reads it` });
       }
-    } else if (!new RegExp(`\\b${binding}\\.error\\b`).test(rest)) {
+    } else if (!new RegExp(`\\b${binding}\\.error\\b`).test(scopeOf(binding))) {
       findings.push({ line, binding, reason: `never reads ${binding}.error` });
     }
   }
@@ -106,6 +116,13 @@ if (process.argv.includes("--self-test")) {
     ['const { data: rows } = await c.from("data_import_rows").select("row_number").eq("job_id", j);', 1],
     // Bound and then abandoned -- the binding alone is not the guard.
     ['const { data, error: e } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;', 1],
+    // The plain-name form of the same abandonment: a later, unrelated `error` (a catch clause or a
+    // second destructure) is not a read of this one.
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\ntry { x(); } catch (error) { log(error); }', 1],
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\nconst { data: d2, error } = await c.from("u").select("*").limit(1).maybeSingle();\nif (error) return x;', 1],
+    // Reading the binding before it is rebound is still a read.
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nif (error) return x;\nconst { data: d2, error } = await c.from("u").select("*").limit(1).maybeSingle();\nif (error) return y;', 0],
+    ['const r = await c.from("t").select("*").limit(1).maybeSingle();\nmatch = r.data;\nconst r = other();\nif (r.error) return x;', 1],
     // `.single()` is exempt: it errors on no-row, so the null check below refuses either way.
     ['const { data: p } = await c.from("profiles").select("role").eq("id", u).single();\nif (!p) return x;', 0],
     // A write that returns its row is a `.single()` too, and its error is handled by the caller.

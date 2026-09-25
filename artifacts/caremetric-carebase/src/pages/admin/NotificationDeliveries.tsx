@@ -597,7 +597,9 @@ export default function NotificationDeliveries() {
                     return (
                       <TableRow key={delivery.id}>
                         <TableCell>
-                          {delivery.status === "failed" && (
+                          {/* Same predicate as the row's Retry button: a failed row outside the retry
+                              window used to offer a checkbox that never counted toward the bulk retry. */}
+                          {retryOffered(delivery) && (
                             <Checkbox
                               checked={selectedIds.has(delivery.id)}
                               onCheckedChange={() => toggleSelected(delivery.id)}
@@ -734,14 +736,14 @@ export default function NotificationDeliveries() {
                   {Object.entries(orgNameMap ?? {}).map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Input value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} placeholder="template_key" />
+              <Input value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} placeholder="template_key" aria-label="Template key" />
               <Select value={templateChannel} onValueChange={(value) => setTemplateChannel(value as "email" | "sms")}>
                 <SelectTrigger aria-label="Template channel"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem></SelectContent>
               </Select>
             </div>
-            <Input value={templateSubject} onChange={(event) => setTemplateSubject(event.target.value)} placeholder="Subject" />
-            <Textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} rows={4} placeholder="Provider-safe body" />
+            <Input value={templateSubject} onChange={(event) => setTemplateSubject(event.target.value)} placeholder="Subject" aria-label="Template subject" />
+            <Textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} rows={4} placeholder="Provider-safe body" aria-label="Template body" />
             <p className="text-xs text-muted-foreground">Allowed placeholders: {"{{title}}, {{body}}, {{organization_name}}, {{action_url}}"}. Sensitive notification types receive generic values.</p>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handlePreviewTemplate} disabled={previewing}>{previewing ? "Previewing..." : "Preview"}</Button>
@@ -796,10 +798,10 @@ export default function NotificationDeliveries() {
               <SelectContent>{Object.entries(orgNameMap ?? {}).map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}</SelectContent>
             </Select>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div><label className="text-sm font-medium">Monthly budget (USD)</label><Input type="number" min="0.01" step="0.01" value={monthlyBudgetUsd} onChange={(event) => setMonthlyBudgetUsd(event.target.value)} /></div>
-              <div><label className="text-sm font-medium">Alert threshold (%)</label><Input type="number" min="1" max="99" value={warningPercent} onChange={(event) => setWarningPercent(event.target.value)} /></div>
-              <div><label className="text-sm font-medium">Email estimate / attempt</label><Input type="number" min="0" step="0.000001" value={emailEstimateUsd} onChange={(event) => setEmailEstimateUsd(event.target.value)} /></div>
-              <div><label className="text-sm font-medium">SMS estimate / attempt</label><Input type="number" min="0" step="0.000001" value={smsEstimateUsd} onChange={(event) => setSmsEstimateUsd(event.target.value)} /></div>
+              <div><label htmlFor="spend-monthly-budget" className="text-sm font-medium">Monthly budget (USD)</label><Input id="spend-monthly-budget" type="number" min="0.01" step="0.01" value={monthlyBudgetUsd} onChange={(event) => setMonthlyBudgetUsd(event.target.value)} /></div>
+              <div><label htmlFor="spend-warning-percent" className="text-sm font-medium">Alert threshold (%)</label><Input id="spend-warning-percent" type="number" min="1" max="99" value={warningPercent} onChange={(event) => setWarningPercent(event.target.value)} /></div>
+              <div><label htmlFor="spend-email-estimate" className="text-sm font-medium">Email estimate / attempt</label><Input id="spend-email-estimate" type="number" min="0" step="0.000001" value={emailEstimateUsd} onChange={(event) => setEmailEstimateUsd(event.target.value)} /></div>
+              <div><label htmlFor="spend-sms-estimate" className="text-sm font-medium">SMS estimate / attempt</label><Input id="spend-sms-estimate" type="number" min="0" step="0.000001" value={smsEstimateUsd} onChange={(event) => setSmsEstimateUsd(event.target.value)} /></div>
             </div>
             <Button onClick={handleSaveSpendPolicy} disabled={!spendOrganizationId || savingSpendPolicy}>{savingSpendPolicy ? "Saving..." : "Save spend policy"}</Button>
 
@@ -809,8 +811,8 @@ export default function NotificationDeliveries() {
                 <label htmlFor="fallback-enabled" className="text-sm font-medium">Fallback to the alternate channel after permanent failure</label>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div><label className="text-sm font-medium">Fallback delay (minutes)</label><Input type="number" min="0" max="1440" value={fallbackDelayMinutes} onChange={(event) => setFallbackDelayMinutes(event.target.value)} /></div>
-                <div><label className="text-sm font-medium">Maximum fallback depth</label><Input type="number" min="0" max="2" value={maxFallbackDepth} onChange={(event) => setMaxFallbackDepth(event.target.value)} /></div>
+                <div><label htmlFor="fallback-delay-minutes" className="text-sm font-medium">Fallback delay (minutes)</label><Input id="fallback-delay-minutes" type="number" min="0" max="1440" value={fallbackDelayMinutes} onChange={(event) => setFallbackDelayMinutes(event.target.value)} /></div>
+                <div><label htmlFor="fallback-max-depth" className="text-sm font-medium">Maximum fallback depth</label><Input id="fallback-max-depth" type="number" min="0" max="2" value={maxFallbackDepth} onChange={(event) => setMaxFallbackDepth(event.target.value)} /></div>
               </div>
               <Button variant="outline" onClick={handleSaveChannelPolicy} disabled={!spendOrganizationId || savingChannelPolicy}>{savingChannelPolicy ? "Saving..." : "Save fallback policy"}</Button>
             </div>

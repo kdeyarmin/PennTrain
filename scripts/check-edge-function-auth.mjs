@@ -53,9 +53,14 @@ export const GATE_MARKERS = {
   "shared-secret": ["secretsMatch("],
   "webhook-signature": ["verifyPhase2StripeSignature", "verifySignature(", "validateRequest(", "new Webhook("],
   "api-credential": ["parsePhase2ApiCredential", "parseScimAuthorization"],
-  "user-jwt": ["auth.getUser(", "getUser("],
+  // `.getUser(` not bare `getUser(`: the bare form matched the method in a client TYPE literal
+  // (`auth: { getUser(): Promise<...> }`) and certified sms-mfa with its only JWT check deleted.
+  "user-jwt": ["auth.getUser(", ".getUser("],
   "guest-token": ["unsubscribe_token", "p_token", "token_sha256", "UUID_RE", "verifyPackageAssetNonce("],
-  "turnstile": ["verifyTurnstile", "TURNSTILE"],
+  // The bare env-var name `TURNSTILE` was a credential, not a call -- exactly what the rule above
+  // forbids -- and it survives in `Deno.env.get("TURNSTILE_SECRET_KEY")` after the siteverify fetch
+  // is deleted. submit-confidential-intake verifies inline, so the siteverify URL is its marker.
+  "turnstile": ["verifyTurnstile(", "turnstile/v0/siteverify"],
   // Deliberately reachable with no credential. Requires a rationale like every other entry, and is
   // the one gate with no marker to prove -- which is exactly why it must be written down.
   "public": [],
@@ -242,6 +247,19 @@ export function validateRegistryShape(registry, declared) {
 }
 
 const SELF_TEST_CASES = [
+  {
+    // The third vacuity of the same family: a marker that is a credential's env-var name, or a
+    // method name inside a type literal, survives with zero call sites.
+    name: "a credential env-var name does not prove the turnstile gate",
+    run: () => gateIsProven("turnstile", blankComments(blankDeclarationHeads('const secret = Deno.env.get("TURNSTILE_SECRET_KEY");'))) === false
+            && gateIsProven("turnstile", 'const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST" });') === true
+            && gateIsProven("turnstile", blankDeclarationHeads("async function verifyTurnstile(t, ip) {}\nawait verifyTurnstile(body.turnstile_token, ip);")) === true,
+  },
+  {
+    name: "a getUser method in a type literal does not prove the user-jwt gate",
+    run: () => gateIsProven("user-jwt", "type Client = { auth: { getUser(): Promise<unknown> } };") === false
+            && gateIsProven("user-jwt", "const { data } = await callerClient.auth\n  .getUser();") === true,
+  },
   {
     name: "a gate is proven by its marker",
     run: () => gateIsProven("cron-secret", 'import { requireCronRequest } from "../_shared/cronAuth.ts";') === true,

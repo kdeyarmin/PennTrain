@@ -18,9 +18,10 @@ export interface ListAuditLogsFilters {
 // list of rows, not a counted/paginated result. For the full Audit Log page itself, which needs a
 // real total count and page navigation over a table with no practical row cap, see
 // useListAuditLogsPaginated below.
-export function useListAuditLogs(filters: ListAuditLogsFilters = {}) {
+export function useListAuditLogs(filters: ListAuditLogsFilters = {}, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["audit_logs", filters],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       let query = supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(filters.limit ?? 200);
       if (filters.entityType) query = query.eq("entity_type", filters.entityType);

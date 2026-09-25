@@ -261,15 +261,17 @@ export default function AdminDashboard() {
     { label: "Incomplete assignments", count: incompleteAssignments, href: "/admin/courses", severity: "medium" },
     { label: "Overdue assignments", count: overdueAssignments, href: "/admin/courses", severity: "high" },
     { label: "Overdue training records", count: overdueTrainingRecords, href: "/admin/employees", severity: "high" },
-    { label: "Pending attestations", count: pendingAttestations, href: "/admin/help-content", severity: "medium" },
-    { label: "Overdue attestations", count: overdueAttestations, href: "/admin/help-content", severity: "high" },
+    // Attestation campaigns live inside each tenant ("View as this org" from the organization
+    // list); /admin/help-content is the FAQ editor and had nothing to do with them.
+    { label: "Pending attestations", count: pendingAttestations, href: "/admin/organizations", severity: "medium" },
+    { label: "Overdue attestations", count: overdueAttestations, href: "/admin/organizations", severity: "high" },
     { label: "Training path templates", count: dashboardPage?.trainingPlansCount ?? 0, href: "/admin/courses", severity: "good" },
   ];
 
   const employeeTaskBacklog = [
     { label: "Training assignments overdue", count: overdueAssignments, href: "/admin/courses", guidance: "Use this to prioritize reminders or reassignments." },
     { label: "Training records past due", count: overdueTrainingRecords, href: "/admin/employees", guidance: "Expired records should drive manager follow-up." },
-    { label: "Policy attestations overdue", count: overdueAttestations, href: "/admin/help-content", guidance: "Confirm campaigns and send reminders for unsigned policies." },
+    { label: "Policy attestations overdue", count: overdueAttestations, href: "/admin/organizations", guidance: "Open the organization and use View as this org to review its attestation campaigns and send reminders." },
   ];
 
   const domainReviewCards = [

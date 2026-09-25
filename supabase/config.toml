@@ -260,8 +260,10 @@ verify_jwt = false
 verify_jwt = false
 
 # Public, unauthenticated "email me my savings model" delivery for the /savings calculator --
-# visitors have no session. The function verifies Turnstile and generates the email body entirely
-# from validated numeric inputs (no user free text, no persistence) before sending via SendGrid.
+# visitors have no session. The function verifies Turnstile, generates the email body entirely from
+# validated numeric inputs (no user free text) and stores one warm-lead row (email, the numeric
+# inputs, hashed IP) in public.savings_model_requests -- a service-role-only write that also serves
+# as the per-IP rate-limit ledger -- before sending via SendGrid.
 [functions.email-savings-model]
 verify_jwt = false
 

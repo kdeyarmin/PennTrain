@@ -216,7 +216,7 @@ export function ResidentCareDocumentation({ residentId, canChart }: { residentId
                   </Select>
                 </div>
               </div>
-              <Textarea value={noteBody} disabled={saveNote.isPending || signNote.isPending} onChange={(event) => setNoteBody(event.target.value)} placeholder="Document the observation or care provided…" rows={4} />
+              <Textarea value={noteBody} disabled={saveNote.isPending || signNote.isPending} onChange={(event) => setNoteBody(event.target.value)} placeholder="Document the observation or care provided…" aria-label="Progress note" rows={4} />
               <div className="flex gap-2">
                 <Button variant="outline" disabled={saveNote.isPending || signNote.isPending || noteBody.trim().length < 1} onClick={() => void submitNote(false)}>Save draft</Button>
                 <Button disabled={saveNote.isPending || signNote.isPending || noteBody.trim().length < 1} onClick={() => void submitNote(true)}><Lock className="mr-2 h-4 w-4" />Save &amp; sign</Button>

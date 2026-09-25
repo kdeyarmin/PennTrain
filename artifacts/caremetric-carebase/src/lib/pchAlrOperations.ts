@@ -24,6 +24,8 @@ export interface PchAlrOperationsItem {
   programs: FacilityProgram[];
   evidenceSources: string[];
   route: string;
+  /** The owning route is ORG_MANAGE_ROLES (App.tsx); the read-only auditor cannot open it. */
+  managerOnly?: true;
   owner: string;
   surveyPrompt: string;
   cadence: string;
@@ -78,6 +80,7 @@ export const PCH_ALR_OPERATIONS_ITEMS: PchAlrOperationsItem[] = [
     programs: ["PCH", "ALR"],
     evidenceSources: ["Administrator Qualification", "Employee Credentials", "Training Matrix", "Compliance Binder"],
     route: "/app/administrator-qualification",
+    managerOnly: true,
     owner: "Organization administrator",
     surveyPrompt: "Show administrator qualification, annual training, and backup coverage documentation for this licensed setting.",
     cadence: "Review at hire/designation, quarterly, and before license renewal/survey.",

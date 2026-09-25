@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { QueryError } from "@/components/QueryState";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
-import { useListEmployees, type Employee } from "@/hooks/useEmployees";
+import { useListEmployees, useListEmployeesByIds, type Employee } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingTypes";
 import {
@@ -473,7 +473,15 @@ export default function PendingApprovals() {
     });
   }, [documents, linkedDocumentIds, facilityId, hideOldDocuments]);
 
-  const employeeById = useMemo(() => new Map((employees ?? []).map(e => [e.id, e])), [employees]);
+  // The picker roster above is active staff at the selected facility; the Pending Review tab is
+  // neither facility-filtered nor limited to active employees, so a record for someone on leave or
+  // at another site read "Unknown Employee". Resolve the rows actually on screen by id as well.
+  const pendingEmployeeIds = useMemo(() => [...new Set((pendingRecords ?? []).map(r => r.employee_id))], [pendingRecords]);
+  const { data: pendingEmployees } = useListEmployeesByIds(pendingEmployeeIds);
+  const employeeById = useMemo(
+    () => new Map([...(employees ?? []), ...(pendingEmployees ?? [])].map(e => [e.id, e])),
+    [employees, pendingEmployees],
+  );
   const trainingTypeById = useMemo(() => new Map((trainingTypes ?? []).map(t => [t.id, t])), [trainingTypes]);
   const documentById = useMemo(() => new Map((documents ?? []).map(d => [d.id, d])), [documents]);
 
