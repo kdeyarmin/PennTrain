@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
+import { storageSafeFileName } from "@/lib/storagePaths";
 
 export type CredentialDocument = Tables<"employee_credential_documents">;
 
@@ -36,7 +37,7 @@ export function useUploadCredentialDocument() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ file, organizationId, facilityId, employeeId, credentialId, documentLabel }: UploadCredentialDocumentInput) => {
-      const path = `${organizationId}/${facilityId}/${crypto.randomUUID()}-${file.name}`;
+      const path = `${organizationId}/${facilityId}/${crypto.randomUUID()}-${storageSafeFileName(file.name)}`;
       const { error: uploadError } = await supabase.storage.from("credential-documents").upload(path, file);
       if (uploadError) throw uploadError;
 

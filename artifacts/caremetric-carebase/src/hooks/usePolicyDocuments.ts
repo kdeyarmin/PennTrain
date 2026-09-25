@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import { storageSafeFileName } from "@/lib/storagePaths";
 
 export type PolicyDocument = Tables<"policy_documents">;
 export type PolicyDocumentInsert = TablesInsert<"policy_documents">;
@@ -118,7 +119,7 @@ export function useUploadPolicyDocumentVersion() {
       // stamps this same hash onto policy_attestations.document_version_hash when an employee
       // signs, so the signed record and the document content are cryptographically tied together.
       const contentHash = await sha256Hex(file);
-      const path = `${organizationId}/${policyDocumentId}/v${versionNumber}-${crypto.randomUUID()}-${file.name}`;
+      const path = `${organizationId}/${policyDocumentId}/v${versionNumber}-${crypto.randomUUID()}-${storageSafeFileName(file.name)}`;
       const { error: uploadError } = await supabase.storage.from("policy-documents").upload(path, file);
       if (uploadError) throw uploadError;
 

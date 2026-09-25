@@ -188,6 +188,9 @@ export default function EmergencyEventDetail() {
       onSuccess: () => {
         toast({ title: "Timeline entry added" });
         setTimelineDescription("");
+        // An append-only evidentiary log: the next entry starts from now, not from the time the
+        // previous one was recorded at.
+        setTimelineAt(localDateTime());
       },
       onError: mutationError("Could not add timeline entry"),
     },

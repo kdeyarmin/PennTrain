@@ -108,7 +108,7 @@ Deno.serve(async (req: Request) => {
   if (!jobId) {
     const { data, error } = await callerClient.rpc("start_data_import_job", {
       p_domain: "training_records",
-      p_file_name: (body.file_name ?? "training_records.csv").slice(0, 255),
+      p_file_name: (typeof body.file_name === "string" ? body.file_name : "training_records.csv").slice(0, 255),
       p_file_sha256: fileSha256,
       p_total_rows: rows.length,
       p_duplicate_strategy: duplicateStrategy,
@@ -253,6 +253,10 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: `${message}${alsoFailed}`, job_id: jobId }, 500);
   }
 
+  // The header set: an update writes only the columns this CSV actually carries (the rule
+  // bulk-import-employees already follows).
+  const presentColumns = new Set(Object.keys(rows[0] ?? {}));
+
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
     const rowNumber = index + 2;
@@ -355,12 +359,31 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // save_training_record populates the existing row with the payload and then assigns every
+    // column it names, so the full `normalized` shape -- due_date and training_provider null when
+    // the CSV carries no such column, the import note, status "compliant", approval "approved",
+    // completion_method "csv_import" -- was whole-record replacement on update: re-importing the
+    // three required columns nulled the due date and provider and overwrote the reviewer's notes,
+    // approval and method. An update sends the identity the RPC re-checks plus only what the CSV
+    // carries; the ledger records the same, because the durable worker replays it.
+    const updatePayload = action === "update"
+      ? {
+          employee_id: normalized.employee_id,
+          training_type_id: normalized.training_type_id,
+          ...(presentColumns.has("expiration_date") ? { due_date: normalized.due_date } : {}),
+          ...(presentColumns.has("source")
+            ? { training_provider: normalized.training_provider, notes: normalized.notes }
+            : {}),
+        }
+      : null;
+    const ledgerNormalized = updatePayload ?? normalized;
+
     if (rowErrors.length > 0) {
       results.push({ row: rowNumber, success: false, error: rowErrors.join("; "), action, preview: mode === "validate" });
       ledgerRows.push({
         rowNumber,
         sourceRow: row,
-        normalizedRow: normalized,
+        normalizedRow: ledgerNormalized,
         proposedAction: action,
         status: "invalid",
         targetTable: "employee_training_records",
@@ -383,7 +406,7 @@ Deno.serve(async (req: Request) => {
       ledgerRows.push({
         rowNumber,
         sourceRow: row,
-        normalizedRow: normalized,
+        normalizedRow: ledgerNormalized,
         proposedAction: action,
         status: "skipped",
         targetTable: "employee_training_records",
@@ -406,7 +429,7 @@ Deno.serve(async (req: Request) => {
       ledgerRows.push({
         rowNumber,
         sourceRow: row,
-        normalizedRow: normalized,
+        normalizedRow: ledgerNormalized,
         proposedAction: action,
         status: "valid",
         targetTable: "employee_training_records",
@@ -433,7 +456,7 @@ Deno.serve(async (req: Request) => {
 
     const { data, error } = await callerClient.rpc("save_training_record", {
       p_record_id: action === "update" ? existingRecord!.id : null,
-      p_payload: payload,
+      p_payload: updatePayload ?? payload,
     });
 
     if (error) {
@@ -441,7 +464,7 @@ Deno.serve(async (req: Request) => {
       ledgerRows.push({
         rowNumber,
         sourceRow: row,
-        normalizedRow: normalized,
+        normalizedRow: ledgerNormalized,
         proposedAction: action,
         status: "failed",
         targetTable: "employee_training_records",
@@ -459,7 +482,7 @@ Deno.serve(async (req: Request) => {
       // employees already carries; see its per-row receipt comment).
       const { error: receiptError } = await callerClient.rpc("record_data_import_row_receipt", {
         p_job_id: jobId,
-        p_row: { rowNumber, sourceRow: row, normalizedRow: normalized, proposedAction: action, status: "applied", targetTable: "employee_training_records", targetId: recordId, beforeSnapshot: existingRecord, errors: [], warnings },
+        p_row: { rowNumber, sourceRow: row, normalizedRow: ledgerNormalized, proposedAction: action, status: "applied", targetTable: "employee_training_records", targetId: recordId, beforeSnapshot: existingRecord, errors: [], warnings },
       });
       if (receiptError) {
         return json(req, { error: `Row ${rowNumber} was applied but its import receipt failed: ${receiptError.message}`, job_id: jobId }, 500);

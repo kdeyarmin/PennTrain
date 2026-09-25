@@ -62,6 +62,9 @@ export function createAttestPolicyHandler({
     } catch {
       return json(req, { error: "Invalid JSON body" }, 400);
     }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return json(req, { error: "Invalid JSON body" }, 400);
+    }
     const { attestationId } = body;
     if (!attestationId) return json(req, { error: "attestationId is required" }, 400);
 

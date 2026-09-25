@@ -50,8 +50,9 @@ const DESCRIPTORS: readonly ToolDescriptor[] = [
         citation_query: {
           type: "string",
           description:
-            "Only with topic=citations: the regulation or subject to pull " +
-            "evidence for (e.g. \"medication administration training\").",
+            "Required when topic=citations: the regulation or subject to pull " +
+            "evidence for (e.g. \"medication administration training\"). " +
+            "Omit for the other topics.",
         },
       },
       required: ["question", "topic"],
@@ -91,16 +92,29 @@ const TOOLS: AppToolSet = {
   argSchemas: {
     ask_compliance_question: z
       .object({
-        question: z.string().min(3).max(600),
+        question: z.string().trim().min(3).max(600),
         topic: z.enum([
           "deadlines",
           "readiness",
           "citations",
           "recurring_citations",
         ]),
-        citation_query: z.string().max(200).optional(),
+        citation_query: z.string().trim().min(1).max(200).optional(),
       })
-      .strict(),
+      .strict()
+      // voice-tools refuses a "citations" call without its citation context with a structural
+      // 400, which the dispatcher maps to a generic "the lookup failed" the model cannot act on.
+      // Refusing here instead returns `invalid_arguments` with a reason the model can repair.
+      .superRefine((value, ctx) => {
+        if (value.topic === "citations" && !value.citation_query) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["citation_query"],
+            message:
+              "citation_query is required when topic is \"citations\": name the regulation or subject to pull evidence for.",
+          });
+        }
+      }),
     get_facility_readiness: z.object({}).strict(),
     get_upcoming_deadlines: z
       .object({

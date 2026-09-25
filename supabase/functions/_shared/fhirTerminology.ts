@@ -33,13 +33,14 @@ export function classifyCodeSystem(systemUri: string | undefined | null): CodeSy
 
 /** First coding whose system classifies to `target`. */
 export function findCoding(concept: CodeableConcept | undefined, target: CodeSystem): Coding | null {
-  if (!concept?.coding) return null;
-  return concept.coding.find((coding) => classifyCodeSystem(coding.system) === target) ?? null;
+  if (!Array.isArray(concept?.coding)) return null;
+  return concept.coding.find((coding) => classifyCodeSystem(coding?.system) === target) ?? null;
 }
 
 /** Human-readable label: first coding display, else concept text, else first code. */
 export function conceptDisplay(concept: CodeableConcept | undefined): string | null {
-  if (!concept) return null;
-  const withDisplay = concept.coding?.find((coding) => Boolean(coding.display));
-  return withDisplay?.display ?? concept.text ?? concept.coding?.[0]?.code ?? null;
+  if (!concept || typeof concept !== "object") return null;
+  const codings = Array.isArray(concept.coding) ? concept.coding : [];
+  const withDisplay = codings.find((coding) => Boolean(coding?.display));
+  return withDisplay?.display ?? concept.text ?? codings[0]?.code ?? null;
 }

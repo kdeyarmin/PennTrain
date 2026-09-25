@@ -579,11 +579,19 @@ useEffect(() => {
     } catch (e) {
       console.warn("Unable to clear local training study tools:", (e as Error).message);
     }
-    setLessonNotes({});
+    // The server copy (course_progress.learning_tools) is the source of truth and the debounced
+    // checkpoint persists whatever state holds, so this clear reaches every device -- the dialog
+    // says so. Applied-scenario / practice responses share the notes map but are completion
+    // evidence (require_comprehensive_self_completion checks them), not study aids: keep them, or
+    // a comprehensive course could no longer be marked complete.
+    const keptNotes = Object.fromEntries(
+      Object.entries(lessonNotes).filter(([blockId]) => requiresAppliedResponse((blocks ?? []).find(block => block.id === blockId))),
+    );
+    setLessonNotes(keptNotes);
     setLessonConfidence({});
     setLastStudyToolsSavedAt(null);
     setShowClearLearningToolsConfirm(false);
-    toast({ title: "Local study tools cleared", description: "Your training progress and quiz attempts were not changed." });
+    toast({ title: "Study notes cleared", description: "Applied-scenario responses, your progress and your quiz attempts were kept." });
   };
 
 useEffect(() => {
@@ -894,7 +902,7 @@ useEffect(() => {
                   onClick={() => setShowClearLearningToolsConfirm(true)}
                   disabled={!hasStudyGuideEntries || completionEvidenceLocked}
                 >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Clear local notes
+                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Clear study notes
                 </Button>
               </CardContent>
             </Card>
@@ -1343,9 +1351,9 @@ useEffect(() => {
       <AlertDialog open={showClearLearningToolsConfirm} onOpenChange={setShowClearLearningToolsConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear local study tools?</AlertDialogTitle>
+            <AlertDialogTitle>Clear study notes?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes your notes and confidence checks for this training item from this device. Your training progress and quiz attempts will not change.
+              This removes your notes and confidence checks for this training item from your training record, on every device you use. Applied-scenario and practice responses, your training progress and your quiz attempts are kept.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1354,7 +1362,7 @@ useEffect(() => {
               onClick={handleClearLocalLearningTools}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Clear local notes
+              Clear notes
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

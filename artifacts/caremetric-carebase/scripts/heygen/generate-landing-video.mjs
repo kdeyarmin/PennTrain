@@ -25,7 +25,7 @@
  *   SCRIPT_FILE             (optional) path to a UTF-8 file with the narration;
  *                           defaults to the built-in landing-overview narration.
  *   OUTPUT_BASENAME         (optional) output file base; default "landing-overview"
- *                           -> public/marketing/<base>.mp4 + <base>-poster.jpg.
+ *                           -> public/marketing/<base>.mp4 + <base>-poster.webp.
  *   VIDEO_TITLE             (optional) HeyGen video title.
  *   HEYGEN_VOICE_PITCH      (optional) semitones -50..50 (negative = deeper).
  *   HEYGEN_VOICE_SPEED      (optional) 0.5..1.5 (below 1 = slower / more pause).

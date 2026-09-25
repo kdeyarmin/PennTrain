@@ -228,7 +228,10 @@ export default function NotificationSettings() {
                   onChange={e => setForm(f => ({
                     ...f,
                     smsOptIn: e.target.checked,
-                    preferredNotificationChannel: e.target.checked ? f.preferredNotificationChannel : "email",
+                    // Withdrawing SMS consent only invalidates an SMS channel preference; a web-push
+                    // preference must survive untouched.
+                    preferredNotificationChannel:
+                      !e.target.checked && f.preferredNotificationChannel === "sms" ? "email" : f.preferredNotificationChannel,
                   }))}
                   className="h-4 w-4 mt-0.5"
                 />

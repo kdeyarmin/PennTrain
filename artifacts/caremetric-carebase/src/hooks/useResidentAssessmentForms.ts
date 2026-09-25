@@ -139,6 +139,8 @@ export function useFinalizeResidentAssessmentForm() {
       queryClient.invalidateQueries({ queryKey: ["resident_assessment_forms", "detail", formId] });
       queryClient.invalidateQueries({ queryKey: ["resident_compliance_items"] });
       queryClient.invalidateQueries({ queryKey: ["resident_documents"] });
+      // A finalized RASP/ASP is the assessed side of the care-level review.
+      queryClient.invalidateQueries({ queryKey: ["care-level-review"] });
     },
   });
 }

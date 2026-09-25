@@ -216,6 +216,7 @@ export function InstanceDetailDialog({ open, onOpenChange, requirementId, instan
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   rows={2}
+                  aria-label="Note"
                   placeholder="Add a note (required to mark not applicable, approve an exception, reopen, or send back)"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -257,7 +258,7 @@ export function InstanceDetailDialog({ open, onOpenChange, requirementId, instan
                         <span className="truncate">{doc.document_label || doc.file_name}</span>
                       </button>
                       {canManage && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeDoc.mutate(doc, {
+                        <Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Remove ${doc.document_label || doc.file_name}`} onClick={() => removeDoc.mutate(doc, {
                           onSuccess: () => toast({ title: "Evidence removed" }),
                           onError: (e: Error) => toast({ title: "Could not remove evidence", description: e.message, variant: "destructive" }),
                         })}>
@@ -283,7 +284,7 @@ export function InstanceDetailDialog({ open, onOpenChange, requirementId, instan
                         {ev.new_status && ev.new_status !== ev.prior_status && <> → <span className="font-medium">{statusLabel(ev.new_status)}</span></>}
                       </p>
                       {ev.note && <p className="text-muted-foreground">{ev.note}</p>}
-                      <p className="text-xs text-muted-foreground">{formatDateForDisplay(ev.created_at, { dateStyle: "medium", timeStyle: "short" })}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateForDisplay(ev.created_at, { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" })}</p>
                     </div>
                   </li>
                 ))}

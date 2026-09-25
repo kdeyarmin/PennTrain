@@ -58,12 +58,12 @@ export const SimpleNeedEditor = memo(function SimpleNeedEditor({
             frequencyOther={answer.planFrequencyOther}
             responsibleParty={answer.planResponsibleParty}
             responsiblePartyOther={answer.planResponsiblePartyOther}
-            onFrequencyChange={(v) => onChange({ ...answer, planFrequency: v })}
+            onFrequencyChange={(v) => onChange({ ...answer, planFrequency: v, planFrequencyOther: v === "other" ? answer.planFrequencyOther : "" })}
             onFrequencyOtherChange={(v) =>
               onChange({ ...answer, planFrequencyOther: v })
             }
             onPartyChange={(v) =>
-              onChange({ ...answer, planResponsibleParty: v })
+              onChange({ ...answer, planResponsibleParty: v, planResponsiblePartyOther: v === "O" ? answer.planResponsiblePartyOther : "" })
             }
             onPartyOtherChange={(v) =>
               onChange({ ...answer, planResponsiblePartyOther: v })

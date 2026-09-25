@@ -162,6 +162,10 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: `${message}${alsoFailed}`, job_id: jobId }, 500);
   }
 
+  // The header set: an update writes only the columns this CSV actually carries (the rule
+  // bulk-import-employees already follows).
+  const presentColumns = new Set(Object.keys(rows[0] ?? {}));
+
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
     const rowNumber = index + 2;
@@ -241,30 +245,58 @@ Deno.serve(async (req: Request) => {
       verification_method: "csv_import",
       notes: "Imported via data migration center",
     };
+    // save_employee_credential treats a PRESENT key as an instruction, so sending this full
+    // payload for an update -- credential_number/issue_date/expiration_date null when the column
+    // is absent, and `status` derived as "missing" from those absent dates -- nulled the stored
+    // number and dates, flipped a compliant credential to "missing", cleared its verification and
+    // replaced its notes with the import boilerplate. An update sends only what the CSV carries;
+    // status is re-derived from the dates the row will hold afterwards, and only when a date
+    // column is present at all.
+    let updatePayload: Record<string, unknown> | null = null;
+    if (action === "update" && existingCred) {
+      const effectiveIssue = presentColumns.has("issue_date") ? issueDate : ((existingCred.issue_date as string | null) ?? null);
+      const effectiveExpiration = presentColumns.has("expiration_date") ? expirationDate : ((existingCred.expiration_date as string | null) ?? null);
+      let effectiveStatus = "missing";
+      if (effectiveExpiration) effectiveStatus = effectiveExpiration < today ? "expired" : "compliant";
+      else if (effectiveIssue) effectiveStatus = "compliant";
+      const carriesDate = presentColumns.has("issue_date") || presentColumns.has("expiration_date");
+      updatePayload = {
+        employee_id: employee?.id,
+        facility_id: employee?.facility_id,
+        organization_id: effectiveOrgId,
+        credential_type: credentialType,
+        ...(presentColumns.has("identifier") ? { credential_number: identifier } : {}),
+        ...(presentColumns.has("issue_date") ? { issue_date: issueDate } : {}),
+        ...(presentColumns.has("expiration_date") ? { expiration_date: expirationDate } : {}),
+        ...(carriesDate ? { status: effectiveStatus, verification_method: "csv_import" } : {}),
+      };
+    }
+    // The ledger records the same narrowed payload, because the durable worker replays it.
+    const normalizedRow = updatePayload ?? payload;
 
     if (rowErrors.length > 0) {
       results.push({ row: rowNumber, success: false, error: rowErrors.join("; "), action, preview: mode === "validate" });
-      ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "invalid", targetTable: TARGET, targetId: existingCred?.id ?? null, beforeSnapshot: existingCred, errors: rowErrors, warnings });
+      ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "invalid", targetTable: TARGET, targetId: existingCred?.id ?? null, beforeSnapshot: existingCred, errors: rowErrors, warnings });
       continue;
     }
     if (action === "skip") {
       results.push({ row: rowNumber, success: true, record_id: existingCred!.id as string, action, preview: mode === "validate" });
-      ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "skipped", targetTable: TARGET, targetId: existingCred!.id, beforeSnapshot: existingCred, errors: [], warnings });
+      ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "skipped", targetTable: TARGET, targetId: existingCred!.id, beforeSnapshot: existingCred, errors: [], warnings });
       continue;
     }
     if (mode === "validate") {
       results.push({ row: rowNumber, success: true, record_id: existingCred?.id as string | undefined, action, preview: true });
-      ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "valid", targetTable: TARGET, targetId: existingCred?.id ?? null, beforeSnapshot: existingCred, errors: [], warnings });
+      ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "valid", targetTable: TARGET, targetId: existingCred?.id ?? null, beforeSnapshot: existingCred, errors: [], warnings });
       continue;
     }
 
     const { data, error } = await callerClient.rpc("save_employee_credential", {
       p_credential_id: action === "update" ? existingCred!.id : undefined,
-      p_payload: payload,
+      p_payload: normalizedRow,
     });
     if (error) {
       results.push({ row: rowNumber, success: false, error: error.message, action });
-      ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "failed", targetTable: TARGET, targetId: existingCred?.id ?? null, beforeSnapshot: existingCred, errors: [error.message], warnings });
+      ledgerRows.push({ rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "failed", targetTable: TARGET, targetId: existingCred?.id ?? null, beforeSnapshot: existingCred, errors: [error.message], warnings });
     } else {
       const recordId = (data as { id?: string })?.id ?? (data as string);
       results.push({ row: rowNumber, success: true, record_id: recordId, action });
@@ -274,7 +306,7 @@ Deno.serve(async (req: Request) => {
       // employees already carries; see its per-row receipt comment).
       const { error: receiptError } = await callerClient.rpc("record_data_import_row_receipt", {
         p_job_id: jobId,
-        p_row: { rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "applied", targetTable: TARGET, targetId: recordId, beforeSnapshot: existingCred, errors: [], warnings },
+        p_row: { rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "applied", targetTable: TARGET, targetId: recordId, beforeSnapshot: existingCred, errors: [], warnings },
       });
       if (receiptError) {
         return json(req, { error: `Row ${rowNumber} was applied but its import receipt failed: ${receiptError.message}`, job_id: jobId }, 500);

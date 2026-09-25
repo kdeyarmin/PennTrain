@@ -305,6 +305,16 @@ export default function Users() {
     );
   };
 
+  // update_profile_contact_preferences lets a facility_manager edit only profiles rostered at an
+  // assigned facility (trainer / employee rows) plus their own; the pencil used to render on every
+  // row and fail with "Profile is outside the caller scope".
+  const canEditContact = (p: Profile) =>
+    user?.role !== "facility_manager" || p.id === user.id || ["trainer", "employee"].includes(p.role);
+  // The same RPC refuses anyone but the recipient turning text-message consent ON; turning it off
+  // for someone else is allowed.
+  const editingSelf = !!editProfile && editProfile.id === user?.id;
+  const canEnableSms = editingSelf || editForm.smsOptIn;
+
   const openEdit = (e: React.MouseEvent, p: Profile) => {
     e.preventDefault();
     e.stopPropagation();
@@ -662,6 +672,7 @@ export default function Users() {
                                 <ShieldOff className="h-3.5 w-3.5" />
                               </Button>
                             )}
+                            {canEditContact(p) && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -671,6 +682,7 @@ export default function Users() {
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -712,9 +724,11 @@ export default function Users() {
                             <ShieldOff className="h-4 w-4" />
                           </Button>
                         )}
+                        {canEditContact(p) && (
                         <Button variant="outline" size="icon" className="h-9 w-9" onClick={e => openEdit(e, p)} aria-label={`Edit ${p.first_name} ${p.last_name}`}>
                           <Pencil className="h-4 w-4" />
                         </Button>
+                        )}
                       </div>
                     </div>
                     <div className="grid gap-3 rounded-lg border bg-muted/20 p-3">
@@ -881,6 +895,7 @@ export default function Users() {
             <div className="col-span-full flex items-start gap-2 rounded-md border p-3">
               <input
                 type="checkbox" id="sms-opt-in" checked={editForm.smsOptIn}
+                disabled={!canEnableSms}
                 onChange={e => setEditForm(f => ({
                   ...f,
                   smsOptIn: e.target.checked,
@@ -893,8 +908,9 @@ export default function Users() {
               <label htmlFor="sms-opt-in" className="text-[13px] cursor-pointer">
                 <span className="font-medium">Send SMS training reminders to this phone number</span>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Requires explicit consent -- only enable this after the user has agreed to receive text messages.
-                  Also requires SMS reminders to be turned on for the organization in Settings.
+                  {editingSelf
+                    ? "Requires your explicit consent to receive text messages. Also requires SMS reminders to be turned on for the organization in Settings."
+                    : "Only the person can turn text reminders on, from their own notification preferences; you can turn them off here."}
                 </p>
               </label>
             </div>

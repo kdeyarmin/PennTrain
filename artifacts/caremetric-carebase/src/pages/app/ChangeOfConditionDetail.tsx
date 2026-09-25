@@ -68,6 +68,10 @@ export default function ChangeOfConditionDetail() {
   const completeFollowUp = useCompleteChangeEventFollowUp();
   const closeEvent = useCloseResidentChangeEvent();
   const isManager = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  // Mounted at /me/change-of-condition/:id for employees too; their role cannot open the /app
+  // incident, state-forms or resident routes, so those links either go to the /me equivalent or
+  // are not offered.
+  const isEmployee = user?.role === "employee";
   const canContribute = user?.role !== "auditor";
   const [notificationParty, setNotificationParty] = useState("provider");
   const [notificationStatus, setNotificationStatus] = useState("completed");
@@ -356,9 +360,9 @@ export default function ChangeOfConditionDetail() {
               <div className="flex justify-between"><span>Incident report</span><Badge variant="outline">{humanize(event.incident_decision)}</Badge></div>
               <div className="flex justify-between"><span>Significant-change reassessment</span><Badge variant="outline">{event.reassessment_required ? "Required" : "Not required"}</Badge></div>
               <div className="flex justify-between"><span>Support-plan revision review</span><Badge variant="outline">{event.support_plan_revision_required ? "Required" : "Not required"}</Badge></div>
-              {event.incident_id && <Button asChild variant="outline" size="sm" className="w-full"><Link href={`/app/incidents/${event.incident_id}`}>Open linked incident <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>}
-              {event.compliance_item_id && <Button asChild variant="outline" size="sm" className="w-full"><Link href="/app/state-forms">Open reassessment workflow <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>}
-              <Button asChild variant="outline" size="sm" className="w-full"><Link href={`/app/residents/${event.resident_id}`}>Open resident record <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>
+              {!isEmployee && event.incident_id && <Button asChild variant="outline" size="sm" className="w-full"><Link href={`/app/incidents/${event.incident_id}`}>Open linked incident <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>}
+              {!isEmployee && event.compliance_item_id && <Button asChild variant="outline" size="sm" className="w-full"><Link href="/app/state-forms">Open reassessment workflow <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>}
+              <Button asChild variant="outline" size="sm" className="w-full"><Link href={`${isEmployee ? "/me" : "/app"}/residents/${event.resident_id}`}>Open resident record <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>
             </CardContent>
           </Card>
 

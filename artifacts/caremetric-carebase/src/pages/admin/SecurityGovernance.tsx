@@ -118,15 +118,16 @@ function describeRow(log: SecurityAuditRow, profileNames: Record<string, string>
 
   if (log.entity_type === "organizations") {
     if (subscriptionStatusChanged(log)) {
-      const newStatus = (log.new_values as Record<string, unknown>)?.subscription_status;
+      const oldStatus = String((log.old_values as Record<string, unknown> | null)?.subscription_status ?? "");
+      const newStatus = String((log.new_values as Record<string, unknown> | null)?.subscription_status ?? "");
       // `canceled` is its own end state, and reading it as "reactivated" was the same mislabel
-      // OrganizationDetail carried. BACKLOG J74 (P3, identity).
-      const verb = newStatus === "suspended"
-        ? "suspended"
-        : newStatus === "canceled"
-          ? "canceled the subscription for"
-          : "reactivated";
-      return { primary: `${actorName} ${verb} organization ${log.entity_id}` };
+      // OrganizationDetail carried. BACKLOG J74 (P3, identity). Only a move out of
+      // suspended/canceled is a reactivation; billing transitions (trial -> active,
+      // active -> past_due, -> grace, -> comped) are reported as what they are.
+      if (newStatus === "suspended") return { primary: `${actorName} suspended organization ${log.entity_id}` };
+      if (newStatus === "canceled") return { primary: `${actorName} canceled the subscription for organization ${log.entity_id}` };
+      if (oldStatus === "suspended" || oldStatus === "canceled") return { primary: `${actorName} reactivated organization ${log.entity_id}` };
+      return { primary: `${actorName} changed organization ${log.entity_id} from ${oldStatus || "unknown"} to ${newStatus || "unknown"}` };
     }
     if (log.action.endsWith("_created")) return { primary: `${actorName} created organization ${log.entity_id}` };
     if (log.action.endsWith("_deleted")) return { primary: `${actorName} deleted organization ${log.entity_id}` };
@@ -145,7 +146,15 @@ export default function SecurityGovernance() {
   });
   const logs = useMemo(() => logsData ?? [], [logsData]);
   const { data: profileNameMap } = useProfileNameMap(
-    useMemo(() => logs.map((log) => log.actor_profile_id).filter((id): id is string => Boolean(id)), [logs]),
+    // The page resolves three ids per row: the actor (which for service-role platform_settings
+    // writes lives in new_values.updated_by) and, for identity rows, the subject. Fetching only
+    // actor_profile_id left the other two rendering as "User #<uuid>".
+    useMemo(
+      () => logs
+        .flatMap((log) => [getActorId(log), log.entity_type === "identity" ? log.entity_id : null])
+        .filter((id): id is string => Boolean(id)),
+      [logs],
+    ),
   );
   const { data: coverageData, isLoading: coverageLoading } = useAuditCoverage();
   const { data: governance, isLoading: governanceLoading, isError: governanceError } = useAuditGovernanceStatus();

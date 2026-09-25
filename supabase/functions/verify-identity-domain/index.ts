@@ -46,6 +46,9 @@ Deno.serve(async (request: Request) => {
   } catch {
     return json(request, { error: "Invalid JSON body" }, 400, requestId);
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(request, { error: "Invalid JSON body" }, 400, requestId);
+  }
   if (!body.domainId || !/^[0-9a-f-]{36}$/i.test(body.domainId)) {
     return json(request, { error: "domainId must be a UUID" }, 400, requestId);
   }

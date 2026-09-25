@@ -31,6 +31,8 @@ export interface ResidentCareAnalytics {
 function invalidateResidentCare(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["resident-care-delivery"] });
   queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
+  // activate_support_plan supersedes the old plan's service requirements and inserts the new ones.
+  queryClient.invalidateQueries({ queryKey: ["resident-service-requirements"] });
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
   queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
 }
@@ -284,7 +286,13 @@ export function useScheduleResidentAppointment() {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: () => invalidateResidentCare(queryClient),
+    onSuccess: (_data, input) => {
+      invalidateResidentCare(queryClient);
+      // The same rows the resident-side variant refreshes (useResidentAppointmentMutations).
+      queryClient.invalidateQueries({ queryKey: ["resident-appointments", input.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-appointment-preparation"] });
+      queryClient.invalidateQueries({ queryKey: ["resident-timeline", input.residentId] });
+    },
   });
 }
 
@@ -320,7 +328,18 @@ export function useStartHospitalTransfer() {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: () => invalidateResidentCare(queryClient),
+    onSuccess: (_data, input) => {
+      invalidateResidentCare(queryClient);
+      // start_hospital_transfer sets residents.status = 'hospital_leave', inserts a shift-report
+      // handoff entry and an assessment review: every surface reading those rows refreshes.
+      queryClient.invalidateQueries({ queryKey: ["residents"] });
+      queryClient.invalidateQueries({ queryKey: ["resident-care-header", input.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-360", input.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-timeline", input.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-assessment-reviews", input.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["shift-report-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
+    },
   });
 }
 

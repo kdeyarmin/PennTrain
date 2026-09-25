@@ -56,6 +56,8 @@ function useCareMutation<TInput>(runner: (input: TInput) => Promise<void>, resid
     mutationFn: runner,
     onSuccess: (_data, input) => {
       void queryClient.invalidateQueries({ queryKey: [...CLINICAL_CHART_SUMMARY_KEY, residentIdOf(input)] });
+      // Final/amended clinical assessments are the assessed side of the care-level review.
+      void queryClient.invalidateQueries({ queryKey: ["care-level-review"] });
       return queryClient.invalidateQueries({ queryKey: [CARE_KEY, residentIdOf(input)] });
     },
   });

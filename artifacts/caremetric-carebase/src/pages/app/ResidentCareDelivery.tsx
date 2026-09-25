@@ -43,6 +43,10 @@ function MetricCard({ title, value, description, tone = "default" }: { title: st
 
 export default function ResidentCareDelivery() {
   const { user } = useAuth();
+  // register_resident_dme_item, schedule_resident_appointment and start_hospital_transfer all run
+  // assert_resident_care_manager, so the write cards are offered only to roles it admits; the
+  // route itself also admits auditors, who get the analytics/routes/guardrails tabs.
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const { viewingOrgId } = useViewingOrg();
   const selectedOrgId = viewingOrgId ?? user?.organizationId ?? null;
   const { toast } = useToast();
@@ -148,6 +152,15 @@ export default function ResidentCareDelivery() {
           <TabsTrigger value="guardrails">Guardrails</TabsTrigger>
         </TabsList>
         <TabsContent value="actions" className="grid gap-4 xl:grid-cols-3">
+          {!canManage ? (
+            <Card className="xl:col-span-3">
+              <CardContent className="p-6 text-sm text-muted-foreground">
+                Registering DME, scheduling appointments and starting transfer episodes are manager actions.
+                Your role can review the analytics, routes and guardrails tabs.
+              </CardContent>
+            </Card>
+          ) : (
+          <>
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><PackageCheck className="h-5 w-5" />Register DME</CardTitle><CardDescription>Preserves assignment history and repair/inspection documentation.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
@@ -181,6 +194,8 @@ export default function ResidentCareDelivery() {
           <div className="xl:col-span-3">
             <DmeRegisterCard facilityId={effectiveFacilityId || undefined} residents={residents.data ?? []} />
           </div>
+          </>
+          )}
         </TabsContent>
 
         <TabsContent value="reporting" className="grid gap-4 md:grid-cols-3">

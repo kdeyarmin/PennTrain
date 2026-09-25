@@ -167,6 +167,10 @@ function buildResidentPayload(normalizedRow: unknown, organizationId: string) {
     admission_date: asStringOrNull(row.admission_date) ?? paToday(),
     preferred_name: asStringOrNull(row.preferred_name),
     status: asStringOrNull(row.status) ?? "active",
+    // The source system's identifier (20260906130000): bulk-import-residents writes it, and a row
+    // rescued here without it could never be matched by the next re-import. Only carried when the
+    // ledger row has one, so a create without it does not name a column it has no value for.
+    ...(asStringOrNull(row.external_id) ? { external_id: asStringOrNull(row.external_id) } : {}),
   };
 }
 
@@ -356,7 +360,16 @@ async function processEmployeeJob(supabase: ReturnType<typeof createClient>, job
 
   for (const row of ledgerRows) {
     const payload = buildEmployeePayload(row.normalized_row, job.organization_id);
+    const action = normalizeAction(row.proposed_action);
     const facilityId = asStringOrNull(payload.facility_id);
+    // An update row's ledger payload is header-filtered, and stripEmployeeLifecycleFromImportUpdate
+    // removes facility_id from it (a transfer is a lifecycle case, not an import) -- so requiring a
+    // payload facility here failed every rescued update with "facility_id is missing" before its
+    // action was even read. A create needs the facility; an update is bounded by its target's
+    // CURRENT facility below and by import_apply_employee's organization check.
+    if (action === "update" && !facilityId) {
+      // nothing to verify from the payload; the target-scope check in the update branch applies
+    } else {
     if (!facilityId || !UUID_PATTERN.test(facilityId)) {
       await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: facility_id is missing or invalid`);
       continue;
@@ -387,8 +400,8 @@ async function processEmployeeJob(supabase: ReturnType<typeof createClient>, job
       await markLedgerRowFailure(supabase, row, `Row ${row.row_number}: facility is outside the creating manager's assigned scope`);
       continue;
     }
+    }
 
-    const action = normalizeAction(row.proposed_action);
     if (action === "skip") {
       await markLedgerRowStatus(supabase, row, {
         status: "skipped",
@@ -587,7 +600,7 @@ async function processResidentJob(supabase: ReturnType<typeof createClient>, job
       // neither. Legacy full-shape ledger rows carry every key, so nothing changes for them.
       const ledgerKeys = new Set(Object.keys(asRecord(row.normalized_row)));
       const residentUpdate: Record<string, unknown> = {};
-      for (const field of ["first_name", "last_name", "date_of_birth", "room", "preferred_name"]) {
+      for (const field of ["first_name", "last_name", "date_of_birth", "room", "preferred_name", "external_id"]) {
         if (ledgerKeys.has(field)) residentUpdate[field] = payload[field as keyof typeof payload];
       }
       // Through the RPC: the service role holds SELECT on `residents` and nothing else, so this
@@ -810,7 +823,7 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
       }
       const { data: existingAssessment, error: existingAssessmentErr } = await supabase
         .from("resident_assessment_forms")
-        .select("id,organization_id,resident_id")
+        .select("id,organization_id,resident_id,content")
         .eq("id", row.target_id)
         .eq("organization_id", job.organization_id)
         .maybeSingle();
@@ -834,10 +847,22 @@ async function processAssessmentJob(supabase: ReturnType<typeof createClient>, j
       }
       // Through the RPC: the service role holds SELECT on `resident_assessment_forms` and
       // nothing else. See import_apply_resident_assessment.
+      //
+      // The same rules as the browser applier (bulk-import-assessments): an update moves only the
+      // columns the ledger row carries, never the identity or status columns, and `content` is
+      // merged onto the stored draft so a reviewer's completed sections survive the csv_import
+      // marker. import_write_row sets every key the payload names, so replaying the full
+      // create-shaped payload used to null reason/prepared_date and erase the draft's content.
+      const ledgerKeys = new Set(Object.keys(asRecord(row.normalized_row)));
+      const updatePayload: Record<string, unknown> = {
+        ...(ledgerKeys.has("reason") ? { reason: payload.reason } : {}),
+        ...(ledgerKeys.has("prepared_date") ? { prepared_date: payload.prepared_date } : {}),
+        content: { ...asRecord(existingAssessment.content), csv_import: payload.content.csv_import },
+      };
       const { error: updateErr } = await supabase.rpc("import_apply_resident_assessment", {
         p_job_id: job.id,
         p_form_id: row.target_id,
-        p_payload: payload,
+        p_payload: updatePayload,
       });
       if (updateErr) {
         await markLedgerRowFailureForTable(supabase, row, ASSESSMENT_TARGET_TABLE, `Row ${row.row_number}: ${updateErr.message}`);
@@ -998,10 +1023,18 @@ async function processCredentialJob(supabase: ReturnType<typeof createClient>, j
         await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: update action is missing target_id`);
         continue;
       }
+      // The browser applier records only the columns the CSV carried for an update row, and
+      // import_apply_employee_credential treats a present key as an instruction -- so the
+      // defaults buildCredentialPayload fills for a create (status "missing", the import note,
+      // null dates) must not be replayed onto a credential that already holds real values.
+      const ledgerKeys = new Set(Object.keys(asRecord(row.normalized_row)));
+      const updatePayload = Object.fromEntries(
+        Object.entries(payload).filter(([key]) => key === "organization_id" || ledgerKeys.has(key)),
+      );
       const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_employee_credential", {
         p_organization_id: job.organization_id,
         p_credential_id: row.target_id,
-        p_payload: payload,
+        p_payload: updatePayload,
       });
       if (rpcErr) {
         await markLedgerRowFailureForTable(supabase, row, CREDENTIAL_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);
@@ -1093,10 +1126,18 @@ async function processTrainingRecordJob(supabase: ReturnType<typeof createClient
         await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: update action is missing target_id`);
         continue;
       }
+      // Only fields the ledger row actually carries (the rule processEmployeeJob follows):
+      // buildTrainingRecordPayload pads absent columns with a create's defaults -- status
+      // "missing", null dates and provider -- and import_apply_training_record assigns every key
+      // it is given, so replaying the padded shape onto an existing record cleared it.
+      const ledgerKeys = new Set(Object.keys(asRecord(row.normalized_row)));
+      const updatePayload = Object.fromEntries(
+        Object.entries(payload).filter(([key]) => ledgerKeys.has(key)),
+      );
       const { data: rpcResult, error: rpcErr } = await supabase.rpc("import_apply_training_record", {
         p_organization_id: job.organization_id,
         p_record_id: row.target_id,
-        p_payload: payload,
+        p_payload: updatePayload,
       });
       if (rpcErr) {
         await markLedgerRowFailureForTable(supabase, row, TRAINING_RECORD_TARGET_TABLE, `Row ${row.row_number}: ${rpcErr.message}`);

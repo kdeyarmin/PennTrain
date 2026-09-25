@@ -290,7 +290,7 @@ function Workspace({ sessionId, facilityId, facilityName, canManage }: { session
       <Suspense fallback={null}>
         <SurveyDayLogSection sessionId={sessionId} readOnly={data.session.status !== "active" || !canManage} />
       </Suspense>
-      <BinderSection sessionId={sessionId} facilityId={facilityId} organizationId={data.session.organizationId} pinnedBinderJobId={data.session.pinnedBinderJobId} />
+      <BinderSection sessionId={sessionId} facilityId={facilityId} organizationId={data.session.organizationId} pinnedBinderJobId={data.session.pinnedBinderJobId} readOnly={data.session.status !== "active" || !canManage} />
       <StaffRosterSection sessionId={sessionId} />
       <EvidenceSection organizationId={data.session.organizationId} facilityId={facilityId} pinnedCollectionId={data.session.pinnedEvidenceCollectionId} />
     </div>
@@ -406,7 +406,7 @@ function EntranceConferenceSection({ sessionId, facilityId, checklist, readOnly 
   );
 }
 
-function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobId }: { sessionId: string; facilityId: string; organizationId: string; pinnedBinderJobId: string | null }) {
+function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobId, readOnly }: { sessionId: string; facilityId: string; organizationId: string; pinnedBinderJobId: string | null; readOnly: boolean }) {
   const { toast } = useToast();
   const { data: pinned } = useGetBinderExport(pinnedBinderJobId ?? undefined);
   const download = useBinderDownloadUrl();
@@ -456,6 +456,7 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
                   facilityId={facilityId}
                   pinnedBinderJobId={pinnedBinderJobId}
                   pinnedBinder={packetJob}
+                  readOnly={readOnly}
                 />
               </Suspense>
             )}
@@ -472,7 +473,7 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
         ) : (
           <p className="text-sm text-muted-foreground">No binder is pinned yet. Generate one below or from the Compliance Binder page.</p>
         )}
-        {pinnable.length > 0 && (
+        {!readOnly && pinnable.length > 0 && (
           <div className="space-y-1 rounded-lg border p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pin a different binder</p>
             <p className="text-xs text-muted-foreground">
@@ -495,6 +496,7 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
+          {!readOnly && (
           <BinderExportButton
             organizationId={organizationId}
             facilityIds={[facilityId]}
@@ -510,6 +512,7 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
               }
             }}
           />
+          )}
           <Button asChild variant="ghost" size="sm"><Link href="/app/compliance-binder">Open Compliance Binder</Link></Button>
         </div>
       </CardContent>

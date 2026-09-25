@@ -18,7 +18,7 @@ import {
   useSaveLearningPathVersion,
 } from "@/hooks/useLearningPaths";
 import { useListEmployees } from "@/hooks/useEmployees";
-import { facilityDayBounds } from "@/lib/dateUtils";
+import { facilityDateOf, facilityDayBounds, formatDateForDisplay } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -141,7 +141,10 @@ function AssignmentRow({
           </p>
           <p className="text-xs text-muted-foreground">
             {assignment.state} · state v{assignment.state_version}
-            {assignment.due_at ? ` · due ${new Date(assignment.due_at).toLocaleDateString()}` : ""}
+            {/* due_at is stored as the facility-day bound AFTER the chosen day (see the assign form),
+                so the last included day is one millisecond earlier; formatting the instant directly
+                showed the day after the one the manager picked. */}
+            {assignment.due_at ? ` · due ${formatDateForDisplay(facilityDateOf(new Date(Date.parse(assignment.due_at) - 1)))}` : ""}
           </p>
           {Object.entries(currentState).map(([key, value]) => (
             <p key={key} className="text-xs text-muted-foreground">

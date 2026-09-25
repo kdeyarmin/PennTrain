@@ -1141,6 +1141,9 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
   const { formId } = body;
   if (!formId) return json(req, { error: "formId is required" }, 400);
 

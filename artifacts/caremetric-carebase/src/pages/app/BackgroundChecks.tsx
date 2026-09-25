@@ -64,6 +64,10 @@ interface ProfileFormData {
 export default function BackgroundChecks() {
   const __fieldIds = useId();
   const { user } = useAuth();
+  // Mirrors employee_background_check_profiles_insert/_update: org_admin, facility_manager and
+  // platform_admin write; the route also admits auditors, who used to get an enabled form whose
+  // save could only fail with a row-level-security error.
+  const canManage = ["org_admin", "facility_manager", "platform_admin"].includes(user?.role ?? "");
   const { toast } = useToast();
   const [facilityFilter, setFacilityFilter] = useState("all");
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
@@ -242,7 +246,7 @@ export default function BackgroundChecks() {
                       <Badge className={suitabilityBadgeClass(profile?.suitability_determination ?? "pending")}>
                         {SUITABILITY_LABELS[profile?.suitability_determination ?? "pending"]}
                       </Badge>
-                      <Button size="sm" variant="outline" onClick={() => openEditor(emp.id)}>Manage</Button>
+                      <Button size="sm" variant="outline" onClick={() => openEditor(emp.id)}>{canManage ? "Manage" : "View"}</Button>
                     </div>
                   </div>
                 );
@@ -259,7 +263,7 @@ export default function BackgroundChecks() {
             <DialogDescription>Background-check decision logic, provisional-employment tracking, and suitability determination.</DialogDescription>
           </DialogHeader>
           {form && (
-            <div className="space-y-4">
+            <fieldset disabled={!canManage} className="m-0 min-w-0 space-y-4 border-0 p-0">
               <div className="space-y-1.5">
                 <Label htmlFor={`${__fieldIds}-pa-resident-for-the-preceding-2-years`} className="text-[13px]">PA resident for the preceding 2 years?</Label>
                 <Select value={form.paResidentTwoYears} onValueChange={(v) => field("paResidentTwoYears", v)}>
@@ -317,11 +321,11 @@ export default function BackgroundChecks() {
                 <Label htmlFor={`${__fieldIds}-determination-notes`} className="text-[13px]">Determination notes</Label>
                 <Textarea id={`${__fieldIds}-determination-notes`} value={form.suitabilityNotes} onChange={(e) => field("suitabilityNotes", e.target.value)} rows={3} />
               </div>
-            </div>
+            </fieldset>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setEditingEmployeeId(null); setForm(null); }}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+            <Button variant="outline" onClick={() => { setEditingEmployeeId(null); setForm(null); }}>{canManage ? "Cancel" : "Close"}</Button>
+            {canManage && <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

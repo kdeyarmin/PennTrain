@@ -405,7 +405,7 @@ export default function EmployeeCredentials() {
             {topRiskCredentials.map((credential) => {
               const emp = employeeById.get(credential.employee_id);
               return (
-                <button key={credential.id} type="button" className="rounded-lg border p-3 text-left hover:bg-muted/40" onClick={() => openEdit(credential)}>
+                <button key={credential.id} type="button" className="rounded-lg border p-3 text-left hover:bg-muted/40 disabled:cursor-default disabled:hover:bg-transparent" disabled={!canManage} onClick={() => { if (canManage) openEdit(credential); }}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{emp ? `${emp.last_name}, ${emp.first_name}` : `Employee #${credential.employee_id.slice(0, 8)}`}</span>
                     <StatusBadge status={credential.status} type="training" />

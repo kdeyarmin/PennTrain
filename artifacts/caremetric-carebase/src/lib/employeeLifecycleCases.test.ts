@@ -57,6 +57,24 @@ describe("employee lifecycle case helpers", () => {
     expect(csv).toContain("case_id,employee_id");
     expect(csv).toContain('"Medical leave, ""FMLA"""');
   });
+
+  it("neutralizes a reason that a spreadsheet would evaluate as a formula", () => {
+    const csv = lifecycleCasesToCsv([
+      {
+        id: "c2",
+        employee_id: "e2",
+        transition: "terminate",
+        status: "ready",
+        effective_on: "2026-07-30",
+        reason: '=HYPERLINK("https://attacker.example","Open")',
+        applied_at: null,
+        canceled_at: null,
+      },
+    ]);
+    const reasonCell = csv.split("\n")[1].split(",").slice(5).join(",");
+    expect(reasonCell.startsWith("=")).toBe(false);
+    expect(reasonCell).toContain("HYPERLINK");
+  });
 });
 
 describe("which employees a transition can be started for", () => {
