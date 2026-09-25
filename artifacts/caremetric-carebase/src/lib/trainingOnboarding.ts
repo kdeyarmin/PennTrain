@@ -21,8 +21,8 @@ export function trainingAdministratorFromSearch<T extends { id: string; is_demo?
   return organizations?.find(organization => organization.id === params.get("organizationId") && !organization.is_demo);
 }
 
-export function trainingWorkspaceHref(facilityId?: string | null): string {
-  return facilityId ? `/app/train?${new URLSearchParams({ facilityId, source: "train" })}` : "/app/train";
+export function trainingWorkspaceHref(facilityId?: string | null, employeeId?: string | null): string {
+  return facilityId ? `/app/train?${new URLSearchParams({ facilityId, source: "train", ...(employeeId ? { employeeId, tab: "enrollments" } : {}) })}` : "/app/train";
 }
 
 export function trainingAdministratorInviteHref(organizationId: string): string {

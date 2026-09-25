@@ -147,7 +147,7 @@ export default function MyCertificates() {
                   >
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">
-                        {courseTitleById.get(cert.course_id) ?? `Course #${cert.course_id.slice(0, 8)}`}
+                        {cert.course_title_snapshot ?? courseTitleById.get(cert.course_id) ?? `Course #${cert.course_id.slice(0, 8)}`}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Issued {formatDateForDisplay(cert.issued_at)}

@@ -223,6 +223,9 @@ export function useSelfEnrollCourse() {
 
 /** Also used when a fresh read confirms completion after a failed final save or lost response. */
 export function invalidateCompletedCourseEvidence(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ["training_plans"] });
+  queryClient.invalidateQueries({ queryKey: ["training-workspace"] });
+  queryClient.invalidateQueries({ queryKey: ["training-enrollment-report"] });
   queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
   queryClient.invalidateQueries({ queryKey: ["course_progress"] });
   queryClient.invalidateQueries({ queryKey: ["certificates"] });

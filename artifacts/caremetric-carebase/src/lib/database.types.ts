@@ -1377,7 +1377,10 @@ export type Database = {
       certificates: {
         Row: {
           course_assignment_id: string | null
+          course_code_snapshot: string | null
           course_id: string
+          course_title_snapshot: string | null
+          course_version_snapshot: string | null
           created_at: string
           credential_number: string
           employee_id: string
@@ -1401,7 +1404,10 @@ export type Database = {
         }
         Insert: {
           course_assignment_id?: string | null
+          course_code_snapshot?: string | null
           course_id: string
+          course_title_snapshot?: string | null
+          course_version_snapshot?: string | null
           created_at?: string
           credential_number?: string
           employee_id: string
@@ -1425,7 +1431,10 @@ export type Database = {
         }
         Update: {
           course_assignment_id?: string | null
+          course_code_snapshot?: string | null
           course_id?: string
+          course_title_snapshot?: string | null
+          course_version_snapshot?: string | null
           created_at?: string
           credential_number?: string
           employee_id?: string
@@ -4694,6 +4703,7 @@ export type Database = {
           additional_quiz_attempts: Json
           assigned_at: string
           assigned_by: string | null
+          assignment_origin: string
           canceled_at: string | null
           cancellation_reason: string | null
           completed_at: string | null
@@ -4704,6 +4714,7 @@ export type Database = {
           employee_id: string
           facility_id: string
           id: string
+          is_required: boolean
           lifecycle_disposition: string | null
           lifecycle_event_id: string | null
           lifecycle_previous_status: string | null
@@ -4717,6 +4728,7 @@ export type Database = {
           additional_quiz_attempts?: Json
           assigned_at?: string
           assigned_by?: string | null
+          assignment_origin?: string
           canceled_at?: string | null
           cancellation_reason?: string | null
           completed_at?: string | null
@@ -4727,6 +4739,7 @@ export type Database = {
           employee_id: string
           facility_id: string
           id?: string
+          is_required?: boolean
           lifecycle_disposition?: string | null
           lifecycle_event_id?: string | null
           lifecycle_previous_status?: string | null
@@ -4740,6 +4753,7 @@ export type Database = {
           additional_quiz_attempts?: Json
           assigned_at?: string
           assigned_by?: string | null
+          assignment_origin?: string
           canceled_at?: string | null
           cancellation_reason?: string | null
           completed_at?: string | null
@@ -4750,6 +4764,7 @@ export type Database = {
           employee_id?: string
           facility_id?: string
           id?: string
+          is_required?: boolean
           lifecycle_disposition?: string | null
           lifecycle_event_id?: string | null
           lifecycle_previous_status?: string | null
@@ -37968,6 +37983,15 @@ export type Database = {
         Args: { p_facility_ids: string[]; p_template_id: string }
         Returns: number
       }
+      copy_yearly_training_plan: {
+        Args: {
+          p_due_date: string
+          p_name: string
+          p_plan_id: string
+          p_training_year: number
+        }
+        Returns: string
+      }
       correct_completed_class_attendee: {
         Args: {
           p_action: string
@@ -40091,6 +40115,15 @@ export type Database = {
         }[]
       }
       get_trainer_dashboard_summary: { Args: never; Returns: Json }
+      get_training_completion_evidence: {
+        Args: {
+          p_employee_id?: string
+          p_facility_id: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
       get_training_enrollment_report: {
         Args: {
           p_course_search?: string
@@ -40118,6 +40151,42 @@ export type Database = {
           p_status_filter?: string
           p_today?: string
           p_trainer_only?: boolean
+        }
+        Returns: Json
+      }
+      get_training_plan_progress: { Args: { p_plan_id: string }; Returns: Json }
+      get_training_progress_report: {
+        Args: {
+          p_course_search?: string
+          p_date_basis?: string
+          p_date_from?: string
+          p_date_through?: string
+          p_deadline?: string
+          p_department?: string
+          p_employee_id?: string
+          p_facility_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_organization_id: string
+          p_plan_id?: string
+          p_purpose?: string
+          p_status?: string
+          p_training_year?: number
+        }
+        Returns: Json
+      }
+      get_training_reminder_receipts: {
+        Args: { p_employee_id?: string; p_facility_id: string }
+        Returns: Json
+      }
+      get_training_roster_progress: {
+        Args: {
+          p_facility_id: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_state?: string
+          p_training_year?: number
         }
         Returns: Json
       }
@@ -42938,6 +43007,14 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
+      resolve_training_plan_assignment: {
+        Args: {
+          p_assignment_id: string
+          p_employee_id: string
+          p_plan_id: string
+        }
+        Returns: undefined
+      }
       respond_resident_portal_schedule_event: {
         Args: {
           p_calendar_event_id: string
@@ -44069,6 +44146,14 @@ export type Database = {
       }
       set_system_job_kill_switch: {
         Args: { p_enabled: boolean; p_job_key: string; p_reason: string }
+        Returns: undefined
+      }
+      set_training_assignment_exemption: {
+        Args: {
+          p_employee_id: string
+          p_reason: string
+          p_training_year: number
+        }
         Returns: undefined
       }
       set_work_item_watching: {

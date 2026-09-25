@@ -1,10 +1,11 @@
 import { trainingCsv } from "./trainingWorkspace";
 import { formatDateForDisplay } from "./dateUtils";
 
-export type TrainingReportDateBasis = "assigned" | "completed" | "certificate";
+export type TrainingReportDateBasis = "assigned" | "completed" | "certificate" | "due";
 export interface TrainingEnrollmentFilters {
   organizationId: string;
   facilityId?: string;
+  employeeId?: string; planId?: string; purpose?: "all" | "required" | "optional"; department?: string; trainingYear?: number; deadline?: "all" | "overdue" | "due_soon";
   courseSearch: string;
   status: string;
   dateBasis: TrainingReportDateBasis;
@@ -12,6 +13,7 @@ export interface TrainingEnrollmentFilters {
   dateThrough: string;
 }
 export interface TrainingEnrollmentRow {
+  is_required?: boolean; assignment_origin?: string; training_plan_id?: string | null; plan_name?: string | null; training_year?: number | null; department?: string | null; course_version?: string | null; credit_hours?: number;
   id: string; employee_id: string; student: string; facility_id: string; facility: string;
   course_id: string; course: string; status: string; assigned_at: string; due_date: string | null;
   completed_at: string | null; percent_complete: number; certificate_id: string | null;
@@ -21,10 +23,11 @@ export interface TrainingEnrollmentPage {
   organization_name: string; facility_name: string | null; generated_at: string; date_basis: TrainingReportDateBasis;
   limit: number; offset: number; total: number; students: number; completed: number;
   in_progress: number; not_started: number; canceled: number; completion_denominator: number;
+  required_total?: number; required_completed?: number; optional_total?: number;
   certificates: number; rows: TrainingEnrollmentRow[];
 }
 export const DATE_BASIS_LABELS: Record<TrainingReportDateBasis, string> = {
-  assigned: "Enrollment date", completed: "Completion date", certificate: "Certificate issue date",
+  due: "Due date", assigned: "Enrollment date", completed: "Completion date", certificate: "Certificate issue date",
 };
 export const TRAINING_REPORT_EXPORT_LIMIT = 10_000;
 export const TRAINING_REPORT_EXPORT_LIMIT_MESSAGE = "This report exceeds 10,000 enrollments. Narrow the dates, course or facility before exporting; no partial report was created.";
@@ -64,13 +67,13 @@ export async function collectTrainingEnrollmentReport(readPage: (offset: number,
 }
 
 export function trainingEnrollmentScope(filters: TrainingEnrollmentFilters): string {
-  return `${DATE_BASIS_LABELS[filters.dateBasis]}: ${filters.dateFrom || "all past dates"} through ${filters.dateThrough || "all future dates"} (Pennsylvania time). Status: ${filters.status}. Course title: ${filters.courseSearch || "all courses"}. ${filters.dateBasis === "assigned" ? "Each course assignment counts as one enrollment; annual repeats count separately." : "Only enrollments with the selected date recorded are included."} Completion rate = completed enrollments / non-canceled enrollments in this filtered report. This is training activity, not certification of facility compliance.`;
+  return `${DATE_BASIS_LABELS[filters.dateBasis]}: ${filters.dateFrom || "all past dates"} through ${filters.dateThrough || "all future dates"} (Pennsylvania time). Employee: ${filters.employeeId || "all"}. Plan: ${filters.planId || "all"}. Purpose: ${filters.purpose || "all"}. Department: ${filters.department || "all"}. Training year: ${filters.trainingYear || "all"}. Deadline: ${filters.deadline || "all"}. Status: ${filters.status}. Course title: ${filters.courseSearch || "all courses"}. ${filters.dateBasis === "assigned" ? "Each course assignment counts as one enrollment; annual repeats count separately." : "Only enrollments with the selected date recorded are included."} Completion rate = completed enrollments / non-canceled enrollments in this filtered report. This is training activity, not certification of facility compliance.`;
 }
-export const TRAINING_REPORT_HEADERS = ["Student", "Facility", "Course", "Status", "Progress %", "Enrolled", "Due", "Completed", "Certificate number", "Certificate issued", "Certificate PDF status", "Enrollment ID"];
+export const TRAINING_REPORT_HEADERS = ["Student", "Facility", "Course", "Status", "Progress %", "Enrolled", "Due", "Completed", "Certificate number", "Certificate issued", "Certificate PDF status", "Enrollment ID", "Required / optional", "Learning plan", "Course version", "Earned credit hours"];
 export function trainingEnrollmentCells(row: TrainingEnrollmentRow): string[] {
   return [row.student, row.facility, row.course, row.status.replaceAll("_", " "), String(row.percent_complete),
     formatDateForDisplay(row.assigned_at, { timeZone: "America/New_York" }), formatDateForDisplay(row.due_date), formatDateForDisplay(row.completed_at, { timeZone: "America/New_York" }),
-    row.credential_number || "", formatDateForDisplay(row.certificate_issued_at, { timeZone: "America/New_York" }), row.certificate_pdf_status || "", row.id];
+    row.credential_number || "", formatDateForDisplay(row.certificate_issued_at, { timeZone: "America/New_York" }), row.certificate_pdf_status || "", row.id, row.is_required === false ? "Optional" : "Required", row.plan_name || "", row.course_version || "", String(row.credit_hours ?? 0)];
 }
 export function trainingEnrollmentCsv(report: TrainingEnrollmentPage, filters: TrainingEnrollmentFilters): string {
   return trainingCsv([

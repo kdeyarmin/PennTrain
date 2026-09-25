@@ -296,6 +296,9 @@ type SystemJobClaim = {
 };
 
 type CertificateRecord = {
+  course_title_snapshot: string | null;
+  course_code_snapshot: string | null;
+  course_version_snapshot: string | null;
   id: string;
   organization_id: string;
   slug: string;
@@ -348,7 +351,7 @@ async function loadCertificate(
     .from("certificates")
     .select(
       "id, organization_id, slug, credential_number, issued_at, expires_at, " +
-        "pdf_storage_bucket, pdf_storage_path, course_assignment_id, " +
+        "pdf_storage_bucket, pdf_storage_path, course_assignment_id, course_title_snapshot, course_code_snapshot, course_version_snapshot, " +
         "training_provider, provider_credential, provider_snapshot_at, " +
         "courses(title, catalog_code, course_provider_profiles(provider_full_name, credential)), " +
         "employees(first_name, last_name), organizations(name), facilities(name)",
@@ -508,15 +511,15 @@ async function processClaimedJob(
       employeeName: employee
         ? `${employee.first_name} ${employee.last_name}`
         : "Unknown Employee",
-      courseTitle: cert.courses?.title ?? "Untitled Course",
+      courseTitle: cert.course_title_snapshot ?? cert.courses?.title ?? "Untitled Course",
       organizationName: cert.organizations?.name ?? "",
       facilityName: cert.facilities?.name ?? null,
       issuedAt: cert.issued_at,
       expiresAt: cert.expires_at,
       slug: cert.slug,
       credentialNumber: cert.credential_number,
-      courseCode: cert.courses?.catalog_code ?? null,
-      courseVersion: detail.courseVersion,
+      courseCode: cert.course_title_snapshot !== null ? cert.course_code_snapshot : cert.courses?.catalog_code ?? null,
+      courseVersion: cert.course_title_snapshot !== null ? cert.course_version_snapshot : detail.courseVersion,
       regulatoryReference: detail.regulatoryReference,
       trainingProvider: detail.trainingProvider,
       providerCredential: detail.providerCredential,

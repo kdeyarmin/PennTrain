@@ -3,11 +3,12 @@ import { supabase } from "@/lib/supabase";
 import { parseTrainingEnrollmentPage, TRAINING_REPORT_EXPORT_LIMIT_MESSAGE, type TrainingEnrollmentFilters } from "@/lib/trainingEnrollmentReport";
 
 export async function readTrainingEnrollmentReport(filters: TrainingEnrollmentFilters, offset = 0, limit = 50) {
-  const { data, error } = await supabase.rpc("get_training_enrollment_report", {
+  const { data, error } = await supabase.rpc("get_training_progress_report", {
     p_organization_id: filters.organizationId, p_facility_id: filters.facilityId,
     p_course_search: filters.courseSearch, p_status: filters.status, p_date_basis: filters.dateBasis,
     p_date_from: filters.dateFrom || undefined, p_date_through: filters.dateThrough || undefined,
-    p_limit: limit, p_offset: offset,
+    p_limit: limit, p_offset: offset, p_employee_id: filters.employeeId || undefined, p_plan_id: filters.planId || undefined,
+    p_purpose: filters.purpose || "all", p_department: filters.department || "", p_training_year: filters.trainingYear, p_deadline: filters.deadline || "all",
   });
   if (error) {
     // PostgREST errors are plain response objects; make the actionable bound visible

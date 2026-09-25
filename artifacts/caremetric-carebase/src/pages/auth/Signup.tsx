@@ -306,7 +306,7 @@ export default function Signup() {
             {!submittedEmail && (
               <div>
                 <p className="mt-4 text-center text-[13px] text-muted-foreground">
-                  {trainingOnly ? "Your organization receives access to CareMetric Train only. Ongoing complimentary access is available when enabled by the provider; otherwise the standard training trial applies." : <>Creating your organization starts a {MARKETING_TRIAL_DAYS}-day free trial.</>}
+                  {trainingOnly ? "Your organization receives the standard CareMetric Train trial, followed by a paid subscription. Complimentary partner facilities are created directly by CareMetric and receive an administrator invitation." : <>Creating your organization starts a {MARKETING_TRIAL_DAYS}-day free trial.</>}
                 </p>
                 <p className="mt-2 text-center text-[13px] text-muted-foreground">
                   Already have an account?{" "}

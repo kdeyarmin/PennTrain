@@ -1,7 +1,30 @@
 # CareMetric CareBase — Living Backlog
 
+
+## Training workflow review — September 25, 2026
+
+Implementation branch `codex/training-workflow-complete`, reviewed against main `bd201842384cb3e5aa89315db348b9d3db64d0df`. Validation is in progress; these rows do not claim production deployment, real email delivery, or a human facility pilot.
+
+| Review | Status | Implemented behavior and remaining verification |
+| --- | --- | --- |
+| F01 | in_progress | Public Train registration always uses commercial/trial terms. Complimentary Training-only provision-and-invite is owner-controlled; paid package selection remains intact. Validate activation and entitlement boundaries in CI. |
+| F02 | in_progress | Durable yearly-plan membership, required-item progress, unapplied revisions, explicit conflict resolution, atomic next-year copy, searchable multi-add and bounded application. New pgTAP exercises all-conflict membership and preserved completion/deadlines. |
+| F03 | in_progress | Server-recorded assignment origin and required/optional purpose; learner tabs, separate report denominators and manager conversion. Existing rows remain conservatively required. |
+| F04 | in_progress | Paginated active-roster dashboard includes unassigned staff, invitation/activation, deadlines and plan coverage. Audited annual assignment exemptions remain distinct from completion or compliance waivers. |
+| F05 | in_progress | Read projection of issued course completion, immutable credits and eligible topics into evidence; qualified/facility-specific requirements remain separate. Verify no double counting with manually linked evidence. |
+| F06 | in_progress | Exact employee transcripts, plan/year/department/required-purpose/due-date filtering; full matching CSV/print and employee-context certificate links. |
+| F07 | in_progress | Combined owner creation/invitation with session recovery receipt; resumable facility setup checklist from saved records; clearer password activation steps. |
+| F08 | in_progress | Staff roster includes actionable invitation states and retry, simple account form with advanced-duty disclosure, existing import preview/results preserved. |
+| F09 | in_progress | Learner next required course and deadline, required/optional/history separation, searchable category/duration course library and secondary offline tools. |
+| F10 | in_progress | Training-only role navigation consolidated around Dashboard, Staff, Learning Plans, Course Library, Reports, Certificates and Settings; advanced evidence tools remain available. |
+| F11 | in_progress | Certificate document opener isolates one window and preserves the report; blocked popups fall back to navigation. Unit and browser verification pending final changes. |
+| F12 | in_progress | Issuance snapshots preserve completed title/code/version across PDF retries, lists, verification and passport; existing versioned records backfilled. |
+| F13 | in_progress | Complete email invitation activation, recovery and mobile/keyboard tests under construction. Actual people, production delivery/media and assisted facility pilot remain release validation tasks. |
+| F14 | in_progress | Tab-specific lazy loading, server roster aggregates, pagination and four-worker bulk plan application. Representative roster/history scale measurement and final browser checks pending. |
+
+
 **Status:** Canonical forward backlog
-**Last verified against main:** `16cff3fb` plus the LEARN-RETURN-1 fix (2026-09-25), integrating main `b8e447db`. Full Linux CI run 36143772973 passed the yearly-plan implementation and concurrency fixes. Run 36147045403 then exposed a learner quiz-return race: a cached earlier lesson was adopted before a fresh read and overwrote saved watched-video evidence. Five new regressions fail against the previous code and pass with the fix; all 26 focused tests, the full local unit suite, typecheck and production builds pass. The browser journey now holds a real return-trip read and verifies evidence survives without a premature write. Full final-head CI remains the merge gate.
+**Last verified against main:** `bd201842384cb3e5aa89315db348b9d3db64d0df` plus the LEARN-RETURN-1 fix (2026-09-25), integrating main `b8e447db`. Full Linux CI run 36143772973 passed the yearly-plan implementation and concurrency fixes. Run 36147045403 then exposed a learner quiz-return race: a cached earlier lesson was adopted before a fresh read and overwrote saved watched-video evidence. Five new regressions fail against the previous code and pass with the fix; all 26 focused tests, the full local unit suite, typecheck and production builds pass. The browser journey now holds a real return-trip read and verifies evidence survives without a premature write. Full final-head CI remains the merge gate.
 
 **Previous automated-review follow-up verification:** `bd83ab3` (2026-09-25), the merge of PR #566 and the tip of main this branch is merged up to; the branch was cut from `816913d`, the merge of PR #563 -- the whole-application review below, rows Q1-Q46. This follow-up carries only what the two automated review rounds on #563 found after the owner had merged it (rows Q47 and Q48: eight findings, eight real, among them a regression from the review's own first commit); each fix was verified the way the rows record before it was pushed, and the branch was restarted from the merged tip rather than stacked on the merged history.
 

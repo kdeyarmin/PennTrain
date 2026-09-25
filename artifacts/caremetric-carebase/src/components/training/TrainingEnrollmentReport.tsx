@@ -1,4 +1,11 @@
+import { TrainingReminderReceipts } from "./TrainingReminderReceipts";
+import { useSearch } from "wouter";
 import { useEffect, useId, useState } from "react";
+import { Link } from "wouter";
+import { useListEmployees } from "@/hooks/useEmployees";
+import { useListTrainingPlans } from "@/hooks/useTrainingPlans";
+import { useSetAssignmentRequirement } from "@/hooks/useTrainingProgress";
+import { useAuth } from "@/lib/auth";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,13 +26,20 @@ import {
 const selectClass = "h-10 w-full rounded-md border bg-background px-3 text-sm";
 
 /** Keyed inner state prevents an old facility's filters/report surviving a scope change. */
-export default function TrainingEnrollmentReport(props: { organizationId: string; facilityId?: string }) {
-  return <Report key={`${props.organizationId}:${props.facilityId || "all"}`} {...props} />;
+export default function TrainingEnrollmentReport(props: { organizationId: string; facilityId?: string; employeeId?: string }) {
+  return <Report key={`${props.organizationId}:${props.facilityId || "all"}:${props.employeeId || "all"}`} {...props} />;
 }
 
-function Report({ organizationId, facilityId }: { organizationId: string; facilityId?: string }) {
+function Report({ organizationId, facilityId, employeeId }: { organizationId: string; facilityId?: string; employeeId?: string }) {
   const labelId = useId();
-  const [filters, setFilters] = useState<TrainingEnrollmentFilters>({ organizationId, facilityId, courseSearch: "", status: "all", dateBasis: "assigned", dateFrom: "", dateThrough: "" });
+  const locationSearch = useSearch();
+  const initialOverdue = new URLSearchParams(locationSearch).get("deadline") === "overdue";
+  const { user } = useAuth();
+  const canManage = ["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role || "");
+  const requirement = useSetAssignmentRequirement();
+  const employees = useListEmployees({ organizationId, facilityId });
+  const plans = useListTrainingPlans();
+  const [filters, setFilters] = useState<TrainingEnrollmentFilters>({ organizationId, facilityId, employeeId, purpose: initialOverdue ? "required" : "all", deadline: initialOverdue ? "overdue" : "all", courseSearch: "", status: "all", dateBasis: "assigned", dateFrom: "", dateThrough: "" });
   const [offset, setOffset] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [printJob, setPrintJob] = useState<{ report: TrainingEnrollmentPage; filters: TrainingEnrollmentFilters } | null>(null);
@@ -67,27 +81,44 @@ function Report({ organizationId, facilityId }: { organizationId: string; facili
       </div>
     </div>
     {exceedsExportLimit && <p role="status" className="text-sm">{TRAINING_REPORT_EXPORT_LIMIT_MESSAGE}</p>}
+    <div className="flex flex-wrap gap-2" aria-label="Report presets">
+      <Button variant="outline" onClick={() => change({ status: "all", purpose: "required", deadline: "all", dateBasis: "assigned", dateFrom: "", dateThrough: "" })}>Required training</Button>
+      <Button variant="outline" onClick={() => change({ status: "completed", purpose: "all", deadline: "all", dateBasis: "completed" })}>Completion register</Button>
+      <Button variant="outline" onClick={() => change({ status: "all", purpose: "required", deadline: "overdue", dateBasis: "due", dateFrom: "", dateThrough: "" })}>Overdue required work</Button>
+      <Button variant="outline" onClick={() => change({ status: "all", purpose: "optional", deadline: "all", dateBasis: "assigned", dateFrom: "", dateThrough: "" })}>Optional learning</Button>
+      {facilityId && filters.employeeId && <Button asChild variant="outline"><Link href={`/app/train?facilityId=${facilityId}&employeeId=${filters.employeeId}&tab=certificates`}>Print employee certificates</Link></Button>}
+    </div>
     <fieldset disabled={exporting} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {!facilityId && <label className="text-sm">Report facility<select className={selectClass} value={filters.facilityId || ""} onChange={event => change({ facilityId: event.target.value || undefined })}><option value="">All accessible facilities</option>{facilities.data?.map(facility => <option key={facility.id} value={facility.id}>{facility.name}</option>)}</select></label>}
+      <label className="text-sm">Employee<select className={selectClass} value={filters.employeeId || ""} onChange={event => change({ employeeId: event.target.value || undefined })}><option value="">All employees</option>{employees.data?.map(employee => <option key={employee.id} value={employee.id}>{employee.last_name}, {employee.first_name} · {employee.email || employee.id.slice(0, 8)}</option>)}</select></label>
+      <label className="text-sm">Learning plan<select className={selectClass} value={filters.planId || ""} onChange={event => change({ planId: event.target.value || undefined })}><option value="">All plans</option>{plans.data?.filter(plan => plan.organization_id === organizationId && (!facilityId || plan.facility_id === facilityId)).map(plan => <option key={plan.id} value={plan.id}>{plan.name} · {plan.training_year || "Legacy"}</option>)}</select></label>
+      <label className="text-sm">Required or optional<select className={selectClass} value={filters.purpose || "all"} onChange={event => change({ purpose: event.target.value as TrainingEnrollmentFilters["purpose"] })}><option value="all">All learning</option><option value="required">Required</option><option value="optional">Optional</option></select></label>
+      <label className="text-sm">Department<select className={selectClass} value={filters.department || ""} onChange={event => change({ department: event.target.value })}><option value="">All departments</option>{[...new Set(employees.data?.flatMap(employee => employee.department ? [employee.department] : []) || [])].sort().map(department => <option key={department}>{department}</option>)}</select></label>
+      <label className="text-sm">Training year<Input type="number" min={1990} max={2200} placeholder="All years" value={filters.trainingYear || ""} onChange={event => change({ trainingYear: event.target.value ? Number(event.target.value) : undefined })} /></label>
+      <label className="text-sm">Deadlines<select className={selectClass} value={filters.deadline || "all"} onChange={event => change({ deadline: event.target.value as TrainingEnrollmentFilters["deadline"] })}><option value="all">All deadlines</option><option value="overdue">Overdue</option><option value="due_soon">Due within 7 days</option></select></label>
       <label className="text-sm">Course title contains<Input maxLength={200} value={filters.courseSearch} onChange={event => change({ courseSearch: event.target.value })} /></label>
       <label className="text-sm">Enrollment status<select className={selectClass} value={filters.status} onChange={event => change({ status: event.target.value })}>{["all", "assigned", "in_progress", "completed", "overdue", "paused", "canceled"].map(status => <option key={status} value={status}>{status === "all" ? "All statuses" : status.replaceAll("_", " ")}</option>)}</select></label>
       <label className="text-sm">Filter dates by<select className={selectClass} value={filters.dateBasis} onChange={event => change({ dateBasis: event.target.value as TrainingReportDateBasis })}>{Object.entries(DATE_BASIS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label className="text-sm">On or after<Input type="date" value={filters.dateFrom} onChange={event => change({ dateFrom: event.target.value })} /></label>
       <label className="text-sm">Through<Input type="date" value={filters.dateThrough} onChange={event => change({ dateThrough: event.target.value })} /></label>
     </fieldset>
+    {employees.isError && <QueryError what="employee filter" error={employees.error} onRetry={() => void employees.refetch()} />}
+    {plans.isError && <QueryError what="learning plan filter" error={plans.error} onRetry={() => void plans.refetch()} />}
     {facilities.isError && !facilityId && <QueryError what="report facilities" error={facilities.error} onRetry={() => void facilities.refetch()} />}
     {!validDates ? <p role="alert">The through date must be on or after the start date.</p> : report.isError ? <QueryError what="training enrollment report" error={report.error} onRetry={() => void report.refetch()} /> : report.isLoading ? <p role="status">Loading training report…</p> : page && <>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Totals across all matching enrollments">
         {[['Enrollments', page.total], ['Distinct students', page.students], ['Completed enrollments', page.completed], ['Issued certificates', page.certificates]].map(([label, value]) => <div key={label} className="rounded-lg border p-3"><p className="text-sm text-muted-foreground">{label}</p><p className="text-2xl font-semibold">{value}</p></div>)}
       </div>
+      <p className="text-sm"><strong>{page.required_total ? `${Math.round((page.required_completed || 0) / page.required_total * 100)}% of filtered required work complete` : "No required enrollments in this report"}</strong> · {page.required_completed || 0} / {page.required_total || 0} required · {page.optional_total || 0} optional. Filters apply to these totals.</p>
       <p className="text-sm"><strong>{page.completion_denominator ? `${Math.round(page.completed / page.completion_denominator * 100)}% complete` : "No non-canceled enrollments"}</strong> · {page.completed} completed / {page.completion_denominator} non-canceled enrollments · {page.canceled} canceled · {page.in_progress} in progress · {page.not_started} assigned</p>
       <p className="text-xs text-muted-foreground">{trainingEnrollmentScope(filters)} Totals cover all matching rows, including pages not currently shown.</p>
-      <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{["Student", "Facility", "Course", "Status", "Progress", "Enrolled", "Completed", "Certificate"].map(label => <th key={label} className="border-b p-2">{label}</th>)}</tr></thead><tbody>
-        {page.rows.map(row => { const cells = trainingEnrollmentCells(row); return <tr key={row.id}><td className="border-b p-2">{row.student}</td><td className="border-b p-2">{row.facility}</td><td className="border-b p-2">{row.course}</td><td className="border-b p-2">{cells[3]}</td><td className="border-b p-2">{row.percent_complete}%</td><td className="border-b p-2">{cells[5]}</td><td className="border-b p-2">{cells[7]}</td><td className="border-b p-2">{row.certificate_id ? <Button size="sm" variant="outline" disabled={preparePdf.isPending} onClick={async () => { try { const pdf = await preparePdf.mutateAsync(row.certificate_id!); openDocumentUrl(pdf.url); } catch (error) { failure(error); } }}>Open certificate {row.credential_number}</Button> : "Not issued"}</td></tr>; })}
+      <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{["Student", "Facility", "Course / purpose", "Status", "Progress", "Enrolled", "Due", "Completed", "Certificate"].map(label => <th key={label} className="border-b p-2">{label}</th>)}</tr></thead><tbody>
+        {page.rows.map(row => { const cells = trainingEnrollmentCells(row); return <tr key={row.id}><td className="border-b p-2"><button className="underline text-left" onClick={() => change({ employeeId: row.employee_id })}>{row.student}</button></td><td className="border-b p-2">{row.facility}</td><td className="border-b p-2">{row.course}<p className="text-xs">{row.is_required === false ? "Optional" : "Required"}{row.plan_name ? ` · ${row.plan_name}` : ""}</p>{canManage && !row.training_plan_id && !["completed", "canceled"].includes(row.status) && <Button size="sm" variant="ghost" disabled={requirement.isPending} onClick={() => requirement.mutate({ id: row.id, required: row.is_required === false }, { onError: failure })}>{row.is_required === false ? "Make required" : "Make optional"}</Button>}</td><td className="border-b p-2">{cells[3]}</td><td className="border-b p-2">{row.percent_complete}%</td><td className="border-b p-2">{cells[5]}</td><td className="border-b p-2">{cells[6]}</td><td className="border-b p-2">{cells[7]}</td><td className="border-b p-2">{row.certificate_id ? <Button size="sm" variant="outline" disabled={preparePdf.isPending} onClick={async () => { try { const pdf = await preparePdf.mutateAsync(row.certificate_id!); openDocumentUrl(pdf.url); } catch (error) { failure(error); } }}>Open certificate</Button> : "Not issued"}</td></tr>; })}
       </tbody></table></div>
       {!page.total && <p>No enrollments match these filters. Assign a course to a student to begin tracking completion.</p>}
       <div className="flex flex-wrap items-center gap-3"><span className="text-sm">{page.total ? `${offset + 1}–${Math.min(offset + page.rows.length, page.total)} of ${page.total} enrollments` : "0 enrollments"}</span><Button variant="outline" disabled={offset === 0 || report.isFetching || exporting} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous report page</Button><Button variant="outline" disabled={offset + page.rows.length >= page.total || report.isFetching || exporting} onClick={() => setOffset(offset + 50)}>Next report page</Button></div>
     </>}
+    {facilityId && <TrainingReminderReceipts facilityId={facilityId} employeeId={filters.employeeId} />}
     {printJob && createPortal(<div data-training-report-print>
       <h1>Training enrollment, completion & certificates</h1><h2>{printJob.report.organization_name}</h2>
       <p>Facility: {printJob.report.facility_name || "All accessible facilities in selected organization"}</p>

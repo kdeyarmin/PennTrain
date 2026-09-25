@@ -151,7 +151,7 @@ export default function ResetPassword() {
             <ShieldCheck className="h-7 w-7 text-primary-foreground" />
           </div>
           <div className="space-y-1.5">
-            <h1 className="text-[28px] font-bold tracking-tight text-foreground">CareMetric CareBase</h1>
+            <h1 className="text-[28px] font-bold tracking-tight text-foreground">{import.meta.env.VITE_CAREMETRIC_MODULES === "train" ? "CareMetric Train" : "CareMetric CareBase"}</h1>
             <p className="text-sm text-muted-foreground">Healthcare Learning &amp; Compliance Platform</p>
           </div>
         </div>
@@ -163,8 +163,8 @@ export default function ResetPassword() {
               {linkState === "invalid"
                 ? "This link is invalid or has expired."
                 : done
-                ? "Your password has been updated."
-                : "Choose a password for your account."}
+                ? "Your password is ready. Sign in with your invitation email and this password to continue. Administrators will then complete account security."
+                : "Step 1 of 2: choose your password. Then sign in to reach your facility and assigned learning."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -191,7 +191,7 @@ export default function ResetPassword() {
                 <Link href="/login">
                   <Button className="w-full">
                     <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to sign in
+                    Sign in and continue
                   </Button>
                 </Link>
               </div>

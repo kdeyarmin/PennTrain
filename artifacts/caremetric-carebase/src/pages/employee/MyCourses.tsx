@@ -1,6 +1,9 @@
+import { Input } from "@/components/ui/input";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { useMemo, useState } from "react";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useListCourseAssignments, useSelfEnrollCourse } from "@/hooks/useCourseAssignments";
@@ -41,6 +44,11 @@ export default function MyCourses() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const searchParams = useSearch();
+  const libraryView = new URLSearchParams(searchParams).get("view") === "library";
+  const [learningTab, setLearningTab] = useState("required");
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [category, setCategory] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const employeeQuery = useGetEmployeeByProfileId(user?.id);
@@ -90,7 +98,15 @@ export default function MyCourses() {
   const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
 
   const allAssignments = assignments ?? [];
-  const filtered = statusFilter === "all" ? allAssignments : allAssignments.filter(a => a.status === statusFilter);
+  const scopedAssignments = allAssignments.filter(a => learningTab === "history" ? ["completed", "canceled"].includes(a.status)
+    : !["completed", "canceled"].includes(a.status) && (learningTab === "required" ? a.is_required !== false : a.is_required === false));
+  const filtered = statusFilter === "all" ? scopedAssignments : scopedAssignments.filter(a => a.status === statusFilter);
+  const planIds = [...new Set(allAssignments.flatMap(a => a.training_plan_id ? [a.training_plan_id] : []))].sort();
+  const planNames = useQuery({ queryKey: ["training_plans", "learner-names", planIds], enabled: planIds.length > 0,
+    queryFn: async () => { const { data, error } = await supabase.from("training_plans").select("id,name").in("id", planIds); if (error) throw error; return data; } });
+  const required = allAssignments.filter(a => a.is_required !== false && a.status !== "canceled");
+  const nextRequired = required.filter(a => !["completed", "paused"].includes(a.status)).sort((a, b) =>
+    (a.due_date || "9999").localeCompare(b.due_date || "9999") || Number(b.status === "in_progress") - Number(a.status === "in_progress"))[0];
 
   // Published courses this account hasn't already been assigned and could actually self-enroll
   // in -- the self-service entry point for any role (not just employee) to start a course on
@@ -101,11 +117,12 @@ export default function MyCourses() {
   const availableCourses = (courses ?? []).filter(
     c =>
       c.status === "published"
-      && canSelfEnrollInCourse(c, allAssignments)
       && canEnrollInCourse(c, effectiveOrgId)
       && isCourseVersionLearnerReady(c.current_version_id ? currentVersionById.get(c.current_version_id) : null),
   );
 
+  const visibleCourses = availableCourses.filter(course => (!category || course.category === category)
+    && `${course.title} ${course.description || ""}`.toLowerCase().includes(catalogSearch.toLowerCase()));
   const handleStart = (courseId: string) => {
     selfEnroll(courseId, {
       onSuccess: (assignmentId) => navigate(`/me/courses/${assignmentId}`),
@@ -130,31 +147,26 @@ export default function MyCourses() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Training</h1>
-        <p className="text-muted-foreground">Every training item assigned to you, plus anything else you can start on your own.</p>
+        <h1 className="text-2xl font-bold tracking-tight">{libraryView ? "Course Library" : "My Learning"}</h1>
+        <p className="text-muted-foreground">Complete your required learning, explore other courses, and keep your certificates.</p>
       </div>
 
-      {user?.role === "employee" && <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><HardDrive className="h-5 w-5" />Offline training library ({offlineLibrary.isLoading || offlineLibrary.isError ? "—" : (offlineLibrary.data?.length ?? 0)})</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Encrypted on this device</AlertTitle><AlertDescription>Only assigned course content and quiz prompts are cached. Answer keys, resident data, personnel lists, credentials, reports, and access tokens are excluded. Downloads expire after 30 days and are wiped when this device registration is revoked.</AlertDescription></Alert>
-          {offlineLibrary.isError ? (
-            <QueryError what="offline training library" error={offlineLibrary.error} onRetry={() => void offlineLibrary.refetch()} />
-          ) : offlineLibrary.isLoading ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Loading offline library…</p>
-          ) : offlineLibrary.data?.length ? offlineLibrary.data.map((item) => <div key={item.assignmentId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{item.title}</p><p className="text-xs text-muted-foreground">Downloaded {new Date(item.downloadedAt).toLocaleString()} · expires {new Date(item.expiresAt).toLocaleDateString()}</p></div><div className="flex gap-2"><Button asChild size="sm" variant="outline"><Link href={`/me/courses/${item.assignmentId}/offline`}>Open offline copy</Link></Button><Button size="icon" variant="ghost" aria-label={`Remove offline copy of ${item.title}`} disabled={removeOffline.isPending} onClick={() => removeOffline.mutate(item.assignmentId, { onSuccess: () => toast({ title: "Offline copy removed" }), onError: (error) => toast({ title: "Offline copy could not be removed", description: error.message, variant: "destructive" }) })}><Trash2 className="h-4 w-4" /></Button></div></div>) : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No courses are available offline yet. Use Download on an active assignment below.</p>}
-          {!offlineLibrary.isLoading && !offlineLibrary.isError && (offlineLibrary.data?.length ?? 0) > 0 && <Button variant="outline" disabled={wipeOffline.isPending} onClick={() => wipeOffline.mutate(undefined, { onSuccess: () => toast({ title: "Offline training wiped from this device" }), onError: (error) => toast({ title: "Offline library could not be wiped", description: error.message, variant: "destructive" }) })}><Trash2 className="mr-2 h-4 w-4" />Revoke device and wipe all</Button>}
-        </CardContent>
-      </Card>}
 
-      <Card>
+
+      <nav className="flex flex-wrap gap-3" aria-label="Learning navigation"><Button asChild variant={libraryView ? "outline" : "default"}><Link href="/me/courses">My Learning</Link></Button><Button asChild variant={libraryView ? "default" : "outline"}><Link href="/me/courses?view=library">Course Library</Link></Button><Button asChild variant="outline"><Link href="/me/certificates">My Certificates</Link></Button></nav>
+      {!libraryView && !isLoading && !assignmentsError && <Card><CardHeader><CardTitle>{nextRequired ? "Your next required course" : required.length ? "Required learning progress" : "Welcome to your learning account"}</CardTitle></CardHeader><CardContent className="space-y-2">
+        <p>{required.filter(a => a.status === "completed").length} / {required.length} required courses completed</p>
+        {nextRequired ? <><p className="font-semibold">{courseById.get(nextRequired.course_id)?.title || "Assigned course"}</p><p>{nextRequired.due_date ? `Due ${formatDateForDisplay(nextRequired.due_date)} · ${formatDueDistance(nextRequired.due_date)}` : "No deadline set"}</p><Button asChild><Link href={`/me/courses/${nextRequired.id}`}>{actionLabel(nextRequired.status)} required course</Link></Button></> : <p>{required.length ? "Review your history below or explore the Course Library." : "Your facility has not assigned required courses yet. You can explore the Course Library while you wait."}</p>}
+      </CardContent></Card>}
+      {!libraryView && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5" />
-            Assigned Training {!isLoading && `(${filtered.length})`}
+            {learningTab === "required" ? "Required by your facility" : learningTab === "optional" ? "Your optional learning" : "Completed learning and history"} {!isLoading && `(${filtered.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex gap-2 flex-wrap" aria-label="Learning lists">{["required", "optional", "history"].map(value => <Button key={value} variant={learningTab === value ? "default" : "outline"} onClick={() => { setLearningTab(value); setStatusFilter("all"); }}>{value === "history" ? "Completed / history" : value === "required" ? "Required" : "Optional"}</Button>)}</div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-44" aria-label="Status">
               <SelectValue placeholder="Status" />
@@ -164,7 +176,7 @@ export default function MyCourses() {
               <SelectItem value="assigned">Assigned</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem><SelectItem value="paused">Paused</SelectItem><SelectItem value="canceled">Canceled</SelectItem>
             </SelectContent>
           </Select>
 
@@ -180,7 +192,7 @@ export default function MyCourses() {
             <div className="space-y-3 py-8 text-center">
               <p className="text-muted-foreground text-sm">
                 {statusFilter === "all"
-                  ? "No training assigned yet. You can still start available training below when your organization publishes courses."
+                  ? "No courses in this view. Explore the Course Library for optional learning, or ask your facility administrator about required assignments."
                   : "No training matches this status filter."}
               </p>
               {statusFilter !== "all" && (
@@ -206,7 +218,8 @@ export default function MyCourses() {
                 return (
                   <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                     <div className="min-w-0">
-                      <p className="font-medium truncate">{course?.title ?? "Training item"}</p>
+                      <p className="font-medium">{course?.title ?? "Training item"}</p>
+                      <p className="text-xs text-muted-foreground">{a.is_required === false ? "You chose this course" : "Required by your facility"}{a.training_plan_id ? ` · ${planNames.data?.find(p => p.id === a.training_plan_id)?.name || "Learning plan"}` : ""}</p>
                       <p className="text-xs text-muted-foreground">
                         {a.due_date ? `Due ${formatDateForDisplay(a.due_date)}` : "No due date"}
                         {dueDistance && <span className={dueTone}> · {dueDistance}</span>}
@@ -228,16 +241,17 @@ export default function MyCourses() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
-      <Card>
+      {libraryView && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
-            Available Training {!coursesReadyLoading && `(${availableCourses.length})`}
+            Course Library {!coursesReadyLoading && `(${visibleCourses.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
+          <div className="grid sm:grid-cols-2 gap-3"><label>Find a course<Input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} placeholder="Title or description" /></label><label>Category<select className="w-full rounded border p-2" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{[...new Set(availableCourses.flatMap(c => c.category ? [c.category] : []))].sort().map(value => <option key={value}>{value}</option>)}</select></label></div>
           {coursesError ? (
             <QueryError what="available training" error={coursesErrorDetail} onRetry={() => refetchCourses()} />
           ) : currentVersionsQuery.isError ? (
@@ -246,25 +260,29 @@ export default function MyCourses() {
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
             </div>
-          ) : availableCourses.length === 0 ? (
+          ) : visibleCourses.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">
               No other published training items to start right now.
             </p>
           ) : (
-            availableCourses.map(course => (
+            visibleCourses.map(course => (
               <div key={course.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                 <div className="min-w-0">
                   <p className="font-medium truncate">{course.title}</p>
-                  <p className="text-xs text-muted-foreground">{course.category ?? "Uncategorized"}</p>
+                  <p className="text-xs text-muted-foreground">{course.category ?? "Uncategorized"} · {course.estimated_duration_minutes || "Duration not listed"}{course.estimated_duration_minutes ? " minutes" : ""}</p><details className="text-sm mt-2"><summary className="cursor-pointer underline">Course details</summary><p className="whitespace-pre-line">{course.description || "Ask your facility administrator for details about this course."}</p><p className="text-xs mt-2">Optional learning does not change your required completion. Captions and transcripts, when supplied with the course, are available in the player.</p></details>
                 </div>
                 <Button
                   size="sm"
                   disabled={enrolling && enrollingCourseId === course.id}
-                  onClick={() => handleStart(course.id)}
+                  onClick={() => {
+                    const existing = allAssignments.find(a => a.course_id === course.id && !["completed", "canceled"].includes(a.status))
+                      || (!canSelfEnrollInCourse(course, allAssignments) ? allAssignments.find(a => a.course_id === course.id && a.status === "completed") : undefined);
+                    if (existing) navigate(`/me/courses/${existing.id}`); else handleStart(course.id);
+                  }}
                 >
                   {enrolling && enrollingCourseId === course.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : allAssignments.some(a => a.course_id === course.id && a.status === "completed") ? (
+                  ) : allAssignments.some(a => a.course_id === course.id && !["completed", "canceled"].includes(a.status)) ? (<>Continue <ChevronRight className="h-4 w-4" /></>) : !canSelfEnrollInCourse(course, allAssignments) ? (<>Review <ChevronRight className="h-4 w-4" /></>) : allAssignments.some(a => a.course_id === course.id && a.status === "completed") ? (
                     <>Retake <ChevronRight className="h-4 w-4" /></>
                   ) : (
                     <>Start <ChevronRight className="h-4 w-4" /></>
@@ -274,7 +292,19 @@ export default function MyCourses() {
             ))
           )}
         </CardContent>
-      </Card>
+      </Card>}
+      {user?.role === "employee" && <details><summary className="cursor-pointer font-medium">Downloaded courses and device settings</summary><Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><HardDrive className="h-5 w-5" />Offline training library ({offlineLibrary.isLoading || offlineLibrary.isError ? "—" : (offlineLibrary.data?.length ?? 0)})</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Encrypted on this device</AlertTitle><AlertDescription>Only assigned course content and quiz prompts are cached. Answer keys, resident data, personnel lists, credentials, reports, and access tokens are excluded. Downloads expire after 30 days and are wiped when this device registration is revoked.</AlertDescription></Alert>
+          {offlineLibrary.isError ? (
+            <QueryError what="offline training library" error={offlineLibrary.error} onRetry={() => void offlineLibrary.refetch()} />
+          ) : offlineLibrary.isLoading ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Loading offline library…</p>
+          ) : offlineLibrary.data?.length ? offlineLibrary.data.map((item) => <div key={item.assignmentId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{item.title}</p><p className="text-xs text-muted-foreground">Downloaded {new Date(item.downloadedAt).toLocaleString()} · expires {new Date(item.expiresAt).toLocaleDateString()}</p></div><div className="flex gap-2"><Button asChild size="sm" variant="outline"><Link href={`/me/courses/${item.assignmentId}/offline`}>Open offline copy</Link></Button><Button size="icon" variant="ghost" aria-label={`Remove offline copy of ${item.title}`} disabled={removeOffline.isPending} onClick={() => removeOffline.mutate(item.assignmentId, { onSuccess: () => toast({ title: "Offline copy removed" }), onError: (error) => toast({ title: "Offline copy could not be removed", description: error.message, variant: "destructive" }) })}><Trash2 className="h-4 w-4" /></Button></div></div>) : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No courses are available offline yet. Use Download on an active assignment below.</p>}
+          {!offlineLibrary.isLoading && !offlineLibrary.isError && (offlineLibrary.data?.length ?? 0) > 0 && <Button variant="outline" disabled={wipeOffline.isPending} onClick={() => wipeOffline.mutate(undefined, { onSuccess: () => toast({ title: "Offline training wiped from this device" }), onError: (error) => toast({ title: "Offline library could not be wiped", description: error.message, variant: "destructive" }) })}><Trash2 className="mr-2 h-4 w-4" />Revoke device and wipe all</Button>}
+        </CardContent>
+      </Card></details>}
     </div>
   );
 }

@@ -60,9 +60,10 @@ export function canEnrollInCourse(course: Pick<Course, "organization_id">, emplo
 // scopes which rows a given user can see (their org's courses + the system
 // catalog), so we only apply an organization_id filter when the caller explicitly
 // asks for one -- we never filter out null-org rows client-side by default.
-export function useListCourses(filters: ListCoursesFilters = {}) {
+export function useListCourses(filters: ListCoursesFilters = {}, enabled = true) {
   return useQuery({
     queryKey: ["courses", filters],
+    enabled,
     queryFn: async () => {
       let query = supabase.from("courses").select("*").order("title");
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
