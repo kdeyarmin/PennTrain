@@ -201,7 +201,11 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
             setAssigneeTouched(true);
             setAssigneeEmployeeId(v);
           }}
-          selectedLabel={editing?.owner_name ? `${editing.owner_name} (not on this facility's roster)` : "Current owner (not on this facility's roster)"}
+          // selectedLabel also names an on-roster owner who is simply beyond the picker's first page,
+          // so the off-roster wording is reserved for the preserved case.
+          selectedLabel={preservedOwner
+            ? `${editing?.owner_name ?? "Current owner"} (not on this facility's roster)`
+            : editing?.owner_name ?? undefined}
           facilityId={parent.facilityId}
           allowEmpty
           emptyLabel="Unassigned"

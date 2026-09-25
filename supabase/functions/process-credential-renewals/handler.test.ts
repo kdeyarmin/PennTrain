@@ -87,3 +87,47 @@ Deno.test("renewal worker reports a skipped run when another execution holds the
   assertEquals(await response.json(), { success: true, rejected: 0, skipped: true, status: "running" });
   assertEquals(privilegedCalls, ["claim_system_job_execution"]);
 });
+
+Deno.test("renewal worker accounts for a gate-rejected upload in the run result and the response", async () => {
+  // A rejected upload is neither a success nor a worker failure; it used to be counted nowhere,
+  // so a batch of nothing but rejections finished "succeeded" with counts that did not add up.
+  const rpcArgs: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const document = { select: () => document, eq: () => document,
+    maybeSingle: async () => ({ data: {
+      id: "doc-1", storage_bucket: "credential-documents", storage_path: "org-1/doc-1.txt",
+      file_type: "text/plain", file_name: "notes.txt",
+    }, error: null }) };
+  const handler = createProcessCredentialRenewalsHandler({
+    createClient: ((_: string, key: string) => key === "service" ? {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        rpcArgs.push({ name, args });
+        if (name === "claim_system_job_execution") return { data: [{ should_execute: true, run_id: "run-1" }], error: null };
+        if (name === "claim_credential_renewal_submissions") {
+          return { data: [{ id: "sub-1", credential_document_id: "doc-1", organization_id: "org-1" }], error: null };
+        }
+        if (name === "record_credential_renewal_extraction" || name === "finish_system_job") return { data: null, error: null };
+        throw new Error(`unexpected privileged RPC: ${name}`);
+      },
+      from: () => document,
+      storage: { from: () => ({ download: async () => ({ data: new Blob(["not a pdf"]), error: null }) }) },
+    } : { auth: { getUser: async () => ({ data: { user: null }, error: null }) } }) as never,
+    getEnv: (name) => ENV[name],
+    authorizeCron: (req) => req.headers.get(CRON_SECRET_HEADER) === "valid-worker-secret" ? null : new Response(null, { status: 401 }),
+  });
+  const response = await handler(new Request("https://function.test", { method: "POST",
+    headers: { [CRON_SECRET_HEADER]: "valid-worker-secret" },
+  }));
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), {
+    success: true, claimed: 1, processed: 0, failed: 0, rejected: 1, extracted: 0, extractionErrors: [],
+  });
+  const recorded = rpcArgs.find((call) => call.name === "record_credential_renewal_extraction");
+  assertEquals(recorded?.args.p_submission_id, "sub-1");
+  assertEquals(recorded?.args.p_scan_status, "failed");
+  const finished = rpcArgs.find((call) => call.name === "finish_system_job");
+  assertEquals(finished?.args.p_status, "succeeded");
+  assertEquals(finished?.args.p_attempted_count, 1);
+  assertEquals(finished?.args.p_succeeded_count, 0);
+  assertEquals(finished?.args.p_failed_count, 0);
+  assertEquals(finished?.args.p_result, { rejected: 1 });
+});

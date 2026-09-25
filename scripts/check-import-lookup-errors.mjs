@@ -82,12 +82,29 @@ export function blankCatchBlocks(source, name) {
   return out;
 }
 
-/** Index of the first re-declaration of `name` (a new binding), or the text length if none. */
+/**
+ * Whether a destructuring pattern binds `name` as an identifier: `{ error }`, `{ data, error }`,
+ * `{ error = null }` or `{ err: error }` do; `{ error: other }` binds `other`, so it does not.
+ */
+export function patternBinds(pattern, name) {
+  const body = pattern.slice(1, -1);
+  return new RegExp(String.raw`(?:^|[{,:])\s*${name}\s*(?:[,}=]|$)`).test(body)
+    || new RegExp(String.raw`:\s*${name}\s*(?:[,}=]|$)`).test(body);
+}
+
+/**
+ * Index of the first re-declaration of `name` (a new binding), or the text length if none. Only a
+ * declaration that binds the identifier counts: a property key that aliases it to another name
+ * leaves the outer binding in scope.
+ */
 export function rebindIndex(source, name) {
-  const at = source.search(new RegExp(
-    String.raw`\b(?:const|let|var)\s+(?:\{[^}]*\b${name}\b[^}]*\}|${name}\b)\s*=`,
-  ));
-  return at === -1 ? source.length : at;
+  const re = /\b(?:const|let|var)\s+(\{[^}]*\}|[A-Za-z_$][\w$]*)\s*=/g;
+  for (const match of source.matchAll(re)) {
+    const target = match[1];
+    const binds = target.startsWith("{") ? patternBinds(target, name) : target === name;
+    if (binds) return match.index;
+  }
+  return source.length;
 }
 
 /**
@@ -115,7 +132,10 @@ export function findUncheckedReads(source) {
     // A catch parameter shadows only inside its own block, so that block is blanked and the
     // search continues past it (a real `if (error)` after the try/catch is still a read); a
     // re-declaration ends the search, since everything after it names the new binding.
-    const scopeOf = (name) => blankCatchBlocks(after, name).slice(0, rebindIndex(after, name));
+    const scopeOf = (name) => {
+      const blanked = blankCatchBlocks(after, name);
+      return blanked.slice(0, rebindIndex(blanked, name));
+    };
     if (binding.startsWith("{")) {
       const errorName = errorBindingIn(binding);
       if (!errorName) {
@@ -154,6 +174,12 @@ if (process.argv.includes("--self-test")) {
     // A catch parameter shadows only its own block: a read after the try/catch is still a read.
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\ntry { x(); } catch (error) { log(error); }\nif (error) return x;', 0],
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\ntry { x(); } catch (error) { if (error) { log({ nested: error }); } }\nif (error) return x;', 0],
+    // A property key aliased to another name does not rebind `error`; a declaration inside the
+    // shadowing catch block is that block's own and does not end the outer scope either.
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nconst { error: other } = await d();\nif (error) return x;', 0],
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\ntry { x(); } catch (error) { const error2 = error; let error = null; }\nif (error) return x;', 0],
+    // An alias TO `error` is a new binding of it.
+    ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\nconst { err: error } = await d();\nif (error) return x;', 1],
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nexisting = data;\nconst { data: d2, error } = await c.from("u").select("*").limit(1).maybeSingle();\nif (error) return x;', 1],
     // Reading the binding before it is rebound is still a read.
     ['const { data, error } = await c.from("t").select("*").limit(1).maybeSingle();\nif (error) return x;\nconst { data: d2, error } = await c.from("u").select("*").limit(1).maybeSingle();\nif (error) return y;', 0],
