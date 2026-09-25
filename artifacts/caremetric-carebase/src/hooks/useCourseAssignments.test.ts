@@ -64,6 +64,8 @@ describe("authoritative completion recovery", () => {
     invalidateCompletedCourseEvidence({ invalidateQueries } as unknown as QueryClient);
     expect(invalidateQueries.mock.calls.map(([input]) => input.queryKey[0])).toEqual([
       "course_assignments", "course_progress", "certificates", "training_records", "training_hour_buckets", "alerts", "org_dashboard_summary",
+      // record_course_completion_credits (trigger) writes the per-course credit rows the employee page lists.
+      "course_completion_credits",
     ]);
     expect(h.from).not.toHaveBeenCalled();
   });

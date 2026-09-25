@@ -52,6 +52,12 @@ interface DomainListConfig {
   table: DomainListSource;
   defaultSort: string;
   defaultSortDir?: SortDirection;
+  /**
+   * Cache root when the domain's mutation hooks invalidate under a different name than the table.
+   * The confidential-intake mutations refresh `confidential_intakes`, and a list keyed by the table
+   * name never saw a status change until staleTime lapsed.
+   */
+  queryRoot?: string;
   search: string[];
   facilityColumn?: string;
   residentColumn?: string;
@@ -72,12 +78,12 @@ const CONFIG: Record<DomainListName, DomainListConfig> = {
   work_orders: { table: "work_orders", defaultSort: "created_at", search: ["work_order_number", "problem_description", "location_detail"], facilityColumn: "facility_id", statusColumn: "status" },
   employee_training_records: { table: "employee_training_records", defaultSort: "completion_date", search: ["trainer_name", "training_provider", "certificate_number", "notes"], facilityColumn: "facility_id", statusColumn: "status" },
   policy_documents: { table: "policy_documents", defaultSort: "title", defaultSortDir: "asc", search: ["title", "category", "description"] },
-  confidential_incident_intakes: { table: "confidential_incident_intakes", defaultSort: "reported_at", search: ["intake_number", "public_summary"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
+  confidential_incident_intakes: { table: "confidential_incident_intakes", queryRoot: "confidential_intakes", defaultSort: "reported_at", search: ["intake_number", "public_summary"], facilityColumn: "facility_id", statusColumn: "status", severityColumn: "severity" },
 };
 
 export function usePaginatedDomainList<T = Record<string, unknown>>(name: DomainListName, filters: DomainListFilters) {
   return useQuery({
-    queryKey: [name, "paginated", filters],
+    queryKey: [CONFIG[name].queryRoot ?? name, "paginated", filters],
     queryFn: async ({ signal }): Promise<PaginatedResult<T>> => {
       const config = CONFIG[name];
       let query = domainDatabase.from(config.table).select("*", { count: "exact" });

@@ -446,6 +446,12 @@ export function useCreateShiftReportEntry() {
       if (error) throw error;
       return data as string;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
+      // The entry also appears in the handoff inbox list and in the command-center's open /
+      // urgent handoff counts, which the sibling triage/resolve mutations already refresh.
+      queryClient.invalidateQueries({ queryKey: ["shift-report-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
+    },
   });
 }

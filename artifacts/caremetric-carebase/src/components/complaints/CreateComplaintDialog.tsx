@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useLocation } from "wouter";
 import { AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
@@ -32,6 +33,7 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
   const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const create = useCreateComplaint();
   const facilities = useListFacilities({ organizationId });
   const profiles = useListProfiles({ organizationId });
@@ -94,7 +96,8 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
         description: reportable.length ? "Reportability indicators started the incident workflow automatically." : "The complaint is ready for acknowledgement and investigation.",
       });
       close(false);
-      location.href = `/app/complaints/${id}`;
+      // In-app navigation: a document reload dropped the toast above and ignored BASE_PATH.
+      navigate(`/app/complaints/${id}`);
     },
     onError: (error: Error) => toast({ title: "Could not create complaint", description: error.message, variant: "destructive" }),
   });

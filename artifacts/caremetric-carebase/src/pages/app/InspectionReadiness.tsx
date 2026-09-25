@@ -61,6 +61,9 @@ function scoreColor(pct: number) {
 
 export default function InspectionReadiness() {
   const { user } = useAuth();
+  // request_binder_export (20260905130000) and run-mock-inspection both refuse the read-only
+  // auditor; trainer cannot reach this route.
+  const canManage = ["org_admin", "facility_manager"].includes(user?.role ?? "");
   const { toast } = useToast();
   const [facilityId, setFacilityId] = useState<string>("");
   const [showDraftPlan, setShowDraftPlan] = useState(false);
@@ -407,10 +410,12 @@ export default function InspectionReadiness() {
           <Button asChild variant="outline">
             <Link href={`/app/survey-day?facility=${activeFacilityId}`}><ClipboardCheck className="mr-2 h-4 w-4" />Open Survey Day</Link>
           </Button>
+          {canManage && (
           <Button onClick={() => void handleRunMockInspection()} disabled={!activeFacilityId || mockInspectionRunning}>
             {mockInspectionRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
             {mockInspectionRunning ? "Running grounded checks..." : "Run mock inspection"}
           </Button>
+          )}
           {mockInspectionRunId ? <Button variant="outline" onClick={() => void handleDownloadMockInspection()}><Download className="mr-2 h-4 w-4" /> Gap report PDF</Button> : null}
         </div>
       </div>
@@ -714,7 +719,11 @@ export default function InspectionReadiness() {
             One-click packet covering facilities, staff requirements, credentials, incidents, and inspection items --
             generated fresh from current data.
           </p>
-          <BinderExportButton label="Generate Entrance Packet" />
+          {canManage ? (
+            <BinderExportButton label="Generate Entrance Packet" />
+          ) : (
+            <p className="text-sm text-muted-foreground">Your role is read-only here; an organization administrator or facility manager generates the packet.</p>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -318,7 +318,7 @@ function RevisionRow({
   // already tells the reader it is frozen. Re-deriving got it wrong in both directions -- a stale
   // broken snapshot submitted cleanly once the source was fixed, and a good snapshot blocked by a
   // regression landed in the source afterwards.
-  const findings = validateCourseSnapshot(revision.snapshot as unknown as CourseSnapshot);
+  const findings = validateCourseSnapshot(revision.snapshot as unknown as Partial<CourseSnapshot> | null);
   const pending = submit.isPending || review.isPending || publish.isPending;
   const reasonProblem = reasonIssue(reason, step === "publish" ? "publication" : "review");
 

@@ -216,9 +216,10 @@ can see the whole workspace and lockfile.
    - Builder: **Railpack** (Railway's current default builder; Nixpacks is deprecated on Railway
      and its hosted version cannot provision Node 24 -- it silently falls back to Node 18, which
      breaks the Vite 7 build. Do not switch this service back to Nixpacks.)
-   - Build: `pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run build && node scripts/check-bundle-budget.mjs`
+   - Build: `pnpm install --frozen-lockfile --prod=false && pnpm --filter @workspace/caremetric-carebase run typecheck && pnpm --filter @workspace/caremetric-carebase run test && pnpm --filter @workspace/caremetric-carebase run build && node scripts/check-bundle-budget.mjs`
     (Railpack also runs its own install beforehand; the explicit one is a harmless belt-and-braces
-    step; the typecheck and the bundle-budget check are the deploy's static gates -- the budget
+    step; the typecheck, the app + server unit tests and the bundle-budget check are the deploy's
+    gates -- a failing unit test blocks the deploy just as a type error does; the budget
     check reads the `dist/public/assets` the build just produced, so it costs nothing extra and
     catches a size regression before the deploy goes live; GitHub Actions runs the broader
     `check:all`-style workflow on pushes/PRs)
@@ -254,10 +255,13 @@ can see the whole workspace and lockfile.
      Starting the server directly also drops two processes from the runtime image and does not
      depend on pnpm being resolvable at run time -- only at build time.
    - Healthcheck: `GET /health`
-   - Watch paths: only changes under `artifacts/caremetric-carebase/`, the root toolchain/config
-     files, and the two `scripts/` files the build itself runs (`check-bundle-budget.mjs` and the
-     `generate:manual` generator) trigger a deploy, so pushes touching e.g.
-     `artifacts/mockup-sandbox` or unrelated `scripts/` files don't redeploy production.
+   - Watch paths: only changes under `artifacts/caremetric-carebase/`, the provider-handler
+     sources the Node server imports from `supabase/functions/` (`_shared/` plus the `sms-mfa`,
+     `create-billing-session`, `stripe-billing-webhook` and `sync-billing-quantities` directories),
+     the root toolchain/config files, and the `scripts/` files the build itself runs
+     (`check-bundle-budget.mjs`, `scripts/package.json` and the `generate:manual` generator)
+     trigger a deploy, so pushes touching e.g. `artifacts/mockup-sandbox`, other edge functions or
+     unrelated `scripts/` files don't redeploy production. The list lives in `railway.json`.
    Railpack resolves Node from `engines.node` in package.json / `.nvmrc` / `.node-version` (all
    pinned to Node 24 here; `RAILPACK_NODE_VERSION` would override) and installs pnpm 11.13.0 via
    the package manager declared by the `packageManager` field.
@@ -621,11 +625,12 @@ to recreate manually -- `supabase db push` creates them. For reference, the buck
 | `competency-attachments` | private | competency record evidence uploads |
 | `org-branding` | private | per-org logo/branding assets |
 | `binder-exports` | private | generated compliance binder PDFs; Edge-Function-only write, downloaded via short-lived signed URL |
-| `course-videos` | **public** | AI-avatar-generated course videos re-hosted after HeyGen's signed URLs expire; deliberate exception documented in `20260704155836_add_course_videos_public_bucket.sql` -- training content, not tenant-sensitive documents |
+| `course-videos` | private | AI-avatar-generated course videos re-hosted after HeyGen's signed URLs expire; created public by `20260704155836_add_course_videos_public_bucket.sql`, made private by `20260714233041_remediate_p2_security_findings.sql` (reads gated on the caller's organization); the player fetches short-lived signed URLs (`useCourseVideoUrl`) |
 
-All private buckets are accessed via RLS-aware signed URLs generated server-side (Edge Functions) or
-through Storage RLS policies scoped by `organization_id`/`facility_id`, so one org can never read
-another org's files. Do not add a bucket or relax a policy without checking the corresponding
+Every bucket is private -- there is no public bucket; `select id, public from storage.buckets` is the
+authoritative list. Buckets are accessed via RLS-aware signed URLs generated server-side (Edge
+Functions) or through Storage RLS policies scoped by `organization_id`/`facility_id`, so one org can
+never read another org's files. Do not add a bucket or relax a policy without checking the corresponding
 migration's write-policy comments first.
 
 ## 5. Connecting Railway to GitHub
@@ -755,8 +760,10 @@ policy at all, so it was never exploitable there, but the trigger was extended f
 
 ### Standing security posture
 
-- The service-role key is never referenced anywhere under `artifacts/caremetric-carebase/src` or
-  `artifacts/caremetric-carebase/server` -- confirmed by grep as part of this change. Vite only exposes
+- The service-role key is never referenced anywhere under `artifacts/caremetric-carebase/src`. Under
+  `artifacts/caremetric-carebase/server` it is named only by `provider-runtime-config.mjs` (the
+  required-setting check for the opt-in Railway provider runtime, section 2) and read only by the
+  server-side provider handlers; it is never `VITE_`-prefixed. Vite only exposes
   `VITE_`-prefixed variables to the client bundle (`import.meta.env`), which is itself a structural
   guardrail against accidentally shipping the service-role key to the browser.
 - RLS is enabled on every table (`mcp__Supabase__list_tables` confirms `rls_enabled: true` across

@@ -9,7 +9,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(11);
+select plan(13);
 
 insert into public.organizations(id, name, slug) values
   ('5e000000-0000-4000-8000-000000000001', 'Requeue Org', 'requeue-cert-org'),
@@ -159,8 +159,40 @@ select is(
 );
 
 -- ---------------------------------------------------------------------------------------
+-- The final attempt is still leased: attempt_count = max_attempts while a worker renders.
+-- ---------------------------------------------------------------------------------------
+reset role;
+select set_config('app.privileged_write', 'on', true);
+update public.certificate_pdf_jobs
+set status = 'processing', attempt_count = 5, max_attempts = 5, locked_at = now(),
+    worker_id = gen_random_uuid(), current_run_id = gen_random_uuid()
+where certificate_id = '5e000000-0000-4000-8000-000000000301';
+select set_config('app.privileged_write', 'off', true);
+
+select pg_temp.act_as('5e000000-0000-4000-8000-000000000101');
+select throws_ok(
+  $$ select public.requeue_certificate_pdf('5e000000-0000-4000-8000-000000000301') $$,
+  '22023',
+  'This certificate PDF is being rendered right now. Try again in a few minutes.',
+  'a job whose final attempt is still leased is not reset underneath the worker'
+);
+
+reset role;
+select set_config('app.privileged_write', 'on', true);
+update public.certificate_pdf_jobs set locked_at = now() - interval '20 minutes'
+where certificate_id = '5e000000-0000-4000-8000-000000000301';
+select set_config('app.privileged_write', 'off', true);
+
+select pg_temp.act_as('5e000000-0000-4000-8000-000000000101');
+select lives_ok(
+  $$ select public.requeue_certificate_pdf('5e000000-0000-4000-8000-000000000301') $$,
+  'a lease older than the claim''s stale window is abandoned and can be requeued'
+);
+
+-- ---------------------------------------------------------------------------------------
 -- Who may call it.
 -- ---------------------------------------------------------------------------------------
+reset role;
 select set_config('app.privileged_write', 'on', true);
 update public.certificate_pdf_jobs set status = 'failed', attempt_count = 5
 where certificate_id = '5e000000-0000-4000-8000-000000000301';

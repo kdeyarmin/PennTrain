@@ -15,7 +15,7 @@
  * string and json -- a limit like `limits.learners` is a number, not a switch.
  */
 
-import { facilityDateOf } from "./dateUtils";
+import { facilityDateOf, formatDateForDisplay } from "./dateUtils";
 
 export type FeatureValueType = "boolean" | "integer" | "decimal" | "string" | "json";
 
@@ -144,6 +144,23 @@ export function entitlementTermIssues(
   return issues;
 }
 
+/**
+ * The facility calendar day a term boundary falls on, for the summary sentence. The card sends
+ * facility-day instants (see PackageEntitlementTermCard), and an end bound is the 00:00 AFTER the
+ * last included day, so it is read back one millisecond earlier. Formatting the facility day --
+ * rather than `new Date(instant).toLocaleDateString()` -- keeps the sentence right for an admin
+ * whose browser sits west of the facility, where an Eastern midnight is still the previous evening.
+ * A bare YYYY-MM-DD is taken as that day.
+ */
+function termDayLabel(value: string, endBound: boolean): string {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return formatDateForDisplay(trimmed);
+  const parsed = Date.parse(trimmed);
+  if (Number.isNaN(parsed)) return "an unreadable date";
+  const day = facilityDateOf(new Date(endBound ? parsed - 1 : parsed));
+  return day ? formatDateForDisplay(day) : "an unreadable date";
+}
+
 /** How this term reads once saved, in the sentence somebody reviewing the package would want. */
 export function termSummary(form: EntitlementTermForm, now: Date): string {
   const parsed = parseEntitlementValue(form.rawValue, form.valueType);
@@ -153,9 +170,9 @@ export function termSummary(form: EntitlementTermForm, now: Date): string {
     ? "from an unset date"
     : from <= now.getTime()
       ? "immediately"
-      : `from ${new Date(from).toLocaleDateString()}`;
+      : `from ${termDayLabel(form.effectiveFrom, false)}`;
   const until = form.effectiveTo && !Number.isNaN(Date.parse(form.effectiveTo))
-    ? ` until ${new Date(form.effectiveTo).toLocaleDateString()}`
+    ? ` through ${termDayLabel(form.effectiveTo, true)}`
     : " with no end date";
   return `${form.featureKey || "This feature"} becomes ${value} ${when}${until}.`;
 }

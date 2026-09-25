@@ -105,6 +105,7 @@ export function EmployeeSearchSelect({
         <Input
           className="h-9"
           placeholder="Type to search employees"
+          aria-label={label ? `Search ${label.toLowerCase()}` : "Search employees"}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoComplete="off"

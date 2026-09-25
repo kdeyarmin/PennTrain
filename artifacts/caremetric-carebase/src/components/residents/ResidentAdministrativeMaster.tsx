@@ -362,11 +362,11 @@ export function ResidentAdministrativeMaster({
               {contacts.map((contact, index) => (
                 <div key={contact.id || index} className="grid gap-2 rounded-md border p-3 md:grid-cols-4">
                   <Select value={contact.contact_type} onValueChange={(value) => updateContact(index, { contact_type: value })}><SelectTrigger aria-label="Contact type"><SelectValue /></SelectTrigger><SelectContent>{CONTACT_TYPES.map((type) => <SelectItem key={type} value={type}>{humanize(type)}</SelectItem>)}</SelectContent></Select>
-                  <Input placeholder="Name / organization" value={contact.name} onChange={(e) => updateContact(index, { name: e.target.value })} />
-                  <Input placeholder="Relationship" value={contact.relationship} onChange={(e) => updateContact(index, { relationship: e.target.value })} />
-                  <Input placeholder="Legal authority" value={contact.legal_authority} onChange={(e) => updateContact(index, { legal_authority: e.target.value })} />
-                  <Input placeholder="Phone" value={contact.phone} onChange={(e) => updateContact(index, { phone: e.target.value })} />
-                  <Input placeholder="Email" type="email" value={contact.email} onChange={(e) => updateContact(index, { email: e.target.value })} />
+                  <Input placeholder="Name / organization" aria-label={`Contact ${index + 1} name`} value={contact.name} onChange={(e) => updateContact(index, { name: e.target.value })} />
+                  <Input placeholder="Relationship" aria-label={`Contact ${index + 1} relationship`} value={contact.relationship} onChange={(e) => updateContact(index, { relationship: e.target.value })} />
+                  <Input placeholder="Legal authority" aria-label={`Contact ${index + 1} legal authority`} value={contact.legal_authority} onChange={(e) => updateContact(index, { legal_authority: e.target.value })} />
+                  <Input placeholder="Phone" aria-label={`Contact ${index + 1} phone`} value={contact.phone} onChange={(e) => updateContact(index, { phone: e.target.value })} />
+                  <Input placeholder="Email" aria-label={`Contact ${index + 1} email`} type="email" value={contact.email} onChange={(e) => updateContact(index, { email: e.target.value })} />
                   <label className="flex items-center gap-2 text-sm"><Checkbox checked={contact.is_primary} onCheckedChange={(checked) => updateContact(index, { is_primary: checked === true })} /> Primary</label>
                   <div className="flex items-center justify-between"><label className="flex items-center gap-2 text-sm"><Checkbox checked={contact.receives_notifications} onCheckedChange={(checked) => updateContact(index, { receives_notifications: checked === true })} /> Notify</label><Button type="button" variant="ghost" size="sm" onClick={() => setContacts((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</Button></div>
                 </div>

@@ -4,9 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGetInspectionItemByQrToken } from "@/hooks/useInspectionItems";
 import { useGetMaintenanceLocationByQrToken } from "@/hooks/useWorkOrders";
+import { useAuth } from "@/lib/auth";
 
 export default function MaintenanceScan() {
   const { kind, token } = useParams<{ kind: "asset" | "location"; token: string }>();
+  const { user } = useAuth();
+  // The inspection detail route is mounted under /admin for the platform operator and under /app
+  // for tenant roles; a QR scan lands here from either shell.
+  const inspectionBase = user?.role === "platform_admin" ? "/admin/inspections" : "/app/inspections";
   const asset = useGetInspectionItemByQrToken(kind === "asset" ? token : undefined);
   const location = useGetMaintenanceLocationByQrToken(kind === "location" ? token : undefined);
   const isLoading = kind === "asset" ? asset.isLoading : location.isLoading;
@@ -50,7 +55,7 @@ export default function MaintenanceScan() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild><Link href={createHref}>Report a problem here</Link></Button>
-          {isAsset && <Button asChild variant="outline"><Link href={`/app/inspections/${recordId}`}>View inspection history</Link></Button>}
+          {isAsset && <Button asChild variant="outline"><Link href={`${inspectionBase}/${recordId}`}>View inspection history</Link></Button>}
           <Button asChild variant="ghost"><Link href="/app/maintenance">All work orders</Link></Button>
         </div>
       </CardContent>

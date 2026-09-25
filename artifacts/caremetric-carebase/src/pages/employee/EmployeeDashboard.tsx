@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { todayIso, formatDateLabel, formatTimeLabel } from "@/lib/scheduleDates";
+import { isClosedCourseAssignmentStatus } from "@/lib/courseLearningTools";
 
 interface DeadlineItem {
   id: string;
@@ -176,8 +177,11 @@ export default function EmployeeDashboard() {
   // policy_attestations) -- previously each only surfaced its own status in its own card (and
   // attestations had no presence here at all), so an employee had to check multiple places to see
   // everything coming due.
+  // A canceled assignment keeps its due_date (cancel_course_assignment only flips status), and a
+  // leave-paused one is not due work either; both used to render here as overdue deadlines that
+  // opened a dead-ended player.
   const courseDeadlines: DeadlineItem[] = (courseAssignments ?? [])
-    .filter(a => a.due_date && a.status !== "completed")
+    .filter(a => a.due_date && !isClosedCourseAssignmentStatus(a.status) && a.status !== "paused")
     .map(a => ({
       id: `course-${a.id}`,
       kind: "course",

@@ -39,7 +39,11 @@ interface StateFormWorkflowStepperProps {
 // steppers for one resident costs one fetch each.
 export function StateFormWorkflowStepper({ item, resident, facilityType, canManage, triggeredByItemType }: StateFormWorkflowStepperProps) {
   const { toast } = useToast();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  // ResidentDetail is served at /admin/residents/:id for platform admins as well as /app/residents/:id;
+  // the /app resident routes are RESIDENT_ROLES only, so a hard-coded prefix bounced the admin after
+  // the draft had already been created.
+  const residentPrefix = location.startsWith("/admin/") ? "/admin/residents" : "/app/residents";
   const { data: forms, isLoading: formsLoading } = useListResidentAssessmentForms(resident.id);
   const { data: documents, isLoading: documentsLoading } = useListResidentDocuments(resident.id);
 
@@ -81,14 +85,14 @@ export function StateFormWorkflowStepper({ item, resident, facilityType, canMana
         startAssessmentForm.mutate(
           { residentId: resident.id, reason, complianceItemId: item.id },
           {
-            onSuccess: (newForm) => navigate(`/app/residents/${resident.id}/assessment-forms/${newForm.id}`),
+            onSuccess: (newForm) => navigate(`${residentPrefix}/${resident.id}/assessment-forms/${newForm.id}`),
             onError: (e: Error) => toast({ title: "Failed to start assessment form", description: e.message, variant: "destructive" }),
           },
         );
         break;
       }
       case "continue_draft":
-        navigate(`/app/residents/${resident.id}/assessment-forms/${action.formId}`);
+        navigate(`${residentPrefix}/${resident.id}/assessment-forms/${action.formId}`);
         break;
       case "generate_pdf":
         generatePdf.mutate(action.formId!, {

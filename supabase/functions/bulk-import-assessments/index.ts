@@ -164,6 +164,10 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: `${message}${alsoFailed}`, job_id: jobId }, 500);
   }
 
+  // The header set: an update writes only the columns this CSV actually carries (the rule
+  // bulk-import-employees already follows).
+  const presentColumns = new Set(Object.keys(rows[0] ?? {}));
+
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
     const rowNumber = index + 2;
@@ -297,11 +301,21 @@ Deno.serve(async (req: Request) => {
       version_number: 1,
       schema_version: 1,
     };
+    // What the ledger records for an update is only what the CSV carries: the durable worker
+    // replays normalizedRow through import_apply_resident_assessment, and a replay that carried
+    // the "initial" / null defaults for absent reason and assessment_date columns would overwrite
+    // the reviewer's values the merge below preserves.
+    const normalizedRow = action === "update"
+      ? Object.fromEntries(Object.entries(payload).filter(([key]) =>
+          !["status", "version_number", "schema_version"].includes(key)
+          && (key !== "reason" || presentColumns.has("reason"))
+          && (key !== "prepared_date" || presentColumns.has("assessment_date"))))
+      : payload;
 
     if (rowErrors.length) {
       results.push({ row: rowNumber, success: false, error: rowErrors.join("; "), action, preview: mode === "validate" });
       ledgerRows.push({
-        rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "invalid",
+        rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "invalid",
         targetTable: TARGET, targetId: existing?.id ?? null, beforeSnapshot: existing, errors: rowErrors, warnings,
       });
       continue;
@@ -309,7 +323,7 @@ Deno.serve(async (req: Request) => {
     if (action === "skip") {
       results.push({ row: rowNumber, success: true, record_id: existing.id, action, preview: mode === "validate" });
       ledgerRows.push({
-        rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "skipped",
+        rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "skipped",
         targetTable: TARGET, targetId: existing.id, beforeSnapshot: existing, errors: [], warnings,
       });
       continue;
@@ -317,7 +331,7 @@ Deno.serve(async (req: Request) => {
     if (mode === "validate") {
       results.push({ row: rowNumber, success: true, record_id: existing?.id, action, preview: true });
       ledgerRows.push({
-        rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "valid",
+        rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "valid",
         targetTable: TARGET, targetId: existing?.id ?? null, beforeSnapshot: existing, errors: [], warnings,
       });
       continue;
@@ -326,10 +340,17 @@ Deno.serve(async (req: Request) => {
     let data: any = null;
     let error: any = null;
     if (action === "update") {
+      // Merge, never replace. The match rules above deliberately admit a draft a reviewer has
+      // since filled in (the editor keeps the csv_import marker), so replacing `content` with the
+      // bare marker erased every completed section -- and rollback reverts creates only. Only the
+      // columns this CSV carries move; absent ones keep the reviewer's values.
+      const existingContent = existing?.content && typeof existing.content === "object" && !Array.isArray(existing.content)
+        ? existing.content as Record<string, unknown>
+        : {};
       const res = await callerClient.from("resident_assessment_forms").update({
-        reason: reasonRaw,
-        prepared_date: assessmentDate,
-        content: payload.content,
+        ...(presentColumns.has("reason") ? { reason: reasonRaw } : {}),
+        ...(presentColumns.has("assessment_date") ? { prepared_date: assessmentDate } : {}),
+        content: { ...existingContent, csv_import: payload.content.csv_import },
       }).eq("id", existing.id).select("id").single();
       data = res.data; error = res.error;
     } else {
@@ -339,7 +360,7 @@ Deno.serve(async (req: Request) => {
     if (error) {
       results.push({ row: rowNumber, success: false, error: error.message, action });
       ledgerRows.push({
-        rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "failed",
+        rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "failed",
         targetTable: TARGET, targetId: existing?.id ?? null, beforeSnapshot: existing, errors: [error.message], warnings,
       });
     } else {
@@ -350,7 +371,7 @@ Deno.serve(async (req: Request) => {
       // employees already carries; see its per-row receipt comment).
       const { error: receiptError } = await callerClient.rpc("record_data_import_row_receipt", {
         p_job_id: jobId,
-        p_row: { rowNumber, sourceRow: row, normalizedRow: payload, proposedAction: action, status: "applied", targetTable: TARGET, targetId: data.id, beforeSnapshot: existing, errors: [], warnings },
+        p_row: { rowNumber, sourceRow: row, normalizedRow, proposedAction: action, status: "applied", targetTable: TARGET, targetId: data.id, beforeSnapshot: existing, errors: [], warnings },
       });
       if (receiptError) {
         return json(req, { error: `Row ${rowNumber} was applied but its import receipt failed: ${receiptError.message}`, job_id: jobId }, 500);

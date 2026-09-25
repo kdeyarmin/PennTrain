@@ -1,3 +1,5 @@
+import { csvEscape } from "./csv";
+
 export const EMPLOYEE_LIFECYCLE_TRANSITIONS = [
   "rehire",
   "transfer",
@@ -208,7 +210,8 @@ export function lifecycleCasesToCsv(
     canceled_at: string | null;
   }>,
 ): string {
-  const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
+  // csvEscape, not a private quote(): the manager-entered reason is free text that a spreadsheet
+  // would otherwise evaluate when it starts with "=", "+", "-" or "@" (lib/csv.ts).
   return [
     "case_id,employee_id,transition,status,effective_on,reason,applied_at,canceled_at",
     ...cases.map((row) =>
@@ -218,10 +221,10 @@ export function lifecycleCasesToCsv(
         row.transition,
         row.status,
         row.effective_on,
-        quote(row.reason),
+        row.reason,
         row.applied_at ?? "",
         row.canceled_at ?? "",
-      ].join(","),
+      ].map((value) => csvEscape(value)).join(","),
     ),
   ].join("\n");
 }

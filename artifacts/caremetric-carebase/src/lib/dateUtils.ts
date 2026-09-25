@@ -290,7 +290,11 @@ export function formatDateForDisplay(
     : new Date(value);
 
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(locale, match ? { ...options, timeZone: "UTC" } : options);
+  const resolved = match ? { ...options, timeZone: "UTC" } : options;
+  // ECMA-402 makes toLocaleDateString reject `timeStyle` (V8: "Invalid option : timeStyle"), so a
+  // caller that wants a time as well gets the date+time formatter instead of a render crash.
+  const wantsTime = !!options && ("timeStyle" in options || "hour" in options || "minute" in options);
+  return wantsTime ? date.toLocaleString(locale, resolved) : date.toLocaleDateString(locale, resolved);
 }
 
 /**

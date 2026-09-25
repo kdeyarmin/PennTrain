@@ -143,10 +143,10 @@ export function FrequencyPartyFields({
       <div className="space-y-1">
         <Select
           value={frequency}
-          onValueChange={(v) => {
-            onFrequencyChange(v);
-            if (v !== "other") onFrequencyOtherChange("");
-          }}
+          // One callback per pick. Firing onFrequencyOtherChange("") as a second call let every
+          // consumer's `{ ...answer, planFrequencyOther: "" }` (built from the render-time answer)
+          // overwrite the frequency just chosen; consumers clear the "other" text in the same patch.
+          onValueChange={onFrequencyChange}
           disabled={disabled}
         >
           <SelectTrigger className="h-8 text-xs" aria-label="Frequency">
@@ -173,10 +173,7 @@ export function FrequencyPartyFields({
       <div className="space-y-1">
         <Select
           value={responsibleParty}
-          onValueChange={(v) => {
-            onPartyChange(v);
-            if (v !== "O") onPartyOtherChange("");
-          }}
+          onValueChange={onPartyChange}
           disabled={disabled}
         >
           <SelectTrigger className="h-8 text-xs" aria-label="Responsible party">

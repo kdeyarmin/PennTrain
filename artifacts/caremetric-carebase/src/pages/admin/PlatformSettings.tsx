@@ -223,6 +223,7 @@ export default function PlatformSettings() {
             <Switch
               checked={Boolean(setting.value)}
               disabled={isPending}
+              aria-label={config.label}
               onCheckedChange={checked => handleBooleanChange(setting.key, config.label, checked)}
             />
           ) : (
@@ -231,6 +232,7 @@ export default function PlatformSettings() {
               min="0"
               value={numberDrafts[setting.key] ?? (typeof setting.value === "number" ? String(setting.value) : "0")}
               disabled={isPending}
+              aria-label={config.label}
               className="h-9 w-24"
               onChange={e => setNumberDrafts(prev => ({ ...prev, [setting.key]: e.target.value }))}
               onBlur={e => handleNumberBlur(setting.key, config.label, e.target.value)}

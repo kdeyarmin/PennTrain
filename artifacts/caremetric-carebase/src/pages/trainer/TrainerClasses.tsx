@@ -45,7 +45,7 @@ import {
   Copy,
   Download,
 } from "lucide-react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { buildTrainingClassesIcs } from "@/lib/calendarExport";
 import { downloadTextFile } from "@/lib/browserDownload";
@@ -474,13 +474,17 @@ export default function TrainerClasses() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <GraduationCap className="h-12 w-12 text-muted-foreground/30 mb-4" />
-            {allClasses.length > 0 ? (
+            {/* The facility filter is applied server-side, so allClasses is already narrowed by it:
+                an empty result under a facility filter is "no match", not "no classes yet". */}
+            {allClasses.length > 0 || facilityFilter !== "all" ? (
               <>
                 <h3 className="text-lg font-semibold mb-1">No classes match these filters</h3>
                 <p className="text-muted-foreground text-sm mb-4">
-                  Adjust the search or filters to see your other {allClasses.length} class{allClasses.length === 1 ? "" : "es"}.
+                  {facilityFilter !== "all"
+                    ? "Adjust the search or filters, or choose another facility, to see your other classes."
+                    : `Adjust the search or filters to see your other ${allClasses.length} class${allClasses.length === 1 ? "" : "es"}.`}
                 </p>
-                <Button variant="outline" onClick={() => { setSearch(""); setStatusFilter("all"); }}>
+                <Button variant="outline" onClick={() => { setSearch(""); setStatusFilter("all"); setFacilityFilter("all"); }}>
                   Clear filters
                 </Button>
               </>
@@ -509,7 +513,15 @@ export default function TrainerClasses() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-base leading-snug pr-2">
-                    {cls.class_name}
+                    {/* A real link so the class opens from the keyboard; the card's onClick is the
+                        pointer convenience. stopPropagation keeps one navigation per click. */}
+                    <Link
+                      href={`/trainer/classes/${cls.id}`}
+                      className="hover:underline focus-visible:underline focus-visible:outline-none"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {cls.class_name}
+                    </Link>
                   </CardTitle>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Button

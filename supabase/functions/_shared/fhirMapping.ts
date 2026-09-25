@@ -187,7 +187,8 @@ export function referenceId(reference: string | undefined | null, expectedType?:
 function resourceReferenceId(reference: Reference | undefined, expectedType: string, targets?: ReferenceTargets): string | null {
   if (reference?.type && reference.type !== expectedType &&
     reference.type !== `http://hl7.org/fhir/StructureDefinition/${expectedType}`) return null;
-  const literal = reference?.reference?.trim();
+  // A partner can send a number or an object where FHIR says string; that is bad input, not a crash.
+  const literal = typeof reference?.reference === "string" ? reference.reference.trim() : undefined;
   if (!literal || /[\s\\?#]/.test(literal)) return null;
   if (targets?.has(literal)) {
     const target = targets.get(literal);
@@ -259,9 +260,12 @@ export function mapMedicationAdministration(resource: FhirResource, targets?: Re
 
 export function mapAllergyIntolerance(resource: FhirResource, nowIso: string, targets?: ReferenceTargets): NormalizedAllergy {
   const coding = firstCoding(resource.code);
-  const categories = (resource.category ?? []).filter((value): value is string => typeof value === "string");
-  const manifestations = (resource.reaction ?? [])
-    .flatMap((reaction) => reaction.manifestation ?? [])
+  // `category: "food"` (a bare string) and `reaction: {}` are common real-world mistakes; every
+  // nested collection is checked for array shape rather than assumed.
+  const categories = (Array.isArray(resource.category) ? resource.category : [])
+    .filter((value): value is string => typeof value === "string");
+  const manifestations = (Array.isArray(resource.reaction) ? resource.reaction : [])
+    .flatMap((reaction) => (Array.isArray(reaction?.manifestation) ? reaction.manifestation : []))
     .map((concept) => conceptDisplay(concept))
     .filter((value): value is string => Boolean(value));
   return {
@@ -347,19 +351,22 @@ export function mapFhirBundle(bundle: FhirBundle | FhirResource, nowIso: string)
     documentReferences: [],
     unsupported: [],
   };
+  // A partner can send `entry` as an object where FHIR says array; that is bad input, not a crash.
+  const rawEntries = (bundle as FhirBundle).entry;
+  const entries = Array.isArray(rawEntries) ? rawEntries : [];
   // HL7 R4 Bundle 2.36.4.1 resolves identities against fullUrl before external lookup; multiple
   // matches may be treated as unresolved. Never infer a UUID target's type from its suffix.
   // https://hl7.org/fhir/R4/bundle.html#references
   const targets = new Map<string, FhirResource | null>();
   if (bundle.resourceType === "Bundle") {
-    for (const entry of (bundle as FhirBundle).entry ?? []) {
+    for (const entry of entries) {
       const fullUrl = entry?.fullUrl?.trim();
       if (!fullUrl) continue;
       targets.set(fullUrl, targets.has(fullUrl) ? null : entry.resource ?? null);
     }
   }
   const resources: FhirResource[] = bundle.resourceType === "Bundle"
-    ? ((bundle as FhirBundle).entry ?? [])
+    ? entries
       .map((entry) => entry?.resource)
       .filter((resource): resource is FhirResource => Boolean(resource))
     : bundle.resourceType

@@ -280,3 +280,21 @@ Deno.test("mapFhirBundle routes allergies, conditions, orders, and documents", (
   assertEquals(bundle.documentReferences.length, 1);
   assertEquals(bundle.unsupported.length, 0);
 });
+
+Deno.test("wrong-shaped nested FHIR fields map as empty instead of throwing", () => {
+  const bundle = mapFhirBundle({ resourceType: "Bundle", entry: {} } as unknown as Parameters<typeof mapFhirBundle>[0], "2026-09-25T00:00:00.000Z");
+  assertEquals(bundle.medicationRequests.length + bundle.allergies.length + bundle.unsupported.length, 0);
+
+  const allergy = mapAllergyIntolerance({
+    resourceType: "AllergyIntolerance",
+    id: "a1",
+    category: "food",
+    reaction: {},
+    code: { coding: "abc" },
+    patient: { reference: 123 },
+  } as unknown as Parameters<typeof mapAllergyIntolerance>[0], "2026-09-25T00:00:00.000Z");
+  assertEquals(allergy.category, null);
+  assertEquals(allergy.reactionManifestations, null);
+  assertEquals(allergy.fhirPatientId, null);
+  assertEquals(referenceId(123 as unknown as string), null);
+});

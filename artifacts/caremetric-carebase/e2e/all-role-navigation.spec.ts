@@ -91,7 +91,7 @@ const DESTINATIONS: readonly Destination[] = [
   ["/app/my-attestations", /My Attestations/i, NON_EMPLOYEE],
   ["/app/template-documents", /Template Documents/i, REVIEWERS],
   ["/app/dhs-forms", /DHS Forms Library/i, REVIEWERS],
-  ["/app/incidents", /Incidents & Complaints/i, REVIEWERS],
+  ["/app/incidents", /^Incidents$/i, REVIEWERS],
   ["/app/report-event", /Report an event/i, REVIEWERS],
   ["/app/complaints", /Complaints, Grievances & Resident Rights/i, REVIEWERS],
   ["/app/confidential-incidents", /Confidential Reports/i, OPERATIONS],

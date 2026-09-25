@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   AlertTriangle,
   Bus,
@@ -65,6 +65,7 @@ export default function EmergencyOperations() {
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const facilities = useListFacilities({ organizationId });
@@ -248,7 +249,8 @@ export default function EmergencyOperations() {
         onSuccess: (id) => {
           toast({ title: `${human(eventMode)} activated`, description: "Resident and staff rosters were snapshotted." });
           setDialog(null);
-          window.location.href = `/app/emergency/${id}`;
+          // Router navigation: a bare location.href ignores the deploy base path (BASE_PATH).
+          navigate(`/app/emergency/${id}`);
         },
         onError: mutationError("Could not activate emergency event"),
       },

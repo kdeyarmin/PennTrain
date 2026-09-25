@@ -189,7 +189,11 @@ export default function EvidenceCollectionDetail() {
       toast({ title: "Invalid expiration", description: "Guest days must be a positive number", variant: "destructive" });
       return;
     }
-    const expiresAt = facilityDayBounds(addFacilityCalendarDays(facilityToday(), days)).through;
+    // issue_evidence_guest_grant refuses p_expires_at beyond now() + 90 days. The facility day
+    // bound is 00:00 of the following day, so "90 days" always landed past the ceiling; clamp to it.
+    const dayEnd = new Date(facilityDayBounds(addFacilityCalendarDays(facilityToday(), days)).through).getTime();
+    const ceiling = Date.now() + 90 * 86_400_000 - 60_000;
+    const expiresAt = new Date(Math.min(dayEnd, ceiling)).toISOString();
     issueGrant.mutate(
       { collectionId: collection.id, guestLabel: guestLabel.trim(), artifactIds: selectedArtifactIds, expiresAt },
       {
@@ -624,11 +628,11 @@ export default function EvidenceCollectionDetail() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor={`${__fieldIds}-shared-artifacts`}>Shared artifacts</Label>
-                  <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border p-3">
+                  <Label id={`${__fieldIds}-shared-artifacts`}>Shared artifacts</Label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border p-3" role="group" aria-labelledby={`${__fieldIds}-shared-artifacts`}>
                     {activeArtifacts.map((a) => (
                       <label key={a.id} className="flex items-center gap-2 text-sm">
-                        <Checkbox id={`${__fieldIds}-shared-artifacts`}
+                        <Checkbox id={`${__fieldIds}-artifact-${a.id}`}
                           checked={selectedArtifactIds.includes(a.id)}
                           onCheckedChange={(checked) =>
                             setSelectedArtifactIds((prev) =>

@@ -190,8 +190,12 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
-  const { course_block_id, feedback } = body;
-  if (!course_block_id || !feedback?.trim()) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
+  const { course_block_id } = body;
+  const feedback = typeof body.feedback === "string" ? body.feedback : "";
+  if (!course_block_id || !feedback.trim()) {
     return json(req, { error: "course_block_id and feedback are required" }, 400);
   }
 

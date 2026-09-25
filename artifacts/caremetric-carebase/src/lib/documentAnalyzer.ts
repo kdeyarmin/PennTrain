@@ -1,4 +1,5 @@
 import type { Json, Tables } from "@/lib/database.types";
+import { storageSafeFileName } from "./storagePaths";
 
 // Pure helpers for the State Form Document Analyzer. Jobs are durable
 // document_analyzer_jobs rows written by SECURITY DEFINER RPCs and the
@@ -35,7 +36,7 @@ export function isPdfFileName(fileName: string): boolean {
 
 /** Storage object path for a new upload; must satisfy the enqueue RPC's uploads/ check. */
 export function makeAnalyzerUploadPath(fileName: string): string {
-  return `uploads/${crypto.randomUUID()}-${fileName.trim()}`;
+  return `uploads/${crypto.randomUUID()}-${storageSafeFileName(fileName)}`;
 }
 
 export function isActiveAnalyzerStatus(status: string): boolean {
