@@ -1,11 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { assessTraining, fortiethWorkHour, trainingPeriod, trainingCsv, type TrainingProfile, type TrainingPolicy, type TrainingEvent } from "./trainingWorkspace";
+import { assessTraining, currentTrainingPolicy, fortiethWorkHour, trainingPeriod, trainingPolicyRevisionDefaults, trainingCsv, type TrainingProfile, type TrainingPolicy, type TrainingEvent } from "./trainingWorkspace";
 
 const profile: TrainingProfile = { employee_id: "a", direct_care: true, administrator: false, specialty_unit: "none", duties: "Personal care", first_work_date: "2026-01-01" };
 const policy: TrainingPolicy = { id: "p", effective_from: "2026-01-01", year_basis: "fixed", year_start: "01-01", administrator_year_basis: "fixed", administrator_year_start: "07-01", policy_reference: "Approved policy" };
 const event: TrainingEvent = { id: "e", employee_id: "a", title: "Course", completed_on: "2026-06-01", minutes: 720, delivery: "online", provider: "Provider", provider_qualification: "Qualified source", source_reference: "source1", topics: [], allocations: { base: 720 }, valid_until: null, status: "verified", review_note: "Verified source", evidence_document_id: null, course_assignment_id: null };
 const assess = (events: TrainingEvent[], facilityType = "PCH") => assessTraining({ profile, policy, events, facilityType, shifts: [], hireDate: profile.first_work_date, today: "2026-09-24" });
 describe("standalone training evidence", () => {
+  it("uses the latest same-day training-year revision", () => {
+    const older = { ...policy, id: "old", created_at: "2026-09-25T12:00:00Z", year_start: "01-01" };
+    const newer = { ...policy, id: "new", created_at: "2026-09-25T18:00:00Z", year_start: "07-01" };
+    expect(currentTrainingPolicy([older, newer], "2026-09-25")?.id).toBe("new");
+    expect(currentTrainingPolicy([newer, { ...newer, effective_from: "2026-10-01", id: "future" }], "2026-09-25")?.id).toBe("new");
+  });
+  it("keeps a saved training year when revising policy", () => {
+    expect(trainingPolicyRevisionDefaults(policy, "2026-09-25")).toMatchObject({
+      effective_from: "2026-09-25", year_basis: "fixed", year_start: "01-01",
+      administrator_year_basis: "fixed", administrator_year_start: "07-01", policy_reference: "Approved policy",
+    });
+    expect(trainingPolicyRevisionDefaults(undefined, "2026-09-25").year_basis).toBe("fixed");
+  });
   it("uses documented fixed, anniversary and leap-day periods", () => {
     expect(trainingPeriod("2026-06-30", "2024-03-01", "fixed", "07-01")).toEqual({ start: "2025-07-01", end: "2026-06-30" });
     expect(trainingPeriod("2026-02-28", "2024-02-29", "anniversary", "01-01")).toEqual({ start: "2026-02-28", end: "2027-02-27" });
