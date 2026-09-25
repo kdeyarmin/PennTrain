@@ -293,9 +293,15 @@ test.describe("yearly facility training plans", () => {
         const context = await browser.newContext({ baseURL });
         try {
           const employeePage = await context.newPage();
-          await signInAs(employeePage, f.learner.email, password, "/me");
+          // Both builds send this Train-only tenant to its course portal after login.
+          await signInAs(employeePage, f.learner.email, password, "/me/courses");
+          await expect(employeePage.getByRole("heading", { level: 1, name: "My Training", exact: true })).toBeVisible();
           await employeePage.goto("/app/training-plans");
-          await expect.poll(() => new URL(employeePage.url()).pathname).toBe("/me");
+          // Role denial redirects to /me. Train's router then resolves that alias to courses;
+          // the universal router renders the employee dashboard at /me itself.
+          const standalone = process.env.PLAYWRIGHT_TRAIN_BUILD === "true";
+          await expect.poll(() => new URL(employeePage.url()).pathname).toBe(standalone ? "/me/courses" : "/me");
+          await expect(employeePage.getByRole("heading", { level: 1, name: standalone ? "My Training" : "My day", exact: true })).toBeVisible();
           await expect(employeePage.getByRole("button", { name: "New Plan", exact: true })).toHaveCount(0);
         } finally {
           await context.close();

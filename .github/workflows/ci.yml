@@ -478,10 +478,10 @@ jobs:
           pnpm --filter @workspace/caremetric-carebase run build:train
           node scripts/check-train-build.mjs
 
-      - name: Standalone Train browser journey
+      - name: Standalone Train browser journeys
         env:
           PLAYWRIGHT_TRAIN_BUILD: "true"
-        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/standalone-train.spec.ts e2e/new-training-facility.spec.ts --project=chromium
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/standalone-train.spec.ts e2e/new-training-facility.spec.ts e2e/yearly-training-plans.spec.ts --project=chromium
 
       - name: Upload Train workflow screenshot
         if: always()
