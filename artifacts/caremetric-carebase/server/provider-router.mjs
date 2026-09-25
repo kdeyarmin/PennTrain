@@ -65,7 +65,7 @@ function readBody(req, limit, signal, onSettled) {
 }
 
 async function responseBody(response, signal, maximumBytes = RESPONSE_LIMIT) {
-  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || maximumBytes > 4100000) throw new Error('Invalid response limit');
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || maximumBytes > 12000000) throw new Error('Invalid response limit');
   if (!response.body) return Buffer.alloc(0);
   const chunks = [];
   let bytes = 0;

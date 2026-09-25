@@ -9,6 +9,9 @@ const HUB_APP_LEARNING_AUTHORIZE = "https://support-hub-web-production.up.railwa
 export class AdminError extends Error {
   constructor(status, code) { super(code); this.status = status; this.code = code; }
 }
+class UpstreamResponseLimitError extends Error {
+  constructor(status) { super('Source response exceeds limit'); this.status = status; }
+}
 
 function httpsOrigin(value, name) {
   let url;
@@ -64,7 +67,7 @@ export function readPlatformAdminConfig(getEnv = (name) => process.env[name]) {
 }
 
 export async function boundedFetch(fetcher, requestSignal, input, init = {}, maximumBytes = MAX_UPSTREAM_BYTES) {
-  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || maximumBytes > 4100000) throw new Error('Invalid response limit');
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || maximumBytes > 12000000) throw new Error('Invalid response limit');
   const signals = [requestSignal, AbortSignal.timeout(8000)];
   if (input instanceof Request) signals.push(input.signal);
   if (init.signal) signals.push(init.signal);
@@ -82,7 +85,7 @@ export async function boundedFetch(fetcher, requestSignal, input, init = {}, max
       const { value, done } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > maximumBytes) { await reader.cancel(); throw new Error("Source response exceeds limit"); }
+      if (bytes > maximumBytes) { await reader.cancel().catch(() => {}); throw new UpstreamResponseLimitError(response.status); }
       chunks.push(Buffer.from(value));
     }
   } finally { signal.removeEventListener("abort", cancel); reader.releaseLock(); }
@@ -101,12 +104,24 @@ export async function authorizePlatformAdmin(request, { config, command = false,
   if (!authorization || authorization.length > 8192 || !/^Bearer [A-Za-z0-9._~-]+$/.test(authorization)) throw new AdminError(401, "unauthenticated");
   const makeClient = (url, key, headers = {}) => createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers, fetch: (input, init) => boundedFetch(fetcher, request.signal, input, init,
-      learning && command && ((operation?.operation === 'source'
-      && String(input instanceof Request ? input.url : input) === `${config.supabaseUrl}/rest/v1/rpc/get_learning_authoring_source`)
-      ||(operation?.domain==='course.distribution.v1'&&operation.operation==='context'
-      &&String(input instanceof Request ? input.url : input)===`${config.supabaseUrl}/rest/v1/rpc/get_learning_distribution_context`))
-        ? 4100000 : MAX_UPSTREAM_BYTES) },
+    global: { headers, fetch: async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const trainingReport = command && operation?.domain === 'training.v1' && operation.operation === 'enrollments.report'
+        && url === `${config.supabaseUrl}/rest/v1/rpc/platform_admin_training`;
+      const maximumBytes = trainingReport ? 12000000 : learning && command && ((operation?.operation === 'source'
+        && url === `${config.supabaseUrl}/rest/v1/rpc/get_learning_authoring_source`)
+        || (operation?.domain === 'course.distribution.v1' && operation.operation === 'context'
+        && url === `${config.supabaseUrl}/rest/v1/rpc/get_learning_distribution_context`)) ? 4100000 : MAX_UPSTREAM_BYTES;
+      try { return await boundedFetch(fetcher, request.signal, input, init, maximumBytes); }
+      catch (error) {
+        if (trainingReport && error instanceof UpstreamResponseLimitError && error.status >= 200 && error.status < 300) {
+          // PostgREST catches thrown fetch errors and discards their category. A
+          // bounded local error response preserves the existing report-cap code.
+          return Response.json({ code: '54000', message: 'Training report exceeds the response limit.' }, { status: 413 });
+        }
+        throw error;
+      }
+    } },
   });
   let actor, authenticationMethod;
   if (authorization.startsWith("Bearer cmh_")) {

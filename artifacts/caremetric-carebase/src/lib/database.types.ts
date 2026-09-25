@@ -2467,6 +2467,108 @@ export type Database = {
           },
         ]
       }
+      cm_integration_daily_budget: {
+        Row: {
+          app_id: string
+          attempts: number
+          budget_day: string
+          subject: string
+        }
+        Insert: {
+          app_id: string
+          attempts: number
+          budget_day: string
+          subject: string
+        }
+        Update: {
+          app_id?: string
+          attempts?: number
+          budget_day?: string
+          subject?: string
+        }
+        Relationships: []
+      }
+      cm_integration_files: {
+        Row: {
+          app_id: string
+          content_type: string
+          created_at: string
+          id: string
+          object_path: string
+          sha256: string
+          size_bytes: number
+          subject: string
+        }
+        Insert: {
+          app_id: string
+          content_type: string
+          created_at?: string
+          id: string
+          object_path: string
+          sha256: string
+          size_bytes: number
+          subject: string
+        }
+        Update: {
+          app_id?: string
+          content_type?: string
+          created_at?: string
+          id?: string
+          object_path?: string
+          sha256?: string
+          size_bytes?: number
+          subject?: string
+        }
+        Relationships: []
+      }
+      cm_integration_jobs: {
+        Row: {
+          app_id: string
+          attempt_count: number
+          claim: string
+          created_at: string
+          finished_at: string | null
+          id: string
+          operation: string
+          payload_hash: string
+          request_id: string
+          result_encrypted: string | null
+          result_expires_at: string | null
+          state: string
+          subject: string
+        }
+        Insert: {
+          app_id: string
+          attempt_count?: number
+          claim: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          operation: string
+          payload_hash: string
+          request_id: string
+          result_encrypted?: string | null
+          result_expires_at?: string | null
+          state: string
+          subject: string
+        }
+        Update: {
+          app_id?: string
+          attempt_count?: number
+          claim?: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          operation?: string
+          payload_hash?: string
+          request_id?: string
+          result_encrypted?: string | null
+          result_expires_at?: string | null
+          state?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       competency_record_items: {
         Row: {
           competency_record_id: string
@@ -37630,6 +37732,44 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cm_integration_expire_results: { Args: never; Returns: number }
+      cm_integration_file_get: {
+        Args: { p_app_id: string; p_id: string; p_subject: string }
+        Returns: Json
+      }
+      cm_integration_file_record: {
+        Args: {
+          p_app_id: string
+          p_content_type: string
+          p_id: string
+          p_object_path: string
+          p_sha256: string
+          p_size: number
+          p_subject: string
+        }
+        Returns: boolean
+      }
+      cm_integration_finish: {
+        Args: {
+          p_claim: string
+          p_id: string
+          p_result: string
+          p_state: string
+        }
+        Returns: boolean
+      }
+      cm_integration_reserve: {
+        Args: {
+          p_app_id: string
+          p_claim: string
+          p_daily_limit: number
+          p_operation: string
+          p_payload_hash: string
+          p_request_id: string
+          p_subject: string
+        }
+        Returns: Json
+      }
       commit_learning_runtime_state: {
         Args: {
           p_idempotency_key: string
@@ -41199,6 +41339,81 @@ export type Database = {
           p_request_id: string
           p_session_started_at: string
           p_target: string
+        }
+        Returns: Json
+      }
+      platform_admin_training: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation: Json
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_training_invitation_authorize: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_dispatch_token: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation: Json
+          p_session_started_at: string
+        }
+        Returns: boolean
+      }
+      platform_admin_training_invitation_finalize: {
+        Args: {
+          p_actor: string
+          p_delivery_status?: string
+          p_dispatch_token: string
+          p_hub_session: string
+          p_hub_user: string
+          p_invitation_id: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      platform_admin_training_invitation_provision: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_dispatch_token: string
+          p_hub_session: string
+          p_hub_user: string
+          p_invited_user_id: string
+          p_request_id: string
+          p_session_started_at: string
+        }
+        Returns: Json
+      }
+      platform_admin_training_invitation_record: {
+        Args: {
+          p_actor: string
+          p_dispatch_token: string
+          p_hub_session: string
+          p_hub_user: string
+          p_invited_user_id: string
+          p_redirect_to: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      platform_admin_training_invitation_reserve: {
+        Args: {
+          p_actor: string
+          p_assurance_expires_at: string
+          p_authentication_method: string
+          p_hub_session: string
+          p_hub_user: string
+          p_operation: Json
+          p_session_started_at: string
         }
         Returns: Json
       }
@@ -45105,4 +45320,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
