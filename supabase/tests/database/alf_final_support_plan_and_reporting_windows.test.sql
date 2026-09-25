@@ -1,10 +1,11 @@
 -- pgTAP coverage for 20260925110000 (the ALF final support plan, its quarterly review, and each
 -- form's own look-back before admission) and 20260925110100 (reportable-incident windows read
--- against 55 Pa. Code 2600.16 / 2800.16 and 6 Pa. Code Chapter 15).
+-- against 55 Pa. Code 2600.16 / 2800.16 and 6 Pa. Code Chapter 15), and 20260925120200 (the
+-- quarterly review's 5-day grace from the Chapter 2800 Regulatory Compliance Guide).
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(31);
+select plan(33);
 
 -- ---------------------------------------------------------------------------------------
 -- The rule packs say what Chapter 2800 says
@@ -35,6 +36,15 @@ select is(
      and is_active and not instantiate_at_admission),
   2,
   'both ALF tracks carry a 90-day quarterly review that is not created at admission (2800.227(c))'
+);
+
+select is(
+  (select string_agg(admission_track || ':' || grace_period_days, ',' order by admission_track)
+   from public.resident_compliance_rule_packs
+   where organization_id is null and state = 'PA' and facility_type = 'ALR'
+     and item_type = 'support_plan_quarterly_review'),
+  'expedited:5,standard:5',
+  'the quarterly review takes the RCG''s 5-day grace for items under a year; 2800.227(c) is not an exception'
 );
 
 select is(
@@ -242,6 +252,13 @@ select is(
      and item_type = 'support_plan_quarterly_review' and completed_date is null),
   public.pa_today() + 90,
   'due a quarter after the review that was done'
+);
+select is(
+  (select grace_period_days from public.resident_compliance_items
+   where resident_id = 'a2270000-0000-4000-8000-000000000201'
+     and item_type = 'support_plan_quarterly_review' and completed_date is null),
+  5,
+  'the next review carries the pack''s 5-day grace'
 );
 
 -- A plan revised mid-quarter (2800.227(c) after a change in needs) while a review is running.
