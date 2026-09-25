@@ -496,7 +496,7 @@ grant execute on function public.training_assignment_is_required(uuid) to authen
 create function public.get_training_required_assignments(p_employee_id uuid)
 returns uuid[] language sql stable security invoker set search_path='' as $$
   select coalesce(array_agg(a.id),'{}'::uuid[]) from public.course_assignments a
-    where a.employee_id=p_employee_id and (a.is_required or public.training_assignment_is_required(a.id));
+    where a.employee_id=p_employee_id and a.status<>'canceled' and (a.is_required or public.training_assignment_is_required(a.id));
 $$;
 revoke all on function public.get_training_required_assignments(uuid) from public,anon;
 grant execute on function public.get_training_required_assignments(uuid) to authenticated;
@@ -743,6 +743,8 @@ begin
     select * from roster where coalesce(p_search,'')='' or strpos(lower(student||' '||coalesce(email,'')),lower(p_search))>0
   ), filtered as materialized (
     select * from searched where p_state='all' or state=p_state
+      or (p_state='due_soon' and due_soon>0) or (p_state='overdue' and overdue>0)
+      or (p_state='plan_attention' and plan_attention)
       or (p_state='needs_invite' and account_status in ('needs_email','not_invited'))
       or (p_state='needs_activation' and account_status not in ('activated','needs_email','not_invited'))
   ), page as (select * from filtered order by student,employee_id limit p_limit offset p_offset)
@@ -1004,3 +1006,36 @@ end;
 $$;
 revoke all on function public.get_training_reminder_receipts(uuid,uuid) from public,anon;
 grant execute on function public.get_training_reminder_receipts(uuid,uuid) to authenticated;
+
+-- Owner-only follow-up surface for complimentary facility provisioning.
+create function public.get_training_partner_facilities(p_search text default '',p_limit integer default 25,p_offset integer default 0)
+returns jsonb language plpgsql stable security definer set search_path='' as $$
+declare v_result jsonb;
+begin
+  if auth.uid() is null or not public.current_session_unlocked() or not public.is_platform_admin() then
+    raise exception 'Platform administrator access required' using errcode='42501'; end if;
+  perform public.assert_identity_assurance('workforce_admin');
+  if p_limit is null or p_limit not between 1 and 100 or p_offset is null or p_offset<0 or length(coalesce(p_search,''))>200 then
+    raise exception 'Invalid partner facility filters' using errcode='22023'; end if;
+  with partners as materialized (
+    select f.id as facility_id,f.name as facility,o.id as organization_id,o.name as organization,o.subscription_status as status,
+      not exists(select 1 from public.get_effective_entitlements(o.id) ent where ent.feature_key in ('modules.carebase','modules.workforce','modules.compliance','modules.billing') and ent.is_entitled) as train_only,
+      coalesce(nullif(btrim(f.address),'') is not null and nullif(btrim(f.license_number),'') is not null
+        and nullif(btrim(f.phone),'') is not null and nullif(btrim(f.administrator_name),'') is not null,false) as profile_complete,
+      (select count(*) from public.employees e where e.facility_id=f.id and e.status='active') as staff,
+      (select count(*) from public.training_plans p where p.facility_id=f.id) as plans,
+      coalesce((select jsonb_agg(jsonb_build_object('email',p.email,'signed_in',u.last_sign_in_at is not null,
+        'mfa_ready',exists(select 1 from auth.mfa_factors factor where factor.user_id=p.id and factor.status='verified')) order by p.email)
+        from public.profiles p join auth.users u on u.id=p.id where p.organization_id=o.id and p.role='org_admin' and p.is_active),'[]') as administrators,
+      (select i.status from public.user_invitation_lifecycle i where i.organization_id=o.id and i.invited_role='org_admin' order by i.last_sent_at desc,i.id limit 1) as invitation_status
+    from public.facilities f join public.organizations o on o.id=f.organization_id
+    where exists(select 1 from app_private.module_access_terms t where t.organization_id=o.id and t.module_key='modules.train'
+      and t.source='complimentary' and t.revoked_at is null and t.starts_at<=now() and (t.ends_at is null or t.ends_at>now()))
+      and (coalesce(p_search,'')='' or strpos(lower(f.name||' '||o.name),lower(p_search))>0)
+  ), page as (select * from partners order by organization,facility,facility_id limit p_limit offset p_offset)
+  select jsonb_build_object('total',(select count(*) from partners),'rows',coalesce((select jsonb_agg(to_jsonb(page) order by organization,facility,facility_id) from page),'[]')) into v_result;
+  return v_result;
+end;
+$$;
+revoke all on function public.get_training_partner_facilities(text,integer,integer) from public,anon;
+grant execute on function public.get_training_partner_facilities(text,integer,integer) to authenticated;

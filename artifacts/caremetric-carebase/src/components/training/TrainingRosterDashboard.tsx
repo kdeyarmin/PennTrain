@@ -26,6 +26,7 @@ export default function TrainingRosterDashboard({ facilityId, organizationId, on
   const [state, setState] = useState("all");
   const [year, setYear] = useState("");
   const [offset, setOffset] = useState(0);
+  const validYear = !year || (Number.isInteger(Number(year)) && Number(year) >= 1990 && Number(year) <= 2200);
   const report = useTrainingRosterProgress(facilityId, { search: useDeferredValue(search), state, year: year ? Number(year) : undefined, offset });
   const invite = useInviteUser();
   const resend = useResendInvitation();
@@ -47,9 +48,9 @@ export default function TrainingRosterDashboard({ facilityId, organizationId, on
     <div className="flex flex-wrap gap-3">
       <label className="text-sm">Find employee<Input value={search} onChange={e => { setSearch(e.target.value); setOffset(0); }} placeholder="Name or email" maxLength={200} /></label>
       <label className="text-sm">Training year<Input type="number" min={1990} max={2200} value={year} placeholder="All years" onChange={e => { setYear(e.target.value); setOffset(0); }} /></label>
-      <Button variant="outline" onClick={() => void report.refetch()}>Refresh staff progress</Button>
+      <Button variant="outline" disabled={!validYear} onClick={() => void report.refetch()}>Refresh staff progress</Button>
     </div>
-    {report.isError ? <QueryError what="staff progress" error={report.error} onRetry={() => void report.refetch()} /> : report.isLoading ? <p role="status">Loading staff progress…</p> : counts && <>
+    {!validYear ? <p role="alert">Enter a year from 1990 to 2200, or clear the field for all years.</p> : report.isError ? <QueryError what="staff progress" error={report.error} onRetry={() => void report.refetch()} /> : report.isLoading ? <p role="status">Loading staff progress…</p> : counts && <>
       <details className="rounded-lg border p-4" open={!counts.setup.profile_complete || !counts.setup.has_policy || !counts.setup.staff_count || counts.setup.assigned_staff < counts.setup.staff_count}>
         <summary className="cursor-pointer font-semibold">Get your facility started</summary>
         <ol className="list-decimal pl-5 space-y-2 mt-3 text-sm">

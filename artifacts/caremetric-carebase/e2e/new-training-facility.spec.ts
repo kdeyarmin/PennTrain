@@ -73,7 +73,18 @@ async function provisionEmptyTrainingFacility(service: SupabaseClient, url: stri
   const { error: activationError } = await publisherClient.from("courses").update({ status: "published" }).eq("id", course.id);
   if (activationError) throw activationError;
 
-  return { organizationId: organization.id, facility, otherFacility, email, courseTitle, courseId: course.id, suffix };
+  const electiveTitle = `Optional learning ${suffix}`;
+  const { data: elective, error: electiveError } = await service.from("courses").insert({ organization_id: organization.id, title: electiveTitle, status: "draft" }).select("id").single();
+  if (electiveError) throw electiveError;
+  const { data: electiveVersion, error: electiveVersionError } = await service.from("course_versions").insert({ course_id: elective.id, organization_id: organization.id, version_number: 1, title: electiveTitle, status: "draft", content_standard: "legacy" }).select("id").single();
+  if (electiveVersionError) throw electiveVersionError;
+  const { error: electiveBlockError } = await service.from("course_blocks").insert({ course_version_id: electiveVersion.id, organization_id: organization.id, block_type: "text", sort_order: 0, title: "Optional lesson", body: { content: "This is voluntary learning for the new employee." } });
+  if (electiveBlockError) throw electiveBlockError;
+  const { error: electivePublicationError } = await publisherClient.rpc("publish_course_version", { p_course_version_id: electiveVersion.id });
+  if (electivePublicationError) throw electivePublicationError;
+  const { error: electiveActivationError } = await publisherClient.from("courses").update({ status: "published" }).eq("id", elective.id);
+  if (electiveActivationError) throw electiveActivationError;
+  return { organizationId: organization.id, facility, otherFacility, email, courseTitle, electiveTitle, courseId: course.id, suffix };
 }
 
 test.describe("new training facility administrator", () => {
@@ -89,6 +100,8 @@ test.describe("new training facility administrator", () => {
     const password = process.env.E2E_ACCOUNT_PASSWORD!;
     const fixture = await provisionEmptyTrainingFacility(service, url, password);
     page.setDefaultTimeout(15_000);
+    const initialDetailRequests: string[] = [];
+    page.on("request", req => { if (/\/rpc\/get_training_workspace|\/rest\/v1\/certificates/.test(req.url())) initialDetailRequests.push(req.url()); });
 
     await test.step("a brand-new real tenant enrolls its first authenticator through the UI", async () => {
       await signInAs(page, fixture.email, password, "/app/train");
@@ -123,6 +136,7 @@ test.describe("new training facility administrator", () => {
       await expect.poll(() => new URL(page.url()).searchParams.get("facilityId")).toBe(fixture.facility.id);
       // A Train-only administrator must not be encouraged into licensed operational modules.
       await expect(page.locator('a[href^="/app/residents"], a[href^="/app/workforce"], a[href^="/app/incidents"], a[href^="/app/today"]')).toHaveCount(0);
+      expect(initialDetailRequests, "dashboard should not download the evidence or certificate ledger").toEqual([]);
       await page.getByRole("tab", { name: "Staff", exact: true }).click();
       await expect(page.getByText("No students yet. Add one student or import your roster to begin.")).toBeVisible();
       await page.getByRole("tab", { name: "Certificates", exact: true }).click();
@@ -223,6 +237,14 @@ test.describe("new training facility administrator", () => {
         await learnerPage.getByLabel("Find a course").fill(fixture.courseTitle);
         await expect(learnerPage.getByText(fixture.courseTitle, { exact: true })).toBeVisible();
         await expect(learnerPage.getByRole("button", { name: "Review", exact: true })).toBeVisible();
+        await learnerPage.getByLabel("Find a course").fill(fixture.electiveTitle);
+        await learnerPage.getByRole("button", { name: "Start", exact: true }).click();
+        await expect(learnerPage.getByText("This is voluntary learning for the new employee.", { exact: true })).toBeVisible();
+        await learnerPage.goto("/me/courses");
+        await expect(learnerPage.getByText("1 / 1 required courses completed", { exact: true })).toBeVisible();
+        await learnerPage.getByRole("button", { name: "Optional", exact: true }).click();
+        await expect(learnerPage.getByText(fixture.electiveTitle, { exact: true })).toBeVisible();
+        await expect(learnerPage.getByText("You chose this course", { exact: true })).toBeVisible();
         await learnerPage.screenshot({ path: "test-results/training-learner-mobile.png", fullPage: true });
       } finally { await learnerContext.close(); }
       const secondDevice = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
@@ -247,7 +269,7 @@ test.describe("new training facility administrator", () => {
       const report = page.getByRole("region", { name: "Enrollment, completion & certificates", exact: true });
       // Reopening the same report must refresh the cached pre-completion totals before a
       // changed filter creates a new query key and could hide a stale-return regression.
-      await expect(report.getByText("1 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
+      await expect(report.getByText("1 completed / 2 non-canceled enrollments", { exact: false })).toBeVisible();
       await report.getByRole("combobox", { name: "Enrollment status", exact: true }).selectOption("completed");
       const reportRow = report.getByRole("row").filter({ hasText: fixture.courseTitle });
       await expect(reportRow).toContainText("100%");
@@ -302,7 +324,7 @@ test.describe("new training facility administrator", () => {
         await printEvidence.evaluate(async () => { await document.fonts.ready; });
         await expect(printEvidence.locator("[data-training-report-print]")).toBeVisible();
         await expect(printEvidence.getByRole("row")).toHaveCount(printed.rows.length + 1);
-        await printEvidence.pdf({ path: "test-results/new-training-facility-report.pdf", format: "Letter", preferCSSPageSize: true, printBackground: true });
+        if (testInfo.project.name === "chromium") await printEvidence.pdf({ path: "test-results/new-training-facility-report.pdf", format: "Letter", preferCSSPageSize: true, printBackground: true });
       } finally {
         await printEvidence.close();
       }
@@ -320,7 +342,7 @@ test.describe("new training facility administrator", () => {
     test.setTimeout(240_000);
     page.setDefaultTimeout(15_000);
     // The standalone product intentionally omits the owner's general organization-management console.
-    test.skip(process.env.PLAYWRIGHT_TRAIN_BUILD === "true", "owner provisioning is in the universal super-admin console");
+    test.skip(process.env.PLAYWRIGHT_TRAIN_BUILD === "true" || testInfo.project.name === "mobile-safari", "owner provisioning is in the universal super-admin console");
     const url = process.env.SUPABASE_URL!;
     expect(new URL(url).hostname).toMatch(/^(localhost|127\.0\.0\.1)$/);
     expect(new URL(String(testInfo.project.use.baseURL)).hostname).toMatch(/^(localhost|127\.0\.0\.1)$/);

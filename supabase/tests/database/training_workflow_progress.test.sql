@@ -30,7 +30,7 @@ select pg_temp.id(n), 'authenticated', 'authenticated', 'workflow-progress-' || 
   'x', now(), '{}', '{}', now(), now() from generate_series(101, 106) n;
 select set_config('app.privileged_write', 'on', true);
 insert into public.profiles(id, organization_id, role, email, first_name, last_name, is_active)
-select pg_temp.id(n), case when n = 105 then null else pg_temp.id(1) end,
+select pg_temp.id(n), case when n = 105 then null when n = 106 then pg_temp.id(2) else pg_temp.id(1) end,
   case n when 101 then 'org_admin' when 102 then 'facility_manager' when 103 then 'employee'
     when 104 then 'trainer' when 105 then 'platform_admin' else 'auditor' end,
   'workflow-progress-' || n || '@test.local', 'Year', 'Plan', true
@@ -125,7 +125,8 @@ select is((select count(*)::int from public.training_plan_enrollments where trai
 -- Self-enrollment is optional and cannot change another learner or its own obligation.
 select pg_temp.act(103,'aal1');
 select is(public.self_enroll_course(pg_temp.id(303)),(select id from public.course_assignments where employee_id=pg_temp.id(201) and course_id=pg_temp.id(303)),'self enrollment of existing requirement retains assignment');
-select throws_ok($$update public.course_assignments set is_required=false where employee_id=pg_temp.id(201) and course_id=pg_temp.id(303)$$,'42501',null,'learner cannot turn a requirement into an elective');
+update public.course_assignments set is_required=false where employee_id=pg_temp.id(201) and course_id=pg_temp.id(303);
+select is((select is_required from public.course_assignments where employee_id=pg_temp.id(201) and course_id=pg_temp.id(303)),true,'RLS prevents learner from changing required course to elective');
 select throws_ok($$select public.get_training_roster_progress(pg_temp.id(11))$$,'42501',null,'learner cannot read facility report');
 select pg_temp.act(102);
 delete from public.training_plan_items where id=pg_temp.id(603);
@@ -138,6 +139,74 @@ select pg_temp.act(102);
 select is((public.get_training_progress_report(pg_temp.id(1),pg_temp.id(11),p_employee_id=>pg_temp.id(201))->>'required_total')::int,2,'unfinished elective does not increase required denominator');
 select is((public.get_training_progress_report(pg_temp.id(1),pg_temp.id(11),p_employee_id=>pg_temp.id(201))->>'required_completed')::int,2,'required progress stays 100 percent with elective open');
 select is((public.get_training_progress_report(pg_temp.id(1),pg_temp.id(11),p_employee_id=>pg_temp.id(201))->>'optional_total')::int,1,'elective remains reportable');
+-- Effective requiredness follows an explicit cross-plan resolution without rewriting origin.
+insert into public.training_plan_items(training_plan_id,course_id,is_required) values(pg_temp.id(501),pg_temp.id(303),true);
+select lives_ok($$select public.apply_yearly_training_plan(pg_temp.id(501),pg_temp.id(201))$$,'reapplying exposes existing elective as conflict');
+select lives_ok($$select public.resolve_training_plan_assignment(pg_temp.id(501),pg_temp.id(201),(select id from public.course_assignments where employee_id=pg_temp.id(201) and course_id=pg_temp.id(303) and status<>'canceled'))$$,'explicit resolution requires existing elective for plan');
+select is((public.get_training_progress_report(pg_temp.id(1),pg_temp.id(11),p_employee_id=>pg_temp.id(201))->>'required_total')::int,3,'plan-required elective participates in required report denominator');
+select is((select is_required from public.course_assignments where employee_id=pg_temp.id(201) and course_id=pg_temp.id(303) and status<>'canceled'),false,'resolved elective retains its original assignment classification');
+select pg_temp.act(103,'aal1');
+select is(cardinality(public.get_training_required_assignments(pg_temp.id(201))),3,'learner sees all three actual required courses');
+select is(cardinality(public.get_training_required_assignments(pg_temp.id(202))),0,'learner cannot read peer obligations');
+select pg_temp.act(102);
+select lives_ok($$select public.set_training_assignment_exemption(pg_temp.id(206),2026,'No online courses assigned to this classroom-only worker')$$,'manager records reasoned annual assignment exemption');
+select is((public.get_training_roster_progress(pg_temp.id(11),p_training_year=>2026)->>'exempt')::int,1,'deliberate exemption is distinguishable from omission');
+select is((public.get_training_roster_progress(pg_temp.id(11),p_training_year=>2027)->>'exempt')::int,0,'exemption cannot roll silently into next training year');
+select lives_ok($$select public.set_training_assignment_exemption(pg_temp.id(206),2026,null)$$,'manager can remove an exemption with retained row audit');
+select is((public.get_training_roster_progress(pg_temp.id(11),p_training_year=>2026)->>'exempt')::int,0,'removed exemption returns to needs assignments');
+select throws_ok($$select public.get_training_reminder_receipts(pg_temp.id(12))$$,'42501',null,'reminder receipts cannot bypass facility-manager scope');
+select throws_ok($$select public.get_training_partner_facilities()$$,'42501',null,'facility managers cannot read owner partner overview');
+select pg_temp.act(103,'aal1');
+select throws_ok($$select public.set_training_assignment_exemption(pg_temp.id(201),2026,'Attempt to waive my own courses')$$,'42501',null,'learner cannot exempt their own assignments');
+select pg_temp.act(105);
+select is((public.get_training_partner_facilities(p_search=>'Yearly plan tenant')->>'total')::int,2,'owner can follow both facilities in complimentary training organization');
+select pg_temp.act(102);
+-- Projection uses real recorded credit, never catalog duration, and exposes only eligible topics.
+reset role;
+insert into public.course_completion_credits(course_assignment_id,course_id,course_version_id,organization_id,facility_id,employee_id,
+  training_type_id,topic_code,credit_hours,training_year,citation_note,credited_at)
+select a.id,a.course_id,a.course_version_id,a.organization_id,a.facility_id,a.employee_id,t.id,topic,1,2026,'Test of existing governed credit projection',now()
+from public.course_assignments a cross join public.training_types t cross join (values('PCH-2600.65-F1'),('PCH-2600.65-G1')) codes(topic)
+where a.employee_id=pg_temp.id(201) and a.course_id=pg_temp.id(301) and t.code='DIRECT-ANNUAL';
+select pg_temp.act(102);
+select is((select (v->'allocations'->>'base')::numeric from jsonb_array_elements(public.get_training_completion_evidence(pg_temp.id(11),pg_temp.id(201))) v where v->>'course_assignment_id'=(select id::text from public.course_assignments where employee_id=pg_temp.id(201) and course_id=pg_temp.id(301))),60::numeric,'multiple topic credits do not duplicate the same hour bucket');
+select ok((select v->'topics' ? 'med_self_admin' and not(v->'topics' ? 'fire') from jsonb_array_elements(public.get_training_completion_evidence(pg_temp.id(11),pg_temp.id(201))) v where v->>'course_assignment_id'=(select id::text from public.course_assignments where employee_id=pg_temp.id(201) and course_id=pg_temp.id(301))),'eligible online topic projects while qualified fire instruction is not automatically asserted');
+reset role;
+insert into public.training_evidence_events(organization_id,facility_id,employee_id,title,completed_on,minutes,delivery,provider,source_reference,course_assignment_id,created_by,status)
+values(pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'Linked outside evidence',public.pa_today(),60,'external','Test provider','workflow-evidence-link',pg_temp.id(801),pg_temp.id(102),'pending');
+select pg_temp.act(102);
+select is(jsonb_array_length(public.get_training_completion_evidence(pg_temp.id(11),pg_temp.id(201))),2,'pending outside evidence cannot hide a proven online completion');
+reset role;
+update public.training_evidence_events set status='verified',reviewed_by=pg_temp.id(102),reviewed_at=now(),review_note='Verified against the completed course' where course_assignment_id=pg_temp.id(801);
+select pg_temp.act(102);
+select is(jsonb_array_length(public.get_training_completion_evidence(pg_temp.id(11),pg_temp.id(201))),1,'verified linked evidence replaces its projection to prevent duplicate hours');
+-- Facility-scale test: 200 employees, three annual cycles, 1,800 course assignments.
+-- It exercises the real authorized dashboard RPC with the migrated 80-course library.
+reset role;
+select set_config('request.jwt.claims','{}',true);
+select set_config('app.privileged_write','on',true);
+insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,status)
+select pg_temp.id(1000+n),pg_temp.id(1),pg_temp.id(11),'Scale',lpad(n::text,3,'0'),'Aide','active' from generate_series(1,200) n;
+insert into public.course_assignments(organization_id,facility_id,employee_id,course_id,course_version_id,due_date,assigned_at,status)
+select pg_temp.id(1),pg_temp.id(11),pg_temp.id(1000+n),pg_temp.id(c),pg_temp.id(c+100),make_date(y,12,31),make_timestamptz(y,1,1,12,0,0,'America/New_York'),
+case when y=2026 then 'assigned' else 'canceled' end
+from generate_series(1,200) n cross join generate_series(301,303) c cross join generate_series(2024,2026) y;
+select set_config('app.privileged_write','off',true);
+analyze public.employees;
+analyze public.course_assignments;
+create function pg_temp.measure_training_roster() returns jsonb language plpgsql as $$
+declare started timestamptz:=clock_timestamp(); result jsonb;
+begin
+  result:=public.get_training_roster_progress(pg_temp.id(11),p_search=>'Scale',p_training_year=>2026,p_limit=>50);
+  return jsonb_build_object('report',result,'elapsed_ms',extract(epoch from clock_timestamp()-started)*1000);
+end;
+$$;
+select pg_temp.act(102);
+insert into yearly_results values('scale',pg_temp.measure_training_roster());
+select is((select (result->'report'->>'active_staff')::int from yearly_results where name='scale'),200,'representative-scale dashboard includes every matching employee');
+select is((select jsonb_array_length(result->'report'->'rows') from yearly_results where name='scale'),50,'dashboard returns one bounded staff page');
+select cmp_ok((select (result->>'elapsed_ms')::numeric from yearly_results where name='scale'),'<',5000::numeric,'200-staff dashboard server query completes within five seconds');
+select diag('200 staff / 3 years / 1800 assignments; dashboard RPC: '||(select result->>'elapsed_ms' from yearly_results where name='scale')||' ms');
 select pg_temp.act(106);
 select is((select count(*)::int from public.training_plan_enrollments where training_plan_id=pg_temp.id(501)),0,'other tenant cannot read plan enrollment');
 select throws_ok($$select public.get_training_plan_progress(pg_temp.id(501))$$,'42501',null,'other tenant cannot query plan progress');

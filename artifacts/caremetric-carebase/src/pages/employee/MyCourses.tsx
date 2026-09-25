@@ -1,7 +1,9 @@
+import type { PlanCoverage } from "@/hooks/useTrainingProgress";
+import { boundedSettled } from "@/lib/boundedSettled";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { Link, useLocation, useSearch } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -107,6 +109,23 @@ export default function MyCourses() {
   const planIds = [...new Set(allAssignments.flatMap(a => a.training_plan_id ? [a.training_plan_id] : []))].sort();
   const planNames = useQuery({ queryKey: ["training_plans", "learner-names", planIds], enabled: planIds.length > 0,
     queryFn: async () => { const { data, error } = await supabase.from("training_plans").select("id,name").in("id", planIds); if (error) throw error; return data; } });
+  const learningPlans = useQuery({ queryKey: ["training_plans", "learner-coverage", employee?.id], enabled: !!employee?.id,
+    queryFn: async () => {
+      const { data: memberships, error: membershipError } = await supabase.from("training_plan_enrollments").select("training_plan_id").eq("employee_id", employee!.id);
+      if (membershipError) throw membershipError;
+      if (!memberships?.length) return [];
+      const { data: names, error: nameError } = await supabase.from("training_plans").select("id,name").in("id", memberships.map(m => m.training_plan_id));
+      if (nameError) throw nameError;
+      const results = await boundedSettled(names ?? [], 4, async plan => {
+        const { data, error } = await supabase.rpc("get_training_plan_progress", { p_plan_id: plan.id });
+        if (error) throw error;
+        const coverage = (data as unknown as PlanCoverage[]).find(row => row.employee_id === employee!.id);
+        return coverage ? { ...coverage, planId: plan.id, name: plan.name } : null;
+      });
+      const failed = results.find(r => r.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+      return results.flatMap(r => r.status === "fulfilled" && r.value ? [r.value] : []);
+    } });
   const required = allAssignments.filter(a => a.is_required !== false && a.status !== "canceled");
   const nextRequired = required.filter(a => !["completed", "paused"].includes(a.status)).sort((a, b) =>
     (a.due_date || "9999").localeCompare(b.due_date || "9999") || Number(b.status === "in_progress") - Number(a.status === "in_progress"))[0];
@@ -140,6 +159,8 @@ export default function MyCourses() {
   // bucket.
   const statusOrder: Record<string, number> = { overdue: 0, in_progress: 1, assigned: 2, completed: 3 };
   const sorted = [...filtered].sort((a, b) => {
+    const byPlan = (a.training_plan_id || "").localeCompare(b.training_plan_id || "");
+    if (byPlan) return byPlan;
     const byStatus = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
     if (byStatus !== 0) return byStatus;
     const da = a.due_date ? new Date(a.due_date).getTime() : Infinity;
@@ -161,6 +182,8 @@ export default function MyCourses() {
         <p>{required.filter(a => a.status === "completed").length} / {required.length} required courses completed</p>
         {nextRequired ? <><p className="font-semibold">{courseById.get(nextRequired.course_id)?.title || "Assigned course"}</p><p>{nextRequired.due_date ? `Due ${formatDateForDisplay(nextRequired.due_date)} · ${formatDueDistance(nextRequired.due_date)}` : "No deadline set"}</p><Button asChild><Link href={`/me/courses/${nextRequired.id}`}>{actionLabel(nextRequired.status)} required course</Link></Button></> : <p>{required.length ? "Review your history below or explore the Course Library." : "Your facility has not assigned required courses yet. You can explore the Course Library while you wait."}</p>}
       </CardContent></Card>}
+      {!libraryView && learningPlans.isError && <QueryError what="your learning plans" error={learningPlans.error} onRetry={() => void learningPlans.refetch()} />}
+      {!libraryView && !!learningPlans.data?.length && <section className="space-y-2" aria-label="Your learning plans"><h2 className="text-lg font-semibold">Your learning plans</h2>{learningPlans.data.map(plan => <div key={plan.planId} className="rounded border p-3"><h3 className="font-medium">{plan.name}</h3><p className="text-sm">{plan.completed} / {plan.required} required courses completed</p>{plan.needs_reapply || plan.unresolved ? <p className="text-sm">Your facility administrator needs to update or resolve {plan.unresolved} plan requirements. Continue the courses already assigned below.</p> : plan.required > 0 && plan.required === plan.completed ? <p className="text-sm">Plan complete</p> : null}</div>)}</section>}
       {!libraryView && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -206,7 +229,7 @@ export default function MyCourses() {
             </div>
           ) : (
             <div className="space-y-2">
-              {sorted.map(a => {
+              {sorted.map((a, index) => {
                 const course = courseById.get(a.course_id);
                 // Urgency only matters while the work is still open -- a completed training item's old
                 // due date shouldn't shout "overdue."
@@ -219,7 +242,9 @@ export default function MyCourses() {
                       ? "text-amber-600 font-medium"
                       : "";
                 return (
-                  <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
+                  <Fragment key={a.id}>
+                  {(index === 0 || a.training_plan_id !== sorted[index - 1].training_plan_id) && <h3 className="text-sm font-semibold pt-2">{a.training_plan_id ? planNames.data?.find(p => p.id === a.training_plan_id)?.name || "Learning plan" : "Individual courses"}</h3>}
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                     <div className="min-w-0">
                       <p className="font-medium">{course?.title ?? "Training item"}</p>
                       <p className="text-xs text-muted-foreground">{a.is_required === false ? (a.assignment_origin === "self_enrolled" ? "You chose this course" : "Optional learning") : "Required by your facility"}{a.training_plan_id ? ` · ${planNames.data?.find(p => p.id === a.training_plan_id)?.name || "Learning plan"}` : ""}</p>
@@ -238,7 +263,7 @@ export default function MyCourses() {
                         </Link>
                       </Button>
                     </div>
-                  </div>
+                  </div></Fragment>
                 );
               })}
             </div>

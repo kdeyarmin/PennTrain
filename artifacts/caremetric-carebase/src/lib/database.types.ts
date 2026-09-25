@@ -40287,6 +40287,10 @@ export type Database = {
         }
         Returns: Json
       }
+      get_training_partner_facilities: {
+        Args: { p_limit?: number; p_offset?: number; p_search?: string }
+        Returns: Json
+      }
       get_training_plan_progress: { Args: { p_plan_id: string }; Returns: Json }
       get_training_progress_report: {
         Args: {

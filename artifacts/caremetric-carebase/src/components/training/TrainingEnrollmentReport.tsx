@@ -37,9 +37,9 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
   const { user } = useAuth();
   const canManage = ["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role || "");
   const requirement = useSetAssignmentRequirement();
-  const employees = useListEmployees({ organizationId, facilityId });
   const plans = useListTrainingPlans();
   const [filters, setFilters] = useState<TrainingEnrollmentFilters>({ organizationId, facilityId, employeeId, purpose: initialOverdue ? "required" : "all", deadline: initialOverdue ? "overdue" : "all", courseSearch: "", status: "all", dateBasis: "assigned", dateFrom: "", dateThrough: "" });
+  const employees = useListEmployees({ organizationId, facilityId: filters.facilityId });
   const [offset, setOffset] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [printJob, setPrintJob] = useState<{ report: TrainingEnrollmentPage; filters: TrainingEnrollmentFilters } | null>(null);
@@ -86,10 +86,10 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
       <Button variant="outline" onClick={() => change({ status: "completed", purpose: "all", deadline: "all", dateBasis: "completed" })}>Completion register</Button>
       <Button variant="outline" onClick={() => change({ status: "all", purpose: "required", deadline: "overdue", dateBasis: "due", dateFrom: "", dateThrough: "" })}>Overdue required work</Button>
       <Button variant="outline" onClick={() => change({ status: "all", purpose: "optional", deadline: "all", dateBasis: "assigned", dateFrom: "", dateThrough: "" })}>Optional learning</Button>
-      {facilityId && filters.employeeId && <Button asChild variant="outline"><Link href={`/app/train?facilityId=${facilityId}&employeeId=${filters.employeeId}&tab=certificates`}>Print employee certificates</Link></Button>}
+      {filters.facilityId && filters.employeeId && <Button asChild variant="outline"><Link href={`/app/train?facilityId=${filters.facilityId}&employeeId=${filters.employeeId}&tab=certificates`}>Print employee certificates</Link></Button>}
     </div>
     <fieldset disabled={exporting} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {!facilityId && <label className="text-sm">Report facility<select className={selectClass} value={filters.facilityId || ""} onChange={event => change({ facilityId: event.target.value || undefined })}><option value="">All accessible facilities</option>{facilities.data?.map(facility => <option key={facility.id} value={facility.id}>{facility.name}</option>)}</select></label>}
+      {!facilityId && <label className="text-sm">Report facility<select className={selectClass} value={filters.facilityId || ""} onChange={event => change({ facilityId: event.target.value || undefined, employeeId: undefined, planId: undefined, department: undefined })}><option value="">All accessible facilities</option>{facilities.data?.map(facility => <option key={facility.id} value={facility.id}>{facility.name}</option>)}</select></label>}
       <label className="text-sm">Employee<select className={selectClass} value={filters.employeeId || ""} onChange={event => change({ employeeId: event.target.value || undefined })}><option value="">All employees</option>{employees.data?.map(employee => <option key={employee.id} value={employee.id}>{employee.last_name}, {employee.first_name} · {employee.email || employee.id.slice(0, 8)}</option>)}</select></label>
       <label className="text-sm">Learning plan<select className={selectClass} value={filters.planId || ""} onChange={event => change({ planId: event.target.value || undefined })}><option value="">All plans</option>{plans.data?.filter(plan => plan.organization_id === organizationId && (!facilityId || plan.facility_id === facilityId)).map(plan => <option key={plan.id} value={plan.id}>{plan.name} · {plan.training_year || "Legacy"}</option>)}</select></label>
       <label className="text-sm">Required or optional<select className={selectClass} value={filters.purpose || "all"} onChange={event => change({ purpose: event.target.value as TrainingEnrollmentFilters["purpose"] })}><option value="all">All learning</option><option value="required">Required</option><option value="optional">Optional</option></select></label>
