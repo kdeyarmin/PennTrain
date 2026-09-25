@@ -250,7 +250,7 @@ select pg_temp.act(104);
 select is((select count(*)::int from (select id from public.employees where id = pg_temp.id(202) for update) locked), 0,
   'trainer still lacks employee UPDATE scope');
 select lives_ok($$select public.assert_yearly_training_plan_employee(pg_temp.id(501), pg_temp.id(202))$$,
-  'assigned trainer can use the narrow employee validation lock');
+  'assigned trainer can acquire the per-student application lock without employee UPDATE rights');
 select lives_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(202))$$, 'assigned trainer may apply annual plan');
 select pg_temp.act(101);
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(504), pg_temp.id(201))$$, '22023', null, 'annual RPC does not silently convert legacy plan');
@@ -263,11 +263,19 @@ values(pg_temp.id(806), pg_temp.id(1), pg_temp.id(12), pg_temp.id(203), pg_temp.
 select throws_ok($$update public.training_plans set facility_id = pg_temp.id(12), training_year = 2026,
   due_date = '2026-12-12' where id = pg_temp.id(504)$$, '55000', null,
   'used legacy curriculum cannot retroactively claim annual assignment provenance');
+select throws_ok($$update public.course_assignments set facility_id = pg_temp.id(11) where id = pg_temp.id(806)$$,
+  '55000', null, 'ordinary legacy assignment updates still enforce evidence scope identity');
+select lives_ok($$update public.course_assignments set due_date = public.pa_today() + 7 where id = pg_temp.id(806)$$,
+  'ordinary legacy deadline update preserves its unchanged parent provenance');
+select results_eq($$select training_plan_id, training_plan_item_id from public.course_assignments where id = pg_temp.id(806)$$,
+  $$select pg_temp.id(504), pg_temp.id(606)$$, 'legacy deadline update retains both provenance references');
 select lives_ok($$delete from public.training_plans where id = pg_temp.id(504)$$, 'legacy used template deletion remains supported');
 select is((select training_plan_id from public.course_assignments where id = pg_temp.id(806)), null::uuid,
   'legacy template deletion detaches plan and preserves assignment');
 select is((select training_plan_item_id from public.course_assignments where id = pg_temp.id(806)), null::uuid,
   'legacy template deletion also detaches its item after both FK actions');
+select is((select due_date from public.course_assignments where id = pg_temp.id(806)), public.pa_today() + 7,
+  'legacy template deletion preserves the independently entered assignment deadline');
 select lives_ok($$update public.training_plans set name = 'Other site edited' where id = pg_temp.id(502)$$, 'organization admin may manage every tenant facility');
 select throws_ok($$update public.training_plans set facility_id = pg_temp.id(12) where id = pg_temp.id(501)$$, '55000', null,
   'used annual plan cannot move facilities even for organization administrator');

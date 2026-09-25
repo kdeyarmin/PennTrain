@@ -167,7 +167,15 @@ begin
     end if;
     return new;
   end if;
-  select * into v_plan from public.training_plans where id = new.training_plan_id for key share;
+  if tg_op = 'UPDATE' and new.training_plan_id is not distinct from old.training_plan_id then
+    -- Used plans cannot convert between legacy and annual scope. Updating an
+    -- existing assignment therefore needs no parent row lock: a supported
+    -- legacy parent DELETE already owns that parent and waits for its SET NULL
+    -- assignment updates. Locking the parent here would invert that order.
+    select * into v_plan from public.training_plans where id = new.training_plan_id;
+  else
+    select * into v_plan from public.training_plans where id = new.training_plan_id for key share;
+  end if;
   if new.training_plan_item_id is not null and not exists (
     select 1 from public.training_plan_items i where i.id = new.training_plan_item_id
       and i.training_plan_id = new.training_plan_id and i.course_id = new.course_id
@@ -279,10 +287,12 @@ begin
     raise exception 'Choose a yearly plan with a facility, year, and explicit required-completion date' using errcode = '22023';
   end if;
   -- Lifecycle transitions take this employee FOR UPDATE before changing status
-  -- or facility and reconciling assignments. SHARE serializes the entire apply
-  -- with that transition. Read and validate the authoritative row after waiting.
+  -- or facility and reconciling assignments. NO KEY UPDATE serializes the entire
+  -- apply with those transitions and other plans applied to this student, while
+  -- allowing assignment/certificate foreign keys to take KEY SHARE. Read and
+  -- validate the authoritative row after waiting.
   select * into v_employee from public.employees where id = p_employee_id
-    and organization_id = v_plan.organization_id and facility_id = v_plan.facility_id for share;
+    and organization_id = v_plan.organization_id and facility_id = v_plan.facility_id for no key update;
   if not found or v_employee.organization_id is distinct from v_plan.organization_id
     or v_employee.facility_id is distinct from v_plan.facility_id or v_employee.status <> 'active' then
     raise exception 'Choose an active student in the plan facility' using errcode = '42501';
@@ -292,7 +302,7 @@ $$;
 revoke all on function public.assert_yearly_training_plan_employee(uuid, uuid) from public, anon;
 grant execute on function public.assert_yearly_training_plan_employee(uuid, uuid) to authenticated;
 comment on function public.assert_yearly_training_plan_employee(uuid, uuid) is
-  'Authorize and hold an active student stable for a yearly plan transaction, including assigned trainers without employee UPDATE rights. Returns no student data.';
+  'Authorize and serialize yearly plan application per active student, including assigned trainers without employee UPDATE rights. Returns no student data.';
 
 create function public.apply_yearly_training_plan(p_plan_id uuid, p_employee_id uuid)
 returns jsonb language plpgsql security invoker set search_path = '' as $$

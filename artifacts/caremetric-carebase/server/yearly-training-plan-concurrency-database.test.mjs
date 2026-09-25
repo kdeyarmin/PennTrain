@@ -102,18 +102,20 @@ async function successful(operation) {
 }
 
 async function waitForLock(observer, holderPid, waiterPid, operation) {
+  const holders = Array.isArray(holderPid) ? holderPid : [holderPid];
+  assert.ok(holders.every(pid => Number.isInteger(pid) && pid > 0));
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline && !operation.settled) {
     const blocked = await scalar(observer, `select exists(select 1 from pg_stat_activity a
       where a.pid = ${waiterPid} and a.wait_event_type = 'Lock'
-        and ${holderPid} = any(pg_blocking_pids(a.pid)));`);
+        and array[${holders.join(",")}] && pg_blocking_pids(a.pid));`);
     if (blocked === "t") return;
     // Polling cadence only. The PostgreSQL lock graph, never elapsed time, proves the ordering.
     await pause(20);
   }
   const outcome = operation.settled ? await operation.promise : undefined;
   if (outcome?.error) throw outcome.error;
-  assert.fail(`Backend ${waiterPid} never waited on the lock held by backend ${holderPid}`);
+  assert.fail(`Backend ${waiterPid} never waited on a lock held by backend(s) ${holders.join(", ")}`);
 }
 
 async function act(client, profile) {
@@ -172,7 +174,7 @@ const apply = f => `select public.apply_yearly_training_plan(${literal(f.plan)},
 const lifecycle = (f, transition) => `select public.apply_employee_lifecycle_transition(${literal(f.employee)},${literal(transition)},public.pa_today(),null,'Concurrent yearly-plan regression transition');`;
 const state = (observer, f) => json(observer, `select jsonb_build_object(
   'employeeStatus',(select status from public.employees where id=${literal(f.employee)}),
-  'assignments',coalesce((select jsonb_agg(jsonb_build_object('id',id,'status',status,'plan',training_plan_id,
+  'assignments',coalesce((select jsonb_agg(jsonb_build_object('id',id,'course',course_id,'status',status,'plan',training_plan_id,
     'item',training_plan_item_id,'completed',completed_at,'canceled',canceled_at,'due',due_date) order by id)
     from public.course_assignments where employee_id=${literal(f.employee)}),'[]'::jsonb),
   'certificates',coalesce((select jsonb_agg(jsonb_build_object('id',id,'assignment',course_assignment_id,'slug',slug,'issued',issued_at) order by id)
@@ -185,12 +187,15 @@ async function scenario(run) {
     for (const client of [observer, first, second]) {
       await client.query("set statement_timeout='10s'; set idle_in_transaction_session_timeout='25s';");
     }
+    const observerPid = Number(await scalar(observer, "select pg_backend_pid();"));
     const firstPid = Number(await scalar(first, "select pg_backend_pid();"));
     const secondPid = Number(await scalar(second, "select pg_backend_pid();"));
-    assert.notEqual(firstPid, secondPid);
+    assert.equal(new Set([observerPid, firstPid, secondPid]).size, 3);
     const f = await fixture(observer, first);
-    await run({ observer, first, second, firstPid, secondPid, f });
+    await run({ observer, first, second, observerPid, firstPid, secondPid, f });
   } finally {
+    // The observer can own a temporary barrier lock. Release it before waiting for workers.
+    await observer.query("rollback;").catch(() => {});
     // Closing both workers releases every held lock even if the old implementation deadlocks.
     await Promise.allSettled([first.close(), second.close()]);
     await observer.close();
@@ -271,6 +276,119 @@ test("yearly apply and concurrent course removal serialize without an item forei
   });
 });
 
+test("different yearly plans applied concurrently serialize per student and preserve unrelated enrollment history", { skip: !enabled, timeout: 60_000 }, async () => {
+  await scenario(async ({ observer, first, second, observerPid, firstPid, secondPid, f }) => {
+    const other = { ...f, plan: randomUUID(), item: randomUUID(), course: randomUUID(), version: randomUUID(),
+      due: `${f.due.slice(0, 4)}-12-09`, title: "Second synthetic legacy classroom course" };
+    await observer.query(`begin; set local app.privileged_write = 'on';
+      insert into public.courses(id,organization_id,title,status,estimated_duration_minutes)
+        values(${literal(other.course)},${literal(f.org)},${literal(other.title)},'draft',1);
+      insert into public.course_versions(id,course_id,organization_id,version_number,title,content_standard)
+        values(${literal(other.version)},${literal(other.course)},${literal(f.org)},1,${literal(other.title)},'legacy');
+      insert into public.course_blocks(course_version_id,organization_id,block_type,sort_order,title,body)
+        values(${literal(other.version)},${literal(f.org)},'text',0,'Second classroom lesson','{"content":"Synthetic classroom instruction."}');
+      update public.course_versions set status='published',published_at=now() where id=${literal(other.version)};
+      update public.courses set status='published',current_version_id=${literal(other.version)} where id=${literal(other.course)};
+      commit;`);
+    await act(first, f.manager);
+    await first.query(`insert into public.training_plans(id,organization_id,facility_id,training_year,due_date,name)
+      values(${literal(other.plan)},${literal(f.org)},${literal(f.facility)},${Number(other.due.slice(0, 4))},${literal(other.due)},'Second concurrent yearly plan');
+      insert into public.training_plan_items(id,training_plan_id,course_id)
+        values(${literal(other.item)},${literal(other.plan)},${literal(other.course)});`);
+    assert.equal((await json(first, apply(f))).assigned, 1);
+    assert.equal((await json(first, apply(other))).assigned, 1);
+    await first.query("commit;");
+    const before = await state(observer, f);
+    assert.equal(before.assignments.length, 2);
+    const originalA = before.assignments.find(row => row.plan === f.plan);
+    const originalB = before.assignments.find(row => row.plan === other.plan);
+    assert.equal(originalA.course, f.course);
+    assert.equal(originalB.course, other.course);
+    // Swap the bundles through normal manager CRUD. Each apply must withdraw its own old
+    // course before considering the course currently owned by the other plan.
+    await act(first, f.manager);
+    await first.query(`delete from public.training_plan_items where id in (${literal(f.item)},${literal(other.item)});
+      insert into public.training_plan_items(training_plan_id,course_id) values
+        (${literal(f.plan)},${literal(other.course)}),(${literal(other.plan)},${literal(f.course)}); commit;`);
+
+    await observer.query("begin;");
+    assert.equal(await scalar(observer, `select id from public.course_assignments where id=${literal(originalA.id)} for update;`), originalA.id);
+    await act(first, f.trainer);
+    const applyingA = running(first, `${apply(f)} commit;`);
+    await waitForLock(observer, observerPid, firstPid, applyingA);
+    await act(second, f.manager);
+    const applyingB = running(second, `${apply(other)} commit;`);
+    // With SHARE employee locks, B cancels its own Y and then waits on A's X. With NO KEY
+    // UPDATE, B instead waits on A's employee lock before touching Y. Both are observed
+    // PostgreSQL waits; no timing assumption or prelocked worker assignment invents a cycle.
+    await waitForLock(observer, [observerPid, firstPid], secondPid, applyingB);
+    await observer.query("commit;");
+    const [resultA, resultB] = await Promise.all([successful(applyingA), successful(applyingB)]);
+    assert.deepEqual(JSON.parse(resultA[0]), { assigned: 0, updated: 0, canceled: 1, already_completed: 0,
+      conflicts: [{ course_id: other.course, title: other.title, assignment_id: originalB.id, due_date: other.due }] });
+    assert.deepEqual(JSON.parse(resultB[0]), { assigned: 1, updated: 0, canceled: 1, already_completed: 0, conflicts: [] });
+    const after = await state(observer, f);
+    assert.equal(after.employeeStatus, "active");
+    assert.equal(after.assignments.length, 3, "Keep both canceled rows and exactly one replacement enrollment");
+    for (const original of [originalA, originalB]) {
+      const retained = after.assignments.find(row => row.id === original.id);
+      assert.deepEqual({ ...retained, status: original.status, canceled: original.canceled }, original,
+        "Cancel only the owning plan's old enrollment; preserve its identity, course, plan, and deadline");
+      assert.equal(retained.status, "canceled");
+      assert.ok(retained.canceled);
+    }
+    const replacement = after.assignments.find(row => row.id !== originalA.id && row.id !== originalB.id);
+    assert.deepEqual({ ...replacement, id: undefined }, { id: undefined, course: f.course, status: "assigned",
+      plan: other.plan, item: null, completed: null, canceled: null, due: other.due });
+    assert.deepEqual(after.certificates, []);
+  });
+});
+
+test("legacy plan deletion racing a classroom completion retains the completed assignment and certificate", { skip: !enabled, timeout: 60_000 }, async () => {
+  await scenario(async ({ observer, first, second, firstPid, secondPid, f }) => {
+    // Legacy organization-wide plans still support deletion. Convert the unused fixture
+    // through its normal administrator policy, then create its historical item-linked work.
+    await act(first, f.admin);
+    await first.query(`update public.training_plans set facility_id=null,training_year=null,due_date=null
+      where id=${literal(f.plan)};`);
+    const assignment = await scalar(first, `insert into public.course_assignments(organization_id,facility_id,
+      employee_id,course_id,course_version_id,assigned_by,due_date,training_plan_id,training_plan_item_id)
+      values(${literal(f.org)},${literal(f.facility)},${literal(f.employee)},${literal(f.course)},
+        ${literal(f.version)},${literal(f.admin)},${literal(f.due)},${literal(f.plan)},${literal(f.item)}) returning id;`);
+    await first.query("commit;");
+    const before = await state(observer, f);
+    assert.equal(before.assignments.length, 1);
+    assert.equal(before.assignments[0].plan, f.plan);
+    assert.equal(before.assignments[0].item, f.item, "Legacy assignments retain their supported item reference");
+
+    await act(first, f.manager);
+    assert.equal(await scalar(first, `select id from public.course_assignments where id=${literal(assignment)} for update;`), assignment);
+    await act(second, f.admin);
+    const deleting = running(second, `delete from public.training_plans where id=${literal(f.plan)} returning id; commit;`);
+    await waitForLock(observer, firstPid, secondPid, deleting);
+    // DELETE owns the legacy parent and its SET NULL action waits on this assignment.
+    // The actual completion must not lock that unchanged parent and reverse the order.
+    await first.query(`select public.complete_course_assignment(${literal(assignment)}); commit;`);
+    assert.deepEqual(await successful(deleting), [f.plan]);
+    const after = await state(observer, f);
+    assert.equal(after.employeeStatus, "active");
+    assert.equal(after.assignments.length, 1);
+    assert.equal(after.assignments[0].id, assignment);
+    assert.equal(after.assignments[0].course, f.course);
+    assert.equal(after.assignments[0].status, "completed");
+    assert.equal(after.assignments[0].plan, null);
+    assert.equal(after.assignments[0].item, null);
+    assert.equal(after.assignments[0].due, f.due);
+    assert.ok(after.assignments[0].completed);
+    assert.equal(after.assignments[0].canceled, null);
+    assert.equal(after.certificates.length, 1);
+    assert.equal(after.certificates[0].assignment, assignment);
+    assert.ok(after.certificates[0].issued && after.certificates[0].slug);
+    assert.equal(await scalar(observer, `select count(*) from public.training_plans where id=${literal(f.plan)};`), "0");
+    assert.equal(await scalar(observer, `select count(*) from public.training_plan_items where training_plan_id=${literal(f.plan)};`), "0");
+  });
+});
+
 for (const transition of ["terminate", "leave"]) {
   test(`yearly apply waits for concurrent ${transition}, then rejects inactive staff without assigning work`, { skip: !enabled, timeout: 60_000 }, async () => {
     await scenario(async ({ observer, first, second, firstPid, secondPid, f }) => {
@@ -281,7 +399,7 @@ for (const transition of ["terminate", "leave"]) {
       await waitForLock(observer, firstPid, secondPid, pending);
       // With the old plain SELECT, apply passed its active check and waits only on the insert
       // FK. The lifecycle sees no committed assignments, so resuming that insert creates a
-      // forbidden active assignment. The fixed employee SHARE lock waits before validation.
+      // forbidden active assignment. The fixed employee lock waits before validation.
       await first.query(`${lifecycle(f, transition)} commit;`);
       const outcome = await pending.promise;
       assert.equal(outcome.error?.code, "42501", "Apply must recheck the employee after the lifecycle commits");
