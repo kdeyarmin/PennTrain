@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRequiredStateFormInfo, getRequiredStateFormLabel } from "./residentCompliance";
+import { ITEM_TYPE_LABELS, getRequiredStateFormInfo, getRequiredStateFormLabel, stateFormBackdateDays } from "./residentCompliance";
 
 const PA_DHS_URL_PREFIX = "https://www.pa.gov/";
 
@@ -49,5 +49,34 @@ describe("getRequiredStateFormInfo", () => {
       expect(info.sourceLabel).toBe("PA DHS personal care home / assisted living compliance forms index");
       expect(info.url).toBe("https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-compliance-forms");
     }
+  });
+
+  it("documents the ALF quarterly support plan review on the ASP form", () => {
+    expect(ITEM_TYPE_LABELS.support_plan_quarterly_review).toBe("Quarterly Support Plan Review");
+    expect(getRequiredStateFormLabel("support_plan_quarterly_review", "ALR")).toBe("ASP (Assessment-Support Plan)");
+  });
+});
+
+describe("stateFormBackdateDays", () => {
+  it("holds the medical evaluation to 60 days before admission in both chapters", () => {
+    expect(stateFormBackdateDays("medical_evaluation", "PCH")).toBe(60);
+    expect(stateFormBackdateDays("medical_evaluation", "ALR")).toBe(60);
+  });
+
+  it("holds the preadmission screening to 30 days before admission", () => {
+    expect(stateFormBackdateDays("preadmission_screening", "PCH")).toBe(30);
+    expect(stateFormBackdateDays("preadmission_screening", "ALR")).toBe(30);
+  });
+
+  it("allows the ALF initial assessment 30 days before admission but not the final support plan", () => {
+    expect(stateFormBackdateDays("initial_assessment_15day", "ALR")).toBe(30);
+    expect(stateFormBackdateDays("support_plan_30day", "ALR")).toBe(0);
+  });
+
+  it("keeps the general 180-day look-back for PCH assessment items and recurring items", () => {
+    expect(stateFormBackdateDays("initial_assessment_15day", "PCH")).toBe(180);
+    expect(stateFormBackdateDays("support_plan_30day", "PCH")).toBe(180);
+    expect(stateFormBackdateDays("annual_reassessment", "ALR")).toBe(180);
+    expect(stateFormBackdateDays("support_plan_30day", null)).toBe(180);
   });
 });

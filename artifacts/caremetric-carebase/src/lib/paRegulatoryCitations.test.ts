@@ -94,12 +94,33 @@ describe("citationForComplianceItem", () => {
     expect(citationForComplianceItem("medical_evaluation", "PCH")!.citation).toBe("2600.141");
   });
 
-  it("maps the ALF support plan to 2800.224, which covers it alongside the initial assessment", () => {
-    // This is the mapping the rule pack records; there is no separate ALR support-plan section, and
-    // inventing a 2800.227 to mirror the PCH numbering would be exactly the wrong kind of guess.
-    expect(citationForComplianceItem("support_plan_30day", "ALR")!.citation).toBe("2800.224");
+  it("maps the ALF final support plan and its quarterly review to 2800.227, not the preliminary plan's 2800.224", () => {
+    // Chapter 2800 has two support plans: the preliminary one of 2800.224(c), on the initial
+    // assessment's clock and tracked with it, and the final one of 2800.227, due 30 days after
+    // admission and reviewed quarterly. This test used to pin the support plan to 2800.224 on the
+    // belief that 2800.227 did not exist.
+    expect(citationForComplianceItem("support_plan_30day", "ALR")!.citation).toBe("2800.227");
+    expect(citationForComplianceItem("support_plan_quarterly_review", "ALR")!.citation).toBe("2800.227");
     expect(citationForComplianceItem("initial_assessment_15day", "ALR")!.citation).toBe("2800.224");
     expect(citationForComplianceItem("annual_reassessment", "ALR")!.citation).toBe("2800.225");
+  });
+
+  it("has no quarterly support plan review for a PCH, because Chapter 2600 has none", () => {
+    expect(citationForComplianceItem("support_plan_quarterly_review", "PCH")).toBeUndefined();
+  });
+
+  it("does not cite the ALF initial-assessment section for a preadmission screening", () => {
+    // Chapter 2800 has no counterpart to 2600.224; the pre-admission determination is the
+    // certification in 2800.22(b).
+    expect(citationForComplianceItem("preadmission_screening", "ALR")!.citation).toBe("2800.22");
+  });
+
+  it("describes the ALF initial assessment as due by admission, not 30 days before it", () => {
+    const entry = findCitation("2800.224")!;
+    expect(entry.requirement).toContain("within the 30 days prior to admission");
+    expect(entry.requirement).toContain("due by the admission date");
+    expect(entry.requirement).not.toContain("30 days before admission on the standard track");
+    expect(findCitation("2800.227")!.requirement).toContain("reviewed quarterly");
   });
 
   it("returns undefined rather than guessing for an unmapped item or facility type", () => {
@@ -125,7 +146,7 @@ describe("citationsForModule", () => {
 
   it("returns support-plan citations for both chapters", () => {
     expect(citationsForModule("support_plan", "PCH").map((entry) => entry.citation)).toEqual(["2600.227"]);
-    expect(citationsForModule("support_plan", "ALR").map((entry) => entry.citation)).toEqual(["2800.224", "2800.225"]);
+    expect(citationsForModule("support_plan", "ALR").map((entry) => entry.citation)).toEqual(["2800.224", "2800.227", "2800.225"]);
   });
 
   it("returns an empty list rather than throwing for a module with no citations at this facility", () => {

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
-import { ITEM_TYPE_LABELS, getRequiredStateFormInfo } from "@/lib/residentCompliance";
+import { ITEM_TYPE_LABELS, getRequiredStateFormInfo, stateFormBackdateDays } from "@/lib/residentCompliance";
 import { useCompleteResidentComplianceItem } from "@/hooks/useResidentComplianceItems";
 import { useUploadResidentDocument } from "@/hooks/useResidentDocuments";
 
@@ -15,18 +15,6 @@ export interface CompletableItem {
   id: string;
   item_type: string;
 }
-
-/**
- * How far before admission `complete_resident_compliance_item` accepts a form date.
- *
- * The RPC bounds the date on both sides: not in the future, and not before `admission_date - 180
- * days` -- an ALF pre-admission assessment legitimately predates the admission, an unbounded past
- * does not. Mirrored here because the upload happens BEFORE the RPC is called, so a date the server
- * refuses left the document attached to the resident with the item still incomplete, and a facility
- * manager has no delete access on resident documents: every retry added another one they could not
- * remove.
- */
-export const STATE_FORM_BACKDATE_DAYS = 180;
 
 interface CompleteWithStateFormDialogProps {
   // Dialog is open while item is non-null; parent owns which item is being completed.
@@ -49,13 +37,17 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
   // BACKLOG J5. The date on the form, not the day the scan was uploaded. Before this the RPC
   // stamped pa_today(), so a facility uploading a signed RASP/ASP a fortnight after the assessor
   // signed it recorded the assessment as completed on the upload day -- an ALF initial assessment
-  // due 30 days before admission read late when it was on time -- and every successor the RPC
+  // signed the week before admission read late when it was on time -- and every successor the RPC
   // inserts was anchored on that day, pushing the annual reassessment past 2600.225 / 2800.225.
   const [completedOn, setCompletedOn] = useState(facilityToday());
 
   const stateForm = item ? getRequiredStateFormInfo(item.item_type, facilityType) : null;
-  const earliestAllowed = resident.admission_date
-    ? addFacilityCalendarDays(resident.admission_date, -STATE_FORM_BACKDATE_DAYS)
+  // The RPC bounds the date on both sides: not in the future, and not earlier than the item's own
+  // regulatory look-back before admission. Mirrored here because the upload happens BEFORE the RPC
+  // is called, so a date the server refuses left the document attached to the resident with the
+  // item still incomplete, and a facility manager has no delete access on resident documents.
+  const earliestAllowed = item && resident.admission_date
+    ? addFacilityCalendarDays(resident.admission_date, -stateFormBackdateDays(item.item_type, facilityType))
     : null;
   const dateOutOfRange = Boolean(completedOn)
     && (completedOn > facilityToday() || (earliestAllowed !== null && completedOn < earliestAllowed));

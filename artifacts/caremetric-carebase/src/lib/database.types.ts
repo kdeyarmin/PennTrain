@@ -42839,6 +42839,10 @@ export type Database = {
         }
         Returns: number
       }
+      resident_compliance_backdate_days: {
+        Args: { p_facility_type: string; p_item_type: string }
+        Returns: number
+      }
       resolve_course_video_generation: {
         Args: {
           p_attempt_id: string

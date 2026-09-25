@@ -25,10 +25,10 @@ const DHS_ALR_FORMS = {
 
 const DHS_FORMS_INDEX_URL = "https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-compliance-forms";
 
-// Day-counts dropped from these labels on purpose: PCH's initial assessment is due 15 days after
-// admission, while ALR's is normally due 30 days *before* admission (opposite direction) -- a
-// hardcoded "15-Day"/"30-Day" prefix would be actively wrong for whichever facility type it
-// doesn't match. The row's own due_date carries the real deadline.
+// Day-counts dropped from these labels on purpose: PCH's initial assessment is due within 15 days
+// after admission, while ALR's is normally completed in the 30 days *before* admission (opposite
+// direction) -- a hardcoded "15-Day"/"30-Day" prefix would be actively wrong for whichever facility
+// type it doesn't match. The row's own due_date carries the real deadline.
 export const ITEM_TYPE_LABELS: Record<string, string> = {
   preadmission_screening: "Preadmission Screening",
   initial_assessment_15day: "Initial Assessment",
@@ -37,7 +37,32 @@ export const ITEM_TYPE_LABELS: Record<string, string> = {
   medical_evaluation: "Initial Medical Evaluation",
   annual_medical_evaluation: "Annual Medical Evaluation",
   significant_change_reassessment: "Significant Change Reassessment",
+  // 55 Pa. Code 2800.227(c). ALF only -- Chapter 2600 has no quarterly review.
+  support_plan_quarterly_review: "Quarterly Support Plan Review",
 };
+
+/**
+ * How many days before admission a completed form for this item may be dated.
+ *
+ * Mirrors `public.resident_compliance_backdate_days`, which `complete_resident_compliance_item`
+ * enforces. The completion dialog uploads the document BEFORE calling the RPC, so a date the server
+ * refuses would leave an orphaned document a facility manager cannot delete; the dialog refuses the
+ * same dates first.
+ */
+export function stateFormBackdateDays(itemType: string, facilityType: string | null | undefined): number {
+  // 2600.141(a) / 2800.22(a)(1): within 60 days prior to admission.
+  if (itemType === "medical_evaluation") return 60;
+  // 2600.224(a): within 30 days prior to admission. Chapter 2800 sets no window for the ALF
+  // screening form, so it is held to the same 30 days.
+  if (itemType === "preadmission_screening") return 30;
+  if (facilityType === "ALR") {
+    // 2800.224(a)(2), (c)(1): initial assessment and preliminary support plan, 30 days prior.
+    if (itemType === "initial_assessment_15day") return 30;
+    // 2800.227(a): the final support plan is a post-admission document.
+    if (itemType === "support_plan_30day") return 0;
+  }
+  return 180;
+}
 
 // RASP = PA DHS's name for the Personal Care Home (Ch. 2600) form; ALR's equivalent under Ch. 2800
 // is called "ASP" (no "R") -- distinct forms, not just a labeling difference.

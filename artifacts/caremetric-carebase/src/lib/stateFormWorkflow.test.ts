@@ -187,6 +187,14 @@ describe("listUpcomingRenewals", () => {
     ];
     expect(listUpcomingRenewals(items, TODAY, 60).map((i) => i.id)).toEqual(["annual-dme"]);
   });
+
+  it("includes the ALF quarterly support plan review, which recurs every 90 days", () => {
+    const items = [
+      item({ id: "quarterly-30", item_type: "support_plan_quarterly_review", due_date: "2026-08-11" }),
+      item({ id: "quarterly-done", item_type: "support_plan_quarterly_review", status: "compliant", completed_date: "2026-07-01", due_date: "2026-07-20" }),
+    ];
+    expect(listUpcomingRenewals(items, TODAY, 60).map((i) => i.id)).toEqual(["quarterly-30"]);
+  });
 });
 
 describe("document label helpers", () => {

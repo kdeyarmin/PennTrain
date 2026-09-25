@@ -279,12 +279,13 @@ export function sortOpenItemsByUrgency<T extends WorkflowItem>(items: T[], _toda
   });
 }
 
-// The two recurring yearly requirements (§2600.225 annual reassessment, §2600.141 annual medical
-// evaluation) due within the window -- the "plan ahead" list, distinct from the needs-action
-// queue. Already-overdue rows are excluded here because they're in that queue instead.
+// The recurring requirements (§2600.225 / §2800.225 annual reassessment, §2600.141 / §2800.141
+// annual medical evaluation, and the ALF-only §2800.227(c) quarterly support plan review) due
+// within the window -- the "plan ahead" list, distinct from the needs-action queue. Already-overdue
+// rows are excluded here because they're in that queue instead.
 // `medical_evaluation` is the INITIAL evaluation since 20260804170000 and is not a renewal --
 // it happens once, at admission. The recurring one is `annual_medical_evaluation`.
-const RENEWAL_ITEM_TYPES = new Set(["annual_reassessment", "annual_medical_evaluation"]);
+const RENEWAL_ITEM_TYPES = new Set(["annual_reassessment", "annual_medical_evaluation", "support_plan_quarterly_review"]);
 
 export function listUpcomingRenewals<T extends WorkflowItem>(items: T[], today: string, windowDays: number): T[] {
   return items

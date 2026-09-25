@@ -178,15 +178,49 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     facilityTypes: ["ALR"],
     heading: "Initial assessment and preliminary support plan",
     requirement:
-      "The initial assessment and the preliminary support plan are due together, 30 days before admission on the standard track. On the expedited track they are due within 15 days after admission.",
-    responsibleRole: "Administrator",
-    requiredFrequency: "Before admission (standard) or within 15 days after admission (expedited)",
+      "The initial assessment and the preliminary support plan are completed together within the 30 days prior to admission on the standard track -- due by the admission date, and dated no earlier than 30 days before it. On the expedited track (admitted directly from an acute care hospital, escaping an abusive situation, or no alternative living arrangement) they are due within 15 days after admission.",
+    responsibleRole: "Administrator, administrator designee, or LPN under RN supervision, or an RN",
+    requiredFrequency: "Within 30 days before admission (standard) or within 15 days after admission (expedited)",
     requiredEvidence: "Signed DHS ASP (Assessment-Support Plan) form attached to the resident record.",
     modules: ["admission", "resident_assessment", "support_plan"],
     sourceUrl: PA_CODE_2800,
     sourceLabel: "55 Pa. Code Chapter 2800 (Assisted Living Facilities)",
     provenance: {
-      note: "Carried forward from dhs_citation_topics and resident_compliance_rule_packs (20260706155617): \"Verified: 55 Pa Code 2800.224 covers both the initial assessment and preliminary support plan together\"; ALR standard track is 30 days before admission, not after.",
+      note: "2800.224(a)(2)-(3) and (c)(1)-(2), read against the Chapter 2800 text by 20260925110000. Until then the standard-track rule pack made this item due 30 days BEFORE admission, when the regulation's 30-day window ends at admission.",
+    },
+  },
+  {
+    citation: "2800.227",
+    chapter: "2800",
+    facilityTypes: ["ALR"],
+    heading: "Development of the final support plan",
+    requirement:
+      "A final support plan is developed and implemented within 30 days after admission on either admission track, reviewed and approved by an LPN under RN supervision. It is revised within 30 days of the annual assessment or a change in the resident's needs, and reviewed quarterly.",
+    responsibleRole: "Administrator, with LPN review and approval under RN supervision",
+    requiredFrequency: "Within 30 days after admission, quarterly review, and revision within 30 days of each annual or significant-change assessment",
+    requiredEvidence: "Signed DHS ASP support-plan section (or an equivalent facility form) attached to the resident record.",
+    modules: ["support_plan"],
+    sourceUrl: PA_CODE_2800,
+    sourceLabel: "55 Pa. Code Chapter 2800 (Assisted Living Facilities)",
+    provenance: {
+      note: "2800.227(a)-(c) and 2800.22(a)(4), read against the Chapter 2800 text by 20260925110000, which added the final support plan deadline and the quarterly review to the rule packs. Before it, the only ALF support-plan item repeated the 2800.224 preliminary-plan deadline.",
+    },
+  },
+  {
+    citation: "2800.22",
+    chapter: "2800",
+    facilityTypes: ["ALR"],
+    heading: "Application and admission",
+    requirement:
+      "Before admission, a certification that the facility can meet the potential resident's needs. The medical evaluation is completed within 60 days prior to admission (or within 15 days after, under the same three conditions as the expedited assessment track), and the resident-facility contract before admission or within 24 hours after.",
+    responsibleRole: "Administrator",
+    requiredFrequency: "Once, at admission",
+    requiredEvidence: "Pre-admission certification, DHS DME form, and the signed resident-facility contract in the resident record.",
+    modules: ["admission"],
+    sourceUrl: PA_CODE_2800,
+    sourceLabel: "55 Pa. Code Chapter 2800 (Assisted Living Facilities)",
+    provenance: {
+      note: "2800.22(a)(1), (a)(5) and (b), read against the Chapter 2800 text by 20260925110000. Chapter 2800 has no general preadmission screening like 2600.224; its cognitive preadmission screening applies only to special care units (2800.231).",
     },
   },
   {
@@ -212,7 +246,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     facilityTypes: ["ALR"],
     heading: "Resident medical evaluation",
     requirement:
-      "A medical evaluation is required at admission and annually thereafter, with a 15-day grace period on the annual cycle.",
+      "A medical evaluation is completed within 60 days prior to admission (within 15 days after admission only under the three expedited conditions of 2800.22(a)(1)), then annually, with a 15-day grace period on the annual cycle.",
     responsibleRole: "Administrator",
     requiredFrequency: "At admission, then annually",
     requiredEvidence: "Signed DHS DME (Documentation of Medical Evaluation) form attached to the resident record.",
@@ -227,13 +261,15 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
 
 /**
  * Compliance item types (`resident_compliance_items.item_type`) to the section that governs them,
- * per facility type. Mirrors the rule-pack mapping rather than re-deriving it: for ALR, the support
- * plan is governed by 2800.224 alongside the initial assessment, NOT by a separate section.
+ * per facility type. Mirrors the rule-pack mapping rather than re-deriving it. For ALR the
+ * preliminary support plan shares 2800.224 with the initial assessment and is tracked by that item;
+ * `support_plan_30day` is the final support plan of 2800.227, and only ALR has a quarterly review.
  */
 const ITEM_TYPE_CITATIONS: Record<string, Partial<Record<FacilityType, string>>> = {
-  preadmission_screening: { PCH: "2600.224", ALR: "2800.224" },
+  preadmission_screening: { PCH: "2600.224", ALR: "2800.22" },
   initial_assessment_15day: { PCH: "2600.225", ALR: "2800.224" },
-  support_plan_30day: { PCH: "2600.227", ALR: "2800.224" },
+  support_plan_30day: { PCH: "2600.227", ALR: "2800.227" },
+  support_plan_quarterly_review: { ALR: "2800.227" },
   annual_reassessment: { PCH: "2600.225", ALR: "2800.225" },
   significant_change_reassessment: { PCH: "2600.225", ALR: "2800.225" },
   medical_evaluation: { PCH: "2600.141", ALR: "2800.141" },
