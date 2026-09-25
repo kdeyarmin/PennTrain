@@ -59,7 +59,7 @@ export interface CrosswalkFilter {
 export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   {
     id: "staff-training",
-    citation: "55 Pa. Code 2600/2800 — staff training",
+    citation: "55 Pa. Code 2600.63–2600.68 / 2800.63–2800.69 — staff training",
     requirement: "Maintain role-specific orientation, annual training, competency, and retraining documentation for staff assigned to the home/residence.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Administrator / training coordinator",
@@ -70,7 +70,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   },
   {
     id: "administrator-qualification",
-    citation: "55 Pa. Code 2800.64 / Chapter 2600 administrator qualification",
+    citation: "55 Pa. Code 2600.53, 2600.56, 2600.64 / 2800.53, 2800.56, 2800.64 — administrator qualification",
     requirement: "Keep administrator qualification, orientation, approved-course/test, continuing education, and backup coverage documentation current.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Organization administrator",
@@ -81,7 +81,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   },
   {
     id: "resident-assessment-support-plan",
-    citation: "55 Pa. Code 2600.225/2600.227 and Chapter 2800 assessment/support plan",
+    citation: "55 Pa. Code 2600.224–2600.227 / 2800.224–2800.227 — assessment and support plan",
     requirement: "Complete admission, annual, significant-change, and Department-requested assessment/support-plan items on state-approved forms.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Resident records lead",
@@ -92,7 +92,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   },
   {
     id: "resident-rights-grievances",
-    citation: "55 Pa. Code 2600/2800 — resident rights and complaints",
+    citation: "55 Pa. Code 2600.41–2600.44 / 2800.41–2800.44 — resident rights and complaints",
     requirement: "Show rights acknowledgements, complaint procedure documentation, grievance follow-up, and ombudsman/contact information availability.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Resident rights / grievance lead",
@@ -103,7 +103,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   },
   {
     id: "medication-administration",
-    citation: "55 Pa. Code 2600.181 and Chapter 2800 medication administration",
+    citation: "55 Pa. Code 2600.181–2600.191 / 2800.181–2800.191 — medications",
     requirement: "Maintain medication self-administration determinations, medication-assistance qualifications, error/adverse-reaction follow-up, and retraining documentation.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Medication lead",
@@ -114,7 +114,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   },
   {
     id: "incident-reporting",
-    citation: "55 Pa. Code 2600/2800 — reportable incidents",
+    citation: "55 Pa. Code 2600.15–2600.16 / 2800.15–2800.16 — abuse reporting and reportable incidents",
     requirement: "Track reportable incidents, notifications, investigations, final reports, and corrective actions through closure.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Administrator / incident owner",
@@ -125,7 +125,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   },
   {
     id: "physical-site-emergency",
-    citation: "55 Pa. Code 2600/2800 — fire safety and emergency preparedness",
+    citation: "55 Pa. Code 2600.107, 2600.121–2600.133 / 2800.107, 2800.121–2800.133 — emergency preparedness and fire safety",
     requirement: "Keep physical-site inspections, emergency plan reviews, fire drill documentation, equipment checks, and failed-item corrections current.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Safety officer / administrator",
@@ -147,7 +147,7 @@ export const REGULATORY_OBLIGATIONS: RegulatoryObligation[] = [
   },
   {
     id: "binder-evidence-room",
-    citation: "55 Pa. Code 2600/2800 — survey documentation production",
+    citation: "55 Pa. Code 2600.251–2600.254 / 2800.251–2800.254 — records production for survey",
     requirement: "Maintain a current compliance binder and controlled documentation-room package for surveyor/regulator review.",
     facilityTypes: ["PCH", "ALR"],
     responsibleRole: "Binder owner / compliance lead",

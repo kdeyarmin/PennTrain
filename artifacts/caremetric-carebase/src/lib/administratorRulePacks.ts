@@ -1,5 +1,5 @@
 import type { FacilityType } from "./facilityTypes";
-import { addFacilityCalendarDays, facilityDaysUntil } from "./dateUtils";
+import { addFacilityCalendarDays, facilityDaysUntil, formatDateForDisplay } from "./dateUtils";
 
 export type AdministratorRuleStatus = "compliant" | "due_soon" | "expired" | "missing";
 
@@ -41,6 +41,18 @@ export interface AdministratorRulePackRequirement {
 const CE_WINDOW_DAYS = 365;
 const DUE_SOON_DAYS = 30;
 
+/**
+ * The last day a licensed nursing home administrator could be employed as administrator and be
+ * exempt from the chapter's training requirements. An NHA hired after it must still pass the
+ * Department's competency-based test (2600.64(g) / 2800.64(g)). The profile records no employment
+ * start date, so the rule pack cannot decide which side of the line an administrator is on; it says
+ * which date applies instead of assuming either.
+ */
+export const NHA_EXEMPTION_EMPLOYED_BEFORE: Record<"PCH" | "ALR", string> = {
+  PCH: "2006-10-24",
+  ALR: "2011-01-18",
+};
+
 /** Facility-calendar days from `startIso` to `endIso` (both `YYYY-MM-DD`). */
 function daysBetween(startIso: string, endIso: string): number {
   // Anchor `now` at noon UTC on the start day so facilityToday matches the date-only input.
@@ -67,7 +79,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   const profile = evidence.profile ?? null;
   const ceEntries = evidence.ceEntries ?? [];
   const isAlr = facilityType === "ALR";
-  const commonCitation = isAlr ? "55 Pa. Code 2800.64" : "55 Pa. Code Ch. 2600 administrator requirements";
+  const commonCitation = isAlr ? "55 Pa. Code 2800.64" : "55 Pa. Code 2600.64";
   const requirements: AdministratorRulePackRequirement[] = [];
 
   const qualifiedByCourse = Boolean(
@@ -97,7 +109,9 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     detail: qualifiedByCourse
       ? "100-hour course, certificate, and competency test are documented."
       : qualifiedByNha
-        ? "NHA exemption documentation is documented."
+        ? profile?.competency_test_passed
+          ? "NHA exemption and the Department competency test are documented."
+          : `NHA exemption documentation is documented. An NHA employed as administrator on or after ${formatDateForDisplay(NHA_EXEMPTION_EMPLOYED_BEFORE[isAlr ? "ALR" : "PCH"])} must also pass the Department competency-based test (${isAlr ? "2800.64(g)" : "2600.64(g)"}); record it unless this administrator was employed before that date.`
         : "Missing approved-course/test proof or current NHA exemption documentation.",
   });
 
@@ -105,12 +119,12 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     requirements.push({
       id: "alr-orientation-and-dementia",
       label: "ALF orientation and dementia-specific training documentation",
-      citation: "55 Pa. Code 2800.64; Chapter 2800 dementia-care training references",
+      citation: "55 Pa. Code 2800.64(a); 2800.69",
       facilityTypes: ["ALR"],
       binderDestination: "Administrator Qualifications / Orientation and Dementia Training",
       dueDate: null,
       status: profile?.hundred_hour_course_completed_date || profile?.nha_license_number ? "compliant" : "missing",
-      detail: "Track ALF orientation, approved-course, competency, and dementia-specific administrator documentation together.",
+      detail: "Track ALF orientation, approved-course, competency, and dementia-specific administrator documentation together. 2800.69 dementia training (4 hours within 30 days of hire, 2 hours annually) is in addition to the 100-hour course.",
     });
   }
 
@@ -150,12 +164,14 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   requirements.push({
     id: "administrator-coverage",
     label: "Acting/designee/on-call coverage documentation",
-    citation: commonCitation,
+    citation: isAlr ? "55 Pa. Code 2800.56; 2800.64(e)" : "55 Pa. Code 2600.56; 2600.64(e)",
     facilityTypes: [facilityType],
     binderDestination: "Administrator Qualifications / Designee Coverage",
     dueDate: null,
     status: profile?.regional_office_verification_submitted_date || profile?.regional_office_verification_document_path ? "compliant" : "missing",
-    detail: "Keep regional-office notice plus acting/designee/on-call coverage proof ready for survey.",
+    detail: isAlr
+      ? "Keep the written verification sent to the Department's assisted living licensing office, plus proof the administrator averages 36 hours a week on site (30 during normal business hours) and the written designee and on-call assignments for absences."
+      : "Keep the written verification sent to the regional office, plus proof the administrator averages 20 hours a week on site in each calendar month.",
   });
 
   return requirements;

@@ -93,4 +93,46 @@ describe("administrator rule packs", () => {
     expect(rules.find((rule) => rule.id === "administrator-continuing-education")?.status).toBe("missing");
     expect(summarizeAdministratorRulePack(rules).blockingCount).toBeGreaterThan(0);
   });
+
+  it("cites the chapter's own administrator sections for each facility type", () => {
+    const pch = buildAdministratorRulePack("PCH", { today: "2026-07-13", profile: null, ceEntries: [] });
+    const alr = buildAdministratorRulePack("ALR", { today: "2026-07-13", profile: null, ceEntries: [] });
+
+    expect(pch.find((rule) => rule.id === "pch-administrator-qualification")?.citation).toBe("55 Pa. Code 2600.64");
+    expect(pch.find((rule) => rule.id === "administrator-coverage")?.citation).toBe("55 Pa. Code 2600.56; 2600.64(e)");
+    expect(pch.find((rule) => rule.id === "administrator-coverage")?.detail).toContain("20 hours a week");
+    expect(alr.find((rule) => rule.id === "alr-approved-course-test")?.citation).toBe("55 Pa. Code 2800.64");
+    expect(alr.find((rule) => rule.id === "alr-orientation-and-dementia")?.citation).toBe("55 Pa. Code 2800.64(a); 2800.69");
+    expect(alr.find((rule) => rule.id === "administrator-coverage")?.citation).toBe("55 Pa. Code 2800.56; 2800.64(e)");
+    expect(alr.find((rule) => rule.id === "administrator-coverage")?.detail).toContain("36 hours a week");
+    for (const rule of [...pch, ...alr]) {
+      expect(rule.detail).not.toMatch(/Assisted Living Residence|\bALR\b/);
+    }
+  });
+
+  it("names the competency-test cutoff for an NHA-exempt administrator without a recorded test", () => {
+    const nhaProfile = {
+      qualification_path: "nha_exemption",
+      nha_license_number: "NHA-123",
+      nha_license_expiration: "2027-07-01",
+    };
+    const pch = buildAdministratorRulePack("PCH", { today: "2026-07-13", profile: nhaProfile, ceEntries: [] });
+    const alr = buildAdministratorRulePack("ALR", { today: "2026-07-13", profile: nhaProfile, ceEntries: [] });
+    const tested = buildAdministratorRulePack("ALR", {
+      today: "2026-07-13",
+      profile: { ...nhaProfile, competency_test_passed: true, competency_test_date: "2026-01-15" },
+      ceEntries: [],
+    });
+
+    const pchQualification = pch.find((rule) => rule.id === "pch-administrator-qualification");
+    const alrQualification = alr.find((rule) => rule.id === "alr-approved-course-test");
+    expect(pchQualification?.status).toBe("compliant");
+    expect(pchQualification?.detail).toContain("10/24/2006");
+    expect(pchQualification?.detail).toContain("2600.64(g)");
+    expect(alrQualification?.detail).toContain("1/18/2011");
+    expect(alrQualification?.detail).toContain("2800.64(g)");
+    expect(tested.find((rule) => rule.id === "alr-approved-course-test")?.detail).toBe(
+      "NHA exemption and the Department competency test are documented.",
+    );
+  });
 });

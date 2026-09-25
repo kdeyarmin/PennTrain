@@ -19,8 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GraduationCap, FileCheck2, Send, Upload, Trash2, Download } from "lucide-react";
-import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "@/lib/administratorRulePacks";
-import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
+import { buildAdministratorRulePack, summarizeAdministratorRulePack, NHA_EXEMPTION_EMPLOYED_BEFORE } from "@/lib/administratorRulePacks";
+import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
 import { supabase } from "@/lib/supabase";
 import { QueryError } from "@/components/QueryState";
@@ -303,6 +303,17 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
               <div className="space-y-1.5">
                 <Label htmlFor={`${__fieldIds}-license-expiration`} className="text-[13px]">License Expiration</Label>
                 <Input id={`${__fieldIds}-license-expiration`} type="date" defaultValue={profile.nha_license_expiration ?? ""} onBlur={(e) => save({ nha_license_expiration: e.target.value || null })} className="h-9" />
+              </div>
+              <p className="text-xs text-muted-foreground sm:col-span-2">
+                An NHA employed as administrator on or after {formatDateForDisplay(NHA_EXEMPTION_EMPLOYED_BEFORE.PCH)} (personal care home, 55 Pa. Code 2600.64(g)) or {formatDateForDisplay(NHA_EXEMPTION_EMPLOYED_BEFORE.ALR)} (assisted living facility, 2800.64(g)) must still pass the Department competency-based test.
+              </p>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <Checkbox checked={profile.competency_test_passed} onCheckedChange={(v) => save({ competency_test_passed: !!v })} />
+                Competency test passed
+              </label>
+              <div className="space-y-1.5">
+                <Label htmlFor={`${__fieldIds}-nha-competency-test-date`} className="text-[13px]">Competency Test Date</Label>
+                <Input id={`${__fieldIds}-nha-competency-test-date`} type="date" defaultValue={profile.competency_test_date ?? ""} onBlur={(e) => save({ competency_test_date: e.target.value || null })} className="h-9" />
               </div>
             </div>
           )}
