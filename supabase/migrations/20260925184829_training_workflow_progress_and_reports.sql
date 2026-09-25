@@ -197,9 +197,10 @@ $$;
 revoke all on function public.resolve_training_plan_assignment(uuid,uuid,uuid) from public,anon;
 grant execute on function public.resolve_training_plan_assignment(uuid,uuid,uuid) to authenticated;
 
--- Certificate identity is captured once; PDF retries never follow mutable catalog names.
+-- Certificate identity is captured once; PDF retries never follow mutable catalog or learner names.
 alter table public.certificates add column course_title_snapshot text,
-  add column course_code_snapshot text, add column course_version_snapshot text;
+  add column course_code_snapshot text, add column course_version_snapshot text,
+  add column learner_name_snapshot text;
 update public.certificates cert set course_title_snapshot=coalesce(cv.title,c.title),
   course_code_snapshot=c.catalog_code,course_version_snapshot=coalesce(cv.version_label,'v'||cv.version_number::text)
 from public.courses c left join public.course_assignments a on a.course_id=c.id
@@ -207,6 +208,10 @@ left join public.course_versions cv on cv.id=a.course_version_id
 where cert.course_id=c.id and cert.course_assignment_id=a.id;
 update public.certificates cert set course_title_snapshot=c.title,course_code_snapshot=c.catalog_code
 from public.courses c where cert.course_id=c.id and cert.course_title_snapshot is null;
+-- Legacy names cannot be reconstructed reliably. Freeze the current recorded name without
+-- rewriting existing PDFs; approved historical corrections follow the documented review process.
+update public.certificates cert set learner_name_snapshot=e.first_name||' '||e.last_name
+from public.employees e where e.id=cert.employee_id;
 create function app_private.snapshot_training_certificate()
 returns trigger language plpgsql security definer set search_path='' as $$
 begin
@@ -214,7 +219,10 @@ begin
     new.course_title_snapshot:=old.course_title_snapshot;
     new.course_code_snapshot:=old.course_code_snapshot;
     new.course_version_snapshot:=old.course_version_snapshot;
+    new.learner_name_snapshot:=old.learner_name_snapshot;
   else
+    select e.first_name||' '||e.last_name into new.learner_name_snapshot
+    from public.employees e where e.id=new.employee_id;
     select coalesce(cv.title,c.title),c.catalog_code,coalesce(cv.version_label,'v'||cv.version_number::text)
       into new.course_title_snapshot,new.course_code_snapshot,new.course_version_snapshot
     from public.courses c left join public.course_assignments a on a.id=new.course_assignment_id and a.course_id=c.id
@@ -917,7 +925,7 @@ security definer
 set search_path = ''
 as $fn$
   select
-    (e.first_name || ' ' || e.last_name)::text,
+    coalesce(cert.learner_name_snapshot,e.first_name || ' ' || e.last_name)::text,
     coalesce(cert.course_title_snapshot,c.title),
     o.name,
     cert.issued_at,

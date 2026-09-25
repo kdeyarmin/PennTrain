@@ -296,6 +296,7 @@ type SystemJobClaim = {
 };
 
 type CertificateRecord = {
+  learner_name_snapshot: string | null;
   course_title_snapshot: string | null;
   course_code_snapshot: string | null;
   course_version_snapshot: string | null;
@@ -351,7 +352,7 @@ async function loadCertificate(
     .from("certificates")
     .select(
       "id, organization_id, slug, credential_number, issued_at, expires_at, " +
-        "pdf_storage_bucket, pdf_storage_path, course_assignment_id, course_title_snapshot, course_code_snapshot, course_version_snapshot, " +
+        "pdf_storage_bucket, pdf_storage_path, course_assignment_id, learner_name_snapshot, course_title_snapshot, course_code_snapshot, course_version_snapshot, " +
         "training_provider, provider_credential, provider_snapshot_at, " +
         "courses(title, catalog_code, course_provider_profiles(provider_full_name, credential)), " +
         "employees(first_name, last_name), organizations(name), facilities(name)",
@@ -508,9 +509,9 @@ async function processClaimedJob(
     const employee = cert.employees;
     const detail = await loadCertificateDetail(adminClient, cert);
     const pdfBytes = await buildCertificatePdf({
-      employeeName: employee
+      employeeName: cert.learner_name_snapshot ?? (employee
         ? `${employee.first_name} ${employee.last_name}`
-        : "Unknown Employee",
+        : "Unknown Employee"),
       courseTitle: cert.course_title_snapshot ?? cert.courses?.title ?? "Untitled Course",
       organizationName: cert.organizations?.name ?? "",
       facilityName: cert.facilities?.name ?? null,

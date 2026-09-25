@@ -20,7 +20,7 @@ Issued course credits appear automatically in the evidence view. Outside/classro
 
 ## Certificate correction process
 
-Course title, code and version are captured at issuance. Renaming a live course or retrying PDF generation must not rewrite the award's meaning. A routine staff-profile edit is not an approved correction to an already issued award.
+Learner name, course title, code and version are captured at issuance. Renaming a live course, editing a staff profile or retrying PDF generation must not rewrite the award's identity. A routine staff-profile edit is not an approved correction to an already issued award. Legacy learner names are frozen from the current employee record when the migration runs; historical names cannot be reconstructed from mutable profiles. Existing PDFs are retained, and any historical discrepancy requires the correction process below.
 
 1. The learner or facility administrator opens a Help support ticket with the certificate number, employee identity, requested correction, reason and source evidence. Avoid sending identity documents unless the support workflow specifically requires them.
 2. The platform administrator verifies the request against the original assignment, completed version, issuance record and facility authorization. Record the decision and evidence in the ticket. Distinguish a typographical/person-name correction from a different learner, course, date or credit claim.

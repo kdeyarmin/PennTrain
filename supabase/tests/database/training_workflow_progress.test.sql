@@ -112,6 +112,15 @@ update public.courses set title='Renamed live catalog course',catalog_code='NEW-
 select is((select course_title from public.verify_certificate((select slug from public.certificates where employee_id=pg_temp.id(201) and course_id=pg_temp.id(301)))),'Yearly course 301','public certificate verification preserves completed title after rename');
 select is((select course_code from public.verify_certificate((select slug from public.certificates where employee_id=pg_temp.id(201) and course_id=pg_temp.id(301)))),null::text,'adding live catalog code does not rewrite a null snapshot');
 select is((select course_version from public.verify_certificate((select slug from public.certificates where employee_id=pg_temp.id(201) and course_id=pg_temp.id(301)))),'v1','certificate version uses stable version label');
+select is((select learner_name_snapshot from public.certificates where employee_id=pg_temp.id(201) and course_id=pg_temp.id(301)),'First Student','certificate captures learner name at issuance');
+update public.employees set first_name='Updated',last_name='Profile' where id=pg_temp.id(201);
+select is((select employee_name from public.verify_certificate((select slug from public.certificates where employee_id=pg_temp.id(201) and course_id=pg_temp.id(301)))),'First Student','profile rename does not alter public certificate identity');
+-- Even a privileged PDF-state update must preserve the award snapshot.
+reset role;
+select set_config('app.privileged_write','on',true);
+update public.certificates set learner_name_snapshot='Forged Name' where employee_id=pg_temp.id(201) and course_id=pg_temp.id(301);
+select is((select learner_name_snapshot from public.certificates where employee_id=pg_temp.id(201) and course_id=pg_temp.id(301)),'First Student','certificate updates cannot overwrite the learner snapshot');
+select pg_temp.act(102);
 -- All-conflict application must preserve membership even if it creates no assignment.
 insert into public.course_assignments(organization_id,facility_id,employee_id,course_id,course_version_id,assigned_by,due_date)
 select pg_temp.id(1),pg_temp.id(11),pg_temp.id(202),pg_temp.id(n),pg_temp.id(n+100),pg_temp.id(102),public.pa_today()+1 from generate_series(301,303) n;

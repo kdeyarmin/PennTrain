@@ -1388,6 +1388,7 @@ export type Database = {
           facility_id: string
           id: string
           issued_at: string
+          learner_name_snapshot: string | null
           organization_id: string
           pdf_attempt_count: number
           pdf_last_attempt_at: string | null
@@ -1415,6 +1416,7 @@ export type Database = {
           facility_id: string
           id?: string
           issued_at?: string
+          learner_name_snapshot?: string | null
           organization_id: string
           pdf_attempt_count?: number
           pdf_last_attempt_at?: string | null
@@ -1442,6 +1444,7 @@ export type Database = {
           facility_id?: string
           id?: string
           issued_at?: string
+          learner_name_snapshot?: string | null
           organization_id?: string
           pdf_attempt_count?: number
           pdf_last_attempt_at?: string | null
@@ -43998,6 +44001,7 @@ export type Database = {
           facility_id: string
           id: string
           issued_at: string
+          learner_name_snapshot: string | null
           organization_id: string
           pdf_attempt_count: number
           pdf_last_attempt_at: string | null

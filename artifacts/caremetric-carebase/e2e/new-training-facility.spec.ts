@@ -352,6 +352,10 @@ test.describe("new training facility administrator", () => {
       } finally {
         await printEvidence.close();
       }
+      // A profile correction must not silently restate the award during its first PDF render.
+      const { error: renameError } = await service.from("employees")
+        .update({ first_name: "Updated", last_name: "Profile" }).eq("id", studentId);
+      if (renameError) throw renameError;
       await page.getByRole("tab", { name: "Certificates", exact: true }).click();
       await page.getByLabel("Training student").selectOption(studentId);
       await expect(page.getByRole("checkbox", { name: new RegExp(fixture.courseTitle) })).toBeVisible();
@@ -371,9 +375,12 @@ test.describe("new training facility administrator", () => {
       const packetPdf = await PDFDocument.load(await readFile((await packet.path())!));
       expect(packetPdf.getPageCount()).toBe(1);
       const { data: generatedCertificate, error: certificateError } = await service.from("certificates")
-        .select("pdf_status,course_title_snapshot").eq("employee_id", studentId).eq("course_id", fixture.courseId).single();
+        .select("pdf_status,course_title_snapshot,learner_name_snapshot,slug").eq("employee_id", studentId).eq("course_id", fixture.courseId).single();
       if (certificateError) throw certificateError;
-      expect(generatedCertificate).toMatchObject({ pdf_status: "ready", course_title_snapshot: fixture.courseTitle });
+      expect(generatedCertificate).toMatchObject({ pdf_status: "ready", course_title_snapshot: fixture.courseTitle, learner_name_snapshot: "Everly Newlearner" });
+      const { data: verification, error: verificationError } = await service.rpc("verify_certificate", { p_slug: generatedCertificate.slug });
+      if (verificationError) throw verificationError;
+      expect(verification[0]).toMatchObject({ employee_name: "Everly Newlearner", course_title: fixture.courseTitle });
       await expect(page.getByText("No certificates match these filters. Certificates become available after eligible course completion.")).toHaveCount(0);
       await page.goto("/app/residents");
       await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");
