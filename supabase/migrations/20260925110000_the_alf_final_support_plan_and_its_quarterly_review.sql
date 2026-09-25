@@ -608,6 +608,35 @@ select app_private.backfill_alf_support_plan_cycle();
 
 select public.recalculate_resident_compliance_statuses();
 
+-- ---------------------------------------------------------------------------
+-- 8. The two functions that name resident item types
+-- ---------------------------------------------------------------------------
+-- get_qapi_source_metrics counts an expired assessment or support plan as a late assessment, and
+-- register_outstanding_work_items files a support plan in the work queue as 'support_plan'. Both
+-- name the types they mean and neither named the review, so an overdue review showed on the
+-- resident but not in QAPI, and was filed as an assessment. Spliced from the deployed bodies with a
+-- guarded replace (the 20260906270000 pattern): both have been redeclared by several migrations.
+do $do$
+declare v_def text; v_old text; v_new text;
+begin
+  v_def := pg_get_functiondef('public.get_qapi_source_metrics(uuid, date, date)'::regprocedure);
+  v_old := $old$item_type in('initial_assessment_15day','annual_reassessment','significant_change_reassessment','support_plan_30day')$old$;
+  if position(v_old in v_def) = 0 then
+    raise exception 'get_qapi_source_metrics no longer lists the late-assessment item types this migration extends';
+  end if;
+  v_new := $new$item_type in('initial_assessment_15day','annual_reassessment','significant_change_reassessment','support_plan_30day','support_plan_quarterly_review')$new$;
+  execute replace(v_def, v_old, v_new);
+
+  v_def := pg_get_functiondef('public.register_outstanding_work_items()'::regprocedure);
+  v_old := $old$case when r.item_type = 'support_plan_30day' then 'support_plan' else 'assessment' end$old$;
+  if position(v_old in v_def) = 0 then
+    raise exception 'register_outstanding_work_items no longer files support plans the way this migration extends';
+  end if;
+  v_new := $new$case when r.item_type in ('support_plan_30day', 'support_plan_quarterly_review') then 'support_plan' else 'assessment' end$new$;
+  execute replace(v_def, v_old, v_new);
+end
+$do$;
+
 -- The trigger must still find every category it asks for.
 do $$
 declare v_missing text;

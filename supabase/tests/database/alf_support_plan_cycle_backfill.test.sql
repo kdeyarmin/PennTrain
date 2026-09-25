@@ -2,11 +2,12 @@
 -- ALF residents admitted before the final support plan (2800.227(a)) and its quarterly review
 -- (2800.227(c)) were tracked. Before that migration the ALF `support_plan_30day` row was the
 -- 2800.224 preliminary plan, so a completed first-cycle row is shaped here the way it was then:
--- completed, and filed under 2800.224.
+-- completed, and filed under 2800.224. Also covers the same migration's section 8: the review in
+-- the QAPI late-assessment count and the work queue's support-plan source type.
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(17);
+select plan(20);
 
 insert into public.organizations(id, name, slug, subscription_status) values
   ('a2280000-0000-4000-8000-000000000001', 'Plan Backfill Org', 'plan-backfill-org', 'active');
@@ -277,6 +278,54 @@ select is(
      and item_type = 'support_plan_quarterly_review' and completed_date is null),
   1,
   'and does not stack a second review on the one running'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- An overdue review is a late assessment in QAPI and a support plan in the work queue
+-- ---------------------------------------------------------------------------------------
+select public.recalculate_resident_compliance_statuses();
+
+select is(
+  (select status from public.resident_compliance_items
+   where resident_id = 'a2280000-0000-4000-8000-000000000201'
+     and item_type = 'support_plan_quarterly_review' and completed_date is null),
+  'expired',
+  'the review started from a plan dated 175 days ago is overdue'
+);
+
+create or replace function pg_temp.late_assessments()
+returns integer language plpgsql as $$
+declare v integer;
+begin
+  perform pg_temp.act_as('a2280000-0000-4000-8000-000000000101');
+  v := (public.get_qapi_source_metrics('a2280000-0000-4000-8000-000000000011',
+          public.pa_today() - 30, public.pa_today())->>'lateAssessments')::integer;
+  reset role;
+  return v;
+end $$;
+
+create temp table late_before as select pg_temp.late_assessments() as n;
+update public.resident_compliance_items
+set due_date = public.pa_today() + 30
+where resident_id = 'a2280000-0000-4000-8000-000000000201'
+  and item_type = 'support_plan_quarterly_review' and completed_date is null;
+select public.recalculate_resident_compliance_statuses();
+
+select is(
+  pg_temp.late_assessments(),
+  (select n - 1 from late_before),
+  'QAPI counts the overdue quarterly review as a late assessment: bringing it current takes one off'
+);
+
+select public.register_outstanding_work_items();
+
+select is(
+  (select w.source_type from public.work_items w
+   join public.resident_compliance_items ci on ci.id = w.source_id
+   where ci.resident_id = 'a2280000-0000-4000-8000-000000000201'
+     and ci.item_type = 'support_plan_quarterly_review' and ci.completed_date is null),
+  'support_plan',
+  'and the work queue files the review as a support plan, not an assessment'
 );
 
 -- ---------------------------------------------------------------------------------------
