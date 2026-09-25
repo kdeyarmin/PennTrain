@@ -120,9 +120,10 @@ export interface ListEmployeesPaginatedFilters extends ListEmployeesFilters {
 // Server-side search/sort/pagination for the Employees roster page -- a separate hook (rather
 // than an overload of useListEmployees above) so the many other pages that want the full
 // filtered list untouched keep the exact same query shape/cache key they always had.
-export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters) {
+export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["employees", "paginated", filters],
+    enabled: options.enabled,
     queryFn: async () => {
       let query = supabase.from("employees").select("*", { count: "exact" });
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);

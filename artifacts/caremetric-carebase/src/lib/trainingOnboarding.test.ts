@@ -25,6 +25,6 @@ describe("training onboarding context", () => {
 
   it("builds an internal training return path with escaped context", () => {
     expect(trainingWorkspaceHref()).toBe("/app/train");
-    expect(trainingWorkspaceHref("id&source=other")).toBe("/app/train?facilityId=id%26source%3Dother");
+    expect(trainingWorkspaceHref("id&source=other")).toBe("/app/train?facilityId=id%26source%3Dother&source=train");
   });
 });

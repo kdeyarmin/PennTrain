@@ -156,13 +156,14 @@ export function useListCourseVersionsByIds(ids: string[]) {
     queryKey: ["courses", "versions", "by-ids", normalizedIds],
     queryFn: async () => {
       if (normalizedIds.length === 0) return [] as CourseVersion[];
-      const { data, error } = await supabase
-        .from("course_versions")
-        .select("*")
-        .in("id", normalizedIds)
-        .order("version_number");
-      if (error) throw error;
-      return data;
+      const versions: CourseVersion[] = [];
+      for (let offset = 0; offset < normalizedIds.length; offset += 200) {
+        const { data, error } = await supabase.from("course_versions").select("*")
+          .in("id", normalizedIds.slice(offset, offset + 200)).order("version_number").order("id");
+        if (error) throw error;
+        versions.push(...(data ?? []));
+      }
+      return versions;
     },
   });
 }

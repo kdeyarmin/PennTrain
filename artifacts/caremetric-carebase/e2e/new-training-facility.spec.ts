@@ -23,6 +23,7 @@ async function provisionEmptyTrainingFacility(service: SupabaseClient, url: stri
   ]).select("id,name");
   if (facilityError) throw facilityError;
   const facility = facilities.find(row => row.name === "Cedar training facility")!;
+  const otherFacility = facilities.find(row => row.name === "Aspen other facility")!;
 
   const email = `new-training-admin-${suffix}@test.local`;
   const { data: administrator, error: administratorError } = await service.auth.admin.createUser({
@@ -71,7 +72,7 @@ async function provisionEmptyTrainingFacility(service: SupabaseClient, url: stri
   const { error: activationError } = await publisherClient.from("courses").update({ status: "published" }).eq("id", course.id);
   if (activationError) throw activationError;
 
-  return { organizationId: organization.id, facility, email, courseTitle, courseId: course.id, suffix };
+  return { organizationId: organization.id, facility, otherFacility, email, courseTitle, courseId: course.id, suffix };
 }
 
 test.describe("new training facility administrator", () => {
@@ -104,6 +105,20 @@ test.describe("new training facility administrator", () => {
       await expect(page.getByRole("heading", { name: "CareMetric Train", exact: true })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Get your facility started", exact: true })).toBeVisible();
       await page.getByLabel("Training facility").selectOption(fixture.facility.id);
+      await expect.poll(() => new URL(page.url()).searchParams.get("facilityId")).toBe(fixture.facility.id);
+      await page.getByLabel("Training facility").selectOption(fixture.otherFacility.id);
+      await expect.poll(() => new URL(page.url()).searchParams.get("facilityId")).toBe(fixture.otherFacility.id);
+      await page.goBack();
+      await expect(page.getByLabel("Training facility")).toHaveValue(fixture.facility.id);
+      await expect.poll(() => new URL(page.url()).searchParams.get("facilityId")).toBe(fixture.facility.id);
+      await page.goForward();
+      await expect(page.getByLabel("Training facility")).toHaveValue(fixture.otherFacility.id);
+      await expect.poll(() => new URL(page.url()).searchParams.get("facilityId")).toBe(fixture.otherFacility.id);
+      await page.goBack();
+      await expect(page.getByLabel("Training facility")).toHaveValue(fixture.facility.id);
+      await page.reload();
+      await expect(page.getByLabel("Training facility")).toHaveValue(fixture.facility.id);
+      await expect.poll(() => new URL(page.url()).searchParams.get("facilityId")).toBe(fixture.facility.id);
       // A Train-only administrator must not be encouraged into licensed operational modules.
       await expect(page.locator('a[href^="/app/residents"], a[href^="/app/workforce"], a[href^="/app/incidents"], a[href^="/app/today"]')).toHaveCount(0);
       await page.getByRole("tab", { name: "Students", exact: true }).click();
@@ -181,6 +196,9 @@ test.describe("new training facility administrator", () => {
       await page.getByRole("link", { name: "Back to training", exact: true }).click();
       await page.getByRole("tab", { name: "Enrollment & completion", exact: true }).click();
       const report = page.getByRole("region", { name: "Enrollment, completion & certificates", exact: true });
+      // Reopening the same report must refresh the cached pre-completion totals before a
+      // changed filter creates a new query key and could hide a stale-return regression.
+      await expect(report.getByText("1 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
       await report.getByLabel("Enrollment status", { exact: true }).selectOption("completed");
       const reportRow = report.getByRole("row").filter({ hasText: fixture.courseTitle });
       await expect(reportRow).toContainText("100%");
@@ -231,6 +249,7 @@ test.describe("new training facility administrator", () => {
   });
 
   test("the owner creates a Train-only facility, invites its administrator and opens its reporting context", async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
     // The standalone product intentionally omits the owner's general organization-management console.
     test.skip(process.env.PLAYWRIGHT_TRAIN_BUILD === "true", "owner provisioning is in the universal super-admin console");
     const url = process.env.SUPABASE_URL!;

@@ -1,7 +1,7 @@
 import { useId, useEffect, useMemo, useState } from "react";
 import { Link, useSearch } from "wouter";
 import { useUrlState } from "@/hooks/useUrlState";
-import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
+import { useTrainingFacilityScope } from "@/hooks/useFacilityAssignments";
 import { trainingFacilityFromSearch, trainingWorkspaceHref } from "@/lib/trainingOnboarding";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import {
@@ -189,12 +189,15 @@ export default function CourseAssignments() {
   // of this page uses is exactly the server's own rule here; narrowing further by facility
   // assignment would hide a control the database would have accepted.
 
-  const { data: facilities, isLoading: facilitiesLoading } = useListFacilities();
-  const assignableFacilities = useAssignableFacilities(facilities);
+  const facilityDirectory = useListFacilities();
+  const facilityScope = useTrainingFacilityScope(facilityDirectory);
+  const assignableFacilities = facilityScope.facilities;
+  const assignedFacilityIds = useMemo(() => new Set(assignableFacilities.map(facility => facility.id)), [assignableFacilities]);
   const trainingFacility = trainingFacilityFromSearch(locationSearch, assignableFacilities, user?.organizationId);
   const facilityId = trainingHandoff ? trainingFacility?.id ?? "all" : urlState.facilityId;
   const setFacilityId = (id: string) => setUrlState({ facilityId: id });
-  const invalidTrainingFacility = trainingHandoff && urlState.facilityId !== "all" && !facilitiesLoading && !trainingFacility;
+  const invalidTrainingFacility = trainingHandoff && urlState.facilityId !== "all" && facilityScope.isReady && !trainingFacility;
+  const facilityActionsBlocked = !facilityScope.isReady || invalidTrainingFacility || !assignableFacilities.length;
   // Historical assignments survive leave and termination. Keep those employees available for
   // row labels and search; the new-assignment picker uses activeEmployees below.
   const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees();
@@ -234,9 +237,9 @@ export default function CourseAssignments() {
   const activeEmployees = useMemo(
     () =>
       (employees ?? [])
-        .filter(e => e.status === "active")
+        .filter(e => e.status === "active" && assignedFacilityIds.has(e.facility_id))
         .sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)),
-    [employees],
+    [employees, assignedFacilityIds],
   );
   const learnerReadyVersionsByCourseId = useMemo(() => {
     type CourseVersionRows = NonNullable<typeof allCourseVersions>;
@@ -301,7 +304,7 @@ export default function CourseAssignments() {
     matchingCourseIds,
     page,
     pageSize: PAGE_SIZE,
-  });
+  }, { enabled: facilityScope.isReady && !invalidTrainingFacility });
   const paginated = assignmentsPage?.rows ?? [];
   const totalCount = assignmentsPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -399,6 +402,7 @@ export default function CourseAssignments() {
   };
 
   const openAssign = () => {
+    if (facilityActionsBlocked) return;
     setAssignForm(EMPTY_ASSIGN_FORM);
     setSelectedEmployeeIds(new Set());
     setAssignEmployeeSearch("");
@@ -416,6 +420,7 @@ export default function CourseAssignments() {
   // (mirrors CourseDetail.tsx's handleGenerateAllVideos bulk pattern) so one employee's failure
   // doesn't stop the rest, then reports one summary toast instead of one per employee.
   const handleAssign = async () => {
+    if (facilityActionsBlocked) return;
     if (selectedEmployeeIds.size === 0 || !assignForm.courseId) {
       toast({ title: "Select at least one employee and training item", variant: "destructive" });
       return;
@@ -438,6 +443,11 @@ export default function CourseAssignments() {
     const targetEmployees = [...selectedEmployeeIds]
       .map(id => employeeById.get(id))
       .filter((e): e is Employee => !!e);
+    if (targetEmployees.length !== selectedEmployeeIds.size
+      || targetEmployees.some(employee => employee.status !== "active" || !assignedFacilityIds.has(employee.facility_id))) {
+      toast({ title: "Choose active students from your available facilities", variant: "destructive" });
+      return;
+    }
 
     setAssigning(true);
     const results = await Promise.allSettled(
@@ -594,6 +604,9 @@ export default function CourseAssignments() {
     }
   };
 
+  if (facilityScope.isLoading) return <p role="status">Loading your available facilities…</p>;
+  if (facilityScope.isError) return <QueryError what="available facilities" error={facilityScope.error} onRetry={facilityScope.refetch} />;
+
   return (
     <div className="space-y-6">
       {trainingHandoff && <div className="rounded-lg border p-4 space-y-2">
@@ -606,7 +619,7 @@ export default function CourseAssignments() {
           <p>Assign required training to employees and track completion.</p>
         </div>
         {canManage && (
-          <Button onClick={openAssign} className="shadow-sm">
+          <Button onClick={openAssign} disabled={facilityActionsBlocked} className="shadow-sm">
             <UserPlus className="mr-2 h-4 w-4" /> Assign Training
           </Button>
         )}
@@ -686,7 +699,7 @@ export default function CourseAssignments() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
-              {facilities?.map(f => (
+              {assignableFacilities.map(f => (
                 <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
               ))}
             </SelectContent>
@@ -921,7 +934,7 @@ export default function CourseAssignments() {
                   <SelectTrigger id={`${__fieldIds}-assign-facility-filter`} aria-label="Filter employees by facility" className="h-8 w-44 text-xs"><SelectValue placeholder="All Facilities" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Facilities</SelectItem>
-                    {facilities?.map(f => (
+                    {assignableFacilities.map(f => (
                       <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -976,7 +989,7 @@ export default function CourseAssignments() {
             <Button variant="outline" onClick={() => setShowAssignForm(false)}>Cancel</Button>
             <Button
               onClick={handleAssign}
-              disabled={assigning || selectedEmployeeIds.size === 0 || !assignForm.courseId || !defaultVersion}
+              disabled={facilityActionsBlocked || assigning || selectedEmployeeIds.size === 0 || !assignForm.courseId || !defaultVersion}
               className="shadow-sm"
             >
               {assigning

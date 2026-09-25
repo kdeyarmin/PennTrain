@@ -7,7 +7,7 @@ import {
 } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { lifecycleWizardHref } from "@/lib/employeeLifecycleCases";
-import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
+import { useTrainingFacilityScope } from "@/hooks/useFacilityAssignments";
 import { facilityScopedErrorText } from "@/lib/rlsErrors";
 import { useInviteUser } from "@/hooks/useProfiles";
 import { useUrlState } from "@/hooks/useUrlState";
@@ -115,13 +115,16 @@ export default function Employees() {
     : "/app/employees";
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
-  const { data: facilities, isLoading: facilitiesLoading } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
+  const facilityDirectory = useListFacilities({ organizationId: viewingOrgId ?? undefined });
+  const { data: facilities } = facilityDirectory;
   // A facility manager can read the organization's directory but may only add students to
   // assigned facilities. Validate the handoff against that same write-scoped picker.
-  const assignableFacilities = useAssignableFacilities(facilities);
+  const facilityScope = useTrainingFacilityScope(facilityDirectory);
+  const assignableFacilities = facilityScope.facilities;
   const trainingFacility = trainingFacilityFromSearch(locationSearch, assignableFacilities, user?.role === "platform_admin" ? viewingOrgId : user?.organizationId);
   const facilityId = trainingHandoff ? trainingFacility?.id ?? "all" : requestedFacilityId;
-  const invalidTrainingFacility = trainingHandoff && requestedFacilityId !== "all" && !facilitiesLoading && !trainingFacility;
+  const invalidTrainingFacility = trainingHandoff && requestedFacilityId !== "all" && facilityScope.isReady && !trainingFacility;
+  const facilityActionsBlocked = !facilityScope.isReady || invalidTrainingFacility || !assignableFacilities.length;
 
   // Debounce the free-text box before it drives a server request, so typing doesn't fire a query
   // per keystroke; the page-reset on change below still happens immediately. The box's raw value
@@ -146,7 +149,7 @@ export default function Employees() {
     sortDir,
     page,
     pageSize: PAGE_SIZE,
-  });
+  }, { enabled: facilityScope.isReady && !invalidTrainingFacility });
   const { mutate: createEmployee, isPending: creating } = useCreateEmployee();
   const { mutate: updateEmployee, isPending: updating } = useUpdateEmployee();
   const { mutate: inviteUser, isPending: inviting } = useInviteUser();
@@ -167,6 +170,7 @@ export default function Employees() {
   // (when one is selected), instead of always resetting to none -- an admin who has filtered the
   // roster down to one facility is almost always about to add someone at that same facility.
   const openCreate = (withPortalInvite = false) => {
+    if (facilityActionsBlocked) return;
     setEditEmp(null);
     const allowedFacility = assignableFacilities.find(facility => facility.id === facilityId);
     setForm({ ...EMPTY_EMPLOYEE_FORM, facilityId: allowedFacility?.id ?? (assignableFacilities.length === 1 ? assignableFacilities[0].id : "none") });
@@ -190,7 +194,7 @@ export default function Employees() {
     if (!canManage || (action !== "add" && action !== "bulk-import")) return;
     // A URL cannot authorize a facility. Wait for the write-scoped picker before prefilling;
     // an unavailable/cross-organization ID leaves an explanation rather than opening a bad form.
-    if (trainingHandoff && (facilitiesLoading || (requestedFacilityId !== "all" && !trainingFacility))) return;
+    if (facilityActionsBlocked) return;
     if (action === "add") {
       // The guided/dashboard onboarding action opens the practical combined
       // flow by default: roster record plus a linked self-service login.
@@ -213,7 +217,7 @@ export default function Employees() {
     // Listing them anyway costs nothing -- after the navigate above the URL carries no `action`,
     // so any extra run returns at the guard -- and it means a role that did somehow arrive late
     // would retry the deep link instead of stranding it.
-  }, [locationSearch, canManage, basePath, trainingHandoff, facilitiesLoading, requestedFacilityId, trainingFacility?.id]);
+  }, [locationSearch, canManage, basePath, facilityActionsBlocked, facilityId, assignableFacilities]);
 
   const openEdit = (e: React.MouseEvent, emp: Employee) => {
     e.preventDefault();
@@ -225,6 +229,7 @@ export default function Employees() {
   };
 
   const handleSubmit = () => {
+    if (!editEmp && facilityActionsBlocked) return;
     if (!form.firstName.trim() || !form.lastName.trim()) {
       toast({ title: "First and last name are required", variant: "destructive" });
       return;
@@ -333,6 +338,7 @@ export default function Employees() {
     setForm(f => ({ ...f, [k]: v }));
 
   const openBulkImport = () => {
+    if (facilityActionsBlocked) return;
     setBulkFile(null);
     setBulkResult(null);
     setBulkError(null);
@@ -344,6 +350,7 @@ export default function Employees() {
   // progress bar advances as each slice lands, and Cancel takes effect between chunks
   // (rows already imported stay imported -- each row is independent).
   const handleBulkImport = async () => {
+    if (facilityActionsBlocked) return;
     if (!bulkFile) {
       toast({ title: "Choose a CSV file first", variant: "destructive" });
       return;
@@ -420,6 +427,9 @@ export default function Employees() {
     }
   };
 
+  if (facilityScope.isLoading) return <p role="status">Loading your available facilities…</p>;
+  if (facilityScope.isError) return <QueryError what="available facilities" error={facilityScope.error} onRetry={facilityScope.refetch} />;
+
   return (
     <div className="space-y-6">
       {trainingHandoff && <div className="rounded-lg border p-4 space-y-2">
@@ -433,10 +443,10 @@ export default function Employees() {
         </div>
         {canManage && (
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={openBulkImport} className="shadow-sm">
+            <Button variant="outline" onClick={openBulkImport} disabled={facilityActionsBlocked} className="shadow-sm">
               <Upload className="mr-2 h-4 w-4" /> Bulk Import
             </Button>
-            <Button onClick={() => openCreate(trainingHandoff)} className="shadow-sm">
+            <Button onClick={() => openCreate(trainingHandoff)} disabled={facilityActionsBlocked} className="shadow-sm">
               <UserPlus className="mr-2 h-4 w-4" /> Add Employee
             </Button>
           </div>
@@ -460,7 +470,7 @@ export default function Employees() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
-              {facilities?.map(f => (
+              {assignableFacilities.map(f => (
                 <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
               ))}
             </SelectContent>

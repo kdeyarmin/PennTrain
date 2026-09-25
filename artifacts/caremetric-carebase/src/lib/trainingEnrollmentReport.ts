@@ -21,11 +21,13 @@ export interface TrainingEnrollmentPage {
   organization_name: string; facility_name: string | null; generated_at: string; date_basis: TrainingReportDateBasis;
   limit: number; offset: number; total: number; students: number; completed: number;
   in_progress: number; not_started: number; canceled: number; completion_denominator: number;
-  certificates: number; revision: string; rows: TrainingEnrollmentRow[];
+  certificates: number; rows: TrainingEnrollmentRow[];
 }
 export const DATE_BASIS_LABELS: Record<TrainingReportDateBasis, string> = {
   assigned: "Enrollment date", completed: "Completion date", certificate: "Certificate issue date",
 };
+export const TRAINING_REPORT_EXPORT_LIMIT = 10_000;
+export const TRAINING_REPORT_EXPORT_LIMIT_MESSAGE = "This report exceeds 10,000 enrollments. Narrow the dates, course or facility before exporting; no partial report was created.";
 const countKeys = ["limit", "offset", "total", "students", "completed", "in_progress", "not_started", "canceled", "completion_denominator", "certificates"] as const;
 
 export function parseTrainingEnrollmentPage(value: unknown): TrainingEnrollmentPage {
@@ -33,11 +35,11 @@ export function parseTrainingEnrollmentPage(value: unknown): TrainingEnrollmentP
   if (!value || typeof value !== "object") return fail();
   const page = value as TrainingEnrollmentPage;
   if (countKeys.some(key => !Number.isSafeInteger(page[key]) || page[key] < 0)
-    || page.limit < 1 || page.limit > 500 || !Array.isArray(page.rows)
+    || page.limit < 1 || (page.limit > 500 && page.limit !== TRAINING_REPORT_EXPORT_LIMIT) || !Array.isArray(page.rows)
+    || (page.limit === TRAINING_REPORT_EXPORT_LIMIT && (page.offset !== 0 || page.total > TRAINING_REPORT_EXPORT_LIMIT))
     || page.rows.length !== Math.min(page.limit, Math.max(0, page.total - page.offset))
     || typeof page.organization_name !== "string" || typeof page.generated_at !== "string"
     || (page.facility_name !== null && typeof page.facility_name !== "string")
-    || typeof page.revision !== "string" || !/^[a-f0-9]{32}$/.test(page.revision)
     || !Object.hasOwn(DATE_BASIS_LABELS, page.date_basis)
     || page.completion_denominator !== page.total - page.canceled
     || page.completed > page.completion_denominator || page.students > page.total || page.certificates > page.total) return fail();
@@ -50,23 +52,15 @@ export function parseTrainingEnrollmentPage(value: unknown): TrainingEnrollmentP
   return page;
 }
 
-/** Read every bounded page, refusing a mixed snapshot, repeated rows or missing pages. */
+/** Export one complete database snapshot; never join independently changing report pages. */
 export async function collectTrainingEnrollmentReport(readPage: (offset: number, limit: number) => Promise<TrainingEnrollmentPage>): Promise<TrainingEnrollmentPage> {
-  const first = parseTrainingEnrollmentPage(await readPage(0, 500));
-  const rows = [...first.rows];
-  const ids = new Set(rows.map(row => row.id));
-  while (rows.length < first.total) {
-    const page = parseTrainingEnrollmentPage(await readPage(rows.length, 500));
-    if (page.revision !== first.revision || page.total !== first.total || page.offset !== rows.length || !page.rows.length) {
-      throw new Error("Training records changed while exporting. Refresh and try again; no incomplete report was created.");
-    }
-    for (const row of page.rows) {
-      if (ids.has(row.id)) throw new Error("The report repeated an enrollment. Refresh and try again.");
-      ids.add(row.id); rows.push(row);
-    }
+  const result = await readPage(0, TRAINING_REPORT_EXPORT_LIMIT);
+  if (result.total > TRAINING_REPORT_EXPORT_LIMIT) throw new Error(TRAINING_REPORT_EXPORT_LIMIT_MESSAGE);
+  const report = parseTrainingEnrollmentPage(result);
+  if (report.offset !== 0 || report.limit !== TRAINING_REPORT_EXPORT_LIMIT || report.rows.length !== report.total) {
+    throw new Error("The report was incomplete. Refresh and try again; no partial report was created.");
   }
-  if (rows.length !== first.total) throw new Error("The report was incomplete. Refresh and try again.");
-  return { ...first, rows };
+  return report;
 }
 
 export function trainingEnrollmentScope(filters: TrainingEnrollmentFilters): string {
@@ -75,8 +69,8 @@ export function trainingEnrollmentScope(filters: TrainingEnrollmentFilters): str
 export const TRAINING_REPORT_HEADERS = ["Student", "Facility", "Course", "Status", "Progress %", "Enrolled", "Due", "Completed", "Certificate number", "Certificate issued", "Certificate PDF status", "Enrollment ID"];
 export function trainingEnrollmentCells(row: TrainingEnrollmentRow): string[] {
   return [row.student, row.facility, row.course, row.status.replaceAll("_", " "), String(row.percent_complete),
-    formatDateForDisplay(row.assigned_at), formatDateForDisplay(row.due_date), formatDateForDisplay(row.completed_at),
-    row.credential_number || "", formatDateForDisplay(row.certificate_issued_at), row.certificate_pdf_status || "", row.id];
+    formatDateForDisplay(row.assigned_at, { timeZone: "America/New_York" }), formatDateForDisplay(row.due_date), formatDateForDisplay(row.completed_at, { timeZone: "America/New_York" }),
+    row.credential_number || "", formatDateForDisplay(row.certificate_issued_at, { timeZone: "America/New_York" }), row.certificate_pdf_status || "", row.id];
 }
 export function trainingEnrollmentCsv(report: TrainingEnrollmentPage, filters: TrainingEnrollmentFilters): string {
   return trainingCsv([

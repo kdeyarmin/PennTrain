@@ -11,7 +11,7 @@ import { downloadBlob } from "@/lib/browserDownload";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { facilityToday } from "@/lib/dateUtils";
 import {
-  collectTrainingEnrollmentReport, DATE_BASIS_LABELS, TRAINING_REPORT_HEADERS,
+  collectTrainingEnrollmentReport, DATE_BASIS_LABELS, TRAINING_REPORT_HEADERS, TRAINING_REPORT_EXPORT_LIMIT, TRAINING_REPORT_EXPORT_LIMIT_MESSAGE,
   trainingEnrollmentCells, trainingEnrollmentCsv, trainingEnrollmentScope,
   type TrainingEnrollmentFilters, type TrainingEnrollmentPage, type TrainingReportDateBasis,
 } from "@/lib/trainingEnrollmentReport";
@@ -35,6 +35,7 @@ function Report({ organizationId, facilityId }: { organizationId: string; facili
   const preparePdf = usePrepareCertificatePdf();
   const { toast } = useToast();
   const page = report.data;
+  const exceedsExportLimit = !!page && page.total > TRAINING_REPORT_EXPORT_LIMIT;
   const change = (next: Partial<TrainingEnrollmentFilters>) => { setFilters(current => ({ ...current, ...next })); setOffset(0); };
   const failure = (error: unknown) => toast({ title: "Training report unavailable", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
 
@@ -60,11 +61,12 @@ function Report({ organizationId, facilityId }: { organizationId: string; facili
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 id={labelId} className="text-xl font-semibold">Enrollment, completion & certificates</h2><p className="text-sm text-muted-foreground">Run a facility report, follow learner progress and open issued certificates.</p></div>
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={!page || report.isFetching || !validDates || exporting} onClick={() => void exportAll("csv")}>{exporting ? "Preparing full report…" : "Export all matching enrollments (CSV)"}</Button>
-        <Button variant="outline" disabled={!page || report.isFetching || !validDates || exporting} onClick={() => void exportAll("print")}>Print all matching enrollments</Button>
+        <Button variant="outline" disabled={!page || report.isError || report.isFetching || !validDates || exporting || exceedsExportLimit} onClick={() => void exportAll("csv")}>{exporting ? "Preparing full report…" : "Export all matching enrollments (CSV)"}</Button>
+        <Button variant="outline" disabled={!page || report.isError || report.isFetching || !validDates || exporting || exceedsExportLimit} onClick={() => void exportAll("print")}>Print all matching enrollments</Button>
         <Button variant="ghost" disabled={report.isFetching || !validDates || exporting} onClick={() => void report.refetch()}>Refresh report</Button>
       </div>
     </div>
+    {exceedsExportLimit && <p role="status" className="text-sm">{TRAINING_REPORT_EXPORT_LIMIT_MESSAGE}</p>}
     <fieldset disabled={exporting} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {!facilityId && <label className="text-sm">Report facility<select className={selectClass} value={filters.facilityId || ""} onChange={event => change({ facilityId: event.target.value || undefined })}><option value="">All accessible facilities</option>{facilities.data?.map(facility => <option key={facility.id} value={facility.id}>{facility.name}</option>)}</select></label>}
       <label className="text-sm">Course title contains<Input maxLength={200} value={filters.courseSearch} onChange={event => change({ courseSearch: event.target.value })} /></label>

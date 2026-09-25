@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { parseTrainingEnrollmentPage, type TrainingEnrollmentFilters } from "@/lib/trainingEnrollmentReport";
+import { parseTrainingEnrollmentPage, TRAINING_REPORT_EXPORT_LIMIT_MESSAGE, type TrainingEnrollmentFilters } from "@/lib/trainingEnrollmentReport";
 
 export async function readTrainingEnrollmentReport(filters: TrainingEnrollmentFilters, offset = 0, limit = 50) {
   const { data, error } = await supabase.rpc("get_training_enrollment_report", {
@@ -9,7 +9,12 @@ export async function readTrainingEnrollmentReport(filters: TrainingEnrollmentFi
     p_date_from: filters.dateFrom || undefined, p_date_through: filters.dateThrough || undefined,
     p_limit: limit, p_offset: offset,
   });
-  if (error) throw error;
+  if (error) {
+    // PostgREST errors are plain response objects; make the actionable bound visible
+    // even if records grew past the limit after the on-screen report was loaded.
+    if (error.code === "54000") throw new Error(TRAINING_REPORT_EXPORT_LIMIT_MESSAGE);
+    throw error;
+  }
   return parseTrainingEnrollmentPage(data);
 }
 
@@ -17,6 +22,8 @@ export function useTrainingEnrollmentReport(filters: TrainingEnrollmentFilters, 
   return useQuery({
     queryKey: ["training-enrollment-report", filters, offset],
     queryFn: () => readTrainingEnrollmentReport(filters, offset),
+    // Returning from assignment or completion actions must show their latest totals.
+    staleTime: 0,
     enabled: enabled && !!filters.organizationId,
   });
 }

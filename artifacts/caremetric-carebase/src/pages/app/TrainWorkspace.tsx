@@ -6,13 +6,14 @@ import { downloadBlob } from "@/lib/browserDownload";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { useDocumentSignedUrl, useListDocuments } from "@/hooks/useDocuments";
 import { useListCourseAssignments } from "@/hooks/useCourseAssignments";
-import { useListCourses } from "@/hooks/useCourses";
-import { useState, type FormEvent } from "react";
-import { Link, useSearch } from "wouter";
+import { useListCourses, useListCourseVersionsByIds } from "@/hooks/useCourses";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useLocation, useSearch } from "wouter";
 import TrainingEnrollmentReport from "@/components/training/TrainingEnrollmentReport";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useTrainingFacilityScope } from "@/hooks/useFacilityAssignments";
 import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { useListCertificates, usePrepareCertificatePdf } from "@/hooks/useCertificates";
 import { useTrainingWorkspace, useSaveTrainingWorkspace } from "@/hooks/useTrainingWorkspace";
@@ -37,10 +38,22 @@ export default function TrainWorkspace() {
   const { viewingOrgId } = useViewingOrg();
   const org = user?.role === "platform_admin" ? viewingOrgId : user?.organizationId;
   const facilities = useListFacilities({ organizationId: org || undefined }, !!org);
-  const searchParams = new URLSearchParams(useSearch());
-  const [facilityChoice, setFacility] = useState(() => searchParams.get("facilityId") || "");
-  const facilityId = facilities.data?.some(f => f.id === facilityChoice) ? facilityChoice : facilities.data?.[0]?.id || "";
-  const facility = facilities.data?.find(f => f.id === facilityId);
+  const facilityScope = useTrainingFacilityScope(facilities);
+  const locationSearch = useSearch();
+  const [location, navigate] = useLocation();
+  const facilityChoice = new URLSearchParams(locationSearch).get("facilityId") || "";
+  const facility = facilityChoice
+    ? facilityScope.facilities.find(f => f.id === facilityChoice)
+    : facilityScope.facilities[0];
+  const facilityId = facility?.id || "";
+  const invalidFacility = facilityScope.isReady && !!facilityChoice && !facility;
+  function setFacility(id: string) {
+    if (!facilityScope.isReady || !facilityScope.facilities.some(f => f.id === id)) return;
+    const params = new URLSearchParams(locationSearch);
+    params.set("facilityId", id);
+    params.set("source", "train");
+    navigate(`${location.split("?")[0]}?${params}`);
+  }
   const trainingContext = new URLSearchParams({ facilityId, source: "train" }).toString();
   const addStudentHref = `/app/employees?action=add&${trainingContext}`;
   const importStudentsHref = `/app/employees?action=bulk-import&${trainingContext}`;
@@ -61,6 +74,15 @@ export default function TrainWorkspace() {
   const progress = useListCourseAssignments({ facilityId }, { enabled: !!facilityId });
   const assignments = useListCourseAssignments({ facilityId, employeeId: student, status: "completed" }, { enabled: !!student && !!facilityId });
   const courses = useListCourses();
+  const assignedVersions = useListCourseVersionsByIds((progress.data || []).flatMap(assignment => assignment.course_version_id ? [assignment.course_version_id] : []));
+  const assignmentById = new Map((progress.data || []).map(assignment => [assignment.id, assignment]));
+  const versionById = new Map((assignedVersions.data || []).map(version => [version.id, version]));
+  const certificateCourseTitle = (certificate: NonNullable<typeof certificates.data>[number]) => {
+    const assignment = certificate.course_assignment_id ? assignmentById.get(certificate.course_assignment_id) : undefined;
+    if (assignment?.course_version_id) return versionById.get(assignment.course_version_id)?.title || "Assigned course title unavailable";
+    if (certificate.course_assignment_id && !assignment) return "Assigned course title unavailable";
+    return courses.data?.find(course => course.id === certificate.course_id)?.title || "Course unavailable";
+  };
   const [batchBusy, setBatchBusy] = useState(false);
   const [tab, setTab] = useState("overview");
   const [shiftId, setShiftId] = useState("");
@@ -71,6 +93,15 @@ export default function TrainWorkspace() {
   const [certificateThrough, setCertificateThrough] = useState("");
   const [certificateStatus, setCertificateStatus] = useState("");
   const [selectedCerts, setSelectedCerts] = useState<Set<string>>(new Set());
+  // URL changes include browser Back/Forward, not just dropdown clicks. Never retain a student
+  // or certificate selection from the facility the user just left.
+  useEffect(() => {
+    setStudent("");
+    setShiftId("");
+    setInviteSelection(new Set());
+    setInviteResults({});
+    setSelectedCerts(new Set());
+  }, [facilityId]);
   const canWrite = user?.role !== "auditor";
   const canInvite = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role || "");
   const data = workspace.data;
@@ -204,12 +235,13 @@ export default function TrainWorkspace() {
     } catch (error) { message(error); } finally { setBatchBusy(false); }
   }
   if (!org) return <p>Select an organization in the administrator workspace first.</p>;
-  if (facilities.isError || employees.isError || workspace.isError || progress.isError || courses.isError) return <div role="alert">Training data could not be loaded. <Button onClick={() => { void facilities.refetch(); void employees.refetch(); void workspace.refetch(); void progress.refetch(); void courses.refetch(); }}>Retry</Button></div>;
-  const loading = facilities.isLoading || employees.isLoading || workspace.isLoading || progress.isLoading || courses.isLoading;
+  if (facilityScope.isError) return <div role="alert">Your training facilities could not be loaded. <Button onClick={facilityScope.refetch}>Retry</Button></div>;
+  if (facilityId && (employees.isError || workspace.isError || progress.isError || courses.isError)) return <div role="alert">Training data could not be loaded. <Button onClick={() => { void employees.refetch(); void workspace.refetch(); void progress.refetch(); void courses.refetch(); }}>Retry</Button></div>;
+  const loading = facilityScope.isLoading || employees.isLoading || workspace.isLoading || progress.isLoading || courses.isLoading;
   return <div className="space-y-6" id="train-workspace">
     <div><h1 className="text-2xl font-bold">CareMetric Train</h1><p className="text-muted-foreground">Staff learning, evidence, annual plans, certificates and inspection reports.</p></div>
     <div className="flex flex-wrap gap-3 print:hidden">
-      <label className="min-w-64 text-sm">Facility<select aria-label="Training facility" className={selectClass} value={facilityId} disabled={inviting || batchBusy} onChange={e => { setFacility(e.target.value); setStudent(""); setShiftId(""); setInviteSelection(new Set()); setInviteResults({}); setSelectedCerts(new Set()); }}>{facilities.data?.map(f => <option value={f.id} key={f.id}>{f.name}</option>)}</select></label>
+      <label className="min-w-64 text-sm">Facility<select aria-label="Training facility" className={selectClass} value={facilityId} disabled={!facilityScope.isReady || inviting || batchBusy || save.isPending} onChange={e => setFacility(e.target.value)}>{!facilityId && <option value="">{facilityScope.isLoading ? "Loading facilities…" : "Choose an available facility"}</option>}{facilityScope.facilities.map(f => <option value={f.id} key={f.id}>{f.name}</option>)}</select></label>
       {facilityId && <>
         {canInvite && <><Button asChild variant="outline"><Link href={addStudentHref}>Add student</Link></Button>
         <Button asChild variant="outline"><Link href={importStudentsHref}>Import students</Link></Button>
@@ -217,7 +249,7 @@ export default function TrainWorkspace() {
         <Button asChild><Link href={assignmentsHref}>{canWrite ? "Assign courses / view progress" : "View course progress"}</Link></Button>
       </>}
     </div>
-    {!facilityId ? <p>Create a facility to begin. <Link href="/app/facilities" className="underline">Facility setup</Link></p> : loading ? <p role="status">Loading complete training records…</p> : <>
+    {facilityScope.isLoading ? <p role="status">Loading your available facilities…</p> : invalidFacility ? <p role="alert">The linked facility is unavailable or is not assigned to you. Choose an available facility above.</p> : !facilityId ? <p>{user?.role === "org_admin" || user?.role === "platform_admin" ? <>Create a facility to begin. <Link href="/app/facilities" className="underline">Facility setup</Link></> : "No training facilities are assigned to you. Contact your organization administrator."}</p> : loading ? <p role="status">Loading complete training records…</p> : <>
     <Tabs value={tab} onValueChange={setTab}>
       <TabsList className="flex flex-wrap h-auto print:hidden">{["overview", "students", "enrollments", "certificates", "evidence", "plans", "reports", "settings"].map(t => <TabsTrigger key={t} value={t}>{t === "enrollments" ? "Enrollment & completion" : t[0].toUpperCase() + t.slice(1)}</TabsTrigger>)}</TabsList>
       <TabsContent value="overview" className="space-y-4">
@@ -268,7 +300,7 @@ export default function TrainWorkspace() {
           <fieldset className="grid gap-3"><legend className="font-semibold">Confirm applicability; explain the basis in duties above</legend>{Object.entries({ ancillary: "Performs ancillary duties", annual_common: "Common annual topics apply (staff, substitutes, regular volunteers)", staff_supervision: "Supervises staff", mobility_needs: "Serves residents with mobility needs", mental_health_population: "Serves residents with mental illness or intellectual disability", new_population: "New population group served this training year" }).map(([key, label]) => <Options key={key} name={`applies_${key}`} label={label} options={{ "": "Needs review", true: "Yes", false: "No — basis documented in duties" }} value={profile?.applicability?.[key as keyof NonNullable<typeof profile.applicability>]?.toString() || ""} />)}</fieldset>
           <Button disabled={save.isPending}>Confirm duties and audience</Button>
         </form> : <p>{profile?.duties || "Profile awaits confirmation."}</p>}
-        {canInvite && <details className="my-5"><summary className="cursor-pointer font-semibold">Staff status, leave, transfer and rehire</summary><p className="text-sm my-3">Current status: {chosen.status}. These actions change the shared staff record, apply existing learning-assignment rules, and may revoke portal sessions. History is retained. Transfer and rehire require a fresh training duty confirmation.</p><form onSubmit={e => void submit("lifecycle", e)} className="grid md:grid-cols-2 gap-3"><Options name="transition" label="Staff status change" options={{ leave: "Start leave", return: "Return from leave", transfer: "Transfer facility", terminate: "End employment", rehire: "Rehire", suspend_access: "Suspend portal access", restore_access: "Restore portal access" }} /><Field name="effective_on" label="Effective date of status change" type="date" value={today} /><Options name="target_facility_id" label="Facility after change" value={facilityId} options={Object.fromEntries((facilities.data || []).map(f => [f.id, f.name]))} /><Field name="reason" label="Reason and source for status change" /><Button disabled={save.isPending}>Apply staff status change</Button></form></details>}
+        {canInvite && <details className="my-5"><summary className="cursor-pointer font-semibold">Staff status, leave, transfer and rehire</summary><p className="text-sm my-3">Current status: {chosen.status}. These actions change the shared staff record, apply existing learning-assignment rules, and may revoke portal sessions. History is retained. Transfer and rehire require a fresh training duty confirmation.</p><form onSubmit={e => void submit("lifecycle", e)} className="grid md:grid-cols-2 gap-3"><Options name="transition" label="Staff status change" options={{ leave: "Start leave", return: "Return from leave", transfer: "Transfer facility", terminate: "End employment", rehire: "Rehire", suspend_access: "Suspend portal access", restore_access: "Restore portal access" }} /><Field name="effective_on" label="Effective date of status change" type="date" value={today} /><Options name="target_facility_id" label="Facility after change" value={facilityId} options={Object.fromEntries(facilityScope.facilities.map(f => [f.id, f.name]))} /><Field name="reason" label="Reason and source for status change" /><Button disabled={save.isPending}>Apply staff status change</Button></form></details>}
         <h3 className="font-semibold mt-6">Actual scheduled shifts for the first 40 hours</h3>
         <p className="text-sm">Dates and times use Pennsylvania time. Confirm repeated overnight hours at daylight-saving changes against the source schedule.</p>
         {canWrite && <form key={`${student}-${shiftId}`} onSubmit={e => void submit("shift", e)} className="grid md:grid-cols-4 gap-3 mt-3"><input type="hidden" name="id" value={editingShift?.id || ""} /><Field name="starts_at" label="Shift start (Pennsylvania)" type="datetime-local" value={editingShift ? toFacilityDateTimeLocal(editingShift.starts_at) : ""} /><Field name="ends_at" label="Shift end (Pennsylvania)" type="datetime-local" value={editingShift ? toFacilityDateTimeLocal(editingShift.ends_at) : ""} /><Field name="source_reference" label="Schedule reference / correction basis" value={editingShift?.source_reference} /><Button disabled={save.isPending}>{editingShift ? "Save shift correction" : "Add shift"}</Button></form>}
@@ -299,10 +331,11 @@ export default function TrainWorkspace() {
         <Button variant="outline" onClick={() => setSelectedCerts(new Set(certs.map(c => c.id)))} disabled={!certs.length || certs.length > 100}>Select {certs.length} matching certificates (maximum 100)</Button>
         <p>Certificates are issued by the existing course-completion workflow. Training credit still requires an eligibility review.</p>
         <p>{certs.filter(c => selectedCerts.has(c.id)).length} selected · {certs.length} matching certificates</p>
+        {assignedVersions.isError && <p role="alert">Assigned course titles could not be loaded. <Button variant="link" onClick={() => void assignedVersions.refetch()}>Retry course titles</Button></p>}
         {historicalStudents.isError && <p role="alert">Some historical student names could not be loaded. Certificates remain available by credential number. <Button variant="link" onClick={() => void historicalStudents.refetch()}>Retry student names</Button></p>}
         <Button onClick={() => void certificateDownload("zip")} disabled={batchBusy || !certs.some(c => selectedCerts.has(c.id))}>{batchBusy ? "Preparing certificates…" : "Download selected certificates (ZIP)"}</Button>
         <Button variant="outline" onClick={() => void certificateDownload("pdf")} disabled={batchBusy || !certs.some(c => selectedCerts.has(c.id))}>Download selected for printing (PDF)</Button>
-        {certificates.isError ? <p role="alert">Certificates could not be loaded. <Button onClick={() => void certificates.refetch()}>Retry</Button></p> : certificates.isLoading ? <p>Loading certificates…</p> : !certs.length ? <p>No certificates match these filters. Certificates become available after eligible course completion.</p> : certs.map(c => <div key={c.id} className="flex flex-wrap gap-3 items-center border-b py-3"><label><input type="checkbox" checked={selectedCerts.has(c.id)} onChange={e => setSelectedCerts(old => { const next = new Set(old); if (e.target.checked) next.add(c.id); else next.delete(c.id); return next; })} /> {certificateStudentName(c.employee_id)} · {courses.data?.find(course => course.id === c.course_id)?.title || "Course unavailable"} · {c.credential_number} · issued {formatDateForDisplay(c.issued_at)} · PDF {c.pdf_status}</label><Button variant="outline" disabled={preparePdf.isPending} onClick={async () => { try { const result = await preparePdf.mutateAsync(c.id); openDocumentUrl(result.url); } catch (error) { message(error); } }}>Open PDF / print</Button></div>)}
+        {certificates.isError ? <p role="alert">Certificates could not be loaded. <Button onClick={() => void certificates.refetch()}>Retry</Button></p> : certificates.isLoading ? <p>Loading certificates…</p> : !certs.length ? <p>No certificates match these filters. Certificates become available after eligible course completion.</p> : certs.map(c => <div key={c.id} className="flex flex-wrap gap-3 items-center border-b py-3"><label><input type="checkbox" checked={selectedCerts.has(c.id)} onChange={e => setSelectedCerts(old => { const next = new Set(old); if (e.target.checked) next.add(c.id); else next.delete(c.id); return next; })} /> {certificateStudentName(c.employee_id)} · {certificateCourseTitle(c)} · {c.credential_number} · issued {formatDateForDisplay(c.issued_at, { timeZone: "America/New_York" })} · PDF {c.pdf_status}</label><Button variant="outline" disabled={preparePdf.isPending} onClick={async () => { try { const result = await preparePdf.mutateAsync(c.id); openDocumentUrl(result.url); } catch (error) { message(error); } }}>Open PDF / print</Button></div>)}
       </TabsContent>
       <TabsContent value="reports" className="space-y-4">
         <div className="flex flex-wrap gap-3 print:hidden"><Input aria-label="Filter report students" placeholder="Filter students" value={search} onChange={e => setSearch(e.target.value)} /><select aria-label="Report requirement status" className={selectClass} value={reportMode} onChange={e => setReportMode(e.target.value)}><option value="all">All students</option><option value="missing">Missing evidence</option><option value="overdue">Overdue evidence</option><option value="review">Needs review</option></select><Button onClick={exportReport}>Export CSV and evidence index</Button><Button variant="outline" disabled={batchBusy || documents.isLoading || certificates.isLoading} onClick={() => void inspectionPacket()}>Download inspection packet (ZIP)</Button><Button variant="outline" onClick={() => window.print()}>Print report</Button></div>
