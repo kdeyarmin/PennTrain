@@ -40,6 +40,7 @@ export function CreateTrainingFacility() {
   async function sendAdministratorInvitation(organizationId: string) {
     await invite.mutateAsync({ ...administrator, role: "org_admin", organizationId, redirectTo: absoluteAppUrl("/reset-password") });
     setInvitationSent(true);
+    await client.invalidateQueries({ queryKey: ["organizations"] });
     if (saved) saveReceipt({ ...saved, created: organizationId, administrator, invitationSent: true });
     toast({ title: "Facility ready; administrator invitation sent" });
   }

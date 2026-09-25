@@ -1087,7 +1087,9 @@ begin
       (select count(*) from public.employees e where e.facility_id=f.id and e.status='active') as staff,
       (select count(*) from public.training_plans p where p.facility_id=f.id) as plans,
       coalesce((select jsonb_agg(jsonb_build_object('email',p.email,'signed_in',u.last_sign_in_at is not null,
-        'mfa_ready',exists(select 1 from auth.mfa_factors factor where factor.user_id=p.id and factor.status='verified')) order by p.email)
+        'mfa_ready',case when exists(select 1 from app_private.sms_mfa_accounts chosen where chosen.profile_id=p.id)
+          then exists(select 1 from app_private.sms_mfa_factors factor where factor.profile_id=p.id)
+          else exists(select 1 from auth.mfa_factors factor where factor.user_id=p.id and factor.status='verified') end) order by p.email)
         from public.profiles p join auth.users u on u.id=p.id where p.organization_id=o.id and p.role='org_admin' and p.is_active),'[]') as administrators,
       (select i.status from public.user_invitation_lifecycle i where i.organization_id=o.id and i.invited_role='org_admin' order by i.last_sent_at desc,i.id limit 1) as invitation_status
     from public.facilities f join public.organizations o on o.id=f.organization_id
