@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { certificateDownloadUrl } from "@/lib/certificateDownloadUrl";
 import type { Tables } from "@/lib/database.types";
 
 export type Certificate = Tables<"certificates">;
@@ -131,7 +132,7 @@ async function generateCertificatePdf(certificateId: string): Promise<GenerateCe
   if (!data || data.success === false || !data.url) {
     throw new Error(data?.error ?? "Failed to generate certificate PDF");
   }
-  return { url: data.url, path: data.path, expiresIn: data.expiresIn };
+  return { url: certificateDownloadUrl(data.url, import.meta.env.VITE_SUPABASE_URL), path: data.path, expiresIn: data.expiresIn };
 }
 
 /**

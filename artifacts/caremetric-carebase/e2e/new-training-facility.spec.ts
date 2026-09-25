@@ -230,6 +230,7 @@ test.describe("new training facility administrator", () => {
         const accessibility = await new AxeBuilder({ page: learnerPage }).withTags(["wcag2a", "wcag2aa"]).analyze();
         const blockingAccessibility = accessibility.violations.filter(v => v.impact === "critical" || v.impact === "serious");
         expect(blockingAccessibility, JSON.stringify(blockingAccessibility, null, 2)).toEqual([]);
+        await expect(learnerPage.getByText("Login successful", { exact: true })).not.toBeVisible({ timeout: 10_000 });
         await learnerPage.screenshot({ path: `test-results/training-learner-next-${testInfo.project.name}.png`, fullPage: true });
         // Keyboard navigation reaches and activates the same real learner action.
         const start = learnerPage.getByRole("link", { name: "Start required course", exact: true });
@@ -356,9 +357,15 @@ test.describe("new training facility administrator", () => {
       await expect(page.getByRole("checkbox", { name: new RegExp(fixture.courseTitle) })).toBeVisible();
       await expect(page.getByRole("button", { name: "Open PDF / print", exact: true })).toBeVisible();
       await page.getByRole("checkbox", { name: new RegExp(fixture.courseTitle) }).check();
-      const packetDownload = page.waitForEvent("download", { timeout: 60_000 });
-      await page.getByRole("button", { name: "Download selected for printing (PDF)", exact: true }).click();
-      const packet = await packetDownload;
+      const [packet] = await Promise.all([
+        page.waitForEvent("download", { timeout: 60_000 }),
+        page.waitForResponse(response => response.url().endsWith("/functions/v1/generate-certificate-pdf"), { timeout: 30_000 }).then(async response => {
+          const result = await response.json() as { success?: boolean; error?: string };
+          expect(response.status(), result.error || "Certificate generation should succeed").toBe(200);
+          expect(result.success).toBe(true);
+        }),
+        page.getByRole("button", { name: "Download selected for printing (PDF)", exact: true }).click(),
+      ]);
       expect(packet.suggestedFilename()).toMatch(/\.pdf$/);
       await packet.saveAs(`test-results/training-certificate-packet-${testInfo.project.name}.pdf`);
       const packetPdf = await PDFDocument.load(await readFile((await packet.path())!));

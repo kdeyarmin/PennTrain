@@ -488,7 +488,7 @@ jobs:
         run: pnpm --filter @workspace/caremetric-carebase exec playwright install --with-deps chromium webkit
 
       - name: Training invitation, recovery, and certificate journeys
-        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/new-training-facility.spec.ts --project=chromium --project=mobile-safari
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/new-training-facility.spec.ts --project=chromium --project=mobile-safari --max-failures=1
 
       - name: Role, public, guest, and accessibility browser journeys
         # The full onboarding path runs first for fast feedback; the complementary
