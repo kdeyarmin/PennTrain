@@ -2,7 +2,13 @@
 export type TrainingPolicy = {
   id: string; effective_from: string; year_basis: "fixed" | "anniversary"; year_start: string;
   administrator_year_basis: "fixed" | "anniversary"; administrator_year_start: string; policy_reference: string;
+  created_at?: string;
 };
+/** Newest applicable revision: later effective date, then later save on that date. */
+export function currentTrainingPolicy(policies: TrainingPolicy[], today: string) {
+  return policies.filter(p => p.effective_from <= today).sort((a, b) =>
+    b.effective_from.localeCompare(a.effective_from) || (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0];
+}
 export type TrainingProfile = {
   employee_id: string; direct_care: boolean; administrator: boolean;
   specialty_unit: "none" | "pch_dementia" | "alr_dementia" | "alr_inrbi";
@@ -64,6 +70,18 @@ function inYear(year: number, monthDay: string): string {
   const last = new Date(Date.UTC(year, m, 0)).getUTCDate();
   return `${year}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
 }
+/** A revision keeps the saved year; a first policy matches the fixed January 1 fields. */
+export function trainingPolicyRevisionDefaults(policy: TrainingPolicy | undefined, today: string) {
+  return {
+    effective_from: today,
+    year_basis: policy?.year_basis ?? "fixed",
+    year_start: policy?.year_start ?? "01-01",
+    administrator_year_basis: policy?.administrator_year_basis ?? "fixed",
+    administrator_year_start: policy?.administrator_year_start ?? "01-01",
+    policy_reference: policy?.policy_reference ?? "",
+  };
+}
+
 export function trainingPeriod(today: string, firstWork: string, basis: string, start: string) {
   const monthDay = basis === "anniversary" ? firstWork.slice(5) : start;
   let year = Number(today.slice(0, 4));
