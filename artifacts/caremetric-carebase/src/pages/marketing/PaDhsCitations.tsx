@@ -38,12 +38,14 @@ import { usePageMeta } from "@/lib/usePageMeta";
  * tables for PCH and ALF, published June 2026 (the most recent citation data
  * available). "Percent of inspections cited" is the share of licensing
  * inspections in which that section was cited at least once. Entries are
- * ordered by the higher of the PCH or ALF 2025 rate. The final three are the
- * medication-cluster and incident-reporting sections that closely follow the
- * published top ten and recur across the 2024 and 2022 reports -- included so
- * the fifteen cover the full picture surveyors actually write up. This page is
- * informational, not legal advice. "ALF" is this org's term for the Chapter
- * 2800 facility type (the regulation itself says "assisted living residence").
+ * ordered by the higher of the PCH or ALF 2025 rate; where one setting's 2025
+ * table omits a section, the badge carries its 2024 rate instead. Rank 15,
+ * incident reporting, comes from the 2022 PCH table (§2600.16(c), 12%). Ranks 13
+ * and 14 -- self-administration and assistance with health care -- appear in
+ * none of the 2022, 2023, 2024 or 2025 top-ten tables and are labelled as
+ * context, not ranking. This page is informational, not legal advice. "ALF" is
+ * this org's term for the Chapter 2800 facility type (the regulation itself
+ * says "assisted living residence").
  */
 
 type Rate = string | null;
@@ -73,9 +75,9 @@ const TOP_15: Citation[] = [
     pch: "7.57%",
     alf: "6.12%",
     requires:
-      "A complete, accurate medication administration record (MAR) for every resident: the drug, dose, route, time, the prescriber's order behind it, and a staff initial for every dose given, refused, or held.",
+      "A complete, accurate medication administration record (MAR) for every resident: the drug, dose, route, time, the prescriber's order behind it, and a staff initial for every dose given, refused, or held -- recorded at the time it's given. The prescriber's directions are followed, and a refused dose is documented and reported to the prescriber within 24 hours unless the prescriber has said otherwise.",
     why:
-      "The highest single citation rate in Pennsylvania personal care homes in 2025, and second for assisted living. Surveyors find blank boxes on the MAR (a dose with no initial can't be proven given), doses initialed at the wrong time, PRN medications with no reason or effect documented, discontinued drugs still listed, or a MAR that doesn't match the current physician order. The care may have happened -- but if it isn't documented correctly, the regulation treats it as not done.",
+      "The highest single citation rate in Pennsylvania personal care homes in 2025, and second for assisted living. Surveyors find blank boxes on the MAR (a dose with no initial can't be proven given), doses initialed at the wrong time, PRN medications with no reason or effect documented, discontinued drugs still listed, or a MAR that doesn't match the current physician order. One subsection stands out: in DHS's 2022 report, §2600.187(d) -- \"The home shall follow the directions of the prescriber\" -- was cited in 18% of PCH inspections. The care may have happened -- but if it isn't documented correctly, the regulation treats it as not done.",
     avoid:
       "Reconcile the MAR against current orders every cycle, require real-time initialing (not end-of-shift catch-up), and audit a sample of MARs weekly for blanks before the surveyor does.",
     carebase:
@@ -89,7 +91,7 @@ const TOP_15: Citation[] = [
     pch: "5.40%",
     alf: "6.88%",
     requires:
-      "Orientation before a staff person works with residents, plus annual training -- 12 hours per direct care worker in a PCH, 16 hours in an ALF -- covering the regulation's required subjects, with dementia hours on top where they apply.",
+      "Fire-safety and emergency orientation on or before the first work day; resident rights, the emergency medical plan, abuse reporting and incident reporting within 40 scheduled working hours; the DHS-approved direct care training and competency test before unsupervised care (and in an ALF, a DHS-approved orientation plus first aid and CPR before any direct care); then annual training -- 12 hours per direct care worker in a PCH, 16 hours in an ALF -- with dementia hours on top where they apply.",
     why:
       "Cited when a personnel file can't prove the hours: annual training completed late or short of the minimum, orientation missing or undated, no record of the topics covered, or dementia-specific hours absent for staff on a secured or special-care unit. Surveyors count documented hours -- an untracked in-service didn't happen.",
     avoid:
@@ -105,13 +107,13 @@ const TOP_15: Citation[] = [
     pch: "4.35%",
     alf: "6.02%",
     requires:
-      "A fire drill every month, held at different times and on different shifts across the year -- including sleeping hours -- with a written record of the date, time, evacuation time, staff present, and any problems corrected.",
+      "An unannounced fire drill at least once a month, on different days of the week and at different times of day and night, with one during sleeping hours at least every six months. Each drill sets off the fire alarm or a smoke detector, uses alternate exit routes, and evacuates residents to the designated meeting place within the time a fire safety expert set in writing within the past year. The written record must show the date, time, evacuation time, exit route used, residents in the building and residents evacuated, staff participating, problems encountered, and whether the alarm or detector worked. A fire safety expert also runs one drill and a fire safety inspection every year.",
     why:
-      "One of the easiest citations to earn on paper. Drills bunched on the day shift, months with no drill, evacuation times over the standard with no corrective note, or drill logs missing the required fields. An unannounced overnight drill is frequently the one facilities skip -- and the one surveyors look for.",
+      "One of the easiest citations to earn on paper. Drills bunched on the day shift or held when extra staff are on, months with no drill, evacuation times over the expert's standard with no corrective note, the same exit used every time, or drill logs missing a required field such as the exit route or whether the alarm worked. The six-monthly sleeping-hours drill is an easy one to let slip.",
     avoid:
-      "Schedule drills across every shift and month in advance, rotate the simulated exit, and record evacuation time plus a corrective note every single time -- even when the drill goes well.",
+      "Plan the year's drills across days, shifts, and months without announcing them, put a sleeping-hours drill on the calendar every six months, rotate the exit route, and record every required field -- including problems encountered -- every single time, even when the drill goes well.",
     carebase:
-      "The fire-drill & life-safety log captures date, time, shift, and evacuation time for every drill and flags a missed month or a shift you haven't drilled — so the bunched-up, day-shift-only pattern surveyors look for never forms.",
+      "The fire-drill & life-safety log records every field the regulation lists, tracks the monthly drill and the six-month sleeping-hours drill as separate due dates, and warns when the two most recent drills used the same shift or exit route — so the bunched-up, day-shift-only pattern is visible before a surveyor sees it.",
   },
   {
     rank: 4,
@@ -121,13 +123,13 @@ const TOP_15: Citation[] = [
     pch: "5.34%",
     alf: "5.64%",
     requires:
-      "Medications stored safely and under lock, controlled substances under a second lock, correct temperature for refrigerated drugs, separation by resident, and proper documented destruction of expired, discontinued, or discharged-resident medications.",
+      "Medications kept in their original labeled containers and not removed more than two hours before they're given. Prescription and OTC medications and syringes kept in a locked area or container -- refrigerated ones included, and in a PCH, those kept in a resident's room. Storage organized and at the temperature, moisture, and light the manufacturer specifies; only current medications for people living in the home kept on site; discontinued and expired medications destroyed safely; and a resident who moves out permanently leaves with their medications that day.",
     why:
-      "Surveyors open the med cart and the fridge. Common findings: an unlocked cart or med room, expired medications still in stock, a discharged resident's drugs never destroyed, controlled substances not double-locked, or a refrigerator with no temperature log. Destruction with no witnessed, dated record is cited even when the drugs are gone.",
+      "Surveyors open the med cart and the fridge. Common findings: an unlocked cart, med room, or medication refrigerator; doses set out hours ahead; insulin or other drugs stored outside the manufacturer's temperature range; expired or discontinued medications still in stock; or a departed resident's drugs still on the shelf.",
     avoid:
-      "Log refrigerator temperatures daily, pull expired and discontinued stock on a set schedule, keep a second lock on controlled substances, and document every destruction with a witness and date.",
+      "Keep a thermometer in the medication refrigerator and log it, pull expired and discontinued stock on a set schedule, never set doses out more than two hours ahead, and record how and when each discontinued drug was destroyed. DHS's compliance guide also recommends -- without requiring -- double-locking controlled substances.",
     carebase:
-      "CareBase turns temperature checks, expiration pulls, and witnessed destruction into tracked recurring tasks, then files the dated destruction documentation straight into the one-click compliance binder.",
+      "CareBase's recurring checks can carry the medication-refrigerator temperature log, expiration pulls, and destruction routine, each with a dated record, so the routine is provable when the surveyor opens the cart.",
   },
   {
     rank: 5,
@@ -137,13 +139,13 @@ const TOP_15: Citation[] = [
     pch: "3.92%",
     alf: "4.68%",
     requires:
-      "Residents are informed of their rights and those rights are honored in practice -- dignity and respect, privacy, unrestricted mail, phone and visitors, control of personal funds, and freedom from retaliation or unnecessary restriction.",
+      "Each resident's specific rights honored in practice: no discrimination; no neglect, intimidation, abuse, mistreatment, corporal punishment, or discipline of any kind; dignity and respect; a private phone and unopened mail; access to the ombudsman; their own clothing and possessions; freedom to come and go consistent with the home rules and their support plan; and freedom from restraints.",
     why:
-      "Cited when the daily reality doesn't match the rights on paper: mail or visits controlled without cause, a resident's funds handled without records or receipts, personal belongings restricted, privacy not maintained during care, or no signed acknowledgment that the resident was informed of their rights at admission.",
+      "DHS breaks this citation down, and two subsections dominate. In 2025, §42(b) -- a resident neglected, intimidated, abused, mistreated, or disciplined -- was cited 372 times, and §42(c), dignity and respect, 152 times. Mail opened, calls monitored, possessions restricted, or privacy ignored during care are cited here too.",
     avoid:
-      "Get a dated rights acknowledgment at admission, keep clean personal-funds ledgers with receipts, and train staff that dignity, privacy, and access are operational rules, not slogans.",
+      "Train staff that neglect includes failing to provide the care the home agreed to provide -- and that a single incident counts -- treat every allegation as reportable from the moment it's made, and make dignity, privacy, and access operational rules, not slogans. (The signed acknowledgment that a resident received their rights at admission is a separate section, §2600.41 · §2800.41.)",
     carebase:
-      "Policy-attestation campaigns capture the signed rights acknowledgment at admission with ESIGN/UETA documentation, and resident financial operations keep an auditable personal-funds ledger — the two rights failures cited most.",
+      "Incident & complaint tracking puts every allegation of neglect or mistreatment on the reporting clock the moment it's logged, and policy-attestation campaigns capture the signed rights acknowledgment at admission with ESIGN/UETA documentation.",
   },
   {
     rank: 6,
@@ -153,13 +155,13 @@ const TOP_15: Citation[] = [
     pch: "4.60%",
     alf: "4.40%",
     requires:
-      "Nutritionally adequate meals following planned menus, therapeutic and modified diets as ordered, comparable substitutions when the menu changes, and no more than roughly 14 hours between the evening meal and breakfast.",
+      "An operable kitchen with nonporous surfaces sanitized after each meal. Food protected from contamination, stored off the floor in closed or sealed containers, refrigerated at or below 40°F and frozen at or below 0°F, with a thermometer in every refrigerator and freezer. Leftovers labeled and dated, food returned from a plate never served again, no outdated or spoiled food or dented cans, safe thawing, and utensils washed, rinsed, and sanitized after each use. (The menu rules -- nutritional adequacy, posted weekly menus, substitutions, and no more than 15 hours between the evening meal and the next day's first meal -- are §2600.161–.162 · §2800.161–.162.)",
     why:
-      "Findings cluster around the gap between the menu and the plate: a posted menu the kitchen didn't follow with no substitution recorded, a physician-ordered therapeutic diet not actually served, meals short of nutritional requirements, or an overnight fast longer than allowed. Food storage, labeling, and dating problems land here too.",
+      "A kitchen walk-through citation: a refrigerator or freezer with no thermometer or running warm, unlabeled or undated leftovers, food on the floor or in open containers, outdated stock or dented cans on the shelf, or surfaces and utensils not sanitized. Surveyors see it with their own eyes, so it's hard to explain away after the fact.",
     avoid:
-      "Post the menu you actually serve, record every substitution and its nutritional equivalence, keep ordered diets visible to kitchen staff, and date-label stored food.",
+      "Keep a thermometer in every refrigerator and freezer and log the readings, label and date leftovers every time, clear outdated food and dented cans on a set schedule, and keep everything covered and off the floor.",
     carebase:
-      "Dietary & food-safety operations tie each resident's ordered therapeutic diet to the menu, log every substitution, and track meal timing — so the plate always matches the order and the fast between meals stays inside the limit.",
+      "Dietary & food-safety operations log refrigerator and freezer temperatures against their limits, run food-storage, expiration, and sanitation rounds with a dated record, and route every out-of-range reading to a corrective action — the exact checks this section is written up for.",
   },
   {
     rank: 7,
@@ -169,13 +171,13 @@ const TOP_15: Citation[] = [
     pch: "4.23%",
     alf: "3.44%",
     requires:
-      "A running count of controlled substances that reconciles shift to shift, prompt investigation of any discrepancy, and a documented, witnessed trail for every controlled dose received, given, and destroyed.",
+      "Written procedures, actually followed, for the safe storage, access, security, distribution, and use of medications and medical equipment by trained staff. At a minimum they must cover documenting receipt of controlled substances and prescription medications, investigating and accounting for missing medications and medication errors, limiting access to medication storage, and documenting every medication administered or assisted. An ALF must also keep an adequate supply of each resident's prescribed medication on hand where the support plan calls for it.",
     why:
-      "The count doesn't add up, or there's no count at all. Surveyors ask to reconcile a Schedule II drug and find gaps, missing shift counts, a discrepancy never investigated, or destruction that no one witnessed. This is the accountability half of the medication rules -- separate from the storage citation, and often cited alongside it.",
+      "In DHS's 2022 report, §2600.185(a) -- developing and implementing these procedures -- was the most-cited subsection of all, in 21% of PCH inspections. Surveyors find no written procedure, a procedure that says nothing about missing medications or errors, a delivery never logged in, an unexplained shortfall never investigated, or storage anyone can walk into. It's the accountability half of the medication rules -- separate from the storage citation, and often cited alongside it.",
     avoid:
-      "Count controlled substances at every shift change with two signatures, reconcile against the MAR, and investigate and document any variance the same day.",
+      "Write the four required procedures down and follow them: log every delivery, investigate and document every missing dose or error, and limit who holds the keys. DHS's compliance guide also recommends -- without requiring -- double-locking controlled substances and counting them every shift, with two staff and a supervisor documenting the count.",
     carebase:
-      "Medication-event integration keeps the controlled-substance trail intact and surfaces any unreconciled variance in the compliance reporting center — before a missing count becomes a citation.",
+      "Medication-event integration imports each dose's administration status from your eMAR and flags every refused, held, missed, or late dose — so the administration record this section requires can be reviewed in one place instead of binder by binder.",
   },
   {
     rank: 8,
@@ -185,11 +187,11 @@ const TOP_15: Citation[] = [
     pch: "3.71%",
     alf: "3.54%",
     requires:
-      "Clean, sanitary, pest-free conditions throughout the home, safe handling of waste, and hot water delivered within the required temperature range at resident fixtures.",
+      "Sanitary conditions throughout, no evidence of insects or rodents, trash removed from the premises at least weekly and kept in covered receptacles that keep pests out -- in kitchens, in bathrooms, and outside -- and, for a home serving 9 or more residents that isn't on a public sewer, written approval of its sewage system from the municipality's sewage enforcement official.",
     why:
-      "A walk-through citation: documentation of insects or rodents, soiled bathrooms or common areas, kitchens out of sanitary condition, garbage not handled properly, or water at fixtures too hot (a scald risk) or too cold. These are visible on inspection day and hard to explain away after the fact.",
+      "A walk-through citation: evidence of insects or rodents, soiled bathrooms or common areas, uncovered trash in a kitchen or bathroom, or overflowing outdoor receptacles. These are visible on inspection day and hard to explain away after the fact. (Scalding water is a separate rule: hot water in areas residents can reach may not exceed 120°F, §2600.89(b) · §2800.89(b).)",
     avoid:
-      "Run a documented cleaning schedule, keep a pest-control contract with service records, and check and log water temperatures at resident fixtures.",
+      "Run a documented cleaning schedule, keep a pest-control contract with service records, put lids on every kitchen and bathroom trash can, and confirm weekly trash removal -- and while you're walking the building, check hot water at resident fixtures against the 120°F maximum.",
     carebase:
       "This one's a walk-through finding CareBase can't scrub for you — but its maintenance module turns cleaning, pest control, and water-temperature checks into tracked recurring tasks with a dated record, so the routine is provable at survey.",
   },
@@ -202,7 +204,7 @@ const TOP_15: Citation[] = [
     alf: null,
     note: "PCH top ten",
     requires:
-      "A resident assessment on the required tool at admission, again annually, and whenever the resident's condition changes -- fully completed, signed, and dated, covering every required domain.",
+      "A written initial assessment on the DHS form (or one with the same content) -- in a PCH within 15 days of admission, in an ALF within 30 days before admission -- then again annually, whenever the resident's condition significantly changes, and when DHS asks. Each one fully completed, signed, and dated, covering every required domain.",
     why:
       "Cited when the assessment is late, missing a domain, unsigned or undated, or never updated after a fall, hospitalization, or clear change in condition. Because the support plan is built from the assessment, a weak assessment usually drags a support-plan citation along with it.",
     avoid:
@@ -219,13 +221,13 @@ const TOP_15: Citation[] = [
     alf: "≈3.5%",
     note: "ALF: 2024 rate",
     requires:
-      "An initial medical evaluation within the required window around admission, an annual medical evaluation after that, tuberculosis screening, and documented arrangement of the health care a resident needs.",
+      "A medical evaluation by a physician, physician assistant, or CRNP on the DHS form -- in a PCH within 60 days before or 30 days after admission; in an ALF within 60 days before admission (or 15 days after, for a direct hospital admission, an escape from abuse, or no alternative living arrangement). It covers diagnosis, allergies, immunization history, medications and the ability to self-administer, mobility, and the rest of the form, and it's repeated at least annually and whenever the resident's medical condition changes before then. In an ALF it also records a tuberculin skin test from the past two years (a chest X-ray if positive), given within 15 days after admission if there isn't one.",
     why:
-      "The admission or annual physical is missing, incomplete, or done outside the allowed window; the TB screening isn't documented; or the examiner never signed the form. Surveyors also cite failure to arrange follow-up care a resident clearly needed.",
+      "The admission or annual evaluation is missing, incomplete, or done outside the allowed window; no new evaluation followed a clear change in condition; the examiner never signed the form; or, in an ALF, the tuberculin result isn't there. In DHS's 2022 report the initial evaluation, §2600.141(a), was the third most-cited subsection, in 15% of PCH inspections.",
     avoid:
-      "Make the initial medical evaluation and TB screening a hard gate on admission, track annual evaluations like any other renewal, and confirm the examiner signed before filing.",
+      "Treat the initial medical evaluation -- with the TB result in an ALF -- as part of admission, track annual evaluations like any other renewal, request a new one when the resident's condition changes, and confirm the examiner signed before filing.",
     carebase:
-      "CareBase gates the initial medical evaluation and TB screening at admission and tracks the annual like any other renewal — flagging a missing, expired, or unsigned exam long before the surveyor asks for it.",
+      "CareBase opens the initial medical evaluation deadline the day a resident is admitted and tracks the annual like any other renewal — flagging a missing or overdue DHS form long before the surveyor asks for it.",
   },
   {
     rank: 11,
@@ -268,15 +270,15 @@ const TOP_15: Citation[] = [
     title: "Self-administration of medications",
     pch: null,
     alf: null,
-    note: "Perennial — medication cluster",
+    note: "Context — not in a 2022–25 top ten",
     requires:
-      "Before a resident self-administers medication, a documented determination that they are capable of doing so safely, with reassessment when their condition changes and secure storage of self-administered drugs.",
+      "A resident who wants to self-administer is assessed by a physician, physician assistant, or CRNP on their ability to do so and their need for reminders; to count as capable they must recognize their medications and know how much to take and when. The home still helps as needed -- reminders, secure storage, offering the medication at the prescribed times -- keeps a current medication list in the resident's record, and keeps medication in the room locked (PCH) or in a lockable unit the residence provides (ALF).",
     why:
-      "A resident keeps and takes their own medication with no assessment on file showing they can do it safely, or the capability was assessed once and never revisited as the resident declined. Part of the medication cluster that -- across records, storage, accountability, and self-administration -- drives more citations than any other subject in Pennsylvania.",
+      "Not a top-ten section itself, but the gate to the medication rules that are: a resident keeps and takes their own medication with no prescriber assessment on file, no current medication list in the record, medication in the room unsecured, or a capability assessed once and never revisited as the resident declined.",
     avoid:
-      "Document a self-administration capability assessment before allowing it, reassess on any change of condition, and address where and how self-administered medication is stored.",
+      "Get the prescriber's self-administration assessment before allowing it, reassess on any change of condition, keep a current medication list in the record, and check that in-room medication is locked.",
     carebase:
-      "CareBase's digital assessment captures each self-administration capability determination and re-triggers it on a change of condition, so no resident self-medicates without a current one on file.",
+      "CareBase's digital assessment records whether each resident can self-administer, and a change of condition opens a reassessment — so a capability decision made once doesn't quietly go stale.",
   },
   {
     rank: 14,
@@ -285,15 +287,15 @@ const TOP_15: Citation[] = [
     title: "Assistance with health care & medical care",
     pch: null,
     alf: null,
-    note: "Perennial — 2022 top finding",
+    note: "Context — not in a 2022–25 top ten",
     requires:
-      "When staff assist with medications or health care, they follow the prescriber's directions exactly, hold the required medication-administration training, and arrange the supplemental health services a resident needs.",
+      "When a resident's health declines, the home helps them get medical care and documents the need, including updating the assessment and support plan. A refusal of routine medical or dental care is documented along with continued efforts to educate the resident; reasonable efforts are made to get consent to treat a serious condition; and the home helps secure the preventive medical, dental, vision, and behavioral health care a physician, physician assistant, or CRNP requests. An ALF must also show it can provide or arrange supplemental health care services, and must let residents choose or keep their own primary care physician.",
     why:
-      "In the 2022 report, not following the prescriber's directions when administering medication was the single most common finding statewide. Surveyors cite the wrong dose, time, or route; staff assisting with medications without the DHS-approved training and passing test score; and needed health services that were never arranged.",
+      "Not a top-ten section itself, but the follow-through between the medical evaluation (§141) and the support plan (§227): the record shows a decline -- repeated falls, weight loss, a hospital visit -- with no care arranged and no update to the assessment or support plan, or a resident's refusal of care was never documented with the staff's continued efforts to inform them. (The 2022 report's prescriber-directions finding is a medication-records citation, §2600.187(d), covered at #1.)",
     avoid:
-      "Let only medication-trained, currently-certified staff assist with medications, hold them to the exact order, and build a clear path for arranging the outside health care residents need.",
+      "Treat a decline in health as a trigger: arrange the care, then update the assessment and support plan. Document every refusal and every follow-up conversation, and track the preventive referrals a prescriber requests until they're done.",
     carebase:
-      "The med-admin roster confirms only medication-trained, currently-certified staff are assisting with medications, and medication-event integration catches any administration that strays from the prescriber's order.",
+      "Rule-based change detection flags repeated falls, weight change, reduced meal intake, refusals, and hospital visits for a named review, and a significant change opens a reassessment — so a decline shows up while there's still time to arrange care and update the plan.",
   },
   {
     rank: 15,
@@ -302,9 +304,9 @@ const TOP_15: Citation[] = [
     title: "Reportable incidents & conditions",
     pch: null,
     alf: null,
-    note: "Perennial — 2022 top finding",
+    note: "2022 PCH top ten",
     requires:
-      "Reporting defined incidents and conditions -- death, serious injury, hospitalization, medication errors, abuse, elopement, and more -- to the DHS regional office within the required timeframe and by the required means, with documented follow-up.",
+      "Reporting defined incidents and conditions -- a death, a serious injury needing hospital treatment, a prescription medication error, suspected abuse, an unexplained absence, and more -- to the DHS licensing office or complaint hotline within 24 hours in the manner DHS designates (an ALF also tells the resident's family and designated person immediately), then a final report when the investigation concludes, with affected residents informed if it's validated.",
     why:
       "The 2022 report named late or missing reporting -- incidents not reported within 24 hours -- as a top-three finding. Surveyors cite reportable events that were never filed, filed late, or filed without the required follow-up and corrective action. Because BHSL receives tens of thousands of incident reports a year, gaps are easy to spot against the record.",
     avoid:
@@ -371,6 +373,10 @@ const SOURCES = [
   {
     label: "DHS BHSL 2024 Annual Report (PCH & ALF)",
     href: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/providers/clearances-and-licensing/documents/pch-residential-licensing/2025-09-04-2024-bhsl-annual-report.pdf",
+  },
+  {
+    label: "DHS BHSL 2022 Annual Report (PCH) — subsection-level citation rates",
+    href: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2022%20BHSL%20PCH%20Annual%20Report.pdf",
   },
   {
     label: "Personal Care Home & Assisted Living Facility reports (all years)",
@@ -577,7 +583,7 @@ export default function PaDhsCitations() {
               living facility (ALF), the same handful of regulations produce the
               bulk of citations year after year — and they cluster in three
               places: <strong>medications</strong> (records, storage,
-              accountability, self-administration), <strong>staff training</strong>,
+              accountability), <strong>staff training</strong>,
               and <strong>life-safety and documentation</strong> (fire drills,
               assessments, support plans). The pattern is consistent: most
               citations aren&apos;t about care that never happened — they&apos;re about
@@ -607,11 +613,11 @@ export default function PaDhsCitations() {
               </div>
               <div className="rounded-xl border border-[#dfe6ee] bg-[#fafbfc] p-4">
                 <div className="font-serif text-[30px] font-bold leading-none text-[#0d2742]">
-                  ~40%
+                  ~1 in 3
                 </div>
                 <p className="mt-2 text-[13px] leading-5 text-[#44566b]">
-                  of top-ten citations tie directly to medication handling and
-                  its paper trail.
+                  top-ten citations tie directly to medication handling and its
+                  paper trail — three of each setting&apos;s ten sections.
                 </p>
               </div>
             </div>
@@ -708,10 +714,13 @@ export default function PaDhsCitations() {
           <Reveal delay={0.12}>
             <div className="mt-5 rounded-[10px] border border-[#dfe6ee] bg-white px-[18px] py-3.5 text-[13px] leading-6 text-[#44566b]">
               The two lists share eight of ten sections — the citation pattern is
-              nearly identical across PCH and ALF. Ranks 11–15 above draw on the
-              same report&apos;s medication and incident-reporting findings and the
-              prior-year (2024, 2022) tables, so the fifteen cover what surveyors
-              write beyond each setting&apos;s published top ten.
+              nearly identical across PCH and ALF. Ranks 11 and 12 come from the
+              ALF list, with the 2024 PCH rate where one exists, and rank 15,
+              incident reporting, from the 2022 PCH table. Ranks 13 and 14 are
+              in none of the 2022–2025 top-ten tables: they are the
+              self-administration and health-care rules that sit next to the
+              most-cited medication and evaluation sections, included as
+              context rather than ranking.
               <br />
               <br />
               This page ranks what is cited most often. It is not an index of
