@@ -383,8 +383,8 @@ export default function Residents() {
                   >
                     <SelectTrigger id={`${__fieldIds}-admission-track`} className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="standard">Standard (assessment due 30 days before admission)</SelectItem>
-                      <SelectItem value="expedited">Expedited (assessment due 15 days after admission)</SelectItem>
+                      <SelectItem value="standard">Standard (assessment within the 30 days before admission)</SelectItem>
+                      <SelectItem value="expedited">Expedited (assessment within 15 days after admission)</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">

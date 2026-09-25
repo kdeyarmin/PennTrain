@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
-import { ITEM_TYPE_LABELS, getRequiredStateFormInfo, stateFormBackdateDays } from "@/lib/residentCompliance";
+import { ITEM_TYPE_LABELS, getRequiredStateFormInfo, stateFormBackdateDays, stateFormDateField } from "@/lib/residentCompliance";
 import { useCompleteResidentComplianceItem } from "@/hooks/useResidentComplianceItems";
 import { useUploadResidentDocument } from "@/hooks/useResidentDocuments";
 
@@ -42,6 +42,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
   const [completedOn, setCompletedOn] = useState(facilityToday());
 
   const stateForm = item ? getRequiredStateFormInfo(item.item_type, facilityType) : null;
+  const dateField = stateFormDateField(item?.item_type ?? "");
   // The RPC bounds the date on both sides: not in the future, and not earlier than the item's own
   // regulatory look-back before admission. Mirrored here because the upload happens BEFORE the RPC
   // is called, so a date the server refuses left the document attached to the resident with the
@@ -118,7 +119,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
           </Button>
           {file && <p className="text-xs text-muted-foreground">{file.name}</p>}
           <div className="space-y-1.5 pt-1">
-            <Label htmlFor="compliance-completed-on">Date on the form</Label>
+            <Label htmlFor="compliance-completed-on">{dateField.label}</Label>
             <Input
               id="compliance-completed-on"
               type="date"
@@ -129,8 +130,8 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
             />
             <p className={`text-xs ${dateOutOfRange ? "text-destructive" : "text-muted-foreground"}`}>
               {dateOutOfRange
-                ? `${earliestAllowed ? `The form date must be on or after ${formatDateForDisplay(earliestAllowed)} and not in the future.` : "The form date cannot be in the future."} Fix it before uploading — the document is saved first, and a facility manager cannot delete one that the completion then rejects.`
-                : "The day the assessor signed it, which is what the next cycle is measured from -- not the day you are uploading the scan."}
+                ? `${earliestAllowed ? `${dateField.subject} must be on or after ${formatDateForDisplay(earliestAllowed)} and not in the future.` : `${dateField.subject} cannot be in the future.`} Fix it before uploading — the document is saved first, and a facility manager cannot delete one that the completion then rejects.`
+                : dateField.hint}
             </p>
           </div>
         </div>

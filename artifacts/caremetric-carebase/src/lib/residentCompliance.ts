@@ -64,6 +64,35 @@ export function stateFormBackdateDays(itemType: string, facilityType: string | n
   return 180;
 }
 
+export type StateFormDateField = {
+  label: string;
+  hint: string;
+  subject: string;
+};
+
+/**
+ * What the completion date means for this item. The DME carries two dates, "Date Resident Evaluated"
+ * and "Date Form Completed", and DHS times the medical evaluation from the first: "The medical
+ * examination that is documented on the DME must occur within a given timeframe, but there is no
+ * requirement for the DME form to be completed within a given timeframe" (2600 RCG p.207, 2800 RCG
+ * p.220). Recording the signature date instead would read an on-time exam as late, and anchor the
+ * annual evaluation on the wrong day.
+ */
+export function stateFormDateField(itemType: string): StateFormDateField {
+  if (itemType === "medical_evaluation" || itemType === "annual_medical_evaluation") {
+    return {
+      label: "Date Resident Evaluated (on the DME)",
+      hint: "The day of the in-person medical examination the DME documents. DHS times the evaluation from the exam, not from the day the form was filled in or signed, and the next annual evaluation is measured from it.",
+      subject: "The examination date",
+    };
+  }
+  return {
+    label: "Date on the form",
+    hint: "The day the assessor signed it, which is what the next cycle is measured from -- not the day you are uploading the scan.",
+    subject: "The form date",
+  };
+}
+
 // RASP = PA DHS's name for the Personal Care Home (Ch. 2600) form; ALR's equivalent under Ch. 2800
 // is called "ASP" (no "R") -- distinct forms, not just a labeling difference.
 export function getComplianceFormLabel(facilityType: string | undefined): string {

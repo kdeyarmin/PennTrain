@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ITEM_TYPE_LABELS, getRequiredStateFormInfo, getRequiredStateFormLabel, stateFormBackdateDays } from "./residentCompliance";
+import { ITEM_TYPE_LABELS, getRequiredStateFormInfo, getRequiredStateFormLabel, stateFormBackdateDays, stateFormDateField } from "./residentCompliance";
 
 const PA_DHS_URL_PREFIX = "https://www.pa.gov/";
 
@@ -78,5 +78,25 @@ describe("stateFormBackdateDays", () => {
     expect(stateFormBackdateDays("support_plan_30day", "PCH")).toBe(180);
     expect(stateFormBackdateDays("annual_reassessment", "ALR")).toBe(180);
     expect(stateFormBackdateDays("support_plan_30day", null)).toBe(180);
+  });
+});
+
+describe("stateFormDateField", () => {
+  it("asks for the examination date on both medical evaluation cycles, because DHS times the DME from the exam", () => {
+    for (const itemType of ["medical_evaluation", "annual_medical_evaluation"]) {
+      const field = stateFormDateField(itemType);
+      expect(field.label).toBe("Date Resident Evaluated (on the DME)");
+      expect(field.hint).toMatch(/in-person medical examination/);
+      expect(field.hint).not.toMatch(/signed it/);
+      expect(field.subject).toBe("The examination date");
+    }
+  });
+
+  it("keeps the date on the form for the screening and the assessment-support plan", () => {
+    for (const itemType of ["preadmission_screening", "initial_assessment_15day", "support_plan_30day", "annual_reassessment", "significant_change_reassessment", "support_plan_quarterly_review"]) {
+      const field = stateFormDateField(itemType);
+      expect(field.label).toBe("Date on the form");
+      expect(field.subject).toBe("The form date");
+    }
   });
 });
