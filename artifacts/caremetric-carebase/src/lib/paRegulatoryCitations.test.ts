@@ -51,6 +51,23 @@ describe("catalog governance", () => {
     expect(findCitation("2800.225")!.provenance.note.length).toBeGreaterThan(20);
   });
 
+  it("cites the page the Grace Periods list is on and does not call 2800.225(a) the initial assessment", () => {
+    // Both guides print the Grace Periods list on p.4; the "does NOT apply" list names eight
+    // provisions. In Chapter 2800 the initial assessment is 2800.224(a); 2800.225(a) is the
+    // additional-assessment cycle, labelled "Initial assessments" only because the guide copied
+    // Chapter 2600's list.
+    const pch = findCitation("2600.141")!.provenance.note;
+    const alf = findCitation("2800.225")!.provenance.note;
+    for (const note of [pch, alf]) {
+      expect(note).toContain("p.4");
+      expect(note).not.toMatch(/p\.5('s)? Grace Periods/);
+      expect(note).not.toContain("exclusion list names only");
+      expect(note).toContain("names eight provisions");
+    }
+    expect(alf).toContain("§ 2800.224(a), the ALF initial assessment");
+    expect(alf).not.toContain("2800.225(a) (the initial assessment)");
+  });
+
   it("says 'not verified' when no governed status is supplied, rather than staying silent", () => {
     // The truthful default. Every entry in this library is currently in exactly this position:
     // record_citation_verification() has never been invoked for any citation, so nothing is

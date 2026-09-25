@@ -169,7 +169,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     sourceUrl: PA_CODE_2600,
     sourceLabel: "55 Pa. Code Chapter 2600 (Personal Care Homes)",
     provenance: {
-      note: "PA DHS's own 2600 Regulatory Compliance Guide confirms the annual-cycle grace period at 15 days: p.5's Grace Periods table names \"Medical evaluations (§ 2600.141)\" in the 15-day list, and p.118 restates it directly under § 2600.141(b)(1). The same page's exclusion list names only § 2600.141(a) (the initial evaluation), confirming the grace applies to the annual cycle and not the initial admission window. Applied by 20260804170000, which split the shared row into `medical_evaluation` (the initial evaluation, grace 0) and `annual_medical_evaluation` (grace 15). 20260804000000 had confirmed the figure but could not apply it, because one rule-pack row covered both cycles and the initial one is named in the exclusion list.",
+      note: "PA DHS's own 2600 Regulatory Compliance Guide confirms the annual-cycle grace period at 15 days: p.4's Grace Periods list names \"Medical evaluations (§ 2600.141)\" among the items allowed 15 days, and p.118 restates it directly under § 2600.141(b)(1). The \"does NOT apply\" list on the same page (Q/A April 2016) names eight provisions, and its only medical-evaluation entry is § 2600.141(a), the initial evaluation, confirming the grace applies to the annual cycle and not the initial admission window. Applied by 20260804170000, which split the shared row into `medical_evaluation` (the initial evaluation, grace 0) and `annual_medical_evaluation` (grace 15). 20260804000000 had confirmed the figure but could not apply it, because one rule-pack row covered both cycles and the initial one is named in the exclusion list.",
     },
   },
   {
@@ -237,7 +237,7 @@ export const PA_REGULATORY_CITATIONS: PaRegulatoryCitation[] = [
     sourceUrl: PA_CODE_2800,
     sourceLabel: "55 Pa. Code Chapter 2800 (Assisted Living Facilities)",
     provenance: {
-      note: "resident_compliance_rule_packs (20260804000000) confirms the annual-cycle grace period at 15 days via PA DHS's 2800 Regulatory Compliance Guide, p.5 Grace Periods table, which names \"Completion of ANNUAL Resident Assessments (2800.225(a)(1))\" directly in the 15-day list -- the same evidentiary standard already accepted for 2600.225 and 2800.141 in this file. The same page's exclusion list names only 2800.225(a) (the initial assessment), confirming the grace applies to the annual/significant-change cycle rather than the initial one.",
+      note: "resident_compliance_rule_packs (20260804000000) confirms the annual-cycle grace period at 15 days via PA DHS's 2800 Regulatory Compliance Guide, whose p.4 Grace Periods list names \"Completion of ANNUAL Resident Assessments (§ 2800.225(a)(1))\" among the items allowed 15 days -- the same evidentiary standard already accepted for 2600.225 and 2800.141 in this file. The \"does NOT apply\" list that follows on p.5 (Q/A April 2016) names eight provisions, among them § 2800.224(a), the ALF initial assessment, and \"§ 2800.225(a)- Initial assessments\". That label is carried over from Chapter 2600, where 225(a) is the initial assessment; in Chapter 2800, 225(a) is the additional-assessment cycle whose (a)(1) the grace list names. The guide contradicts itself, and the rule pack follows the grace list and the label: 15 days for the annual and significant-change cycle, none for the initial assessment. Notes corrected by 20260925120600.",
     },
   },
   {
