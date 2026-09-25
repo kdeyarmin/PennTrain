@@ -13,10 +13,11 @@ create index training_plans_facility_year_idx on public.training_plans(facility_
 comment on column public.training_plans.due_date is
   'Explicit required-completion date entered by the administrator; never calculated from the training year.';
 
--- The helper keeps direct table writes and the apply RPC on the same scope.
--- SECURITY INVOKER retains the facility/organization tables' existing RLS.
+-- Policies resolve this private helper by OID. Its definer rights allow the
+-- internal entitlement lookup without granting clients private-schema USAGE;
+-- every authorization decision remains tied to the authenticated caller.
 create function app_private.can_manage_training_plan(p_org uuid, p_facility uuid)
-returns boolean language sql stable security invoker set search_path = '' as $$
+returns boolean language sql stable security definer set search_path = '' as $$
   select auth.uid() is not null and public.current_session_unlocked()
     and app_private.has_product_module('modules.train')
     and exists (select 1 from public.organizations o where o.id = p_org
@@ -261,8 +262,11 @@ begin
     raise exception 'Current unlocked session required' using errcode = '42501';
   end if;
   perform public.assert_identity_assurance('workforce_admin');
+  -- SELECT FOR UPDATE applies both SELECT and UPDATE USING policies. The
+  -- latter is the manager-scope predicate above, so a readable plan alone is
+  -- insufficient. Keep this RPC invoker and the private schema inaccessible.
   select * into v_plan from public.training_plans where id = p_plan_id for update;
-  if not found or not coalesce(app_private.can_manage_training_plan(v_plan.organization_id, v_plan.facility_id), false) then
+  if not found then
     raise exception 'Training manager access required for this plan' using errcode = '42501';
   end if;
   if v_plan.facility_id is null or v_plan.training_year is null or v_plan.due_date is null then

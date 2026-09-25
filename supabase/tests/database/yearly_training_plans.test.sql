@@ -39,7 +39,8 @@ on conflict(id) do update set organization_id = excluded.organization_id, role =
 -- Use normal role/facility provisioning. Do not add an artificial organization-wide
 -- grant: it would hide the manager cancellation permission regression.
 insert into public.facility_assignments(profile_id, facility_id) values
-  (pg_temp.id(102), pg_temp.id(11)), (pg_temp.id(104), pg_temp.id(11));
+  (pg_temp.id(102), pg_temp.id(11)), (pg_temp.id(104), pg_temp.id(11)),
+  (pg_temp.id(103), pg_temp.id(11));
 insert into public.employees(id, organization_id, facility_id, profile_id, first_name, last_name, job_title, status) values
   (pg_temp.id(201), pg_temp.id(1), pg_temp.id(11), pg_temp.id(103), 'First', 'Student', 'Aide', 'active'),
   (pg_temp.id(202), pg_temp.id(1), pg_temp.id(11), null, 'Second', 'Student', 'Aide', 'active'),
@@ -73,6 +74,7 @@ grant all on yearly_evidence to authenticated;
 
 select ok(not has_function_privilege('anon', 'public.apply_yearly_training_plan(uuid,uuid)', 'execute'), 'anonymous callers cannot apply plans');
 select is((select prosecdef from pg_proc where oid = 'public.apply_yearly_training_plan(uuid,uuid)'::regprocedure), false, 'apply keeps table RLS active');
+select ok(not has_schema_privilege('authenticated', 'app_private', 'usage'), 'private schema remains inaccessible to client queries');
 select pg_temp.act(102);
 select is(public.has_effective_permission('training.sessions.manage', 'facility', pg_temp.id(11)), true, 'normal manager grant covers own facility');
 select is(public.has_effective_permission('training.sessions.manage', 'organization', pg_temp.id(1)), false, 'fixture has no fabricated organization-wide manager permission');
@@ -186,6 +188,10 @@ select is((select status from public.course_assignments where employee_id = pg_t
   'deadline change preserves paused state');
 
 select pg_temp.act(103);
+select is((select count(*)::int from public.training_plans where id = pg_temp.id(501)), 1,
+  'same-facility learner can read the plan without management rights');
+select is((select count(*)::int from (select id from public.training_plans where id = pg_temp.id(501) for update) locked), 0,
+  'UPDATE policy independently refuses the readable plan lock to a learner');
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(201))$$, '42501', null, 'learner cannot apply their own plan');
 select throws_ok($$insert into public.training_plans(organization_id, facility_id, training_year, due_date, name)
   values(pg_temp.id(1), pg_temp.id(11), 2026, '2026-12-12', 'Learner plan')$$, '42501', null, 'learner cannot author plan');
