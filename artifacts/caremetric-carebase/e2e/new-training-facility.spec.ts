@@ -232,7 +232,8 @@ test.describe("new training facility administrator", () => {
         // Keyboard navigation reaches and activates the same real learner action.
         const start = learnerPage.getByRole("link", { name: "Start required course", exact: true });
         await start.focus(); await expect(start).toBeFocused(); await learnerPage.keyboard.press("Enter");
-        await expect(learnerPage.getByText("Instructor-led orientation fixture for a new facility.", { exact: true })).toBeVisible();
+        // The overview repeats this text; target the actual reading content.
+        await expect(learnerPage.locator("p.whitespace-pre-wrap").filter({ hasText: "Instructor-led orientation fixture for a new facility." })).toBeVisible();
         await learnerPage.getByRole("button", { name: "Mark Training Complete", exact: true }).click();
         await learnerPage.getByRole("button", { name: "Skip", exact: true }).click();
         await expect(learnerPage.getByRole("heading", { name: "My Certificates", exact: true })).toBeVisible();
@@ -247,7 +248,7 @@ test.describe("new training facility administrator", () => {
         await expect(learnerPage.getByRole("button", { name: "Review", exact: true })).toBeVisible();
         await learnerPage.getByLabel("Find a course").fill(fixture.electiveTitle);
         await learnerPage.getByRole("button", { name: "Start", exact: true }).click();
-        await expect(learnerPage.getByText("This is voluntary learning for the new employee.", { exact: true })).toBeVisible();
+        await expect(learnerPage.locator("p.whitespace-pre-wrap").filter({ hasText: "This is voluntary learning for the new employee." })).toBeVisible();
         await learnerPage.goto("/me/courses");
         await expect(learnerPage.getByText("1 / 1 required courses completed", { exact: true })).toBeVisible();
         await learnerPage.getByRole("button", { name: "Optional", exact: true }).click();
@@ -402,11 +403,13 @@ test.describe("new training facility administrator", () => {
     await page.getByLabel("Administrator email", { exact: true }).fill(administratorEmail);
     // Exercise the recoverable boundary after provisioning but before sending the first email.
     await page.route("**/functions/v1/invite-user", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Disposable invitation outage" }) }), { times: 1 });
+    const failedInvitation = page.waitForResponse(response => response.url().endsWith("/functions/v1/invite-user") && response.status() === 503);
     await page.getByRole("button", { name: "Create free Train access", exact: true }).click();
+    await failedInvitation;
     await expect(page.getByText("Training-only facility created. Administrator invitation needs attention.", { exact: true })).toBeVisible();
     await page.reload();
     await page.getByRole("button", { name: "Retry administrator invitation", exact: true }).click();
-    await expect(page.getByText("Training-only facility created. Administrator invitation sent.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Training-only facility created. Administrator invitation sent.", { exact: true })).toBeVisible({ timeout: 30_000 });
     const { data: organization, error: organizationError } = await service.from("organizations")
       .select("id,is_demo").eq("name", organizationName).single();
     if (organizationError) throw organizationError;

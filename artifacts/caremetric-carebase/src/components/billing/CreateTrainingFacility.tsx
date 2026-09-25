@@ -76,7 +76,7 @@ export function CreateTrainingFacility() {
       <Button disabled={busy}>{busy ? "Creating facility and inviting administrator…" : "Create free Train access"}</Button>
     </form>}
     {created && <div role="status" className="rounded-lg border p-4 space-y-2">
-      <p className="font-medium">Training-only facility created. {invitationSent ? "Administrator invitation sent." : "Administrator invitation needs attention."}</p>
+      <p className="font-medium">Training-only facility created. {invitationSent ? "Administrator invitation sent." : busy || invite.isPending ? "Administrator invitation is being sent…" : "Administrator invitation needs attention."}</p>
       <p className="text-sm">Administrator: {administrator.email}. They will set their own password, sign in, complete account security, and follow the facility setup checklist. Retrying the invitation uses this saved facility.</p>
       {!invitationSent && <Button disabled={busy || invite.isPending} onClick={async () => { try { await sendAdministratorInvitation(created); } catch (error) { toast({ title: "Invitation needs attention", description: trainingActionError(error), variant: "destructive" }); } }}>Retry administrator invitation</Button>}
       <div className="flex flex-wrap gap-3"><Link href={trainingAdministratorInviteHref(created)} className="underline">Review / change administrator invitation</Link><Link href={`/admin/organizations/${created}`} className="underline">Open organization</Link></div>
