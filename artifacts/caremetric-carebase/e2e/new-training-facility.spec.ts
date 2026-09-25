@@ -217,6 +217,7 @@ test.describe("new training facility administrator", () => {
     await test.step("invited learner activates, explores electives, completes required learning and recovers on another device", async () => {
       const invitation = await readAuthEmail(request, studentEmail, "invite");
       const learnerContext = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL), viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      learnerContext.setDefaultTimeout(15_000);
       try {
         const learnerPage = await learnerContext.newPage();
         await setPasswordFromEmail(learnerPage, invitation.url, password);
@@ -229,12 +230,19 @@ test.describe("new training facility administrator", () => {
         const accessibility = await new AxeBuilder({ page: learnerPage }).withTags(["wcag2a", "wcag2aa"]).analyze();
         const blockingAccessibility = accessibility.violations.filter(v => v.impact === "critical" || v.impact === "serious");
         expect(blockingAccessibility, JSON.stringify(blockingAccessibility, null, 2)).toEqual([]);
+        await learnerPage.screenshot({ path: `test-results/training-learner-next-${testInfo.project.name}.png`, fullPage: true });
         // Keyboard navigation reaches and activates the same real learner action.
         const start = learnerPage.getByRole("link", { name: "Start required course", exact: true });
         await start.focus(); await expect(start).toBeFocused(); await learnerPage.keyboard.press("Enter");
         // The overview repeats this text; target the actual reading content.
         await expect(learnerPage.locator("p.whitespace-pre-wrap").filter({ hasText: "Instructor-led orientation fixture for a new facility." })).toBeVisible();
+        const complete = learnerPage.getByRole("button", { name: "Mark Training Complete", exact: true });
+        await expect(complete).toBeDisabled();
+        await expect(learnerPage.getByText(/Continue reviewing the lesson. Completion is available in/)).toBeVisible();
+        // Honor the actual server pacing floor; do not backdate progress or bypass completion.
+        await expect(complete).toBeEnabled({ timeout: 70_000 });
         await learnerPage.getByRole("button", { name: "Mark Training Complete", exact: true }).click();
+        await expect(learnerPage.getByRole("heading", { name: "Rate this training", exact: true })).toBeVisible();
         await learnerPage.getByRole("button", { name: "Skip", exact: true }).click();
         await expect(learnerPage.getByRole("heading", { name: "My Certificates", exact: true })).toBeVisible();
         await expect(learnerPage.getByText(fixture.courseTitle, { exact: true })).toBeVisible();
@@ -257,6 +265,7 @@ test.describe("new training facility administrator", () => {
         await learnerPage.screenshot({ path: "test-results/training-learner-mobile.png", fullPage: true });
       } finally { await learnerContext.close(); }
       const secondDevice = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
+      secondDevice.setDefaultTimeout(15_000);
       try {
         const recoveryPage = await secondDevice.newPage();
         // A used invite is rejected, with an explicit working recovery route.
@@ -346,6 +355,7 @@ test.describe("new training facility administrator", () => {
       await page.getByRole("button", { name: "Download selected for printing (PDF)", exact: true }).click();
       const packet = await packetDownload;
       expect(packet.suggestedFilename()).toMatch(/\.pdf$/);
+      await packet.saveAs(`test-results/training-certificate-packet-${testInfo.project.name}.pdf`);
       const packetPdf = await PDFDocument.load(await readFile((await packet.path())!));
       expect(packetPdf.getPageCount()).toBe(1);
       const { data: generatedCertificate, error: certificateError } = await service.from("certificates")
@@ -426,6 +436,7 @@ test.describe("new training facility administrator", () => {
     expect(count).toBe(1);
     const administratorInvite = await readAuthEmail(request, administratorEmail, "invite");
     const adminContext = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
+    adminContext.setDefaultTimeout(15_000);
     try {
       const adminPage = await adminContext.newPage();
       await setPasswordFromEmail(adminPage, administratorInvite.url, password);

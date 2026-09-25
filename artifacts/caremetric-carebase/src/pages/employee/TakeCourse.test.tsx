@@ -145,12 +145,36 @@ beforeEach(() => {
   h.assignment = { id: "assignment-a", employee_id: "employee-a", course_id: "course-a", course_version_id: "version-a", status: "in_progress" };
   h.refetch.mockReset().mockImplementation(async () => ({ data: h.assignment, isSuccess: true, isError: false, error: null }));
   h.blocks = [{ id: "last-block", title: "Scenario video", block_type: "video", sort_order: 0, video_url: "https://example.com/video.mp4", body: { activity_type: "scenario" } }];
-  h.progress = { last_block_id: "last-block", started_at: "2026-09-15T10:00:00Z", learning_tools: { notes: {}, confidence: {} }, video_state: {} };
+  h.progress = { assignment_id: "assignment-a", last_block_id: "last-block", started_at: "2026-09-15T10:00:00Z", learning_tools: { notes: {}, confidence: {} }, video_state: {} };
   vi.stubGlobal("window", {
     localStorage: { getItem: () => null, setItem: vi.fn() },
     setTimeout: vi.fn(() => 1), clearTimeout: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
   });
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+});
+
+describe("completion timing feedback", () => {
+  it("explains the wait, prevents an early request, and enables completion after the recorded minimum", async () => {
+    h.progress = { ...h.progress, started_at: new Date().toISOString() };
+    const waiting = prepareFinalResponse();
+    expect(completeButton(waiting).props.disabled).toBe(true);
+    expect(text(waiting)).toContain("Continue reviewing the lesson. Completion is available in");
+    await (completeButton(waiting).props.onClick as () => Promise<void>)();
+    expect(h.complete).not.toHaveBeenCalled();
+    const tick = vi.mocked(window.setTimeout).mock.calls.find(([, delay]) => delay === 1000)![0] as () => void;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse(h.progress.started_at as string) + 61_000);
+    try {
+      tick();
+      expect(completeButton(render()).props.disabled).toBe(false);
+    } finally { clock.mockRestore(); }
+  });
+
+  it("waits for the current assignment's saved start instead of using another assignment's progress", () => {
+    h.progress = { ...h.progress, assignment_id: "another-assignment" };
+    const waiting = prepareFinalResponse();
+    expect(completeButton(waiting).props.disabled).toBe(true);
+    expect(text(waiting)).toContain("Saving your course start.");
+  });
 });
 
 describe("quiz navigation and progress restoration", () => {

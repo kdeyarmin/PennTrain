@@ -217,7 +217,7 @@ test.describe("learner course completion", () => {
       await page.getByRole("button", { name: "Submit Quiz", exact: true }).click();
       await expect(page.getByText("You passed!", { exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Back to Training", exact: true }).click();
-      await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toBeVisible();
       const { data: prematureCertificates, error } = await learnerClient.from("certificates").select("id").eq("course_assignment_id", fixture.assignmentId);
       if (error) throw error;
       expect(prematureCertificates, "passing a quiz alone must not issue a certificate").toEqual([]);
@@ -234,6 +234,7 @@ test.describe("learner course completion", () => {
         message: "the learner must satisfy the actual server-enforced minimum seat time",
         timeout: 65_000, intervals: [1_000],
       }).toBeGreaterThanOrEqual(61_000);
+      await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toBeEnabled();
       await page.getByRole("button", { name: "Mark Training Complete", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Rate this training", exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Skip", exact: true }).click();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { courseCompletionWaitSeconds } from "@/lib/courseCompletionTime";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseMediaDocumentLink } from "@/components/learning/CourseMediaDocumentLink";
@@ -206,6 +207,15 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   }, []);
   const ownsAssignment = !!assignment && !!employee && assignment.employee_id === employee.id;
   const completionEvidenceLocked = assignment?.status === "completed";
+  const [completionClock, setCompletionClock] = useState(Date.now);
+  const completionWaitSeconds = course && progress?.assignment_id === assignmentId && progressFetchedAfterMount && !progressError
+    ? courseCompletionWaitSeconds(progress?.started_at, course.estimated_duration_minutes, completionClock)
+    : null;
+  useEffect(() => {
+    if (completionEvidenceLocked || completionWaitSeconds === 0) return;
+    const timer = window.setTimeout(() => setCompletionClock(Date.now()), 1000);
+    return () => window.clearTimeout(timer);
+  }, [assignmentId, completionEvidenceLocked, completionWaitSeconds, completionClock]);
   const canMutateEvidence = canMutateCourseEvidence(
     assignment?.employee_id,
     employee?.id,
@@ -660,7 +670,7 @@ useEffect(() => {
 }, [blocks, canAdvance, canMutateEvidence, currentBlock, isLastBlock, ownsAssignment, showClearLearningToolsConfirm, showRatingPrompt, stepIndex]);
 
   const handleComplete = async () => {
-    if (!assignment || !canMutateEvidence || !isLastBlock || !canAdvance || progressWriter.isClosed()) return;
+    if (!assignment || !canMutateEvidence || !isLastBlock || !canAdvance || completionWaitSeconds !== 0 || progressWriter.isClosed()) return;
     const finalSnapshot = buildProgressCheckpoint();
     if (!finalSnapshot) return;
     setCompletionPending(true);
@@ -1304,7 +1314,7 @@ useEffect(() => {
                   )}
                 </div>
               ) : (
-                <Button onClick={handleComplete} disabled={!canAdvance || completionPending || quizNavigationPending}>
+                <Button onClick={handleComplete} disabled={!canAdvance || completionWaitSeconds !== 0 || completionPending || quizNavigationPending} aria-describedby={completionWaitSeconds !== 0 ? "completion-time-help" : undefined}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   {completionPending ? "Completing..." : "Mark Training Complete"}
                 </Button>
@@ -1327,6 +1337,13 @@ useEffect(() => {
               </div>
             )}
           </div>
+          {isLastBlock && !alreadyCompleted && completionWaitSeconds !== 0 && (
+            <p id="completion-time-help" className="text-sm text-right">
+              {completionWaitSeconds === null
+                ? "Saving your course start. Completion will be available after the minimum learning time."
+                : `Continue reviewing the lesson. Completion is available in ${Math.floor(completionWaitSeconds / 60)}:${String(completionWaitSeconds % 60).padStart(2, "0")}.`}
+            </p>
+          )}
           {!canAdvance && (
             <p className="text-xs text-muted-foreground text-right">
               {videoGateBlocksAdvance
