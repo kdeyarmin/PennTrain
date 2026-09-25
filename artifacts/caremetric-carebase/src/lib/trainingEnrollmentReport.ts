@@ -66,8 +66,10 @@ export async function collectTrainingEnrollmentReport(readPage: (offset: number,
   return report;
 }
 
-export function trainingEnrollmentScope(filters: TrainingEnrollmentFilters): string {
-  return `${DATE_BASIS_LABELS[filters.dateBasis]}: ${filters.dateFrom || "all past dates"} through ${filters.dateThrough || "all future dates"} (Pennsylvania time). Employee: ${filters.employeeId || "all"}. Plan: ${filters.planId || "all"}. Purpose: ${filters.purpose || "all"}. Department: ${filters.department || "all"}. Training year: ${filters.trainingYear || "all"}. Deadline: ${filters.deadline || "all"}. Status: ${filters.status}. Course title: ${filters.courseSearch || "all courses"}. ${filters.dateBasis === "assigned" ? "Each course assignment counts as one enrollment; annual repeats count separately." : "Only enrollments with the selected date recorded are included."} Completion rate = completed enrollments / non-canceled enrollments in this filtered report. This is training activity, not certification of facility compliance.`;
+export function trainingEnrollmentScope(filters: TrainingEnrollmentFilters, report?: TrainingEnrollmentPage): string {
+  const employee = filters.employeeId ? report?.rows.find(row => row.employee_id === filters.employeeId)?.student || "Selected employee" : "all";
+  const plan = filters.planId ? report?.rows.find(row => row.training_plan_id === filters.planId)?.plan_name || "Selected learning plan" : "all";
+  return `${DATE_BASIS_LABELS[filters.dateBasis]}: ${filters.dateFrom || "all past dates"} through ${filters.dateThrough || "all future dates"} (Pennsylvania time). Employee: ${employee}. Plan: ${plan}. Purpose: ${filters.purpose || "all"}. Department: ${filters.department || "all"}. Training year: ${filters.trainingYear || "all"}. Deadline: ${(filters.deadline || "all").replaceAll("_", " ")}. Status: ${filters.status.replaceAll("_", " ")}. Course title: ${filters.courseSearch || "all courses"}. ${filters.dateBasis === "assigned" ? "Each course assignment counts as one enrollment; annual repeats count separately." : "Only enrollments with the selected date recorded are included."} Completion rate = completed enrollments / non-canceled enrollments in this filtered report. This is training activity, not certification of facility compliance.`;
 }
 export const TRAINING_REPORT_HEADERS = ["Student", "Facility", "Course", "Status", "Progress %", "Enrolled", "Due", "Completed", "Certificate number", "Certificate issued", "Certificate PDF status", "Enrollment ID", "Required / optional", "Learning plan", "Course version", "Earned credit hours"];
 export function trainingEnrollmentCells(row: TrainingEnrollmentRow): string[] {
@@ -79,7 +81,7 @@ export function trainingEnrollmentCsv(report: TrainingEnrollmentPage, filters: T
   return trainingCsv([
     ["Training enrollment, completion and certificates", report.organization_name],
     ["Generated", report.generated_at], ["Facility scope", report.facility_name || "All accessible facilities in selected organization"],
-    [trainingEnrollmentScope(filters)],
+    [trainingEnrollmentScope(filters, report)],
     ["Enrollments", report.total, "Students", report.students, "Completed", report.completed, "Non-canceled enrollments", report.completion_denominator, "Issued certificates", report.certificates],
     [], TRAINING_REPORT_HEADERS, ...report.rows.map(trainingEnrollmentCells),
   ]);

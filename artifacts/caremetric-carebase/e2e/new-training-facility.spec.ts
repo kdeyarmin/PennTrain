@@ -331,7 +331,12 @@ test.describe("new training facility administrator", () => {
         (window as Window & { trainingPrintSnapshot?: { text: string; rows: string[][]; html: string; head: string } }).trainingPrintSnapshot!,
       );
       expect(printed.text).toContain("1 enrollments; 1 distinct students; 1 completed / 1 non-canceled; 1 issued certificates");
-      expect(printed.rows[0]).toEqual(expect.arrayContaining(["Everly Newlearner", fixture.facility.name, fixture.courseTitle, "100"]));
+      expect(printed.rows[0]).toEqual(expect.arrayContaining(["Everly Newlearner", fixture.facility.name]));
+      const printedRow = printed.rows[0].join(" ");
+      expect(printedRow).toContain(fixture.courseTitle);
+      expect(printedRow).toContain("Required");
+      expect(printedRow).toContain("100%");
+      expect(printedRow).toContain("Completed:");
       expect(printed.text).not.toContain("Aspen other facility");
 
       await report.screenshot({ path: "test-results/new-training-facility-report.png" });
