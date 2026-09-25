@@ -23,7 +23,7 @@ export const PACKAGE_SECURITY_HEADERS = {
 };
 
 /** Shared by Railway, Vite development and Vite preview; never accepts an upstream URL from a caller. */
-export async function proxyLearningPackage(req, res, path, { supabaseUrl, fetchImpl = fetch } = {}) {
+export async function proxyLearningPackage(req, res, path, { supabaseUrl, fetchImpl = fetch, headerTimeoutMs = 30_000 } = {}) {
   if (!path.startsWith(LEARNING_PACKAGE_ROUTE)) return false;
   const reject = (status, message) => {
     res.writeHead(status, { ...PACKAGE_SECURITY_HEADERS, "Content-Type": "text/plain; charset=utf-8" });
@@ -60,7 +60,20 @@ export async function proxyLearningPackage(req, res, path, { supabaseUrl, fetchI
     upstream.hash = "";
     const headers = {};
     if (typeof req.headers.range === "string") headers.Range = req.headers.range;
-    const response = await fetchImpl(upstream, { method: req.method, headers, redirect: "error", signal: AbortSignal.timeout(30_000) });
+    // The timeout bounds the connect/headers phase only. `AbortSignal.timeout` passed straight to
+    // fetch stays armed while the body is piped, and an abort after the headers errors the body
+    // stream -- so a 40 MB package video or a large PDF that legitimately takes longer than the
+    // window to stream was destroyed mid-body. Once the headers are in, the only thing that ends
+    // the upstream transfer early is the client going away.
+    const controller = new AbortController();
+    const headerTimer = setTimeout(() => controller.abort(), headerTimeoutMs);
+    res.once("close", () => controller.abort());
+    let response;
+    try {
+      response = await fetchImpl(upstream, { method: req.method, headers, redirect: "error", signal: controller.signal });
+    } finally {
+      clearTimeout(headerTimer);
+    }
     if (![200, 206, 416].includes(response.status)) {
       await response.body?.cancel();
       reject(response.status >= 500 ? 502 : response.status, "Package content is unavailable. Relaunch the course or contact your trainer.");

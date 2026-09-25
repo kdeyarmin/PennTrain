@@ -427,7 +427,10 @@ export default function MfaSettings() {
                       {(factor.factor_type === "phone" || factor.factor_type === "sms") ? "Text me a code" : "Verify"}
                     </Button>
                   ) : null}
-                  {!status.smsRequired ? (
+                  {/* App-managed SMS factors have no self-service removal (sms-mfa accepts only
+                      status/send/verify), so the button is not offered for them; the copy below
+                      already points SMS users to an administrator. */}
+                  {!status.smsRequired && factor.factor_type !== "sms" ? (
                   <Button
                     type="button"
                     variant="ghost"

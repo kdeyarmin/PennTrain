@@ -41,10 +41,11 @@ import { openDocumentUrl } from "@/lib/openDocumentUrl";
  * and why it was taken away, is the part an auditor asks about.
  */
 function GuestGrantList({
-  packetExportId, revoking, reason, pending,
+  packetExportId, revoking, reason, pending, readOnly,
   onStartRevoke, onCancelRevoke, onReasonChange, onConfirmRevoke,
 }: {
   packetExportId: string;
+  readOnly: boolean;
   revoking: string | null;
   reason: string;
   pending: boolean;
@@ -91,7 +92,7 @@ function GuestGrantList({
                   {grant.last_downloaded_at ? ` (last ${new Date(grant.last_downloaded_at).toLocaleDateString()})` : ""}
                 </p>
               </div>
-              {state === "active" && revoking !== grant.id && (
+              {!readOnly && state === "active" && revoking !== grant.id && (
                 <Button size="sm" variant="outline" onClick={() => onStartRevoke(grant.id)}>
                   Revoke
                 </Button>
@@ -133,11 +134,17 @@ export default function SurveyDayPacketSection({
   facilityId,
   pinnedBinderJobId,
   pinnedBinder,
+  readOnly,
 }: {
   sessionId: string;
   facilityId: string;
   pinnedBinderJobId: string;
   pinnedBinder: SurveyEvidencePacketJob;
+  /**
+   * Auditors reach Survey Day read-only (and a closed session is read-only for everyone). Every
+   * mutation below is refused server-side by assert_phase5_manager, so the controls are not offered.
+   */
+  readOnly: boolean;
 }) {
   const { toast } = useToast();
   const packetItems = useSurveyEvidencePacketItems({
@@ -222,6 +229,7 @@ export default function SurveyDayPacketSection({
           Prefer the citation field (for example 2800.64) for entrance-conference order; labels still
           parse as a fallback. Issue a time-limited surveyor guest link for that package only.
         </p>
+        {!readOnly && (
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
@@ -254,6 +262,7 @@ export default function SurveyDayPacketSection({
           <Input
             className="max-w-xs"
             placeholder="Note label"
+            aria-label="Note label"
             value={packetNote}
             onChange={(e) => setPacketNote(e.target.value)}
           />
@@ -329,6 +338,7 @@ export default function SurveyDayPacketSection({
             Package zip
           </Button>
         </div>
+        )}
         {packetExports.isError ? (
           <QueryError
             what="packet packages"
@@ -342,12 +352,14 @@ export default function SurveyDayPacketSection({
               {new Date(latestExport.created_at).toLocaleString()} · {latestExport.item_count} items ·{" "}
               {latestExport.content_sha256.slice(0, 12)}…
             </p>
+            {!readOnly && (
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 className="h-8 max-w-xs"
                 value={guestLabel}
                 onChange={(e) => setGuestLabel(e.target.value)}
                 placeholder="Guest label"
+                aria-label="Guest label"
               />
               <Button
                 size="sm"
@@ -380,6 +392,7 @@ export default function SurveyDayPacketSection({
                 Issue surveyor guest link
               </Button>
             </div>
+            )}
             {lastGuestLink && (
               <p className="break-all rounded bg-amber-50 p-2 font-mono text-[11px] text-amber-800">
                 Surveyor link (copy now): {lastGuestLink}
@@ -387,6 +400,7 @@ export default function SurveyDayPacketSection({
             )}
             <GuestGrantList
               packetExportId={latestExport.id}
+              readOnly={readOnly}
               revoking={revokingGrantId}
               reason={revokeReason}
               pending={revokeGuest.isPending}
@@ -431,6 +445,7 @@ export default function SurveyDayPacketSection({
                   {citation && <Badge variant="outline" className="text-[11px]">{citation}</Badge>}
                   <span>{item.label}</span>
                 </span>
+                {!readOnly && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -443,6 +458,7 @@ export default function SurveyDayPacketSection({
                 >
                   Remove
                 </Button>
+                )}
               </li>
             );
           })

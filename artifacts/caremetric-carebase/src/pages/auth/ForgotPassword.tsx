@@ -35,9 +35,24 @@ export default function ForgotPassword() {
     try {
       // Matches App.tsx's WouterRouter/publicPaths.ts convention for combining origin + base path
       // -- BASE_URL is "/" by default (root) but can be a subpath in non-root deployments.
-      await supabase.auth.resetPasswordForEmail(email, {
+      // auth-js returns AuthError values ({ data, error }) rather than throwing them, so a
+      // network failure or GoTrue's resend rate limit used to land on the "Email sent" screen.
+      // GoTrue answers 200 for unknown addresses, so a returned error is transport, rate-limit,
+      // or configuration -- never account existence -- and is safe to show.
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: absoluteAppUrl("/reset-password"),
       });
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Couldn't send reset link",
+          description: error.status === 0 || !error.message
+            ? "Unable to reach the server. Check your connection and try again."
+            : error.message,
+        });
+        setLoading(false);
+        return;
+      }
     } catch {
       toast({
         variant: "destructive",

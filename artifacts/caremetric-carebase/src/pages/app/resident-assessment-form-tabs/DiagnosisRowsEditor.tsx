@@ -93,11 +93,11 @@ export function DiagnosisRowsEditor({
                   frequencyOther={row.planFrequencyOther}
                   responsibleParty={row.planResponsibleParty}
                   responsiblePartyOther={row.planResponsiblePartyOther}
-                  onFrequencyChange={(v) => updateRow({ planFrequency: v })}
+                  onFrequencyChange={(v) => updateRow({ planFrequency: v, planFrequencyOther: v === "other" ? row.planFrequencyOther : "" })}
                   onFrequencyOtherChange={(v) =>
                     updateRow({ planFrequencyOther: v })
                   }
-                  onPartyChange={(v) => updateRow({ planResponsibleParty: v })}
+                  onPartyChange={(v) => updateRow({ planResponsibleParty: v, planResponsiblePartyOther: v === "O" ? row.planResponsiblePartyOther : "" })}
                   onPartyOtherChange={(v) =>
                     updateRow({ planResponsiblePartyOther: v })
                   }

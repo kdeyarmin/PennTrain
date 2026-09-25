@@ -80,19 +80,21 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
 // payload proportional to the work on screen instead of the whole tenant roster.
 export function useListEmployeesByIds(ids: string[]) {
   // Sort for a stable query key so reordering the same set does not refetch.
-  const sortedIds = [...ids].filter(Boolean).sort();
+  const sortedIds = [...new Set(ids.filter(Boolean))].sort();
   return useQuery({
     queryKey: ["employees", "by-ids", sortedIds],
     queryFn: async () => {
       if (sortedIds.length === 0) return [] as Employee[];
-      // PostgREST .in() is fine for the small batches these call sites produce (typically <50).
-      const { data, error } = await supabase
-        .from("employees")
-        .select("*")
-        .in("id", sortedIds)
-        .order("last_name");
-      if (error) throw error;
-      return data;
+      // Certificate history can reference a large roster. Bound URLs and stay below the API
+      // row cap; each primary key matches at most one row, and RLS still applies to every batch.
+      const rows: Employee[] = [];
+      for (let offset = 0; offset < sortedIds.length; offset += 200) {
+        const { data, error } = await supabase.from("employees").select("*")
+          .in("id", sortedIds.slice(offset, offset + 200)).order("last_name").order("id");
+        if (error) throw error;
+        rows.push(...(data ?? []));
+      }
+      return rows.sort((a, b) => a.last_name.localeCompare(b.last_name) || a.id.localeCompare(b.id));
     },
     enabled: sortedIds.length > 0,
   });
@@ -118,9 +120,10 @@ export interface ListEmployeesPaginatedFilters extends ListEmployeesFilters {
 // Server-side search/sort/pagination for the Employees roster page -- a separate hook (rather
 // than an overload of useListEmployees above) so the many other pages that want the full
 // filtered list untouched keep the exact same query shape/cache key they always had.
-export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters) {
+export function useListEmployeesPaginated(filters: ListEmployeesPaginatedFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["employees", "paginated", filters],
+    enabled: options.enabled,
     queryFn: async () => {
       let query = supabase.from("employees").select("*", { count: "exact" });
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);

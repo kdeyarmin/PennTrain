@@ -16,9 +16,10 @@ export interface ListEmployeeFacilityAssignmentsFilters {
 
 // Includes the joined employee record (name/title/status) since every caller of this hook is
 // building a facility roster picker -- avoids a second round-trip per consumer.
-export function useListEmployeeFacilityAssignments(filters: ListEmployeeFacilityAssignmentsFilters = {}) {
+export function useListEmployeeFacilityAssignments(filters: ListEmployeeFacilityAssignmentsFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["employee_facility_assignments", filters],
+    enabled: options.enabled,
     queryFn: async () => {
       let query = supabase
         .from("employee_facility_assignments")

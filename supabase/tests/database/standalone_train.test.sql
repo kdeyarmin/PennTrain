@@ -1,4 +1,7 @@
 begin;
+-- Lifecycle effective dates use the Pennsylvania calendar. UTC is already tomorrow
+-- during evening CI runs, so CURRENT_DATE must use the same calendar as the RPC.
+set local timezone = 'America/New_York';
 select no_plan();
 insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
 select 'dd240000-0000-4000-8000-000000000001','Standalone Train test','standalone-train-test','trial',now()-interval '1 day',id

@@ -1,4 +1,5 @@
 import { csvEscape } from "./csv";
+import { facilityTypeMatchesQuery } from "./facilityTypes";
 import type { PchAlrOperationsQueueItem } from "./pchAlrOperationalSnapshot";
 
 export type FacilityProgram = "PCH" | "ALR";
@@ -23,6 +24,8 @@ export interface PchAlrOperationsItem {
   programs: FacilityProgram[];
   evidenceSources: string[];
   route: string;
+  /** The owning route is ORG_MANAGE_ROLES (App.tsx); the read-only auditor cannot open it. */
+  managerOnly?: true;
   owner: string;
   surveyPrompt: string;
   cadence: string;
@@ -77,6 +80,7 @@ export const PCH_ALR_OPERATIONS_ITEMS: PchAlrOperationsItem[] = [
     programs: ["PCH", "ALR"],
     evidenceSources: ["Administrator Qualification", "Employee Credentials", "Training Matrix", "Compliance Binder"],
     route: "/app/administrator-qualification",
+    managerOnly: true,
     owner: "Organization administrator",
     surveyPrompt: "Show administrator qualification, annual training, and backup coverage documentation for this licensed setting.",
     cadence: "Review at hire/designation, quarterly, and before license renewal/survey.",
@@ -181,8 +185,10 @@ export function searchPchAlrOperations(query: string): PchAlrOperationsItem[] {
     item.cadence,
     ...item.citations,
     ...item.evidenceSources,
-    ...item.programs,
-  ].some((value) => value.toLowerCase().includes(normalized)));
+  ].some((value) => value.toLowerCase().includes(normalized))
+    // Programs hold the stored codes ("ALR"), but the page shows the product's label ("ALF"), so
+    // the search answers to both -- the same rule facilityTypes.ts documents for facility search.
+    || item.programs.some((program) => facilityTypeMatchesQuery(program, normalized)));
 }
 
 export function buildInspectionDayChecklist(items: PchAlrOperationsItem[] = PCH_ALR_OPERATIONS_ITEMS): string[] {

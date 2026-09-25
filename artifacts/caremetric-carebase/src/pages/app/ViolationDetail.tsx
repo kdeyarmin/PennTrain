@@ -538,6 +538,9 @@ export default function ViolationDetail() {
             Generates a formatted Plan of Correction covering the cited violation and every corrective task recorded
             above -- regenerate any time as tasks are added or updated.
           </p>
+          {/* generate-poc-document is a write (org_admin / facility_manager); auditors keep the
+              existing POC documents in the list below. */}
+          {canManage && (
           <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
@@ -553,6 +556,7 @@ export default function ViolationDetail() {
               {generatePocDocument.isPending ? "Generating..." : "Generate Plan of Correction PDF"}
             </Button>
           </div>
+          )}
           <PocLifecycleActions
             violationId={violation.id}
             status={violation.status}

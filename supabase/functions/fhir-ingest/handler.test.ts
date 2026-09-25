@@ -129,6 +129,28 @@ Deno.test("FHIR invalid bodies cannot bypass authentication or rate limits", asy
   assertEquals(throttled.calls.length, 2);
 });
 
+Deno.test("FHIR bundles with wrong-shaped nested fields answer inside the error envelope", async () => {
+  // hasValidFhirMappingShape refuses these before mapping: a stable 400 in the envelope, with the
+  // correlation id, and no inbox command written (the two calls are auth and the rate limiter).
+  const { handler, calls } = fixture();
+  const response = await handler(request(JSON.stringify({ resourceType: "Bundle", entry: {} })));
+  assertEquals(response.status, 400);
+  const body = await response.json();
+  assertEquals(body.error.code, "invalid_fhir_resource");
+  assertEquals(typeof body.meta.correlationId, "string");
+  assertEquals(calls.length, 2);
+
+  const nested = await fixture().handler(request(JSON.stringify({
+    resourceType: "AllergyIntolerance",
+    id: "a1",
+    category: "food",
+    reaction: {},
+    code: { coding: "abc" },
+    patient: { reference: 123 },
+  })));
+  assertEquals(nested.status, 400);
+  assertEquals((await nested.json()).error.code, "invalid_fhir_resource");
+});
 Deno.test("FHIR ingestion preserves patient and order identity for version-specific medication references", async () => {
   const { handler, calls } = fixture();
   const response = await handler(request(JSON.stringify({

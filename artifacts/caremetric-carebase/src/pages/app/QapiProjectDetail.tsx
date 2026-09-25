@@ -57,6 +57,10 @@ export default function QapiProjectDetail() {
     addAction = useAddQapiAction(),
     measure = useRecordQapiMeasurement(),
     meeting = useAddQapiMeeting();
+  // update_qapi_project_plan, add_qapi_action, record_qapi_measurement and add_qapi_meeting all
+  // run assert_admission_manager (org_admin / facility_manager); the route admits auditors, who
+  // get the read-only lists without the forms those RPCs would refuse.
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const p = project.data;
   const [status, setStatus] = useState("active"),
     [method, setMethod] = useState("five_whys"),
@@ -227,6 +231,7 @@ export default function QapiProjectDetail() {
           </div>
         </CardContent>
       </Card>
+      {canManage && (
       <Card className="print:hidden">
         <CardHeader>
           <CardTitle>Project plan and lifecycle</CardTitle>
@@ -315,6 +320,7 @@ export default function QapiProjectDetail() {
           </Button>
         </CardContent>
       </Card>
+      )}
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
@@ -337,6 +343,7 @@ export default function QapiProjectDetail() {
               </div>
             ))
             )}
+            {canManage && (
             <div className="space-y-2 print:hidden">
               <Input
                 placeholder="Action title"
@@ -395,6 +402,7 @@ export default function QapiProjectDetail() {
                 Add owned action
               </Button>
             </div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -416,6 +424,7 @@ export default function QapiProjectDetail() {
               </div>
             ))
             )}
+            {canManage && (
             <div className="grid gap-2 sm:grid-cols-2 print:hidden">
               <Input
                 type="number"
@@ -471,6 +480,7 @@ export default function QapiProjectDetail() {
                 Record measurement
               </Button>
             </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -491,6 +501,7 @@ export default function QapiProjectDetail() {
             </div>
           ))
           )}
+          {canManage && (
           <div className="grid gap-2 md:grid-cols-2 print:hidden">
             <Input
               type="datetime-local"
@@ -537,6 +548,7 @@ export default function QapiProjectDetail() {
               Add meeting note
             </Button>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

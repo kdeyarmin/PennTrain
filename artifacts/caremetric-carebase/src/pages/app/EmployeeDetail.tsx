@@ -47,6 +47,8 @@ import {
 } from "@/hooks/useOnboarding";
 import { useListAuditLogs } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/lib/auth";
+import { useProductModuleAccess } from "@/lib/productModuleAccess";
+import { trainingWorkspaceHref } from "@/lib/trainingOnboarding";
 
 // Its own chunk: only an assessor running a bedside observation needs it, and this page is already
 // 1,037 lines.
@@ -106,6 +108,9 @@ export default function EmployeeDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const moduleAccess = useProductModuleAccess();
+  const hasWorkforce = moduleAccess.canAccessPath("/app/credentials");
+  const canOpenLifecycle = moduleAccess.canAccessPath("/app/employee-lifecycle");
   const { toast } = useToast();
 
   const basePath = user?.role === "platform_admin" ? "/admin/employees"
@@ -120,7 +125,7 @@ export default function EmployeeDetail() {
   // transition ("terminate"), which is what the button below now offers.
   // Matches employee_credentials_select RLS -- trainer is excluded (clearance/license data is
   // more sensitive than the training records shown above), unlike every other card here.
-  const canViewCredentials = ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
+  const canViewCredentials = hasWorkforce && ["platform_admin", "org_admin", "facility_manager", "auditor"].includes(user?.role ?? "");
 
   const [showEditEmp, setShowEditEmp] = useState(false);
   const [removeFacilityAssignmentTarget, setRemoveFacilityAssignmentTarget] = useState<{ id: string; facilityName: string } | null>(null);
@@ -157,19 +162,19 @@ export default function EmployeeDetail() {
 
   const { data: trainingRecords, isLoading: recordsLoading, isError: recordsError, error: recordsErr, refetch: refetchRecords } = useListTrainingRecords({ employeeId: id });
   const { data: trainingTypes } = useListTrainingTypes();
-  const { data: practicums, isLoading: practicumsLoading, isError: practicumsError, error: practicumsErr, refetch: refetchPracticums } = useListPracticums({ employeeId: id });
+  const { data: practicums, isLoading: practicumsLoading, isError: practicumsError, error: practicumsErr, refetch: refetchPracticums } = useListPracticums({ employeeId: id }, { enabled: hasWorkforce });
   const { data: hourBuckets, isLoading: hoursLoading, isError: hoursError, error: hoursErr, refetch: refetchHours } = useListTrainingHourBuckets({ employeeId: id });
   const { data: courseCredits } = useListCourseCompletionCredits(id);
   const { data: documents, isLoading: documentsLoading, isError: documentsError, error: documentsErr, refetch: refetchDocuments } = useListDocuments({ employeeId: id });
-  const { data: credentials, isLoading: credentialsLoading, isError: credentialsError, error: credentialsErr, refetch: refetchCredentials } = useListEmployeeCredentials({ employeeId: id });
+  const { data: credentials, isLoading: credentialsLoading, isError: credentialsError, error: credentialsErr, refetch: refetchCredentials } = useListEmployeeCredentials({ employeeId: id }, { enabled: canViewCredentials });
   const { data: auditLogs, isLoading: activityLoading, isError: activityError, error: activityErr, refetch: refetchActivity } = useListAuditLogs({ entityId: id, limit: 20 });
 
   // Per-employee readiness verdict (Area 3): aggregates clearance, employment status, credential and
   // training status into one of Ready / Conditionally Ready / Expiring Soon / Incomplete / Restricted
   // / Not Eligible, with a plain-language "why" shown on the badge tooltip.
-  const { data: requiredItems } = useEmployeeRequiredItems(id);
+  const { data: requiredItems } = useEmployeeRequiredItems(hasWorkforce ? id : undefined);
   const readiness = useMemo(() => {
-    if (!employee) return null;
+    if (!employee || !hasWorkforce) return null;
     const typeName = new Map((trainingTypes ?? []).map((t) => [t.id, t.name] as const));
     return computeEmployeeReadiness({
       clearedForUnsupervisedDuty: employee.cleared_for_unsupervised_duty,
@@ -178,14 +183,14 @@ export default function EmployeeDetail() {
       training: (trainingRecords ?? []).map((r) => ({ label: typeName.get(r.training_type_id), status: r.status })),
       requiredItems: requiredItems ?? [],
     });
-  }, [employee, credentials, trainingRecords, trainingTypes, requiredItems]);
-  const { data: onboardingItems, isLoading: onboardingLoading, isError: onboardingError, error: onboardingErr, refetch: refetchOnboarding } = useListEmployeeOnboardingItems(id);
-  const { data: checkinLogs } = useListEmployeeCheckinLogs(id);
+  }, [employee, credentials, trainingRecords, trainingTypes, requiredItems, hasWorkforce]);
+  const { data: onboardingItems, isLoading: onboardingLoading, isError: onboardingError, error: onboardingErr, refetch: refetchOnboarding } = useListEmployeeOnboardingItems(hasWorkforce ? id : undefined);
+  const { data: checkinLogs } = useListEmployeeCheckinLogs(hasWorkforce ? id : undefined);
   const { mutate: updateOnboardingItem } = useUpdateEmployeeOnboardingItem();
   const { mutate: logCheckin, isPending: loggingCheckin } = useLogEmployeeCheckin();
   const getSignedUrl = useDocumentSignedUrl();
 
-  const { data: facilityAssignments, isLoading: facilityAssignmentsLoading, isError: facilityAssignmentsError, error: facilityAssignmentsErr, refetch: refetchFacilityAssignments } = useListEmployeeFacilityAssignments({ employeeId: id });
+  const { data: facilityAssignments, isLoading: facilityAssignmentsLoading, isError: facilityAssignmentsError, error: facilityAssignmentsErr, refetch: refetchFacilityAssignments } = useListEmployeeFacilityAssignments({ employeeId: id }, { enabled: hasWorkforce });
   const addFacilityAssignment = useAddEmployeeFacilityAssignment();
   const removeFacilityAssignment = useRemoveEmployeeFacilityAssignment();
   const [addFacilityId, setAddFacilityId] = useState("");
@@ -425,6 +430,7 @@ export default function EmployeeDetail() {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Link>
         </Button>
+        {moduleAccess.canAccessPath("/app/train") && user?.role !== "platform_admin" && <Button asChild variant="outline" size="sm"><Link href={trainingWorkspaceHref(employee.facility_id)}>Facility training, reports &amp; certificates</Link></Button>}
       </div>
 
       <div className="flex items-start justify-between gap-4">
@@ -461,9 +467,9 @@ export default function EmployeeDetail() {
                       ? "Access status unavailable"
                       : accessActive.data ? "Portal access active" : "Portal access suspended"}
               </Badge>
-              <Badge className={employee.cleared_for_unsupervised_duty ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"} variant="outline">
+              {hasWorkforce && <Badge className={employee.cleared_for_unsupervised_duty ? "bg-success text-success-foreground hover:bg-success/80" : "bg-warning text-warning-foreground hover:bg-warning/80"} variant="outline">
                 {employee.cleared_for_unsupervised_duty ? "Cleared for Unsupervised Duty" : "Onboarding In Progress"}
-              </Badge>
+              </Badge>}
               {readiness && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -499,11 +505,11 @@ export default function EmployeeDetail() {
                 again in a separate console -- and rehire/return could not be started there either.
                 The Status field in the edit dialog is refused by a trigger, so this is the one
                 supported way to move somebody between employment states. */}
-            <Button variant="outline" size="sm" asChild>
+            {canOpenLifecycle && <Button variant="outline" size="sm" asChild>
               <Link href={lifecycleWizardHref(employee.id, employee.status)}>
                 <ArrowLeftRight className="mr-2 h-3.5 w-3.5" /> Start lifecycle case
               </Link>
-            </Button>
+            </Button>}
           </div>
         )}
       </div>
@@ -557,7 +563,7 @@ export default function EmployeeDetail() {
         </Card>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue={hasWorkforce ? "overview" : "training"} className="space-y-4">
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="training">Training &amp; Compliance</TabsTrigger>
@@ -567,7 +573,7 @@ export default function EmployeeDetail() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {canManage && (
+          {hasWorkforce && canManage && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" /> Facility Assignments</CardTitle>
@@ -630,7 +636,7 @@ export default function EmployeeDetail() {
             </Card>
           )}
 
-          {onboardingLoading ? (
+          {hasWorkforce && (onboardingLoading ? (
             <Card>
               <CardContent className="py-6">
                 <Skeleton className="h-10" />
@@ -703,9 +709,9 @@ export default function EmployeeDetail() {
                 />
               );
             })()
-          )}
+          ))}
 
-          <Card>
+          {hasWorkforce && <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5" /> Retention Check-Ins</CardTitle>
             </CardHeader>
@@ -741,7 +747,7 @@ export default function EmployeeDetail() {
                 })}
               </div>
             </CardContent>
-          </Card>
+          </Card>}
 
           <Card>
             <CardHeader>
@@ -797,7 +803,7 @@ export default function EmployeeDetail() {
 
           <DiabetesTrainingHistoryCard employeeId={employee.id} />
 
-          <Card>
+          {hasWorkforce && <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CalendarCheck className="h-5 w-5" /> Annual Practicums
@@ -827,7 +833,7 @@ export default function EmployeeDetail() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card>}
 
           <Card>
             <CardHeader>
@@ -1048,7 +1054,7 @@ export default function EmployeeDetail() {
             facilities={facilities}
             facilityFieldMode="edit-fixed"
             lockLifecycleFields
-            lifecycleHref={lifecycleWizardHref(employee.id, employee.status)}
+            lifecycleHref={canOpenLifecycle ? lifecycleWizardHref(employee.id, employee.status) : undefined}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditEmp(false)}>Cancel</Button>

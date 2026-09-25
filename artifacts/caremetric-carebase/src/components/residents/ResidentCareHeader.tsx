@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { facilityDateOf } from "@/lib/dateUtils";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { AlertTriangle, BedDouble, Building2, CalendarDays, Pencil, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -88,6 +88,9 @@ export function ResidentCareHeaderPanel({
   canManage: boolean;
   actions?: React.ReactNode;
 }) {
+  // Served under /admin/residents/:id for platform admins too (see ResidentDetail's residentPathPrefix).
+  const [location] = useLocation();
+  const residentPrefix = location.startsWith("/admin/") ? "/admin/residents" : "/app/residents";
   const header = useResidentCareHeader(residentId);
   const [editing, setEditing] = useState(false);
   const data = header.data;
@@ -192,7 +195,7 @@ export function ResidentCareHeaderPanel({
             <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
             Out of facility since {new Date(data.hospital.since ?? "").toLocaleString()}
             {data.hospital.expectedReturnAt ? ` · expected back ${new Date(data.hospital.expectedReturnAt).toLocaleString()}` : ""}.
-            <Link href={`/app/residents/${residentId}?tab=timeline`} className="underline">Open transfer record</Link>
+            <Link href={`${residentPrefix}/${residentId}?tab=timeline`} className="underline">Open transfer record</Link>
           </p>
         )}
       </div>

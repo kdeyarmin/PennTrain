@@ -15,8 +15,13 @@ serving the Vite build. Verify by running the exact Railway commands and probing
 export VITE_SUPABASE_URL=https://dummy-project.supabase.co VITE_SUPABASE_ANON_KEY=dummy-key VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA
 pnpm install --frozen-lockfile --prod=false \
   && pnpm --filter @workspace/caremetric-carebase run typecheck \
-  && pnpm --filter @workspace/caremetric-carebase run build
-# Build must end with: "precompress: N compressible files scanned, M variants written" (M can be < 2N)
+  && pnpm --filter @workspace/caremetric-carebase run test \
+  && pnpm --filter @workspace/caremetric-carebase run build \
+  && node scripts/check-bundle-budget.mjs
+# This is railway.json's literal buildCommand: the unit + native server tests and the bundle
+# budget run there too, so a Railway build failure in either only reproduces with them included.
+# The vite build step must print: "precompress: N compressible files scanned, M variants written"
+# (M can be < 2N); the bundle-budget summary follows it as the last output.
 # and dist/public/assets should contain .br and/or .gz siblings next to each js/css file where compression shrinks it.
 ```
 

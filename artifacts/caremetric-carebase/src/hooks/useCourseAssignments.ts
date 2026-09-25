@@ -84,9 +84,10 @@ export interface ListCourseAssignmentsPaginatedFilters extends ListCourseAssignm
 // useListCourseAssignments above (left unbounded -- MyCourses.tsx, TrainingPlans.tsx, and
 // EmployeeDashboard.tsx all still need "every assignment matching this filter" rather than one
 // page of it), this variant is for the paginated admin list only.
-export function useListCourseAssignmentsPaginated(filters: ListCourseAssignmentsPaginatedFilters) {
+export function useListCourseAssignmentsPaginated(filters: ListCourseAssignmentsPaginatedFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["course_assignments", "paginated", filters],
+    enabled: options.enabled,
     queryFn: async () => {
       let query = supabase.from("course_assignments").select("*", { count: "exact" });
       if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
@@ -236,6 +237,9 @@ export function invalidateCompletedCourseEvidence(queryClient: QueryClient) {
   // number a completion moves -- and it carries a 60-second staleTime, so the tile disagreed
   // with the matrix the same completion had just refreshed (BACKLOG J74, P3 tail).
   queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
+  // record_course_completion_credits (trigger on course_assignments) writes the per-course
+  // credit rows the employee page lists under the annual-hours bucket.
+  queryClient.invalidateQueries({ queryKey: ["course_completion_credits"] });
 }
 
 /** A bounded, uncached read: React Query's online queries can pause indefinitely when offline. */

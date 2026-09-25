@@ -97,6 +97,7 @@ Deno.serve(async (req: Request) => {
   } catch {
     body = {};
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) body = {};
   const parsedCap = Number(body.recipientCap ?? DIGEST_RECIPIENT_CAP);
   const recipientCap = Number.isFinite(parsedCap)
     ? Math.min(Math.max(Math.trunc(parsedCap), 1), DIGEST_RECIPIENT_CAP)

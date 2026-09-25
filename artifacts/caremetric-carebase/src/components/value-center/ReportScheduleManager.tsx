@@ -246,10 +246,10 @@ export function ReportScheduleManager() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`${__fieldIds}-audience-roles`}>Audience roles</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <Label id={`${__fieldIds}-audience-roles-label`}>Audience roles</Label>
+              <div role="group" aria-labelledby={`${__fieldIds}-audience-roles-label`} className="grid gap-2 sm:grid-cols-2">
                 {REPORT_SCHEDULE_ROLE_OPTIONS.map((option) => <label key={option.value} className="flex items-center gap-2 rounded-md border p-3 text-sm">
-                  <Checkbox id={`${__fieldIds}-audience-roles`} checked={form.roles.includes(option.value)} onCheckedChange={(checked) => toggleRole(option.value, checked === true)} />
+                  <Checkbox checked={form.roles.includes(option.value)} onCheckedChange={(checked) => toggleRole(option.value, checked === true)} />
                   {option.label}
                 </label>)}
               </div>

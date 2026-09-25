@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
   let jobId = body.job_id ?? null;
   if (!jobId) {
     const { data, error } = await callerClient.rpc("start_data_import_job", {
-      p_domain: DOMAIN, p_file_name: (body.file_name ?? "residents.csv").slice(0, 255),
+      p_domain: DOMAIN, p_file_name: (typeof body.file_name === "string" ? body.file_name : "residents.csv").slice(0, 255),
       p_file_sha256: fileSha256, p_total_rows: rows.length, p_duplicate_strategy: duplicateStrategy,
       p_facility_id: null, p_organization_id: profile.role === "platform_admin" ? effectiveOrgId : null,
     });

@@ -240,6 +240,8 @@ export default function ResidentHospitalSection({
               </ul>
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
+                {/* Manager-tier only, like Record return above: every RPC below refuses an auditor. */}
+                {canManage && (
                 <Button
                   size="sm"
                   disabled={!state.complete || complete.isPending}
@@ -249,7 +251,8 @@ export default function ResidentHospitalSection({
                 >
                   Close reconciliation
                 </Button>
-                {episode.changed_order_ack_status === "pending_review" && (
+                )}
+                {canManage && episode.changed_order_ack_status === "pending_review" && (
                   <Button
                     size="sm"
                     variant="outline"

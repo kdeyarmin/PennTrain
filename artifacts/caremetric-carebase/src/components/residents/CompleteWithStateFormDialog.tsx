@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
 import { ITEM_TYPE_LABELS, getRequiredStateFormInfo } from "@/lib/residentCompliance";
@@ -137,7 +137,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
             />
             <p className={`text-xs ${dateOutOfRange ? "text-destructive" : "text-muted-foreground"}`}>
               {dateOutOfRange
-                ? `The form date must be on or after ${earliestAllowed} and not in the future. Fix it before uploading — the document is saved first, and a facility manager cannot delete one that the completion then rejects.`
+                ? `${earliestAllowed ? `The form date must be on or after ${formatDateForDisplay(earliestAllowed)} and not in the future.` : "The form date cannot be in the future."} Fix it before uploading — the document is saved first, and a facility manager cannot delete one that the completion then rejects.`
                 : "The day the assessor signed it, which is what the next cycle is measured from -- not the day you are uploading the scan."}
             </p>
           </div>

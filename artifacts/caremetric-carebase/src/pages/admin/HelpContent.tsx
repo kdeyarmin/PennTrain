@@ -125,7 +125,10 @@ export default function HelpContent() {
   };
 
   const handleSave = () => {
-    if (!form.category.trim() || !form.title.trim()) return;
+    if (!form.category.trim() || !form.title.trim()) {
+      toast({ title: "Can't save", description: "Category and title are required.", variant: "destructive" });
+      return;
+    }
     const content = formToContent(form);
     if (form.articleType === "faq" && !(content as FaqContent).answer) {
       toast({ title: "Can't save", description: "An FAQ needs an answer.", variant: "destructive" });

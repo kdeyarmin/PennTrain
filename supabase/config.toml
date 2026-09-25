@@ -260,8 +260,10 @@ verify_jwt = false
 verify_jwt = false
 
 # Public, unauthenticated "email me my savings model" delivery for the /savings calculator --
-# visitors have no session. The function verifies Turnstile and generates the email body entirely
-# from validated numeric inputs (no user free text, no persistence) before sending via SendGrid.
+# visitors have no session. The function verifies Turnstile, generates the email body entirely from
+# validated numeric inputs (no user free text) and stores one warm-lead row (email, the numeric
+# inputs, hashed IP) in public.savings_model_requests -- a service-role-only write that also serves
+# as the per-IP rate-limit ledger -- before sending via SendGrid.
 [functions.email-savings-model]
 verify_jwt = false
 
@@ -420,8 +422,9 @@ verify_jwt = true
 verify_jwt = false
 
 # Durable data-import claim worker. Platform cron and the system-jobs control plane call it
-# without a user JWT, so verify_jwt stays false; the handler rejects anything that is not a
-# service-role Bearer or a matching X-Cron-Secret -- the same boundary as the other cron workers.
+# without a user JWT, so verify_jwt stays false; the handler requires an X-CareMetric-Cron-Secret
+# header matching CRON_SHARED_SECRET (requireCronRequest) -- the same boundary as the other cron
+# workers. A service-role Bearer is not accepted.
 [functions.process-data-import-jobs]
 verify_jwt = false
 

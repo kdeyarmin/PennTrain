@@ -113,7 +113,7 @@ export function createProcessCredentialRenewalsHandler({
   if (runClaimError) return json(req, { error: runClaimError.message }, 500);
   const run = Array.isArray(claimRows) ? claimRows[0] : claimRows;
   if (!run?.should_execute) {
-    return json(req, { success: true, skipped: true, status: run?.existing_status ?? "skipped" });
+    return json(req, { success: true, rejected, skipped: true, status: run?.existing_status ?? "skipped" });
   }
   const runId = run.run_id;
   const finishRun = async (
@@ -153,6 +153,11 @@ export function createProcessCredentialRenewalsHandler({
   let processed = 0;
   let failed = 0;
   let extracted = 0;
+  // Uploads refused by the type/size gate are recorded on the submission for the reviewer; they
+  // are not worker failures. Counting them as `failed` finished runs "failed" with a blank error
+  // message, and three such runs opened the definition's circuit and delayed every other
+  // employee's OCR by fifteen minutes.
+  let rejected = 0;
   const extractionErrors: string[] = [];
 
   for (const sub of submissions) {
@@ -222,7 +227,7 @@ export function createProcessCredentialRenewalsHandler({
           p_confidence: { overall: 0, source: "gate", reason: gateFailure },
         });
         if (gateError) throw new Error(gateError.message);
-        failed += 1;
+        rejected += 1;
         continue;
       }
 
@@ -368,9 +373,13 @@ export function createProcessCredentialRenewalsHandler({
         p_confidence: confidence,
       });
       if (recError) throw new Error(recError.message);
-      processed += 1;
+      // A provider or extraction failure is the worker's failure to report (the record above keeps
+      // the submission reviewable), not a success: an outage used to finish "succeeded".
+      if (extractionAttemptError) failed += 1;
+      else processed += 1;
     } catch (e) {
       failed += 1;
+      extractionErrors.push(`${sub.id.slice(0, 8)}: ${String((e as Error)?.message ?? e).slice(0, 400)}`);
       await admin.rpc("record_credential_renewal_extraction", {
         p_submission_id: sub.id,
         p_scan_status: "failed",
@@ -393,7 +402,10 @@ export function createProcessCredentialRenewalsHandler({
     processed,
     failed,
     failed > 0 ? "renewal_extraction_failed" : null,
-    failed > 0 ? extractionErrors.slice(0, 3).join(" | ").slice(0, 2000) : null,
+    failed > 0
+      ? (extractionErrors.length ? extractionErrors.slice(0, 3).join(" | ") : `${failed} submission(s) failed`)
+          .slice(0, 2000)
+      : null,
   );
 
   return json(req, {

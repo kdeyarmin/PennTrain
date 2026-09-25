@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useCreateResidentChangeEvent } from "@/hooks/useResidentChangeEvents";
 import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+import { appPath } from "@/lib/appUrl";
 
 export interface ChangeOfConditionResidentOption {
   id: string;
@@ -108,7 +109,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
               : "Owned monitoring and follow-up were created.",
             action: (
               <Button asChild size="sm" variant="outline">
-                <a href={`${user?.role === "employee" ? "/me/change-of-condition" : "/app/change-of-condition"}/${eventId}`}>Open event</a>
+                <a href={appPath(`${user?.role === "employee" ? "/me/change-of-condition" : "/app/change-of-condition"}/${eventId}`)}>Open event</a>
               </Button>
             ),
           });

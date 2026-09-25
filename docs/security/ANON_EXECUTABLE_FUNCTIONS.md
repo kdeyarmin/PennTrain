@@ -1,6 +1,6 @@
 # `anon`-executable SECURITY DEFINER functions
 
-Twenty-one functions in `public` are SECURITY DEFINER **and** executable by the `anon` role. The
+Twenty functions in `public` are SECURITY DEFINER **and** executable by the `anon` role. The
 Supabase advisor will keep listing them, and it is right to: a definer function reachable without a
 session is the shape most privilege escalations take. Every one of these is deliberate — a guest
 surface somebody reaches from a link in an email, or a public page — and the advisor cannot tell

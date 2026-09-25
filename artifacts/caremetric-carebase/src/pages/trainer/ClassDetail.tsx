@@ -86,6 +86,7 @@ import { errorText } from "@/lib/errorText";
 import { SessionRosterCard } from "@/components/training/SessionRosterCard";
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { storageSafeFileName } from "@/lib/storagePaths";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -520,7 +521,7 @@ export default function ClassDetail() {
 
     setUploadingRoster(true);
     try {
-      const path = `${user.organizationId}/${cls.facility_id}/${classId}/${file.name}`;
+      const path = `${user.organizationId}/${cls.facility_id}/${classId}/${storageSafeFileName(file.name)}`;
       const { error: uploadError } = await supabase.storage
         .from("signin-sheets")
         .upload(path, file, { upsert: true });
@@ -705,7 +706,9 @@ export default function ClassDetail() {
             <p className="mt-1 text-sm text-destructive">Cancelled — {cls.cancellation_reason}</p>
           )}
         </div>
-        {isDraft && (
+        {/* Every control below honours writeBlock: the banner above says no changes are possible,
+            so nothing here may offer a write that training_classes_write will refuse. */}
+        {isDraft && !writeBlock && (
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -903,7 +906,7 @@ export default function ClassDetail() {
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5" /> Attendance Reconciliation
               </CardTitle>
-              {isOpen && attendanceSummary.checkedInNotMarkedPresent > 0 && (
+              {isOpen && !writeBlock && attendanceSummary.checkedInNotMarkedPresent > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -997,7 +1000,7 @@ export default function ClassDetail() {
               Attendees ({attendeesLoading || attendeesError ? "—" : allAttendees.length})
             </CardTitle>
             <div className="flex items-center gap-2">
-              {isOpen && (
+              {isOpen && !writeBlock && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1025,7 +1028,7 @@ export default function ClassDetail() {
               <p className="text-muted-foreground text-sm mb-3">
                 No attendees added yet.
               </p>
-              {isOpen && (
+              {isOpen && !writeBlock && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1049,7 +1052,7 @@ export default function ClassDetail() {
                           <Checkbox
                             checked={allAttendeesChecked ? true : someAttendeesChecked ? "indeterminate" : false}
                             onCheckedChange={(checked) => handleToggleAllAttended(!!checked)}
-                            disabled={bulkAttendanceUpdating}
+                            disabled={bulkAttendanceUpdating || !!writeBlock}
                             aria-label="Select all attendees"
                           />
                           Attended
@@ -1080,6 +1083,7 @@ export default function ClassDetail() {
                               <Checkbox
                                 checked={a.attended}
                                 onCheckedChange={(checked) => handleToggleAttended(a.id, !!checked)}
+                                disabled={!!writeBlock}
                               />
                               <span className="text-xs text-muted-foreground">
                                 {a.attended ? "Present" : "Absent"}
@@ -1129,7 +1133,7 @@ export default function ClassDetail() {
         </CardContent>
       </Card>
 
-      {isOpen && allAttendees.length > 0 && (
+      {isOpen && !writeBlock && allAttendees.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 justify-end">
           <label className="cursor-pointer">
             <input

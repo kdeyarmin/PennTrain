@@ -163,7 +163,7 @@ const CAPABILITY_COUNT = CAPABILITY_GROUPS.reduce(
 
 const USER_ROLES = [
   {
-    title: "Owner / executive",
+    title: "Owner / executive (org admin)",
     sees: "org-wide rollups, trends, and unresolved risk across every facility.",
     does:
       "compares facilities and reviews readiness before leadership or diligence questions arrive.",
@@ -384,7 +384,7 @@ export default function Features() {
               Built for every role
             </p>
             <h2 className="m-0 text-[32px] font-bold leading-tight tracking-[-0.01em] text-[#0d2742]">
-              Six roles, each scoped to exactly their job
+              Every role scoped to exactly its job
             </h2>
             <p className="m-0 text-[15px] text-[#44566b]">
               Access is enforced in the database itself — not just by hiding menus.

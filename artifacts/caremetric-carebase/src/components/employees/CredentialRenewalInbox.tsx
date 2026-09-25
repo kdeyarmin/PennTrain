@@ -57,6 +57,9 @@ export function CredentialRenewalInbox({
   metrics?: Record<string, unknown>;
 }) {
   const { user } = useAuth();
+  // Mounted on both /app/workforce-operations and /admin/qualified-workforce; a platform admin
+  // cannot open /app/employees/:id (ORG_ROLES) and was bounced to the platform dashboard.
+  const employeeRecordPrefix = user?.role === "platform_admin" ? "/admin/employees" : "/app/employees";
   const { toast } = useToast();
   const [status, setStatus] = useState("needs_review");
   const [page, setPage] = useState(0);
@@ -267,7 +270,7 @@ export function CredentialRenewalInbox({
                         <p className="text-xs text-amber-700">You submitted this package — another manager must review it.</p>
                       )}
                       <Button asChild size="sm" variant="link" className="h-auto px-0">
-                        <Link href={`/app/employees/${row.employee_id}`}>Employee record</Link>
+                        <Link href={`${employeeRecordPrefix}/${row.employee_id}`}>Employee record</Link>
                       </Button>
                     </div>
                     {row.status === "needs_review" && (

@@ -80,9 +80,9 @@ export function BulkPlanBar({
         frequencyOther={frequencyOther}
         responsibleParty={party}
         responsiblePartyOther={partyOther}
-        onFrequencyChange={setFrequency}
+        onFrequencyChange={(v) => { setFrequency(v); if (v !== "other") setFrequencyOther(""); }}
         onFrequencyOtherChange={setFrequencyOther}
-        onPartyChange={setParty}
+        onPartyChange={(v) => { setParty(v); if (v !== "O") setPartyOther(""); }}
         onPartyOtherChange={setPartyOther}
       />
       <Button

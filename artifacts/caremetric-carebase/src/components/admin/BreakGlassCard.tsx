@@ -169,10 +169,10 @@ export function BreakGlassCard() {
                   expiresAt: facilityDateTimeLocalToUtcIso(expiresAt),
                 }, {
                   onSuccess: () => { setOpening(false); toast({ title: "Break-glass authorization recorded", description: "Now grant the access itself, and end it by the expiry you set." }); },
-                  onError: (error) => toast({ title: "Grant blocked", description: errorText(error), variant: "destructive" }),
+                  onError: (error) => toast({ title: "Could not record the authorization", description: errorText(error), variant: "destructive" }),
                 })}
               >
-                {grant.isPending ? "Granting…" : "Grant"}
+                {grant.isPending ? "Recording…" : "Record authorization"}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setOpening(false)}>Cancel</Button>
             </div>
@@ -218,6 +218,7 @@ export function BreakGlassCard() {
                       value={revokeReason}
                       onChange={(e) => setRevokeReason(e.target.value)}
                       placeholder="Why it is being ended early"
+                      aria-label="Reason the authorization is being ended early"
                     />
                     <div className="flex gap-2">
                       <Button

@@ -4,7 +4,7 @@ import { AlertCircle, BadgeCheck, CalendarClock, CheckCircle2, ChevronDown, Chev
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { commandActionsForRole, searchPages } from "@/lib/appDomains";
+import { canViewPath, commandActionsForRole, searchPages } from "@/lib/appDomains";
 import { useAuth, type Role } from "@/lib/auth";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
@@ -35,7 +35,7 @@ const ROLE_ONBOARDING: Record<Role, ExperienceCard[]> = {
   facility_manager: [
     { id: "manager-today", title: "Run the shift from Today", detail: "Focus on facility-scoped alerts, handoffs, due work, coverage gaps, and review queues.", href: "/app/today", cta: "Open Today", icon: CalendarClock },
     { id: "manager-remediate", title: "Batch remediate gaps", detail: "Select related alerts, assignments, missing credentials, or policy attestations and move them together.", href: "/app/work", cta: "Open work queue", icon: ClipboardList },
-    { id: "manager-mobile", title: "Optimize for mobile rounds", detail: "Use quick actions, QR/kiosk flows, camera uploads, and shared-device lock patterns for frontline work.", href: "/me/shift", cta: "Open shift view", icon: Smartphone },
+    { id: "manager-mobile", title: "Optimize for mobile rounds", detail: "Use quick actions, QR/kiosk flows, camera uploads, and shared-device lock patterns for frontline work.", href: "/app/shift-handoffs", cta: "Open shift handoffs", icon: Smartphone },
   ],
   trainer: [
     { id: "trainer-class", title: "Schedule and run classes", detail: "Use class scheduling, QR/kiosk check-in, retraining monitoring, and approvals as one loop.", href: "/trainer/classes", cta: "Open classes", icon: BadgeCheck },
@@ -95,9 +95,20 @@ export function EndUserExperiencePanel() {
   const locationPath = location.split(/[?#]/, 1)[0];
   const cards = useMemo(() => {
     if (!user) return [];
-    const roleCards = ROLE_ONBOARDING[user.role] ?? [];
+    // Role cards are filtered by the role/module map like every other card source: the manager
+    // card used to point at the employee-only /me/shift and every facility manager saw a dead button.
+    const trainingOnly = moduleAccess.enabledModules.has("train") && [...moduleAccess.enabledModules].every(module => module === "core" || module === "train");
+    const trainingCards: ExperienceCard[] = user.role === "employee" ? [
+      { id: "student-courses", title: "Start your training", detail: "Open your assigned courses and see what to complete next.", href: "/me/courses", cta: "Open my courses", icon: BadgeCheck },
+      { id: "student-certificates", title: "Keep your certificates", detail: "Download and print certificates from completed courses.", href: "/me/certificates", cta: "Open certificates", icon: CheckCircle2 },
+    ] : [
+      { id: "facility-training", title: "Manage facility training", detail: "Add students, enroll them in courses, follow their progress, and print reports and certificates.", href: "/app/train", cta: "Open training workspace", icon: BadgeCheck },
+      { id: "training-classes", title: "Record classroom learning", detail: "Schedule classes and record individually attributed attendance and practical learning.", href: "/trainer/classes", cta: "Open classes", icon: CalendarClock },
+    ];
+    const roleCards = (trainingOnly && user.role !== "platform_admin" ? trainingCards : ROLE_ONBOARDING[user.role] ?? [])
+      .filter(card => canViewPath(card.href, user.role, moduleAccess.enabledModules));
     const recents = navigation.recentPaths
-      .filter((recent) => recent.path !== locationPath && moduleAccess.canAccessPath(recent.path))
+      .filter((recent) => recent.path !== locationPath && canViewPath(recent.path, user.role, moduleAccess.enabledModules))
       .slice(0, 2)
       .map<ExperienceCard>((recent) => ({
         id: `recent-${recent.path}`,

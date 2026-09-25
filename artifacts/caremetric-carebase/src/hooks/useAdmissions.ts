@@ -322,7 +322,11 @@ export function useCreateRoomWithBeds() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admissions", "beds"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admissions", "beds"] });
+      // create_room_with_beds inserts facility_buildings for a new building name.
+      queryClient.invalidateQueries({ queryKey: ["facility-buildings"] });
+    },
   });
 }
 
