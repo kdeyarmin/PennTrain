@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { storageSafeFileName } from "@/lib/storagePaths";
 import type { Tables } from "@/lib/database.types";
 import type { PaginatedResult } from "@/lib/dataTable";
 
@@ -456,7 +457,7 @@ export function useUploadWorkItemEvidence() {
       evidenceType: string;
       file: File;
     }) => {
-      const path = `${workItem.organization_id}/${workItem.facility_id}/${workItem.id}/${crypto.randomUUID()}-${file.name}`;
+      const path = `${workItem.organization_id}/${workItem.facility_id}/${workItem.id}/${crypto.randomUUID()}-${storageSafeFileName(file.name)}`;
       const { error: uploadError } = await supabase.storage.from("work-item-evidence").upload(path, file);
       if (uploadError) throw uploadError;
       const { data, error } = await supabase.rpc("submit_work_item_evidence" as never, {

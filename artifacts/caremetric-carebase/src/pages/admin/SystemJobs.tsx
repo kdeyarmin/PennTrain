@@ -9,6 +9,7 @@ import {
   useSystemJobs,
   SystemJobDispatchRejectedError,
   type FailedBillingEvent,
+  type SystemJobRecoveryState,
   type SystemJobStatus,
 } from "@/hooks/useSystemJobs";
 import { useToast } from "@/hooks/use-toast";
@@ -175,6 +176,12 @@ function FailedBillingEventsCard() {
       </CardContent>
     </Card>
   );
+}
+
+/** The rejected-upload count a renewal-style worker stores in its succeeded run's result. */
+function rejectedUploads(recovery: SystemJobRecoveryState | undefined): number {
+  const value = recovery?.last_known_good_result?.rejected;
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 export default function SystemJobs() {
@@ -421,6 +428,12 @@ export default function SystemJobs() {
                         : String(job.succeeded_count ?? 0) + "/" + String(job.attempted_count) + " succeeded"}
                       {(job.failed_count ?? 0) > 0 && (
                         <span className="ml-1 text-destructive">({job.failed_count} failed)</span>
+                      )}
+                      {/* A worker that refuses uploads at its type/size gate records them in the run's
+                          result rather than as failures (they must not trip the circuit); a batch of
+                          nothing but rejections used to read "0/N succeeded" with no explanation. */}
+                      {job.last_status === "succeeded" && rejectedUploads(recovery) > 0 && (
+                        <span className="ml-1 text-amber-700">({rejectedUploads(recovery)} rejected upload{rejectedUploads(recovery) === 1 ? "" : "s"})</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
