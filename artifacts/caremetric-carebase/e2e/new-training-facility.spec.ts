@@ -87,6 +87,7 @@ test.describe("new training facility administrator", () => {
     const service = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
     const password = process.env.E2E_ACCOUNT_PASSWORD!;
     const fixture = await provisionEmptyTrainingFacility(service, url, password);
+    page.setDefaultTimeout(15_000);
 
     await test.step("a brand-new real tenant enrolls its first authenticator through the UI", async () => {
       await signInAs(page, fixture.email, password, "/app/train");
@@ -164,6 +165,8 @@ test.describe("new training facility administrator", () => {
       const dialog = page.getByRole("dialog", { name: "Assign Training", exact: true });
       await expect(dialog.getByRole("combobox", { name: "Filter employees by facility", exact: true })).toHaveText(fixture.facility.name);
       await dialog.getByRole("combobox", { name: "Training item *", exact: true }).click();
+      // Large catalogs must stay scrollable within the browser viewport.
+      await expect(page.getByRole("listbox")).toBeInViewport({ ratio: 1 });
       await page.getByRole("option", { name: fixture.courseTitle, exact: true }).click();
       await dialog.getByRole("checkbox", { name: /Newlearner, Everly/ }).check();
       await dialog.getByRole("button", { name: "Assign to 1 Employee", exact: true }).click();
@@ -199,7 +202,7 @@ test.describe("new training facility administrator", () => {
       // Reopening the same report must refresh the cached pre-completion totals before a
       // changed filter creates a new query key and could hide a stale-return regression.
       await expect(report.getByText("1 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
-      await report.getByLabel("Enrollment status", { exact: true }).selectOption("completed");
+      await report.getByRole("combobox", { name: "Enrollment status", exact: true }).selectOption("completed");
       const reportRow = report.getByRole("row").filter({ hasText: fixture.courseTitle });
       await expect(reportRow).toContainText("100%");
       await expect(reportRow.getByRole("button", { name: /^Open certificate / })).toBeVisible();
@@ -241,7 +244,8 @@ test.describe("new training facility administrator", () => {
       await page.pdf({ path: "test-results/new-training-facility-report.pdf", format: "Letter", printBackground: true });
       await page.getByRole("tab", { name: "Certificates", exact: true }).click();
       await page.getByLabel("Training student").selectOption(studentId);
-      await expect(page.getByText(fixture.courseTitle, { exact: false }).first()).toBeVisible();
+      await expect(page.getByRole("checkbox", { name: new RegExp(fixture.courseTitle) })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open PDF / print", exact: true })).toBeVisible();
       await expect(page.getByText("No certificates match these filters. Certificates become available after eligible course completion.")).toHaveCount(0);
       await page.goto("/app/residents");
       await expect.poll(() => new URL(page.url()).pathname).toBe("/app/train");
@@ -250,6 +254,7 @@ test.describe("new training facility administrator", () => {
 
   test("the owner creates a Train-only facility, invites its administrator and opens its reporting context", async ({ page }, testInfo) => {
     test.setTimeout(180_000);
+    page.setDefaultTimeout(15_000);
     // The standalone product intentionally omits the owner's general organization-management console.
     test.skip(process.env.PLAYWRIGHT_TRAIN_BUILD === "true", "owner provisioning is in the universal super-admin console");
     const url = process.env.SUPABASE_URL!;
@@ -285,7 +290,7 @@ test.describe("new training facility administrator", () => {
     const facilityName = `Owner-created ALF ${suffix}`;
     await page.getByLabel("Organization name", { exact: true }).fill(organizationName);
     await page.getByLabel("Facility name", { exact: true }).fill(facilityName);
-    await page.getByLabel("License type", { exact: true }).selectOption({ label: "Pennsylvania Assisted Living Facility (ALF)" });
+    await page.getByRole("combobox", { name: "License type", exact: true }).selectOption({ label: "Pennsylvania Assisted Living Facility (ALF)" });
     await page.getByRole("button", { name: "Create free Train access", exact: true }).click();
     await expect(page.getByText("Training facility created. Next, invite its administrator.", { exact: true })).toBeVisible();
     const { data: organization, error: organizationError } = await service.from("organizations")
@@ -325,7 +330,7 @@ test.describe("new training facility administrator", () => {
     await expect(page.getByRole("heading", { name: "Facility training reports", exact: true })).toBeVisible();
     await expect(page.getByLabel("Report organization", { exact: true })).toHaveValue(organization.id);
     const report = page.getByRole("region", { name: "Enrollment, completion & certificates", exact: true });
-    await report.getByLabel("Report facility", { exact: true }).selectOption(facility.id);
+    await report.getByRole("combobox", { name: "Report facility", exact: true }).selectOption(facility.id);
     await expect(report.getByText("No enrollments match these filters. Assign a course to a student to begin tracking completion.", { exact: true })).toBeVisible();
     await expect(report.getByText("0 enrollments", { exact: true })).toBeVisible();
     await expect(report.getByRole("row")).toHaveCount(1); // Column headings, no other customer's learners.
