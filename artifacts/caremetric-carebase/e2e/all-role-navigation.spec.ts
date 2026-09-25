@@ -147,7 +147,7 @@ const DESTINATIONS: readonly Destination[] = [
   ["/me/shift", /My Shift/i, EMPLOYEE],
   ["/me/schedule", /My Schedule/i, EMPLOYEE],
   ["/me/certificates", /My Certificates/i, EMPLOYEE],
-  ["/me/courses", /My Training/i, ROLES],
+  ["/me/courses", /My Learning/i, ROLES],
   ["/me/documents", /Documents/i, EMPLOYEE],
   ["/me/credentials", /My Credentials/i, ["employee", "trainer"]],
   ["/me/attestations", /My Attestations/i, EMPLOYEE],

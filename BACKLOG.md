@@ -3,7 +3,7 @@
 
 ## Training workflow review — September 25, 2026
 
-Implementation branch `codex/training-workflow-complete`, reviewed against main `bd201842384cb3e5aa89315db348b9d3db64d0df`. Validation is in progress; these rows do not claim production deployment, real email delivery, or a human facility pilot.
+Implementation branch `codex/training-workflow-complete`, reviewed against main `bd201842384cb3e5aa89315db348b9d3db64d0df`. Validation is in progress. First clean CI migration replay succeeded; its tests caught an invalid duration column and a passport credit regression, both corrected without changing historical migrations. Application release gate passed at `ca5a005`. The next run validates the corrections and real mailbox activation coverage. These rows do not claim production deployment, real email delivery, or a human facility pilot.
 
 | Review | Status | Implemented behavior and remaining verification |
 | --- | --- | --- |

@@ -87,7 +87,10 @@ export default function MyCourses() {
   const removeOffline = useRemoveOfflineCourse();
   const wipeOffline = useWipeOfflineCourses();
 
-  const isLoading = employeeLoading || assignmentsLoading;
+  const requiredAssignments = useQuery({ queryKey: ["course_assignments", "required", employee?.id], enabled: !!employee?.id,
+    queryFn: async () => { const { data, error } = await supabase.rpc("get_training_required_assignments", { p_employee_id: employee!.id });
+      if (error) throw error; return new Set(data ?? []); } });
+  const isLoading = employeeLoading || assignmentsLoading || requiredAssignments.isLoading;
   const coursesReadyLoading = coursesLoading || currentVersionsLoading;
   const courseById = useMemo(() => new Map((courses ?? []).map(c => [c.id, c])), [courses]);
   const currentVersionById = useMemo(() => new Map((currentVersions ?? []).map(v => [v.id, v])), [currentVersions]);
@@ -97,7 +100,7 @@ export default function MyCourses() {
   // published training items in the "Available Training" list rather than an empty page.
   const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
 
-  const allAssignments = assignments ?? [];
+  const allAssignments = (assignments ?? []).map(a => ({ ...a, is_required: a.is_required || requiredAssignments.data?.has(a.id) === true }));
   const scopedAssignments = allAssignments.filter(a => learningTab === "history" ? ["completed", "canceled"].includes(a.status)
     : !["completed", "canceled"].includes(a.status) && (learningTab === "required" ? a.is_required !== false : a.is_required === false));
   const filtered = statusFilter === "all" ? scopedAssignments : scopedAssignments.filter(a => a.status === statusFilter);
@@ -154,7 +157,7 @@ export default function MyCourses() {
 
 
       <nav className="flex flex-wrap gap-3" aria-label="Learning navigation"><Button asChild variant={libraryView ? "outline" : "default"}><Link href="/me/courses">My Learning</Link></Button><Button asChild variant={libraryView ? "default" : "outline"}><Link href="/me/courses?view=library">Course Library</Link></Button><Button asChild variant="outline"><Link href="/me/certificates">My Certificates</Link></Button></nav>
-      {!libraryView && !isLoading && !assignmentsError && <Card><CardHeader><CardTitle>{nextRequired ? "Your next required course" : required.length ? "Required learning progress" : "Welcome to your learning account"}</CardTitle></CardHeader><CardContent className="space-y-2">
+      {!libraryView && !isLoading && !assignmentsError && !requiredAssignments.isError && <Card><CardHeader><CardTitle>{nextRequired ? "Your next required course" : required.length ? "Required learning progress" : "Welcome to your learning account"}</CardTitle></CardHeader><CardContent className="space-y-2">
         <p>{required.filter(a => a.status === "completed").length} / {required.length} required courses completed</p>
         {nextRequired ? <><p className="font-semibold">{courseById.get(nextRequired.course_id)?.title || "Assigned course"}</p><p>{nextRequired.due_date ? `Due ${formatDateForDisplay(nextRequired.due_date)} · ${formatDueDistance(nextRequired.due_date)}` : "No deadline set"}</p><Button asChild><Link href={`/me/courses/${nextRequired.id}`}>{actionLabel(nextRequired.status)} required course</Link></Button></> : <p>{required.length ? "Review your history below or explore the Course Library." : "Your facility has not assigned required courses yet. You can explore the Course Library while you wait."}</p>}
       </CardContent></Card>}
@@ -182,7 +185,7 @@ export default function MyCourses() {
 
           {employeeQuery.isError ? (
             <QueryError what="your training profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />
-          ) : assignmentsError ? (
+          ) : requiredAssignments.isError ? (<QueryError what="required learning" error={requiredAssignments.error} onRetry={() => void requiredAssignments.refetch()} />) : assignmentsError ? (
             <QueryError what="your assigned training" error={assignmentsErrorDetail} onRetry={() => refetchAssignments()} />
           ) : isLoading ? (
             <div className="space-y-2">
@@ -219,7 +222,7 @@ export default function MyCourses() {
                   <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                     <div className="min-w-0">
                       <p className="font-medium">{course?.title ?? "Training item"}</p>
-                      <p className="text-xs text-muted-foreground">{a.is_required === false ? "You chose this course" : "Required by your facility"}{a.training_plan_id ? ` · ${planNames.data?.find(p => p.id === a.training_plan_id)?.name || "Learning plan"}` : ""}</p>
+                      <p className="text-xs text-muted-foreground">{a.is_required === false ? (a.assignment_origin === "self_enrolled" ? "You chose this course" : "Optional learning") : "Required by your facility"}{a.training_plan_id ? ` · ${planNames.data?.find(p => p.id === a.training_plan_id)?.name || "Learning plan"}` : ""}</p>
                       <p className="text-xs text-muted-foreground">
                         {a.due_date ? `Due ${formatDateForDisplay(a.due_date)}` : "No due date"}
                         {dueDistance && <span className={dueTone}> · {dueDistance}</span>}

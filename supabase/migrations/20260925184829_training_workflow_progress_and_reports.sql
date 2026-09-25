@@ -481,6 +481,26 @@ begin
 end;
 $$;
 
+-- A current plan can require an otherwise elective assignment without changing
+-- that assignment's owner, deadline or original classification.
+create function public.training_assignment_is_required(p_assignment_id uuid)
+returns boolean language sql stable security invoker set search_path='' as $$
+  select coalesce((select a.is_required or exists(
+    select 1 from public.training_plan_enrollments n join public.training_plan_items i on i.training_plan_id=n.training_plan_id
+    where n.employee_id=a.employee_id and n.facility_id=a.facility_id and i.course_id=a.course_id and i.is_required
+      and (a.training_plan_id=n.training_plan_id or n.resolved_assignments->>a.course_id::text=a.id::text))
+    from public.course_assignments a where a.id=p_assignment_id),false);
+$$;
+revoke all on function public.training_assignment_is_required(uuid) from public,anon;
+grant execute on function public.training_assignment_is_required(uuid) to authenticated;
+create function public.get_training_required_assignments(p_employee_id uuid)
+returns uuid[] language sql stable security invoker set search_path='' as $$
+  select coalesce(array_agg(a.id),'{}'::uuid[]) from public.course_assignments a
+    where a.employee_id=p_employee_id and (a.is_required or public.training_assignment_is_required(a.id));
+$$;
+revoke all on function public.get_training_required_assignments(uuid) from public,anon;
+grant execute on function public.get_training_required_assignments(uuid) to authenticated;
+
 create or replace function public.get_training_progress_report(
   p_organization_id uuid,
   p_facility_id uuid default null,
@@ -538,7 +558,7 @@ begin
     select a.id, a.employee_id,
       coalesce(nullif(btrim(concat_ws(' ',e.first_name,e.last_name)),''),'Student record '||a.employee_id::text) as student,
       a.facility_id, f.name as facility, a.course_id, coalesce(cv.title,c.title,'Course unavailable') as course,
-      a.is_required,a.assignment_origin,a.training_plan_id,plan.name as plan_name,plan.training_year,
+      (a.is_required or public.training_assignment_is_required(a.id)) as is_required,a.assignment_origin,a.training_plan_id,plan.name as plan_name,plan.training_year,
       e.department,coalesce(cv.version_label,'v'||cv.version_number::text) as course_version,
       coalesce(credits.hours,0) as credit_hours,
       a.status, a.assigned_at, a.due_date, a.completed_at,
@@ -567,7 +587,7 @@ begin
       and (p_employee_id is null or a.employee_id=p_employee_id)
       and (p_plan_id is null or a.training_plan_id=p_plan_id or exists(select 1 from public.training_plan_enrollments n
         where n.training_plan_id=p_plan_id and n.employee_id=a.employee_id and n.resolved_assignments->>a.course_id::text=a.id::text))
-      and (p_purpose='all' or a.is_required=(p_purpose='required'))
+      and (p_purpose='all' or (a.is_required or public.training_assignment_is_required(a.id))=(p_purpose='required'))
       and (coalesce(p_department,'')='' or e.department=p_department)
       and (p_training_year is null or coalesce(plan.training_year,extract(year from coalesce(a.due_date,(a.assigned_at at time zone 'America/New_York')::date))::integer)=p_training_year)
       and (p_deadline='all' or (a.status not in ('completed','canceled','paused') and
@@ -708,13 +728,13 @@ begin
     left join public.training_assignment_exemptions exemption on exemption.employee_id=e.id and exemption.facility_id=e.facility_id
       and exemption.training_year=coalesce(p_training_year,extract(year from public.pa_today())::int)
     left join plan_progress pp on pp.employee_id=e.id
-    left join lateral(select count(*) filter(where ca.is_required and ca.status<>'canceled') as required_total,
-      count(*) filter(where ca.is_required and ca.status='completed') as required_completed,
-      count(*) filter(where not ca.is_required and ca.status<>'canceled') as optional_total,
-      count(*) filter(where ca.is_required and ca.status not in ('completed','canceled','paused') and ca.due_date<public.pa_today()) as overdue,
-      count(*) filter(where ca.is_required and ca.status not in ('completed','canceled','paused') and ca.due_date between public.pa_today() and public.pa_today()+7) as due_soon,
-      count(*) filter(where ca.is_required and ca.status in ('in_progress','overdue')) as started,
-      min(ca.due_date) filter(where ca.is_required and ca.status not in ('completed','canceled','paused')) as next_due
+    left join lateral(select count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status<>'canceled') as required_total,
+      count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status='completed') as required_completed,
+      count(*) filter(where not (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status<>'canceled') as optional_total,
+      count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status not in ('completed','canceled','paused') and ca.due_date<public.pa_today()) as overdue,
+      count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status not in ('completed','canceled','paused') and ca.due_date between public.pa_today() and public.pa_today()+7) as due_soon,
+      count(*) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status in ('in_progress','overdue')) as started,
+      min(ca.due_date) filter(where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status not in ('completed','canceled','paused')) as next_due
       from public.course_assignments ca left join public.training_plans tp on tp.id=ca.training_plan_id
       where ca.employee_id=e.id and ca.facility_id=p_facility_id and (p_training_year is null or
         coalesce(tp.training_year,extract(year from coalesce(ca.due_date,(ca.assigned_at at time zone 'America/New_York')::date))::integer)=p_training_year)) a on true
@@ -760,7 +780,7 @@ begin
   select coalesce(jsonb_agg(to_jsonb(t) order by t.id),'[]') into v_result from (
     select a.id,a.employee_id,a.id as course_assignment_id,coalesce(cv.title,c.title) as title,
       (a.completed_at at time zone 'America/New_York')::date as completed_on,a.completed_at,
-      coalesce(cv.estimated_duration_minutes,c.estimated_duration_minutes,0) as minutes,
+      coalesce((select max(cc.credit_hours)*60 from public.course_completion_credits cc where cc.course_assignment_id=a.id),0) as minutes,
       'online'::text as delivery,coalesce(cert.training_provider,'Integrated course completion')::text as provider,
       'course:'||a.id::text as source_reference,coalesce(cert.provider_credential,'Published course version and server-issued credit')::text as provider_qualification,
       coalesce((select array_agg(distinct mapped.topic) from public.course_completion_credits cc
@@ -885,61 +905,17 @@ as $fn$
   where cert.slug = p_slug;
 $fn$;
 
-create or replace function public.verify_training_passport(p_slug text)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $function$
-declare
-  v_passport public.training_passports%rowtype;
-  v_employee public.employees%rowtype;
-  v_certificate_count integer;
-  v_total_hours numeric;
-  v_certificates jsonb;
+-- Preserve the current passport's governed-credit accounting and privacy rules.
+-- Only replace its mutable title projection; fail if the expected source changes.
+do $patch$
+declare v_definition text;
 begin
-  if p_slug is null or p_slug !~ '^[0-9a-f]{36}$' then return null; end if;
-  select * into v_passport from public.training_passports
-  where slug = p_slug and is_active;
-  if v_passport.id is null then return null; end if;
-  select * into v_employee from public.employees where id = v_passport.employee_id;
-  if v_employee.id is null then return null; end if;
-
-  select count(*),
-    coalesce(sum(coalesce(cv.estimated_duration_minutes,c.estimated_duration_minutes, 0)) / 60.0, 0),
-    coalesce(jsonb_agg(jsonb_build_object(
-      'certificateId', cert.id,
-      'credentialNumber', cert.credential_number,
-      'courseTitle', coalesce(cert.course_title_snapshot,cv.title,c.title),
-      'issuedAt', cert.issued_at,
-      'expiresAt', cert.expires_at,
-      'isValid', cert.expires_at is null or cert.expires_at > now(),
-      'verificationPath', '/verify/' || cert.slug,
-      'ceHours', round(coalesce(cv.estimated_duration_minutes,c.estimated_duration_minutes, 0) / 60.0, 2)
-    ) order by cert.issued_at desc), '[]'::jsonb)
-  into v_certificate_count, v_total_hours, v_certificates
-  from public.certificates cert
-  join public.courses c on c.id = cert.course_id
-  left join public.course_assignments ca on ca.id=cert.course_assignment_id
-  left join public.course_versions cv on cv.id=ca.course_version_id
-  where cert.employee_id = v_employee.id
-    and (
-      v_passport.include_expired
-      or cert.expires_at is null
-      or cert.expires_at > now()
-    );
-
-  return jsonb_build_object(
-    'passportId', v_passport.id,
-    'employeeName', btrim(v_employee.first_name || ' ' || v_employee.last_name),
-    'generatedAt', now(),
-    'certificateCount', v_certificate_count,
-    'totalCeHours', round(v_total_hours, 2),
-    'certificates', v_certificates
-  );
+  v_definition:=pg_get_functiondef('public.verify_training_passport(text)'::regprocedure);
+  if position($old$'courseTitle', c.title$old$ in v_definition)=0 then
+    raise exception 'Passport title projection changed; review snapshot integration'; end if;
+  execute replace(v_definition,$old$'courseTitle', c.title$old$,$new$'courseTitle', coalesce(cert.course_title_snapshot,c.title)$new$);
 end;
-$function$;
+$patch$;
 
 -- Copying annual plans is one transaction and never copies enrollment or completion.
 create function public.copy_yearly_training_plan(p_plan_id uuid,p_training_year integer,p_due_date date,p_name text)
@@ -976,7 +952,7 @@ begin
   from public.course_assignments ca join public.employees e on e.id=ca.employee_id
   join public.profiles p on p.id=e.profile_id join public.organizations o on o.id=ca.organization_id
   join public.courses c on c.id=ca.course_id left join public.course_versions cv on cv.id=ca.course_version_id
-  where ca.is_required and ca.status in ('assigned','in_progress','overdue') and ca.due_date<=public.pa_today()+7
+  where (ca.is_required or public.training_assignment_is_required(ca.id)) and ca.status in ('assigned','in_progress','overdue') and ca.due_date<=public.pa_today()+7
     and e.status='active' and p.is_active and o.subscription_status not in ('suspended','canceled')
     and exists(select 1 from public.get_effective_entitlements(ca.organization_id) ent where ent.feature_key='modules.train' and ent.is_entitled)
     and not exists(select 1 from public.notifications n where n.profile_id=e.profile_id
@@ -989,7 +965,7 @@ begin
   join public.employees e on e.id=a.employee_id
   join public.organizations o on o.id=f.organization_id
   join public.profiles p on p.organization_id=f.organization_id and p.is_active and p.role in ('org_admin','facility_manager')
-  where f.is_active and e.status='active' and a.is_required and a.status in ('assigned','in_progress','overdue') and a.due_date<public.pa_today()
+  where f.is_active and e.status='active' and (a.is_required or public.training_assignment_is_required(a.id)) and a.status in ('assigned','in_progress','overdue') and a.due_date<public.pa_today()
     and o.subscription_status not in ('suspended','canceled')
     and exists(select 1 from public.get_effective_entitlements(f.organization_id) ent where ent.feature_key='modules.train' and ent.is_entitled)
     and (p.role='org_admin' or exists(select 1 from public.facility_assignments fa where fa.profile_id=p.id and fa.facility_id=f.id))
@@ -1006,6 +982,7 @@ create function public.get_training_reminder_receipts(p_facility_id uuid,p_emplo
 returns jsonb language plpgsql stable security definer set search_path='' as $$
 declare v_org uuid; v_result jsonb;
 begin
+  if auth.uid() is null or not public.current_session_unlocked() then raise exception 'Current unlocked session required' using errcode='42501'; end if;
   select organization_id into v_org from public.facilities where id=p_facility_id;
   if not coalesce(app_private.can_read_train_scope(v_org,p_facility_id),false) then raise exception 'Facility is outside your access' using errcode='42501'; end if;
   perform public.get_training_enrollment_report(v_org,p_facility_id,p_limit=>1);

@@ -1,7 +1,8 @@
+import { readAuthEmail, setPasswordFromEmail } from "./helpers/mailbox";
 import { readFile } from "node:fs/promises";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
-import { hasLiveSupabaseEnv, signInAs } from "./helpers/auth";
+import { expectNoHorizontalOverflow, hasLiveSupabaseEnv, signInAs } from "./helpers/auth";
 import { facilityToday } from "./helpers/facilityDay";
 import { totpCode } from "./helpers/totp";
 
@@ -78,8 +79,8 @@ async function provisionEmptyTrainingFacility(service: SupabaseClient, url: stri
 test.describe("new training facility administrator", () => {
   test.skip(!hasLiveSupabaseEnv(), "local Supabase test credentials required");
 
-  test("first login, authenticator enrollment, student invitation, course enrollment and reporting stay in training", async ({ page }, testInfo) => {
-    test.setTimeout(180_000);
+  test("first login, authenticator enrollment, student invitation, course enrollment and reporting stay in training", async ({ page, browser, request }, testInfo) => {
+    test.setTimeout(240_000);
     const url = process.env.SUPABASE_URL!;
     // Both data setup and the app must be disposable/local. Never run this journey against a customer tenant.
     expect(new URL(url).hostname).toMatch(/^(localhost|127\.0\.0\.1)$/);
@@ -104,7 +105,7 @@ test.describe("new training facility administrator", () => {
       await expect(page.getByText("This session is already verified. You may return to the enterprise control plane.")).toBeVisible();
       await page.getByRole("button", { name: "Continue to the page you were opening" }).click();
       await expect(page.getByRole("heading", { name: "CareMetric Train", exact: true })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Get your facility started", exact: true })).toBeVisible();
+      await expect(page.getByText("Get your facility started", { exact: true })).toBeVisible();
       await page.getByLabel("Training facility").selectOption(fixture.facility.id);
       await expect.poll(() => new URL(page.url()).searchParams.get("facilityId")).toBe(fixture.facility.id);
       await page.getByLabel("Training facility").selectOption(fixture.otherFacility.id);
@@ -122,7 +123,7 @@ test.describe("new training facility administrator", () => {
       await expect.poll(() => new URL(page.url()).searchParams.get("facilityId")).toBe(fixture.facility.id);
       // A Train-only administrator must not be encouraged into licensed operational modules.
       await expect(page.locator('a[href^="/app/residents"], a[href^="/app/workforce"], a[href^="/app/incidents"], a[href^="/app/today"]')).toHaveCount(0);
-      await page.getByRole("tab", { name: "Students", exact: true }).click();
+      await page.getByRole("tab", { name: "Staff", exact: true }).click();
       await expect(page.getByText("No students yet. Add one student or import your roster to begin.")).toBeVisible();
       await page.getByRole("tab", { name: "Certificates", exact: true }).click();
       await expect(page.getByText("No certificates match these filters. Certificates become available after eligible course completion.")).toBeVisible();
@@ -185,7 +186,7 @@ test.describe("new training facility administrator", () => {
       await progress.getByRole("button", { name: "Close", exact: true }).click();
       await page.getByRole("link", { name: "Back to training", exact: true }).click();
       await expect(page.getByLabel("Training facility")).toHaveValue(fixture.facility.id);
-      await page.getByRole("tab", { name: "Enrollment & completion", exact: true }).click();
+      await page.getByRole("tab", { name: "Reports", exact: true }).click();
       const report = page.getByRole("region", { name: "Enrollment, completion & certificates", exact: true });
       const reportRow = report.getByRole("row").filter({ hasText: fixture.courseTitle });
       await expect(reportRow).toContainText("Everly Newlearner");
@@ -195,14 +196,54 @@ test.describe("new training facility administrator", () => {
       await expect(report.getByText("0 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
     });
 
-    await test.step("record a classroom completion, see its certificate and export the facility report", async () => {
-      await page.getByRole("link", { name: "Assign courses / view progress", exact: true }).click();
-      const assignmentRow = page.getByRole("row").filter({ hasText: fixture.courseTitle });
-      await assignmentRow.getByRole("button", { name: "Mark Complete", exact: true }).click();
-      await expect(page.getByText("Marked complete", { exact: true })).toBeVisible();
-      await expect(assignmentRow).toContainText("Completed");
-      await page.getByRole("link", { name: "Back to training", exact: true }).click();
-      await page.getByRole("tab", { name: "Enrollment & completion", exact: true }).click();
+    await test.step("invited learner activates, explores electives, completes required learning and recovers on another device", async () => {
+      const invitation = await readAuthEmail(request, studentEmail, "invite");
+      const learnerContext = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL), viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      try {
+        const learnerPage = await learnerContext.newPage();
+        await setPasswordFromEmail(learnerPage, invitation.url, password);
+        await signInAs(learnerPage, studentEmail, password, "/me/courses");
+        await expect(learnerPage.getByRole("heading", { name: "My Learning", exact: true })).toBeVisible();
+        await expect(learnerPage.getByText("Your next required course", { exact: true })).toBeVisible();
+        await expect(learnerPage.getByText(/Due .*2027/).first()).toBeVisible();
+        await expectNoHorizontalOverflow(learnerPage);
+        // Keyboard navigation reaches and activates the same real learner action.
+        const start = learnerPage.getByRole("link", { name: "Start required course", exact: true });
+        await start.focus(); await expect(start).toBeFocused(); await learnerPage.keyboard.press("Enter");
+        await expect(learnerPage.getByText("Instructor-led orientation fixture for a new facility.", { exact: true })).toBeVisible();
+        await learnerPage.getByRole("button", { name: "Mark Training Complete", exact: true }).click();
+        await learnerPage.getByRole("button", { name: "Skip", exact: true }).click();
+        await expect(learnerPage.getByRole("heading", { name: "My Certificates", exact: true })).toBeVisible();
+        await expect(learnerPage.getByText(fixture.courseTitle, { exact: true })).toBeVisible();
+        await expectNoHorizontalOverflow(learnerPage);
+        await learnerPage.goto("/me/courses?view=library");
+        await expect(learnerPage.getByRole("heading", { name: "Course Library", exact: true })).toBeVisible();
+        await expectNoHorizontalOverflow(learnerPage);
+        // The library includes the course just completed, so review is still discoverable.
+        await learnerPage.getByLabel("Find a course").fill(fixture.courseTitle);
+        await expect(learnerPage.getByText(fixture.courseTitle, { exact: true })).toBeVisible();
+        await expect(learnerPage.getByRole("button", { name: "Review", exact: true })).toBeVisible();
+        await learnerPage.screenshot({ path: "test-results/training-learner-mobile.png", fullPage: true });
+      } finally { await learnerContext.close(); }
+      const secondDevice = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
+      try {
+        const recoveryPage = await secondDevice.newPage();
+        // A used invite is rejected, with an explicit working recovery route.
+        await recoveryPage.goto(invitation.url);
+        await expect(recoveryPage.getByRole("button", { name: "Request a new link", exact: true })).toBeVisible();
+        await recoveryPage.getByRole("button", { name: "Request a new link", exact: true }).click();
+        await recoveryPage.getByLabel("Email address", { exact: true }).fill(studentEmail);
+        await recoveryPage.getByRole("button", { name: "Send reset link", exact: true }).click();
+        await expect(recoveryPage.getByText("Email sent", { exact: true })).toBeVisible();
+        const recovery = await readAuthEmail(request, studentEmail, "recovery");
+        await setPasswordFromEmail(recoveryPage, recovery.url, `${password}R`);
+        await signInAs(recoveryPage, studentEmail, `${password}R`, "/me/courses");
+        await expect(recoveryPage.getByText("1 / 1 required courses completed", { exact: true })).toBeVisible();
+      } finally { await secondDevice.close(); }
+    });
+
+    await test.step("administrator sees the learner completion, certificate and full export", async () => {
+      await page.getByRole("tab", { name: "Reports", exact: true }).click();
       const report = page.getByRole("region", { name: "Enrollment, completion & certificates", exact: true });
       // Reopening the same report must refresh the cached pre-completion totals before a
       // changed filter creates a new query key and could hide a stale-return regression.
@@ -210,7 +251,7 @@ test.describe("new training facility administrator", () => {
       await report.getByRole("combobox", { name: "Enrollment status", exact: true }).selectOption("completed");
       const reportRow = report.getByRole("row").filter({ hasText: fixture.courseTitle });
       await expect(reportRow).toContainText("100%");
-      await expect(reportRow.getByRole("button", { name: /^Open certificate / })).toBeVisible();
+      await expect(reportRow.getByRole("button", { name: "Open certificate", exact: true })).toBeVisible();
       await expect(report.getByText("1 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
       const csvDownload = page.waitForEvent("download");
       await report.getByRole("button", { name: "Export all matching enrollments (CSV)", exact: true }).click();
@@ -252,7 +293,7 @@ test.describe("new training facility administrator", () => {
       expect(printed.text).toContain("1 enrollments; 1 distinct students; 1 completed / 1 non-canceled; 1 issued certificates");
       expect(printed.rows[0]).toEqual(expect.arrayContaining(["Everly Newlearner", fixture.facility.name, fixture.courseTitle, "100"]));
       expect(printed.text).not.toContain("Aspen other facility");
-      await page.getByText("Marked complete", { exact: true }).waitFor({ state: "hidden", timeout: 10_000 });
+
       await report.screenshot({ path: "test-results/new-training-facility-report.png" });
       const printEvidence = await page.context().newPage();
       try {
@@ -275,8 +316,8 @@ test.describe("new training facility administrator", () => {
     });
   });
 
-  test("the owner creates a Train-only facility, invites its administrator and opens its reporting context", async ({ page }, testInfo) => {
-    test.setTimeout(180_000);
+  test("the owner creates a Train-only facility, invites its administrator and opens its reporting context", async ({ page, browser, request }, testInfo) => {
+    test.setTimeout(240_000);
     page.setDefaultTimeout(15_000);
     // The standalone product intentionally omits the owner's general organization-management console.
     test.skip(process.env.PLAYWRIGHT_TRAIN_BUILD === "true", "owner provisioning is in the universal super-admin console");
@@ -314,8 +355,12 @@ test.describe("new training facility administrator", () => {
     await page.getByLabel("Organization name", { exact: true }).fill(organizationName);
     await page.getByLabel("Facility name", { exact: true }).fill(facilityName);
     await page.getByRole("combobox", { name: "License type", exact: true }).selectOption({ label: "Pennsylvania Assisted Living Facility (ALF)" });
+    const administratorEmail = `owner-invited-training-admin-${suffix}@test.local`;
+    await page.getByLabel("Administrator first name", { exact: true }).fill("Facility");
+    await page.getByLabel("Administrator last name", { exact: true }).fill("Administrator");
+    await page.getByLabel("Administrator email", { exact: true }).fill(administratorEmail);
     await page.getByRole("button", { name: "Create free Train access", exact: true }).click();
-    await expect(page.getByText("Training facility created. Next, invite its administrator.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Training-only facility created. Administrator invitation sent.", { exact: true })).toBeVisible();
     const { data: organization, error: organizationError } = await service.from("organizations")
       .select("id,is_demo").eq("name", organizationName).single();
     if (organizationError) throw organizationError;
@@ -325,25 +370,19 @@ test.describe("new training facility administrator", () => {
     if (facilityError) throw facilityError;
     expect(facility).toMatchObject({ name: facilityName, facility_type: "ALR" });
 
-    await page.getByRole("link", { name: "Invite facility administrator", exact: true }).click();
-    const invitation = page.getByRole("dialog", { name: "Invite facility administrator", exact: true });
-    await expect(invitation).toBeVisible();
-    const role = invitation.getByRole("combobox", { name: "Role *", exact: true });
-    await expect(role).toHaveText("Org Admin");
-    await expect(role).toBeDisabled();
-    const selectedOrganization = invitation.getByRole("combobox", { name: "Organization *", exact: true });
-    await expect(selectedOrganization).toHaveText(organizationName);
-    await expect(selectedOrganization).toBeDisabled();
-    await expect(invitation.getByRole("switch", { name: /Send an email invite/ })).toBeChecked();
-    await expect(invitation.getByRole("switch", { name: /Send an email invite/ })).toBeDisabled();
-    await expect(invitation.getByText("Platform Admin", { exact: true })).toHaveCount(0);
-    const administratorEmail = `owner-invited-training-admin-${suffix}@test.local`;
-    await invitation.getByLabel("First Name *", { exact: true }).fill("Facility");
-    await invitation.getByLabel("Last Name *", { exact: true }).fill("Administrator");
-    await invitation.getByLabel("Email *", { exact: true }).fill(administratorEmail);
-    await invitation.getByRole("button", { name: "Send Invite", exact: true }).click();
-    await expect(page.getByText("Invite sent", { exact: true })).toBeVisible({ timeout: 30_000 });
-    await expect(invitation).not.toBeVisible();
+    await page.reload();
+    await expect(page.getByText("Training-only facility created. Administrator invitation sent.", { exact: true })).toBeVisible();
+    // Recovery receipt must reuse the existing facility rather than make another tenant.
+    const { count } = await service.from("organizations").select("id", { count: "exact", head: true }).eq("name", organizationName);
+    expect(count).toBe(1);
+    const administratorInvite = await readAuthEmail(request, administratorEmail, "invite");
+    const adminContext = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
+    try {
+      const adminPage = await adminContext.newPage();
+      await setPasswordFromEmail(adminPage, administratorInvite.url, password);
+      await signInAs(adminPage, administratorEmail, password, "/app/train");
+      await expect(adminPage.getByRole("heading", { name: "Multi-factor verification required" })).toBeVisible();
+    } finally { await adminContext.close(); }
     const { data: invited, error: invitedError } = await service.from("profiles")
       .select("role,organization_id").eq("email", administratorEmail).single();
     if (invitedError) throw invitedError;
