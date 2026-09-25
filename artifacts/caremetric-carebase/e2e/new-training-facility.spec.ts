@@ -210,6 +210,7 @@ test.describe("new training facility administrator", () => {
       await expect(reportRow).toContainText("0%");
       await expect(reportRow).toContainText("Not issued");
       await expect(report.getByText("0 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
+      await page.getByRole("tab", { name: "Dashboard", exact: true }).click();
     });
 
     await test.step("invited learner activates, explores electives, completes required learning and recovers on another device", async () => {

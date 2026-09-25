@@ -921,9 +921,9 @@ export default function CourseAssignments() {
               <Label htmlFor={`${__fieldIds}-training-item`} className="text-[13px]">Training item *</Label>
               <Select value={assignForm.courseId} onValueChange={handleCourseChange}>
                 <SelectTrigger id={`${__fieldIds}-training-item`} className="h-9"><SelectValue placeholder="Select training item" /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-content-available-width)]">
                   {publishedCourses.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                    <SelectItem key={c.id} value={c.id} className="whitespace-normal break-words">{c.title}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -934,7 +934,7 @@ export default function CourseAssignments() {
               <p className="text-xs text-muted-foreground">Enter the facility's deadline. No completion date is calculated automatically.</p>
             </div>
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label htmlFor={`${__fieldIds}-assign-employee-search`} className="text-[13px]">Employees * ({selectedEmployeeIds.size} selected)</Label>
                 <Select value={assignFacilityFilter} onValueChange={setAssignFacilityFilter}>
                   <SelectTrigger id={`${__fieldIds}-assign-facility-filter`} aria-label="Filter employees by facility" className="h-8 w-44 text-xs"><SelectValue placeholder="All Facilities" /></SelectTrigger>

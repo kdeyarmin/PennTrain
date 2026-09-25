@@ -69,7 +69,7 @@ const JOURNEYS: Record<Role, { path: string; heading?: RegExp }[]> = {
   ],
   employee: [
     { path: "/me", heading: /my|work|training|dashboard/i },
-    { path: "/me/courses", heading: /training|course|assignment/i },
+    { path: "/me/courses", heading: /^My Learning$/i },
     { path: "/me/shift", heading: /shift/i },
     { path: "/me/work", heading: /work/i },
     // Caregiver clinical charting. The employee role reaches resident data only through the

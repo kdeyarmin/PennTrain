@@ -510,6 +510,7 @@ jobs:
             artifacts/caremetric-carebase/test-results/standalone-train-report.pdf
             artifacts/caremetric-carebase/test-results/new-training-facility-report.png
             artifacts/caremetric-carebase/test-results/new-training-facility-report.pdf
+            artifacts/caremetric-carebase/test-results/training-learner-mobile.png
           if-no-files-found: ignore
           retention-days: 7
 

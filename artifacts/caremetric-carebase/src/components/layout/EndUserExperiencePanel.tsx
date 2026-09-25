@@ -149,7 +149,7 @@ export function EndUserExperiencePanel() {
 
   return (
     <section className="mb-5 space-y-3" aria-label="Personalized workflow guidance">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/40 px-3 py-2 text-xs text-foreground">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary" className="gap-1"><Star className="h-3 w-3" /> Personalized workspace</Badge>
           {!collapsed && explainers.map((item) => <span key={item.label} className="inline-flex items-center gap-1"><item.icon className="h-3.5 w-3.5" />{item.label}</span>)}
