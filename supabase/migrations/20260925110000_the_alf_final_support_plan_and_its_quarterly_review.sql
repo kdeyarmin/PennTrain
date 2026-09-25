@@ -40,7 +40,9 @@
 --
 -- Every open item this changes is re-dated from the rule packs, the same way
 -- rederive_resident_compliance_due_dates does, so a tenant that overrode a pack keeps its own
--- offset. Completed items are records of what happened and are never touched.
+-- offset. Completed items are records of what happened and are never touched. A current resident
+-- whose only plan on file is the old preliminary one is given the final plan it now owes, and a
+-- quarterly review starts only from a final or revised plan (section 7).
 
 -- ---------------------------------------------------------------------------
 -- 1. The new item type
@@ -473,49 +475,136 @@ where f.id = i.facility_id
   and i.item_type = 'support_plan_30day'
   and (i.completed_date is null or i.triggered_by_item_id is not null);
 
--- Residents already past their support plan have no quarterly review running, and would get none
--- until their next annual reassessment revised the plan. Start one for every current ALF resident
--- whose support plan is on file, due 90 days after the most recent one. If that date has passed,
--- the item reads overdue, which is the truth: 2800.227(c) required a review and none is recorded.
-insert into public.resident_compliance_items
-  (organization_id, facility_id, resident_id, item_type, due_date, renewal_interval_days,
-   warning_days, grace_period_days, citation_topic_id)
-select
-  latest.organization_id, latest.facility_id, latest.resident_id, 'support_plan_quarterly_review',
-  latest.completed_date + rule.renewal_interval_days, rule.renewal_interval_days,
-  rule.warning_days, rule.grace_period_days,
-  (select id from public.dhs_citation_topics where citation_ref = rule.citation_ref)
-from (
-  select distinct on (i.resident_id)
-         i.organization_id, i.facility_id, i.resident_id, i.completed_date,
-         coalesce(r.admission_track, 'standard') as admission_track
-  from public.resident_compliance_items i
-  join public.residents r on r.id = i.resident_id
-  join public.facilities f on f.id = i.facility_id
+-- ---------------------------------------------------------------------------
+-- 7. Residents admitted before this migration
+-- ---------------------------------------------------------------------------
+-- A function rather than two bare statements so the pgTAP suite can run it against residents
+-- shaped the way they were before this migration; the chain replays into an empty database, where
+-- a bare backfill has nothing to act on and cannot be tested. Idempotent, so running it again is
+-- harmless.
+--
+-- What a completed ALF `support_plan_30day` on file means depends on how it got there:
+--   * first cycle (no triggered_by_item_id) and not filed under 2800.227: created under the old
+--     2800.224 deadline, so it is the PRELIMINARY plan (section 6 keeps that citation). It is no
+--     evidence of a final plan.
+--   * triggered by a reassessment, or filed under 2800.227: a final or revised final plan.
+--
+-- A current resident whose only support plan on file is the preliminary one owes the final plan,
+-- and gets the open item instantiate_resident_compliance_items would have created: due from the
+-- pack (30 days after admission), which for most of them has passed. That reads overdue, which is
+-- what the record shows -- no 2800.227(a) plan -- and completing it starts the quarterly review.
+-- A resident with an open support plan already (the final plan, or a revision after a
+-- reassessment) is left to it.
+--
+-- Only a final or revised plan starts a quarterly review, due 90 days after the latest one. If
+-- that date has passed the review reads overdue, which is also the truth: 2800.227(c) required one
+-- and none is recorded.
+create or replace function app_private.backfill_alf_support_plan_cycle()
+returns void
+language plpgsql
+set search_path = ''
+as $function$
+declare
+  v_final_plan_topic uuid := (
+    select t.id from public.dhs_citation_topics t where t.citation_ref = '2800.227'
+  );
+begin
+  insert into public.resident_compliance_items
+    (organization_id, facility_id, resident_id, item_type, due_date, renewal_interval_days,
+     warning_days, grace_period_days, citation_topic_id)
+  select
+    r.organization_id, r.facility_id, r.id, 'support_plan_30day',
+    case when rule.offset_basis = 'before_admission'
+      then r.admission_date - rule.offset_days
+      else r.admission_date + rule.offset_days
+    end,
+    rule.renewal_interval_days, rule.warning_days, rule.grace_period_days,
+    (select t.id from public.dhs_citation_topics t where t.citation_ref = rule.citation_ref)
+  from public.residents r
+  join public.facilities f on f.id = r.facility_id
+  cross join lateral (
+    select p.offset_basis, p.offset_days, p.renewal_interval_days, p.warning_days,
+           p.grace_period_days, p.citation_ref
+    from public.resident_compliance_rule_packs p
+    where p.item_type = 'support_plan_30day'
+      and p.facility_type = 'ALR'
+      and p.admission_track = coalesce(r.admission_track, 'standard')
+      and p.state = 'PA'
+      and p.is_active
+      and p.instantiate_at_admission
+      and (p.organization_id = r.organization_id or p.organization_id is null)
+    order by p.organization_id nulls last, p.created_at desc, p.id
+    limit 1
+  ) rule
   where f.facility_type = 'ALR'
-    and i.item_type = 'support_plan_30day'
-    and i.completed_date is not null
-    and r.status in ('active', 'temporarily_out')
-  order by i.resident_id, i.completed_date desc
-) latest
-cross join lateral (
-  select p.renewal_interval_days, p.warning_days, p.grace_period_days, p.citation_ref
-  from public.resident_compliance_rule_packs p
-  where p.item_type = 'support_plan_quarterly_review'
-    and p.facility_type = 'ALR'
-    and p.admission_track = latest.admission_track
-    and p.state = 'PA'
-    and p.is_active
-    and (p.organization_id = latest.organization_id or p.organization_id is null)
-  order by p.organization_id nulls last, p.created_at desc, p.id
-  limit 1
-) rule
-where not exists (
-  select 1 from public.resident_compliance_items q
-  where q.resident_id = latest.resident_id
-    and q.item_type = 'support_plan_quarterly_review'
-    and q.completed_date is null
-);
+    and r.status in ('active', 'temporarily_out', 'hospital_leave')
+    and r.admission_date is not null
+    and exists (
+      select 1 from public.resident_compliance_items i
+      where i.resident_id = r.id
+        and i.item_type = 'support_plan_30day'
+        and i.completed_date is not null
+        and i.triggered_by_item_id is null
+        and i.citation_topic_id is distinct from v_final_plan_topic
+    )
+    and not exists (
+      select 1 from public.resident_compliance_items i
+      where i.resident_id = r.id
+        and i.item_type = 'support_plan_30day'
+        and (i.completed_date is null
+             or i.triggered_by_item_id is not null
+             or i.citation_topic_id = v_final_plan_topic)
+    );
+
+  insert into public.resident_compliance_items
+    (organization_id, facility_id, resident_id, item_type, due_date, renewal_interval_days,
+     warning_days, grace_period_days, citation_topic_id)
+  select
+    latest.organization_id, latest.facility_id, latest.resident_id, 'support_plan_quarterly_review',
+    latest.completed_date + rule.renewal_interval_days, rule.renewal_interval_days,
+    rule.warning_days, rule.grace_period_days,
+    (select t.id from public.dhs_citation_topics t where t.citation_ref = rule.citation_ref)
+  from (
+    select distinct on (i.resident_id)
+           i.organization_id, i.facility_id, i.resident_id, i.completed_date,
+           coalesce(r.admission_track, 'standard') as admission_track
+    from public.resident_compliance_items i
+    join public.residents r on r.id = i.resident_id
+    join public.facilities f on f.id = i.facility_id
+    where f.facility_type = 'ALR'
+      and i.item_type = 'support_plan_30day'
+      and i.completed_date is not null
+      and (i.triggered_by_item_id is not null or i.citation_topic_id = v_final_plan_topic)
+      and r.status in ('active', 'temporarily_out', 'hospital_leave')
+    order by i.resident_id, i.completed_date desc
+  ) latest
+  cross join lateral (
+    select p.renewal_interval_days, p.warning_days, p.grace_period_days, p.citation_ref
+    from public.resident_compliance_rule_packs p
+    where p.item_type = 'support_plan_quarterly_review'
+      and p.facility_type = 'ALR'
+      and p.admission_track = latest.admission_track
+      and p.state = 'PA'
+      and p.is_active
+      and (p.organization_id = latest.organization_id or p.organization_id is null)
+    order by p.organization_id nulls last, p.created_at desc, p.id
+    limit 1
+  ) rule
+  on conflict (resident_id)
+    where item_type = 'support_plan_quarterly_review' and completed_date is null
+    do nothing;
+end;
+$function$;
+
+comment on function app_private.backfill_alf_support_plan_cycle() is
+  'The 20260925110000 backfill for ALF residents admitted under the old model: an open final '
+  'support plan (2800.227(a)) for each current resident whose only plan on file is the 2800.224 '
+  'preliminary one, and a quarterly review (2800.227(c)) from the latest completed final or '
+  'revised plan. Idempotent.';
+
+revoke all on function app_private.backfill_alf_support_plan_cycle() from public, anon, authenticated, service_role;
+
+select app_private.backfill_alf_support_plan_cycle();
 
 select public.recalculate_resident_compliance_statuses();
 
