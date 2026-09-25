@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { rangeFor } from "@/lib/utils";
 import type { PaginatedResult } from "@/lib/dataTable";
+import { storageSafeFileName } from "@/lib/storagePaths";
 
 export type TrainingDocument = Tables<"training_documents">;
 
@@ -132,8 +133,8 @@ export function useUploadDocument() {
       storagePrefix,
     }: UploadDocumentInput) => {
       const path = storagePrefix
-        ? `${storagePrefix.replace(/\/?$/, "/")}${crypto.randomUUID()}-${file.name}`
-        : `${organizationId}/${facilityId}/${crypto.randomUUID()}-${file.name}`;
+        ? `${storagePrefix.replace(/\/?$/, "/")}${crypto.randomUUID()}-${storageSafeFileName(file.name)}`
+        : `${organizationId}/${facilityId}/${crypto.randomUUID()}-${storageSafeFileName(file.name)}`;
       const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file);
       if (uploadError) throw uploadError;
 

@@ -291,7 +291,8 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
 
-  const email = body.email?.trim().toLowerCase();
+  // A non-string `email` in the JSON body must be a 400, not a TypeError outside the envelope.
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email || email.length < 3 || email.length > 320 || !EMAIL_RE.test(email)) {
     return json(req, { ok: false, error: "Enter a valid email address" }, 400);
   }

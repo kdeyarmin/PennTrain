@@ -76,7 +76,9 @@ export function clinicalTablesFromSql(sql) {
 /** Every `supabase.from("<table>")` in a client file, with its offset. */
 export function tableReadsIn(source, tables) {
   const hits = [];
-  for (const match of source.matchAll(/\.from\(\s*["'`]([a-z0-9_]+)["'`]\s*\)/gi)) {
+  // The optional `as never` / `as const` tail is a live idiom (useSurveyRehearsals.ts); without it
+  // a chart read written that way was invisible to this gate.
+  for (const match of source.matchAll(/\.from\(\s*["'`]([a-z0-9_]+)["'`]\s*(?:as\s+[A-Za-z_$][\w$<>.[\]]*\s*)?\)/gi)) {
     const table = match[1].toLowerCase();
     if (tables.has(table)) hits.push({ table, index: match.index ?? 0 });
   }
@@ -124,6 +126,9 @@ if (process.argv.includes("--self-test")) {
   }
   if (tableReadsIn('supabase.rpc("get_resident_clinical_care", {})', tables).length !== 0) {
     failures.push("an RPC call was mistaken for a table read");
+  }
+  if (tableReadsIn('supabase.from("clinical_care_plans" as never).select("*")', tables).length !== 1) {
+    failures.push("cast-form read not detected");
   }
 
   if (failures.length > 0) {

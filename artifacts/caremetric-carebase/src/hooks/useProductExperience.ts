@@ -180,6 +180,9 @@ export function useAnnouncements() {
       if (error) throw error;
       return data;
     },
+    // The receipt is what the per-announcement "X of Y seen" summary counts.
+    onSuccess: (_data, announcementId) =>
+      queryClient.invalidateQueries({ queryKey: ["announcement_read_summary", announcementId] }),
   });
   return { ...query, publish, markSeen };
 }

@@ -70,6 +70,9 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
     queryKey: ["resident-financial-operations"],
   });
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
+  // A rate agreement is the billed side of the care-level review (useCareLevelReview reads
+  // resident_rate_agreements), so the review must refetch after any write here.
+  queryClient.invalidateQueries({ queryKey: ["care-level-review"] });
 }
 
 export function useResidentFinancialWorkspace(residentId?: string) {

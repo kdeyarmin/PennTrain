@@ -359,11 +359,13 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
     // default batch size
   }
 
+  // Adopt the run the control plane queued for a manual "Run now" (run-system-job posts
+  // X-Correlation-Id / X-Request-Id); a random id left that queued row stranded.
   const { data: claimRows, error: claimError } = await adminClient.rpc("claim_system_job_execution", {
     p_job_key: BINDER_JOB_KEY,
-    p_correlation_id: crypto.randomUUID(),
+    p_correlation_id: (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200),
     p_trigger_type: "scheduled",
-    p_provider_request_id: null,
+    p_provider_request_id: req.headers.get("x-request-id")?.slice(0, 200) ?? null,
   });
   if (claimError) return json(req, { error: claimError.message }, 500);
   const run = Array.isArray(claimRows) ? claimRows[0] : claimRows;

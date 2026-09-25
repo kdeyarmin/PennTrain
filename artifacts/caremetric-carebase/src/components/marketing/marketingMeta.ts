@@ -94,9 +94,9 @@ export const MARKETING_ROUTE_META: Record<string, RouteMeta> = {
       "The terms that govern use of CareMetric CareBase, including accounts, subscriptions, data ownership, acceptable use, and compliance boundaries.",
   },
   "/demo": {
-    title: "Live Demo — Explore CareMetric CareBase",
+    title: "Demo — Explore CareMetric CareBase",
     description:
-      "Log into a sandbox with sample PA facility data and explore CareMetric CareBase by role — no signup and no sales call required.",
+      "Explore CareMetric CareBase by role in a sandbox with sample PA facility data, or request a demo workspace — no sales call required.",
   },
   "/login": {
     title: "Log In — CareMetric CareBase",

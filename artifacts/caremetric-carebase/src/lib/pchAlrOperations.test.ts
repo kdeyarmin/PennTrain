@@ -27,6 +27,12 @@ describe("PCH/ALR operations catalog", () => {
     expect(searchPchAlrOperations("grievance").map((item) => item.id)).toContain("rights-grievances");
   });
 
+  it("finds ALF-only workflows by the label the page shows, not just the stored ALR code", () => {
+    expect(searchPchAlrOperations("alf").map((item) => item.id)).toContain("special-care");
+    expect(searchPchAlrOperations("assisted living").map((item) => item.id)).toContain("special-care");
+    expect(searchPchAlrOperations("alr").map((item) => item.id)).toContain("special-care");
+  });
+
   it("returns domain-specific workflows", () => {
     expect(getPchAlrItemsByDomain("Medication safety")).toEqual([expect.objectContaining({ id: "medication-safety" })]);
   });

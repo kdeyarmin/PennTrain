@@ -72,6 +72,10 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
   const [description, setDescription] = useState(editing?.description ?? "");
   const [dueDate, setDueDate] = useState(editing?.due_date ?? "");
   const [assigneeEmployeeId, setAssigneeEmployeeId] = useState("");
+  // Edit mode resolves the owner from this facility's roster. An owner who is not on it (the
+  // manager who filed a retraining action from IncidentDetail, or someone since transferred) used
+  // to resolve to "" and be written back as Unassigned by a save that never touched the picker.
+  const [assigneeTouched, setAssigneeTouched] = useState(false);
   const [status, setStatus] = useState<CorrectiveActionStatusValue>((editing?.status as CorrectiveActionStatusValue) ?? "open");
 
   // editing.owner_profile_id is a profile id (what's persisted); the Select below is keyed on
@@ -130,8 +134,12 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
       return;
     }
     const employee = employees?.find((e) => e.id === assigneeEmployeeId);
-    const ownerProfileId = employee?.profile_id ?? null;
-    const ownerName = employee ? `${employee.last_name}, ${employee.first_name}` : null;
+    const keepExistingOwner = !!editing && !assigneeTouched && !!editing.owner_profile_id
+      && !employees?.some((e) => e.profile_id === editing.owner_profile_id);
+    const ownerProfileId = keepExistingOwner ? editing.owner_profile_id : (employee?.profile_id ?? null);
+    const ownerName = keepExistingOwner
+      ? editing.owner_name
+      : employee ? `${employee.last_name}, ${employee.first_name}` : null;
 
     if (editing) {
       // Mirrors the dedicated "mark complete" check-button elsewhere on these pages: moving status
@@ -175,13 +183,15 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Corrective action description"
+        aria-label="Corrective action description"
         className={`${inputCls} flex-1 min-w-[160px]`}
       />
       <div className={size === "sm" ? "w-40 shrink-0" : "w-56 shrink-0"}>
         <EmployeeSearchSelect
           label=""
           value={assigneeEmployeeId}
-          onValueChange={setAssigneeEmployeeId}
+          onValueChange={(v) => { setAssigneeTouched(true); setAssigneeEmployeeId(v); }}
+          selectedLabel={editing?.owner_name ?? undefined}
           facilityId={parent.facilityId}
           allowEmpty
           emptyLabel="Unassigned"
@@ -207,6 +217,7 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
       )}
       <Input
         type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
+        aria-label="Due date"
         className={`${inputCls} ${size === "sm" ? "w-32" : "w-40"} shrink-0`}
       />
       <Button size="sm" className={buttonCls} disabled={submitting} onClick={handleSubmit} aria-label={isEdit ? "Save corrective action" : "Add corrective action"}>

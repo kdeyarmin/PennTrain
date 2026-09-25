@@ -513,7 +513,7 @@ export default function ValueCenter() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Metric
                 label="Estimated annual savings"
-                value={money(((value.data?.estimatedLaborValue ?? 0) + (value.data?.retiredSoftwareMonthlyCost ?? 0)) * 12)}
+                value={money(reconciledValue.grossAnnualOpportunity)}
                 detail="Customer assumptions multiplied by recorded outcomes"
                 icon={CircleDollarSign}
               />
@@ -967,7 +967,7 @@ export default function ValueCenter() {
             </Card>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button asChild><Link href="/app/enterprise"><Cable className="mr-2 h-4 w-4" />Integration Hub</Link></Button>
+            {user?.role === "org_admin" && <Button asChild><Link href="/app/enterprise"><Cable className="mr-2 h-4 w-4" />Integration Hub</Link></Button>}
             <Button asChild variant="outline"><Link href="/app/fhir-integration">FHIR setup</Link></Button>
             <Button asChild variant="outline"><Link href="/app/medication-integration">Medication reconciliation</Link></Button>
           </div>

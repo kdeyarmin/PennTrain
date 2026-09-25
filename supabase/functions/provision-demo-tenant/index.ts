@@ -144,7 +144,22 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!createError && created?.user) {
-      accounts.push({ email: account.email, role: account.role, status: "created" });
+      // GoTrue's admin create writes app_metadata AFTER the INSERT that fires handle_new_user()
+      // (verified live in create-user; invite-user compensates the same way), so on a fresh
+      // project the trigger stamped every demo profile as an unscoped "employee" and the
+      // response still reported "created". Heal it the way the refresh branch below does.
+      const { error: healError } = await admin.rpc("admin_update_profile", {
+        p_user_id: created.user.id,
+        p_role: account.role,
+        p_organization_id: organizationId,
+        p_is_active: true,
+      });
+      accounts.push({
+        email: account.email,
+        role: account.role,
+        status: healError ? "error" : "created",
+        ...(healError ? { error: healError.message } : {}),
+      });
       continue;
     }
 

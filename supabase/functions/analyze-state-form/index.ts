@@ -368,6 +368,9 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
   if (!body.job_id) return json(req, { error: "job_id is required" }, 400);
 
   // The caller-scoped read proves visibility (platform_admin RLS) before any
@@ -377,7 +380,11 @@ Deno.serve(async (req: Request) => {
     .select("id, status, requested_by")
     .eq("id", body.job_id)
     .maybeSingle();
-  if (jobError) return json(req, { error: jobError.message }, 500);
+  if (jobError) {
+    // A malformed job_id (22P02) or a PostgREST message is not something to hand the browser.
+    console.error("analyze-state-form: job lookup failed", jobError.message);
+    return json(req, { error: "document analyzer job could not be loaded" }, 500);
+  }
   if (!job) return json(req, { error: "document analyzer job not found" }, 404);
 
   // PT-019: surface a coded 403 before claiming so a denied kick does not burn one of
@@ -392,7 +399,10 @@ Deno.serve(async (req: Request) => {
     p_job_id: body.job_id,
     p_limit: 1,
   });
-  if (claimError) return json(req, { error: claimError.message }, 500);
+  if (claimError) {
+    console.error("analyze-state-form: claim failed", claimError.message);
+    return json(req, { error: "document analyzer job could not be claimed" }, 500);
+  }
   const claim = claims?.[0];
   if (!claim) {
     // Already processing under a fresh lease, already extracted, or attempts exhausted --
@@ -413,14 +423,12 @@ Deno.serve(async (req: Request) => {
 });
 
 async function runWorkerBatch(req: Request, adminClient: any): Promise<Response> {
-  const enabled = await isAnalyzerEnabled(adminClient);
-  if (!enabled) {
-    // Disabled (or unreadable) kill switch: leave queued jobs untouched -- they resume on
-    // the first sweep after a platform admin re-enables extraction.
-    return json(req, { success: true, skipped: true, reason: "analyzer_disabled" });
-  }
-  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicApiKey) return json(req, { error: "ANTHROPIC_API_KEY is not configured" }, 500);
+  // Same contract as dispatch-notifications / run-data-lifecycle: adopt the queued row that
+  // run-system-job created for an operator's "Run now" instead of opening an unrelated one. A
+  // random correlation id here left that queued row stranded forever (run-system-job finalizes
+  // only on a non-2xx answer), and in a half-open circuit the mismatched claim raised 55000.
+  const correlationId = (req.headers.get("x-correlation-id") || crypto.randomUUID()).slice(0, 200);
+  const providerRequestId = req.headers.get("x-request-id")?.slice(0, 200) ?? null;
 
   let batchSize = 2;
   try {
@@ -434,9 +442,9 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
 
   const { data: claimRows, error: claimError } = await adminClient.rpc("claim_system_job_execution", {
     p_job_key: ANALYZER_JOB_KEY,
-    p_correlation_id: crypto.randomUUID(),
+    p_correlation_id: correlationId,
     p_trigger_type: "scheduled",
-    p_provider_request_id: null,
+    p_provider_request_id: providerRequestId,
   });
   if (claimError) return json(req, { error: claimError.message }, 500);
   const run = Array.isArray(claimRows) ? claimRows[0] : claimRows;
@@ -445,6 +453,37 @@ async function runWorkerBatch(req: Request, adminClient: any): Promise<Response>
   }
 
   const runId = run.run_id;
+  const closeRunWithoutWork = async (
+    status: "succeeded" | "failed",
+    result: Record<string, unknown>,
+    errorCode: string | null,
+    errorMessage: string | null,
+  ) => {
+    await adminClient.rpc("finish_system_job", {
+      p_run_id: runId,
+      p_status: status,
+      p_attempted_count: 0,
+      p_succeeded_count: 0,
+      p_failed_count: 0,
+      p_result: result,
+      p_error_code: errorCode,
+      p_error_message: errorMessage,
+    });
+  };
+  // Checked AFTER the claim, so a manual run requested while the kill switch is off is closed
+  // rather than left queued. Queued analyzer jobs themselves stay untouched -- they resume on
+  // the first sweep after a platform admin re-enables extraction.
+  const enabled = await isAnalyzerEnabled(adminClient);
+  if (!enabled) {
+    await closeRunWithoutWork("succeeded", { skipped: "analyzer_disabled" }, null, null);
+    return json(req, { success: true, skipped: true, reason: "analyzer_disabled" });
+  }
+  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!anthropicApiKey) {
+    await closeRunWithoutWork("failed", {}, "not_configured", "ANTHROPIC_API_KEY is not configured");
+    return json(req, { error: "ANTHROPIC_API_KEY is not configured" }, 500);
+  }
+
   const workerId = crypto.randomUUID();
   const modelCandidates = getAnthropicModelCandidates(PRIMARY_MODEL_ENV, FALLBACK_MODELS_ENV);
   let attempted = 0;

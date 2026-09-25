@@ -255,6 +255,7 @@ function RequestsCard({ sessionId, packet, readOnly }: {
                           rows={2}
                           value={note}
                           onChange={(e) => setNote(e.target.value)}
+                          aria-label="Resolution note"
                           placeholder="What was handed over, or why it could not be — required"
                         />
                         <div className="flex gap-2">
@@ -422,6 +423,7 @@ function ObservationsCard({ sessionId, packet, readOnly }: {
               rows={2}
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
+              aria-label="Entry summary"
               placeholder="What happened, in plain words"
             />
             {isFinding && (
@@ -453,6 +455,7 @@ function ObservationsCard({ sessionId, packet, readOnly }: {
                   rows={2}
                   value={basis}
                   onChange={(e) => setBasis(e.target.value)}
+                  aria-label="Facility position"
                   placeholder={basisRequired
                     ? "Why the facility disputes this — required"
                     : "The facility's position, if there is one"}

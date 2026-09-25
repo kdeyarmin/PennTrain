@@ -218,6 +218,11 @@ describe("formatDateForDisplay", () => {
     expect(formatDateForDisplay(null)).toBe("—");
     expect(formatDateForDisplay("not-a-date")).toBe("—");
   });
+
+  it("renders a time when asked for one instead of throwing on timeStyle", () => {
+    expect(formatDateForDisplay("2026-01-05T02:00:00Z", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" }))
+      .toBe("Jan 4, 2026, 9:00 PM");
+  });
 });
 
 describe("facilityDateOf", () => {

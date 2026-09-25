@@ -158,7 +158,10 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
-  const reason = body.reason?.trim() ?? "";
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return json(req, { error: "Invalid JSON body" }, 400);
+  }
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
   if (!body.jobKey || reason.length < 8) {
     return json(req, { error: "jobKey and a meaningful reason are required" }, 400);
   }

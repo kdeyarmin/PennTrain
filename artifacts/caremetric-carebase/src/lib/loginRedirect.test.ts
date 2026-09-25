@@ -59,4 +59,10 @@ describe("post-login redirects", () => {
 
     expect(postLoginPathFromSearch("?next=%2Ftrain%2Fapp%2Freports%3Fq%3Dabc", "/train")).toBe("/app/reports?q=abc");
   });
+
+  it("rejects a protocol-relative destination that only appears once the app base is stripped", () => {
+    expect(postLoginPathFromSearch("?next=%2Ftrain%2F%2Fevil.example", "/train")).toBe("/");
+    expect(postLoginPathFromSearch("?next=%2Ftrain%2F%5Cevil.example", "/train")).toBe("/");
+    expect(postLoginPathFromSearch("?next=%2Ftrain%2Flogin%3Fnext%3D%2Fapp", "/train")).toBe("/");
+  });
 });

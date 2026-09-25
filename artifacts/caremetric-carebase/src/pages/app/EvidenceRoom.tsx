@@ -5,6 +5,7 @@ import { useViewingOrg } from "@/lib/viewingOrg";
 import { usePaginatedEvidenceCollections, useCreateEvidenceCollection } from "@/hooks/useEvidenceRoom";
 import { useEvidenceCollectionListSummary, EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY } from "@/hooks/useDomainListSummaries";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
 import { useUrlState } from "@/hooks/useUrlState";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,6 +70,10 @@ export default function EvidenceRoom() {
   const summaryQuery = useEvidenceCollectionListSummary({ organizationId: viewingOrgId ?? undefined, facilityId: facilityScope });
   const summary = summaryQuery.data ?? EMPTY_EVIDENCE_COLLECTION_LIST_SUMMARY;
   const { data: facilities } = useListFacilities({ organizationId: viewingOrgId ?? undefined });
+  // create_evidence_collection runs assert_phase5_manager, which refuses a facility_manager for
+  // a facility they are not assigned to -- so the create dialog (not the list filter) offers
+  // only assignable facilities, the same narrowing Incidents/Employees/Residents apply.
+  const assignableFacilities = useAssignableFacilities(facilities);
   const { mutate: createCollection, isPending: creating } = useCreateEvidenceCollection();
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
@@ -107,7 +112,7 @@ export default function EvidenceRoom() {
           </p>
         </div>
         {canManage && (
-          <Button onClick={() => { setFacilityId(facilities?.[0]?.id ?? ""); setName(""); setPurpose(""); setShowCreate(true); }}>
+          <Button onClick={() => { setFacilityId(assignableFacilities[0]?.id ?? ""); setName(""); setPurpose(""); setShowCreate(true); }}>
             <Plus className="h-4 w-4 mr-1" /> New collection
           </Button>
         )}
@@ -253,7 +258,7 @@ export default function EvidenceRoom() {
               <Select value={facilityId} onValueChange={setFacilityId}>
                 <SelectTrigger id="evidence-facility"><SelectValue placeholder="Select a facility" /></SelectTrigger>
                 <SelectContent>
-                  {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                  {assignableFacilities.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

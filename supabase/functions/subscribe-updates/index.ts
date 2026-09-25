@@ -201,10 +201,13 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "Invalid JSON body" }, 400);
   }
 
-  const name = body.name?.trim() || null;
-  const email = body.email?.trim().toLowerCase();
-  const organization = body.organization?.trim() || null;
-  const sourcePathRaw = body.source_path?.trim() ?? "";
+  // readJsonBody guarantees an object, not the type of each field: a number or array in any of
+  // these used to throw `trim is not a function` outside the envelope (a bare 500, no CORS).
+  const str = (value: unknown) => (typeof value === "string" ? value : undefined);
+  const name = str(body.name)?.trim() || null;
+  const email = str(body.email)?.trim().toLowerCase();
+  const organization = str(body.organization)?.trim() || null;
+  const sourcePathRaw = str(body.source_path)?.trim() ?? "";
 
   if (!email) return json(req, { error: "email is required" }, 400);
   if (email.length < 3 || email.length > 320 || !EMAIL_RE.test(email)) {

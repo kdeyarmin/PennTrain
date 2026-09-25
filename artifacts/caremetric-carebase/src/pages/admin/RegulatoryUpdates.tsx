@@ -334,11 +334,11 @@ export default function RegulatoryUpdates() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor={`${__fieldIds}-facility-types`}>Facility types</Label>
-              <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <Label id={`${__fieldIds}-facility-types`}>Facility types</Label>
+              <div className="flex flex-wrap gap-x-4 gap-y-2" role="group" aria-labelledby={`${__fieldIds}-facility-types`}>
                 {FACILITY_TYPES.map((ft) => (
                   <label key={ft.value} className="flex items-center gap-2 text-sm">
-                    <Checkbox id={`${__fieldIds}-facility-types`}
+                    <Checkbox id={`${__fieldIds}-facility-type-${ft.value}`}
                       checked={form.facilityTypes.includes(ft.value)}
                       onCheckedChange={(checked) => toggleFacilityType(ft.value, checked === true)}
                     />

@@ -158,9 +158,12 @@ export function PackageEntitlementTermCard({
     rawValue,
     valueType,
     reason,
-    // Date inputs are facility calendar days — not UTC midnight.
+    // Date inputs are facility calendar days — not UTC midnight. The end day is INCLUDED: the
+    // entitlement reads `effective_to > now()`, so the bound is 00:00 on the day after the chosen
+    // "Ends" date (`through`), not 00:00 on that date -- which ended the term the moment its last
+    // day began, while the summary sentence named that day as covered.
     effectiveFrom: effectiveFrom ? facilityDayBounds(effectiveFrom).from : "",
-    effectiveTo: effectiveTo ? facilityDayBounds(effectiveTo).from : "",
+    effectiveTo: effectiveTo ? facilityDayBounds(effectiveTo).through : "",
     contractReference,
   };
   // Computed before the issue list, which needs it: the server's collision test is against the

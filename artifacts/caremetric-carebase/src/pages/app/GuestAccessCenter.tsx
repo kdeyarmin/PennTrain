@@ -60,9 +60,12 @@ export default function GuestAccessCenter() {
 
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const orgId = viewingOrgId ?? user?.organizationId ?? undefined;
+  // /app/residents/:id refuses the platform operator; their resident detail is mounted under
+  // /admin. Evidence and move-in workspaces admit every role that can open this page.
+  const residentBase = user?.role === "platform_admin" ? "/admin/residents" : "/app/residents";
 
   const grantsQuery = useQuery({
-    queryKey: ["guest-access-center", orgId, statusFilter],
+    queryKey: ["guest-access-center", orgId, statusFilter, residentBase],
     enabled: !!orgId,
     queryFn: async (): Promise<{ rows: UnifiedGrant[]; truncated: boolean }> => {
       // Status has to be decided on the server. Each table is capped at GRANT_PAGE_SIZE newest
@@ -146,7 +149,7 @@ export default function GuestAccessCenter() {
           expiresAt: g.expires_at,
           revokedAt: g.revoked_at,
           createdAt: g.created_at,
-          parentHref: `/app/residents/${g.resident_id}`,
+          parentHref: `${residentBase}/${g.resident_id}`,
           parentLabel: "Open resident",
         })),
         ...(portals.data ?? []).map((g: any) => ({
@@ -158,7 +161,7 @@ export default function GuestAccessCenter() {
           expiresAt: g.expires_at,
           revokedAt: g.revoked_at,
           createdAt: g.created_at,
-          parentHref: `/app/residents/${g.resident_id}`,
+          parentHref: `${residentBase}/${g.resident_id}`,
           parentLabel: "Open resident",
         })),
       ];

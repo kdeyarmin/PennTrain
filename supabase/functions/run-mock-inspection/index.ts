@@ -30,7 +30,7 @@ Deno.serve(async (req: Request) => {
   let body: { facilityId?: string; asOfDate?: string };
   try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
   if (!body.facilityId) return json(req, { error: "facilityId is required" }, 400);
-  const { data: facility } = await caller.from("facilities").select("id,name,facility_type,state").eq("id", body.facilityId).single();
+  const { data: facility } = await caller.from("facilities").select("id,name,facility_type,state,organization_id").eq("id", body.facilityId).single();
   if (!facility) return json(req, { error: "Facility not found or outside scope" }, 404);
 
   // facilities_select is org-wide; durable mock_inspection_runs are facility-scoped. Auditors are
@@ -44,7 +44,9 @@ Deno.serve(async (req: Request) => {
   }
   const { data: items, error: itemError } = await caller.from("entrance_conference_items")
     .select("id,category,prompt,data_source,sort_order,item_types")
-    .eq("is_active", true).or(`organization_id.is.null,organization_id.eq.${(await caller.from("profiles").select("organization_id").eq("id", user.id).single()).data?.organization_id}`)
+    // The FACILITY's tenant, not the caller's: a platform_admin has no organization, and
+    // `organization_id.eq.undefined` is a uuid cast error PostgREST reports as no checklist.
+    .eq("is_active", true).or(`organization_id.is.null,organization_id.eq.${facility.organization_id}`)
     .order("sort_order").limit(40);
   if (itemError || !items?.length) return json(req, { error: "No visible entrance-conference checklist exists" }, 422);
   const asOfDate = /^\d{4}-\d{2}-\d{2}$/.test(body.asOfDate || "") ? body.asOfDate! : paToday();

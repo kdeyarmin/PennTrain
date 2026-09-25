@@ -6,7 +6,7 @@
 -- made a second one. Run with: supabase test db.
 
 begin;
-select plan(14);
+select plan(15);
 
 insert into public.organizations(id, name, slug) values
   ('c4000000-0000-4000-8000-000000000001', 'Ticket Org', 'ticket-org'),
@@ -120,16 +120,36 @@ select throws_ok(
 ------------------------------------------------------------------------------------------------
 -- 10-12. The attachment step stands alone, and only for your own message
 ------------------------------------------------------------------------------------------------
+-- The path is trusted by the storage read policy, so it must sit under this ticket's own
+-- <organization>/<ticket>/ prefix in the support bucket -- the rule the INSERT trigger already
+-- enforces. A path shaped for another organization's ticket is refused before anything is written.
+select throws_ok(
+  $$select public.attach_file_to_support_ticket_message(
+      (select id from public.support_tickets where organization_id = 'c4000000-0000-4000-8000-000000000001'),
+      'support-ticket-attachments', 'c4000000-0000-4000-8000-000000000002/00000000-0000-4000-8000-00000000abcd/theirs.pdf',
+      'theirs.pdf', 'application/pdf', 4096)$$,
+  '42501',
+  null,
+  'an attachment path outside this ticket''s own organization/ticket prefix is refused'
+);
 select lives_ok(
   $$select public.attach_file_to_support_ticket_message(
       (select id from public.support_tickets where organization_id = 'c4000000-0000-4000-8000-000000000001'),
-      'support-ticket-attachments', 'c4000000/ticket/screenshot.png', 'screenshot.png', 'image/png', 4096)$$,
+      'support-ticket-attachments',
+      'c4000000-0000-4000-8000-000000000001/'
+        || (select id from public.support_tickets where organization_id = 'c4000000-0000-4000-8000-000000000001')::text
+        || '/screenshot.png',
+      'screenshot.png', 'image/png', 4096)$$,
   'the uploaded file is recorded on the message after the fact'
 );
 select throws_ok(
   $$select public.attach_file_to_support_ticket_message(
       (select id from public.support_tickets where organization_id = 'c4000000-0000-4000-8000-000000000001'),
-      'support-ticket-attachments', 'c4000000/ticket/second.png', 'second.png', 'image/png', 4096)$$,
+      'support-ticket-attachments',
+      'c4000000-0000-4000-8000-000000000001/'
+        || (select id from public.support_tickets where organization_id = 'c4000000-0000-4000-8000-000000000001')::text
+        || '/second.png',
+      'second.png', 'image/png', 4096)$$,
   'P0002',
   null,
   'a second file on the same message is refused rather than overwriting the first'

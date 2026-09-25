@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { csvEscape } from "@/lib/csv";
 import { downloadCsvText } from "@/lib/browserDownload";
 import { facilityToday } from "@/lib/dateUtils";
+import { selectCurrentTrainingRecords } from "@/lib/currentTrainingRecords";
 import { buildRegulatoryCrosswalkRows, filterRegulatoryCrosswalkRows, type CrosswalkEvidenceSource, type CrosswalkStatus, type FacilityProgram } from "@/lib/regulatoryCrosswalk";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
@@ -94,7 +95,11 @@ export default function RegulatoryCrosswalk() {
 
   const rows = useMemo(() => buildRegulatoryCrosswalkRows({
     today: facilityToday(),
-    trainingRecords,
+    // A renewal inserts a fresh row and the prior one is graded "expired" forever, so raw rows
+    // read every past renewal as a permanent gap -- the "staff training" obligation stayed
+    // Overdue while Inspection Readiness for the same facility read Ready. Reduce to the current
+    // record per employee and training type first, as inspectionReadiness.ts already does.
+    trainingRecords: trainingRecords ? selectCurrentTrainingRecords(trainingRecords) : undefined,
     credentials,
     residentItems,
     incidents,

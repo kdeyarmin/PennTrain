@@ -35,7 +35,7 @@ const ROLE_ONBOARDING: Record<Role, ExperienceCard[]> = {
   facility_manager: [
     { id: "manager-today", title: "Run the shift from Today", detail: "Focus on facility-scoped alerts, handoffs, due work, coverage gaps, and review queues.", href: "/app/today", cta: "Open Today", icon: CalendarClock },
     { id: "manager-remediate", title: "Batch remediate gaps", detail: "Select related alerts, assignments, missing credentials, or policy attestations and move them together.", href: "/app/work", cta: "Open work queue", icon: ClipboardList },
-    { id: "manager-mobile", title: "Optimize for mobile rounds", detail: "Use quick actions, QR/kiosk flows, camera uploads, and shared-device lock patterns for frontline work.", href: "/me/shift", cta: "Open shift view", icon: Smartphone },
+    { id: "manager-mobile", title: "Optimize for mobile rounds", detail: "Use quick actions, QR/kiosk flows, camera uploads, and shared-device lock patterns for frontline work.", href: "/app/shift-handoffs", cta: "Open shift handoffs", icon: Smartphone },
   ],
   trainer: [
     { id: "trainer-class", title: "Schedule and run classes", detail: "Use class scheduling, QR/kiosk check-in, retraining monitoring, and approvals as one loop.", href: "/trainer/classes", cta: "Open classes", icon: BadgeCheck },
@@ -95,6 +95,8 @@ export function EndUserExperiencePanel() {
   const locationPath = location.split(/[?#]/, 1)[0];
   const cards = useMemo(() => {
     if (!user) return [];
+    // Role cards are filtered by the role/module map like every other card source: the manager
+    // card used to point at the employee-only /me/shift and every facility manager saw a dead button.
     const trainingOnly = moduleAccess.enabledModules.has("train") && [...moduleAccess.enabledModules].every(module => module === "core" || module === "train");
     const trainingCards: ExperienceCard[] = user.role === "employee" ? [
       { id: "student-courses", title: "Start your training", detail: "Open your assigned courses and see what to complete next.", href: "/me/courses", cta: "Open my courses", icon: BadgeCheck },

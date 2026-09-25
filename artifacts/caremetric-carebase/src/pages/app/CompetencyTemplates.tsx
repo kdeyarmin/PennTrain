@@ -42,7 +42,10 @@ const EMPTY_FORM: TemplateFormData = { name: "", description: "" };
 // that swap sort_order with the neighboring row via mutateAsync + Promise.all,
 // with a busy-state guard so a second click can't race an in-flight swap.
 // ---------------------------------------------------------------------------
-function ManageItemsDialog({ template, onClose }: { template: CompetencyTemplate | null; onClose: () => void }) {
+// `canEdit` mirrors competency_template_items_insert/_update/_delete: an organization-owned template
+// and an org_admin or trainer caller. System templates (organization_id null) and the other roles
+// used to get the same Add / Move / Remove controls, and every one of them failed on RLS.
+function ManageItemsDialog({ template, onClose, canEdit }: { template: CompetencyTemplate | null; onClose: () => void; canEdit: boolean }) {
   const { toast } = useToast();
   const [newItemText, setNewItemText] = useState("");
   const [deleteItem, setDeleteItem] = useState<CompetencyTemplateItem | null>(null);
@@ -116,7 +119,7 @@ function ManageItemsDialog({ template, onClose }: { template: CompetencyTemplate
                 <div key={item.id} className="flex items-center gap-2 p-2.5 rounded-lg border">
                   <span className="text-xs text-muted-foreground w-5 shrink-0">{idx + 1}.</span>
                   <span className="flex-1 text-sm">{item.item_text}</span>
-                  <div className="flex items-center gap-0.5 shrink-0">
+                  {canEdit && <div className="flex items-center gap-0.5 shrink-0">
                     <Button
                       variant="ghost" size="icon" className="h-7 w-7"
                       disabled={idx === 0 || reordering}
@@ -140,12 +143,12 @@ function ManageItemsDialog({ template, onClose }: { template: CompetencyTemplate
                     >
                       <X className="h-3.5 w-3.5" />
                     </Button>
-                  </div>
+                  </div>}
                 </div>
               ))}
             </div>
           )}
-          <div className="flex items-center gap-2 pt-2">
+          {canEdit && <div className="flex items-center gap-2 pt-2">
             <Input
               value={newItemText}
               onChange={(e) => setNewItemText(e.target.value)}
@@ -156,7 +159,7 @@ function ManageItemsDialog({ template, onClose }: { template: CompetencyTemplate
             <Button size="sm" className="h-9 shrink-0" disabled={!newItemText.trim() || adding} onClick={handleAdd}>
               <Plus className="mr-1.5 h-3.5 w-3.5" /> Add
             </Button>
-          </div>
+          </div>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Done</Button>
@@ -422,7 +425,11 @@ export default function CompetencyTemplates() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <ManageItemsDialog template={managingTemplate} onClose={() => setManagingTemplate(null)} />
+      <ManageItemsDialog
+        template={managingTemplate}
+        onClose={() => setManagingTemplate(null)}
+        canEdit={canManage && managingTemplate?.organization_id !== null}
+      />
     </div>
   );
 }

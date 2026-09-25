@@ -176,7 +176,11 @@ export function createImpersonateUserHandler({
       type: "magiclink",
       email: targetProfile.email,
     });
-    if (linkError || !linkData) return json(req, { error: linkError?.message ?? "failed to generate session" }, 400);
+    if (linkError || !linkData) {
+      // GoTrue's message can name the target account's state; the caller gets the outcome only.
+      console.error("impersonate-user: generateLink failed", linkError?.message ?? "no link data");
+      return json(req, { error: "failed to generate session" }, 400);
+    }
 
     const tokenHash = linkData.properties?.hashed_token;
     if (!tokenHash) return json(req, { error: "failed to generate session token" }, 400);

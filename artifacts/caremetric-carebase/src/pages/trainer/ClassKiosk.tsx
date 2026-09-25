@@ -260,6 +260,7 @@ export default function ClassKiosk() {
                     variant="outline"
                     className="h-16 text-2xl font-semibold"
                     disabled={!key || isPending}
+                    aria-label={key === "back" ? "Delete last digit" : undefined}
                     onClick={() => pressKey(key)}
                   >
                     {key === "back" ? <Delete className="h-6 w-6" /> : key}

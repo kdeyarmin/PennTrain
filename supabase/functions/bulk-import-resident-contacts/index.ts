@@ -155,6 +155,10 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: `${message}${alsoFailed}`, job_id: jobId }, 500);
   }
 
+  // The header set: an update writes only the columns this CSV actually carries (the rule
+  // bulk-import-employees already follows).
+  const presentColumns = new Set(Object.keys(rows[0] ?? {}));
+
   for (let index = offset; index < endIndex; index++) {
     const row = rows[index];
     const rowNumber = index + 2;
@@ -224,13 +228,26 @@ Deno.serve(async (req: Request) => {
       else warnings.push("Existing contact will be updated.");
     }
 
+    // import_apply_resident_contact sets every field unconditionally, so a narrower CSV (say
+    // resident_external_id,name,email) used to null relationship and phone, drop is_primary and
+    // reset a regulatory designated_person to "other" on the way through. For an update, absent
+    // columns carry the stored values; a contact_type the CSV does not state keeps the stored one.
+    const carried = action === "update" && existing ? existing : null;
+    const contactFields = {
+      name,
+      relationship: carried && !presentColumns.has("relationship") ? (carried.relationship ?? null) : relationship,
+      email: carried && !presentColumns.has("email") ? (carried.email ?? null) : email,
+      phone: carried && !presentColumns.has("phone") ? (carried.phone ?? null) : phone,
+      is_primary: carried && !presentColumns.has("is_primary") ? Boolean(carried.is_primary) : isPrimary,
+      contact_type: carried && !(contactTypeRaw && RESIDENT_CONTACT_TYPES.has(contactTypeRaw))
+        ? (carried.contact_type ?? contactType)
+        : contactType,
+    };
     const payload = {
       organization_id: effectiveOrgId,
       facility_id: resident?.facility_id,
       resident_id: resident?.id,
-      name, relationship, email, phone,
-      is_primary: isPrimary,
-      contact_type: contactType,
+      ...contactFields,
       active: true,
     };
 
@@ -256,11 +273,7 @@ Deno.serve(async (req: Request) => {
       p_job_id: jobId,
       p_resident_id: resident.id,
       p_contact_id: action === "update" ? existing.id : null,
-      p_payload: {
-        name, relationship, email, phone,
-        is_primary: isPrimary,
-        contact_type: contactType,
-      },
+      p_payload: contactFields,
     });
     if (error) {
       results.push({ row: rowNumber, success: false, error: error.message, action });

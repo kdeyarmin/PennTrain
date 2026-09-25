@@ -310,7 +310,7 @@ export default function Incidents() {
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1>Incidents &amp; Complaints</h1>
+          <h1>Incidents</h1>
           <p>Log and track reportable incidents, required notifications, and investigations.</p>
         </div>
         {canManage && (
@@ -326,11 +326,14 @@ export default function Incidents() {
           <p className="mt-1 text-2xl font-semibold">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.open}</p>
           <p className="mt-1 text-xs text-muted-foreground">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : `${incidentSummary.criticalOpen} critical remain open.`}</p>
         </div>
-        <button type="button" className="premium-card p-4 text-left hover:border-destructive/40" onClick={() => setUrlState({ severity: "critical", page: "1" })}>
+        {/* Not a filter button: the tile counts major AND critical, and the severity filter takes one
+            value, so the click it used to carry narrowed the list to critical only and the count
+            disagreed with the rows under it. */}
+        <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Major / critical</p>
           <p className="mt-1 text-2xl font-semibold text-destructive">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.majorOrCritical}</p>
           <p className="mt-1 text-xs text-muted-foreground">High-severity events in this view.</p>
-        </button>
+        </div>
         <div className="premium-card p-4">
           <p className="text-xs font-medium text-muted-foreground">Recent volume</p>
           <p className="mt-1 text-2xl font-semibold">{incidentSummaryQuery.isLoading || incidentSummaryQuery.isError ? "—" : incidentSummary.reportedLast7Days}</p>

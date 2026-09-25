@@ -58,6 +58,17 @@ select 'Maple Grove Senior Living', 'maple-grove', 'Patricia Nguyen', 'patricia.
 from public.packages p where p.name = 'CareMetric CareBase'
 on conflict (slug) do nothing;
 
+-- Mirror record_organization_signup: an organization without an organization_settings row can
+-- deliver no notifications at all -- begin_notification_delivery_attempt reads the channel flags
+-- from it and skips every delivery when the row is missing (20260904020000 backfilled production
+-- for exactly that silent state and named this file as the one creation path that still forgot
+-- the row). Demo provider delivery is suppressed by its own trigger regardless.
+insert into public.organization_settings (organization_id, email_notifications_enabled, sms_notifications_enabled)
+select o.id, true, true
+from public.organizations o
+where o.slug in ('sunrise-healthcare', 'maple-grove')
+on conflict (organization_id) do nothing;
+
 -- Facilities
 insert into public.facilities (organization_id, name, facility_type, address, city, state, zip, administrator_name, administrator_email)
 select o.id, 'Sunrise Manor', 'PCH', '100 Corporate Blvd', 'Philadelphia', 'PA', '19103', 'Dr. Robert Chen', 'robert.chen@sunrisehealthcare.com'

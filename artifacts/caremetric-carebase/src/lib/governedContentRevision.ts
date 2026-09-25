@@ -122,8 +122,17 @@ export interface ValidationFinding {
  * not an empty array posted to satisfy a signature. These are the conditions under which content
  * genuinely should not go to an independent reviewer.
  */
-export function validateCourseSnapshot(snapshot: CourseSnapshot): ValidationFinding[] {
+export function validateCourseSnapshot(snapshot: CourseSnapshot | Partial<CourseSnapshot> | null | undefined): ValidationFinding[] {
   const findings: ValidationFinding[] = [];
+  // create_governed_content_revision only requires `jsonb_typeof(p_snapshot) = 'object'`, so a
+  // hand-made or older revision can carry {} or another shape; rendering its list must not throw.
+  if (!snapshot || typeof snapshot.title !== "string" || !Array.isArray(snapshot.blocks)) {
+    return [{
+      code: "snapshot_unreadable",
+      severity: "error",
+      message: "This revision's stored snapshot is not a course snapshot; author a fresh revision from the source version.",
+    }];
+  }
   if (!snapshot.title.trim()) {
     findings.push({ code: "title_missing", severity: "error", message: "The course version has no title." });
   }

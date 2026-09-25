@@ -519,8 +519,9 @@ Deno.serve(async (req: Request) => {
 
   let body: CopilotRequest;
   try { body = await req.json(); } catch { return json(req, { error: "Invalid JSON body" }, 400); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return json(req, { error: "Invalid JSON body" }, 400);
   if (!body.facilityId || !isCopilotIntent(body.intent)) return json(req, { error: "facilityId and a supported intent are required" }, 400);
-  const question = body.question?.trim();
+  const question = typeof body.question === "string" ? body.question.trim() : "";
   if (!question || question.length < 3 || question.length > 2000) return json(req, { error: "question must be between 3 and 2000 characters" }, 400);
   const asOf = isoDate(body.asOfDate) ?? paToday();
 
@@ -550,7 +551,7 @@ Deno.serve(async (req: Request) => {
   const intent = body.intent;
   const determinationKind = determinationKindForIntent(intent);
   const subjectType = intent === "employee_blocked" ? "employee" : intent === "draft_plan_of_correction" ? "violation" : intent === "citation_evidence" ? "citation" : null;
-  const subjectReference = subjectType === "employee" ? body.employeeId : subjectType === "violation" ? body.violationId : subjectType === "citation" ? body.citationQuery?.trim() : null;
+  const subjectReference = subjectType === "employee" ? body.employeeId : subjectType === "violation" ? body.violationId : subjectType === "citation" ? (typeof body.citationQuery === "string" ? body.citationQuery.trim() : null) : null;
   if ((subjectType && !subjectReference) || (!subjectType && subjectReference)) {
     return json(req, { error: "The selected question requires its corresponding employee, violation, or citation context." }, 400);
   }

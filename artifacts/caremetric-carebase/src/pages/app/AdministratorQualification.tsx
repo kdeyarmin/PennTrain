@@ -1,9 +1,10 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
+  type AdministratorProfileInsert,
   useGetAdministratorProfileByProfileId, useUpsertAdministratorProfile,
   useListAdministratorCeEntries, useAddAdministratorCeEntry, useDeleteAdministratorCeEntry,
   useUploadAdministratorDocument, useAdministratorDocumentSignedUrl,
@@ -129,9 +130,16 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
   );
   const administratorRuleSummary = useMemo(() => summarizeAdministratorRulePack(administratorRulePack), [administratorRulePack]);
 
+  // Blur-saves overlap: typing a date and clicking a checkbox fires two upserts before the first
+  // refetch lands, and each used to resend the render-time `profile` snapshot -- so the second
+  // wrote the first's column back to null. Successive saves build on the last payload sent until a
+  // fresh server row supersedes it.
+  const lastSentRef = useRef<AdministratorProfileInsert | null>(null);
+  useEffect(() => { lastSentRef.current = null; }, [profile]);
+
   const save = async (patch: Partial<AdministratorProfile>, options?: { rethrow?: boolean }) => {
     try {
-      await upsertProfile({
+      const base: AdministratorProfileInsert = lastSentRef.current ?? {
         organization_id: organizationId,
         profile_id: profileId,
         qualification_path: profile?.qualification_path ?? null,
@@ -146,8 +154,10 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         regional_office_verification_submitted_date: profile?.regional_office_verification_submitted_date ?? null,
         regional_office_verification_document_path: profile?.regional_office_verification_document_path ?? null,
         regional_office_verification_notes: profile?.regional_office_verification_notes ?? null,
-        ...patch,
-      });
+      };
+      const payload = { ...base, ...patch };
+      lastSentRef.current = payload;
+      await upsertProfile(payload);
       toast({ title: "Saved" });
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't save", description: e instanceof Error ? e.message : String(e) });
@@ -367,9 +377,12 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
               <Input id={`${__fieldIds}-date`} type="date" value={ceForm.completedDate} onChange={(e) => setCeForm((f) => ({ ...f, completedDate: e.target.value }))} className="h-9" />
             </div>
             <div className="col-span-2 sm:col-span-5">
-              <Button size="sm" onClick={handleAddCe} disabled={addingCe || !ceForm.hours || !ceForm.topic || !ceForm.completedDate}>
+              <Button size="sm" onClick={handleAddCe} disabled={addingCe || !profile?.id || !ceForm.hours || !ceForm.topic || !ceForm.completedDate}>
                 {addingCe ? "Adding..." : "Add Entry"}
               </Button>
+              {!profile?.id && (
+                <p className="mt-1 text-xs text-muted-foreground">Choose a qualification path above first; CE entries attach to that record.</p>
+              )}
             </div>
           </div>
 

@@ -12,7 +12,7 @@ import { humanize } from "@/lib/utils";
 import type { ResidentTabProps } from "./types";
 import { QueryError } from "@/components/QueryState";
 
-export default function IncidentsChangesTab({ resident, canManage, isTrackedFacilityType }: ResidentTabProps) {
+export default function IncidentsChangesTab({ resident, canManage, isTrackedFacilityType, isPlatformRoute }: ResidentTabProps) {
   const incidentsQuery = useListIncidents({ residentId: resident.id });
   const changeEventsQuery = useListResidentChangeEvents({ residentId: resident.id });
   const { data: incidents, isLoading: incidentsLoading } = incidentsQuery;
@@ -76,7 +76,7 @@ export default function IncidentsChangesTab({ resident, canManage, isTrackedFaci
           ) : (
             <div className="space-y-2">
               {incidents.map((incident) => (
-                <Link key={incident.id} href={`/app/incidents/${incident.id}`} className="block rounded-lg border p-2 text-sm hover:bg-muted">
+                <Link key={incident.id} href={`${isPlatformRoute ? "/admin/incidents" : "/app/incidents"}/${incident.id}`} className="block rounded-lg border p-2 text-sm hover:bg-muted">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">{humanize(incident.incident_type)}</span>
                     <Badge variant={incident.status === "closed" ? "outline" : "secondary"}>{humanize(incident.status)}</Badge>

@@ -30,8 +30,11 @@ export function EntityHistoryDrawer({
   className,
   limit = 40,
 }: EntityHistoryDrawerProps) {
+  // The drawer mounts while its record is still loading; without the gate that first render
+  // fetched 40 unrelated rows of this entity type and cached them under entityId: undefined.
   const logsQuery = useListAuditLogs(
     { entityType, entityId: entityId ?? undefined, limit },
+    { enabled: !!entityId },
   );
 
   return (
