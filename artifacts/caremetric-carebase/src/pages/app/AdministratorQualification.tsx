@@ -151,6 +151,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         nha_license_number: profile?.nha_license_number ?? null,
         nha_license_state: profile?.nha_license_state ?? null,
         nha_license_expiration: profile?.nha_license_expiration ?? null,
+        first_employed_as_administrator_on: profile?.first_employed_as_administrator_on ?? null,
         regional_office_verification_submitted_date: profile?.regional_office_verification_submitted_date ?? null,
         regional_office_verification_document_path: profile?.regional_office_verification_document_path ?? null,
         regional_office_verification_notes: profile?.regional_office_verification_notes ?? null,
@@ -304,8 +305,12 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
                 <Label htmlFor={`${__fieldIds}-license-expiration`} className="text-[13px]">License Expiration</Label>
                 <Input id={`${__fieldIds}-license-expiration`} type="date" defaultValue={profile.nha_license_expiration ?? ""} onBlur={(e) => save({ nha_license_expiration: e.target.value || null })} className="h-9" />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`${__fieldIds}-first-employed-as-administrator`} className="text-[13px]">First Employed as Administrator</Label>
+                <Input id={`${__fieldIds}-first-employed-as-administrator`} type="date" defaultValue={profile.first_employed_as_administrator_on ?? ""} onBlur={(e) => save({ first_employed_as_administrator_on: e.target.value || null })} className="h-9" />
+              </div>
               <p className="text-xs text-muted-foreground sm:col-span-2">
-                An NHA employed as administrator on or after {formatDateForDisplay(NHA_EXEMPTION_EMPLOYED_BEFORE.PCH)} (personal care home, 55 Pa. Code 2600.64(g)) or {formatDateForDisplay(NHA_EXEMPTION_EMPLOYED_BEFORE.ALR)} (assisted living facility, 2800.64(g)) must still pass the Department competency-based test.
+                An NHA employed as an administrator before {formatDateForDisplay(NHA_EXEMPTION_EMPLOYED_BEFORE.PCH)} (personal care home, 55 Pa. Code 2600.64(g)) or {formatDateForDisplay(NHA_EXEMPTION_EMPLOYED_BEFORE.ALR)} (assisted living facility, 2800.64(g)) is exempt while the license stays current. One hired later must pass the Department competency-based test.
               </p>
               <label className="flex items-center gap-2 text-sm sm:col-span-2">
                 <Checkbox checked={profile.competency_test_passed} onCheckedChange={(v) => save({ competency_test_passed: !!v })} />

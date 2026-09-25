@@ -93,6 +93,7 @@ export type Database = {
           competency_test_date: string | null
           competency_test_passed: boolean
           created_at: string
+          first_employed_as_administrator_on: string | null
           hundred_hour_course_completed_date: string | null
           hundred_hour_course_document_path: string | null
           hundred_hour_course_provider: string | null
@@ -112,6 +113,7 @@ export type Database = {
           competency_test_date?: string | null
           competency_test_passed?: boolean
           created_at?: string
+          first_employed_as_administrator_on?: string | null
           hundred_hour_course_completed_date?: string | null
           hundred_hour_course_document_path?: string | null
           hundred_hour_course_provider?: string | null
@@ -131,6 +133,7 @@ export type Database = {
           competency_test_date?: string | null
           competency_test_passed?: boolean
           created_at?: string
+          first_employed_as_administrator_on?: string | null
           hundred_hour_course_completed_date?: string | null
           hundred_hour_course_document_path?: string | null
           hundred_hour_course_provider?: string | null

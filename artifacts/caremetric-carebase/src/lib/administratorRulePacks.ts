@@ -11,6 +11,7 @@ export interface AdministratorRulePackProfile {
   competency_test_date?: string | null;
   nha_license_number?: string | null;
   nha_license_expiration?: string | null;
+  first_employed_as_administrator_on?: string | null;
   regional_office_verification_submitted_date?: string | null;
   regional_office_verification_document_path?: string | null;
 }
@@ -42,11 +43,11 @@ const CE_WINDOW_DAYS = 365;
 const DUE_SOON_DAYS = 30;
 
 /**
- * The last day a licensed nursing home administrator could be employed as administrator and be
- * exempt from the chapter's training requirements. An NHA hired after it must still pass the
- * Department's competency-based test (2600.64(g) / 2800.64(g)). The profile records no employment
- * start date, so the rule pack cannot decide which side of the line an administrator is on; it says
- * which date applies instead of assuming either.
+ * A licensed nursing home administrator employed as an administrator before this date is exempt
+ * from the chapter's training requirements; one hired later must pass the Department's
+ * competency-based test (2600.64(g) / 2800.64(g)). 2800.64(g) exempts "prior to" January 18, 2011
+ * and tests "after" it, naming neither side for the day itself, so a hire on the date is treated
+ * as owing the test.
  */
 export const NHA_EXEMPTION_EMPLOYED_BEFORE: Record<"PCH" | "ALR", string> = {
   PCH: "2006-10-24",
@@ -89,14 +90,35 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     && profile.competency_test_passed
     && profile.competency_test_date,
   );
-  const qualifiedByNha = Boolean(
+  const nhaLicenseCurrent = Boolean(
     profile?.qualification_path === "nha_exemption"
     && profile.nha_license_number
     && (!profile.nha_license_expiration || profile.nha_license_expiration >= evidence.today),
   );
+  const nhaCutoff = NHA_EXEMPTION_EMPLOYED_BEFORE[isAlr ? "ALR" : "PCH"];
+  const nhaSection = isAlr ? "2800.64(g)" : "2600.64(g)";
+  const firstEmployed = profile?.first_employed_as_administrator_on ?? null;
+  const nhaTestRecorded = Boolean(profile?.competency_test_passed && profile?.competency_test_date);
+  const nhaEmployedBeforeCutoff = Boolean(firstEmployed && firstEmployed < nhaCutoff);
+  const qualifiedByNha = nhaLicenseCurrent && (nhaTestRecorded || nhaEmployedBeforeCutoff);
   // The NHA license expiration only governs the NHA-exemption path; a stale
   // expiration date left on a course-qualified profile must not mark it expired.
   const nhaExpiration = profile?.qualification_path === "nha_exemption" ? profile?.nha_license_expiration ?? null : null;
+
+  let qualificationDetail: string;
+  if (qualifiedByCourse) {
+    qualificationDetail = "100-hour course, certificate, and competency test are documented.";
+  } else if (!nhaLicenseCurrent) {
+    qualificationDetail = "Missing approved-course/test proof or current NHA exemption documentation.";
+  } else if (nhaTestRecorded) {
+    qualificationDetail = "NHA exemption and the Department competency test are documented.";
+  } else if (nhaEmployedBeforeCutoff) {
+    qualificationDetail = `NHA license is current and this administrator was first employed as an administrator on ${formatDateForDisplay(firstEmployed)}, before ${formatDateForDisplay(nhaCutoff)}, so ${nhaSection} exempts them from the chapter's training requirements while the license stays current.`;
+  } else if (firstEmployed) {
+    qualificationDetail = `This NHA was first employed as an administrator on ${formatDateForDisplay(firstEmployed)}. ${nhaSection} exempts only an NHA employed as administrator before ${formatDateForDisplay(nhaCutoff)}; record the passed Department competency-based test and its date.`;
+  } else {
+    qualificationDetail = `Record when this NHA was first employed as an administrator, or the passed Department competency-based test and its date. ${nhaSection} exempts only an NHA employed as administrator before ${formatDateForDisplay(nhaCutoff)}; one hired later must pass the test.`;
+  }
 
   requirements.push({
     id: isAlr ? "alr-approved-course-test" : "pch-administrator-qualification",
@@ -106,13 +128,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     binderDestination: "Administrator Qualifications / Qualification Path",
     dueDate: nhaExpiration,
     status: statusFromDueDate(nhaExpiration, evidence.today, qualifiedByCourse || qualifiedByNha),
-    detail: qualifiedByCourse
-      ? "100-hour course, certificate, and competency test are documented."
-      : qualifiedByNha
-        ? profile?.competency_test_passed
-          ? "NHA exemption and the Department competency test are documented."
-          : `NHA exemption documentation is documented. An NHA employed as administrator on or after ${formatDateForDisplay(NHA_EXEMPTION_EMPLOYED_BEFORE[isAlr ? "ALR" : "PCH"])} must also pass the Department competency-based test (${isAlr ? "2800.64(g)" : "2600.64(g)"}); record it unless this administrator was employed before that date.`
-        : "Missing approved-course/test proof or current NHA exemption documentation.",
+    detail: qualificationDetail,
   });
 
   if (isAlr) {
