@@ -269,7 +269,7 @@ export default function RegulatoryUpdates() {
       <section id="subscribe" className="border-t border-border/60 bg-background scroll-mt-20">
         <div className="mx-auto grid max-w-[1080px] gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_1fr]">
           <Reveal>
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.06] px-3 py-1.5 text-xs font-semibold text-primary">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.06] px-3 py-1.5 text-xs font-semibold text-[#1d4ed8]">
               <BellRing className="h-3.5 w-3.5" />
               Never miss a change
             </div>

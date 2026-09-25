@@ -86,11 +86,12 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
   // editing.owner_profile_id is a profile id (what's persisted); the Select below is keyed on
   // employee id (what every other assignee picker in the app uses) -- resolve one to the other
   // once this facility's employees have loaded, since `employees` is still undefined on first render.
+  // A later roster refresh must not replace an explicit new owner or Unassigned choice.
   useEffect(() => {
-    if (!editing?.owner_profile_id || !employees) return;
+    if (assigneeTouched || !editing?.owner_profile_id || !employees) return;
     const match = employees.find((e) => e.profile_id === editing.owner_profile_id);
     if (match) setAssigneeEmployeeId(match.id);
-  }, [editing?.owner_profile_id, employees]);
+  }, [assigneeTouched, editing?.owner_profile_id, employees]);
 
   // Create mode only: default the assignee to whoever's filing this, matching the pre-unification
   // behavior on IncidentDetail.tsx/InspectionItemDetail.tsx (owner_profile_id: user?.id ?? null on

@@ -182,8 +182,11 @@ test("bounded ingress sheds only incomplete bodies while execution capacity and 
     headers: { "x-test-slow-body": String(id) }, chunks: ["{"], end: false,
   });
   const first = slow(0);
+  // Eviction follows server arrival order, which simultaneous client connections
+  // do not guarantee (in particular on Windows). Establish the oldest body first.
+  await arrivals[0].promise;
   const second = slow(1);
-  await Promise.all(arrivals.slice(0, 2).map(({ promise }) => promise));
+  await arrivals[1].promise;
 
   // The complete newcomer gets through a saturated ingress pool, shedding its oldest body.
   const executing = rawRequest(`${url}/api/providers/sms-mfa`, { chunks: ["{}"] });

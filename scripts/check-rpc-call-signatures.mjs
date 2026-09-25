@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { stripSqlComments } from "./lib/sqlComments.mjs";
 
 // RPC call-signature check.
@@ -42,7 +43,7 @@ import { stripSqlComments } from "./lib/sqlComments.mjs";
 // failed outright; that was a P1 in review on this branch. Explicit null against `default null` is
 // harmless and is deliberately not flagged, which is what keeps this rule to the cases that matter.
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CLIENT_SRC = path.join(ROOT, "artifacts", "caremetric-carebase", "src");
 const EDGE_FUNCTIONS = path.join(ROOT, "supabase", "functions");
 const MIGRATIONS = path.join(ROOT, "supabase", "migrations");

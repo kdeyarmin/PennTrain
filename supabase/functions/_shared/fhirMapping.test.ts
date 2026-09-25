@@ -298,3 +298,15 @@ Deno.test("wrong-shaped nested FHIR fields map as empty instead of throwing", ()
   assertEquals(allergy.fhirPatientId, null);
   assertEquals(referenceId(123 as unknown as string), null);
 });
+
+Deno.test("non-string Bundle fullUrls cannot throw or resolve a patient alias", () => {
+  const reference = "urn:uuid:10000000-0000-4000-8000-000000000001";
+  for (const fullUrl of [123, {}, [reference], true]) {
+    const bundle = mapFhirBundle({ resourceType: "Bundle", entry: [
+      { fullUrl, resource: { resourceType: "Patient", id: "patient-1" } },
+      { resource: { resourceType: "MedicationRequest", id: "order-1", subject: { reference } } },
+    ] } as unknown as Parameters<typeof mapFhirBundle>[0], "2026-09-25T00:00:00.000Z");
+    assertEquals(bundle.medicationRequests.length, 1);
+    assertEquals(bundle.medicationRequests[0].fhirPatientId, null);
+  }
+});

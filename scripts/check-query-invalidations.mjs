@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Cache-invalidation check.
 //
@@ -29,7 +30,7 @@ import path from "node:path";
 // The rule: every `invalidateQueries({ queryKey: [...] })` root must be the root of some query.
 // Roots that are legitimately not query roots belong in query-invalidation-allowlist.json.
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CLIENT_SRC = path.join(ROOT, "artifacts", "caremetric-carebase", "src");
 const ALLOWLIST = path.join(ROOT, "scripts", "query-invalidation-allowlist.json");
 

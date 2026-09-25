@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Server-emitted link check.
 //
@@ -20,7 +21,7 @@ import path from "node:path";
 // A literal that is deliberately not a route -- an external URL, an anchor, an API path -- belongs
 // in server-route-link-allowlist.json with the reason.
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const APP_TSX = path.join(ROOT, "artifacts", "caremetric-carebase", "src", "App.tsx");
 const MIGRATIONS = path.join(ROOT, "supabase", "migrations");
 const EDGE_FUNCTIONS = path.join(ROOT, "supabase", "functions");

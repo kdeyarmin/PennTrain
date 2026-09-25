@@ -74,6 +74,7 @@ describe("sitemap generation", () => {
     // The build (server/prerender-heads.mjs) regenerates dist/public/sitemap.xml from this
     // same function, so if these ever disagree the checked-in file is stale.
     const expected = buildSitemapXml(SITE_URL, sitemapPaths(routeKeys));
-    expect(committedSitemap).toBe(expected);
+    // Git may check this text asset out with CRLF on Windows.
+    expect(committedSitemap.replaceAll("\r\n", "\n")).toBe(expected);
   });
 });

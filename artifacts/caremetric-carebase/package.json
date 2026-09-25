@@ -10,7 +10,7 @@
     "start": "node server/index.mjs",
     "start:train": "node server/index.mjs --train",
     "test": "vitest run --exclude \"e2e/**\" --exclude \"server/**\" && pnpm run test:server",
-    "test:server": "node --test server/provider-*.test.mjs server/platform-admin*.test.mjs",
+    "test:server": "node --test server/*.test.mjs",
     "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:train": "vite build --config vite.config.ts --mode train && node server/prerender-heads.mjs --train && node server/precompress.mjs --train",

@@ -431,9 +431,12 @@ describe("gateway session flow", () => {
     expect(res.status).toBe(201);
   });
 
-  it("says why, and ends the session, when the tool endpoint rejects the token", async () => {
-    // The tool endpoint answers 401 -- the exact state a session outliving its
-    // token lands in. Before this the model just kept apologizing.
+  it.each([
+    { status: 401, code: "session_token_expired", reason: "token_expired", message: "sign-in expired" },
+    { status: 403, code: "session_access_denied", reason: "access_denied", message: "Contact your administrator" },
+  ])("explains and closes a session when the tool endpoint returns $status", async ({ status, code, reason, message }) => {
+    // Check the browser protocol as well as the model's spoken tool result:
+    // permission loss must not send a deactivated user back to sign-in.
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input);
       const headers = Object.fromEntries(
@@ -450,7 +453,7 @@ describe("gateway session flow", () => {
       if (url === `${SUPABASE_URL}/rest/v1/rpc/current_sms_mfa_satisfied`) {
         return Response.json(true);
       }
-      if (url === TOOLS_URL) return new Response("{}", { status: 401 });
+      if (url === TOOLS_URL) return new Response("{}", { status });
       throw new Error(`Unexpected fetch: ${url}`);
     };
     const sockets: FakeRealtimeSocket[] = [];
@@ -470,11 +473,17 @@ describe("gateway session flow", () => {
     });
 
     const warning = await waitFor(
-      () => client.control.find((m) => m.type === "warning" && m.code === "session_token_expired"),
-      "token-expired warning",
+      () => client.control.find((m) => m.type === "warning" && m.code === code),
+      "authentication warning",
     );
-    expect(String(warning.message)).toContain("sign-in expired");
-  });
+    expect(String(warning.message)).toContain(message);
+    if (status === 403) expect(String(warning.message)).not.toContain("sign in again");
+    const closed = await waitFor(
+      () => client.control.find((m) => m.type === "closed"),
+      "closed frame", 8_000,
+    );
+    expect(closed.reason).toBe(reason);
+  }, 10_000);
 
   it("rejects roles outside the app allowlist", async () => {
     const { fetchImpl } = makeFetchStub({ role: "employee" });
