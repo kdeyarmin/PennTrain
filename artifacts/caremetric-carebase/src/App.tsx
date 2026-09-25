@@ -36,6 +36,7 @@ const ProductChangelog = lazy(() => import("@/pages/app/ProductChangelog"));
 const ManagerDigest = lazy(() => import("@/pages/app/ManagerDigest"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
+const TrainingReports = lazy(() => import("@/pages/admin/TrainingReports"));
 const Organizations = lazy(() => import("@/pages/admin/Organizations"));
 const OrganizationDetail = lazy(() => import("@/pages/admin/OrganizationDetail"));
 const Packages = lazy(() => import("@/pages/admin/Packages"));
@@ -381,6 +382,9 @@ function Router() {
       {/* Platform Admin routes */}
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} allowedRoles={PLATFORM_ADMIN} />}
+      </Route>
+      <Route path="/admin/training-reports">
+        {() => <ProtectedRoute component={TrainingReports} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/organizations">
         {() => <ProtectedRoute component={Organizations} allowedRoles={PLATFORM_ADMIN} />}

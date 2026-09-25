@@ -336,6 +336,11 @@ jobs:
         # "port 54322 already in use". Stopping first ensures a clean slate.
         run: supabase stop --no-backup 2>/dev/null || true
 
+      - name: Allow invitation callbacks to the disposable browser-test app
+        # Loaded only by this local stack. Real UI invitations use the browser's origin;
+        # production retains the default localhost deny rule.
+        run: echo 'ALLOW_LOCALHOST_SIGNUP_REDIRECTS=true' > supabase/functions/.env
+
       - name: Start clean local Supabase stack and apply the full migration chain
         # Browser journeys need Auth, PostgREST, and the API gateway in addition
         # to Postgres. `supabase db start` starts only the database service.
@@ -476,7 +481,7 @@ jobs:
       - name: Standalone Train browser journey
         env:
           PLAYWRIGHT_TRAIN_BUILD: "true"
-        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/standalone-train.spec.ts --project=chromium
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/standalone-train.spec.ts e2e/new-training-facility.spec.ts --project=chromium
 
       - name: Upload Train workflow screenshot
         if: always()
@@ -486,6 +491,8 @@ jobs:
           path: |
             artifacts/caremetric-carebase/test-results/standalone-train-report.png
             artifacts/caremetric-carebase/test-results/standalone-train-report.pdf
+            artifacts/caremetric-carebase/test-results/new-training-facility-report.png
+            artifacts/caremetric-carebase/test-results/new-training-facility-report.pdf
           if-no-files-found: ignore
           retention-days: 7
 

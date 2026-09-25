@@ -4,7 +4,7 @@ CareMetric Train uses the existing identity, courses, assignments, class attenda
 
 ## Provisioning
 
-- In platform Organizations, use **Create complimentary training facility**. This atomically creates the organization, PCH/ALR facility, Train-only package, ongoing independent Train term and audit record. Retrying the same request does not duplicate it. Invite the facility's administrator through the existing Users workflow; the operator must supply and verify the real administrator contact.
+- In platform Organizations, use **Create complimentary training facility**. This atomically creates the organization, PCH/ALF facility, Train-only package, ongoing independent Train term and audit record. Retrying the same request does not duplicate it. **Invite facility administrator** opens an email invitation with the created organization and organization-administrator role already selected; supply the real administrator's name and work email. The invitation cannot grant platform-administrator access.
 - For an existing facility, select the **CareMetric Train** package and grant an independent `modules.train` term in Organization Detail. Inspect existing grants before changing a customer's package. Platform actions require MFA.
 - The public link `/signup?product=train` explicitly selects the Train-only package before the first invitation. It retains the existing CAPTCHA, rate limits, email verification and legal acceptance. Set the **server-only** `TRAIN_SIGNUP_COMPLIMENTARY=true` to make those signups ongoing complimentary Train. Unset/false retains the standard trial and configured paid Train offering. No browser field can grant complimentary access.
 - `VITE_CAREMETRIC_MODULES=train` builds a training-only entry experience. The database entitlements still enforce access independently of this build setting. A universal build supports paid upgrades within the same organization. A separately hosted build requires the normal approved origin, auth redirect and provider configuration in DEPLOYMENT.md; this change does not deploy a new domain.
@@ -19,7 +19,7 @@ Checkout and subscription changes continue through the existing provider session
 
 ## Facility administrator workflow
 
-1. Add or import students using the existing validated roster import, then invite them using the invitation lifecycle page.
+1. Accept the email invitation, choose a password, sign in and set up an authenticator for administrator access. In the training workspace, choose the facility, then **Add student** or **Import students**. The selected facility follows these actions and **Assign courses / view progress**; **Back to training** returns to that same facility. Adding one student offers a portal invitation; roster import is followed by explicit invitations from **Students** or the invitation lifecycle page.
 2. In **Students**, confirm actual duties, direct-care/administrator status, specialty unit and first work date. Login role and job duty are separate.
 3. In **Settings**, document the written training-year policy, including a separate administrator year if applicable. Revisions remain recorded.
 4. Assign courses through Course Assignments; use classes and supervised kiosk attendance for instructor-led training and individually attributed attendance for staff without an email login.
@@ -28,6 +28,11 @@ Checkout and subscription changes continue through the existing provider session
 7. Add each required course to **Plans**, with duties, a scheduled date/time, duration and location. Link verified evidence to document fulfillment.
 8. Use **Certificates** to open individual PDFs, download selected originals as ZIP, or download a combined PDF for printing. Batches are explicitly limited to 100; a failure prevents an incomplete packet from being issued.
 9. Use **Reports** for readiness checks, annual plans, transcripts and an evidence index. Print or export CSV. Student filtering applies to the plan and evidence sections too; pending/rejected/void evidence remains visible with its status.
+10. Use **Enrollment & completion** for course enrollments, learner progress percentages, completions and issued certificates. Filter by course title, status, and enrollment/completion/certificate dates. CSV and print exports include all matching enrollments in one database snapshot, up to 10,000 per report. Larger reports require narrower date, course or facility filters; both the server and export controls reject partial exports. Totals distinguish students from enrollments and exclude canceled enrollments from the completion-rate denominator. Course labels and searches use the version originally assigned, preserving historical titles when the catalog changes.
+
+## Super-admin training reports
+
+Open **Facility training reports** in the super-admin command center, **Training Reports** in navigation, or **Training reports** on an organization. Select the organization and optionally one facility. The report uses the same filters, complete CSV/print exports and issued-certificate PDF actions as the facility workspace. Selecting an organization never bypasses permissions. Facility administrators see their own organization's permitted records; facility managers remain limited to assigned facilities and auditors retain read-only access.
 
 Dates and scheduled times use Pennsylvania time. The first-40-hour deadline requires actual scheduled shifts; insufficient schedules remain review items. Exact completion time can establish an on-time event on the deadline day. Date-only evidence on that same day requires review. The platform does not infer authorization to work unsupervised or certify on-site staffing coverage.
 

@@ -62,3 +62,41 @@ export function useAssignableFacilities<T extends { id: string }>(
     [facilities, isManager, assignedIds],
   );
 }
+
+interface FacilityDirectoryQuery<T> {
+  data: readonly T[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  refetch: () => unknown;
+}
+
+/**
+ * Training reads and actions share the facility scope used by the training RPCs. Unlike the
+ * legacy write picker above, trainers are assignment-scoped too. Keep the assignment query's
+ * readiness visible: an empty list while it loads is not a completed authorization decision.
+ */
+export function useTrainingFacilityScope<T extends { id: string }>(directory: FacilityDirectoryQuery<T>) {
+  const { user } = useAuth();
+  const isScopedRole = user?.role === "facility_manager" || user?.role === "trainer";
+  const assignments = useListMyFacilityAssignments(user?.id, isScopedRole);
+  const isLoading = directory.isLoading || (isScopedRole && assignments.isPending);
+  const isError = directory.isError || (isScopedRole && assignments.isError);
+  const isReady = !isLoading && !isError;
+  const facilities = useMemo(() => {
+    if (!isReady) return [];
+    const assignedIds = new Set((assignments.data ?? []).map(assignment => assignment.facility_id));
+    return (directory.data ?? []).filter(facility => !isScopedRole || assignedIds.has(facility.id));
+  }, [directory.data, assignments.data, isScopedRole, isReady]);
+  return {
+    facilities,
+    isLoading,
+    isError,
+    isReady,
+    error: directory.error || (isScopedRole ? assignments.error : null),
+    refetch: () => {
+      void directory.refetch();
+      if (isScopedRole) void assignments.refetch();
+    },
+  };
+}

@@ -233,6 +233,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/admin/courses/new-ai", label: "AI training builder", domain: "training", roles: PLATFORM_ADMIN, keywords: ["generate", "curriculum", "authoring"] },
   { path: "/admin/ai-generations", label: "AI generation log", domain: "training", roles: PLATFORM_ADMIN, keywords: ["ai", "failures", "cost"] },
   { path: "/admin/training-plans", label: "Training plans", domain: "training", roles: PLATFORM_ADMIN, keywords: ["paths", "requirements", "curriculum"] },
+  { path: "/admin/training-reports", label: "Facility training reports", domain: "training", roles: PLATFORM_ADMIN, keywords: ["enrollment", "completion", "progress", "certificates", "students", "export"] },
   { path: "/admin/document-analyzer", label: "State form document analyzer", domain: "documents", roles: PLATFORM_ADMIN, keywords: ["pdf", "forms", "handwriting", "ocr", "state", "backlog", "ai", "extraction", "convert"] },
   { path: "/admin/incidents/:id", label: "Platform incident detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["incident", "complaint", "event"] },
   { path: "/admin/complaints/:id", label: "Platform complaint detail", domain: "compliance", roles: PLATFORM_ADMIN, keywords: ["complaint", "grievance", "resident rights", "ombudsman"] },

@@ -84,9 +84,10 @@ export interface ListCourseAssignmentsPaginatedFilters extends ListCourseAssignm
 // useListCourseAssignments above (left unbounded -- MyCourses.tsx, TrainingPlans.tsx, and
 // EmployeeDashboard.tsx all still need "every assignment matching this filter" rather than one
 // page of it), this variant is for the paginated admin list only.
-export function useListCourseAssignmentsPaginated(filters: ListCourseAssignmentsPaginatedFilters) {
+export function useListCourseAssignmentsPaginated(filters: ListCourseAssignmentsPaginatedFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["course_assignments", "paginated", filters],
+    enabled: options.enabled,
     queryFn: async () => {
       let query = supabase.from("course_assignments").select("*", { count: "exact" });
       if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
