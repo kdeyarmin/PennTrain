@@ -1,7 +1,7 @@
 -- BACKLOG.md REG28. Pins 20260925120400: platform course text says what Chapters 2600 / 2800 and
 -- 6 Pa. Code 15.151 say about restraints, self-administration, fire-safety delivery and reporting.
 begin;
-select plan(11);
+select plan(12);
 
 create temporary view pch_alf_platform_text as
 select b.id, cv.status,
@@ -31,6 +31,13 @@ select ok(
   'the safe-management course and its draft script say no hold is allowed, not even a basket hold'
 );
 select is(
+  (select count(*)::int from pch_alf_platform_text
+   where body_text like '%without teaching restraint, which 2600.202 prohibits, or unsafe pursuit.%'
+      or body_text like '%any restraint (2800.202 prohibits them)%'),
+  2,
+  'both special-care-unit curricula name the prohibition instead of "unauthorized restraint"'
+);
+select is(
   (select question_text ~* 'restraint' from public.quiz_questions where id = 'f708a1af-dab5-4760-b9fc-5dbf8c87a861'),
   false,
   'the rights quiz no longer grades a "safety basis" as the condition for using a restraint'
@@ -52,11 +59,13 @@ select is(
   0,
   'and no quiz grades that answer'
 );
-select ok(
-  (select bool_and(a.is_correct and a.answer_text like '%assessed the resident%')
+select is(
+  (select (count(*) filter (where a.answer_text like '%assessed the resident%'))::int
    from public.quiz_answers a
-   where a.id in ('669db167-579f-447f-a345-eb1b2193e8c5', '4433de84-a091-4c5c-9838-6d28f303d40f')),
-  'the graded answer, same id, is now the physician / PA / CRNP assessment'
+   where a.question_id in ('1bfbe5d3-bc50-52f8-9a3e-67756e40390f', '780c8db5-4a4b-51fa-ae69-bb6bb4fa4649')
+     and a.is_correct),
+  2,
+  'the graded answer on the published course and its draft is now the physician / PA / CRNP assessment'
 );
 
 select ok(

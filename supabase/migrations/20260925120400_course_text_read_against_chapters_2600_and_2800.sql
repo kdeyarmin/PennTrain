@@ -38,6 +38,9 @@
 -- (organization_id is null). Each replacement is an exact phrase. A published row is immutable
 -- outside migrations, so it must still carry the phrase or this migration fails; a draft may have
 -- been edited in the authoring workspace, so it is corrected only where the phrase survives.
+-- 20260715213000 inserted the special-care-unit blocks, and 20260726010400 / 20260726110000 the
+-- quiz answers, without fixed ids, so every database holds different ids for them: the blocks are
+-- found by title and phrase, the answers by their question's fixed id and their text.
 -- Editing a draft revokes its content review (app_private.invalidate_learning_draft_review), which
 -- is intended: the safe-management draft's rendered video still narrates the old sentence and has
 -- to be re-rendered before that draft is published (REG28). Certificates already issued are
@@ -68,13 +71,6 @@ begin
     ('6e9ed303-c5d3-5010-9f80-ab2fab0ce776'::uuid, 'content', true,
      $o$Pennsylvania regulates their use narrowly and your facility's policy will be narrower still. If your facility has trained and authorized you in a specific approved intervention, you use it only as that training defines, only when someone faces immediate danger, and only for as long as that danger lasts.$o$,
      $n$Personal care homes and assisted living facilities may not use them at all (55 Pa. Code 2600.202 and 2800.202), and that includes any hold that restricts a resident's movement, even a basket hold. There is no emergency exception: when someone faces immediate danger, move other people away, give the resident space, summon help, including 911 when needed, and keep using the positive interventions this course teaches (2600.201 and 2800.201).$n$),
-    -- 1. Special-care-unit curricula (published)
-    ('5b1cee4a-af61-4c2d-82f7-ea5e3acdc57c'::uuid, 'content', true,
-     $o$without teaching unauthorized restraint or unsafe pursuit.$o$,
-     $n$without teaching restraint, which 2600.202 prohibits, or unsafe pursuit.$n$),
-    ('442c70bf-fb03-4f71-b69b-5c44b69d933c'::uuid, 'content', true,
-     $o$rejecting punishment, confrontation, unauthorized restraint, and convenience-based restriction.$o$,
-     $n$rejecting punishment, confrontation, any restraint (2800.202 prohibits them), and convenience-based restriction.$n$),
     -- 2. Medication self-administration (published; draft)
     ('5f6c79ec-7017-5162-919c-20cd5cc0ceaf'::uuid, 'content', true,
      $o$residents are presumed to self-administer their own medications, and the facility's job is to support that as long as it is safe. A resident's ability to self-administer is assessed, documented, and reassessed as their condition changes, and residents$o$,
@@ -106,6 +102,27 @@ begin
     end if;
   end loop;
 
+  -- 1. Special-care-unit curricula (published)
+  for r in select * from (values
+    ('Secured environment, movement, fire, and emergency safety',
+     $o$without teaching unauthorized restraint or unsafe pursuit.$o$,
+     $n$without teaching restraint, which 2600.202 prohibits, or unsafe pursuit.$n$),
+    ('Managing challenging situations and unmet needs',
+     $o$rejecting punishment, confrontation, unauthorized restraint, and convenience-based restriction.$o$,
+     $n$rejecting punishment, confrontation, any restraint (2800.202 prohibits them), and convenience-based restriction.$n$)
+  ) v(title, old_text, new_text)
+  loop
+    update public.course_blocks b
+       set body = jsonb_set(b.body, array['content'], to_jsonb(replace(b.body->>'content', r.old_text, r.new_text)))
+     where b.organization_id is null
+       and b.title = r.title
+       and position(r.old_text in coalesce(b.body->>'content', '')) > 0;
+    get diagnostics v_n = row_count;
+    if v_n = 0 then
+      raise exception 'no platform course block titled "%" still carries the text this migration corrects', r.title;
+    end if;
+  end loop;
+
   -- Quiz questions
   for r in select * from (values
     ('f708a1af-dab5-4760-b9fc-5dbf8c87a861'::uuid, true,
@@ -130,17 +147,17 @@ begin
 
   -- The graded answer keeps its id (and is_correct), so recorded attempts still resolve.
   for r in select * from (values
-    ('669db167-579f-447f-a345-eb1b2193e8c5'::uuid, true),
-    ('4433de84-a091-4c5c-9838-6d28f303d40f'::uuid, false)
-  ) v(id, required)
+    ('1bfbe5d3-bc50-52f8-9a3e-67756e40390f'::uuid, true),
+    ('780c8db5-4a4b-51fa-ae69-bb6bb4fa4649'::uuid, false)
+  ) v(question_id, required)
   loop
     update public.quiz_answers a
        set answer_text = 'A physician, physician assistant or CRNP has assessed the resident as able to self-administer'
-     where a.id = r.id and a.organization_id is null
+     where a.question_id = r.question_id and a.organization_id is null
        and a.answer_text = 'Residents are presumed to self-administer unless assessed otherwise';
     get diagnostics v_n = row_count;
     if v_n = 0 and r.required then
-      raise exception 'quiz answer % no longer carries the text this migration corrects', r.id;
+      raise exception 'the answer to quiz question % no longer carries the text this migration corrects', r.question_id;
     end if;
   end loop;
 
