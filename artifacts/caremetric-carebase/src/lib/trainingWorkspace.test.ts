@@ -98,6 +98,15 @@ describe("standalone training evidence", () => {
     expect(checks.find(c => c.key === "before_direct_care")?.status).toBe("missing");
     expect(checks.find(c => c.key === "unsupervised")?.status).toBe("missing");
   });
+  it("does not count an online-only first aid or CPR certificate, which DHS does not consider", () => {
+    const orientation = { ...event, id: "o", source_reference: "orientation", topics: ["dhs_initial_orientation"], allocations: {} };
+    const certificate = { ...event, id: "c", source_reference: "cert", topics: ["first_aid", "cpr"], allocations: {}, valid_until: "2027-06-01" };
+    const beforeCare = (delivery: TrainingEvent["delivery"]) =>
+      assess([orientation, { ...certificate, delivery }], "ALR").find(c => c.key === "before_direct_care")?.status;
+    expect(beforeCare("hybrid")).toBe("review");
+    expect(beforeCare("external")).toBe("review");
+    expect(beforeCare("online")).toBe("missing");
+  });
   it("neutralizes spreadsheet formulas without dropping quoted content", () => {
     expect(trainingCsv([["=HYPERLINK(1)", 'a"b', "ordinary"]])).toBe('\uFEFF"\'=HYPERLINK(1)","a""b","ordinary"');
   });

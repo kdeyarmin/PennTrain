@@ -118,7 +118,10 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
   const has = (topic: string, from?: string, through = today) => events.some(e => e.topics.includes(topic) && (!from || e.completed_on >= from) && e.completed_on <= through);
   const missingTopics = (topics: string[], from?: string, through = today) => topics.filter(t => !has(t, from, through));
   const names = (topics: string[]) => topics.map(t => TRAINING_TOPICS[t as keyof typeof TRAINING_TOPICS] || t).join("; ") || "none";
-  const current = (topic: string) => events.some(e => e.topics.includes(topic) && e.valid_until && e.valid_until >= today);
+  // 2600.63(b) / 2800.63(b) RCG: online training "with no hands-on practice ... will not be considered
+  // when measuring compliance". The review RPC now refuses to verify it; this covers rows verified before.
+  const current = (topic: string) => events.some(e => e.topics.includes(topic) && e.valid_until && e.valid_until >= today
+    && !(e.delivery === "online" && ["first_aid", "cpr", "airway"].includes(topic)));
   // On-the-job minutes a key may count: 6 of the PCH 12 annual hours (2600.65(e)(2)); none of the
   // special unit hours, which both RCGs say "may not be on the job training" (2600.236, 2800.236(a),
   // (c)); none of the administrator's 24, which 2600.64(d) / 2800.64(d) limit to approved sources.
