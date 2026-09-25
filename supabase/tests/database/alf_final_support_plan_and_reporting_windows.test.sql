@@ -5,7 +5,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(33);
+select plan(34);
 
 -- ---------------------------------------------------------------------------------------
 -- The rule packs say what Chapter 2800 says
@@ -287,6 +287,21 @@ select is(
      and item_type = 'support_plan_quarterly_review' and completed_date is null),
   1,
   'and the review already running is the only open one -- a revision does not stack a second'
+);
+
+-- The not-exists check in the RPC reads without a lock, so two completions at the same moment both
+-- pass it. The index is what the second one's insert runs into.
+select throws_ok(
+  $$insert into public.resident_compliance_items(
+      organization_id, facility_id, resident_id, item_type, due_date, renewal_interval_days,
+      warning_days, grace_period_days
+    ) values (
+      'a2270000-0000-4000-8000-000000000001', 'a2270000-0000-4000-8000-000000000011',
+      'a2270000-0000-4000-8000-000000000201', 'support_plan_quarterly_review', public.pa_today() + 45,
+      90, 14, 5
+    )$$,
+  '23505', null,
+  'a second open quarterly review for the same resident is refused by the database, not just by the RPC'
 );
 
 -- ---------------------------------------------------------------------------------------

@@ -64,6 +64,13 @@ alter table public.resident_compliance_rule_packs
     'significant_change_reassessment', 'support_plan_quarterly_review'
   ));
 
+-- One open quarterly review per resident. Two support plans for the same resident completed at the
+-- same moment both see no open review; this index is what turns the second insert into a no-op
+-- (the `on conflict` in complete_resident_compliance_item) instead of a second 2800.227(c) review.
+create unique index resident_compliance_items_one_open_quarterly_review
+  on public.resident_compliance_items (resident_id)
+  where item_type = 'support_plan_quarterly_review' and completed_date is null;
+
 -- ---------------------------------------------------------------------------
 -- 2. A citation topic for 2800.227
 -- ---------------------------------------------------------------------------
@@ -365,6 +372,8 @@ begin
   -- first review is started by completing the plan (initial or revised). After that the review
   -- renews itself through the renewal branch above, so this only fires when no review is open:
   -- a revision mid-quarter does not stack a second review on top of the one already running.
+  -- The check reads without a lock; the unique index behind the `on conflict` settles two
+  -- completions racing past it.
   if v_facility_type = 'ALR'
      and v_item.item_type = 'support_plan_30day'
      and not exists (
@@ -391,7 +400,10 @@ begin
         (v_item.organization_id, v_item.facility_id, v_item.resident_id, 'support_plan_quarterly_review',
          v_completed_date + v_quarterly_rule.renewal_interval_days, v_quarterly_rule.renewal_interval_days,
          v_quarterly_rule.warning_days, v_quarterly_rule.grace_period_days,
-         (select id from public.dhs_citation_topics where citation_ref = v_quarterly_rule.citation_ref));
+         (select id from public.dhs_citation_topics where citation_ref = v_quarterly_rule.citation_ref))
+      on conflict (resident_id)
+        where item_type = 'support_plan_quarterly_review' and completed_date is null
+        do nothing;
     end if;
   end if;
 
