@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Request, type Route } from "@playwright/test";
 import { hasLiveSupabaseEnv, signInAs } from "./helpers/auth";
 
 const LESSON_TEXT = "This synthetic lesson teaches one action: report a concern to the supervisor. Read this orientation, watch the complete local video, and pass the knowledge check before recording that the training is complete.";
@@ -158,8 +158,59 @@ test.describe("learner course completion", () => {
       await page.getByRole("radio", { name: "Ignore it", exact: true }).check();
       await page.getByRole("button", { name: "Submit Quiz", exact: true }).click();
       await expect(page.getByText("You did not pass", { exact: true })).toBeVisible();
-      await page.getByRole("button", { name: "Review Training", exact: true }).click();
-      await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toBeDisabled();
+      const readOwnProgress = async () => {
+        const { data, error } = await learnerClient.from("course_progress")
+          .select("last_block_id,percent_complete,video_state,learning_tools").eq("assignment_id", fixture.assignmentId).single();
+        if (error) throw error;
+        return data;
+      };
+      const savedBeforeReview = await readOwnProgress();
+      expect(savedBeforeReview.last_block_id).toBe(fixture.quizBlockId);
+      expect(savedBeforeReview.percent_complete).toBe(100);
+      expect(savedBeforeReview.video_state[fixture.videoBlockId].completedAt).toBeTruthy();
+
+      // Hold the real return-trip read, never its contents. The prior player cached an earlier
+      // lesson and checkpointed its empty watch state before this authoritative read completed.
+      const progressUrl = (candidate: URL) => candidate.origin === new URL(url).origin && candidate.pathname === "/rest/v1/course_progress";
+      const isOwnProgressRead = (request: Request) => request.method() === "GET" && progressUrl(new URL(request.url()))
+        && new URL(request.url()).searchParams.get("assignment_id") === `eq.${fixture.assignmentId}`;
+      let releaseRead!: () => void;
+      const readBarrier = new Promise<void>(resolve => { releaseRead = resolve; });
+      const holdProgress = async (route: Route) => {
+        if (isOwnProgressRead(route.request())) await readBarrier;
+        await route.continue();
+      };
+      const progressWrites: Request[] = [];
+      const recordProgressWrite = (request: Request) => {
+        if (request.method() === "POST" && progressUrl(new URL(request.url()))) progressWrites.push(request);
+      };
+      await page.route(progressUrl, holdProgress);
+      page.on("request", recordProgressWrite);
+      try {
+        const returningRead = page.waitForRequest(isOwnProgressRead);
+        await page.getByRole("button", { name: "Review Training", exact: true }).click();
+        await returningRead;
+        await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toHaveCount(0);
+        expect(await readOwnProgress()).toEqual(savedBeforeReview);
+        expect(progressWrites, "No checkpoint may overwrite evidence while the fresh progress read is held").toHaveLength(0);
+        const checkpointResponse = page.waitForResponse(response => response.request().method() === "POST" && progressUrl(new URL(response.url())));
+        releaseRead();
+        await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toBeDisabled();
+        const checkpoint = await checkpointResponse;
+        expect(checkpoint.ok()).toBe(true);
+        expect(progressWrites.length).toBeGreaterThan(0);
+        for (const write of progressWrites) {
+          expect(write.postDataJSON()).toMatchObject({
+            assignment_id: fixture.assignmentId, last_block_id: fixture.quizBlockId, percent_complete: 100,
+            video_state: savedBeforeReview.video_state, learning_tools: savedBeforeReview.learning_tools,
+          });
+        }
+        expect(await readOwnProgress()).toEqual(savedBeforeReview);
+      } finally {
+        releaseRead();
+        await page.unroute(progressUrl, holdProgress);
+        page.off("request", recordProgressWrite);
+      }
       await page.getByRole("link", { name: "Take Quiz", exact: true }).click();
       await page.getByRole("button", { name: "Retake Quiz", exact: true }).click();
       await page.getByRole("radio", { name: "Report it to the supervisor", exact: true }).check();

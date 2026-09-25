@@ -91,11 +91,11 @@ type NavSection = { title?: string; items: NavItem[] };
 /**
  * Pages a role may open but may not change (BACKLOG J74, P3 tail).
  *
- * `canViewPath` is a read gate, so these three sit in the shared org_admin/facility_manager nav
+ * `canViewPath` is a read gate, so these two sit in the shared org_admin/facility_manager nav
  * and a facility manager reaches every one of them -- and then finds no Create, no Edit and no
  * Delete, because each page's own `canManage` is narrower than its route:
  * TrainingTypes is `role === "org_admin"` (matching training_types_insert/_update/_delete),
- * TrainingPlans is org_admin or trainer, CompetencyTemplates is org_admin or trainer. Nothing is
+ * CompetencyTemplates is org_admin or trainer. Nothing is
  * broken -- the write controls are correctly hidden -- but the nav advertised them as manager
  * tools, so the trip was a wasted one every time. Say so before the click instead.
  *
@@ -103,7 +103,7 @@ type NavSection = { title?: string; items: NavItem[] };
  * nav reads that way already; badging every one of their entries would be noise, not information.
  */
 const VIEW_ONLY_NAV_PATHS_BY_ROLE: Partial<Record<AuthUser["role"], readonly string[]>> = {
-  facility_manager: ["/app/training-types", "/app/training-plans", "/app/competency-templates"],
+  facility_manager: ["/app/training-types", "/app/competency-templates"],
 };
 
 function getNavSections(

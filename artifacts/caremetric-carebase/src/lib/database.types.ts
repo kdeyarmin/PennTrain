@@ -33951,27 +33951,36 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          due_date: string | null
+          facility_id: string | null
           id: string
           name: string
           organization_id: string
+          training_year: number | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          due_date?: string | null
+          facility_id?: string | null
           id?: string
           name: string
           organization_id: string
+          training_year?: number | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          due_date?: string | null
+          facility_id?: string | null
           id?: string
           name?: string
           organization_id?: string
+          training_year?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -33980,6 +33989,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plans_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
             referencedColumns: ["id"]
           },
           {
@@ -36869,6 +36885,10 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_yearly_training_plan: {
+        Args: { p_employee_id: string; p_plan_id: string }
+        Returns: Json
+      }
       approve_certification_attempt: {
         Args: {
           p_assessor_signature_sha256: string
@@ -37039,6 +37059,10 @@ export type Database = {
       }
       assert_resident_assessment_compliance_item_valid: {
         Args: { p_compliance_item_id: string; p_resident_id: string }
+        Returns: undefined
+      }
+      assert_yearly_training_plan_employee: {
+        Args: { p_employee_id: string; p_plan_id: string }
         Returns: undefined
       }
       assign_compliance_instance: {

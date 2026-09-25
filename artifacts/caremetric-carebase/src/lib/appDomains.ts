@@ -272,7 +272,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/training-types", label: "Training types", domain: "training", roles: ORG_MANAGERS, keywords: ["requirements", "categories"] },
   { path: "/app/courses", label: "Training content", domain: "training", roles: ORG_ROLES, keywords: ["catalog", "lessons"] },
   { path: "/app/course-assignments", label: "Training assignments", domain: "training", roles: ORG_ROLES, keywords: ["assign", "employees"] },
-  { path: "/app/training-plans", label: "Training plans", domain: "training", roles: ORG_ROLES, keywords: ["paths", "requirements"] },
+  { path: "/app/training-plans", label: "Training plans", domain: "training", roles: ORG_ROLES, keywords: ["paths", "requirements", "yearly", "annual", "courses", "completion deadline"] },
   { path: "/app/competency-templates", label: "Competency templates", domain: "competency", roles: ORG_ROLES, keywords: ["skills", "evaluations"] },
   { path: "/app/competency-records", label: "Competency records", domain: "competency", roles: ORG_ROLES, keywords: ["evaluations", "skills"] },
   { path: "/app/practicums", label: "Practicums", domain: "competency", roles: ORG_ROLES, keywords: ["medication", "observations"] },
