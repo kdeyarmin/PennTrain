@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { useCreateCourseAssignment } from "./useCourseAssignments";
-import { isExplicitCompletionDeadline } from "@/lib/trainingPlanEditing";
+import { isExplicitCompletionDeadline, trainingPlanErrorMessage } from "@/lib/trainingPlanEditing";
 
 export type TrainingPlan = Tables<"training_plans">;
 export type TrainingPlanInsert = TablesInsert<"training_plans">;
@@ -256,12 +256,12 @@ export function useApplyTrainingPlanToEmployee() {
       // on the server, which owns the saved deadline, facility scope and assignment history.
       const { data: plan, error: planError } = await supabase.from("training_plans")
         .select("facility_id").eq("id", params.planId).single();
-      if (planError) throw planError;
+      if (planError) throw new Error(trainingPlanErrorMessage(planError));
       if (plan.facility_id) {
         const { data, error } = await supabase.rpc("apply_yearly_training_plan", {
           p_plan_id: params.planId, p_employee_id: params.employeeId,
         });
-        if (error) throw error;
+        if (error) throw new Error(trainingPlanErrorMessage(error));
         const result = data as unknown as {
           assigned: number; updated: number; canceled: number; already_completed: number;
           conflicts: NonNullable<ApplyTrainingPlanResult["conflicts"]>;
@@ -277,7 +277,7 @@ export function useApplyTrainingPlanToEmployee() {
         .from("training_plan_items")
         .select("*")
         .eq("training_plan_id", params.planId);
-      if (itemsError) throw itemsError;
+      if (itemsError) throw new Error(trainingPlanErrorMessage(itemsError));
 
       const allItems = items ?? [];
       const courseItems = allItems.filter(
@@ -298,14 +298,14 @@ export function useApplyTrainingPlanToEmployee() {
       const { data: courses, error: coursesError } = courseIds.length
         ? await supabase.from("courses").select("id, title, status, current_version_id").in("id", courseIds)
         : { data: [], error: null };
-      if (coursesError) throw coursesError;
+      if (coursesError) throw new Error(trainingPlanErrorMessage(coursesError));
       const courseById = new Map((courses ?? []).map((c) => [c.id, c]));
 
       const trainingTypeIds = [...new Set(trainingTypeItems.map((item) => item.training_type_id))];
       const { data: trainingTypes, error: trainingTypesError } = trainingTypeIds.length
         ? await supabase.from("training_types").select("id, name").in("id", trainingTypeIds)
         : { data: [], error: null };
-      if (trainingTypesError) throw trainingTypesError;
+      if (trainingTypesError) throw new Error(trainingPlanErrorMessage(trainingTypesError));
       const trainingTypeById = new Map((trainingTypes ?? []).map((t) => [t.id, t]));
 
       const courseResults = await Promise.allSettled(
@@ -366,7 +366,7 @@ export function useApplyTrainingPlanToEmployee() {
         failed.push({
           itemId: item.id,
           itemLabel: courseById.get(item.course_id)?.title ?? null,
-          message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          message: trainingPlanErrorMessage(result.reason),
         });
       });
       requirementResults.forEach((result, idx) => {
@@ -378,7 +378,7 @@ export function useApplyTrainingPlanToEmployee() {
         failed.push({
           itemId: item.id,
           itemLabel: trainingTypeById.get(item.training_type_id)?.name ?? null,
-          message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          message: trainingPlanErrorMessage(result.reason),
         });
       });
 

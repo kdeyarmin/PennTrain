@@ -28,3 +28,11 @@ export function yearlyPlanInputError(input: { facilityId: string; trainingYear: 
   if (!isExplicitCompletionDeadline(input.dueDate)) return "Enter a valid completion deadline.";
   return null;
 }
+
+/** PostgREST failures carry a message but do not inherit from Error. */
+export function trainingPlanErrorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error
+    && typeof error.message === "string" && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return "Training plan operation failed. Please try again.";
+}

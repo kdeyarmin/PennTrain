@@ -41,7 +41,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useTrainingFacilityScope } from "@/hooks/useFacilityAssignments";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { formatDateForDisplay } from "@/lib/dateUtils";
-import { canManageTrainingPlan, isExplicitCompletionDeadline, yearlyPlanInputError } from "@/lib/trainingPlanEditing";
+import { canManageTrainingPlan, isExplicitCompletionDeadline, trainingPlanErrorMessage, yearlyPlanInputError } from "@/lib/trainingPlanEditing";
 
 interface PlanFormData {
   name: string;
@@ -123,7 +123,7 @@ function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: bo
       const employee = employeeById.get(targets[index])!;
       const name = `${employee.first_name} ${employee.last_name}`;
       if (result.status === "rejected") {
-        issues.push(`${name}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+        issues.push(`${name}: ${trainingPlanErrorMessage(result.reason)}`);
         return;
       }
       const value = result.value;

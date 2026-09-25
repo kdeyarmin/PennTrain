@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   from: vi.fn(), rpc: vi.fn(), createAssignment: vi.fn(), invalidateQueries: vi.fn(),
-  plan: { data: { facility_id: "facility-a" }, error: null as Error | null },
+  plan: { data: { facility_id: "facility-a" }, error: null as { message: string } | null },
   items: [] as { id: string; course_id: string | null; training_type_id: string | null }[],
   courses: [] as { id: string; title: string; status: string; current_version_id: string | null }[],
 }));
@@ -72,6 +72,14 @@ describe("yearly plan application", () => {
     expect(h.rpc).not.toHaveBeenCalled();
     expect(h.createAssignment).not.toHaveBeenCalled();
   });
+  it.each(["plan read", "application"])("normalizes a plain PostgREST %s failure into a readable Error", async stage => {
+    const error = { code: "42501", message: "Training manager access required for this plan", details: null, hint: null };
+    if (stage === "plan read") h.plan.error = error;
+    else h.rpc.mockResolvedValue({ data: null, error });
+    await expect(useApplyTrainingPlanToEmployee().mutateAsync(input)).rejects.toThrow(new Error(error.message));
+    expect(h.createAssignment).not.toHaveBeenCalled();
+    expect(h.invalidateQueries).not.toHaveBeenCalled();
+  });
 });
 
 describe("legacy plan compatibility", () => {
@@ -99,5 +107,16 @@ describe("legacy plan compatibility", () => {
     expect(result.assigned).toBe(1);
     expect(result.failed).toEqual([{ itemId: "item-b", itemLabel: "Archived training", message: '"Archived training" is archived and cannot be assigned. Publish it, or remove it from this plan.' }]);
     expect(h.createAssignment).toHaveBeenCalledOnce();
+  });
+  it("retains plain PostgREST messages for each failed course and requirement in a bulk result", async () => {
+    h.items.push({ id: "requirement-b", course_id: null, training_type_id: "type-b" });
+    h.createAssignment.mockRejectedValue({ code: "42501", message: "Course assignment is outside your facility" });
+    h.rpc.mockResolvedValue({ data: null, error: { code: "42501", message: "Training requirement is outside your organization" } });
+    const result = await useApplyTrainingPlanToEmployee().mutateAsync({ ...input, dueDate: "2027-03-17" });
+    expect(result.assigned).toBe(0);
+    expect(result.failed).toEqual([
+      { itemId: "item-a", itemLabel: "Fire safety", message: "Course assignment is outside your facility" },
+      { itemId: "requirement-b", itemLabel: null, message: "Training requirement is outside your organization" },
+    ]);
   });
 });

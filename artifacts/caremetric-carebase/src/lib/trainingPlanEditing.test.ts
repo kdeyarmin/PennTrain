@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { canManageTrainingPlan, isExplicitCompletionDeadline, yearlyPlanInputError } from "./trainingPlanEditing";
+import { canManageTrainingPlan, isExplicitCompletionDeadline, trainingPlanErrorMessage, yearlyPlanInputError } from "./trainingPlanEditing";
 
 const plan = { organization_id: "org-a", facility_id: "facility-a" };
 const authorized = new Set(["facility-a"]);
+
+describe("training plan error display", () => {
+  it("extracts a PostgREST message without requiring an Error instance", () => {
+    expect(trainingPlanErrorMessage({ code: "42501", message: "Access to this facility was removed", details: null }))
+      .toBe("Access to this facility was removed");
+    expect(trainingPlanErrorMessage(new Error("Network unavailable"))).toBe("Network unavailable");
+    expect(trainingPlanErrorMessage("Request timed out")).toBe("Request timed out");
+  });
+  it.each([null, undefined, {}, { message: null }, { message: {} }, { message: "  " }])("uses a readable fallback for malformed failures: %j", error => {
+    expect(trainingPlanErrorMessage(error)).toBe("Training plan operation failed. Please try again.");
+  });
+});
 
 describe("yearly plan authoring scope", () => {
   it.each(["org_admin", "facility_manager", "trainer"])("lets %s edit only a plan in an authorized facility and organization", role => {

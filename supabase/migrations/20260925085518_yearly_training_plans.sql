@@ -175,11 +175,15 @@ begin
   end if;
   if v_plan.facility_id is not null and (
     new.organization_id is distinct from v_plan.organization_id
-    or new.facility_id is distinct from v_plan.facility_id
-    or (tg_op = 'INSERT' and (new.training_plan_item_id is null or new.due_date is distinct from v_plan.due_date))
+    or (tg_op = 'INSERT' and (new.facility_id is distinct from v_plan.facility_id
+      or new.training_plan_item_id is null or new.due_date is distinct from v_plan.due_date))
   ) then
     raise exception 'Yearly assignment must match the plan facility, course, and explicit deadline' using errcode = '23514';
   end if;
+  -- Existing protect_course_assignment_evidence_identity rejects direct UPDATE
+  -- scope changes. The authorized workforce lifecycle can move unfinished
+  -- assignments to a new facility while retaining their original plan. Later
+  -- completion/deadline writes must still work on those transferred rows.
   if tg_op = 'UPDATE' and v_plan.facility_id is not null
     and new.due_date is distinct from old.due_date and old.status = 'overdue'
     and new.due_date >= public.pa_today() then

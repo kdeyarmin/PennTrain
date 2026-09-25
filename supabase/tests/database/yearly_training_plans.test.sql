@@ -221,12 +221,47 @@ select throws_ok($$update public.training_plans set facility_id = pg_temp.id(12)
 select pg_temp.act(105);
 select lives_ok($$update public.training_plans set name = 'Platform reviewed' where id = pg_temp.id(503)$$, 'platform administrator may manage another tenant plan');
 
--- Current employment scope is checked before touching historical assignments.
-reset role;
-select set_config('app.privileged_write', 'on', true);
-update public.employees set facility_id = pg_temp.id(12) where id = pg_temp.id(202);
+-- Real lifecycle transfers move unfinished training, preserving original plan
+-- provenance and completed/canceled evidence at the original facility.
+select pg_temp.act(101);
+select throws_ok($$update public.course_assignments set facility_id = pg_temp.id(12)
+  where employee_id = pg_temp.id(202) and course_id = pg_temp.id(301)$$, '55000', null,
+  'direct annual assignment facility tampering remains blocked by the existing evidence identity guard');
+select lives_ok($$select public.apply_employee_lifecycle_transition(pg_temp.id(202), 'transfer', public.pa_today(),
+  pg_temp.id(12), 'Transfer annual plan student to another facility')$$,
+  'authorized lifecycle transfers open and paused annual assignments');
+select is((select count(*)::int from public.course_assignments where employee_id = pg_temp.id(202)
+  and status in ('assigned', 'paused') and facility_id = pg_temp.id(12) and training_plan_id = pg_temp.id(501)), 2,
+  'transferred unfinished assignments keep the original annual plan provenance');
+select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(202))$$, '42501', null,
+  'even organization administrator cannot reapply the old facility plan after transfer');
+select lives_ok($$update public.course_assignments set due_date = public.pa_today() + 7
+  where employee_id = pg_temp.id(202) and course_id = pg_temp.id(301)$$,
+  'transferred annual assignment accepts authorized deadline changes at its new facility');
+select lives_ok($$select public.complete_course_assignment((select id from public.course_assignments
+  where employee_id = pg_temp.id(202) and course_id = pg_temp.id(301)))$$,
+  'transferred annual assignment can complete normally while retaining its original plan');
+select is((select count(*)::int from public.certificates c join public.course_assignments a on a.id = c.course_assignment_id
+  where a.employee_id = pg_temp.id(202) and a.course_id = pg_temp.id(301) and a.training_plan_id = pg_temp.id(501)
+    and a.status = 'completed' and c.facility_id = pg_temp.id(12)), 1,
+  'completion after transfer issues evidence at the new facility without relabeling its source plan');
+select pg_temp.act(101);
+select throws_ok($$update public.course_assignments set facility_id = pg_temp.id(11)
+  where employee_id = pg_temp.id(202) and course_id = pg_temp.id(303)$$, '55000', null,
+  'transfer does not grant a later direct facility retagging bypass');
+select lives_ok($$select public.apply_employee_lifecycle_transition(pg_temp.id(201), 'transfer', public.pa_today(),
+  pg_temp.id(12), 'Transfer student while preserving prior completed annual evidence')$$,
+  'lifecycle transfer also accepts student with completed annual plan evidence');
+select is((select facility_id from public.course_assignments where employee_id = pg_temp.id(201) and course_id = pg_temp.id(301)), pg_temp.id(11),
+  'completed annual assignment remains at the source facility after employee transfer');
+select results_eq($$select id, course_assignment_id, slug, issued_at from public.certificates
+  where employee_id = pg_temp.id(201) and course_id = pg_temp.id(301)$$,
+  $$select id, course_assignment_id, slug, issued_at from yearly_evidence$$,
+  'employee transfer preserves the original completed certificate identity and issuance');
 select pg_temp.act(102);
 select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(202))$$, '42501', null,
   'transferred student cannot have historical plan reconciled by former facility manager');
+select throws_ok($$select public.apply_yearly_training_plan(pg_temp.id(501), pg_temp.id(201))$$, '42501', null,
+  'former facility manager cannot reapply the transferred student completed plan either');
 select finish();
 rollback;
