@@ -3,10 +3,19 @@ import {
   isLiveSubscriptionState,
   resolveTrialPresentation,
   trialDaysLeft,
+  visibleBillingNotices,
 } from "./trialStatus";
 
 // Pin "now" explicitly on every call so assertions are deterministic.
 const NOW = new Date("2026-07-24T12:00:00Z");
+
+describe("visibleBillingNotices", () => {
+  it("shows an active trial alongside independent access and hides a lapsed trial that the grant replaces", () => {
+    expect(visibleBillingNotices("trialing", true)).toEqual({ independent: true, trialing: true, trialEnded: false });
+    expect(visibleBillingNotices("ended", true)).toEqual({ independent: true, trialing: false, trialEnded: false });
+    expect(visibleBillingNotices("ended", false).trialEnded).toBe(true);
+  });
+});
 
 describe("trialDaysLeft", () => {
   it("rounds partial days up so a trial ending later today reads 1 day left", () => {
