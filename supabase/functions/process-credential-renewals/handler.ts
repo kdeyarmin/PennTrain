@@ -124,6 +124,7 @@ export function createProcessCredentialRenewalsHandler({
     failedCount: number,
     errorCode: string | null,
     errorMessage: string | null,
+    result: Record<string, unknown> = {},
   ) => {
     const { error: finishError } = await admin.rpc("finish_system_job", {
       p_run_id: runId,
@@ -131,7 +132,7 @@ export function createProcessCredentialRenewalsHandler({
       p_attempted_count: attempted,
       p_succeeded_count: succeeded,
       p_failed_count: failedCount,
-      p_result: {},
+      p_result: result,
       p_error_code: errorCode,
       p_error_message: errorMessage,
     });
@@ -407,6 +408,9 @@ export function createProcessCredentialRenewalsHandler({
       ? (extractionErrors.length ? extractionErrors.slice(0, 3).join(" | ") : `${failed} submission(s) failed`)
           .slice(0, 2000)
       : null,
+    // Gate rejections are neither successes nor worker failures, so without this a batch of
+    // nothing but rejected uploads finished "succeeded" with counts that did not add up.
+    { rejected },
   );
 
   return json(req, {
@@ -414,6 +418,7 @@ export function createProcessCredentialRenewalsHandler({
     claimed: submissions.length,
     processed,
     failed,
+    rejected,
     extracted,
     extractionErrors: extractionErrors.slice(0, 10),
   });

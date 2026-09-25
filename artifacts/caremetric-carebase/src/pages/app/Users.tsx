@@ -324,9 +324,10 @@ export default function Users() {
   const canEditContact = (p: Profile) =>
     !isFacilityManager || p.id === user?.id || rosteredProfileIds.has(p.id);
   // The same RPC refuses anyone but the recipient turning text-message consent ON; turning it off
-  // for someone else is allowed.
+  // for someone else is allowed, and so is restoring the persisted value after an accidental
+  // untick (that grants no new consent) -- hence the ORIGINAL profile value, not the draft.
   const editingSelf = !!editProfile && editProfile.id === user?.id;
-  const canEnableSms = editingSelf || editForm.smsOptIn;
+  const canEnableSms = editingSelf || editProfile?.sms_opt_in === true;
 
   const openEdit = (e: React.MouseEvent, p: Profile) => {
     e.preventDefault();

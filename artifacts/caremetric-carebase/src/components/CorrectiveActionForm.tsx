@@ -76,6 +76,11 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
   // manager who filed a retraining action from IncidentDetail, or someone since transferred) used
   // to resolve to "" and be written back as Unassigned by a save that never touched the picker.
   const [assigneeTouched, setAssigneeTouched] = useState(false);
+  // Sentinel the picker shows (labelled with the owner's name) while that off-roster owner is being
+  // preserved; never stored in assigneeEmployeeId, never sent to the server.
+  const PRESERVED_OWNER = "__preserved_owner__";
+  const ownerOnRoster = !!editing?.owner_profile_id && !!employees?.some((e) => e.profile_id === editing.owner_profile_id);
+  const preservedOwner = !!editing?.owner_profile_id && !assigneeTouched && !ownerOnRoster;
   const [status, setStatus] = useState<CorrectiveActionStatusValue>((editing?.status as CorrectiveActionStatusValue) ?? "open");
 
   // editing.owner_profile_id is a profile id (what's persisted); the Select below is keyed on
@@ -134,8 +139,7 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
       return;
     }
     const employee = employees?.find((e) => e.id === assigneeEmployeeId);
-    const keepExistingOwner = !!editing && !assigneeTouched && !!editing.owner_profile_id
-      && !employees?.some((e) => e.profile_id === editing.owner_profile_id);
+    const keepExistingOwner = !!editing && preservedOwner;
     const ownerProfileId = keepExistingOwner ? editing.owner_profile_id : (employee?.profile_id ?? null);
     const ownerName = keepExistingOwner
       ? editing.owner_name
@@ -189,9 +193,15 @@ export function CorrectiveActionForm({ parent, editing, onDone, onCancelEdit, si
       <div className={size === "sm" ? "w-40 shrink-0" : "w-56 shrink-0"}>
         <EmployeeSearchSelect
           label=""
-          value={assigneeEmployeeId}
-          onValueChange={(v) => { setAssigneeTouched(true); setAssigneeEmployeeId(v); }}
-          selectedLabel={editing?.owner_name ?? undefined}
+          // While an off-roster owner is preserved the picker shows that owner by name rather than
+          // "Unassigned", so a save that keeps them is not a surprise.
+          value={assigneeEmployeeId || (preservedOwner ? PRESERVED_OWNER : "")}
+          onValueChange={(v) => {
+            if (v === PRESERVED_OWNER) { setAssigneeTouched(false); setAssigneeEmployeeId(""); return; }
+            setAssigneeTouched(true);
+            setAssigneeEmployeeId(v);
+          }}
+          selectedLabel={editing?.owner_name ? `${editing.owner_name} (not on this facility's roster)` : "Current owner (not on this facility's roster)"}
           facilityId={parent.facilityId}
           allowEmpty
           emptyLabel="Unassigned"
