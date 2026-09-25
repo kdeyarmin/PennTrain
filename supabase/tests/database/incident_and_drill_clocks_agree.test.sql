@@ -36,13 +36,14 @@ select is(
   48,
   'and that number is 48 hours'
 );
--- The same posture I10 gave the two-hour rows: the deadline is visible and dated, and the fact that
--- this repository has not read it against 55 Pa. Code is in the data rather than in a commit message.
+-- 20260925110100 read the text: 48 hours is OAPSA's written report (6 Pa. Code 15.151(a)(2)) for
+-- abuse and assault, and nothing in 55 Pa. Code for the other types, whose Department final report
+-- is due "immediately following the conclusion of the investigation". The data says which is which.
 select is(
-  (select count(*)::int from public.incident_notification_rules
-   where notification_type = 'written_report' and source_confidence <> 'unverified'),
-  0,
-  'the written-report window is marked unverified until someone reads the regulation against it'
+  (select string_agg(incident_type, ',' order by incident_type) from public.incident_notification_rules
+   where notification_type = 'written_report' and source_confidence = 'verified'),
+  'abuse_allegation,assault',
+  'the 48-hour written report is verified only where OAPSA imposes it, and an internal target elsewhere'
 );
 select ok(
   (select bool_and(length(btrim(citation)) >= 3) from public.incident_notification_rules

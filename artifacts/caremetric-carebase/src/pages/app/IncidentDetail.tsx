@@ -167,7 +167,8 @@ export default function IncidentDetail() {
   // `written_report` is the 48-hour report that follows the department call (BACKLOG.md I10
   // residual / J74). The presets create one automatically for every reportable type; it is offered
   // here too so a manager can add one to an incident whose determination was made outside them.
-  const [newNotificationType, setNewNotificationType] = useState<"state_hotline" | "family_guardian" | "law_enforcement" | "licensing_agency" | "written_report" | "other">("state_hotline");
+  // `protective_services` is the OAPSA report to the area agency on aging (6 Pa. Code 15.151).
+  const [newNotificationType, setNewNotificationType] = useState<"state_hotline" | "family_guardian" | "law_enforcement" | "licensing_agency" | "protective_services" | "written_report" | "other">("state_hotline");
   const [newNotificationHours, setNewNotificationHours] = useState("24");
   const [newActionDueDate, setNewActionDueDate] = useState("");
   const [assignRetraining, setAssignRetraining] = useState(false);
@@ -618,7 +619,7 @@ export default function IncidentDetail() {
               <Select value={newNotificationType} onValueChange={(v) => setNewNotificationType(v as typeof newNotificationType)}>
                 <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "written_report", "other"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
+                  {["state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "protective_services", "written_report", "other"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-1.5 shrink-0">

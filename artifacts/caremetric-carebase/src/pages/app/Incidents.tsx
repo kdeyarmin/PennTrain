@@ -35,6 +35,9 @@ const INCIDENT_TYPE_OPTIONS = [
 
 const NOTIFICATION_TYPE_OPTIONS = [
   "state_hotline", "family_guardian", "law_enforcement", "licensing_agency",
+  // The OAPSA oral report to the area agency on aging (6 Pa. Code 15.151(a)(1)). The presets create
+  // one for abuse allegations and assaults.
+  "protective_services",
   // The 48-hour written report that follows the department call. The presets create one for every
   // reportable type (BACKLOG.md I10 residual / J74); offered here so a report filed for an event
   // the presets did not cover can be dated at the same time it is reported.
