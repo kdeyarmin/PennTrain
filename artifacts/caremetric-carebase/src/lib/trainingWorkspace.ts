@@ -119,11 +119,17 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
   const missingTopics = (topics: string[], from?: string, through = today) => topics.filter(t => !has(t, from, through));
   const names = (topics: string[]) => topics.map(t => TRAINING_TOPICS[t as keyof typeof TRAINING_TOPICS] || t).join("; ") || "none";
   const current = (topic: string) => events.some(e => e.topics.includes(topic) && e.valid_until && e.valid_until >= today);
+  // On-the-job minutes a key may count: 6 of the PCH 12 annual hours (2600.65(e)(2)); none of the
+  // special unit hours, which both RCGs say "may not be on the job training" (2600.236, 2800.236(a),
+  // (c)); none of the administrator's 24, which 2600.64(d) / 2800.64(d) limit to approved sources.
+  const ojtCap = (key: string) =>
+    key === "special_initial" || key === "special_annual" || key === "administrator" ? 0
+      : pch && key === "base" ? 360 : Infinity;
   const hours = (key: string, from: string, through: string) => {
     const eligible = events.filter(e => e.completed_on >= from && e.completed_on <= through);
     const regular = eligible.filter(e => e.delivery !== "ojt").reduce((s, e) => s + (e.allocations[key] || 0), 0);
     const ojt = eligible.filter(e => e.delivery === "ojt").reduce((s, e) => s + (e.allocations[key] || 0), 0);
-    return (regular + (pch && key === "base" ? Math.min(360, ojt) : ojt)) / 60;
+    return (regular + Math.min(ojtCap(key), ojt)) / 60;
   };
   const conditionalTopic = (key: keyof NonNullable<TrainingProfile["applicability"]>, topic: string, citation: string, from?: string, due: string | null = null) => {
     if (p.applicability?.[key] === false) return;
@@ -169,7 +175,7 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
   if (p.specialty_unit !== "none" && !validUnit) add("unit", "Confirm specialty unit", `${chapter}.236`, null, "The selected unit does not match this license type.");
   const specialTopics = p.specialty_unit === "alr_inrbi" ? ["brain_injury", "brain_injury_behaviors", "communication", "adls", "safe_environment", "rehabilitation", "coaching"] : ["dementia", "dementia_behaviors", "communication", "adls", "safe_environment"];
   if (alr && p.direct_care && validUnit) add("special_initial", "Special unit initial instruction", "2800.236", hireDate && hireDue ? hours("special_initial", hireDate, hireDue) >= 8 && missingTopics(specialTopics, hireDate, hireDue).length === 0 : null,
-    `8 hours within 30 days of hire, with population-specific topics: ${names(specialTopics)}. No automatic overlap credit.`, hireDue);
+    `8 hours within 30 days of hire, with population-specific topics: ${names(specialTopics)}. Structured training only -- on-the-job hours do not count. No automatic overlap credit.`, hireDue);
   if (!policy || policy.effective_from > today || ((!hireDate) && (policy.year_basis === "anniversary" || (p.administrator && policy.administrator_year_basis === "anniversary")))) {
     add("year", "Document the training-year policy and hire date", `${chapter}.65 / .66`, null, "Annual readiness needs a documented year basis and the hire date for an employment anniversary year.");
   } else {
@@ -191,11 +197,11 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     if (alr) add("dementia_annual", "ALF annual dementia instruction", "2800.69", !hireDate || today < inYear(Number(hireDate.slice(0, 4)) + 1, hireDate.slice(5)) ? null : hours("dementia_annual", from, today) >= 2 && has("dementia", from),
       "2 additional hours annually thereafter; verify first-year applicability and documented training-year policy.", period.end);
     if (p.direct_care && validUnit) add("special_annual", "Special unit annual hours and topics", `${chapter}.236`, hours("special_annual", from, today) >= (alr ? 8 : 6) && missingTopics(alr ? specialTopics : ["dementia"], from).length === 0,
-      `Additional ${alr ? 8 : 6} hours for direct-care staff in this unit. Required topics: ${names(alr ? specialTopics : ["dementia"])}.`, period.end);
+      `Additional ${alr ? 8 : 6} hours of structured training for direct-care staff in this unit; on-the-job hours do not count. Required topics: ${names(alr ? specialTopics : ["dementia"])}.`, period.end);
     if (p.administrator) {
       const admin = trainingPeriod(today, hireDate || p.first_work_date, policy.administrator_year_basis, policy.administrator_year_start);
       const earned = hours("administrator", admin.start, today);
-      add("administrator", "Administrator annual eligible training", `${chapter}.64`, earned >= 24, `${earned.toFixed(2)} / 24 hours; verify approved or otherwise eligible sources and annual applicability.`, admin.end);
+      add("administrator", "Administrator annual eligible training", `${chapter}.64`, earned >= 24, `${earned.toFixed(2)} / 24 hours; on-the-job hours do not count. Verify each source is Department-approved or otherwise eligible under ${chapter}.64(d), and annual applicability.`, admin.end);
     }
   }
   if (p.administrator) add("administrator_initial", "Administrator qualifications and initial pathway", `${chapter}.64`, has("administrator_initial") ? null : false,

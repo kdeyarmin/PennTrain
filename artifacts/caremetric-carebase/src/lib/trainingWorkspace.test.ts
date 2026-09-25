@@ -45,6 +45,26 @@ describe("standalone training evidence", () => {
   it("caps PCH on-the-job annual credit at six hours", () => {
     expect(assess([{ ...event, delivery: "ojt" }]).find(c => c.key === "base")?.detail).toContain("6.00 / 12");
   });
+  it("gives special unit hours no on-the-job credit, as both RCGs require for 2600.236 and 2800.236", () => {
+    const unit = (specialty_unit: TrainingProfile["specialty_unit"], events: TrainingEvent[], facilityType: string) =>
+      assessTraining({ profile: { ...profile, specialty_unit }, policy, events, facilityType, shifts: [], hireDate: profile.first_work_date, today: "2026-09-24" });
+    const sdcu = { ...event, minutes: 360, topics: ["dementia"], allocations: { special_annual: 360 } };
+    expect(unit("pch_dementia", [sdcu], "PCH").find(c => c.key === "special_annual")?.status).toBe("met");
+    expect(unit("pch_dementia", [{ ...sdcu, delivery: "ojt" }], "PCH").find(c => c.key === "special_annual")?.status).toBe("missing");
+    const alfInitial = { ...event, completed_on: "2026-01-10", minutes: 480, topics: ["dementia", "dementia_behaviors", "communication", "adls", "safe_environment"], allocations: { special_initial: 480 } };
+    expect(unit("alr_dementia", [alfInitial], "ALR").find(c => c.key === "special_initial")?.status).toBe("met");
+    expect(unit("alr_dementia", [{ ...alfInitial, delivery: "ojt" }], "ALR").find(c => c.key === "special_initial")?.status).toBe("missing");
+  });
+  it("gives the administrator's 24 hours no on-the-job credit, since 64(d) names the eligible sources", () => {
+    const admin = { ...event, completed_on: "2026-08-01", minutes: 1440, allocations: { administrator: 1440 } };
+    const check = (events: TrainingEvent[], facilityType: string) =>
+      assessTraining({ profile: { ...profile, administrator: true }, policy, events, facilityType, shifts: [], hireDate: profile.first_work_date, today: "2026-09-24" }).find(c => c.key === "administrator");
+    for (const facilityType of ["PCH", "ALR"]) {
+      expect(check([admin], facilityType)?.status).toBe("met");
+      expect(check([{ ...admin, delivery: "ojt" }], facilityType)).toMatchObject({ status: "missing", citation: `${facilityType === "PCH" ? "2600" : "2800"}.64` });
+      expect(check([{ ...admin, delivery: "ojt" }], facilityType)?.detail).toContain("0.00 / 24");
+    }
+  });
   it("does not reuse base hours for additional ALR dementia credit", () => {
     expect(assess([{ ...event, minutes: 1200, allocations: { base: 1200 }, topics: ["dementia"] }], "ALR").find(c => c.key === "dementia_annual")?.status).toBe("review");
   });
