@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Your CareMetric invitation</title></head>
+  <body style="margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#172b4d;line-height:1.6">
+    <main style="max-width:580px;margin:32px auto;background:#fff;padding:32px;border-radius:12px">
+      <p style="font-size:13px;font-weight:bold;letter-spacing:1px;color:#2563a5">CAREMETRIC</p>
+      <h1 style="font-size:26px;line-height:1.2">Your account is ready to activate</h1>
+      {{ if .Data.invitation_workspace_name }}
+      <p>{{ .Data.invitation_workspace_name }} has invited you to its CareMetric workspace.</p>
+      {{ else }}
+      <p>You have been invited to create a CareMetric account. Your administrator has prepared your access.</p>
+      {{ end }}
+      <p><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 22px;border-radius:6px;background:#195c9d;color:#fff;text-decoration:none;font-weight:bold">Accept invitation</a></p>
+      {{ if eq .Data.invitation_audience "learner" }}
+      <ol><li>Create your password using the invitation link.</li><li>Open <strong>My Learning</strong> to see your assigned courses and deadlines.</li><li>Start your next required course, or explore optional courses in the <strong>Course Library</strong>.</li></ol>
+      <p>Completed-course certificates are saved under <strong>My Certificates</strong>.</p>
+      {{ else if eq .Data.invitation_audience "administrator" }}
+      <ol><li>Create your password using the invitation link.</li><li>Complete the sign-in security setup.</li><li>Open your facility workspace and follow its setup guide: confirm facility information, add staff, prepare learning plans, and review reports.</li></ol>
+      {{ else }}
+      <p>Create your password, then sign in to open the workspace your administrator has prepared for you.</p>
+      {{ end }}
+      <p style="font-size:13px;color:#52657b">This invitation link expires after one hour and can be used once. If it expires, ask your administrator to resend it. If you were not expecting this invitation, you can ignore this email.</p>
+    </main>
+  </body>
+</html>

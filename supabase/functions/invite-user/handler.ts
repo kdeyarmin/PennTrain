@@ -243,7 +243,7 @@ export function createInviteUserHandler({
     // the portal. Resolve and authorize the employee before sending any email. RLS on callerClient
     // also ensures a facility_manager can only target an employee in one of their assigned
     // facilities.
-    let employeeToLink: { id: string; profile_id: string | null; email: string | null } | null = null;
+    let employeeToLink: { id: string; profile_id: string | null; email: string | null; facility_id?: string | null } | null = null;
     if (role === "employee") {
       if (!effectiveOrgId) {
         return json(req, { error: "organization_id is required for employee users" }, 400);
@@ -251,7 +251,7 @@ export function createInviteUserHandler({
 
       let employeeQuery = callerClient
         .from("employees")
-        .select("id, profile_id, email")
+        .select("id, profile_id, email, facility_id")
         .eq("organization_id", effectiveOrgId);
       if (delegated) employeeQuery = employeeQuery.eq("facility_id", delegated.facilityId);
       // ilike here means "case-insensitive equality", not a pattern match -- but '%' and '_' are LIKE
@@ -293,6 +293,29 @@ export function createInviteUserHandler({
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    // Display copy comes only from the organization/employee scope authorized
+    // above. These optional metadata values never grant a role or tenant access.
+    // A branding lookup failure must not break an otherwise valid invitation.
+    let invitationWorkspaceName: string | undefined;
+    let invitationHasTraining = false;
+    const displayName = (value: unknown): string | undefined => typeof value === "string"
+      ? value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 160) || undefined : undefined;
+    if (effectiveOrgId) {
+      try {
+        const { data: organization, error } = await callerClient.from("organizations").select("name").eq("id", effectiveOrgId).maybeSingle();
+        if (!error) invitationWorkspaceName = displayName(organization?.name);
+        const { data: entitlements, error: entitlementError } = await callerClient.rpc("get_effective_entitlements", { p_organization_id: effectiveOrgId });
+        invitationHasTraining = !entitlementError && Array.isArray(entitlements) && entitlements.some((entry: { feature_key?: string; is_entitled?: boolean }) => entry.feature_key === "modules.train" && entry.is_entitled === true);
+        const facilityId = employeeToLink?.facility_id ?? delegated?.facilityId;
+        if (facilityId) {
+          const { data: facility, error: facilityError } = await callerClient.from("facilities").select("name")
+            .eq("id", facilityId).eq("organization_id", effectiveOrgId).maybeSingle();
+          if (!facilityError) invitationWorkspaceName = displayName(facility?.name) ?? invitationWorkspaceName;
+        }
+      } catch {
+        console.warn("invite-user: display branding unavailable; using standard invitation copy");
+      }
+    }
     let redirectTo: string;
     try {
       redirectTo = resolveRedirectTo(redirect_to, getEnv);
@@ -309,7 +332,10 @@ export function createInviteUserHandler({
 
     delegated?.beforeEmailDispatch?.();
     const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: { first_name, last_name },
+      data: { first_name, last_name,
+        ...(invitationWorkspaceName ? { invitation_workspace_name: invitationWorkspaceName } : {}),
+        invitation_audience: invitationHasTraining && role === "employee" ? "learner" : invitationHasTraining && ["org_admin", "facility_manager"].includes(role) ? "administrator" : "workspace",
+      },
       redirectTo,
     });
     if (inviteError) {

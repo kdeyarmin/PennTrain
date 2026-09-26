@@ -14,6 +14,7 @@ import { facilityDaysUntil, facilityToday, formatDateForDisplay } from "@/lib/da
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { useMyTrainingPassport } from "@/hooks/useProductExperience";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { TrainingRecords } from "@/components/training/TrainingRecords";
 
 // Certificate PDFs render on a background job queue; while one is still pending/processing,
 // poll the list so the action button flips to "Download" without a manual refresh.
@@ -90,6 +91,8 @@ export default function MyCertificates() {
         <p className="text-sm">Need a name or award correction? <Link className="underline" href="/me/help">Contact support</Link> with the certificate number and correction reason.</p>
         <p className="text-muted-foreground">View and verify certificates you've earned from completed training.</p>
       </div>
+
+      {employee && <details className="rounded border p-4"><summary className="cursor-pointer font-semibold">Outside training and practical skills</summary><div className="mt-4"><TrainingRecords key={employee.id} facilityId={employee.facility_id} organizationId={employee.organization_id} employeeId={employee.id} /></div></details>}
 
       <Card>
         <CardHeader>

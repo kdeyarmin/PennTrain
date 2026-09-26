@@ -26,6 +26,10 @@ import { canSelfEnrollInCourse } from "@/lib/courseAvailability";
 import { isClosedCourseAssignmentStatus } from "@/lib/courseLearningTools";
 import { useDownloadCourseForOffline, useOfflineCourseLibrary, useRemoveOfflineCourse, useWipeOfflineCourses } from "@/hooks/useOfflineLearning";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { TrainingWelcome } from "@/components/training/TrainingWelcome";
+import { ElectiveDiscovery } from "@/components/training-discovery/ElectiveDiscovery";
+import { OptionalRefreshers } from "@/components/training-discovery/OptionalRefreshers";
+import { librarySchema, useSaveTrainingDiscovery, useTrainingDiscovery } from "@/hooks/useTrainingDiscovery";
 
 // assigned -> "Start" (nothing begun yet); in_progress/overdue -> "Continue" (progress already
 // exists, or the due date passed either way); completed -> "Review" (re-open a finished course).
@@ -52,6 +56,10 @@ export default function MyCourses() {
   const [catalogSearch, setCatalogSearch] = useState("");
   const [category, setCategory] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [savedOnly, setSavedOnly] = useState(false);
+  const [activeCollection, setActiveCollection] = useState("");
+  const discovery = useTrainingDiscovery("library", librarySchema);
+  const saveDiscovery = useSaveTrainingDiscovery();
 
   const employeeQuery = useGetEmployeeByProfileId(user?.id);
   const { data: employee, isLoading: employeeLoading } = employeeQuery;
@@ -144,6 +152,8 @@ export default function MyCourses() {
   );
 
   const visibleCourses = availableCourses.filter(course => (!category || course.category === category)
+    && (!savedOnly || discovery.data?.saved.includes(course.id))
+    && (!activeCollection || discovery.data?.collections.find(collection => collection.id === activeCollection)?.course_ids.includes(course.id))
     && `${course.title} ${course.description || ""}`.toLowerCase().includes(catalogSearch.toLowerCase()));
   const handleStart = (courseId: string) => {
     selfEnroll(courseId, {
@@ -178,6 +188,7 @@ export default function MyCourses() {
 
 
       <nav className="flex flex-wrap gap-3" aria-label="Learning navigation"><Button asChild variant={libraryView ? "outline" : "default"}><Link href="/me/courses">My Learning</Link></Button><Button asChild variant={libraryView ? "default" : "outline"}><Link href="/me/courses?view=library">Course Library</Link></Button><Button asChild variant="outline"><Link href="/me/certificates">My Certificates</Link></Button></nav>
+      {!libraryView && <TrainingWelcome />}
       {!libraryView && !isLoading && !assignmentsError && !requiredAssignments.isError && <Card><CardHeader><CardTitle>{nextRequired ? "Your next required course" : required.length ? "Required learning progress" : "Welcome to your learning account"}</CardTitle></CardHeader><CardContent className="space-y-2">
         <p>{required.filter(a => a.status === "completed").length} / {required.length} required courses completed</p>
         {nextRequired ? <><p className="font-semibold">{courseById.get(nextRequired.course_id)?.title || "Assigned course"}</p><p>{nextRequired.due_date ? `Due ${formatDateForDisplay(nextRequired.due_date)} · ${formatDueDistance(nextRequired.due_date)}` : "No deadline set"}</p><Button asChild><Link href={`/me/courses/${nextRequired.id}`}>{actionLabel(nextRequired.status)} required course</Link></Button></> : <p>{required.length ? "Review your history below or explore the Course Library." : "Your facility has not assigned required courses yet. You can explore the Course Library while you wait."}</p>}
@@ -271,6 +282,9 @@ export default function MyCourses() {
         </CardContent>
       </Card>}
 
+      {!libraryView && <OptionalRefreshers completedAssignments={allAssignments} />}
+      {libraryView && discovery.isError && <QueryError what="saved courses and collections" error={discovery.error} onRetry={() => void discovery.refetch()} />}
+      {libraryView && discovery.data && <ElectiveDiscovery collections={discovery.data.collections} interests={discovery.data.interests} jobTitle={discovery.data.job_title} activeCollection={activeCollection} onCollection={setActiveCollection} pending={saveDiscovery.isPending} onInterests={interests => saveDiscovery.mutate({ action: "save_interests", payload: { interests } }, { onError: error => toast({ title: "Couldn't save interests", description: error.message, variant: "destructive" }) })} />}
       {libraryView && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -279,6 +293,7 @@ export default function MyCourses() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={savedOnly} disabled={!discovery.data} onChange={e => setSavedOnly(e.target.checked)} />Saved for later ({discovery.data?.saved.length ?? 0})</label>
           <div className="grid sm:grid-cols-2 gap-3"><label>Find a course<Input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} placeholder="Title or description" /></label><label>Category<select className="w-full rounded border p-2" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{[...new Set(availableCourses.flatMap(c => c.category ? [c.category] : []))].sort().map(value => <option key={value}>{value}</option>)}</select></label></div>
           {coursesError ? (
             <QueryError what="available training" error={coursesErrorDetail} onRetry={() => refetchCourses()} />
@@ -297,9 +312,10 @@ export default function MyCourses() {
               <div key={course.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                 <div className="min-w-0">
                   <p className="font-medium truncate">{course.title}</p>
+                  {discovery.data?.metadata.filter(item => item.course_id === course.id).map(item => <div key={item.course_id} className="space-y-1 text-xs text-muted-foreground">{item.language && <p>Language: {item.language}</p>}{item.credit_statement && item.credit_evidence_url && <p>{item.credit_statement} · <a className="underline" href={item.credit_evidence_url} target="_blank" rel="noopener noreferrer">Eligibility documentation</a></p>}</div>)}
                   <p className="text-xs text-muted-foreground">{course.category ?? "Uncategorized"} · {course.estimated_duration_minutes || "Duration not listed"}{course.estimated_duration_minutes ? " minutes" : ""}</p><details className="text-sm mt-2"><summary className="cursor-pointer underline">Course details</summary><p className="whitespace-pre-line">{course.description || "Ask your facility administrator for details about this course."}</p><p className="text-xs mt-2">Optional learning does not change your required completion. Captions and transcripts, when supplied with the course, are available in the player.</p></details>
                 </div>
-                <Button
+                <div className="flex shrink-0 flex-col gap-2"><Button size="sm" variant="outline" aria-pressed={discovery.data?.saved.includes(course.id) ?? false} disabled={!discovery.data || saveDiscovery.isPending} onClick={() => saveDiscovery.mutate({ action: "save_course", payload: { course_id: course.id, saved: !discovery.data?.saved.includes(course.id) } }, { onError: error => toast({ title: "Couldn't update saved course", description: error.message, variant: "destructive" }) })}>{discovery.data?.saved.includes(course.id) ? "Saved · Remove" : "Save for later"}</Button><Button
                   size="sm"
                   disabled={enrolling && enrollingCourseId === course.id}
                   onClick={() => {
@@ -315,7 +331,7 @@ export default function MyCourses() {
                   ) : (
                     <>Start <ChevronRight className="h-4 w-4" /></>
                   )}
-                </Button>
+                </Button></div>
               </div>
             ))
           )}

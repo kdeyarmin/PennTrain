@@ -265,6 +265,9 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   );
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
+  const [usefulness, setUsefulness] = useState("");
+  const [contentFlag, setContentFlag] = useState("");
+  const [flagDetail, setFlagDetail] = useState("");
   const [lessonNotes, setLessonNotes] = useState<Record<string, string>>({});
   const [lessonConfidence, setLessonConfidence] = useState<Record<string, LessonConfidence>>({});
   // Tracks which assignmentId's data is currently loaded in lessonNotes/lessonConfidence.
@@ -729,6 +732,9 @@ useEffect(() => {
         organization_id: employee.organization_id,
         rating: ratingValue,
         comment: ratingComment.trim() || null,
+        usefulness: usefulness || null,
+        content_flag: contentFlag || null,
+        flag_detail: contentFlag ? flagDetail.trim() || null : null,
       },
       {
         onSuccess: () => {
@@ -1369,7 +1375,7 @@ useEffect(() => {
       )}
 
       <Dialog open={showRatingPrompt} onOpenChange={(o) => { if (!o) handleSkipRating(); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Rate this training</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
@@ -1394,6 +1400,9 @@ useEffect(() => {
               placeholder="Anything you'd add? (optional)"
               rows={3}
             />
+            <label className="block text-sm">Will this help in your day-to-day work? (optional)<select className="mt-1 w-full rounded border p-2" value={usefulness} onChange={e => setUsefulness(e.target.value)}><option value="">Prefer not to answer</option><option value="useful">Useful</option><option value="somewhat_useful">Somewhat useful</option><option value="not_useful">Not useful for my work</option></select></label>
+            <label className="block text-sm">Flag a content concern (optional)<select className="mt-1 w-full rounded border p-2" value={contentFlag} onChange={e => setContentFlag(e.target.value)}><option value="">No concern to flag</option><option value="confusing">Confusing explanation</option><option value="outdated">Possibly outdated information</option><option value="technical_issue">Technical or accessibility problem</option><option value="other">Other content concern</option></select></label>
+            {contentFlag && <label className="block text-sm">What should we review?<Textarea maxLength={2000} value={flagDetail} onChange={e => setFlagDetail(e.target.value)} placeholder="Describe the lesson or issue. Do not include resident or patient information." /></label>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleSkipRating}>Skip</Button>

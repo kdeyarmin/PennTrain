@@ -10,6 +10,9 @@ function feedback(rating: number): CourseFeedback {
     employee_id: "employee",
     rating,
     comment: null,
+    usefulness: null,
+    content_flag: null,
+    flag_detail: null,
     created_at: new Date().toISOString(),
   };
 }

@@ -67,9 +67,12 @@ function makeHandler(opts: {
   assuranceAllowed?: boolean;
   inviteError?: { code: string; status: number; message: string };
   inviteThrows?: boolean;
+  brandingName?: string;
+  facilityName?: string;
+  trainingEnabled?: boolean;
 } = {}) {
   const rpcCalls: RpcCall[] = [];
-  const observations = { invites: 0, deletes: 0, authLookups: 0, assuranceChecks: 0, employeeFilters: [] as [string,unknown][] };
+  const observations = { invites: 0, deletes: 0, authLookups: 0, assuranceChecks: 0, employeeFilters: [] as [string,unknown][], inviteOptions: {} as Record<string, unknown>, brandingFilters: [] as [string, unknown][] };
   const demoOrgIds = new Set(opts.demoOrgIds ?? []);
   const callerRole = opts.callerRole ?? "org_admin";
   const callerOrgId = opts.callerOrgId === undefined ? ORG_ID : opts.callerOrgId;
@@ -88,7 +91,7 @@ function makeHandler(opts: {
           select: () => ({
             eq: (_column: string, value: string) => ({
               maybeSingle: async () => ({
-                data: { is_demo: demoOrgIds.has(value) },
+                data: { is_demo: demoOrgIds.has(value), name: opts.brandingName },
                 error: null,
               }),
             }),
@@ -100,15 +103,23 @@ function makeHandler(opts: {
         query.eq=(column:string,value:unknown)=>{observations.employeeFilters.push([column,value]);return query;};
         return query;
       }
+      if (table === "facilities") {
+        const query = chainable({ data: { name: opts.facilityName }, error: null });
+        query.eq = (column: string, value: unknown) => { observations.brandingFilters.push([column,value]); return query; };
+        return query;
+      }
       throw new Error(`unexpected caller table: ${table}`);
     },
-    rpc: async () => { observations.assuranceChecks++; return { data: opts.assuranceAllowed ?? true, error: null }; },
+    rpc: async (name: string) => {
+      if (name === "get_effective_entitlements") return { data: [{ feature_key: "modules.train", is_entitled: opts.trainingEnabled ?? true }], error: null };
+      observations.assuranceChecks++; return { data: opts.assuranceAllowed ?? true, error: null };
+    },
   };
 
   const adminClient = {
     auth: {
       admin: {
-        inviteUserByEmail: async () => { observations.invites++; if(opts.inviteThrows)throw new Error("provider timeout"); return { data: { user: { id: INVITED_ID, email: EMAIL } }, error: opts.inviteError ?? null }; },
+        inviteUserByEmail: async (_email: string, options: Record<string, unknown>) => { observations.invites++; observations.inviteOptions = options; if(opts.inviteThrows)throw new Error("provider timeout"); return { data: { user: { id: INVITED_ID, email: EMAIL } }, error: opts.inviteError ?? null }; },
         deleteUser: async () => { observations.deletes++; return { data: null, error: null }; },
       },
     },
@@ -143,6 +154,23 @@ Deno.test("invite-user reactivates the profile when provisioning a non-employee 
   const provision = rpcCalls.find((call) => call.name === "admin_update_profile");
   assertEquals(provision?.args.p_is_active, true, "a re-invited profile must come back active");
   assertEquals(provision?.args.p_role, "facility_manager");
+});
+
+Deno.test("invite-user builds learner welcome copy from authorized facility scope, ignoring supplied branding", async () => {
+  const facilityId = "77777777-7777-4777-8777-777777777777";
+  const { handler, observations } = makeHandler({ brandingName: "Care Group", facilityName: "Cedar House", employeeMatches: [{ id: EMPLOYEE_ID, profile_id: null, email: EMAIL, facility_id: facilityId }] });
+  const response = await handler(makeRequest({ email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "employee", organization_id: ORG_ID,
+    employee_id: EMPLOYEE_ID, invitation_workspace_name: "Spoofed facility", invitation_audience: "administrator" }));
+  assertEquals(response.status, 200);
+  assertEquals(observations.inviteOptions.data, { first_name: "Rae", last_name: "Nolan", invitation_workspace_name: "Cedar House", invitation_audience: "learner" });
+  assertEquals(observations.brandingFilters, [["id",facilityId],["organization_id",ORG_ID]]);
+});
+
+Deno.test("invite-user uses organization welcome and a generic fallback for customers without Training", async () => {
+  const { handler, observations } = makeHandler({ brandingName: "Care Group", trainingEnabled: false });
+  const response = await handler(makeRequest({ email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "org_admin", organization_id: ORG_ID }));
+  assertEquals(response.status, 200);
+  assertEquals(observations.inviteOptions.data, { first_name: "Rae", last_name: "Nolan", invitation_workspace_name: "Care Group", invitation_audience: "workspace" });
 });
 
 Deno.test("invite-user reactivates on the employee path too, whose RPC cannot carry it", async () => {

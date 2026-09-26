@@ -1,4 +1,8 @@
 import { TrainingReminderReceipts } from "./TrainingReminderReceipts";
+import { TrainingReportAutomation } from "./TrainingReportAutomation";
+import { TrainingReportAnalytics } from "./TrainingReportAnalytics";
+import { useSavedTrainingReport } from "@/hooks/useTrainingAutomation";
+import { applySavedTrainingFilters } from "@/lib/trainingAutomation";
 import { useSearch } from "wouter";
 import { useEffect, useId, useState } from "react";
 import { Link } from "wouter";
@@ -34,6 +38,9 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
   const labelId = useId();
   const locationSearch = useSearch();
   const initialOverdue = new URLSearchParams(locationSearch).get("deadline") === "overdue";
+  const savedReportId = new URLSearchParams(locationSearch).get("savedTrainingReport") || undefined;
+  const savedReport = useSavedTrainingReport(savedReportId);
+  const [loadedSavedId, setLoadedSavedId] = useState<string>();
   const { user } = useAuth();
   const canManage = ["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role || "");
   const requirement = useSetAssignmentRequirement();
@@ -44,7 +51,7 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
   const [exporting, setExporting] = useState(false);
   const [printJob, setPrintJob] = useState<{ report: TrainingEnrollmentPage; filters: TrainingEnrollmentFilters } | null>(null);
   const validDates = !filters.dateFrom || !filters.dateThrough || filters.dateFrom <= filters.dateThrough;
-  const report = useTrainingEnrollmentReport(filters, offset, validDates);
+  const report = useTrainingEnrollmentReport(filters, offset, validDates && (!savedReportId || loadedSavedId === savedReportId));
   const facilities = useListFacilities({ organizationId }, !!organizationId && !facilityId);
   const preparePdf = usePrepareCertificatePdf();
   const { toast } = useToast();
@@ -52,6 +59,13 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
   const exceedsExportLimit = !!page && page.total > TRAINING_REPORT_EXPORT_LIMIT;
   const change = (next: Partial<TrainingEnrollmentFilters>) => { setFilters(current => ({ ...current, ...next })); setOffset(0); };
   const failure = (error: unknown) => toast({ title: "Training report unavailable", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+
+  useEffect(() => {
+    const saved = savedReport.data;
+    if (!saved || saved.id === loadedSavedId || saved.organizationId !== organizationId || (facilityId && saved.facilityId !== facilityId)) return;
+    setFilters(applySavedTrainingFilters(saved.filters, organizationId, saved.facilityId));
+    setOffset(0); setLoadedSavedId(saved.id);
+  }, [savedReport.data, loadedSavedId, organizationId, facilityId]);
 
   useEffect(() => {
     if (!printJob) return;
@@ -81,6 +95,10 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
       </div>
     </div>
     {exceedsExportLimit && <p role="status" className="text-sm">{TRAINING_REPORT_EXPORT_LIMIT_MESSAGE}</p>}
+    {savedReportId && savedReport.isLoading && <p role="status">Loading saved report filters…</p>}
+    {savedReport.isError && <QueryError what="saved training report" error={savedReport.error} onRetry={() => void savedReport.refetch()} />}
+    {savedReport.data && (savedReport.data.organizationId !== organizationId || (!!facilityId && savedReport.data.facilityId !== facilityId)) && <p role="alert">This saved report belongs to another facility. Open it from that facility’s training workspace.</p>}
+    {loadedSavedId && savedReport.data && <p className="text-sm">Opened saved report: <strong>{savedReport.data.name}</strong>. You are viewing current records; changing filters here does not change the saved schedule.</p>}
     <div className="flex flex-wrap gap-2" aria-label="Report presets">
       <Button variant="outline" onClick={() => change({ status: "all", purpose: "required", deadline: "all", dateBasis: "assigned", dateFrom: "", dateThrough: "" })}>Required training</Button>
       <Button variant="outline" onClick={() => change({ status: "completed", purpose: "all", deadline: "all", dateBasis: "completed" })}>Completion register</Button>
@@ -119,6 +137,8 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
       <div className="flex flex-wrap items-center gap-3"><span className="text-sm">{page.total ? `${offset + 1}–${Math.min(offset + page.rows.length, page.total)} of ${page.total} enrollments` : "0 enrollments"}</span><Button variant="outline" disabled={offset === 0 || report.isFetching || exporting} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous report page</Button><Button variant="outline" disabled={offset + page.rows.length >= page.total || report.isFetching || exporting} onClick={() => setOffset(offset + 50)}>Next report page</Button></div>
     </>}
     {filters.facilityId && <TrainingReminderReceipts facilityId={filters.facilityId} employeeId={filters.employeeId} />}
+    {filters.facilityId && <TrainingReportAnalytics key={`analytics:${filters.facilityId}`} facilityId={filters.facilityId} filters={filters} enabled={validDates} onEmployee={id => change({ employeeId: id })} />}
+    {filters.facilityId && <TrainingReportAutomation key={`automation:${filters.facilityId}`} facilityId={filters.facilityId} filters={filters} onOpen={saved => { setFilters(applySavedTrainingFilters(saved, organizationId, filters.facilityId!)); setOffset(0); }} />}
     {printJob && createPortal(<div data-training-report-print>
       <h1>Training enrollment, completion & certificates</h1><h2>{printJob.report.organization_name}</h2>
       <p>Facility: {printJob.report.facility_name || "All accessible facilities in selected organization"}</p>

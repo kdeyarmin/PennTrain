@@ -6,7 +6,7 @@ const h = vi.hoisted(() => ({
   memos: [] as Array<{ deps: unknown[]; value: unknown }>,
   effectDeps: [] as Array<unknown[] | undefined>, effects: [] as Array<() => unknown>,
   stateIndex: 0, refIndex: 0, memoIndex: 0, effectIndex: 0, dirty: false,
-  routeId: "assignment-a", save: vi.fn(), complete: vi.fn(), toast: vi.fn(), refetch: vi.fn(), verifyCompletion: vi.fn(), refreshCompletion: vi.fn(), navigate: vi.fn(),
+  routeId: "assignment-a", save: vi.fn(), complete: vi.fn(), toast: vi.fn(), refetch: vi.fn(), verifyCompletion: vi.fn(), refreshCompletion: vi.fn(), navigate: vi.fn(), feedback: vi.fn(),
   assignment: {} as Record<string, unknown>, blocks: [] as Array<Record<string, unknown>>,
   progress: {} as Record<string, unknown>, progressFetching: false, progressFetchedAfterMount: true,
   quizAttempts: [] as Array<Record<string, unknown>>,
@@ -65,7 +65,7 @@ vi.mock("@/hooks/useQuizzes", () => ({
 }));
 vi.mock("@/hooks/useLearningRuntime", () => ({ useAssignmentPackageCompleted: () => ({ data: false }) }));
 vi.mock("@/hooks/useDocuments", () => ({ useGetDocument: () => ({}), useDocumentSignedUrl: () => ({}) }));
-vi.mock("@/hooks/useCourseFeedback", () => ({ useGetCourseFeedbackForAssignment: () => ({}), useCreateCourseFeedback: () => ({}) }));
+vi.mock("@/hooks/useCourseFeedback", () => ({ useGetCourseFeedbackForAssignment: () => ({}), useCreateCourseFeedback: () => ({ mutate: h.feedback }) }));
 vi.mock("@/hooks/useCourseAttestations", () => ({
   useListCourseAttestations: () => ({ data: [] }), useRecordCourseAttestation: () => ({}), parseAttestationBlock: () => null,
 }));
@@ -140,6 +140,7 @@ beforeEach(() => {
   h.state = []; h.refs = []; h.memos = []; h.effectDeps = []; h.effects = []; h.routeId = "assignment-a";
   h.save.mockReset().mockResolvedValue({}); h.complete.mockReset().mockResolvedValue(undefined); h.toast.mockReset();
   h.refreshCompletion.mockReset();
+  h.feedback.mockReset();
   h.navigate.mockReset(); h.progressFetching = false; h.progressFetchedAfterMount = true; h.quizAttempts = [];
   h.verifyCompletion.mockReset().mockResolvedValue(false);
   h.assignment = { id: "assignment-a", employee_id: "employee-a", course_id: "course-a", course_version_id: "version-a", status: "in_progress" };
@@ -154,6 +155,25 @@ beforeEach(() => {
 });
 
 describe("completion timing feedback", () => {
+  it("submits optional usefulness and a content concern with the learner's own rating", () => {
+    h.assignment.status = "completed";
+    let tree = render();
+    const star = nodes(tree).find(node => node.props["aria-label"] === "4 stars")!;
+    (star.props.onClick as () => void)();
+    const usefulness = nodes(tree).find(node => node.type === "select" && text(node.props.children as ReactNode).includes("Somewhat useful"))!;
+    (usefulness.props.onChange as (event: unknown) => void)({ target: { value: "somewhat_useful" } });
+    const flag = nodes(tree).find(node => node.type === "select" && text(node.props.children as ReactNode).includes("Possibly outdated"))!;
+    (flag.props.onChange as (event: unknown) => void)({ target: { value: "outdated" } });
+    tree = render();
+    const detail = nodes(tree).find(node => String(node.props.placeholder).startsWith("Describe the lesson or issue."))!;
+    (detail.props.onChange as (event: unknown) => void)({ target: { value: "Please review the last policy reference." } });
+    tree = render();
+    const submit = nodes(tree).find(node => text(node.props.children as ReactNode) === "Submit Rating" && typeof node.props.onClick === "function")!;
+    (submit.props.onClick as () => void)();
+    expect(h.feedback).toHaveBeenCalledWith(expect.objectContaining({ course_assignment_id: "assignment-a", employee_id: "employee-a", rating: 4,
+      usefulness: "somewhat_useful", content_flag: "outdated", flag_detail: "Please review the last policy reference." }), expect.any(Object));
+    expect(h.complete).not.toHaveBeenCalled();
+  });
   it("explains the wait, prevents an early request, and enables completion after the recorded minimum", async () => {
     h.progress = { ...h.progress, started_at: new Date().toISOString() };
     const waiting = prepareFinalResponse();

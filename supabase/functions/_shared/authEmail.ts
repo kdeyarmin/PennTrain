@@ -11,6 +11,8 @@ export interface AuthEmailData {
 export interface AuthEmailUser {
   email: string;
   new_email?: string;
+  /** Presentation only. User-editable metadata is never an authorization source. */
+  user_metadata?: Record<string, unknown>;
 }
 
 export interface AuthEmailMessage {
@@ -139,16 +141,26 @@ export function buildAuthEmailMessages(
           verifyUrl,
         ),
       ];
-    case "invite":
+    case "invite": {
+      const metadata = user.user_metadata ?? {};
+      const workspace = typeof metadata.invitation_workspace_name === "string"
+        ? metadata.invitation_workspace_name.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 160) : "";
+      const steps = metadata.invitation_audience === "learner"
+        ? "1. Accept this invitation and create your password. 2. Open My Learning to see your assigned courses and deadlines. 3. Start your next required course, or explore optional courses in the Course Library. Your certificates are saved under My Certificates."
+        : metadata.invitation_audience === "administrator"
+          ? "1. Accept this invitation and create your password. 2. Complete the sign-in security setup. 3. Open your facility workspace and follow the setup guide to confirm facility information, add staff, prepare learning plans, and review reports."
+          : "Accept this invitation and create your password. Then sign in to open the workspace your administrator has prepared for you.";
       return [
         linkEmail(
           user.email,
           subject,
-          "You've been invited to create a CareMetric CareBase account.",
+          workspace ? `${workspace} has invited you to its CareMetric workspace.` : "You've been invited to create a CareMetric CareBase account.",
           "Accept invitation",
           verifyUrl,
+          `${steps} This invitation link expires after one hour and can be used once. If it expires, ask your administrator to resend the invitation. If you were not expecting this invitation, you can ignore it.`,
         ),
       ];
+    }
     case "magiclink":
       return [
         linkEmail(

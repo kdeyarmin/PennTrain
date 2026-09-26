@@ -1,5 +1,7 @@
 import { boundedSettled } from "@/lib/boundedSettled";
 import { PlanAuthoringTools } from "@/components/training/PlanAuthoringTools";
+import { FacilityTrainingStarterKits } from "@/components/training/TrainingStarterKits";
+import { TrainingAssignmentRules } from "@/components/training/TrainingAssignmentRules";
 import YearlyPlanProgress from "@/components/training/YearlyPlanProgress";
 import { useId, Fragment, useMemo, useState } from "react";
 import { useSearch } from "wouter";
@@ -346,6 +348,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
   return (
     <div className="p-4 bg-muted/20 space-y-4">
       {annual && <p className="text-sm text-muted-foreground">Course and deadline edits take effect when you apply this plan again. Completed training remains in each employee’s history.</p>}
+      {annual && canManage && <TrainingAssignmentRules plan={plan} />}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-foreground">Plan Items</h3>
         <div className="flex flex-wrap items-center gap-2">
@@ -676,6 +679,11 @@ export default function TrainingPlans({ facilityId, embedded = false }: { facili
           </Button>
         )}
       </div>
+
+      {canCreatePlan && scope.isReady && !requestedUnavailable && facilities.length > 0 && <FacilityTrainingStarterKits
+        facilities={facilities} selectedFacility={requestedFacility || undefined} onCreated={id => {
+          setExpandedPlanId(id); toast({ title: "Facility learning plan created", description: "Review the copied courses, then apply the plan or set a role-based assignment rule." });
+        }} />}
 
       <div className="premium-card">
         <div className="filter-bar">

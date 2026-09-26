@@ -1,4 +1,7 @@
 import TrainingRosterDashboard from "@/components/training/TrainingRosterDashboard";
+import { TrainingAdminWalkthrough, TrainingWelcomeSettings } from "@/components/training/TrainingWelcome";
+import { TrainingRecords } from "@/components/training/TrainingRecords";
+import { TrainingDiscoveryAdmin } from "@/components/training-discovery/TrainingDiscoveryAdmin";
 import { useInviteUser } from "@/hooks/useProfiles";
 import { trainingActionError } from "@/lib/trainingWorkspace";
 import { certificatePrintPacket } from "@/lib/certificatePrintPacket";
@@ -43,7 +46,7 @@ export default function TrainWorkspace() {
   const facilityScope = useTrainingFacilityScope(facilities);
   const locationSearch = useSearch();
   const [location, navigate] = useLocation();
-  const validTabs = ["overview", "students", "yearly-plans", "enrollments", "certificates", "evidence", "plans", "reports", "settings"];
+  const validTabs = ["overview", "students", "yearly-plans", "enrollments", "certificates", "records", "evidence", "plans", "reports", "settings"];
   const requestedTab = new URLSearchParams(locationSearch).get("tab") || "overview";
   const [tab, setActiveTab] = useState(validTabs.includes(requestedTab) ? requestedTab : "overview");
   const [student, setStudent] = useState(new URLSearchParams(locationSearch).get("employeeId") || "");
@@ -61,7 +64,7 @@ export default function TrainWorkspace() {
   }
   const needsEvidence = ["evidence", "plans", "reports", "settings"].includes(tab) || (tab === "students" && !!student);
   const needsCertificates = ["certificates", "reports"].includes(tab);
-  const needsRoster = ["students", "certificates", "evidence", "plans", "reports"].includes(tab);
+  const needsRoster = ["students", "certificates", "records", "evidence", "plans", "reports"].includes(tab);
   const facilityChoice = new URLSearchParams(locationSearch).get("facilityId") || "";
   const facility = facilityChoice
     ? facilityScope.facilities.find(f => f.id === facilityChoice)
@@ -273,10 +276,11 @@ export default function TrainWorkspace() {
     </div>
     {facilityScope.isLoading ? <p role="status">Loading your available facilities…</p> : invalidFacility ? <p role="alert">The linked facility is unavailable or is not assigned to you. Choose an available facility above.</p> : !facilityId ? <p>{user?.role === "org_admin" || user?.role === "platform_admin" ? <>Create a facility to begin. <Link href="/app/facilities" className="underline">Facility setup</Link></> : "No training facilities are assigned to you. Contact your organization administrator."}</p> : loading ? <p role="status">Loading complete training records…</p> : <>
     <Tabs value={tab} onValueChange={setTab}>
-      <TabsList className="flex flex-wrap h-auto print:hidden">{Object.entries({ overview: "Dashboard", students: "Staff", "yearly-plans": "Learning Plans", enrollments: "Reports", certificates: "Certificates", settings: "Facility Settings" }).map(([key, label]) => <TabsTrigger key={key} value={key}>{label}</TabsTrigger>)}</TabsList>
+      <TabsList className="flex flex-wrap h-auto print:hidden">{Object.entries({ overview: "Dashboard", students: "Staff", "yearly-plans": "Learning Plans", enrollments: "Reports", certificates: "Certificates", records: "Skills & Outside Training", settings: "Facility Settings" }).map(([key, label]) => <TabsTrigger key={key} value={key}>{label}</TabsTrigger>)}</TabsList>
       <details className="print:hidden rounded border p-3" open={["evidence", "plans", "reports"].includes(tab)}><summary className="cursor-pointer text-sm">Classroom, external evidence and advanced training records</summary><TabsList className="flex flex-wrap h-auto my-2">{Object.entries({ evidence: "External / classroom evidence", plans: "Scheduled instruction", reports: "Evidence readiness" }).map(([key, label]) => <TabsTrigger key={key} value={key}>{label}</TabsTrigger>)}</TabsList><div className="flex flex-wrap gap-3 text-sm"><Link href="/trainer/classes" className="underline">Classes and attendance</Link><Link href="/app/training-matrix" className="underline">Training matrix</Link><Link href="/app/documents" className="underline">Supporting documents</Link></div></details>
       <TabsContent value="yearly-plans"><Suspense fallback={<p role="status">Loading yearly course plans…</p>}><YearlyTrainingPlans key={facilityId} facilityId={facilityId} embedded /></Suspense></TabsContent>
-      <TabsContent value="overview" className="space-y-4"><TrainingRosterDashboard key={facilityId} facilityId={facilityId} organizationId={org} onEmployee={openEmployeeProgress} onTab={setTab} /></TabsContent>
+      <TabsContent value="overview" className="space-y-4">{canWrite && <TrainingAdminWalkthrough key={`guide-${facilityId}`} facilityId={facilityId} onTab={setTab} addStudentHref={addStudentHref} />}<TrainingRosterDashboard key={facilityId} facilityId={facilityId} organizationId={org} onEmployee={openEmployeeProgress} onTab={setTab} /></TabsContent>
+      <TabsContent value="records"><TrainingRecords key={facilityId} facilityId={facilityId} organizationId={org} employees={roster} canManage={canWrite} /></TabsContent>
       <TabsContent value="enrollments"><TrainingEnrollmentReport key={`${facilityId}:${student}`} organizationId={org} facilityId={facilityId} employeeId={student || undefined} /></TabsContent>
       {["students", "evidence", "plans", "certificates"].includes(tab) && <label className="block my-4 max-w-lg">Student<select aria-label="Training student" className={selectClass} value={student} onChange={e => { setStudent(e.target.value); setShiftId(""); }}><option value="">All students / choose a student</option>{roster.map(e => <option key={e.id} value={e.id}>{e.last_name}, {e.first_name}</option>)}</select></label>}
       {["evidence", "plans"].includes(tab) && !chosen && <p role="status" className="rounded-lg border p-4">{roster.length ? "Choose a student above to view and manage their training records." : "Add a student first to record training evidence and annual plans."}</p>}
@@ -349,7 +353,7 @@ export default function TrainWorkspace() {
           {(data?.events || []).filter(e => e.employee_id === employee.id).map(e => <p key={e.id} className="text-sm my-2">{e.title} · {e.completed_on} · {e.minutes} minutes · {e.provider} · {e.source_reference} · {e.status}. {e.review_note} Credit: {Object.entries(e.allocations).filter(([, minutes]) => minutes > 0).map(([key, minutes]) => `${key}: ${minutes} minutes`).join(", ") || "None"}</p>)}
         </section>)}
       </TabsContent>
-      <TabsContent value="settings"><div className="mb-4 rounded border p-4"><h2 className="font-semibold">Facility information</h2><p>Keep your facility address, license, contact and administrator details current.</p><Button asChild variant="outline"><Link href={`/app/facilities/${facilityId}?source=train`}>Review / edit facility information</Link></Button></div><Card><CardHeader><CardTitle>Document the facility training year</CardTitle></CardHeader><CardContent className="space-y-4"><p>Confirm the written facility policy and DHS interpretation before changing periods. Each revision is retained.</p>{policy && <p>Current policy: {policy.policy_reference} · effective {policy.effective_from}</p>}
+      <TabsContent value="settings" className="space-y-4">{canWrite && <><TrainingWelcomeSettings key={`welcome-${facilityId}`} facilityId={facilityId} /><TrainingDiscoveryAdmin key={`discovery-${facilityId}`} facilityId={facilityId} /></>}<div className="mb-4 rounded border p-4"><h2 className="font-semibold">Facility information</h2><p>Keep your facility address, license, contact and administrator details current.</p><Button asChild variant="outline"><Link href={`/app/facilities/${facilityId}?source=train`}>Review / edit facility information</Link></Button></div><Card><CardHeader><CardTitle>Document the facility training year</CardTitle></CardHeader><CardContent className="space-y-4"><p>Confirm the written facility policy and DHS interpretation before changing periods. Each revision is retained.</p>{policy && <p>Current policy: {policy.policy_reference} · effective {policy.effective_from}</p>}
         {canWrite && user?.role !== "trainer" && <form key={policy?.id ?? "new-policy"} onSubmit={e => void submit("policy", e)} className="grid md:grid-cols-2 gap-4"><Field name="effective_from" label="Effective date" type="date" value={policyDefaults.effective_from} /><Options name="year_basis" label="Staff year" value={policyDefaults.year_basis} options={{ fixed: "Fixed annual date", anniversary: "Employment anniversary" }} /><Field name="year_start" label="Staff fixed start (MM-DD)" value={policyDefaults.year_start} /><Options name="administrator_year_basis" label="Administrator year" value={policyDefaults.administrator_year_basis} options={{ fixed: "Fixed annual date", anniversary: "Employment anniversary" }} /><Field name="administrator_year_start" label="Administrator fixed start (MM-DD)" value={policyDefaults.administrator_year_start} /><Field name="policy_reference" label="Written policy and basis / approval reference" value={policyDefaults.policy_reference} /><Button disabled={save.isPending}>Save policy revision</Button></form>}
         <p><a className="underline" href="https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-training" target="_blank" rel="noreferrer">Pennsylvania DHS training requirements and approved pathways</a></p>
       </CardContent></Card></TabsContent>

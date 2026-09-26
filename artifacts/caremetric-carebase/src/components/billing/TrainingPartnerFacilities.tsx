@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { QueryError } from "@/components/QueryState";
+import { ManageTrainingStarterKits, SelectPartnerStarterKit } from "@/components/training/TrainingStarterKits";
 
 type Partner = { organization_id: string; organization: string; facility_id: string; facility: string;
   status: string; train_only: boolean; profile_complete: boolean; staff: number; plans: number;
@@ -22,6 +23,7 @@ export function TrainingPartnerFacilities() {
       return result;
     } });
   return <section className="rounded-lg border p-4 space-y-3" aria-label="Complimentary partner facilities">
+    <ManageTrainingStarterKits />
     <h2 className="text-xl font-semibold">Complimentary partner facilities</h2>
     <p className="text-sm text-muted-foreground">Follow administrator activation and facility setup. Training-only partners retain complimentary access independently of a paid trial.</p>
     <label className="block max-w-md text-sm">Find partner facility<Input value={search} maxLength={200} onChange={e => { setSearch(e.target.value); setOffset(0); }} /></label>
@@ -31,7 +33,7 @@ export function TrainingPartnerFacilities() {
         <td className="p-2 border-b">{row.train_only ? "Complimentary partner — Training only" : "Complimentary Training with additional module access"}<p className="text-xs">{row.status}</p></td>
         <td className="p-2 border-b">{row.administrators.length ? row.administrators.map(admin => <p key={admin.email}>{admin.email}<span className="block text-xs">{admin.signed_in ? "Signed in" : "Awaiting first sign-in"} · {admin.mfa_ready ? "Verification method enrolled" : "Account security setup pending"}</span></p>) : "No active administrator"}<p className="text-xs">Latest invitation: {row.invitation_status || "Not recorded"}</p></td>
         <td className="p-2 border-b">{row.profile_complete ? "Facility details confirmed" : "Facility details incomplete"}<p className="text-xs">{row.staff} active staff · {row.plans} learning plans</p></td>
-        <td className="p-2 border-b"><div className="flex flex-col gap-2"><Link className="underline" href={`/admin/organizations/${row.organization_id}`}>Manage facility access</Link><Link className="underline" href={`/admin/users?action=invite&organizationId=${row.organization_id}&role=org_admin&source=train`}>Administrator invitation</Link><Link className="underline" href={`/admin/training-reports?organizationId=${row.organization_id}`}>Training reports</Link></div></td>
+        <td className="p-2 border-b"><div className="flex flex-col gap-2"><Link className="underline" href={`/admin/organizations/${row.organization_id}`}>Manage facility access</Link><Link className="underline" href={`/admin/users?action=invite&organizationId=${row.organization_id}&role=org_admin&source=train`}>Administrator invitation</Link><Link className="underline" href={`/admin/training-reports?organizationId=${row.organization_id}`}>Training reports</Link><SelectPartnerStarterKit facilityId={row.facility_id} /></div></td>
       </tr>)}</tbody></table></div>
       {!query.data?.total && <p>No current complimentary Training partners match.</p>}
       <div className="flex gap-2 items-center"><Button variant="outline" disabled={!offset || query.isFetching} onClick={() => setOffset(Math.max(0, offset - 25))}>Previous partners</Button><span>{query.data?.total || 0} partner facilities</span><Button variant="outline" disabled={offset + 25 >= (query.data?.total || 0) || query.isFetching} onClick={() => setOffset(offset + 25)}>Next partners</Button></div>

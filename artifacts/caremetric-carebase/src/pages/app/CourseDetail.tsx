@@ -43,6 +43,7 @@ import {
 } from "./course-detail/BlockDialogs";
 import { VideoGenDialog, BulkVideoGenDialog } from "./course-detail/VideoGenDialogs";
 import { NativeGovernedDraftEditor } from "@/components/learning/NativeGovernedDraftEditor";
+import { CourseQualityFeedback } from "@/components/training-discovery/CourseQualityFeedback";
 
 export default function CourseDetail() {
   const __fieldIds = useId();
@@ -723,6 +724,7 @@ export default function CourseDetail() {
       />
 
       <TrainingProviderCard courseId={course.id} canManage={canManage} />
+      {user?.role !== "employee" && !feedbackError && !feedbackLoading && <CourseQualityFeedback feedback={courseFeedback ?? []} />}
 
       <PrePublishSection
         canManage={canManage}
