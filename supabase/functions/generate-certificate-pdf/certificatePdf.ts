@@ -207,8 +207,13 @@ export async function buildCertificatePdf(
   page.drawImage(logo, { x: 88, y: 451, ...logoSize });
 
   center("CERTIFICATE", 509, 33, serif, { centerX: 508, width: 420 });
-  center("O F   C O M P L E T I O N", 485, 10, font, {
-    centerX: 508,
+  // Fixed heading typography keeps its word gap; award-text fitting normalizes spaces.
+  const subtitle = "O F    C O M P L E T I O N";
+  page.drawText(subtitle, {
+    x: 508 - font.widthOfTextAtSize(subtitle, 10) / 2,
+    y: 485,
+    size: 10,
+    font,
     color: GRAY,
   });
   line(449, 567, 466);
