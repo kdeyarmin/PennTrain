@@ -1,9 +1,11 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { useListTrainingRecords, type TrainingRecord } from "@/hooks/useTrainingRecords";
 import { useListPracticums, type Practicum } from "@/hooks/usePracticums";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import type { Employee } from "@/hooks/useEmployees";
-import { facilityYear } from "@/lib/dateUtils";
+import { facilityYear, facilityToday } from "@/lib/dateUtils";
 
 // "Authorized today" reads compliant OR due_soon as still-currently-valid -- due_soon means
 // "expiring within the warning window", not "already expired". Only missing/expired disqualify.
@@ -73,6 +75,8 @@ interface MedAdminTrainingTypeIds {
   medInitTypeId?: string;
   medRenewTypeId?: string;
   diabetesEduTypeId?: string;
+  courseRenewalYearsByEmployee?: Record<string, number | null>;
+  today?: string;
 }
 
 // Pure computation, split out from the hook below purely so it can be unit tested without mocking
@@ -83,7 +87,7 @@ export function computeMedAdminAuthorization(
   employees: Pick<Employee, "id" | "administers_medications">[],
   trainingRecords: TrainingRecord[],
   practicums: Practicum[],
-  { medInitTypeId, medRenewTypeId, diabetesEduTypeId }: MedAdminTrainingTypeIds,
+  { medInitTypeId, medRenewTypeId, diabetesEduTypeId, courseRenewalYearsByEmployee, today = facilityToday() }: MedAdminTrainingTypeIds,
 ): MedAdminAuthorization[] {
   return employees.map((emp) => {
     if (!emp.administers_medications) {
@@ -107,7 +111,10 @@ export function computeMedAdminAuthorization(
       ? pickCurrentRecord(empRecords.filter((r) => r.training_type_id === medInitTypeId))
       : undefined;
     const certRecord = renewRecord && renewRecord.status !== "missing" ? renewRecord : (initRecord ?? renewRecord);
-    const certStatus = certRecord?.status ?? "missing";
+    const initialEvidence = [initRecord, renewRecord].some(record => record?.completion_date && record.completion_date <= today
+      && !["pending_review", "not_applicable", "missing"].includes(record.status)
+      && record.approval_status !== "pending" && record.approval_status !== "rejected");
+    const certStatus = !initialEvidence ? "missing" : courseRenewalYearsByEmployee?.[emp.id] == null ? "compliant" : certRecord?.status ?? "missing";
 
     const practicum = pickCurrentPracticum(practicums.filter((p) => p.employee_id === emp.id));
     const practicumStatus = practicum?.status ?? "missing";
@@ -157,6 +164,15 @@ export function useMedAdminAuthorization(
 ): UseMedAdminAuthorizationResult {
   const enabled = options.enabled ?? true;
   const currentYear = facilityYear();
+  const facilityIds = [...new Set(employees.map(e => e.facility_id))].sort();
+  const policiesQuery = useQuery({ queryKey: ["staff-regulatory-policy", facilityIds], enabled: enabled && facilityIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("staff_regulatory_policies").select("facility_id,medication_course_years").in("facility_id", facilityIds);
+      if (error) throw error;
+      return data;
+    } });
+  const courseRenewalYearsByEmployee = useMemo(() => Object.fromEntries(employees.map(e => [e.id,
+    policiesQuery.data?.find(p => p.facility_id === e.facility_id)?.medication_course_years ?? null])), [employees, policiesQuery.data]);
 
   // Only employees flagged as administering medications were ever in scope for MED-INIT/MED-RENEW/
   // DIABETES-EDU tracking -- scoping the training-records fetch to just them keeps the payload
@@ -192,9 +208,9 @@ export function useMedAdminAuthorization(
 
   const rows = useMemo(
     () => computeMedAdminAuthorization(employees, trainingRecords ?? [], practicums ?? [], {
-      medInitTypeId, medRenewTypeId, diabetesEduTypeId,
+      medInitTypeId, medRenewTypeId, diabetesEduTypeId, courseRenewalYearsByEmployee,
     }),
-    [employees, trainingRecords, practicums, medInitTypeId, medRenewTypeId, diabetesEduTypeId],
+    [employees, trainingRecords, practicums, medInitTypeId, medRenewTypeId, diabetesEduTypeId, courseRenewalYearsByEmployee],
   );
 
   const byEmployeeId = useMemo(() => new Map(rows.map((r) => [r.employeeId, r])), [rows]);
@@ -202,7 +218,7 @@ export function useMedAdminAuthorization(
   // A missing training record must never quietly read as "not authorized" (or an unfetched
   // practicum as "clear") because a fetch failed -- surface the failure instead of a silently wrong
   // authorization answer. Mirrors MedAdminRoster.tsx's rosterFailure handling.
-  const queries = [trainingTypesQuery, trainingRecordsQuery, practicumsQuery];
+  const queries = [trainingTypesQuery, trainingRecordsQuery, practicumsQuery, policiesQuery];
   const failingQuery = queries.find((q) => q.isError);
 
   return {

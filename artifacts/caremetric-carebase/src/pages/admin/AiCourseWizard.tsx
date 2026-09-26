@@ -147,7 +147,7 @@ export default function AiCourseWizard() {
         <div>
           <h1 className="text-2xl font-bold">Generate Courses with AI</h1>
           <p className="text-muted-foreground">
-            Super admins can draft one course or a complete multi-course training plan with modules, video scripts,
+            Optional AI assistance lets super admins draft one course or a complete multi-course training plan with modules, video scripts,
             and quizzes. Everything stays draft-only until a human reviews and publishes it.
           </p>
         </div>

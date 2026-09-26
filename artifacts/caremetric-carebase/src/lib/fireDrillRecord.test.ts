@@ -13,6 +13,14 @@ const complete: FireDrillRecordDraft = {
 };
 
 describe("fireDrillRecordErrors", () => {
+  it("allows a stopped unsuccessful evacuation without inventing a completion time", () => {
+    expect(fireDrillRecordErrors({ ...complete, durationMinutes: "", durationSeconds: "", residentsEvacuated: "8", problemsEncountered: "Drill stopped due to a blocked stairwell" }, true)).toEqual({});
+  });
+  it("rejects impossible participation counts", () => {
+    expect(fireDrillRecordErrors({ ...complete, residentsPresent: "-1" }).residentsPresent).toBeDefined();
+    expect(fireDrillRecordErrors({ ...complete, residentsEvacuated: "25" }).residentsEvacuated).toBeDefined();
+    expect(fireDrillRecordErrors({ ...complete, staffParticipating: "1.5" }).staffParticipating).toBeDefined();
+  });
   it("accepts a record carrying every 2600.132(c) / 2800.132(c) element", () => {
     expect(fireDrillRecordErrors(complete)).toEqual({});
   });

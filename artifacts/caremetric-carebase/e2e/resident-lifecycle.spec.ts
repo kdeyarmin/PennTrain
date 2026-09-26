@@ -452,6 +452,13 @@ test.describe("resident lifecycle journey", () => {
 
     const upload = page.getByRole("dialog");
     await expect(upload).toBeVisible();
+    const completedOn = upload.getByLabel("Date on the form", { exact: true });
+    const markComplete = upload.getByRole("button", { name: "Upload & Mark Complete" });
+    // The actual assessment date must be entered deliberately; opening the dialog must not
+    // substitute today's upload date for the date on the signed form.
+    const assessmentCompletedOn = "2026-07-08";
+    await expect(completedOn).toHaveValue("");
+    await expect(markComplete).toBeDisabled();
     // A real (if minimal) PDF: the input accepts .pdf/.jpg/.png, and handing it something that is
     // not a PDF would be testing the fixture rather than the workflow.
     await upload.locator('input[type="file"]').setInputFiles({
@@ -462,30 +469,35 @@ test.describe("resident lifecycle journey", () => {
         + "2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n",
       ),
     });
-    await upload.getByRole("button", { name: "Upload & Mark Complete" }).click();
+    await expect(markComplete).toBeDisabled();
+    await completedOn.fill(assessmentCompletedOn);
+    await expect(markComplete).toBeEnabled();
+    await markComplete.click();
+    await expect(upload).toBeHidden({ timeout: 30000 });
 
     // Asserted against both halves of the guard: the item is complete AND it points at a stored
     // document. Completion without an attached form is exactly what must never be possible.
     await expect.poll(async () => {
       const { data, error } = await admin
         .from("resident_compliance_items")
-        .select("item_type, status, completed_date")
+        .select("id, item_type, status, completed_date")
         .eq("resident_id", residentId!)
-        // PCH stamps this as initial_assessment_15day (the 15-day rule) while ALF uses its own
-        // variant, so match the family rather than pinning one facility type's spelling.
-        .ilike("item_type", "initial_assessment%");
+        .eq("item_type", "initial_assessment_15day");
       if (error) throw error;
       const documents = await admin
         .from("resident_documents")
-        .select("id")
-        .eq("resident_id", residentId!);
+        .select("id, compliance_item_id, is_state_form")
+        .eq("resident_id", residentId!)
+        .eq("compliance_item_id", data[0]?.id ?? "00000000-0000-0000-0000-000000000000");
       if (documents.error) throw new Error(documents.error.message);
       return {
         status: data[0]?.status ?? "missing",
-        completed: (data[0]?.completed_date ?? null) !== null,
-        documents: documents.data?.length ?? 0,
+        completedOn: data[0]?.completed_date ?? null,
+        signedStateForms: documents.data?.filter((document) => document.is_state_form).length ?? 0,
       };
-    }, { timeout: 30000 }).toEqual({ status: "compliant", completed: true, documents: 1 });
+    }, { timeout: 30000 }).toEqual({
+      status: "compliant", completedOn: assessmentCompletedOn, signedStateForms: 1,
+    });
   });
 
   // -------------------------------------------------------------------------------------------

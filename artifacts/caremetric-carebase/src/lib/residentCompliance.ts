@@ -36,6 +36,7 @@ export const ITEM_TYPE_LABELS: Record<string, string> = {
   annual_reassessment: "Annual Reassessment",
   medical_evaluation: "Initial Medical Evaluation",
   annual_medical_evaluation: "Annual Medical Evaluation",
+  change_medical_evaluation: "Medical Evaluation After a Condition Change",
   significant_change_reassessment: "Significant Change Reassessment",
   // 55 Pa. Code 2800.227(c). ALF only -- Chapter 2600 has no quarterly review.
   support_plan_quarterly_review: "Quarterly Support Plan Review",
@@ -61,6 +62,7 @@ export function stateFormBackdateDays(itemType: string, facilityType: string | n
     // 2800.227(a): the final support plan is a post-admission document.
     if (itemType === "support_plan_30day") return 0;
   }
+  if (facilityType === "PCH" && ["initial_assessment_15day", "support_plan_30day"].includes(itemType)) return 0;
   return 180;
 }
 
@@ -79,6 +81,13 @@ export type StateFormDateField = {
  * annual evaluation on the wrong day.
  */
 export function stateFormDateField(itemType: string): StateFormDateField {
+  if (itemType === "change_medical_evaluation") {
+    return {
+      label: "Date Resident Evaluated (on the DME)",
+      hint: "The examination must address this medical-condition change and occur on or after it was identified. This evaluation does not reset the existing annual evaluation cycle.",
+      subject: "The examination date",
+    };
+  }
   if (itemType === "medical_evaluation" || itemType === "annual_medical_evaluation") {
     return {
       label: "Date Resident Evaluated (on the DME)",
@@ -123,8 +132,8 @@ export function getRequiredStateFormInfo(itemType: string, facilityType: string 
   const forms = isAlr ? DHS_ALR_FORMS : DHS_PCH_FORMS;
   const facilityLabel = isAlr ? "Assisted Living Facility (ALF)" : "Personal Care Home";
 
-  // Both cycles are documented on the same DHS form; only the deadline and its grace differ.
-  if (itemType === "medical_evaluation" || itemType === "annual_medical_evaluation") {
+  // Initial, annual, and condition-change evaluations use the same DHS form.
+  if (["medical_evaluation", "annual_medical_evaluation", "change_medical_evaluation"].includes(itemType)) {
     return { label: "DME (Documentation of Medical Evaluation)", url: forms.dme, sourceLabel: `PA DHS ${facilityLabel} DME form` };
   }
   if (itemType === "preadmission_screening") {

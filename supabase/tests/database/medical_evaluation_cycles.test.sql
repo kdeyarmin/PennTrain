@@ -261,10 +261,10 @@ select is(
 -- The resident above is on the standard track, so the assertions before this point pin that half.
 
 insert into public.residents(
-  id, organization_id, facility_id, first_name, last_name, status, admission_date, admission_track
+  id, organization_id, facility_id, first_name, last_name, status, admission_date, admission_track, expedited_admission_basis, expedited_admission_evidence
 ) values (
   '2e000000-0000-4000-8000-000000000203', '2e000000-0000-4000-8000-000000000001',
-  '2e000000-0000-4000-8000-000000000011', 'Exp', 'Resident', 'active', public.pa_today() - 5, 'expedited'
+  '2e000000-0000-4000-8000-000000000011', 'Exp', 'Resident', 'active', public.pa_today() - 5, 'expedited','acute_care_hospital','Discharge summary documenting direct hospital admission'
 );
 
 insert into public.resident_documents(

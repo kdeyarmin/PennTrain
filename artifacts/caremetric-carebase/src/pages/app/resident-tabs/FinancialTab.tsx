@@ -5,8 +5,9 @@ import { ResidentAgreementWorkspace } from "@/components/residents/ResidentAgree
 import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import type { ResidentTabProps } from "./types";
 import { QueryError } from "@/components/QueryState";
+import { RegulatoryActions } from "@/components/residents/RegulatoryActions";
 
-export default function FinancialTab({ resident, canManage }: ResidentTabProps) {
+export default function FinancialTab({ resident, facility, canManage, isTrackedFacilityType }: ResidentTabProps) {
   const documentsQuery = useListResidentDocuments(resident.id);
   const { data: documents } = documentsQuery;
   return (
@@ -25,6 +26,7 @@ export default function FinancialTab({ resident, canManage }: ResidentTabProps) 
         documents={documents ?? []}
         canManage={canManage}
       />
+      {isTrackedFacilityType && <RegulatoryActions organizationId={resident.organization_id} facilityId={resident.facility_id} residentId={resident.id} facilityType={facility?.facility_type} />}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><DollarSign className="h-4 w-4" /> Resident finance</CardTitle>

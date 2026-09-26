@@ -26,24 +26,9 @@ import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
 import { AUTO_NOTIFIED_INCIDENT_TYPES } from "@/lib/incidentStages";
 import { defaultNotificationHours, notificationDueHours } from "@/lib/incidentNotificationHours";
+import { INCIDENT_TYPE_OPTIONS, incidentTypesForFacility, incidentNotificationLabel, INCIDENT_NOTIFICATION_TYPE_OPTIONS as NOTIFICATION_TYPE_OPTIONS } from "@/lib/incidentTypes";
 
 const PAGE_SIZE = 15;
-
-const INCIDENT_TYPE_OPTIONS = [
-  "death", "elopement", "abuse_allegation", "neglect_allegation", "medication_error",
-  "significant_injury", "assault", "fire", "environmental_emergency", "other",
-] as const;
-
-const NOTIFICATION_TYPE_OPTIONS = [
-  "state_hotline", "family_guardian", "law_enforcement", "licensing_agency",
-  // The OAPSA oral report to the area agency on aging (6 Pa. Code 15.151(a)(1)). The presets create
-  // one for abuse allegations and assaults.
-  "protective_services",
-  // The 48-hour written report that follows the department call. The presets create one for every
-  // reportable type (BACKLOG.md I10 residual / J74); offered here so a report filed for an event
-  // the presets did not cover can be dated at the same time it is reported.
-  "written_report", "other",
-] as const;
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -484,7 +469,7 @@ export default function Incidents() {
                 <Select value={form.incidentType} onValueChange={(v) => setForm((f) => ({ ...f, incidentType: v as IncidentFormData["incidentType"] }))}>
                   <SelectTrigger id="incident-type" className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {INCIDENT_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
+                    {incidentTypesForFacility(facilities?.find(facility => facility.id === form.facilityId)?.facility_type).map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -601,11 +586,11 @@ export default function Incidents() {
                   >
                     <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
+                      {NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{incidentNotificationLabel(t)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <Input type="number" min={1} value={row.dueInHours} onChange={(e) => setNotificationRows((rs) => rs.map((r, i) => i === idx ? { ...r, dueInHours: e.target.value } : r))} className="h-9 w-20" />
+                    <Input type="number" min={0} value={row.dueInHours} onChange={(e) => setNotificationRows((rs) => rs.map((r, i) => i === idx ? { ...r, dueInHours: e.target.value } : r))} className="h-9 w-20" />
                     <span className="text-xs text-muted-foreground">hrs</span>
                   </div>
                   <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setNotificationRows((rs) => rs.filter((_, i) => i !== idx))}>

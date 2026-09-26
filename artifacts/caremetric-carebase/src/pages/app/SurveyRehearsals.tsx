@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from "react";
 import { ClipboardCheck, FlaskConical, Play, CheckCircle2, Ban } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
   useCancelSurveyRehearsal,
@@ -39,8 +40,9 @@ export default function SurveyRehearsals() {
   const { user } = useAuth();
   const { toast } = useToast();
   const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const supportedFacilities = (facilities.data ?? []).filter((facility) => (PCH_ALR_ONLY_FACILITY_TYPES as readonly string[]).includes(facility.facility_type));
   const [facilityId, setFacilityId] = useState("");
-  const activeFacilityId = facilityId || facilities.data?.[0]?.id || "";
+  const activeFacilityId = supportedFacilities.find((facility) => facility.id === facilityId)?.id || supportedFacilities[0]?.id || "";
   const rehearsals = useListSurveyRehearsals(activeFacilityId || undefined);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const items = useSurveyRehearsalItems(selectedId);
@@ -178,12 +180,12 @@ export default function SurveyRehearsals() {
             {/* The facility picker lives in the create card below, which this role does not get. */}
             <div className="max-w-sm space-y-2">
               <Label htmlFor={`${__fieldIds}-review-facility`}>Facility</Label>
-              <Select value={activeFacilityId} onValueChange={setFacilityId}>
+              <Select value={activeFacilityId} onValueChange={(nextFacilityId) => { setSelectedId(null); setFacilityId(nextFacilityId); }}>
                 <SelectTrigger id={`${__fieldIds}-review-facility`}>
                   <SelectValue placeholder="Select facility" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(facilities.data ?? []).map((facility) => (
+                  {supportedFacilities.map((facility) => (
                     <SelectItem key={facility.id} value={facility.id}>
                       {facility.name}
                     </SelectItem>
@@ -206,12 +208,12 @@ export default function SurveyRehearsals() {
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor={`${__fieldIds}-facility`}>Facility</Label>
-            <Select value={activeFacilityId} onValueChange={setFacilityId}>
+            <Select value={activeFacilityId} onValueChange={(nextFacilityId) => { setSelectedId(null); setFacilityId(nextFacilityId); }}>
               <SelectTrigger id={`${__fieldIds}-facility`}>
                 <SelectValue placeholder="Select facility" />
               </SelectTrigger>
               <SelectContent>
-                {(facilities.data ?? []).map((facility) => (
+                {supportedFacilities.map((facility) => (
                   <SelectItem key={facility.id} value={facility.id}>
                     {facility.name}
                   </SelectItem>

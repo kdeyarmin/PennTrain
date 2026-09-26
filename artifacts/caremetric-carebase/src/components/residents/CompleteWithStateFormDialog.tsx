@@ -14,6 +14,7 @@ import { useUploadResidentDocument } from "@/hooks/useResidentDocuments";
 export interface CompletableItem {
   id: string;
   item_type: string;
+  due_date?: string | null;
 }
 
 interface CompleteWithStateFormDialogProps {
@@ -21,6 +22,7 @@ interface CompleteWithStateFormDialogProps {
   item: CompletableItem | null;
   resident: { id: string; organization_id: string; facility_id: string; admission_date: string | null };
   facilityType: string | undefined;
+  existingDocumentId?: string;
   onClose: () => void;
 }
 
@@ -28,7 +30,7 @@ interface CompleteWithStateFormDialogProps {
 // so completion always goes through this single path: upload the actual DHS form flagged
 // is_state_form, linked to this specific item, then complete_resident_compliance_item() validates
 // that exact document server-side. There is no "mark complete" shortcut that skips the upload.
-export function CompleteWithStateFormDialog({ item, resident, facilityType, onClose }: CompleteWithStateFormDialogProps) {
+export function CompleteWithStateFormDialog({ item, resident, facilityType, existingDocumentId, onClose }: CompleteWithStateFormDialogProps) {
   const { toast } = useToast();
   const uploadDocument = useUploadResidentDocument();
   const completeItem = useCompleteResidentComplianceItem();
@@ -39,7 +41,15 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
   // signed it recorded the assessment as completed on the upload day -- an ALF initial assessment
   // signed the week before admission read late when it was on time -- and every successor the RPC
   // inserts was anchored on that day, pushing the annual reassessment past 2600.225 / 2800.225.
-  const [completedOn, setCompletedOn] = useState(facilityToday());
+  const [completedOn, setCompletedOn] = useState("");
+  const [lpnName, setLpnName] = useState("");
+  const [lpnLicense, setLpnLicense] = useState("");
+  const [rnName, setRnName] = useState("");
+  const [rnLicense, setRnLicense] = useState("");
+  const [reviewedOn, setReviewedOn] = useState("");
+  const needsFinalPlanReview = facilityType === "ALR" && item?.item_type === "support_plan_30day";
+  const reviewReady = !needsFinalPlanReview || (lpnName.trim().length >= 2 && lpnLicense.trim().length >= 2
+    && rnName.trim().length >= 2 && rnLicense.trim().length >= 2 && reviewedOn && reviewedOn <= completedOn);
 
   const stateForm = item ? getRequiredStateFormInfo(item.item_type, facilityType) : null;
   const dateField = stateFormDateField(item?.item_type ?? "");
@@ -47,7 +57,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
   // regulatory look-back before admission. Mirrored here because the upload happens BEFORE the RPC
   // is called, so a date the server refuses left the document attached to the resident with the
   // item still incomplete, and a facility manager has no delete access on resident documents.
-  const earliestAllowed = item && resident.admission_date
+  const earliestAllowed = item?.item_type === "change_medical_evaluation" && item.due_date ? item.due_date : item && resident.admission_date
     ? addFacilityCalendarDays(resident.admission_date, -stateFormBackdateDays(item.item_type, facilityType))
     : null;
   const dateOutOfRange = Boolean(completedOn)
@@ -60,16 +70,17 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
   // resident documents) has no way to undo themselves.
   const close = () => {
     setFile(null);
-    setCompletedOn(facilityToday());
+    setCompletedOn("");
+    setLpnName(""); setLpnLicense(""); setRnName(""); setRnLicense(""); setReviewedOn("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     onClose();
   };
 
   const handleMarkComplete = async () => {
-    if (!item || !file || dateOutOfRange) return;
+    if (!item || (!file && !existingDocumentId) || !completedOn || dateOutOfRange || !reviewReady) return;
     try {
-      const uploadedDocument = await uploadDocument.mutateAsync({
-        file,
+      const documentId = existingDocumentId ?? (await uploadDocument.mutateAsync({
+        file: file!,
         organizationId: resident.organization_id,
         facilityId: resident.facility_id,
         residentId: resident.id,
@@ -77,8 +88,13 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
         isStateForm: true,
         stateFormSourceLabel: stateForm?.sourceLabel,
         stateFormSourceUrl: stateForm?.url,
+      })).id;
+      await completeItem.mutateAsync({ item, documentId, completedOn,
+        reviewAttestation: needsFinalPlanReview ? {
+          lpn_name: lpnName.trim(), lpn_license: lpnLicense.trim(), rn_supervisor_name: rnName.trim(),
+          rn_supervisor_license: rnLicense.trim(), reviewed_on: reviewedOn,
+        } : undefined,
       });
-      await completeItem.mutateAsync({ item, documentId: uploadedDocument.id, completedOn });
       toast({ title: "Marked complete" });
       close();
     } catch (err) {
@@ -96,7 +112,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
         </DialogHeader>
         <div className="space-y-3 py-2">
           <p className="text-sm text-muted-foreground">
-            Attach the completed <strong>{stateForm?.label}</strong> form.
+            {existingDocumentId ? "Confirm the completion date for the attached" : "Attach the completed"} <strong>{stateForm?.label}</strong> form.
             This must be the official DHS-prescribed form — a CareMetric-prepared draft or any other document
             can't be used to satisfy this requirement, no exception.
           </p>
@@ -114,9 +130,9 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
             accept=".pdf,.jpg,.jpeg,.png"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
-          <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+          {!existingDocumentId && <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
             <Upload className="mr-2 h-3.5 w-3.5" /> Choose File
-          </Button>
+          </Button>}
           {file && <p className="text-xs text-muted-foreground">{file.name}</p>}
           <div className="space-y-1.5 pt-1">
             <Label htmlFor="compliance-completed-on">{dateField.label}</Label>
@@ -134,11 +150,20 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, onCl
                 : dateField.hint}
             </p>
           </div>
+          {needsFinalPlanReview && <fieldset className="space-y-2 rounded border p-3">
+            <legend className="text-sm font-medium">Final plan approval · 2800.227(b)</legend>
+            <p className="text-xs text-muted-foreground">Record the LPN approval under RN supervision shown in the signed evidence.</p>
+            <Label htmlFor="final-plan-lpn">Approving LPN</Label><Input id="final-plan-lpn" value={lpnName} onChange={event => setLpnName(event.target.value)} />
+            <Label htmlFor="final-plan-lpn-license">LPN license number</Label><Input id="final-plan-lpn-license" value={lpnLicense} onChange={event => setLpnLicense(event.target.value)} />
+            <Label htmlFor="final-plan-rn">Supervising RN</Label><Input id="final-plan-rn" value={rnName} onChange={event => setRnName(event.target.value)} />
+            <Label htmlFor="final-plan-rn-license">RN license number</Label><Input id="final-plan-rn-license" value={rnLicense} onChange={event => setRnLicense(event.target.value)} />
+            <Label htmlFor="final-plan-reviewed">Documented approval date</Label><Input id="final-plan-reviewed" type="date" max={completedOn || facilityToday()} value={reviewedOn} onChange={event => setReviewedOn(event.target.value)} />
+          </fieldset>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={close}>Cancel</Button>
-          <Button onClick={handleMarkComplete} disabled={!file || !completedOn || dateOutOfRange || uploadDocument.isPending || completeItem.isPending}>
-            {uploadDocument.isPending || completeItem.isPending ? "Saving..." : "Upload & Mark Complete"}
+          <Button onClick={handleMarkComplete} disabled={(!file && !existingDocumentId) || !completedOn || dateOutOfRange || !reviewReady || uploadDocument.isPending || completeItem.isPending}>
+            {uploadDocument.isPending || completeItem.isPending ? "Saving..." : existingDocumentId ? "Mark Complete" : "Upload & Mark Complete"}
           </Button>
         </DialogFooter>
       </DialogContent>

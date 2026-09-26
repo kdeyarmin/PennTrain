@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { absoluteAppUrl } from "@/lib/appUrl";
+import { wetSignatureEvidenceError } from "@/lib/residentAgreementEvidence";
 
 export const RESIDENT_AGREEMENT_TYPES = [
   "resident_home_contract", "fee_schedule", "service_addendum", "resident_rights",
@@ -45,6 +46,7 @@ const blankResponse = () => ({
   versionId: "", outcome: "signed", signerName: "", signerRole: "resident", relationship: "Self",
   legalAuthority: "", authenticationMethod: "staff_session", attestation: "",
   reason: "", witnessName: "", witnessRelationship: "",
+  signedAt: "", signedDocumentId: "none",
 });
 
 function statusClass(status: string) {
@@ -87,6 +89,12 @@ export function ResidentAgreementWorkspace({
   const versionsById = useMemo(() => new Map((query.data?.versions ?? []).map(version => [version.id, version])), [query.data?.versions]);
   const signaturesByVersion = (versionId: string) => (query.data?.signatures ?? []).filter(signature => signature.agreement_version_id === versionId);
   const activeVersions = (query.data?.agreements ?? []).map(agreement => versionsById.get(agreement.current_version_id ?? "")).filter(Boolean) as ResidentAgreementVersion[];
+  const actualSignedAt = (() => {
+    if (!responseForm.signedAt) return undefined;
+    try { return facilityDateTimeLocalToUtcIso(responseForm.signedAt); } catch { return undefined; }
+  })();
+  const wetImportError = responseForm.authenticationMethod === "wet_signature_import"
+    ? wetSignatureEvidenceError(actualSignedAt, responseForm.signedDocumentId) : null;
 
   const openAmendment = (agreement: ResidentAgreement) => {
     const version = versionsById.get(agreement.current_version_id ?? "");
@@ -120,7 +128,8 @@ export function ResidentAgreementWorkspace({
     setResponseForm({ ...blankResponse(), versionId });
     setResponseOpen(true);
   };
-  const saveResponse = () => record.mutate({ residentId, ...responseForm }, {
+  const saveResponse = () => record.mutate({ residentId, ...responseForm, signedAt: actualSignedAt,
+    signedDocumentId: responseForm.signedDocumentId === "none" ? undefined : responseForm.signedDocumentId }, {
     onSuccess: () => { setResponseOpen(false); setResponseForm(blankResponse()); toast({ title: "Agreement response recorded" }); },
     onError: (error: Error) => toast({ title: "Couldn't record response", description: error.message, variant: "destructive" }),
   });
@@ -160,7 +169,7 @@ export function ResidentAgreementWorkspace({
               {canManage && version && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => openAmendment(agreement)}><RefreshCw className="mr-1 h-3.5 w-3.5" />Amend</Button><Button size="sm" onClick={() => openResponse(version.id)}><FileCheck2 className="mr-1 h-3.5 w-3.5" />Record response</Button></div>}
             </div>
             {version && <div className="mt-3 rounded-md bg-muted/40 p-3 text-sm whitespace-pre-wrap">{version.content_text}</div>}
-            <div className="mt-3 space-y-2">{!signatures.length ? <p className="text-xs text-muted-foreground">Required: {version?.required_signer_roles.map(humanize).join(" + ")}. No responses yet.</p> : signatures.map(signature => <div key={signature.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm"><div><p className="font-medium">{signature.signer_name} · {humanize(signature.outcome)}</p><p className="text-xs text-muted-foreground">{humanize(signature.signer_role)} · {signature.relationship} · {humanize(signature.authentication_method)} · {new Date(signature.signed_at).toLocaleString()}</p>{signature.reason && <p className="text-xs text-muted-foreground">Reason: {signature.reason}</p>}{signature.witness_name && <p className="text-xs text-muted-foreground">Witness: {signature.witness_name}</p>}</div>{signature.copy_delivered_at ? <Badge variant="outline"><Send className="mr-1 h-3 w-3" />Copy {humanize(signature.copy_delivery_method ?? "delivered")}</Badge> : canManage && <Button size="sm" variant="ghost" onClick={() => setCopySignature(signature)}>Record copy delivery</Button>}</div>)}</div>
+            <div className="mt-3 space-y-2">{!signatures.length ? <p className="text-xs text-muted-foreground">Required: {version?.required_signer_roles.map(humanize).join(" + ")}. No responses yet.</p> : signatures.map(signature => <div key={signature.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm"><div><p className="font-medium">{signature.signer_name} · {humanize(signature.outcome)}</p><p className="text-xs text-muted-foreground">{humanize(signature.signer_role)} · {signature.relationship} · {humanize(signature.authentication_method)} · {signature.authentication_method === "wet_signature_import" && !signature.signed_document_id ? "Actual signing time was not collected for this historical import" : `Signed ${new Date(signature.signed_at).toLocaleString("en-US", { timeZone: "America/New_York" })} (PA)`}</p>{signature.authentication_method === "wet_signature_import" && <p className="text-xs text-muted-foreground">Imported {new Date(signature.created_at).toLocaleString("en-US", { timeZone: "America/New_York" })} (PA){signature.signed_document_id && <> · Signed copy: {documents.find(document => document.id === signature.signed_document_id)?.document_label ?? documents.find(document => document.id === signature.signed_document_id)?.file_name ?? "Retained resident document"}</>}</p>}{signature.reason && <p className="text-xs text-muted-foreground">Reason: {signature.reason}</p>}{signature.witness_name && <p className="text-xs text-muted-foreground">Witness: {signature.witness_name}</p>}</div>{signature.copy_delivered_at ? <Badge variant="outline"><Send className="mr-1 h-3 w-3" />Copy {humanize(signature.copy_delivery_method ?? "delivered")}</Badge> : canManage && <Button size="sm" variant="ghost" onClick={() => setCopySignature(signature)}>Record copy delivery</Button>}</div>)}</div>
           </div>;
         })}
 
@@ -182,6 +191,12 @@ export function ResidentAgreementWorkspace({
       <Dialog open={responseOpen} onOpenChange={setResponseOpen}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Record resident agreement response</DialogTitle><DialogDescription>Use this for staff-assisted signing, resident portal authentication, or imported wet-signature documentation.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2">
         <div><Label htmlFor={`${__fieldIds}-outcome`}>Outcome</Label><Select value={responseForm.outcome} onValueChange={value => setResponseForm(current => ({ ...current, outcome: value }))}><SelectTrigger id={`${__fieldIds}-outcome`}><SelectValue /></SelectTrigger><SelectContent>{OUTCOMES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor={`${__fieldIds}-authentication-method`}>Authentication method</Label><Select value={responseForm.authenticationMethod} onValueChange={value => setResponseForm(current => ({ ...current, authenticationMethod: value }))}><SelectTrigger id={`${__fieldIds}-authentication-method`}><SelectValue /></SelectTrigger><SelectContent>{["staff_session","resident_portal","wet_signature_import"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
+        {responseForm.authenticationMethod === "wet_signature_import" && <>
+          <div><Label htmlFor={`${__fieldIds}-actual-signed-at`}>Actual signing date and time *</Label><Input id={`${__fieldIds}-actual-signed-at`} type="datetime-local" max={toFacilityDateTimeLocal()} value={responseForm.signedAt} onChange={event => setResponseForm(current => ({ ...current, signedAt: event.target.value }))} /></div>
+          <div><Label htmlFor={`${__fieldIds}-signed-document`}>Signed resident document *</Label><Select value={responseForm.signedDocumentId} onValueChange={value => setResponseForm(current => ({ ...current, signedDocumentId: value }))}><SelectTrigger id={`${__fieldIds}-signed-document`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Select the signed copy</SelectItem>{documents.filter(document => document.resident_id === residentId).map(document => <SelectItem key={document.id} value={document.id}>{document.document_label ?? document.file_name}</SelectItem>)}</SelectContent></Select></div>
+          <p className="sm:col-span-2 text-xs text-muted-foreground">Enter the actual time in Pennsylvania time. Upload the signed copy in Documents, then select it here. The import time is recorded separately; the actual signing time anchors the rescission period.</p>
+          {wetImportError && <p className="sm:col-span-2 text-xs text-amber-700">{wetImportError}</p>}
+        </>}
         <div><Label htmlFor={`${__fieldIds}-signer-name`}>Signer name</Label><Input id={`${__fieldIds}-signer-name`} value={responseForm.signerName} onChange={event => setResponseForm(current => ({ ...current, signerName: event.target.value }))} /></div>
         <div><Label htmlFor={`${__fieldIds}-signer-role`}>Signer role</Label><Select value={responseForm.signerRole} onValueChange={value => setResponseForm(current => ({ ...current, signerRole: value }))}><SelectTrigger id={`${__fieldIds}-signer-role`}><SelectValue /></SelectTrigger><SelectContent>{SIGNER_ROLES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor={`${__fieldIds}-relationship`}>Relationship</Label><Input id={`${__fieldIds}-relationship`} value={responseForm.relationship} onChange={event => setResponseForm(current => ({ ...current, relationship: event.target.value }))} /></div>
@@ -190,7 +205,7 @@ export function ResidentAgreementWorkspace({
         {responseForm.outcome !== "signed" && <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-reason`}>Reason *</Label><Textarea id={`${__fieldIds}-reason`} value={responseForm.reason} onChange={event => setResponseForm(current => ({ ...current, reason: event.target.value }))} /></div>}
         <div><Label htmlFor={`${__fieldIds}-witness-name`}>Witness name</Label><Input id={`${__fieldIds}-witness-name`} value={responseForm.witnessName} onChange={event => setResponseForm(current => ({ ...current, witnessName: event.target.value }))} /></div>
         <div><Label htmlFor={`${__fieldIds}-witness-relationship`}>Witness relationship</Label><Input id={`${__fieldIds}-witness-relationship`} value={responseForm.witnessRelationship} onChange={event => setResponseForm(current => ({ ...current, witnessRelationship: event.target.value }))} /></div>
-      </div><DialogFooter><Button variant="outline" onClick={() => setResponseOpen(false)}>Cancel</Button><Button disabled={record.isPending || responseForm.signerName.trim().length < 2 || responseForm.relationship.trim().length < 2 || responseForm.attestation.trim().length < 5 || (responseForm.outcome !== "signed" && responseForm.reason.trim().length < 5)} onClick={saveResponse}>{record.isPending ? "Recording…" : "Record response"}</Button></DialogFooter></DialogContent></Dialog>
+      </div><DialogFooter><Button variant="outline" onClick={() => setResponseOpen(false)}>Cancel</Button><Button disabled={record.isPending || !!wetImportError || responseForm.signerName.trim().length < 2 || responseForm.relationship.trim().length < 2 || responseForm.attestation.trim().length < 5 || (responseForm.outcome !== "signed" && responseForm.reason.trim().length < 5)} onClick={saveResponse}>{record.isPending ? "Recording…" : "Record response"}</Button></DialogFooter></DialogContent></Dialog>
 
       <Dialog open={shareOpen} onOpenChange={(open) => {
         if (!open) {

@@ -177,7 +177,7 @@ export default function TrainingTypes() {
             <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-16" />)}</div>
           ) : orgTypes.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
-              No custom training types yet -- the system defaults below cover the standard PA requirements.
+              No custom training types yet. System defaults cover several facility types; check each type's facility scope and citation before using it.
             </p>
           ) : (
             <div className="space-y-2">{orgTypes.map(t => renderRow(t, canManage))}</div>

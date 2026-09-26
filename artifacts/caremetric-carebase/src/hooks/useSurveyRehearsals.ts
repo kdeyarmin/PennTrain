@@ -41,6 +41,7 @@ export interface SurveyRehearsalItem {
 export function useListSurveyRehearsals(facilityId?: string) {
   return useQuery({
     queryKey: ["survey-rehearsals", facilityId ?? "all"],
+    enabled: Boolean(facilityId),
     queryFn: async () => {
       let query = supabase
         .from("survey_rehearsals" as never)

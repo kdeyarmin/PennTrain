@@ -25,6 +25,8 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import type { ResidentTabProps } from "./types";
 import { QueryError } from "@/components/QueryState";
+import { ResidentClinicalDuties } from "@/components/residents/ResidentClinicalDuties";
+import { CampusMoveEvidence } from "@/components/residents/CampusMoveEvidence";
 
 export default function AssessmentsTab({ resident, facility, canManage, residentPathPrefix }: ResidentTabProps) {
   const { toast } = useToast();
@@ -45,6 +47,8 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
 
   return (
     <div className="space-y-6">
+      <ResidentClinicalDuties resident={resident} facilityType={facility?.facility_type} canManage={canManage} />
+      <CampusMoveEvidence resident={resident} facilityType={facility?.facility_type} canManage={canManage} />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> {formLabel} Compliance Checklist</CardTitle>

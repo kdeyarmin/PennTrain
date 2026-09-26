@@ -97,6 +97,7 @@ export default function ChangeOfConditionDetail() {
     || event.provider_notification_status === "pending"
     || event.designated_person_notification_status === "pending"
     || event.incident_decision === "pending"
+    || (event.medical_condition_changed && event.medical_evaluation_item?.status !== "compliant")
     || !!openFollowUp;
 
   const submitNotification = () => {
@@ -360,6 +361,7 @@ export default function ChangeOfConditionDetail() {
               <div className="flex justify-between"><span>Incident report</span><Badge variant="outline">{humanize(event.incident_decision)}</Badge></div>
               <div className="flex justify-between"><span>Significant-change reassessment</span><Badge variant="outline">{event.reassessment_required ? "Required" : "Not required"}</Badge></div>
               <div className="flex justify-between"><span>Support-plan revision review</span><Badge variant="outline">{event.support_plan_revision_required ? "Required" : "Not required"}</Badge></div>
+              {event.medical_condition_changed && <div className="space-y-2"><div className="flex justify-between"><span>Medical evaluation after this change</span><Badge variant="outline">{event.medical_evaluation_item?.status === "compliant" ? "Completed" : "Required"}</Badge></div><p className="text-xs text-muted-foreground">§ 2600.141(b)(2) / § 2800.141(b)(2). The same-day date is an internal follow-up target, not a statutory number of days.</p>{!isEmployee && <Button asChild variant="outline" size="sm" className="w-full"><Link href="/app/state-forms">Open medical evaluation workflow <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>}</div>}
               {!isEmployee && event.incident_id && <Button asChild variant="outline" size="sm" className="w-full"><Link href={`/app/incidents/${event.incident_id}`}>Open linked incident <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>}
               {!isEmployee && event.compliance_item_id && <Button asChild variant="outline" size="sm" className="w-full"><Link href="/app/state-forms">Open reassessment workflow <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>}
               <Button asChild variant="outline" size="sm" className="w-full"><Link href={`${isEmployee ? "/me" : "/app"}/residents/${event.resident_id}`}>Open resident record <ExternalLink className="ml-2 h-4 w-4" /></Link></Button>
@@ -370,7 +372,7 @@ export default function ChangeOfConditionDetail() {
             <Card className="border-emerald-300">
               <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Final supervisor review</CardTitle><CardDescription>Closure requires completed follow-ups, notification decisions, and an incident decision.</CardDescription></CardHeader>
               <CardContent className="space-y-3">
-                {closureBlocked && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Closure requirements remain</AlertTitle><AlertDescription>{activity.isLoading ? "Checking follow-ups and closure requirements…" : "Resolve pending notifications, incident decision, and open follow-ups first."}</AlertDescription></Alert>}
+                {closureBlocked && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Closure requirements remain</AlertTitle><AlertDescription>{activity.isLoading ? "Checking follow-ups and closure requirements…" : "Resolve pending notifications, incident decision, open follow-ups, and any required medical evaluation first."}</AlertDescription></Alert>}
                 <Textarea value={closureSummary} onChange={input => setClosureSummary(input.target.value)} placeholder="Supervisor review and closure summary" />
                 <Button disabled={closureBlocked || closureSummary.trim().length < 5 || closeEvent.isPending} onClick={() => closeEvent.mutate({ eventId: event.id, summary: closureSummary }, { onSuccess: () => toast({ title: "Change event closed after supervisor review" }), onError: (error: Error) => toast({ title: "Couldn't close event", description: error.message, variant: "destructive" }) })}><CheckCircle2 className="mr-2 h-4 w-4" />Close event</Button>
               </CardContent>

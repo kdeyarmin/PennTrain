@@ -85,7 +85,7 @@ export function VoiceAssistantPanel({
           )}
         </div>
         <CardDescription>
-          Talk through compliance for {facilityName ?? "this facility"} —
+          Optional voice assistance for {facilityName ?? "this facility"} —
           readiness, upcoming deadlines, and grounded regulatory answers for
           Personal Care Homes and Assisted Living Facilities (ALFs). Regulatory
           answers run through the citation-backed copilot and appear in its

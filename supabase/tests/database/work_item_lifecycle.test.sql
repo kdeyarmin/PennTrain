@@ -227,7 +227,9 @@ select is(
   'a noted deficiency opens an item'
 );
 
-update public.inspection_events set result = 'pass', follow_up_required = false
+update public.inspection_events set result = 'pass', follow_up_required = false,
+  fire_safety_expert_name = 'Qualified extinguisher inspector',
+  fire_safety_expert_qualification = 'Annual extinguisher service qualification on file'
 where id = '7b000000-0000-4000-8000-000000000402';
 
 select is(

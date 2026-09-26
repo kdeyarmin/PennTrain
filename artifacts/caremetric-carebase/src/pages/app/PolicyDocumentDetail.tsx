@@ -1,3 +1,5 @@
+import { usePolicyWriteAssurance } from "@/hooks/usePolicyWriteAssurance";
+import { PolicyWriteAssurance } from "@/components/policies/PolicyWriteAssurance";
 import { useMemo, useRef, useState } from "react";
 import { useParams, Link } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -79,6 +81,7 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
   // facility_manager only, while the select policy shows the whole organization -- so Upload and
   // Publish rendered for an auditor and each one ended in a 42501 toast (BACKLOG.md J74, Policy).
   const canWrite = canWritePolicyDocuments(user?.role);
+  const assurance = usePolicyWriteAssurance();
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -124,7 +127,7 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
           <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Versions</CardTitle>
           {canWrite && (
             <>
-              <Button onClick={() => fileInputRef.current?.click()} disabled={uploadVersion.isPending}>
+              <Button onClick={() => fileInputRef.current?.click()} disabled={!assurance.canWrite || uploadVersion.isPending}>
                 <Upload className="mr-2 h-4 w-4" /> {uploadVersion.isPending ? "Uploading..." : `Upload Version ${nextVersionNumber}`}
               </Button>
               <input ref={fileInputRef} type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleUpload} />
@@ -157,7 +160,7 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
                 <div className="flex items-center gap-2 shrink-0">
                   <Button size="sm" variant="outline" onClick={() => handleView(v)}>View</Button>
                   {canWrite && v.status === "draft" && (
-                    <Button size="sm" onClick={() => handlePublish(v)} disabled={publishVersion.isPending}>Publish</Button>
+                    <Button size="sm" onClick={() => handlePublish(v)} disabled={!assurance.canWrite || publishVersion.isPending}>Publish</Button>
                   )}
                 </div>
               </div>
@@ -344,6 +347,7 @@ function AssignCampaignDialog({
             </div>
           )}
         </div>
+        <PolicyWriteAssurance />
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
           <Button onClick={handleAssign} disabled={!selectedIds.length || assigning}>
@@ -356,6 +360,7 @@ function AssignCampaignDialog({
 }
 
 function NewCampaignDialog({ documentId, currentVersionId }: { documentId: string; currentVersionId: string | null }) {
+  const assurance = usePolicyWriteAssurance();
   const { user } = useAuth();
   const { toast } = useToast();
   const { mutateAsync: createCampaignWithQuestions } = useCreatePolicyCampaignWithQuestions();
@@ -434,7 +439,7 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
       if (!next) resetCampaignForm();
     }}>
       <DialogTrigger asChild>
-        <Button disabled={!currentVersionId}>
+        <Button disabled={!assurance.canWrite || !currentVersionId}>
           <Plus className="mr-2 h-4 w-4" /> New Campaign
         </Button>
       </DialogTrigger>
@@ -480,9 +485,10 @@ function NewCampaignDialog({ documentId, currentVersionId }: { documentId: strin
           />
           <CampaignQuestionsEditor questions={questions} onChange={setQuestions} />
         </div>
+        <PolicyWriteAssurance />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || !questionsValid || !targetingIsValid(targeting) || recurrenceNeedsDueDate || isPending}>{isPending ? "Creating..." : "Create"}</Button>
+          <Button onClick={handleCreate} disabled={!assurance.canWrite || !name.trim() || !questionsValid || !targetingIsValid(targeting) || recurrenceNeedsDueDate || isPending}>{isPending ? "Creating..." : "Create"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -532,6 +538,7 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
   // auditor's job -- while every write branch stops at org_admin/facility_manager. See
   // policyPermissions.ts.
   const canWrite = canWritePolicyDocuments(user?.role);
+  const assurance = usePolicyWriteAssurance();
   const { data: campaigns, isLoading, isError, error, refetch } = useListPolicyAttestationCampaigns({ policyDocumentId: documentId });
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [assignTarget, setAssignTarget] = useState<{ id: string; versionId: string; dueDate: string | null } | null>(null);
@@ -584,6 +591,7 @@ function CampaignsTab({ documentId, currentVersionId }: { documentId: string; cu
                     {canWrite && !c.closed_at && (
                       <Button
                         size="sm"
+                        disabled={!assurance.canWrite}
                         onClick={() => setAssignTarget({ id: c.id, versionId: c.policy_document_version_id, dueDate: c.due_date })}
                       >
                         Assign Employees
@@ -674,6 +682,7 @@ export default function PolicyDocumentDetail() {
 
   return (
     <div className="space-y-6">
+      <PolicyWriteAssurance />
       <div>
         <Link href="/app/policy-documents" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2">
           <ArrowLeft className="h-4 w-4" /> Back to Policies & Procedures

@@ -1,5 +1,6 @@
 import { type SupabaseClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { strToU8 } from "npm:fflate@0.8.3";
+import { csvCell, streamOrganizationTableCsv } from "../_shared/organizationExportCsv.ts";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 import { validateOrganizationExportDocument } from "../_shared/organizationExport.ts";
 import {
@@ -62,13 +63,6 @@ function response(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: HEADERS });
 }
 
-function csvCell(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  let rendered = typeof value === "object" ? JSON.stringify(value) : String(value);
-  if (/^\s*[=+\-@]/.test(rendered)) rendered = `'${rendered}`;
-  return `"${rendered.replaceAll('"', '""')}"`;
-}
-
 function rowsToCsv(rows: JsonRow[]): string {
   if (rows.length === 0) return "";
   const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row)))).sort();
@@ -78,20 +72,21 @@ function rowsToCsv(rows: JsonRow[]): string {
   ].join("\r\n") + "\r\n";
 }
 
-async function fetchAllByOrganization(
+async function* fetchDocumentReferencePages(
   admin: SupabaseClient,
   table: string,
   organizationId: string,
-): Promise<JsonRow[]> {
+): AsyncGenerator<JsonRow[]> {
   // Keyset pagination (`id > last`), not OFFSET: each page is its own transaction, and a row
   // deleted mid-sweep shifts every later row back one slot under OFFSET, silently dropping the
   // row at each page boundary from an export whose manifest still calls itself complete.
   // Ordering by primary key keeps the sweep stable for the same reason.
   const pageSize = 1000;
-  const rows: JsonRow[] = [];
-  let lastId: unknown = null;
+  let lastId: string | null = null;
   for (;;) {
-    let query = admin.from(table).select("*")
+    // Document content/clinical metadata is already streamed through its table CSV.
+    // The manifest needs only these references; never retain whole document rows.
+    let query = admin.from(table).select("id,storage_bucket,storage_path")
       .eq("organization_id", organizationId)
       .order("id", { ascending: true })
       .limit(pageSize);
@@ -99,46 +94,12 @@ async function fetchAllByOrganization(
     const { data, error } = await query;
     if (error) throw new Error(`${table}: ${error.message}`);
     const page = (data ?? []) as JsonRow[];
-    rows.push(...page);
+    yield page;
     if (page.length < pageSize) break;
-    lastId = page[page.length - 1].id;
+    const nextId = page[page.length - 1].id;
+    if (typeof nextId !== "string" || nextId === lastId) throw new Error(`${table}: document page did not advance`);
+    lastId = nextId;
   }
-  return rows;
-}
-
-async function exportTableRows(
-  admin: SupabaseClient,
-  table: string,
-  organizationId: string,
-): Promise<JsonRow[]> {
-  // Keyset (`id > last`) after the first page, mirroring fetchAllByOrganization: each page
-  // is its own transaction, and OFFSET dropped the row at each page boundary whenever a
-  // concurrent delete shifted the order. Tables without an `id` key in their rows (none in
-  // the catalog today) fall back to the RPC's stable-order OFFSET path.
-  const pageSize = 1000;
-  const rows: JsonRow[] = [];
-  let afterId: string | null = null;
-  let useKeyset = true;
-  for (;;) {
-    const { data, error } = await admin.rpc("export_organization_table", {
-      p_organization_id: organizationId,
-      p_table_name: table,
-      p_offset: useKeyset ? 0 : rows.length,
-      p_limit: pageSize,
-      p_after_id: useKeyset ? afterId : null,
-    });
-    if (error) throw new Error(`${table}: ${error.message}`);
-    const page = (data ?? []) as JsonRow[];
-    rows.push(...page);
-    if (page.length < pageSize) break;
-    const lastId = page[page.length - 1]?.id;
-    if (lastId === undefined || lastId === null) {
-      useKeyset = false;
-    } else {
-      afterId = String(lastId);
-    }
-  }
-  return rows;
 }
 
 type ManifestEntry = {
@@ -165,33 +126,34 @@ type DocRef = {
   invalidReason: string | null;
 };
 
-async function collectDocumentReferences(
+export async function collectDocumentReferences(
   admin: SupabaseClient,
   organizationId: string,
 ): Promise<DocRef[]> {
   const refs: DocRef[] = [];
   for (const source of DOCUMENT_TABLES) {
-    const rows = await fetchAllByOrganization(admin, source.table, organizationId);
-    for (const row of rows) {
-      const rawBucket = row[source.bucketColumn];
-      const rawPath = row[source.pathColumn];
-      const bucket = typeof rawBucket === "string" ? rawBucket : null;
-      const path = typeof rawPath === "string" ? rawPath : null;
-      let valid = false;
-      let invalidReason: string | null = null;
-      if (!bucket || !path) {
-        invalidReason = "missing_reference";
-      } else {
-        const reference = validateOrganizationExportDocument({
-          sourceTable: source.table,
-          organizationId,
-          bucket,
-          path,
-        });
-        if (reference.valid) valid = true;
-        else invalidReason = reference.reason;
+    for await (const rows of fetchDocumentReferencePages(admin, source.table, organizationId)) {
+      for (const row of rows) {
+        const rawBucket = row[source.bucketColumn];
+        const rawPath = row[source.pathColumn];
+        const bucket = typeof rawBucket === "string" ? rawBucket : null;
+        const path = typeof rawPath === "string" ? rawPath : null;
+        let valid = false;
+        let invalidReason: string | null = null;
+        if (!bucket || !path) {
+          invalidReason = "missing_reference";
+        } else {
+          const reference = validateOrganizationExportDocument({
+            sourceTable: source.table,
+            organizationId,
+            bucket,
+            path,
+          });
+          if (reference.valid) valid = true;
+          else invalidReason = reference.reason;
+        }
+        refs.push({ sourceTable: source.table, recordId: row.id ?? null, bucket, path, valid, invalidReason });
       }
-      refs.push({ sourceTable: source.table, recordId: row.id ?? null, bucket, path, valid, invalidReason });
     }
   }
   return refs;
@@ -472,7 +434,7 @@ async function buildExclusionsFile(
   }, null, 2);
 }
 
-async function buildExport(
+export async function buildExport(
   admin: SupabaseClient,
   claim: ExportClaim,
   downloadObject: DocumentDownloader,
@@ -518,10 +480,20 @@ async function buildExport(
       .map((entry) => entry.table_name)
       .filter((table: unknown): table is string => typeof table === "string");
     for (const table of organizationTables) {
-      const rows = await exportTableRows(admin, table, claim.organization_id);
-      await zip.addFile(`tables/${table}.csv`, strToU8(rowsToCsv(rows)));
+      const entry = zip.open(`tables/${table}.csv`, { compress: true });
+      rowCount += await streamOrganizationTableCsv(async ({ offset, afterId }) => {
+        if (Date.now() > deadlineAt) throw new Error("Export time limit reached while reading tables. Retry the export.");
+        const { data, error } = await admin.rpc("export_organization_table", {
+          p_organization_id: claim.organization_id,
+          p_table_name: table,
+          p_offset: offset,
+          p_limit: 1000,
+          p_after_id: afterId,
+        });
+        if (error) throw new Error(`${table}: table export failed`);
+        return (data ?? []) as JsonRow[];
+      }, entry);
       tableCount += 1;
-      rowCount += rows.length;
     }
 
     const refs = await collectDocumentReferences(admin, claim.organization_id);

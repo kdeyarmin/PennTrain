@@ -13,6 +13,7 @@ export interface ResidentChangeEventWithRelations extends ResidentChangeEvent {
   assigned: { id: string; first_name: string; last_name: string } | null;
   identified_by: { id: string; first_name: string; last_name: string } | null;
   compliance_item: { id: string; status: string; due_date: string | null } | null;
+  medical_evaluation_item: { id: string; status: string; due_date: string | null } | null;
   incident: { id: string; status: string; severity: string } | null;
 }
 
@@ -35,7 +36,8 @@ const CHANGE_EVENT_SELECT = `
   facility:facilities(id, name),
   assigned:profiles!resident_change_events_assigned_profile_id_fkey(id, first_name, last_name),
   identified_by:profiles!resident_change_events_identified_by_profile_id_fkey(id, first_name, last_name),
-  compliance_item:resident_compliance_items(id, status, due_date),
+  compliance_item:resident_compliance_items!resident_change_events_compliance_item_id_fkey(id, status, due_date),
+  medical_evaluation_item:resident_compliance_items!resident_change_events_medical_evaluation_item_id_fkey(id, status, due_date),
   incident:incidents(id, status, severity)
 `;
 
@@ -178,6 +180,7 @@ export interface CreateResidentChangeEventInput {
   followUpDueAt: string;
   incidentDecision: string;
   reassessmentRequired: boolean;
+  medicalConditionChanged?: boolean;
   supportPlanRevisionRequired: boolean;
   sourceServiceAlertId?: string | null;
 }
@@ -203,6 +206,7 @@ export function useCreateResidentChangeEvent() {
         p_follow_up_due_at: input.followUpDueAt,
         p_incident_decision: input.incidentDecision,
         p_reassessment_required: input.reassessmentRequired,
+        p_medical_condition_changed: input.medicalConditionChanged ?? false,
         p_support_plan_revision_required: input.supportPlanRevisionRequired,
         p_source_service_alert_id: input.sourceServiceAlertId ?? null,
       } as never);

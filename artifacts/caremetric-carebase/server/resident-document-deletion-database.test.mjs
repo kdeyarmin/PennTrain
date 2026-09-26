@@ -114,8 +114,8 @@ test("real local Storage preserves registered resident bytes and completes durab
       values('${organization}','Resident deletion HTTP fixture','deletion-http-${organization}','active');
     insert into public.facilities(id,organization_id,name,facility_type)
       values('${facility}','${organization}','Deletion HTTP facility','PCH');
-    insert into public.residents(id,organization_id,facility_id,first_name,last_name,status,admission_date)
-      values('${resident}','${organization}','${facility}','Synthetic','Resident','active',current_date - 30);
+    insert into public.residents(id,organization_id,facility_id,first_name,last_name,status,admission_date,discharge_date,date_of_birth)
+      values('${resident}','${organization}','${facility}','Synthetic','Resident','discharged',public.pa_today() - 1500,public.pa_today() - 1100,'1940-01-01');
     commit;`);
   const uploaded = await caller.storage.from(bucket).upload(path, bytes, { contentType: "application/pdf" });
   assert.equal(uploaded.error, null);

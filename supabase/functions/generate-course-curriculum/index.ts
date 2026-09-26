@@ -1,3 +1,4 @@
+import { publicGeneratorError } from "../_shared/generatorErrors.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { getAnthropicModelCandidates } from "../_shared/anthropicModels.ts";
 import { orgAiAllowed, orgAiDisabledBody } from "../_shared/orgAiGate.ts";
@@ -327,7 +328,7 @@ Deno.serve(async (req: Request) => {
     .select("id")
     .single();
   if (generationInsertError || !generationRow) {
-    return json(req, { error: generationInsertError?.message ?? "failed to create audit record for this generation" }, 500);
+    return json(req, { error: publicGeneratorError("audit", generationInsertError) }, 500);
   }
   const generationId = generationRow.id as string;
 
@@ -358,7 +359,7 @@ Deno.serve(async (req: Request) => {
       await markFailed(`Anthropic API request timed out after ${ANTHROPIC_TIMEOUT_MS / 1000}s`);
       return json(req, { error: "AI course generation timed out", generation_id: generationId }, 504);
     }
-    const message = e instanceof Error ? e.message : String(e);
+    const message = publicGeneratorError("provider", e);
     await markFailed(message);
     return json(req, { error: message, generation_id: generationId }, 502);
   }
@@ -369,7 +370,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!result.ok) {
-    const message = (result.body as { error?: { message?: string } } | null)?.error?.message ?? `Anthropic API returned ${result.status}`;
+    const message = publicGeneratorError("provider", { code: String(result.status) });
     await markFailed(message);
     return json(req, { error: message, generation_id: generationId }, 502);
   }
@@ -393,8 +394,9 @@ Deno.serve(async (req: Request) => {
       .select("id")
       .single();
     if (planError || !plan) {
-      await markFailed(planError?.message ?? "failed to create training plan");
-      return json(req, { error: planError?.message ?? "failed to create training plan", generation_id: generationId }, 500);
+      const message = publicGeneratorError("course", planError);
+      await markFailed(message);
+      return json(req, { error: message, generation_id: generationId }, 500);
     }
 
     const createdCourses: { course_id: string; course_version_id: string; title: string }[] = [];
@@ -406,7 +408,7 @@ Deno.serve(async (req: Request) => {
         .select("id")
         .single();
       if (childGenerationError || !childGeneration) {
-        const msg = childGenerationError?.message ?? "failed to create course audit record for this training plan";
+        const msg = publicGeneratorError("audit", childGenerationError);
         await callerClient.from("training_plans").delete().eq("id", plan.id);
         for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
         await markFailed(msg);
@@ -416,12 +418,12 @@ Deno.serve(async (req: Request) => {
         .rpc("create_course_from_ai_draft", { p_draft: courseDraft, p_generation_id: childGeneration.id })
         .single();
       if (rpcError || !rpcResult) {
-        const msg = rpcError?.message ?? "create_course_from_ai_draft RPC failed";
+        const msg = publicGeneratorError("course", rpcError);
         await callerClient.from("course_ai_generations").delete().eq("id", childGeneration.id);
         await callerClient.from("training_plans").delete().eq("id", plan.id);
         for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
         await markFailed(msg);
-        return json(req, { error: rpcError?.message ?? "failed to create a course from the AI training plan", generation_id: generationId }, 500);
+        return json(req, { error: msg, generation_id: generationId }, 500);
       }
       const { course_id, course_version_id } = rpcResult as { course_id: string; course_version_id: string };
       createdCourses.push({ course_id, course_version_id, title: String(courseDraft.title) });
@@ -433,8 +435,9 @@ Deno.serve(async (req: Request) => {
     if (itemsError) {
       await callerClient.from("training_plans").delete().eq("id", plan.id);
       for (const c of createdCourses) await callerClient.from("courses").delete().eq("id", c.course_id);
-      await markFailed(itemsError.message);
-      return json(req, { error: itemsError.message, generation_id: generationId }, 500);
+      const message = publicGeneratorError("course", itemsError);
+      await markFailed(message);
+      return json(req, { error: message, generation_id: generationId }, 500);
     }
     await callerClient.from("course_ai_generations").update({ status: "completed", response_summary: { plan_name: planDraft.plan_name, course_count: createdCourses.length } }).eq("id", generationId);
     return json(req, { success: true, training_plan_id: plan.id, courses: createdCourses, generation_id: generationId });
@@ -453,8 +456,9 @@ Deno.serve(async (req: Request) => {
     .rpc("create_course_from_ai_draft", { p_draft: draft, p_generation_id: generationId })
     .single();
   if (rpcError || !rpcResult) {
-    await markFailed(rpcError?.message ?? "create_course_from_ai_draft RPC failed");
-    return json(req, { error: rpcError?.message ?? "failed to create course from AI draft", generation_id: generationId }, 500);
+    const message = publicGeneratorError("course", rpcError);
+    await markFailed(message);
+    return json(req, { error: message, generation_id: generationId }, 500);
   }
 
   const { course_id: courseId, course_version_id: courseVersionId } = rpcResult as { course_id: string; course_version_id: string };

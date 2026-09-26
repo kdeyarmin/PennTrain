@@ -1,3 +1,5 @@
+import { useRequestIdentityVerification } from "@/lib/identityReverification";
+import { requirePolicyWriteAssurance } from "@/lib/policyWriteAssurance";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { edgeFunctionError } from "@/lib/edgeFunctionErrors";
 import { supabase } from "@/lib/supabase";
@@ -110,9 +112,11 @@ export interface AssignPolicyAttestationParams {
 }
 
 export function useAssignPolicyAttestationToEmployee() {
+  const requestVerification = useRequestIdentityVerification();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (params: AssignPolicyAttestationParams) => {
+      await requirePolicyWriteAssurance(requestVerification);
       const { data, error } = await supabase
         .from("policy_attestations")
         .insert({
@@ -202,9 +206,11 @@ export interface CreateCampaignWithQuestionsParams {
  * both tables' RLS policies still authorize the caller exactly as a direct insert would.
  */
 export function useCreatePolicyCampaignWithQuestions() {
+  const requestVerification = useRequestIdentityVerification();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (params: CreateCampaignWithQuestionsParams) => {
+      await requirePolicyWriteAssurance(requestVerification);
       const { data, error } = await supabase.rpc("create_policy_campaign_with_questions", {
         p_organization_id: params.organizationId,
         p_policy_document_id: params.policyDocumentId,

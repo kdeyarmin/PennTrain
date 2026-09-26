@@ -218,7 +218,7 @@ export default function RegulatoryCopilot() {
       <div>
         <div className="flex items-center gap-2"><Bot className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Citation-Backed Regulatory Copilot</h1></div>
         <p className="text-muted-foreground">
-          Drafting aid over facility-scoped CareBase documentation and any active governed rule versions.
+          Optional drafting aid over facility-scoped CareBase documentation and any active governed rule versions. Chapters 2600 and 2800 do not require AI assistance.
           {hasPaRulePack
             ? ` ${paRulePacks.length} active PA rule version${paRulePacks.length === 1 ? "" : "s"} ground PA answers — they are still not compliance determinations.`
             : " Answers are not compliance determinations."}

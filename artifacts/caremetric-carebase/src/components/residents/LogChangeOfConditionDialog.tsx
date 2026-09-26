@@ -50,6 +50,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
   const [followUpDueAt, setFollowUpDueAt] = useState(() => toFacilityDateTimeLocal(new Date(Date.now() + 4 * 3_600_000)));
   const [incidentDecision, setIncidentDecision] = useState("pending");
   const [reassessmentRequired, setReassessmentRequired] = useState(true);
+  const [medicalConditionChanged, setMedicalConditionChanged] = useState(false);
   const [supportPlanRevisionRequired, setSupportPlanRevisionRequired] = useState(true);
 
   const targetResidentId = residentId ?? selectedResidentId;
@@ -73,6 +74,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
       setFollowUpDueAt(toFacilityDateTimeLocal(new Date(Date.now() + 4 * 3_600_000)));
       setIncidentDecision("pending");
       setReassessmentRequired(true);
+      setMedicalConditionChanged(false);
       setSupportPlanRevisionRequired(true);
     }
   };
@@ -97,6 +99,7 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
         followUpDueAt: facilityDateTimeLocalToUtcIso(followUpDueAt),
         incidentDecision,
         reassessmentRequired,
+        medicalConditionChanged,
         supportPlanRevisionRequired,
         sourceServiceAlertId,
       },
@@ -173,6 +176,10 @@ export function LogChangeOfConditionDialog({ open, onOpenChange, residentId, res
           <div className="space-y-1 sm:col-span-2"><Label htmlFor="coc-incident-decision">Incident report decision *</Label><Select value={incidentDecision} onValueChange={setIncidentDecision}><SelectTrigger id="coc-incident-decision"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">Pending human decision</SelectItem><SelectItem value="required">Incident report required</SelectItem><SelectItem value="not_required">Incident report not required</SelectItem></SelectContent></Select></div>
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={reassessmentRequired} onCheckedChange={value => setReassessmentRequired(value === true)} />Significant-change reassessment required</label>
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={supportPlanRevisionRequired} onCheckedChange={value => setSupportPlanRevisionRequired(value === true)} />Support-plan revision review required</label>
+          <div className="space-y-1 sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm"><Checkbox checked={medicalConditionChanged} onCheckedChange={value => setMedicalConditionChanged(value === true)} />Medical condition changed — a new medical evaluation is required</label>
+            <p className="text-xs text-muted-foreground">Creates a separate DME requirement under § 2600.141(b)(2) / § 2800.141(b)(2). The same-day follow-up target is an internal reminder; the sections specify no number of days. Complete the evaluation before closing this event.</p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)}>Cancel</Button>

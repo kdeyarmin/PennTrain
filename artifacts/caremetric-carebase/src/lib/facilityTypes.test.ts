@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { facilityTypeLabel, facilityTypeMatchesQuery, hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "./facilityTypes";
+import { facilityTypeLabel, facilityTypeMatchesQuery, hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES, paRegulatoryFacilitySelection } from "./facilityTypes";
+
+describe("PA chapter facility selection", () => {
+  const facilities = [{ id: "nursing", facility_type: "NH" }, { id: "personal", facility_type: "PCH" }, { id: "assisted", facility_type: "ALR" }];
+  it("does not let a mixed-market org select an unsupported type via defaults or links", () => {
+    expect(paRegulatoryFacilitySelection(facilities, "nursing").activeFacilityId).toBe("personal");
+    expect(paRegulatoryFacilitySelection(facilities, "").facilities.map((f) => f.id)).toEqual(["personal", "assisted"]);
+    expect(paRegulatoryFacilitySelection(facilities, "assisted").activeFacilityId).toBe("assisted");
+  });
+  it("does not create a PA chapter scope for an unsupported-only org or a loading list", () => {
+    expect(paRegulatoryFacilitySelection(facilities.slice(0, 1), "nursing").activeFacilityId).toBe("");
+    expect(paRegulatoryFacilitySelection(undefined, "personal").activeFacilityId).toBe("");
+  });
+});
 
 describe("hasAnyFacilityType", () => {
   it("is false while facilityTypes is undefined (still loading, or role not applicable)", () => {

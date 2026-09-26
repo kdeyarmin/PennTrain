@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { paRegulatoryFacilitySelection } from "@/lib/facilityTypes";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
@@ -71,8 +72,10 @@ export default function InspectionReadiness() {
   const [mockInspectionRunId, setMockInspectionRunId] = useState<string | null>(null);
   const [mockInspectionSummary, setMockInspectionSummary] = useState<{ passed: number; attention: number; indeterminate: number } | null>(null);
 
-  const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
-  const activeFacilityId = facilityId || facilities?.[0]?.id || "";
+  const { data: allFacilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const { facilities, activeFacilityId } = paRegulatoryFacilitySelection(allFacilities, facilityId);
+  const trainingYearPolicy = useTrainingYearPolicy(activeFacilityId);
+  const staffRegulatoryPolicy = useStaffRegulatoryPolicy(activeFacilityId);
 
   const {
     data: breakdown,
@@ -157,6 +160,7 @@ export default function InspectionReadiness() {
     employeesQuery, trainingRecordsQuery, credentialsQuery, inspectionItemsQuery,
     incidentsQuery, correctiveActionsQuery, policyAttestationsQuery,
     administratorProfilesQuery, administratorCeEntriesQuery,
+    trainingYearPolicy, staffRegulatoryPolicy,
   ].find((query) => query.isError);
 
   const specialCareSourceFailure = [
@@ -278,11 +282,12 @@ export default function InspectionReadiness() {
         if (!activeFacility || !(activeFacility.facility_type === "PCH" || activeFacility.facility_type === "ALR")) {
           return { level: "unknown", detail: "not a PCH/ALF facility" };
         }
-        const blocked = sourceState(administratorProfilesQuery) ?? sourceState(administratorCeEntriesQuery);
+        const blocked = sourceState(administratorProfilesQuery) ?? sourceState(administratorCeEntriesQuery)
+          ?? sourceState(trainingYearPolicy) ?? sourceState(staffRegulatoryPolicy);
         if (blocked) {
           return {
             level: blocked,
-            detail: (administratorProfilesQuery.isError || administratorCeEntriesQuery.isError)
+            detail: (administratorProfilesQuery.isError || administratorCeEntriesQuery.isError || trainingYearPolicy.isError || staffRegulatoryPolicy.isError)
               ? "administrator data unavailable"
               : "loading administrator record",
           };
@@ -290,6 +295,7 @@ export default function InspectionReadiness() {
         const { summary } = buildBestAdministratorRulePack(activeFacility.facility_type, {
           profiles: administratorProfiles ?? [],
           ceEntries: administratorCeEntries ?? [],
+          trainingPolicy: trainingYearPolicy.data, annualGraceDays: staffRegulatoryPolicy.data?.annual_grace_days,
           today,
         });
         return summary.ready
@@ -729,3 +735,5 @@ export default function InspectionReadiness() {
     </div>
   );
 }
+import { useTrainingYearPolicy } from "@/hooks/useTrainingWorkspace";
+import { useStaffRegulatoryPolicy } from "@/hooks/useStaffRegulatory";

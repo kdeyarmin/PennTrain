@@ -34,6 +34,7 @@ export function useCreateInspectionEvent() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["inspection_events", data.inspection_item_id] });
       queryClient.invalidateQueries({ queryKey: ["inspection_items"] });
+      queryClient.invalidateQueries({ queryKey: ["site-drill-rotation"] });
     },
   });
 }

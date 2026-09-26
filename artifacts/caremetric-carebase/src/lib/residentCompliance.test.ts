@@ -42,6 +42,16 @@ describe("getRequiredStateFormInfo", () => {
     expect(alrPreadmission.sourceLabel).toBe("PA DHS Assisted Living Facility (ALF) Preadmission Screening form");
   });
 
+  it("requires the chapter-specific DME after a medical condition change without resetting annual dates", () => {
+    for (const facility of ["PCH", "ALR"]) {
+      expect(getRequiredStateFormInfo("change_medical_evaluation", facility))
+        .toEqual(getRequiredStateFormInfo("medical_evaluation", facility));
+    }
+    expect(stateFormDateField("change_medical_evaluation").label).toContain("Date Resident Evaluated");
+    expect(stateFormDateField("change_medical_evaluation").hint).toContain("on or after");
+    expect(stateFormDateField("change_medical_evaluation").hint).toContain("does not reset");
+  });
+
   it("falls back to the PA DHS PCH/ALF compliance forms index when facility type is unsupported", () => {
     for (const itemType of ["annual_reassessment", "medical_evaluation", "preadmission_screening"]) {
       const info = getRequiredStateFormInfo(itemType, "NH");
@@ -73,9 +83,9 @@ describe("stateFormBackdateDays", () => {
     expect(stateFormBackdateDays("support_plan_30day", "ALR")).toBe(0);
   });
 
-  it("keeps the general 180-day look-back for PCH assessment items and recurring items", () => {
-    expect(stateFormBackdateDays("initial_assessment_15day", "PCH")).toBe(180);
-    expect(stateFormBackdateDays("support_plan_30day", "PCH")).toBe(180);
+  it("requires ordinary PCH initial assessments and plans after admission; campus carry uses its separate evidenced workflow", () => {
+    expect(stateFormBackdateDays("initial_assessment_15day", "PCH")).toBe(0);
+    expect(stateFormBackdateDays("support_plan_30day", "PCH")).toBe(0);
     expect(stateFormBackdateDays("annual_reassessment", "ALR")).toBe(180);
     expect(stateFormBackdateDays("support_plan_30day", null)).toBe(180);
   });

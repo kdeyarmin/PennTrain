@@ -44,6 +44,12 @@ export function facilityTypeMatchesQuery(facilityType: string, loweredQuery: str
 // rather than shown with nothing in them.
 export const PCH_ALR_ONLY_FACILITY_TYPES: readonly FacilityType[] = ["PCH", "ALR"];
 
+/** An org may serve several markets; a PA chapter workspace must scope its selected facility too. */
+export function paRegulatoryFacilitySelection<T extends { id: string; facility_type: string }>(all: readonly T[] | undefined, requestedId: string) {
+  const facilities = (all ?? []).filter((facility) => PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType));
+  return { facilities, activeFacilityId: facilities.find((facility) => facility.id === requestedId)?.id ?? facilities[0]?.id ?? "" };
+}
+
 /** True if any of `candidates` is in `facilityTypes` (always false while `facilityTypes` is undefined/loading). */
 export function hasAnyFacilityType(facilityTypes: Set<string> | undefined, candidates: readonly string[]): boolean {
   if (!facilityTypes) return false;

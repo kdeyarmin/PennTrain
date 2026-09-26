@@ -592,7 +592,7 @@ function Router() {
         {() => <ProtectedRoute component={SurveyDay} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/survey-rehearsals">
-        {() => <ProtectedRoute component={SurveyRehearsals} allowedRoles={REPORTS_VIEW_ROLES} />}
+        {() => <ProtectedRoute component={SurveyRehearsals} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}
       </Route>
       <Route path="/app/pch-alr-operations">
         {() => <ProtectedRoute component={PchAlrOperations} allowedRoles={REPORTS_VIEW_ROLES} requireFacilityTypes={PCH_ALR_ONLY_FACILITY_TYPES} />}

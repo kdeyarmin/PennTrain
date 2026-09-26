@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { usePaginatedComplaints } from "@/hooks/useComplaints";
 import { ComplaintTrendsCard } from "@/components/complaints/ComplaintTrendsCard";
+import { ComplaintDeadlines } from "@/components/complaints/ComplaintDeadlines";
 import { useComplaintListSummary, EMPTY_COMPLAINT_LIST_SUMMARY } from "@/hooks/useDomainListSummaries";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useUrlState } from "@/hooks/useUrlState";
@@ -95,7 +96,7 @@ export default function Complaints() {
         {complaints.isError ? <QueryError what="complaints" error={complaints.error as Error} onRetry={() => complaints.refetch()} /> : complaints.isLoading ? <div className="space-y-2">{[...Array(5)].map((_, index) => <div key={index} className="h-16 animate-pulse rounded bg-muted" />)}</div> : !rows.length ? <div className="py-12 text-center"><CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-600" /><p className="font-medium">No complaint cases match this view</p></div> : <>
           <div className="overflow-x-auto"><table className="data-table min-w-[1050px]"><thead><tr><th>Case</th><th>Received</th><th>Resident / complainant</th><th>Category</th><th>Risk</th><th>Investigator</th><th>Status</th><th /></tr></thead><tbody>{rows.map(complaint => <tr key={complaint.id}>
           <td><p className="font-medium">{complaint.complaint_number}</p><p className="max-w-[260px] truncate text-xs text-muted-foreground">{complaint.description}</p></td>
-          <td className="text-sm">{new Date(complaint.date_received).toLocaleString()}<p className="text-xs text-muted-foreground">{humanizeComplaint(complaint.method_received)}</p></td>
+          <td className="text-sm">{new Date(complaint.date_received).toLocaleString()}<p className="text-xs text-muted-foreground">{humanizeComplaint(complaint.method_received)}</p><ComplaintDeadlines complaint={complaint} facilityType={complaint.facility?.facility_type} compact /></td>
           <td><p className="text-sm">{complaint.resident ? `${complaint.resident.first_name} ${complaint.resident.last_name}` : "No resident linked"}</p><p className="text-xs text-muted-foreground">{complaint.is_anonymous ? "Anonymous complainant" : complaint.complainant_name}</p></td>
           <td className="text-sm">{humanizeComplaint(complaint.category)}</td>
           <td><Badge variant={complaint.immediate_risk === "imminent" || complaint.immediate_risk === "high" ? "destructive" : "outline"}>{humanizeComplaint(complaint.immediate_risk)}</Badge>{complaint.incident_id && <p className="mt-1 text-xs text-red-700">Incident linked</p>}</td>

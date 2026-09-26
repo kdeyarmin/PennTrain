@@ -17,7 +17,7 @@ export type MoveInGuestGrant = Tables<"move_in_guest_grants">;
 export type MoveInTaskHistory = Tables<"move_in_task_history">;
 
 export interface AdmissionProspectWithRelations extends AdmissionProspect {
-  facility: { id: string; name: string } | null;
+  facility: { id: string; name: string; facility_type?: string } | null;
   referral_source: { id: string; name: string; source_type: string } | null;
   resident: { id: string; status: string } | null;
 }
@@ -43,7 +43,7 @@ export interface MoveInWorkspaceWithRelations extends MoveInWorkspace {
     room: string | null;
     status: string;
   } | null;
-  facility: { id: string; name: string } | null;
+  facility: { id: string; name: string; facility_type?: string } | null;
   template: { id: string; name: string; version: number } | null;
   tasks: MoveInTask[];
 }
@@ -56,6 +56,7 @@ export interface MoveInTaskWithOwner extends MoveInTask {
 function invalidateAdmissions(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["admissions"] });
   queryClient.invalidateQueries({ queryKey: ["residents"] });
+  queryClient.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
   queryClient.invalidateQueries({ queryKey: ["closed-loop-compliance"] });
 }
@@ -85,7 +86,7 @@ export function useListAdmissionProspects(filters: {
         .from("admission_prospects")
         .select(`
           *,
-          facility:facilities(id, name),
+          facility:facilities(id, name, facility_type),
           referral_source:referral_sources(id, name, source_type),
           resident:residents(id, status)
         `)
@@ -380,7 +381,7 @@ export function useListMoveInWorkspaces(filters: {
         .select(`
           *,
           resident:residents(id, first_name, last_name, room, status),
-          facility:facilities(id, name),
+          facility:facilities(id, name, facility_type),
           template:move_in_templates(id, name, version),
           tasks:move_in_tasks(*)
         `)
@@ -404,7 +405,7 @@ export function useGetMoveInWorkspace(id?: string) {
         .select(`
           *,
           resident:residents(id, first_name, last_name, room, status),
-          facility:facilities(id, name),
+          facility:facilities(id, name, facility_type),
           template:move_in_templates(id, name, version),
           tasks:move_in_tasks(
             *,
@@ -548,10 +549,12 @@ export function useRevokeMoveInGuestGrant() {
 export function useCompleteMoveInAdmission() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ workspaceId, reason }: { workspaceId: string; reason: string }) => {
+    mutationFn: async ({ workspaceId, reason, admissionDate, admittedAt }: { workspaceId: string; reason: string; admissionDate: string; admittedAt?: string }) => {
       const { data, error } = await supabase.rpc("complete_move_in_admission" as never, {
         p_workspace_id: workspaceId,
         p_reason: reason,
+        p_admission_date: admissionDate,
+        p_admitted_at: admittedAt ?? null,
       } as never);
       if (error) throw error;
       return data as string;
@@ -601,6 +604,7 @@ export function useTransitionResidentCensus() {
       // own cache -- without this the resident page a discharge was recorded from keeps showing the
       // previous state until something else happens to refetch it.
       queryClient.invalidateQueries({ queryKey: ["resident-care-header", variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
     },
   });
 }

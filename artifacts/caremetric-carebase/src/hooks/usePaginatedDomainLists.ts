@@ -20,6 +20,7 @@ interface DomainListQueryResult {
 interface DomainListQuery {
   select(columns: string, options: { count: "exact" }): DomainListQuery;
   eq(column: string, value: string | boolean): DomainListQuery;
+  in(column: string, values: readonly string[]): DomainListQuery;
   or(filters: string): DomainListQuery;
   order(column: string, options: { ascending: boolean }): DomainListQuery;
   abortSignal(signal: AbortSignal): DomainListQuery;
@@ -35,6 +36,8 @@ const domainDatabase = supabase as unknown as {
 
 export interface DomainListFilters {
   facilityId?: string;
+  /** Optional scope applied before counting and paging; an empty scope returns no rows. */
+  facilityIds?: readonly string[];
   organizationId?: string;
   residentId?: string;
   status?: string;
@@ -86,9 +89,11 @@ export function usePaginatedDomainList<T = Record<string, unknown>>(name: Domain
     queryKey: [CONFIG[name].queryRoot ?? name, "paginated", filters],
     queryFn: async ({ signal }): Promise<PaginatedResult<T>> => {
       const config = CONFIG[name];
+      if (filters.facilityIds?.length === 0) return { rows: [], count: 0 };
       let query = domainDatabase.from(config.table).select("*", { count: "exact" });
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.facilityId && config.facilityColumn) query = query.eq(config.facilityColumn, filters.facilityId);
+      if (filters.facilityIds && config.facilityColumn) query = query.in(config.facilityColumn, filters.facilityIds);
       if (filters.residentId && config.residentColumn) query = query.eq(config.residentColumn, filters.residentId);
       if (filters.status && config.statusColumn) query = query.eq(config.statusColumn, filters.status);
       if (filters.severity && config.severityColumn) query = query.eq(config.severityColumn, filters.severity);

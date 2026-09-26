@@ -293,8 +293,8 @@ export function useGenerateIncidentStateFormPdf() {
 export function useCompleteIncidentNotification() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, incidentId, completedByProfileId, notificationMethod, recipient, referenceNumber }: {
-      id: string; incidentId: string; completedByProfileId: string; notificationMethod?: string; recipient?: string; referenceNumber?: string;
+    mutationFn: async ({ id, incidentId, completedByProfileId, notificationMethod, recipient, referenceNumber, notes }: {
+      id: string; incidentId: string; completedByProfileId: string; notificationMethod?: string; recipient?: string; referenceNumber?: string; notes?: string;
     }) => {
       const { data, error } = await supabase
         .from("incident_notifications")
@@ -305,6 +305,7 @@ export function useCompleteIncidentNotification() {
           notification_method: notificationMethod ?? null,
           recipient: recipient ?? null,
           reference_number: referenceNumber ?? null,
+          ...(notes !== undefined ? { notes } : {}),
         })
         .eq("id", id)
         .select()

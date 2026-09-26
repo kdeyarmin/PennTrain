@@ -37,16 +37,16 @@ export function evacuationSeconds(minutes: string, seconds: string): number | nu
   return Number(m || 0) * 60 + secondsPart;
 }
 
-export function fireDrillRecordErrors(draft: FireDrillRecordDraft): FireDrillRecordErrors {
+export function fireDrillRecordErrors(draft: FireDrillRecordDraft, allowIncompleteEvacuation = false): FireDrillRecordErrors {
   const blank = (value: string) => !value.trim();
   const errors: FireDrillRecordErrors = {};
   if (!draft.drillTime) errors.drillTime = "Required";
 
   const minutes = draft.durationMinutes.trim();
   const seconds = draft.durationSeconds.trim();
-  if (!minutes && !seconds) {
+  if (!minutes && !seconds && !allowIncompleteEvacuation) {
     errors.evacuationDuration = "Required";
-  } else {
+  } else if (minutes || seconds) {
     const total = evacuationSeconds(minutes, seconds);
     if (total === null) errors.evacuationDuration = "Enter whole minutes and seconds (0–59)";
     else if (total === 0) errors.evacuationDuration = "Enter how long the evacuation took";
@@ -56,6 +56,12 @@ export function fireDrillRecordErrors(draft: FireDrillRecordDraft): FireDrillRec
   if (blank(draft.residentsPresent)) errors.residentsPresent = "Required";
   if (blank(draft.residentsEvacuated)) errors.residentsEvacuated = "Required";
   if (blank(draft.staffParticipating)) errors.staffParticipating = "Required";
+  for (const key of ["residentsPresent", "residentsEvacuated", "staffParticipating"] as const) {
+    if (!blank(draft[key]) && !WHOLE_NUMBER.test(draft[key].trim())) errors[key] = "Enter a nonnegative whole number";
+  }
+  if (!errors.residentsPresent && !errors.residentsEvacuated && Number(draft.residentsEvacuated) > Number(draft.residentsPresent)) {
+    errors.residentsEvacuated = "Cannot exceed residents present";
+  }
   if (blank(draft.problemsEncountered)) errors.problemsEncountered = "Required";
   return errors;
 }

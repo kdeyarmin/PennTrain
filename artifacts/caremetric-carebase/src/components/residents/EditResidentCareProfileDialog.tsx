@@ -33,6 +33,7 @@ interface FormState extends Record<CodedField, string> {
   allergies: string;
   mobility_summary: string;
   supervision_requirements: string;
+  mobility_needs: string;
 }
 
 function toFormState(current: ResidentCareHeader): FormState {
@@ -48,6 +49,7 @@ function toFormState(current: ResidentCareHeader): FormState {
     allergies: care.allergies.join(", "),
     mobility_summary: care.mobilitySummary ?? "",
     supervision_requirements: care.supervisionRequirements ?? "",
+    mobility_needs: care.mobilityNeeds === true ? "yes" : care.mobilityNeeds === false ? "no" : "unknown",
   };
 }
 
@@ -77,6 +79,7 @@ export function EditResidentCareProfileDialog({
           level_of_care: form.level_of_care,
           transfer_assistance: form.transfer_assistance,
           ambulation_status: form.ambulation_status,
+          mobility_needs: form.mobility_needs === "unknown" ? null : form.mobility_needs === "yes",
           fall_risk: form.fall_risk,
           elopement_risk: form.elopement_risk,
           cognitive_status: form.cognitive_status,
@@ -123,6 +126,7 @@ export function EditResidentCareProfileDialog({
             </div>
           ))}
 
+          <label className="text-sm">Regulatory mobility needs (staffing / evacuation)<select className="block w-full rounded border p-2" value={form.mobility_needs} onChange={e => setForm(f => ({ ...f, mobility_needs: e.target.value }))}><option value="unknown">Not assessed</option><option value="yes">Mobility needs</option><option value="no">Independently mobile</option></select><span className="text-xs text-muted-foreground">Record the assessed classification. SCU residents count with mobility needs under §238.</span></label>
           <div className="space-y-1 sm:col-span-2">
             <Label className="text-xs" htmlFor="care-allergies">Non-food allergies (comma separated)</Label>
             <Input

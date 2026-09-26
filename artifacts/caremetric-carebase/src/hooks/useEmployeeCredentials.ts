@@ -78,7 +78,10 @@ export function useCreateEmployeeCredential() {
       if (error) throw error;
       return data as EmployeeCredential;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employee_credentials"] }),
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["employee_credentials"] }),
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] }),
+    ]),
   });
 }
 
@@ -93,7 +96,10 @@ export function useUpdateEmployeeCredential() {
       if (error) throw error;
       return data as EmployeeCredential;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employee_credentials"] }),
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["employee_credentials"] }),
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] }),
+    ]),
   });
 }
 
@@ -104,6 +110,9 @@ export function useDeleteEmployeeCredential() {
       const { error } = await supabase.from("employee_credentials").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["employee_credentials"] }),
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["employee_credentials"] }),
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] }),
+    ]),
   });
 }

@@ -195,6 +195,7 @@ export default function ResidentClinicalChart() {
             <span className="text-lg font-normal text-muted-foreground">· Clinical chart</span>
           </h1>
           {resident.data?.room && <p className="text-muted-foreground">Room {resident.data.room}</p>}
+          <p className="text-sm text-muted-foreground">Optional clinical workspace for observations and care notes. Required resident records remain available in the resident record.</p>
         </div>
         {canChart && (
           <Button onClick={() => { resetRecordForm(); setRecordOpen(true); }}>
@@ -504,7 +505,7 @@ export default function ResidentClinicalChart() {
               <AlertTitle>Write-back to an EHR is not available for this resident</AlertTitle>
               <AlertDescription>
                 No connected FHIR source that this resident is mapped to is enabled for outbound
-                write-back, and write-back cannot currently be enabled from CareBase. Observations
+                write-back. An authorized manager can record vendor approval in FHIR Integration; delivery also requires matching server credentials. Observations
                 recorded here stay in CareBase; see <Link href="/app/fhir-integration" className="underline">FHIR Integration</Link>.
               </AlertDescription>
             </Alert>
@@ -572,7 +573,7 @@ export default function ResidentClinicalChart() {
                               onClick={() => queueWriteback.mutate({ residentId: id!, observationId: observation.id }, {
                                 // Queued, not delivered: the drain records the outcome per row, so
                                 // the toast must not claim an arrival it cannot know about.
-                                onSuccess: () => toast({ title: "Queued for write-back", description: `Delivery to ${writebackTarget.data?.sourceName ?? "the connected EHR"} is attempted on the next write-back run; a failure is recorded against the source.` }),
+                                onSuccess: () => toast({ title: "Queued for write-back", description: `Queued for authorized delivery to ${writebackTarget.data?.sourceName ?? "the connected EHR"}. Delivery requires matching vendor credentials and current disclosure consent.` }),
                                 // The server refuses unless consent is granted and the resident has an active
                                 // mapping to a write-back-enabled FHIR source.
                                 onError: (error) => toast({ title: "Not queued", description: error instanceof Error ? error.message : String(error), variant: "destructive" }),

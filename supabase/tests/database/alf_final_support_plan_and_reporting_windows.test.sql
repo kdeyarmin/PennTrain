@@ -5,7 +5,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(34);
+select plan(36);
 
 -- ---------------------------------------------------------------------------------------
 -- The rule packs say what Chapter 2800 says
@@ -70,7 +70,7 @@ select is(
     public.resident_compliance_backdate_days('support_plan_30day', 'PCH'),
     public.resident_compliance_backdate_days('annual_reassessment', 'ALR')
   ],
-  array[60, 60, 30, 30, 0, 180, 180],
+  array[60, 60, 30, 30, 0, 0, 180],
   'each form may predate admission by its own regulatory look-back, and no further'
 );
 
@@ -187,19 +187,31 @@ select throws_ok(
     (select id from public.resident_compliance_items
      where resident_id = 'a2270000-0000-4000-8000-000000000201' and item_type = 'support_plan_30day'
        and completed_date is null order by due_date limit 1),
-    'a2270000-0000-4000-8000-000000000301', public.pa_today() - 41)$$,
+    'a2270000-0000-4000-8000-000000000301', public.pa_today() - 41,
+    jsonb_build_object('lpn_name','Test LPN','lpn_license','PN123','rn_supervisor_name','Test RN','rn_supervisor_license','RN123','reviewed_on',public.pa_today()-41))$$,
   '23514', null,
   'a final support plan dated the day before admission is refused -- 2800.227(a) is a post-admission plan'
 );
+select throws_ok(
+  $$select public.complete_resident_compliance_item(
+    (select id from public.resident_compliance_items where resident_id='a2270000-0000-4000-8000-000000000201'
+      and item_type='support_plan_30day' and completed_date is null order by due_date limit 1),
+    'a2270000-0000-4000-8000-000000000301',public.pa_today()-20)$$,
+  '23514',null,'an ALF final plan cannot complete without documented LPN approval under RN supervision');
 select lives_ok(
   $$select public.complete_resident_compliance_item(
     (select id from public.resident_compliance_items
      where resident_id = 'a2270000-0000-4000-8000-000000000201' and item_type = 'support_plan_30day'
        and completed_date is null order by due_date limit 1),
-    'a2270000-0000-4000-8000-000000000301', public.pa_today() - 20)$$,
+    'a2270000-0000-4000-8000-000000000301', public.pa_today() - 20,
+    jsonb_build_object('lpn_name','Test LPN','lpn_license','PN123','rn_supervisor_name','Test RN','rn_supervisor_license','RN123','reviewed_on',public.pa_today()-20))$$,
   'dated twenty days after admission, it completes'
 );
 reset role;
+
+select is((select final_plan_review->>'lpn_name' from public.resident_compliance_items
+  where resident_id='a2270000-0000-4000-8000-000000000201' and item_type='support_plan_30day' and completed_date is not null),
+  'Test LPN','the final plan retains structured approval evidence');
 
 select is(
   (select due_date from public.resident_compliance_items
@@ -276,7 +288,8 @@ select lives_ok(
     (select id from public.resident_compliance_items
      where resident_id = 'a2270000-0000-4000-8000-000000000201' and item_type = 'support_plan_30day'
        and completed_date is null order by due_date limit 1),
-    'a2270000-0000-4000-8000-000000000303', public.pa_today())$$,
+    'a2270000-0000-4000-8000-000000000303', public.pa_today(),
+    jsonb_build_object('lpn_name','Test LPN','lpn_license','PN123','rn_supervisor_name','Test RN','rn_supervisor_license','RN123','reviewed_on',public.pa_today()))$$,
   'a revised support plan completes'
 );
 reset role;

@@ -67,7 +67,11 @@ const ELIGIBILITY_LABELS: Record<string, string> = {
   lifecycle_inactive: "Inactive employment",
   facility_not_assigned: "Not assigned to this facility",
   oapsa_not_suitable: "OAPSA: determined not suitable for employment",
-  oapsa_provisional_expired: "OAPSA: provisional period ended without clearances",
+  oapsa_provisional_expired: "OAPSA: required clearances or provisional conditions are incomplete",
+  staff_qualification_evidence_missing: "Document staff age and role before assigning work",
+  staff_age_not_qualified: "Age does not meet the requirement for this staff role",
+  staff_education_evidence_missing: "Direct-care education evidence is missing",
+  staff_fitness_evidence_missing: "Staff medical-fitness confirmation is missing",
   oapsa_provisional_expiring: "OAPSA: provisional period ends within 14 days",
   schedule_conflict: "Overlapping shift",
   insufficient_rest: "Insufficient rest between shifts",
@@ -100,6 +104,11 @@ const NON_OVERRIDABLE_BLOCKS = new Set([
   "facility_not_assigned",
   "schedule_conflict",
   "oapsa_not_suitable",
+  "oapsa_provisional_expired",
+  "staff_qualification_evidence_missing",
+  "staff_age_not_qualified",
+  "staff_education_evidence_missing",
+  "staff_fitness_evidence_missing",
 ]);
 
 // Per-employee "can this person currently pass meds" signal for the shift grid -- only rendered for
@@ -867,6 +876,18 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                 </div>
               ))}
             </div>
+            {serviceWorkload?.staffCareCoverage && <StaffCareCoverage data={serviceWorkload.staffCareCoverage} />}
+            {!!serviceWorkload?.emergencyCoverageRows?.length && <div className="space-y-2">
+              <h4 className="text-sm font-medium">Required first aid, CPR and airway coverage</h4>
+              <p className="text-xs text-muted-foreground">One trained person per 50 PCH residents or 35 ALF residents, throughout the schedule. First aid and CPR / airway may be covered by separate people. {serviceWorkload.emergencyCoverageBasis}</p>
+              <div className="overflow-x-auto rounded-md border bg-background"><table className="w-full text-xs">
+                <thead className="bg-muted/50"><tr><th className="p-2 text-left">Interval (Pennsylvania)</th><th className="p-2 text-left">Resident census</th><th className="p-2 text-left">First aid / required</th><th className="p-2 text-left">CPR + airway / required</th></tr></thead>
+                <tbody>{serviceWorkload.emergencyCoverageRows.map(row => <tr key={row.starts} className={row.first_aid < row.required || row.cpr_airway < row.required ? "border-t bg-red-50/70" : "border-t"}>
+                  <td className="p-2">{new Date(row.starts).toLocaleString("en-US", { timeZone: "America/New_York" })} – {new Date(row.ends).toLocaleString("en-US", { timeZone: "America/New_York" })}</td>
+                  <td className="p-2">{row.census}</td><td className="p-2">{row.first_aid}/{row.required}</td><td className="p-2">{row.cpr_airway}/{row.required}</td>
+                </tr>)}</tbody>
+              </table></div>
+            </div>}
             {serviceWorkloadLoading ? (
               <p className="text-xs text-muted-foreground">Loading service workload…</p>
             ) : (serviceWorkload?.coverageRows.length ?? 0) === 0 ? (
@@ -1353,3 +1374,4 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
     </div>
   );
 }
+import { StaffCareCoverage } from "@/components/staff/StaffCareCoverage";

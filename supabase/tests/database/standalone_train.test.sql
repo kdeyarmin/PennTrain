@@ -59,6 +59,29 @@ update app_private.module_access_terms set revoked_at=now() where id='dd240000-0
 set local role authenticated;
 select lives_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000011','dd240000-0000-4000-8000-000000000021','{"direct_care":true,"administrator":false,"specialty_unit":"none","duties":"Personal care assistance","first_work_date":"2026-01-01"}') $$,'Train administrator can record a confirmed duty profile');
 select lives_ok($$ select public.get_training_workspace('dd240000-0000-4000-8000-000000000011') $$,'Train workspace reads use authenticated grants and facility RLS');
+
+select ok(not has_function_privilege('authenticated','public.current_training_audience_status(uuid,uuid)','EXECUTE'),'the internal audience helper remains unavailable to browser callers');
+select ok(not (select prosecdef from pg_proc where oid='public.staff_training_credit_allocation(uuid,text,date,date,jsonb,jsonb,numeric)'::regprocedure),'annual-credit allocation retains invoker row-level security');
+reset role;
+insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,status)
+values('dd240000-0000-4000-8000-000000000022','dd240000-0000-4000-8000-000000000002','dd240000-0000-4000-8000-000000000012','Other','Student','Direct care','active');
+insert into public.training_types(id,code,name,category,state,applies_to_facility_type,renewal_interval_days,hour_bucket,audience_verification_required)
+values('dd240000-0000-4000-8000-000000000041','ALLOC-AUDIENCE','Audience-gated fixture','annual','PA','BOTH',365,'general_annual',true);
+update public.employee_training_records set completion_date=current_date,hours=2,status='compliant',approval_status='approved'
+where employee_id in ('dd240000-0000-4000-8000-000000000021','dd240000-0000-4000-8000-000000000022')
+ and training_type_id='dd240000-0000-4000-8000-000000000041';
+set local role authenticated;
+select is((public.staff_training_credit_allocation('dd240000-0000-4000-8000-000000000021','general_annual',current_date,current_date)->>'total')::numeric,120::numeric,
+ 'authenticated Train allocation reads approved audience evidence for its visible employee');
+select is((public.staff_training_credit_allocation('dd240000-0000-4000-8000-000000000022','general_annual',current_date,current_date)->>'total')::numeric,0::numeric,
+ 'annual allocation cannot disclose another tenant employee credits');
+reset role;
+update public.employee_training_records set status='not_applicable' where employee_id='dd240000-0000-4000-8000-000000000021'
+ and training_type_id='dd240000-0000-4000-8000-000000000041';
+set local role authenticated;
+select is((public.staff_training_credit_allocation('dd240000-0000-4000-8000-000000000021','general_annual',current_date,current_date)->>'total')::numeric,0::numeric,
+ 'the scoped lookup still excludes an inapplicable audience decision');
+
 select throws_ok($$ select public.get_training_workspace('dd240000-0000-4000-8000-000000000012') $$,'42501',null,'workspace cannot read a different tenant facility');
 select throws_ok($$ select public.save_training_workspace_item('profile','dd240000-0000-4000-8000-000000000012','dd240000-0000-4000-8000-000000000021','{}') $$,'42501',null,'cross-organization facility writes are refused');
 select throws_ok($$ insert into public.training_evidence_events(employee_id) values('dd240000-0000-4000-8000-000000000021') $$,'42501',null,'direct evidence writes cannot bypass review rules');

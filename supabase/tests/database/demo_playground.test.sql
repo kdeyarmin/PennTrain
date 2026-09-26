@@ -1,5 +1,5 @@
 begin;
-select plan(21);
+select plan(26);
 
 select has_column('public', 'organizations', 'is_demo', 'organizations identify public demo tenants');
 select has_column('public', 'organizations', 'demo_seed_version', 'demo seed version is tracked');
@@ -29,6 +29,25 @@ select lives_ok(
   'the demo baseline seeds a new isolated tenant'
 );
 select is((select count(*)::bigint from public.employees e join public.organizations o on o.id = e.organization_id where o.slug = 'pgtap-demo-playground'), 4::bigint, 'baseline includes synthetic employees');
+select is((select count(*)::integer from public.employee_regulatory_profiles p join public.organizations o on o.id=p.organization_id
+ where o.slug='pgtap-demo-playground' and p.updated_by is null and p.medical_fitness_confirmed and p.education_evidence like 'Synthetic demo%'),4,
+ 'an empty demo has explicitly synthetic system-authored qualification evidence');
+select is((select count(*)::integer from public.employees e join public.organizations o on o.id=e.organization_id
+ where o.slug='pgtap-demo-playground' and (public.oapsa_duty_status(e.id)->>'clearancesOnFile')::boolean),4,
+ 'synthetic demo schedules have received clearance evidence instead of bypassing OAPSA');
+select is((select count(*)::integer from public.audit_logs a join public.organizations o on o.id=a.organization_id
+ where o.slug='pgtap-demo-playground' and a.entity_type='employee_regulatory_profiles' and a.action='employee_regulatory_profiles_created'
+ and a.actor_profile_id is null and a.new_values->>'education_evidence' like 'Synthetic demo%'),4,
+ 'system-authored synthetic qualifications retain their audited source and scope');
+select is((select count(*)::integer from public.shift_assignments a join public.organizations o on o.id=a.organization_id
+ where o.slug='pgtap-demo-playground'),3,'the synthetic baseline still produces its three qualified primary-site shifts');
+insert into public.employees(organization_id,facility_id,first_name,last_name,job_title,is_synthetic)
+select f.organization_id,f.id,'Real','Demo Tenant Staff','Direct Care',false from public.facilities f join public.organizations o on o.id=f.organization_id
+where o.slug='pgtap-demo-playground' and f.name='Sunrise Manor';
+select throws_ok($$insert into public.employee_regulatory_profiles(employee_id,organization_id,facility_id)
+ select e.id,e.organization_id,e.facility_id from public.employees e join public.organizations o on o.id=e.organization_id
+ where o.slug='pgtap-demo-playground' and e.first_name='Real'$$,'23514',null,'non-synthetic staff in a demo tenant still requires a reviewer');
+-- The unused non-synthetic fixture remains outside the synthetic baseline.
 select is((select count(*)::bigint from public.residents r join public.organizations o on o.id = r.organization_id where o.slug = 'pgtap-demo-playground'), 3::bigint, 'baseline includes synthetic residents');
 select is((select count(*)::bigint from public.admission_prospects p join public.organizations o on o.id = p.organization_id where o.slug = 'pgtap-demo-playground'), 3::bigint, 'baseline includes an admissions pipeline');
 select is((select count(*)::bigint from public.resident_service_task_instances t join public.organizations o on o.id = t.organization_id where o.slug = 'pgtap-demo-playground'), 15::bigint, 'baseline includes two weeks of resident service work');

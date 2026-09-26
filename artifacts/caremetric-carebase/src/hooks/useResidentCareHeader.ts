@@ -7,6 +7,7 @@ export interface ResidentCareProfileInput {
   level_of_care?: string;
   transfer_assistance?: string;
   ambulation_status?: string;
+  mobility_needs?: boolean | null;
   fall_risk?: string;
   elopement_risk?: string;
   cognitive_status?: string;
@@ -56,6 +57,7 @@ export function useSaveResidentCareProfile() {
       // history row, so both of those caches are stale too.
       queryClient.invalidateQueries({ queryKey: ["residents", variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ["resident-administrative-master", variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-service-workload"] });
     },
   });
 }

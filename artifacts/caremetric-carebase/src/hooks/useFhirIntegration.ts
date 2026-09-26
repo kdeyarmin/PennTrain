@@ -282,3 +282,20 @@ export function useResidentFhirWritebackTarget(residentId?: string, enabled = tr
     staleTime: 60_000,
   });
 }
+
+export function useSetFhirSourceWriteback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { sourceId: string; facilityId: string; enabled: boolean; contractReference: string; conditionalCreateConfirmed: boolean }) => {
+      const { error } = await supabase.rpc("set_fhir_source_writeback", {
+        p_source_id: params.sourceId, p_enabled: params.enabled,
+        p_contract_reference: params.contractReference, p_conditional_create_confirmed: params.conditionalCreateConfirmed,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_result, params) => {
+      queryClient.invalidateQueries({ queryKey: [FHIR_INTEGRATION_KEY, params.facilityId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-fhir-writeback-target"] });
+    },
+  });
+}

@@ -6,7 +6,7 @@ import {
   FolderOpen, Loader2, RefreshCw, ShieldCheck, Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { facilityTypeLabel } from "@/lib/facilityTypes";
+import { facilityTypeLabel, paRegulatoryFacilitySelection } from "@/lib/facilityTypes";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -95,8 +95,8 @@ export default function SurveyDay() {
   const { user } = useAuth();
   const initialFacility = useMemo(() => new URLSearchParams(window.location.search).get("facility") ?? "", []);
   const [facilityId, setFacilityId] = useState(initialFacility);
-  const { data: facilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
-  const activeFacilityId = facilityId || facilities?.[0]?.id || "";
+  const { data: allFacilities } = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const { facilities, activeFacilityId } = paRegulatoryFacilitySelection(allFacilities, facilityId);
   const activeFacility = facilities?.find((f) => f.id === activeFacilityId);
 
   // A facility_manager is additionally facility-scoped server-side (assert_phase5_manager ->

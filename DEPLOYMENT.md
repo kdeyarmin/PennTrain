@@ -1121,6 +1121,36 @@ Deploy migration 20260911220017 and both ingest-learning-package / accept-learni
 
 The Railway Hub endpoint is POST /api/learning-admin/package. CAREMETRIC_ADMIN_PACKAGE_INGESTION_ENABLED=true also requires the existing central-administration and command flags. It defaults off. Upload uses application/zip and a bounded base64url JSON x-caremetric-package-request header, which is bound to its exact fresh carebase.learning delegation. Other operations use application/json. Upload and accept stage bytes only; a separately authorized finish is mandatory after the Hub rechecks its current session. Status observes an uploader's persisted receipt across current verified sessions without replaying old write authority. Archive input is limited to50 MiB compressed/100 MiB expanded; the Node router admits one operation at a time and applies a120-second request timeout. Neither transport accepts external URLs, bucket names or storage paths.
 
+## Outbound FHIR source authorization
+
+Deploy `20260926130000_fhir_outbound_authorization.sql` before the matching
+`fhir-writeback` worker. The worker accepts only Observation conditional-create
+delivery to a source with recorded vendor approval and confirmed conditional-create
+support. In FHIR Integration, an authorized manager records that approval reference
+and enables the source. A source must also have an active facility clinical module,
+patient mapping and current resident disclosure consent.
+
+Provision `FHIR_OUTBOUND_AUTH_JSON` as an Edge Function secret. It is a JSON object
+keyed by the source UUID. Each value has `organizationId`, `baseUrl`, `bearerToken`
+and `contractReference`. The organization, exact HTTPS base path and contract
+reference must match the source record. Tokens are server-only; never use `VITE_`
+variables, browser storage, inbound hashed keys, logs or committed environment files.
+This adapter supports vendor-issued bearer credentials. A vendor requiring another
+authentication protocol needs an approved adapter before activation.
+
+Rotate a token by updating the secret; revoke delivery in FHIR Integration and remove
+the corresponding secret entry. Unconfigured sources retain pending rows without
+consuming attempts. The job reports those rows even when other authorized sources
+deliver successfully. A claim rechecks the enabled source, facility and disclosure
+consent. Already dispatched network requests cannot be recalled by later revocation.
+
+Before live activation, verify the real vendor contract and credential, confirm its
+CapabilityStatement supports Observation conditional create, and perform the agreed
+vendor acceptance test. Fixtures do not constitute vendor approval. Retries preserve
+the origin identifier and use `If-None-Exist`; see the
+[FHIR R4 conditional-create contract](https://hl7.org/fhir/R4/http.html#ccreate)
+and [Bearer authorization header](https://www.rfc-editor.org/rfc/rfc6750#section-2.1).
+
 ## Course-owned media (N19)
 
 The private `course-media` bucket retains PDF (25 MiB), MP4 and WebM (100 MiB)

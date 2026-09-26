@@ -30,6 +30,7 @@ export interface ResidentCareHeader {
     levelOfCare: string;
     transferAssistance: string;
     ambulationStatus: string;
+    mobilityNeeds?: boolean | null;
     fallRisk: string;
     elopementRisk: string;
     cognitiveStatus: string;

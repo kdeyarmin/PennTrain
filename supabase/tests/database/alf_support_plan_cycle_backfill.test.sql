@@ -249,7 +249,8 @@ select lives_ok(
     (select id from public.resident_compliance_items
      where resident_id = 'a2280000-0000-4000-8000-000000000201'
        and item_type = 'support_plan_30day' and completed_date is null),
-    'a2280000-0000-4000-8000-000000000301', public.pa_today() - 175)$$,
+    'a2280000-0000-4000-8000-000000000301', public.pa_today() - 175,
+    jsonb_build_object('lpn_name','Test LPN','lpn_license','PN123','rn_supervisor_name','Test RN','rn_supervisor_license','RN123','reviewed_on',public.pa_today()-175))$$,
   'the backfilled final plan completes against the plan on file, dated after admission'
 );
 reset role;

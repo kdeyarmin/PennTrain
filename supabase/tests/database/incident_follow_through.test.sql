@@ -17,7 +17,10 @@ select is(
   (select count(*)::int from public.incident_pathways p
    where p.incident_type not in (
      'death','elopement','abuse_allegation','neglect_allegation','medication_error',
-     'significant_injury','assault','fire','environmental_emergency','other')),
+     'significant_injury','assault','fire','environmental_emergency','other','suspicious_death',
+     'suicide_attempt','sexual_abuse','serious_bodily_injury','resident_rights_violation','misuse_of_funds',
+     'communicable_disease_outbreak','food_poisoning','emergency_services','unscheduled_closure',
+     'bankruptcy','criminal_conviction','utility_termination_notice','health_safety_violation','inadequate_staffing')),
   0,
   'no pathway maps onto an incident_type the table would reject'
 );
@@ -27,9 +30,8 @@ select is(
 select is(
   (select count(*)::int from public.incident_pathways p
    where p.reportability = 'presumed_reportable'
-     and p.incident_type not in (
-       'death','abuse_allegation','neglect_allegation','assault','elopement',
-       'medication_error','significant_injury','fire','environmental_emergency')),
+     and not exists(select 1 from public.incident_notification_rules r
+       where r.incident_type=p.incident_type and r.notification_type='state_hotline' and r.is_active)),
   0,
   'every presumed-reportable pathway maps onto a type with notification presets'
 );

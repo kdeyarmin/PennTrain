@@ -1,4 +1,5 @@
 // @ts-nocheck -- retained: npm pdf-lib/canvas modules cause widespread type errors
+import { publicGeneratorError } from "../_shared/generatorErrors.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument } from "npm:pdf-lib@1.17.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
@@ -111,7 +112,7 @@ Deno.serve(async (req: Request) => {
     )
     .eq("id", incidentId)
     .maybeSingle();
-  if (incidentError) return json(req, { error: incidentError.message }, 500);
+  if (incidentError) return json(req, { error: publicGeneratorError("read", incidentError) }, 500);
   if (!incident) return json(req, { error: "Incident not found" }, 404);
 
   const isPlatformAdmin = callerProfile.role === "platform_admin";
@@ -201,11 +202,11 @@ Deno.serve(async (req: Request) => {
       : Promise.resolve({ data: null, error: null }),
   ]);
 
-  if (staffError) return json(req, { error: staffError.message }, 500);
-  if (notificationsError) return json(req, { error: notificationsError.message }, 500);
-  if (correctiveActionsError) return json(req, { error: correctiveActionsError.message }, 500);
-  if (reporterError) return json(req, { error: reporterError.message }, 500);
-  if (residentError) return json(req, { error: residentError.message }, 500);
+  if (staffError) return json(req, { error: publicGeneratorError("read", staffError) }, 500);
+  if (notificationsError) return json(req, { error: publicGeneratorError("read", notificationsError) }, 500);
+  if (correctiveActionsError) return json(req, { error: publicGeneratorError("read", correctiveActionsError) }, 500);
+  if (reporterError) return json(req, { error: publicGeneratorError("read", reporterError) }, 500);
+  if (residentError) return json(req, { error: publicGeneratorError("read", residentError) }, 500);
 
   // Created here rather than at the upload below, because the template cache lives in storage and
   // reaching it needs the service role. A cache hit means this request never touches pa.gov.
@@ -334,7 +335,7 @@ Deno.serve(async (req: Request) => {
     contentType: "application/pdf",
     upsert: true,
   });
-  if (uploadError) return json(req, { error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: publicGeneratorError("save", uploadError) }, 500);
 
   const { error: updateError } = await adminClient
     .from("incidents")
@@ -344,13 +345,13 @@ Deno.serve(async (req: Request) => {
       state_form_pdf_generated_at: new Date().toISOString(),
     })
     .eq("id", incident.id);
-  if (updateError) return json(req, { error: updateError.message }, 500);
+  if (updateError) return json(req, { error: publicGeneratorError("save", updateError) }, 500);
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(REPORTS_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    return json(req, { error: publicGeneratorError("link", signedUrlError) }, 500);
   }
 
   return json(req, {

@@ -53,7 +53,7 @@ select is(
 select is(
   (select string_agg(notification_type, ',' order by notification_type) from public.incident_notifications
    where incident_id = 'a2640000-0000-4000-8000-000000000401'),
-  'protective_services,state_hotline,written_report',
+  'designated_person,protective_services,state_hotline,written_report',
   'alongside the Department''s 24-hour report and the written report it already had'
 );
 

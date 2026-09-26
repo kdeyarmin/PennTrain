@@ -255,7 +255,7 @@ insert into public.inspection_items (
   id, organization_id, facility_id, item_kind, item_type, label, inspection_interval_days
 ) values
   ('d1000000-0000-4000-8000-000000000401', 'd1000000-0000-4000-8000-000000000001',
-   'd1000000-0000-4000-8000-000000000011', 'procedural', 'emergency_prep_plan_review',
+   'd1000000-0000-4000-8000-000000000011', 'procedural', 'other_procedural',
    'Fortnightly Plan Check', 14),
   ('d1000000-0000-4000-8000-000000000402', 'd1000000-0000-4000-8000-000000000001',
    'd1000000-0000-4000-8000-000000000011', 'equipment', 'generator',
