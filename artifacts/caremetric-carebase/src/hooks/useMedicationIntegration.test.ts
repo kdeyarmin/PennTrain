@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), useQuery: vi.fn() }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), useQuery: vi.fn(), useMutation: vi.fn(), invalidateQueries: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ supabase: { from: mocks.from, rpc: mocks.rpc } }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: mocks.useQuery,
-  useMutation: vi.fn(),
-  useQueryClient: vi.fn(),
+  useMutation: mocks.useMutation,
+  useQueryClient: () => ({ invalidateQueries: mocks.invalidateQueries }),
 }));
 
-import { useMedicationIntegration, type MedicationIntegrationWorkspace } from "./useMedicationIntegration";
+import { medicationSourceEditorStatus, useMedicationIntegration, useSaveMedicationIntegrationSource, type MedicationIntegrationWorkspace } from "./useMedicationIntegration";
 
 interface QueryCall {
   table: string;
@@ -26,6 +26,8 @@ beforeEach(() => {
   exceptionCount = 101;
   failOffset = undefined;
   mocks.useQuery.mockReset();
+  mocks.useMutation.mockReset();
+  mocks.invalidateQueries.mockReset();
   mocks.rpc.mockReset().mockResolvedValue({ data: null, error: null });
   mocks.from.mockReset().mockImplementation((table: string) => {
     const call: QueryCall = { table, order: [], filters: [] };
@@ -54,6 +56,46 @@ beforeEach(() => {
       },
     };
     return query;
+  });
+});
+
+describe("medication source lifecycle", () => {
+  const source = { sourceId: "source-a", facilityId: "facility-a", name: "Campus eMAR", vendorName: "Vendor", externalFacilityId: "external-a", credentialId: "credential-a", freshnessThresholdMinutes: 60, status: "active" };
+
+  it.each(["setup_required", "active", "paused", "disabled", "error"])("preserves %s when opening settings instead of activating a connection", (status) => {
+    expect(medicationSourceEditorStatus({ status })).toBe(status);
+  });
+
+  it("updates the existing source in its facility and refreshes that workspace", async () => {
+    useSaveMedicationIntegrationSource();
+    const mutation = mocks.useMutation.mock.calls[0][0];
+    await mutation.mutationFn(source);
+    expect(mocks.rpc).toHaveBeenCalledWith("save_medication_integration_source", expect.objectContaining({
+      p_source_id: "source-a", p_facility_id: "facility-a", p_credential_id: "credential-a", p_status: "active",
+    }));
+    mutation.onSuccess(null, source);
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["medication-integration", "facility-a"] });
+  });
+
+  it.each(["paused", "disabled"])("allows stopping imports with %s without creating a duplicate source", async (status) => {
+    useSaveMedicationIntegrationSource();
+    await mocks.useMutation.mock.calls[0][0].mutationFn({ ...source, status });
+    expect(mocks.rpc).toHaveBeenCalledWith("save_medication_integration_source", expect.objectContaining({ p_source_id: "source-a", p_status: status }));
+  });
+
+  it.each([0, 4, 1441, 5.5, NaN, Infinity])("rejects invalid freshness %s before calling the backend", async (freshnessThresholdMinutes) => {
+    useSaveMedicationIntegrationSource();
+    await expect(mocks.useMutation.mock.calls[0][0].mutationFn({ ...source, freshnessThresholdMinutes })).rejects.toThrow("whole number");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("requires a credential for activation but permits saving an unbound setup", async () => {
+    useSaveMedicationIntegrationSource();
+    const mutation = mocks.useMutation.mock.calls[0][0];
+    await expect(mutation.mutationFn({ ...source, credentialId: undefined })).rejects.toThrow("requires");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    await mutation.mutationFn({ ...source, credentialId: undefined, status: "setup_required" });
+    expect(mocks.rpc).toHaveBeenCalledWith("save_medication_integration_source", expect.objectContaining({ p_source_id: "source-a", p_status: "setup_required" }));
   });
 });
 

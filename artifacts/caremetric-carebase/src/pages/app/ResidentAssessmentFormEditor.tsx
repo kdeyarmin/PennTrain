@@ -67,7 +67,7 @@ export default function ResidentAssessmentFormEditor() {
 
   const { data: resident } = useGetResident(residentId);
   const { data: facilities } = useListFacilities();
-  const { data: form, isLoading, isError, error, refetch } = useGetResidentAssessmentForm(formId);
+  const { data: form, isLoading, isError, error, refetch } = useGetResidentAssessmentForm(formId, residentId);
   const { data: residentDocuments } = useListResidentDocuments(residentId);
   const saveDraft = useSaveResidentAssessmentFormDraft();
   const finalize = useFinalizeResidentAssessmentForm();

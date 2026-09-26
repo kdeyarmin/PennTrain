@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
+import { trainingFormNumber } from "@/lib/trainingFormNumbers";
 
 const FACILITY_SCOPE_OPTIONS = [
   { value: "BOTH", label: "All facility types" },
@@ -101,14 +102,25 @@ export default function TrainingTypes() {
       toast({ title: "Name and category are required", variant: "destructive" });
       return;
     }
+    let renewalIntervalDays: number | null;
+    let requiredHours: number | null;
+    let warningDays: number;
+    try {
+      renewalIntervalDays = trainingFormNumber(form.renewalIntervalDays, "Renewal interval", { min: 0, exclusiveMin: true, integer: true, optional: true });
+      requiredHours = trainingFormNumber(form.requiredHours, "Required hours", { min: 0, optional: true });
+      warningDays = trainingFormNumber(form.warningDaysDefault, "Warning days", { min: 0, integer: true, defaultValue: 90 })!;
+    } catch (error) {
+      toast({ title: (error as Error).message, variant: "destructive" });
+      return;
+    }
     const payload = {
       name: form.name.trim(),
       category: form.category.trim(),
       description: form.description.trim() || null,
       applies_to_facility_type: form.appliesToFacilityType,
-      renewal_interval_days: form.renewalIntervalDays.trim() ? Number(form.renewalIntervalDays) : null,
-      required_hours: form.requiredHours.trim() ? Number(form.requiredHours) : null,
-      warning_days_default: form.warningDaysDefault.trim() ? Number(form.warningDaysDefault) : 90,
+      renewal_interval_days: renewalIntervalDays,
+      required_hours: requiredHours,
+      warning_days_default: warningDays,
       applies_to_administers_meds: form.appliesToAdministersMeds || null,
       applies_to_trainers: form.appliesToTrainers || null,
       document_required: form.documentRequired,
@@ -237,7 +249,7 @@ export default function TrainingTypes() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-renewal-interval-days`} className="text-[13px]">Renewal Interval (days)</Label>
-              <Input id={`${__fieldIds}-renewal-interval-days`} type="number" min="0" value={form.renewalIntervalDays} onChange={e => field("renewalIntervalDays", e.target.value)} placeholder="Blank = one-time" className="h-9" />
+              <Input id={`${__fieldIds}-renewal-interval-days`} type="number" min="1" value={form.renewalIntervalDays} onChange={e => field("renewalIntervalDays", e.target.value)} placeholder="Blank = one-time" className="h-9" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-warning-days`} className="text-[13px]">Warning Days</Label>

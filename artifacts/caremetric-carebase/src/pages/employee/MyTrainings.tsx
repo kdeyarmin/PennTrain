@@ -17,7 +17,8 @@ export default function MyTrainings() {
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   // Gate on a resolved employee id -- see useListTrainingRecords' own comment on why `enabled`,
   // not just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
   const {
@@ -88,12 +89,16 @@ export default function MyTrainings() {
             </SelectContent>
           </Select>
 
-          {recordsError ? (
+          {employeeQuery.isError ? (
+            <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />
+          ) : recordsError ? (
             <QueryError what="your training records" error={recordsErrorDetail} onRetry={() => refetchRecords()} />
           ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
             </div>
+          ) : !employee ? (
+            <p className="text-muted-foreground text-sm text-center py-8">No employee profile is linked to your account. Contact your facility manager.</p>
           ) : sorted.length === 0 ? (
             <div className="space-y-3 py-8 text-center">
               <p className="text-muted-foreground text-sm">No training records found.</p>

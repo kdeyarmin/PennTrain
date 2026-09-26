@@ -44,7 +44,8 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
 
   const backHref = `/me/courses/${assignmentId}`;
 
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   const {
     data: assignment,
     isLoading: assignmentLoading,
@@ -65,10 +66,10 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
   } = useListQuizAttempts({
     assignmentId,
     employeeId: employee?.id,
+    quizId,
   });
 
-  // All attempts this employee has made at THIS quiz (useListQuizAttempts only
-  // filters by assignmentId/employeeId, so quiz_id is narrowed client-side).
+  // The hook scopes to this quiz; keep the local identity check for cached data too.
   // The list is already ordered started_at desc, so filtering preserves order.
   const attemptsForQuiz = useMemo(
     () => (attempts ?? []).filter((a) => a.quiz_id === quizId),
@@ -205,6 +206,10 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
         <div className="h-64 bg-muted animate-pulse rounded" />
       </div>
     );
+  }
+
+  if (employeeQuery.isError) {
+    return <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />;
   }
 
   if (!employee) {

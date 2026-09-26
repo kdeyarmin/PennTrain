@@ -1,0 +1,44 @@
+# Administration and integration workflow review — 2026-09-26
+
+This is review evidence, not a planning register. `BACKLOG.md` remains the planning authority.
+
+## Method and boundaries
+
+Reviewed the administration route inventory, the associated React pages/hooks and backend boundaries, and existing regression coverage. Traced concrete mutations to RPCs, storage, provider handlers, or server routes rather than treating the presence of a button as functional coverage. Tested identified defects with local mocked service/transport boundaries. This review does not claim that production Stripe, Twilio, email, FHIR, or AI credentials were exercised, or that every production role's persisted data was opened in a browser.
+
+Authentication/session/global navigation, workforce/course authoring, and clinical/facility workflows were reviewed by the other concurrent review lanes. The inventory included their admin entry points to check ownership, but their detailed findings belong to those lanes.
+
+## Reviewed feature families
+
+| Family | Surfaces and boundaries inspected | Logical behavior / result |
+| --- | --- | --- |
+| Organization administration | `Organizations`, `OrganizationDetail`, `useOrganizations`, platform-admin commands | Organization creation, package selection, search/status/export, suspension, provider-state restoration and complimentary recovery have distinct paths. Suspension is an RPC rather than a browser-only status edit. Preview/apply server commands bind target, action and digest and reject unknown request fields. |
+| Subscription and package management | `Billing`, `BillingPlanSelector`, `Packages`, `usePackages`, `useEnterpriseFoundation`; checkout/reservation and Stripe webhook handlers | Checkout and portal are separated; server remeasures quantities, privilege checks and checkout recovery remain authoritative. Webhook receipt processing owns asynchronous subscription state. No live charge, price edit or subscription change was made. |
+| Organization/platform configuration | `Settings`, `PlatformSettings`, `usePlatformSettings`, identity-policy and export calls | Notification preferences, branding, timeout, navigation tailoring, maintenance/signup toggles, AI switches, sandbox and export controls have explicit callers. Destructive platform changes retain confirmation and mutation failures surface. |
+| Release controls | `ReleaseFlags`, `useReleaseFlagAdmin`, `useFeatureRelease` | Fixed unknown kill-switch/evaluation states being displayed as known off states. Disabled kill actions while their current state is loading/unavailable and included kill-switch retry in the error panel. |
+| Enterprise foundation | `EnterpriseFoundation`, `useEnterpriseFoundation`, integration register and role/SCIM card boundaries | Eight control-plane reads fail as a coherent snapshot when any required RPC fails. Commands preserve server assurance checks and refresh their control-plane state. Domain challenges can be read back after reload. |
+| Audit and security oversight | `AuditLog`, `SecurityGovernance`, audit resolver and export calls | Paged audit rows, role-scoped exports, facility-day date bounds, and distinct impersonation authorization/start/end presentations inspected. This is workflow review, not a new exhaustive security audit of every migration. |
+| Import/migration center | `DataImportCenter`, `useDataImportCenter`, import domain/column mapping and job helper boundaries | Dry-run receipts, duplicate-strategy pinning, cancellation, skip/finalize/rollback and refresh after partial application traced. Fixed diagnostic truncation after the response row cap. |
+| Reports and value operations | `Reports`, `ComprehensiveReport`, report schedule manager/helpers, product-value hooks | Saved-report scope and date parameters, paged report contracts, CSV escaping, aggregate report coverage, report audience/timing configuration and legacy delivery-mode preservation inspected. Existing report scope tests cover stale request/filter closures. |
+| Support and help content | `SupportTickets`, both ticket detail pages, `HelpCenter`, `HelpContent`, `useSupportTickets` | Ticket/message ownership and attachment-storage boundaries traced. Fixed a saved ticket being reported as failed when only its attachment failed, which encouraged duplicate submissions. FAQ/job-aide authoring validates required content. |
+| Operational oversight and notifications | `SystemJobs`, notification delivery hooks, `NotificationDeliveries` call inventory, AI generation log, regulatory update authoring | Job health distinguishes partial runs from total failures, retry paths remain receipt-based, provider-event evidence constrains retry, and regulatory publication preserves its original timestamp. Notification retry does not imply a new message was sent during this review. |
+| Organization archive and lifecycle | `useOrganizationExports`, export worker, CSV/archive helpers, lifecycle worker | Signed download, archive readiness/expiry, tenant-bound document references, bounded streaming and explicit partial manifests inspected. Lifecycle processing records claimed/finished jobs and does not mark failed removals purged. |
+| Partner API/webhooks | `integration-api`, dispatcher, integration register hooks, shared integration helpers | Scoped credentials, rate limits, schema/idempotency contracts, command receipts, event cursors, key rotation and retry/dead-letter paths inspected. Fixed framed HTTP acknowledgements being misclassified by the pinned transport. DNS/IP validation and redirect refusal remain in place. |
+| Voice and provider runtime | voice HTTP routes, browser websocket transport, pending-session handoff, tool dispatcher, phone triage, `voice-tools`, provider router | Reviewed end-user token forwarding, one-use session handoff, token-expiry guard, budgets, origin checks, caller/facility/AI gate, audit-before-voice-data and teardown errors. Node provider adapter keeps bounded ingress, response limits, cancellation and explicit header forwarding. No real call or AI request was made. |
+
+## Fixed defects and direct verification
+
+1. **Large import diagnostics lost later rows.** A single `select` returned only the API's capped first page. The diagnostic download now follows ordered row-number cursors until an empty page, including when a deployment configures a cap below the requested page size. A later page failure rejects the entire read rather than exporting an apparently complete partial receipt.
+2. **Support attachment failures invited duplicate tickets.** Ticket+initial message had already committed when upload/linking failed, but the hook threw and the form remained open. The hook now returns the saved ticket plus an attachment warning, refreshes the ticket queue, and Help Center navigates to that ticket with instructions to attach the file in a reply. Orphan cleanup and cleanup-error reporting are retained.
+3. **Release-control failures looked like disabled features.** Missing kill-switch data enabled the wrong action, while a failed feature evaluation read “Off for you.” Loading/error states now disable the dependent action and display unavailable explicitly; retry includes the kill-switch query.
+4. **Completed webhook acknowledgements could time out or be rejected.** The pinned HTTPS reader always awaited EOF and interpreted the first status line as final. It now completes length-delimited and no-content responses without requiring peer closure, advances past informational 100/103 responses, measures Content-Length in bytes, rejects malformed framing, and rejects prematurely truncated bodies. Response and header memory caps remain bounded. Existing transfer-encoded responses retain the connection-close behavior.
+
+Executed directly in this lane:
+
+- `vitest run src/hooks/useDataImportCenter.test.ts`: **8 passed** (including three new diagnostic pagination/failure cases).
+- `vitest run src/hooks/useSupportTickets.test.ts`: **4 passed** (upload failure, link failure/cleanup, success, creation failure).
+- `vitest run src/pages/admin/ReleaseFlags.test.tsx`: **3 passed** (kill-state loading/error and evaluation error).
+- `deno test supabase/functions/_shared/phase2Integration.test.ts`: **14 passed**, including final/interim status, complete body, UTF-8 byte length and incomplete response regressions.
+- App typecheck reached one concurrent-lane error in `EmergencyOperations.tsx` (`addInventory` not found); no modified administration/integration files produced diagnostics. The root review reruns the integrated gates after all lanes settle.
+
+The root review records workspace-wide tests, build, edge checks, source/RPC/route/migration guards, database/browser CI and environment doctor results. Local Docker/database availability and absent live service credentials limit claims about deployed integration behavior; the code and isolated regression checks above do not replace those external checks.

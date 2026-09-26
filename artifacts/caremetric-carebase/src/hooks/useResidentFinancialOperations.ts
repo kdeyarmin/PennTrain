@@ -76,6 +76,18 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["care-level-review"] });
 }
 
+// Balances and FIFO aging consume the complete ledger, not a recent-activity sample. PostgREST
+// caps an ordinary select at 1000 rows, which otherwise drops older debits/credits from those totals.
+async function financialRows<T>(page: (from: number, through: number) => PromiseLike<{ data: T[] | null; error: unknown }>) {
+  const rows: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < 1000) return { data: rows, error: null };
+  }
+}
+
 export function useResidentFinancialWorkspace(residentId?: string) {
   return useQuery({
     queryKey: ["resident-financial-operations", "workspace", residentId],
@@ -106,17 +118,19 @@ export function useResidentFinancialWorkspace(residentId?: string) {
           .select("*")
           .eq("resident_id", id)
           .order("version_number", { ascending: false }),
-        supabase
+        financialRows((from, through) => supabase
           .from("resident_financial_transactions")
           .select("*")
           .eq("resident_id", id)
           .order("effective_on", { ascending: false })
-          .order("posted_at", { ascending: false }),
-        supabase
+          .order("posted_at", { ascending: false })
+          .order("id", { ascending: false }).range(from, through)),
+        financialRows((from, through) => supabase
           .from("resident_financial_statements")
           .select("*")
           .eq("resident_id", id)
-          .order("period_end", { ascending: false }),
+          .order("period_end", { ascending: false })
+          .order("id", { ascending: false }).range(from, through)),
         supabase
           .from("resident_personal_fund_accounts")
           .select("*")
@@ -132,7 +146,7 @@ export function useResidentFinancialWorkspace(residentId?: string) {
           .select("*")
           .eq("resident_id", id)
           .maybeSingle(),
-        supabase
+        financialRows((from, through) => supabase
           .from("resident_personal_fund_transactions")
           .select(
             `
@@ -143,7 +157,8 @@ export function useResidentFinancialWorkspace(residentId?: string) {
           )
           .eq("resident_id", id)
           .order("transaction_at", { ascending: false })
-          .order("posted_at", { ascending: false }),
+          .order("posted_at", { ascending: false })
+          .order("id", { ascending: false }).range(from, through)),
         supabase
           .from("resident_personal_fund_reconciliations")
           .select("*")

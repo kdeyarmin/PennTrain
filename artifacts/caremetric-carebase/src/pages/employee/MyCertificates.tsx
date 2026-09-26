@@ -25,7 +25,8 @@ export default function MyCertificates() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   // Gate on a resolved employee id -- see useListCertificates' own comment on why `enabled`, not
   // just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
   const {
@@ -105,10 +106,14 @@ export default function MyCertificates() {
           <p className="text-sm text-muted-foreground">
             Create one employee-owned link containing your valid certificates and continuing-education hours. You can revoke or replace it at any time.
           </p>
-          {passport.data?.is_active ? (
+          {passport.isError ? <QueryError what="your training passport" error={passport.error} onRetry={() => void passport.refetch()} /> : passport.isLoading ? <p role="status">Loading your training passport…</p> : passport.data?.is_active ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline"><Link href={`/passport/${passport.data.slug}`}><ExternalLink className="mr-2 h-4 w-4" />Open passport</Link></Button>
-              <Button variant="outline" onClick={() => void navigator.clipboard.writeText(absoluteAppUrl(`/passport/${passport.data!.slug}`)).then(() => toast({ title: "Passport link copied" }))}>Copy share link</Button>
+              <Button variant="outline" onClick={() => {
+                void Promise.resolve().then(() => navigator.clipboard.writeText(absoluteAppUrl(`/passport/${passport.data!.slug}`)))
+                  .then(() => toast({ title: "Passport link copied" }))
+                  .catch(() => toast({ title: "Could not copy the link", description: "Open your passport and copy its address from the browser.", variant: "destructive" }));
+              }}>Copy share link</Button>
               <Button variant="destructive" disabled={passport.revoke.isPending} onClick={() => passport.revoke.mutate(undefined, { onSuccess: () => toast({ title: "Passport revoked" }), onError: (error: Error) => toast({ title: "Passport could not be revoked", description: error.message, variant: "destructive" }) })}>Revoke link</Button>
             </div>
           ) : (
@@ -127,12 +132,16 @@ export default function MyCertificates() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {certificatesError ? (
+          {employeeQuery.isError ? (
+            <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />
+          ) : certificatesError ? (
             <QueryError what="your certificates" error={certificatesErrorDetail} onRetry={() => refetchCertificates()} />
           ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
             </div>
+          ) : !employee ? (
+            <p className="text-muted-foreground text-sm text-center py-8">No employee profile is linked to your account. Contact your facility manager.</p>
           ) : allCertificates.length === 0 ? (
             <div className="space-y-3 py-8 text-center">
               <p className="text-muted-foreground text-sm">No certificates yet. Complete an assigned training item to earn one.</p>

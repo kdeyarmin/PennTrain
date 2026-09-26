@@ -85,7 +85,7 @@ export default function ScheduleSetup() {
       </div>
 
       {activeFacilityId && (
-        <Tabs defaultValue="units">
+        <Tabs key={activeFacilityId} defaultValue="units">
           <TabsList>
             <TabsTrigger value="units">Units &amp; Wings</TabsTrigger>
             <TabsTrigger value="shifts">Shift Types</TabsTrigger>

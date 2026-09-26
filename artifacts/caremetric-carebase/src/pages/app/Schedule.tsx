@@ -16,6 +16,7 @@ import { CalendarDays, Plus, Settings2, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { addDaysIso, formatDateLabel, startOfWeekIso, todayIso } from "@/lib/scheduleDates";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { isExplicitCompletionDeadline } from "@/lib/trainingPlanEditing";
 
 export default function Schedule() {
   const __fieldIds = useId();
@@ -44,7 +45,8 @@ export default function Schedule() {
   const [periodLength, setPeriodLength] = useState<"7" | "14">("7");
   const [title, setTitle] = useState("");
 
-  const periodEnd = useMemo(() => addDaysIso(periodStart, Number(periodLength) - 1), [periodStart, periodLength]);
+  const periodEnd = useMemo(() => isExplicitCompletionDeadline(periodStart)
+    ? addDaysIso(periodStart, Number(periodLength) - 1) : null, [periodStart, periodLength]);
 
   function resetForm() {
     setPeriodStart(thisMonday);
@@ -53,7 +55,7 @@ export default function Schedule() {
   }
 
   function handleCreate() {
-    if (!activeFacilityId || !user?.organizationId || !user?.id) return;
+    if (!activeFacilityId || !user?.organizationId || !user?.id || !periodEnd || createSchedule.isPending) return;
     createSchedule.mutate(
       {
         organization_id: user.organizationId,
@@ -137,12 +139,12 @@ export default function Schedule() {
                   </Button>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {formatDateLabel(periodStart)} &ndash; {formatDateLabel(periodEnd)}
+                  {periodEnd ? `${formatDateLabel(periodStart)} – ${formatDateLabel(periodEnd)}` : "Choose a valid start date."}
                 </p>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-                <Button onClick={handleCreate} disabled={createSchedule.isPending}>
+                <Button onClick={handleCreate} disabled={createSchedule.isPending || !periodEnd}>
                   {createSchedule.isPending ? "Creating..." : "Create Schedule"}
                 </Button>
               </DialogFooter>

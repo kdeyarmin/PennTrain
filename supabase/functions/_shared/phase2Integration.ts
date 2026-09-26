@@ -331,6 +331,40 @@ async function phase2WriteAll(
   }
 }
 
+function phase2ResponseHead(bytes: Uint8Array): { status: number; bodyStart: number; length: number | null } | null {
+  // latin1 preserves one character per byte so offsets stay correct when a header or
+  // body contains UTF-8. Decode the actual response body as UTF-8 only after framing it.
+  const raw = new TextDecoder("latin1").decode(bytes);
+  let start = 0;
+  for (;;) {
+    const end = raw.indexOf("\r\n\r\n", start);
+    if (end < 0) {
+      if (bytes.length > 32 * 1024) throw new Error("Webhook response headers too large");
+      return null;
+    }
+    if (end + 4 > 32 * 1024) throw new Error("Webhook response headers too large");
+    const lines = raw.slice(start, end).split("\r\n");
+    const status = Number(lines.shift()?.match(/^HTTP\/1\.[01] ([0-9]{3})(?: |$)/)?.[1]);
+    if (!Number.isInteger(status) || status < 100 || status > 599) throw new Error("Malformed webhook HTTP status");
+    start = end + 4;
+    // Continue/early-hints headers do not acknowledge the webhook. Await the final response.
+    if (status === 101) throw new Error("Webhook protocol upgrade is not supported");
+    if (status < 200) continue;
+    const contentLengths = lines.filter((line) => /^content-length:/i.test(line))
+      .map((line) => line.slice(line.indexOf(":") + 1).trim());
+    const transferEncoded = lines.some((line) => /^transfer-encoding:/i.test(line));
+    let length: number | null = null;
+    if (!transferEncoded && contentLengths.length) {
+      if (contentLengths.some((value) => !/^\d+$/.test(value) || value !== contentLengths[0])) {
+        throw new Error("Malformed webhook Content-Length");
+      }
+      length = Number(contentLengths[0]);
+      if (!Number.isSafeInteger(length)) throw new Error("Malformed webhook Content-Length");
+    }
+    return { status, bodyStart: start, length: status === 204 || status === 304 ? 0 : length };
+  }
+}
+
 /**
  * Send an HTTPS request to one of the DNS addresses that was already validated.
  * The TCP destination never re-resolves, while TLS SNI/certificate checks still use
@@ -381,26 +415,26 @@ export async function phase2PinnedWebhookRequest(
     await phase2WriteAll(connection, new TextEncoder().encode(head), deadline);
     if (bodyBytes.length) await phase2WriteAll(connection, bodyBytes, deadline);
 
-    const chunks: Uint8Array[] = [];
-    let total = 0;
     const maxResponseBytes = 64 * 1024 + 32 * 1024;
+    const bytes = new Uint8Array(maxResponseBytes);
+    let total = 0;
     const buffer = new Uint8Array(8192);
+    let responseHead: ReturnType<typeof phase2ResponseHead> = null;
     while (total < maxResponseBytes) {
-      const count = await phase2BeforeDeadline(connection.read(buffer), deadline);
+      const count = await phase2BeforeDeadline(connection.read(buffer.subarray(0, maxResponseBytes - total)), deadline);
       if (count === null) break;
       if (count === 0) throw new Error("Webhook connection closed");
-      chunks.push(buffer.slice(0, count));
+      bytes.set(buffer.subarray(0, count), total);
       total += count;
+      responseHead ??= phase2ResponseHead(bytes.subarray(0, total));
+      if (responseHead && responseHead.length !== null && total - responseHead.bodyStart >= responseHead.length) break;
     }
-    const bytes = new Uint8Array(total);
-    let cursor = 0;
-    for (const chunk of chunks) { bytes.set(chunk, cursor); cursor += chunk.length; }
-    const raw = new TextDecoder().decode(bytes);
-    const headerEnd = raw.indexOf("\r\n\r\n");
-    if (headerEnd < 0) throw new Error("Malformed webhook HTTP response");
-    const status = Number(raw.slice(0, raw.indexOf("\r\n")).match(/^HTTP\/1\.[01] ([0-9]{3})/)?.[1]);
-    if (!Number.isInteger(status)) throw new Error("Malformed webhook HTTP status");
-    const responseBody = raw.slice(headerEnd + 4, headerEnd + 4 + 64 * 1024);
+    if (!responseHead) throw new Error("Malformed webhook HTTP response");
+    const { status, bodyStart, length } = responseHead;
+    if (length !== null && total < maxResponseBytes && total - bodyStart < length) {
+      throw new Error("Incomplete webhook HTTP response");
+    }
+    const responseBody = new TextDecoder().decode(bytes.subarray(bodyStart, Math.min(total, bodyStart + Math.min(length ?? Infinity, 64 * 1024))));
     return { status, ok: status >= 200 && status < 300, text: async () => responseBody };
   } finally {
     try { connection?.close(); } catch { /* already closed */ }

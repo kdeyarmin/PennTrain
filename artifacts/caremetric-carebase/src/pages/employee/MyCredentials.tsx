@@ -32,7 +32,8 @@ function credentialTitle(c: EmployeeCredential): string {
 export default function MyCredentials() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   const {
     data: credentials,
     isLoading: credentialsLoading,
@@ -109,12 +110,16 @@ export default function MyCredentials() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {credentialsError ? (
+          {employeeQuery.isError ? (
+            <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />
+          ) : credentialsError ? (
             <QueryError what="your credentials" error={credentialsErrorDetail} onRetry={() => refetchCredentials()} />
           ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
             </div>
+          ) : !employee ? (
+            <p className="text-muted-foreground text-sm text-center py-8">No employee profile is linked to your account. Contact your facility manager.</p>
           ) : !credentials?.length ? (
             <p className="text-muted-foreground text-sm text-center py-8">No credentials on file yet.</p>
           ) : (
@@ -144,7 +149,7 @@ export default function MyCredentials() {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={busyId === c.id}
+                      disabled={busyId !== null}
                       onClick={() => fileRefs.current[c.id]?.click()}
                     >
                       <Upload className="mr-1.5 h-3.5 w-3.5" />

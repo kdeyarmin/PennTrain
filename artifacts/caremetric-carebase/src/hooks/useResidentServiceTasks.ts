@@ -51,6 +51,17 @@ export interface ServiceTaskQueueFilters {
   status?: string;
 }
 
+async function serviceRows<T>(page: (from: number, through: number) => PromiseLike<{ data: unknown; error: unknown }>) {
+  const rows: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw error;
+    const pageRows = (data ?? []) as T[];
+    rows.push(...pageRows);
+    if (pageRows.length < 1000) return rows;
+  }
+}
+
 function invalidateServiceTasks(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
   queryClient.invalidateQueries({ queryKey: ["resident-service-requirements"] });
@@ -64,16 +75,17 @@ function invalidateServiceTasks(queryClient: ReturnType<typeof useQueryClient>) 
 export function useResidentServiceTaskQueue(filters: ServiceTaskQueueFilters) {
   return useQuery({
     queryKey: ["resident-service-tasks", filters],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_resident_service_task_queue" as never, {
+    queryFn: () => serviceRows<ResidentServiceTaskQueueRow>((from, through) =>
+      supabase.rpc("get_resident_service_task_queue" as never, {
         p_from: filters.from,
         p_through: filters.through,
         p_facility_id: filters.facilityId ?? null,
         p_status: filters.status ?? null,
-      } as never);
-      if (error) throw error;
-      return data as unknown as ResidentServiceTaskQueueRow[];
-    },
+      } as never)
+        // Preserve the queue's time-first ordering, group equal-time work by the displayed
+        // resident and service, then use a unique tie-break across PostgREST pages.
+        .order("scheduled_start").order("resident_name").order("service_name").order("id")
+        .range(from, through)),
   });
 }
 
@@ -85,7 +97,7 @@ export function useListResidentServiceRequirements(filters: {
 } = {}) {
   return useQuery({
     queryKey: ["resident-service-requirements", filters],
-    queryFn: async () => {
+    queryFn: () => serviceRows<ServiceRequirementWithRelations>(async (from, through) => {
       let query = supabase
         .from("resident_service_requirements")
         .select(`
@@ -94,15 +106,13 @@ export function useListResidentServiceRequirements(filters: {
           facility:facilities(id, name),
           unit:facility_units(id, name)
         `)
-        .order("service_name");
+        .order("service_name").order("id").range(from, through);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.residentId) query = query.eq("resident_id", filters.residentId);
       if (filters.status) query = query.eq("status", filters.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as unknown as ServiceRequirementWithRelations[];
-    },
+      return query;
+    }),
   });
 }
 
@@ -113,7 +123,7 @@ export function useListServiceTaskAlerts(filters: {
 } = {}) {
   return useQuery({
     queryKey: ["service-task-alerts", filters],
-    queryFn: async () => {
+    queryFn: () => serviceRows<ServiceTaskAlertWithRelations>(async (from, through) => {
       let query = supabase
         .from("service_task_alerts")
         .select(`
@@ -121,14 +131,12 @@ export function useListServiceTaskAlerts(filters: {
           resident:residents(id, first_name, last_name, room),
           task:resident_service_task_instances(id, service_name, scheduled_start, status)
         `)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, through);
       if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
       if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
       if (filters.status) query = query.eq("status", filters.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as unknown as ServiceTaskAlertWithRelations[];
-    },
+      return query;
+    }),
   });
 }
 

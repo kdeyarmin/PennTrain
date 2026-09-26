@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useImpersonation";
 import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
 import { signedInIdentityChanged, type SessionIdentity } from "@/lib/sessionIdentity";
+import { readRecoveryGrant, recoveryGrantMatchesSession } from "@/lib/recoveryGrant";
 import {
   isOfflineServiceDraftIdentityPending, shouldWipeOfflineServiceDraftData,
   type OfflineServiceDraftIdentitySnapshot,
@@ -98,7 +99,7 @@ export function hasRole(user: AuthUser | null, ...roles: Role[]): boolean {
 // into localStorage, keyed to the recovery session's user id, makes it visible everywhere the
 // underlying session is visible -- including a DIFFERENT tab that receives the very same SIGNED_IN
 // event via supabase-js's own cross-tab BroadcastChannel relay (that tab's own module-level
-// `pendingImplicitGrantType` below reflects THAT tab's own URL, not the tab that actually opened
+// `pendingRecoveryGrant` below reflects THAT tab's own URL, not the tab that actually opened
 // the recovery/invite link, so it can't be relied on there -- the shared marker is what makes that
 // tab recognize the session correctly too). A JSON *array* of user ids, not a single value: two
 // different accounts' recovery/invite links opened concurrently in two tabs must not clobber each
@@ -147,7 +148,9 @@ function clearRecoverySession(userId: string | undefined) {
 // resolveIsRecoverySession below recognize the session that actually corresponds to an invite
 // redirect, even though by the time any event fires the hash itself is already gone.
 //
-// Consumed on the FIRST session-bearing check this tab makes, not tied to a specific event name.
+// Consumed on the first MATCHING session-bearing check, not tied to a specific event name.
+// Matching the exact token matters: a refused link can leave a different, ordinary session in
+// storage, and merely seeing type=invite/recovery must never mark that session as the link's.
 // GoTrue always fires an INITIAL_SESSION event -- already carrying the freshly-established session
 // -- strictly before the "real" SIGNED_IN/PASSWORD_RECOVERY notification it schedules a tick later
 // for a URL-hash grant. Gating the read/clear on `event === "SIGNED_IN"` specifically would leave
@@ -157,18 +160,16 @@ function clearRecoverySession(userId: string | undefined) {
 // deferred SIGNED_IN event arrives a tick later to correct it. Resolving through this single
 // function on every event (see resolveIsRecoverySession) closes that window: isRecoverySession is
 // derived atomically alongside `session` for every event, including the first one.
-let pendingImplicitGrantType: string | null = new URLSearchParams(
-  window.location.hash.replace(/^#/, ""),
-).get("type");
+let pendingRecoveryGrant = readRecoveryGrant(window.location.hash);
 
 // Single source of truth for "is this session a not-yet-confirmed recovery/invite session."
 // Called for every session this tab observes (the initial getSession() read, and every
 // onAuthStateChange event except SIGNED_OUT) so it's reached regardless of which specific event
 // first carries the session, and regardless of whether that event was raised by an implicit-grant
 // URL this tab itself loaded or relayed from another tab via supabase-js's cross-tab broadcast.
-function resolveIsRecoverySession(session: Session | null): boolean {
-  if (session && (pendingImplicitGrantType === "invite" || pendingImplicitGrantType === "recovery")) {
-    pendingImplicitGrantType = null;
+function resolveIsRecoverySession(session: Session | null, isPasswordRecoveryEvent = false): boolean {
+  if (session && (isPasswordRecoveryEvent || recoveryGrantMatchesSession(pendingRecoveryGrant, session))) {
+    pendingRecoveryGrant = null;
     markRecoverySession(session.user.id);
     return true;
   }
@@ -243,8 +244,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Every event resolves isRecoverySession through resolveIsRecoverySession -- which also
-    // handles PASSWORD_RECOVERY (the `recovery` implicit-grant type resolves through the same
-    // pendingImplicitGrantType snapshot as `invite` does) and a relayed SIGNED_IN from another tab
+    // handles PASSWORD_RECOVERY directly and a relayed SIGNED_IN from another tab
     // (its fallback to the shared, cross-tab RECOVERY_SESSION_KEY marker catches that
     // automatically) -- except two events with their own explicit handling: SIGNED_OUT always
     // clears the marker (nothing to resolve, there's no session left), and a SIGNED_IN that
@@ -253,7 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // that function's own comment for why a marker can go stale in the first place).
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
       // Only ever consumed here, on SIGNED_IN specifically -- never reset on some other,
-      // unrelated event in between, for the same reason pendingImplicitGrantType above is only
+      // unrelated event in between, for the same reason pendingRecoveryGrant above is only
       // consumed when actually checked: an earlier fix that cleared a similar one-shot flag
       // unconditionally on every event let an unrelated event consume it before the one it was
       // meant to gate ever arrived.
@@ -294,10 +294,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // cannot take the tokens they are about to restore from.
         void clearLocalSessionState();
       } else if (isConfirmedPasswordSignIn) {
+        pendingRecoveryGrant = null;
         clearRecoverySession(nextSession.user.id);
         setIsRecoverySession(false);
       } else {
-        setIsRecoverySession(resolveIsRecoverySession(nextSession));
+        setIsRecoverySession(resolveIsRecoverySession(nextSession, event === "PASSWORD_RECOVERY"));
       }
       lastSessionRef.current = nextSession;
       setSession(nextSession);

@@ -48,7 +48,8 @@ export default function MySchedule() {
   const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   const workspace = useMyShiftWorkspace();
   const submitTimeOff = useSubmitTimeOffRequest();
   const claimShift = useClaimOpenShift();
@@ -200,6 +201,7 @@ export default function MySchedule() {
       </div>
 
       {shiftsError ? <QueryError what="your shifts" error={shiftsErrorDetail} onRetry={() => refetchShifts()} /> : null}
+      {mySwaps.isError ? <QueryError what="your shift swap requests" error={mySwaps.error} onRetry={() => void mySwaps.refetch()} /> : null}
       {workspace.isError ? <QueryError what="your schedule" error={workspace.error} onRetry={() => workspace.refetch()} /> : null}
 
       <Card>
@@ -208,8 +210,10 @@ export default function MySchedule() {
           <CardDescription>Only published shifts are shown. Swap candidates are limited to your facility and remain subject to manager approval.</CardDescription>
         </CardHeader>
         <CardContent>
-          {shiftsError ? null : isLoading ? (
+          {employeeQuery.isError ? <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} /> : shiftsError ? null : isLoading ? (
             <div className="space-y-2">{[...Array(4)].map((_, index) => <div key={index} className="h-20 animate-pulse rounded bg-muted" />)}</div>
+          ) : !employee ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No employee profile is linked to your account. Contact your facility manager.</p>
           ) : upcoming.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No upcoming shifts published yet.</p>
           ) : (

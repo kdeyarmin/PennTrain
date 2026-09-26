@@ -137,29 +137,39 @@ export function useCreateSupportTicket() {
       if (ticketError) throw ticketError;
       if (!ticket) throw new Error("Support ticket was not created");
 
+      let attachmentWarning: string | null = null;
       if (file) {
-        const attachment = await uploadTicketAttachment(organizationId, ticket.id, file);
-        const { error: attachError } = await supabase.rpc("attach_file_to_support_ticket_message", {
-          p_ticket_id: ticket.id,
-          p_bucket: attachment.attachment_bucket,
-          p_path: attachment.attachment_path,
-          p_name: attachment.attachment_name,
-          p_type: attachment.attachment_type,
-          p_size: attachment.attachment_size,
-        });
-        if (attachError) {
-          // The object is orphaned unless it is removed here: nothing references it, and the
-          // bucket has no sweeper. A failure to remove it is reported alongside, not swallowed.
-          const { error: cleanupError } = await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
-          throw new Error(
-            cleanupError
-              ? `Ticket created, but the file could not be attached: ${attachError.message} (and the uploaded file could not be removed: ${cleanupError.message})`
-              : `Ticket created, but the file could not be attached: ${attachError.message}`,
-          );
+        try {
+          const attachment = await uploadTicketAttachment(organizationId, ticket.id, file);
+          const { error: attachError } = await supabase.rpc("attach_file_to_support_ticket_message", {
+            p_ticket_id: ticket.id,
+            p_bucket: attachment.attachment_bucket,
+            p_path: attachment.attachment_path,
+            p_name: attachment.attachment_name,
+            p_type: attachment.attachment_type,
+            p_size: attachment.attachment_size,
+          });
+          if (attachError) {
+            // The object is orphaned unless it is removed here: nothing references it, and the
+            // bucket has no sweeper. A failure to remove it is reported alongside, not swallowed.
+            const { error: cleanupError } = await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
+            throw new Error(
+              cleanupError
+                ? `Ticket created, but the file could not be attached: ${attachError.message} (and the uploaded file could not be removed: ${cleanupError.message})`
+                : `Ticket created, but the file could not be attached: ${attachError.message}`,
+            );
+          }
+        } catch (error) {
+          // Creation has already committed. Keep the successful ticket id and refresh the
+          // queue; reporting the whole operation as failed leaves the form open and makes
+          // a retry create a duplicate ticket instead of retrying only the missing file.
+          attachmentWarning = error instanceof Error ? error.message
+            : error && typeof error === "object" && "message" in error ? String(error.message)
+            : "The file could not be uploaded.";
         }
       }
 
-      return ticket;
+      return { ...ticket, attachmentWarning };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["support_tickets"] }),
   });

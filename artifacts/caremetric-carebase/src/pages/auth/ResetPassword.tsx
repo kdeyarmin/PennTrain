@@ -47,7 +47,7 @@ export default function ResetPassword() {
   // Whether a recovery session actually got established, and whether the visitor finished the
   // reset -- used on unmount below to sign out of an abandoned recovery session so navigating
   // away (URL edit, back button, bookmark) doesn't leave it usable elsewhere in the app.
-  const sessionEstablishedRef = useRef(false);
+  const recoveryUserIdRef = useRef<string | null>(null);
   const completedRef = useRef(false);
 
   useEffect(() => {
@@ -59,13 +59,14 @@ export default function ResetPassword() {
     // that session as the link's would show the form for an expired link (updateUser would then
     // rewrite the signed-in account's password) and make the abandonment cleanup below sign the
     // visitor out for merely opening the page. Only a session this page can tie to the link
-    // counts: the hash's implicit-grant type, the PASSWORD_RECOVERY event, or auth.tsx's marker.
+    // counts: the PASSWORD_RECOVERY event or auth.tsx's marker. A type in the URL alone is
+    // insufficient: a refused token may leave an unrelated existing session in storage.
     let cancelled = false;
+    let invalidated = false;
+    let observedAuthEvent = false;
 
     const hash = pendingLinkHash;
     pendingLinkHash = null;
-    const cameFromLink = hash?.get("type") === "recovery" || hash?.get("type") === "invite";
-
     if (hash?.get("error") || hash?.get("error_code")) {
       // GoTrue rejected the token outright, so no recovery session is coming -- say so now
       // rather than waiting out the timeout.
@@ -73,22 +74,38 @@ export default function ResetPassword() {
       return;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled && data.session && (cameFromLink || isMarkedRecoveryUser(data.session.user.id))) {
-        sessionEstablishedRef.current = true;
+    const invalidateLink = () => {
+      invalidated = true;
+      recoveryUserIdRef.current = null;
+      setPassword("");
+      setConfirmPassword("");
+      setLinkState("invalid");
+    };
+
+    const observeSession = (session: { user: { id: string } } | null, isRecoveryEvent = false) => {
+      if (cancelled || invalidated || completedRef.current) return;
+      const originalUserId = recoveryUserIdRef.current;
+      if (originalUserId && (!session || session.user.id !== originalUserId || !isMarkedRecoveryUser(originalUserId))) {
+        invalidateLink();
+        return;
+      }
+      if (session && (isRecoveryEvent || isMarkedRecoveryUser(session.user.id))) {
+        recoveryUserIdRef.current = session.user.id;
         setLinkState("valid");
       }
+    };
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (cancelled || observedAuthEvent) return;
+      if (error) invalidateLink();
+      else observeSession(data.session);
+    }).catch(() => {
+      if (!cancelled && !observedAuthEvent) invalidateLink();
     });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
-      if (cancelled) return;
-      if (
-        event === "PASSWORD_RECOVERY" ||
-        (event === "SIGNED_IN" && session && (cameFromLink || isMarkedRecoveryUser(session.user.id)))
-      ) {
-        sessionEstablishedRef.current = true;
-        setLinkState("valid");
-      }
+      observedAuthEvent = true;
+      observeSession(session, event === "PASSWORD_RECOVERY");
     });
 
     // Give the URL-hash parse a moment before concluding the link is invalid/expired.
@@ -102,16 +119,23 @@ export default function ResetPassword() {
       cancelled = true;
       subscription.subscription.unsubscribe();
       clearTimeout(timeout);
-      if (sessionEstablishedRef.current && !completedRef.current) {
-        // Local scope: tear down the abandoned recovery session in this tab without revoking
-        // the account's refresh tokens everywhere else.
-        void supabase.auth.signOut({ scope: "local" });
+      const recoveryUserId = recoveryUserIdRef.current;
+      if (recoveryUserId && !completedRef.current) {
+        // Auth storage is shared across tabs. Abandon only the recovery session this form
+        // belongs to, never an account that signed in elsewhere while it was open.
+        void supabase.auth.getSession().then(({ data }) => {
+          if (data.session?.user.id === recoveryUserId && isMarkedRecoveryUser(recoveryUserId)) {
+            return supabase.auth.signOut({ scope: "local" });
+          }
+          return undefined;
+        }).catch(() => undefined);
       }
     };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting || linkState !== "valid" || !recoveryUserIdRef.current) return;
     if (password.length < 8) {
       toast({ variant: "destructive", title: "Password too short", description: "Use at least 8 characters." });
       return;
@@ -122,6 +146,17 @@ export default function ResetPassword() {
     }
     setSubmitting(true);
     try {
+      // updateUser changes the CURRENT account. Re-read it at the point of mutation so a
+      // cross-tab sign-in cannot make a stale reset form change somebody else's password.
+      const { data: current, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!current.session || current.session.user.id !== recoveryUserIdRef.current || !isMarkedRecoveryUser(current.session.user.id)) {
+        recoveryUserIdRef.current = null;
+        setPassword("");
+        setConfirmPassword("");
+        setLinkState("invalid");
+        return;
+      }
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       completedRef.current = true;

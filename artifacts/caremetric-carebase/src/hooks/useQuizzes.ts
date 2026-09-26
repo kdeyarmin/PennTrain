@@ -574,18 +574,30 @@ export function useGradeQuizAttempt() {
 export interface ListQuizAttemptsFilters {
   assignmentId?: string;
   employeeId?: string;
+  quizId?: string;
 }
 
 export function useListQuizAttempts(filters: ListQuizAttemptsFilters = {}) {
   return useQuery({
     queryKey: ["quiz_attempts", filters],
     queryFn: async () => {
-      let query = supabase.from("quiz_attempts").select("*").order("started_at", { ascending: false });
-      if (filters.assignmentId) query = query.eq("assignment_id", filters.assignmentId);
-      if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // Unlimited retries and courses with several quizzes can exceed the API row cap.
+      // Every attempt counts toward the allowance, and an older pass still unlocks its lesson.
+      const pageSize = 1000;
+      const rows: QuizAttempt[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from("quiz_attempts").select("*")
+          .order("started_at", { ascending: false }).order("id", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (filters.assignmentId) query = query.eq("assignment_id", filters.assignmentId);
+        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+        if (filters.quizId) query = query.eq("quiz_id", filters.quizId);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
   });
 }

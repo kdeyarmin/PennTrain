@@ -1,4 +1,5 @@
 import { useId, useMemo, useRef, useState } from "react";
+import { trainingFormNumber } from "@/lib/trainingFormNumbers";
 import { facilityToday } from "@/lib/dateUtils";
 import {
   useListEmployeeCredentials, useCreateEmployeeCredential, useUpdateEmployeeCredential, useDeleteEmployeeCredential,
@@ -306,7 +307,21 @@ export default function EmployeeCredentials() {
       return;
     }
     const employee = employeeById.get(form.employeeId);
-    if (!employee) return;
+    if (!employee) {
+      toast({ title: "Employee details are unavailable. Reload the employee list and try again.", variant: "destructive" });
+      return;
+    }
+    let warningDays: number;
+    try {
+      warningDays = trainingFormNumber(form.warningDays, "Warning days", { min: 0, integer: true, defaultValue: 90 })!;
+    } catch (error) {
+      toast({ title: (error as Error).message, variant: "destructive" });
+      return;
+    }
+    if (form.issueDate && form.expirationDate && form.expirationDate < form.issueDate) {
+      toast({ title: "Expiration date cannot be before the issue date.", variant: "destructive" });
+      return;
+    }
 
     const payload = {
       employee_id: employee.id,
@@ -321,7 +336,7 @@ export default function EmployeeCredentials() {
       credential_number: form.credentialNumber || null,
       issue_date: form.issueDate || null,
       expiration_date: form.expirationDate || null,
-      warning_days: Number(form.warningDays) || 90,
+      warning_days: warningDays,
       status: form.status,
       notes: form.notes || null,
       verification_method: form.verificationMethod || null,

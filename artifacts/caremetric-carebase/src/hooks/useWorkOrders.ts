@@ -20,15 +20,23 @@ export function useListWorkOrders(filters: WorkOrderFilters = {}) {
   return useQuery({
     queryKey: ["work_orders", filters],
     queryFn: async () => {
-      let query = supabase.from("work_orders").select("*").order("created_at", { ascending: false });
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.priority) query = query.eq("priority", filters.priority);
-      if (filters.inspectionItemId) query = query.eq("inspection_item_id", filters.inspectionItemId);
-      if (filters.sourceInspectionEventId) query = query.eq("source_inspection_event_id", filters.sourceInspectionEventId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // The dashboard derives its open/overdue queue from this collection. A single API page
+      // silently omitted older unresolved repairs once enough newer orders had accumulated.
+      const pageSize = 1000;
+      const rows: WorkOrder[] = [];
+      for (let from = 0; ; from += pageSize) {
+        let query = supabase.from("work_orders").select("*").order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, from + pageSize - 1);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.priority) query = query.eq("priority", filters.priority);
+        if (filters.inspectionItemId) query = query.eq("inspection_item_id", filters.inspectionItemId);
+        if (filters.sourceInspectionEventId) query = query.eq("source_inspection_event_id", filters.sourceInspectionEventId);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      return rows;
     },
   });
 }

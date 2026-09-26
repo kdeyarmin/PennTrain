@@ -1,15 +1,16 @@
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ useMutation: vi.fn(), useQueryClient: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useMutation: vi.fn(), useQuery: vi.fn(), useQueryClient: vi.fn(), from: vi.fn() }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...await importOriginal<typeof import("@tanstack/react-query")>(),
   useMutation: mocks.useMutation,
+  useQuery: mocks.useQuery,
   useQueryClient: mocks.useQueryClient,
 }));
-vi.mock("@/lib/supabase", () => ({ supabase: {} }));
+vi.mock("@/lib/supabase", () => ({ supabase: { from: mocks.from } }));
 
-import { useImportJobAction, useRunDomainImport } from "./useDataImportCenter";
+import { useImportJobAction, useImportJobRows, useRunDomainImport } from "./useDataImportCenter";
 
 let client: QueryClient;
 const cacheKeys = {
@@ -27,6 +28,51 @@ beforeEach(() => {
   for (const key of Object.values(cacheKeys)) client.setQueryData(key, { cached: true });
   mocks.useQueryClient.mockReturnValue(client);
   mocks.useMutation.mockReset();
+  mocks.useQuery.mockReset();
+  mocks.from.mockReset();
+});
+
+describe("complete import diagnostics", () => {
+  function receiptReader(pages: Array<{ data: unknown[] | null; error: Error | null }>) {
+    const query = {
+      select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(),
+      gt: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(),
+      limit: vi.fn(),
+    };
+    for (const page of pages) query.limit.mockResolvedValueOnce(page);
+    mocks.from.mockReturnValue(query);
+    useImportJobRows("import-1");
+    const { queryFn } = mocks.useQuery.mock.calls.at(-1)![0] as { queryFn: () => Promise<unknown[]> };
+    return { query, queryFn };
+  }
+
+  it("retains diagnostics after the API row cap and follows the returned cursor", async () => {
+    const first = Array.from({ length: 1000 }, (_, index) => ({ row_number: index + 1, status: "valid" }));
+    const last = { row_number: 1001, status: "invalid", errors: ["Unknown facility"] };
+    const { query, queryFn } = receiptReader([
+      { data: first, error: null }, { data: [last], error: null }, { data: [], error: null },
+    ]);
+    expect(await queryFn()).toEqual([...first, last]);
+    expect(query.gt.mock.calls).toEqual([["row_number", -1], ["row_number", 1000], ["row_number", 1001]]);
+    expect(query.eq).toHaveBeenCalledWith("job_id", "import-1");
+  });
+
+  it("does not mistake a lower configured response cap for the end of the receipt", async () => {
+    const { queryFn } = receiptReader([
+      { data: [{ row_number: 1 }], error: null },
+      { data: [{ row_number: 2 }], error: null },
+      { data: [], error: null },
+    ]);
+    expect(await queryFn()).toEqual([{ row_number: 1 }, { row_number: 2 }]);
+  });
+
+  it("fails the download instead of returning partial diagnostics when a later page fails", async () => {
+    const error = new Error("Receipt read unavailable");
+    const { queryFn } = receiptReader([
+      { data: [{ row_number: 1 }], error: null }, { data: null, error },
+    ]);
+    await expect(queryFn()).rejects.toBe(error);
+  });
 });
 
 async function settle(variables: Record<string, unknown>, error: Error | null = null) {

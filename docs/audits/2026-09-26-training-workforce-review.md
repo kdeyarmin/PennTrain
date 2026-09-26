@@ -1,0 +1,43 @@
+# Training and workforce workflow review — 2026-09-26
+
+This is evidence for the repository-wide review, not a planning register. BACKLOG.md remains authoritative. Review combines route and call-site inventory, source inspection, existing automated coverage, and focused regression tests. It does not claim that every external integration or every production data permutation was exercised.
+
+## Reviewed surface
+
+| Feature group | Entry points and review coverage |
+| --- | --- |
+| Course catalog and authoring | Courses, CourseDetail and its authoring components, QuizBuilder, AiCourseWizard, GovernedLearning: creation/review/publish boundaries, immutable published content, provider/media/package hooks and existing governed-learning tests. AI and media provider execution remains external. |
+| Learner course lifecycle | MyCourses, TakeCourse, TakeQuiz, OfflineCourse: employee/assignment ownership, enrollment readiness, sequential lessons/video/quiz/attestation/package gates, progress queues, resumed answers, repeat attempts, closed assignments, completion receipt and feedback. Existing TakeCourse, quiz queue/shuffle, offline and runtime tests cover sequencing and preservation of evidence. |
+| Assignments and plans | CourseAssignments, TrainingPlans, training assignment rules/starter kits: facility selection, legacy versus annual plan application, explicit deadlines, reconciliation previews, partial failure reporting, extra quiz attempts and cancellation. Existing hook and preview regressions exercise these branches. |
+| Compliance records and reports | TrainingTypes, TrainingMatrix, MyTrainings, TrainingReports, enrollment report, yearly progress, reminders and saved reports: current-record reduction, date interpretation, pagination/export limits, required/optional distinctions, delivery receipts and query invalidation. Scheduled delivery is not proven by a local unit test. |
+| Live classes | TrainerClasses, ClassDetail, ClassKiosk, RetrainingMonitor, SessionRosterCard and completed-class correction: class creation/duplication, facility and trainer permissions, attendance evidence and credit ceilings, completion/correction, QR/kiosk entry and retries. Real QR expiry, signed attendance, PDF and delivery require the database/browser lane. |
+| Certificates and portability | MyCertificates, VerifyCertificate, TrainingPassport, certificate hooks: issuance is part of atomic completion, PDF retry polling, download URL validation, public validity/error distinction, passport enable/revoke, clipboard failure. PDF workers and signed public links were not exercised against production. |
+| Credentials | EmployeeCredentials, MyCredentials and renewal inbox/hooks: facility write scope, different create/edit/delete roles, warning windows, issuance/expiration ordering, upload and renewal-review states. The server remains authoritative for verification and acceptance. |
+| Competencies and practicums | CompetencyTemplates, CompetencyRecords, CertificationAttemptSection and Practicums: author versus learner rights, checklist evidence/signatures, two-request competency-record compensation, annual filtering, immutable practicum identity and numeric inputs. Server duty qualification and audit evidence are not replaced by client checks. |
+| Staff schedules | Schedule, ScheduleSetup, ScheduleDetail, MySchedule, scheduling eligibility and shift hooks: date periods, units/shifts/patterns/workload, draft versus published operations, auto-fill/undo, manual eligibility decisions, call-offs, swap/open-shift/time-off requests, missing and failed lookup states. |
+| Workforce controls | QualifiedWorkforce, workforce summary/commands, staff regulatory and coverage components: role/facility boundaries, HRIS staging/validation/apply entry points, credential review and request queues. No standalone payroll timesheet or clock-in/clock-out interface was found in the shipped page/component inventory; no new payroll product was invented. |
+
+## Corrected defects
+
+1. Clearing a schedule's start date called date arithmetic during rendering with an invalid Date, crashing the form. Invalid/blank dates now leave the form usable and block creation until corrected; impossible calendar dates are rejected.
+2. Scheduling setup kept local selections and drafts when switching facilities. Facility-keyed panels now reset selected employees, shifts, units, pending deletions and workload edits with the facility.
+3. Credential warning days `0` became `90` through a truthiness fallback. Zero is now preserved; negative, fractional and non-finite windows fail before mutation. Expiration before issue date is rejected, and unavailable employee details produce an actionable message.
+4. Class duration `0` or blank became one hour. Creation now requires positive finite hours while preserving fractional hours, avoiding silent training-credit changes.
+5. Training-type forms accepted unusable negative/fractional renewal days and warning days. Renewal intervals require positive whole days; blank still means one-time training, and zero warning days remain valid.
+6. Practicums always queried the current year, making records created for another year disappear. The page now offers a year selector and returns to the saved year. Editing an existing row locks its year to match the server's immutable identity. Year bounds and whole reminder days are validated.
+7. Quiz history stopped at the API row cap, potentially hiding older passes or undercounting attempts. It now pages with a stable unique tie-break and an optional server quiz filter; failed later pages fail the entire query rather than returning partial history.
+8. Credential, certificate, training-history, schedule and quiz pages could interpret failed employee-profile lookups as missing profiles or empty successful histories. They now show recoverable errors; self-service record pages distinguish a missing profile from an empty history.
+9. Failed swap-request lookups hid outstanding requests. My Schedule now exposes a retry.
+10. Passport loading/failure was treated as no passport, offering creation prematurely. Loading and error states are explicit; clipboard failure is caught and explained. Concurrent credential-renewal buttons are disabled while a submission is in progress.
+
+## Verification
+
+- `TrainingWorkforceForms.test.tsx`: 22 passing regression cases for cleared/impossible schedule dates, facility remounting, zero/invalid credential warning days, chronological dates, one-time training, invalid renewal intervals, invalid/fractional class duration, prior-year practicums and immutable year inputs.
+- `SelfServiceStates.test.tsx`: 12 passing cases for scoped disabled queries, recoverable profile errors, missing profiles, passport loading/failure/clipboard rejection and failed swap requests.
+- `useQuizzes.test.ts`: 2 passing cases for a 1,001-attempt history with an older passing attempt, all-page filters/stable ordering, and later-page failure.
+- App typecheck passed after the first implementation checkpoint. The root review owns final whole-repository typecheck/build/tests after integration.
+- Existing focused suites were run for plans, matrix, starter kits, assignment creation, offline learning, standards runtime/package ingestion, annual hours, current records, class permissions/attendance credit, course completion time, schedule analytics, time-off requests and quiz queues/shuffling. Their individual results passed in the observed output; final aggregate execution is recorded by the root check run.
+
+## Limits and remaining verification
+
+No production record was changed. Local Docker/database availability prevented a fresh real database/browser journey in this worker. The root review's disposable CI database/browser lane is required for RLS, triggers, concurrency, identity assertions, QR/kiosk tokens, uploads, class completion/credit, certificate workers, scheduled reminders and standards-package delivery. AI generation, email/SMS, signed file storage and HRIS adapters also require configured external services. Client regression tests verify the reviewed behavior but are not evidence those services are connected or that all deployed migrations have run.

@@ -521,7 +521,11 @@ function SupportTab({ base }: { base: string }) {
       },
       {
         onSuccess: (ticket) => {
-          toast({ title: "Ticket submitted", description: "Our team will respond soon." });
+          toast(ticket.attachmentWarning ? {
+            title: "Ticket submitted; attachment needs retry",
+            description: `${ticket.attachmentWarning} Your message was saved. Add the file in a reply to this ticket.`,
+            variant: "destructive",
+          } : { title: "Ticket submitted", description: "Our team will respond soon." });
           setShowForm(false);
           resetTicketForm();
           setLocation(`${base}/help/tickets/${ticket.id}`);
