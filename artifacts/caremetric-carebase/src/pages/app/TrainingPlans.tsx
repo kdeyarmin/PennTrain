@@ -89,7 +89,7 @@ function ItemTypeBadge({ isCourse }: { isCourse: boolean }) {
 // Apply once per selected employee. Yearly plans use an atomic server reconciliation;
 // legacy templates retain their existing course/requirement fan-out in the hook.
 // ---------------------------------------------------------------------------
-function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: boolean; onClose: () => void }) {
+export function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: boolean; onClose: () => void }) {
   const fieldId = useId();
   const { user } = useAuth();
   const annual = !!plan.facility_id;
@@ -157,7 +157,7 @@ function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: bo
         </DialogHeader>
         {annual ? <p className="text-sm">Completion deadline: {formatDateForDisplay(plan.due_date)}</p> : (
           <div className="space-y-1.5"><Label htmlFor={`${fieldId}-deadline`}>Completion deadline *</Label>
-            <Input id={`${fieldId}-deadline`} type="date" value={dueDate} disabled={applying} onChange={e => setDueDate(e.target.value)} required /></div>
+            <Input id={`${fieldId}-deadline`} type="date" value={dueDate} disabled={applying} onChange={e => { setDueDate(e.target.value); setPreview(false); }} required /></div>
         )}
         {outcome && <div role="status" className="rounded-md border p-3 space-y-2">
           <p className="font-medium">{outcome.summary}</p>

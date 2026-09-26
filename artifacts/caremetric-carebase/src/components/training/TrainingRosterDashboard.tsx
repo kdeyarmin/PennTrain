@@ -35,7 +35,7 @@ export default function TrainingRosterDashboard({ facilityId, organizationId, on
   const changeState = (value: string) => { setState(value); setOffset(0); };
   async function send(row: TrainingRosterRow) {
     try {
-      if (row.invitation_id) await resend.mutateAsync(row.invitation_id);
+      if (row.invitation_id && row.account_status !== "revoked") await resend.mutateAsync(row.invitation_id);
       else await invite.mutateAsync({ email: row.email!, firstName: row.first_name, lastName: row.last_name,
         role: "employee", organizationId, employeeId: row.employee_id, redirectTo: absoluteAppUrl("/reset-password") });
       await client.invalidateQueries({ queryKey: ["course_assignments", "training-roster"] });
@@ -57,7 +57,7 @@ export default function TrainingRosterDashboard({ facilityId, organizationId, on
           <li>{counts.setup.profile_complete ? "✓" : "To do:"} <Link className="underline" href={`/app/facilities/${facilityId}?source=train`}>Confirm facility address, license, phone and administrator</Link></li>
           <li>{counts.setup.has_policy ? "✓" : "To do:"} <button className="underline" onClick={() => onTab("settings")}>Confirm the training year and policy</button></li>
           <li>{counts.setup.staff_count ? `${counts.setup.staff_count} staff added.` : "To do:"} <Link className="underline" href={`/app/employees?action=add&facilityId=${facilityId}&source=train`}>Add staff</Link> or <Link className="underline" href={`/app/employees?action=bulk-import&facilityId=${facilityId}&source=train`}>import a roster</Link></li>
-          <li><button className="underline" onClick={() => { changeState("needs_invite"); onTab("students"); }}>Invite staff and review activation</button></li>
+          <li><button className="underline" onClick={() => changeState("needs_invite")}>Invite staff and review activation</button></li>
           <li>{counts.setup.plan_count ? `${counts.setup.plan_count} plans saved.` : "To do:"} <button className="underline" onClick={() => onTab("yearly-plans")}>Choose courses, set deadlines and assign a learning plan</button></li>
           <li>{counts.setup.assigned_staff} / {counts.setup.staff_count} active staff have required courses. <button className="underline" onClick={() => changeState("no_assignments")}>Review staff needing assignments</button></li>
         </ol>
@@ -78,7 +78,7 @@ export default function TrainingRosterDashboard({ facilityId, organizationId, on
           <td className="p-2 border-b">{formatDateForDisplay(row.next_due)}</td>
           <td className="p-2 border-b"><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => onEmployee(row.employee_id)}>Progress / transcript</Button>
             <Button asChild size="sm" variant="outline"><Link href={`/app/employees/${row.employee_id}?source=train&facilityId=${facilityId}`}>Staff details</Link></Button>
-            {canInvite && row.email && !["activated", "accepted", "linked", "revoked"].includes(row.account_status) && <Button size="sm" disabled={busy} onClick={() => void send(row)}>{row.invitation_id ? "Resend invitation" : "Invite learner"}</Button>}
+            {canInvite && row.email && !["activated", "accepted", "linked"].includes(row.account_status) && <Button size="sm" disabled={busy} onClick={() => void send(row)}>{row.account_status === "revoked" ? "Send new invitation" : row.invitation_id ? "Resend invitation" : "Invite learner"}</Button>}
             {["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role || "") && (row.required_total === 0 || row.exemption_reason) && <TrainingAssignmentExemption row={row} />}
           </div></td>
         </tr>)}

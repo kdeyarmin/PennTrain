@@ -228,11 +228,13 @@ test.describe("new training facility administrator", () => {
       await page.getByLabel("Observable steps, one per line", { exact: true }).fill("Cleans hands\nUses clean equipment");
       await page.getByRole("button", { name: "Create checklist", exact: true }).click();
       await expect(page.getByText("Cedar hand hygiene demonstration · 2 steps", { exact: true })).toBeVisible();
-      await page.getByLabel("Staff member", { exact: true }).selectOption(studentId);
-      await page.getByLabel("Practical skills checklist", { exact: true }).selectOption({ label: "Cedar hand hygiene demonstration" });
+      // Native selects wrapped in labels expose their caption as the accessible
+      // name; getByLabel also includes their option text in its exact match.
+      await page.getByRole("combobox", { name: "Staff member", exact: true }).selectOption(studentId);
+      await page.getByRole("combobox", { name: "Practical skills checklist", exact: true }).selectOption({ label: "Cedar hand hygiene demonstration" });
       await page.getByLabel("Observation date", { exact: true }).fill(facilityToday());
-      await page.getByLabel("Cleans hands", { exact: true }).selectOption("demonstrated");
-      await page.getByLabel("Uses clean equipment", { exact: true }).selectOption("needs_practice");
+      await page.getByRole("combobox", { name: "Cleans hands", exact: true }).selectOption("demonstrated");
+      await page.getByRole("combobox", { name: "Uses clean equipment", exact: true }).selectOption("needs_practice");
       await page.getByLabel("Observation notes and next steps", { exact: true }).fill("Hand hygiene was demonstrated. Repeat the equipment demonstration with a supervisor.");
       await page.getByRole("checkbox", { name: "I personally observed these steps and am authorized by my facility to assess this skill.", exact: true }).check();
       await page.getByRole("button", { name: "Save signed observation", exact: true }).click();
@@ -342,7 +344,7 @@ test.describe("new training facility administrator", () => {
       await page.getByRole("tab", { name: "Skills & Outside Training", exact: true }).click();
       const submittedRecord = page.getByRole("heading", { name: "Community first-aid workshop · Awaiting review", exact: true }).locator("..");
       await expect(submittedRecord.getByRole("button", { name: "View submitted evidence", exact: true })).toBeEnabled();
-      await submittedRecord.getByLabel("Review decision", { exact: true }).selectOption("verified");
+      await submittedRecord.getByRole("combobox", { name: "Review decision", exact: true }).selectOption("verified");
       await submittedRecord.getByLabel("Review basis or requested correction", { exact: true }).fill("Reviewed the uploaded certificate and verified the learner, course and duration.");
       await submittedRecord.getByRole("button", { name: "Record decision", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Community first-aid workshop · Verified", exact: true })).toBeVisible();
@@ -351,18 +353,18 @@ test.describe("new training facility administrator", () => {
       await expect(report.getByText("1 completed / 2 non-canceled enrollments", { exact: false })).toBeVisible();
       await report.getByText("Reminders & scheduled training reports", { exact: true }).click();
       const automation = report.locator("details").filter({ has: page.locator("summary").filter({ hasText: /^Reminders & scheduled training reports$/ }) });
-      await automation.getByLabel("Repeat learner reminders every (days)", { exact: true }).fill("3");
-      await automation.getByLabel("Weekly summary day", { exact: true }).selectOption("2");
-      await automation.getByLabel("Flag for follow-up after overdue (days)", { exact: true }).fill("10");
+      await automation.getByRole("spinbutton", { name: "Repeat learner reminders every (days)", exact: true }).fill("3");
+      await automation.getByRole("combobox", { name: "Weekly summary day", exact: true }).selectOption("2");
+      await automation.getByRole("spinbutton", { name: "Flag for follow-up after overdue (days)", exact: true }).fill("10");
       await automation.getByRole("button", { name: "Save reminder settings", exact: true }).click();
       await expect(page.getByText("Training reminders updated", { exact: true })).toBeVisible();
-      await expect(automation.getByLabel("Repeat learner reminders every (days)", { exact: true })).toHaveValue("3");
-      await expect(automation.getByLabel("Weekly summary day", { exact: true })).toHaveValue("2");
+      await expect(automation.getByRole("spinbutton", { name: "Repeat learner reminders every (days)", exact: true })).toHaveValue("3");
+      await expect(automation.getByRole("combobox", { name: "Weekly summary day", exact: true })).toHaveValue("2");
       await report.getByRole("combobox", { name: "Enrollment status", exact: true }).selectOption("completed");
       const scheduleForm = automation.locator("form").filter({ has: page.getByRole("heading", { name: "Schedule the current report", exact: true }) });
       await scheduleForm.getByLabel("Report name", { exact: true }).fill("Monthly completion register");
-      await scheduleForm.getByLabel("Frequency", { exact: true }).selectOption("monthly");
-      await scheduleForm.getByLabel("Delivery day", { exact: true }).fill("15");
+      await scheduleForm.getByRole("combobox", { name: "Frequency", exact: true }).selectOption("monthly");
+      await scheduleForm.getByRole("spinbutton", { name: "Delivery day", exact: true }).fill("15");
       await scheduleForm.getByRole("checkbox").first().check();
       await scheduleForm.getByRole("button", { name: "Save report schedule", exact: true }).click();
       const schedule = automation.getByText("Monthly completion register · Active", { exact: true }).locator("..");
@@ -383,6 +385,27 @@ test.describe("new training facility administrator", () => {
       await report.getByText("Department comparisons, completion trends & stalled learning", { exact: true }).click();
       await report.getByText("Reminders & scheduled training reports", { exact: true }).click();
       await report.getByRole("combobox", { name: "Enrollment status", exact: true }).selectOption("all");
+    });
+
+    await test.step("an incoming overdue link updates the mounted report and is consumed before tab navigation", async () => {
+      const report = page.getByRole("region", { name: "Enrollment, completion & certificates", exact: true });
+      await report.getByRole("combobox", { name: "Enrollment status", exact: true }).selectOption("completed");
+      // Use client-side navigation, preserving the mounted report as an in-app
+      // notification link does. A full page load would hide the regression.
+      await page.evaluate(() => {
+        const target = new URL(window.location.href);
+        target.searchParams.set("deadline", "overdue");
+        window.history.pushState(null, "", target);
+      });
+      await expect(report.getByRole("combobox", { name: "Deadlines", exact: true })).toHaveValue("overdue");
+      await expect(report.getByRole("combobox", { name: "Required or optional", exact: true })).toHaveValue("required");
+      await expect(report.getByRole("combobox", { name: "Enrollment status", exact: true })).toHaveValue("all");
+      await expect.poll(() => new URL(page.url()).searchParams.has("deadline")).toBe(false);
+      await report.getByRole("combobox", { name: "Deadlines", exact: true }).selectOption("all");
+      await page.getByRole("tab", { name: "Dashboard", exact: true }).click();
+      await page.getByRole("tab", { name: "Reports", exact: true }).click();
+      await expect(report.getByRole("combobox", { name: "Deadlines", exact: true })).toHaveValue("all");
+      await expect(report.getByText("1 completed / 2 non-canceled enrollments", { exact: false })).toBeVisible();
     });
 
     await test.step("administrator sees the learner completion, certificate and full export", async () => {

@@ -126,12 +126,12 @@ export function FacilityTrainingStarterKits({ facilities, selectedFacility, onCr
     {kits.isError ? <QueryError what="starter kits" error={kits.error} onRetry={() => void kits.refetch()} /> : kits.isLoading ? <p>Loading starter kits…</p> : <div className="grid sm:grid-cols-2 gap-3">{kits.data?.filter(k => k.is_published).map(value => {
       const adopted = previousCopy(value.id), plan = adoptedPlan(value.id);
       const newer = adopted?.copied_revision !== null && adopted?.copied_revision !== undefined && adopted.copied_revision < value.revision;
-      return <article key={value.id} className="rounded border p-3 space-y-2">
+      return <article key={value.id} className="min-w-0 break-words rounded border p-3 space-y-2">
       <h3 className="font-medium">{value.name}</h3><p className="text-sm text-muted-foreground">{value.description}</p><p className="text-xs">{value.items.length} courses{pending.some(s => s.kit_id === value.id) ? " · Selected for your facility" : ""}</p>
       <p className="text-xs">{courses.isLoading ? "Loading learning time…" : courses.isError ? "Learning time unavailable" : starterKitDuration(value.items, courses.data ?? [])}</p>
       {newer && <p role="status" className="rounded bg-muted p-2 text-sm">Newer kit available: revision {value.revision}. Your latest facility copy used revision {adopted.copied_revision}. Review the changes and choose whether to create a separate plan.</p>}
       {plan && <Button size="sm" variant="link" className="h-auto p-0 whitespace-normal text-left" onClick={() => onOpenPlan(plan.id)}>View current plan: {plan.name}</Button>}
-      <div><Button size="sm" variant="outline" disabled={!facilityId || selections.isLoading || selections.isError} onClick={() => void openKit(value)}>{newer ? "Review newer kit" : `Review ${value.name}`}</Button></div>
+      <div><Button size="sm" variant="outline" className="h-auto max-w-full whitespace-normal text-left" disabled={!facilityId || selections.isLoading || selections.isError} onClick={() => void openKit(value)}>{newer ? "Review newer kit" : `Review ${value.name}`}</Button></div>
     </article>;
     })}</div>}
     {!kits.isLoading && !kits.isError && !kits.data?.some(k => k.is_published) && <p className="text-sm">No starter kits have been published yet. You can create a learning plan above.</p>}
