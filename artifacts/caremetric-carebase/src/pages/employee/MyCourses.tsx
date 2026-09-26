@@ -284,7 +284,7 @@ export default function MyCourses() {
 
       {!libraryView && <OptionalRefreshers completedAssignments={allAssignments} />}
       {libraryView && discovery.isError && <QueryError what="saved courses and collections" error={discovery.error} onRetry={() => void discovery.refetch()} />}
-      {libraryView && discovery.data && <ElectiveDiscovery collections={discovery.data.collections} interests={discovery.data.interests} jobTitle={discovery.data.job_title} activeCollection={activeCollection} onCollection={setActiveCollection} pending={saveDiscovery.isPending} onInterests={interests => saveDiscovery.mutate({ action: "save_interests", payload: { interests } }, { onError: error => toast({ title: "Couldn't save interests", description: error.message, variant: "destructive" }) })} />}
+      {libraryView && discovery.data && <ElectiveDiscovery key={user?.id} collections={discovery.data.collections} interests={discovery.data.interests} jobTitle={discovery.data.job_title} activeCollection={activeCollection} onCollection={setActiveCollection} pending={saveDiscovery.isPending} onInterests={async interests => { await saveDiscovery.mutateAsync({ action: "save_interests", payload: { interests } }, { onError: error => toast({ title: "Couldn't save interests", description: error.message, variant: "destructive" }) }); }} />}
       {libraryView && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

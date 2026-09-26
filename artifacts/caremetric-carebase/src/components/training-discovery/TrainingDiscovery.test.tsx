@@ -2,7 +2,11 @@ import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({ state: [] as unknown[], index: 0, mutate: vi.fn(), toast: vi.fn(), feed: { enabled: true, frequency_days: 14, history: [], lessons: [{ id: "lesson-one", revision: 2, course_id: "course-one", title: "Practice communication", body: "Pause and invite the learner to explain the next step.", question: "What helps?", choices: ["Ask an open question", "Assume understanding"], minutes: 3, published: true }] } }));
-vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useMemo: (fn: () => unknown) => fn(), useState: (initial: unknown) => {
+vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useMemo: (fn: () => unknown) => fn(), useEffect: () => {}, useRef: (initial: unknown) => {
+  const index = h.index++;
+  if (!(index in h.state)) h.state[index] = { current: initial };
+  return h.state[index];
+}, useState: (initial: unknown) => {
   const index = h.index++;
   if (!(index in h.state)) h.state[index] = initial;
   return [h.state[index], (value: unknown) => { h.state[index] = value; }];
@@ -39,7 +43,7 @@ describe("elective discovery", () => {
     expect(recommendedCollections(collections, [], null)).toEqual([]);
   });
   it("renders optional guidance and persists a chosen interest without assigning courses", () => {
-    const onInterests = vi.fn(); const onCollection = vi.fn();
+    const onInterests = vi.fn(async () => {}); const onCollection = vi.fn();
     const tree = ElectiveDiscovery({ collections, interests: [], jobTitle: null, activeCollection: "", onInterests, onCollection, pending: false });
     expect(content(tree)).toContain("does not create an assignment or deadline");
     const checkbox = nodes(tree).find(node => node.type === "input" && node.props.type === "checkbox")!;
