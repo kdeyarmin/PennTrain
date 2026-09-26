@@ -220,14 +220,14 @@ test.describe("authenticated role journeys", () => {
           const first = staff!.find(employee => employee.first_name === "RouteAlpha")!;
           const second = staff!.find(employee => employee.first_name === "RouteBeta")!;
           await gotoAppRoute(page, `/app/employees/${first.id}`);
-          await expect(page.getByRole("heading", { name: "RouteAlpha Staff", exact: true })).toBeVisible();
+          await expect(page.getByRole("heading", { level: 1, name: "RouteAlpha Staff", exact: true })).toBeVisible();
           await page.getByRole("button", { name: "Edit", exact: true }).click();
           const editDialog = page.getByRole("dialog", { name: "Edit Employee", exact: true });
           await editDialog.getByLabel("First Name", { exact: false }).fill("Unsaved Alpha Draft");
 
           // Exercise client-side route reuse, which a full page.goto reload would conceal.
           await page.evaluate(path => window.history.pushState(null, "", path), `/app/employees/${second.id}`);
-          await expect(page.getByRole("heading", { name: "RouteBeta Staff", exact: true })).toBeVisible();
+          await expect(page.getByRole("heading", { level: 1, name: "RouteBeta Staff", exact: true })).toBeVisible();
           await expect(editDialog).not.toBeVisible();
           await page.getByRole("button", { name: "Edit", exact: true }).click();
           await expect(editDialog.getByLabel("First Name", { exact: false })).toHaveValue("RouteBeta");
