@@ -111,7 +111,7 @@ test.describe("optional course discovery and refresher practice", () => {
         await expect(admin.getByText("Refresher settings saved", { exact: true })).toBeVisible();
       });
       await test.step("learner saves electives and discovers an interest collection without an assignment", async () => {
-        await signInAs(student, learner.email, password, "/me");
+        await signInAs(student, learner.email, password, "/me/courses");
         await student.goto("/me/courses?view=library");
         await expect(student.getByRole("heading", { name: "Course Library", level: 1, exact: true })).toBeVisible();
         await student.getByRole("checkbox", { name: `Communication-${suffix}`, exact: true }).check();

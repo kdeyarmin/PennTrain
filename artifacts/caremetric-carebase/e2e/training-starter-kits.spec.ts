@@ -113,15 +113,20 @@ test.describe("reviewed facility starter kits and assignment rules", () => {
       await admin.getByRole("button", { name: "Save matching rule", exact: true }).click();
       await admin.getByRole("button", { name: "Preview matching staff", exact: true }).click();
       const preview = admin.getByRole("region", { name: "Role rule assignment preview", exact: true });
-      await expect(preview).toContainText("1 pending matches");
+      await expect(preview.getByText(/^1 pending matches · 0 already enrolled · Due /)).toBeVisible();
       await expect(preview).toContainText("Matching Caregiver");
       await expect(preview).not.toContainText("Other Department");
       await preview.getByRole("checkbox", { name: "Select up to 100 pending matches", exact: true }).check();
       await preview.getByRole("button", { name: "Confirm plan for 1 employees", exact: true }).click();
-      await expect(preview).toContainText("0 pending matches");
-      const { data: assigned, error: assignedError } = await service.from("course_assignments").select("employee_id,due_date").eq("organization_id", org.id);
-      if (assignedError) throw assignedError;
-      expect(assigned).toEqual([{ employee_id: staff.find(e => e.first_name === "Matching")!.id, due_date: deadline }]);
+      // A substring check for "0 pending matches" also matches the unchanged
+      // "Select up to 100 pending matches" checkbox while the apply RPC is pending.
+      await expect(preview.getByText(/^0 pending matches · 1 already enrolled · Due /)).toBeVisible();
+      await expect.poll(async () => {
+        const { data, error } = await service.from("course_assignments").select("employee_id,due_date").eq("organization_id", org.id);
+        if (error) throw error;
+        return data;
+      }, { message: "Only the selected matching staff member receives the exact approved deadline" })
+        .toEqual([{ employee_id: staff.find(e => e.first_name === "Matching")!.id, due_date: deadline }]);
       await preview.getByRole("checkbox", { name: /I approve these courses/ }).check();
       await preview.getByRole("button", { name: "Enable approved automatic assignments", exact: true }).click();
       await expect(admin.getByText("Automatic mode was approved. Preview to check whether the saved courses and deadline are still current.")).toBeVisible();
@@ -137,15 +142,18 @@ test.describe("reviewed facility starter kits and assignment rules", () => {
       await expect(employee).not.toBeVisible();
       const { data: created, error: createdError } = await service.from("employees").select("id").eq("organization_id", org.id).eq("first_name", "Automatic").single();
       if (createdError) throw createdError;
-      const { data: automatic, error: automaticError } = await service.from("course_assignments").select("course_id,due_date").eq("employee_id", created.id);
-      if (automaticError) throw automaticError;
-      expect(automatic).toEqual([{ course_id: course.id, due_date: deadline }]);
+      await expect.poll(async () => {
+        const { data, error } = await service.from("course_assignments").select("course_id,due_date").eq("employee_id", created.id);
+        if (error) throw error;
+        return data;
+      }, { message: "New matching staff receive exactly the approved course and deadline" })
+        .toEqual([{ course_id: course.id, due_date: deadline }]);
       await admin.getByRole("link", { name: "Back to training", exact: true }).click();
       await admin.getByRole("tab", { name: "Learning Plans", exact: true }).click();
       await admin.getByRole("button", { name: planName, exact: true }).click();
       await admin.getByText("Role and department assignment rules", { exact: true }).click();
       await admin.getByRole("button", { name: "Preview matching staff", exact: true }).click();
-      await expect(preview).toContainText("0 pending matches · 2 already enrolled");
+      await expect(preview.getByText(/^0 pending matches · 2 already enrolled · Due /)).toBeVisible();
       await expect(preview).toContainText("Automatic mode is approved for these courses and this exact deadline.");
       await expectNoHorizontalOverflow(admin);
       await admin.screenshot({ path: "test-results/training-starter-rules.png", fullPage: true });
