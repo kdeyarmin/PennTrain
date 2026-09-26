@@ -9083,7 +9083,36 @@ export type Database = {
           updated_at?: string
           updated_by?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "employee_regulatory_profiles_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_regulatory_profiles_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_regulatory_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_regulatory_profiles_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       employee_schedule_preferences: {
         Row: {
@@ -11753,7 +11782,29 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "facility_site_policies_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: true
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_policies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_policies_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       facility_site_reviews: {
         Row: {
@@ -11819,7 +11870,85 @@ export type Database = {
           support_plan_id?: string | null
           vehicle_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "facility_site_reviews_agreement_version_id_fkey"
+            columns: ["agreement_version_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_inspection_item_id_fkey"
+            columns: ["inspection_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: true
+            referencedRelation: "facility_site_reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_support_plan_id_fkey"
+            columns: ["support_plan_id"]
+            isOneToOne: false
+            referencedRelation: "resident_support_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "facility_site_reviews_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "facility_transport_vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       facility_transport_vehicles: {
         Row: {
@@ -24233,6 +24362,7 @@ export type Database = {
           relationship: string
           resident_id: string
           signed_at: string
+          signed_document_id: string | null
           signer_name: string
           signer_role: string
           updated_at: string
@@ -24260,6 +24390,7 @@ export type Database = {
           relationship: string
           resident_id: string
           signed_at?: string
+          signed_document_id?: string | null
           signer_name: string
           signer_role: string
           updated_at?: string
@@ -24287,6 +24418,7 @@ export type Database = {
           relationship?: string
           resident_id?: string
           signed_at?: string
+          signed_document_id?: string | null
           signer_name?: string
           signer_role?: string
           updated_at?: string
@@ -25865,6 +25997,13 @@ export type Database = {
           warning_days?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "resident_compliance_items_carried_from_item_id_fkey"
+            columns: ["carried_from_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_compliance_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "resident_compliance_items_citation_topic_id_fkey"
             columns: ["citation_topic_id"]
@@ -28960,6 +29099,34 @@ export type Database = {
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "resident_regulatory_actions_source_agreement_version_id_fkey"
+            columns: ["source_agreement_version_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_actions_source_census_event_id_fkey"
+            columns: ["source_census_event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_census_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_actions_source_event_id_fkey"
+            columns: ["source_event_id"]
+            isOneToOne: false
+            referencedRelation: "resident_regulatory_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_actions_source_signature_id_fkey"
+            columns: ["source_signature_id"]
+            isOneToOne: false
+            referencedRelation: "resident_agreement_signatures"
+            referencedColumns: ["id"]
+          },
         ]
       }
       resident_regulatory_events: {
@@ -29002,7 +29169,43 @@ export type Database = {
           reason?: string
           resident_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "resident_regulatory_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_events_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_events_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       resident_service_calendar_event_staff: {
         Row: {
@@ -32295,7 +32498,29 @@ export type Database = {
           waking_end?: string
           waking_start?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staff_regulatory_policies_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: true
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_regulatory_policies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_regulatory_policies_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       support_plan_acknowledgments: {
         Row: {
@@ -37997,6 +38222,7 @@ export type Database = {
           p_unit_id?: string
         }
         Returns: {
+          awake_direct_care: boolean | null
           created_at: string
           eligibility_decision_id: string | null
           employee_id: string
@@ -38800,6 +39026,7 @@ export type Database = {
           p_review_attestation?: Json
         }
         Returns: {
+          carried_from_item_id: string | null
           citation_topic_id: string | null
           completed_date: string | null
           created_at: string
@@ -40334,7 +40561,33 @@ export type Database = {
       }
       get_facility_site_reviews: {
         Args: { p_facility_id: string; p_offset?: number }
-        Returns: Database["public"]["Tables"]["facility_site_reviews"]["Row"][]
+        Returns: {
+          agreement_version_id: string | null
+          created_at: string
+          created_by: string | null
+          details: Json
+          employee_id: string | null
+          event_kind: string
+          evidence: string
+          external_driver_name: string | null
+          facility_id: string
+          id: string
+          inspection_item_id: string | null
+          next_review_on: string | null
+          occurred_at: string
+          organization_id: string
+          resident_id: string | null
+          review_type: string
+          supersedes_id: string | null
+          support_plan_id: string | null
+          vehicle_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "facility_site_reviews"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_fhir_integration_review_queue: {
         Args: { p_facility_id: string }
@@ -40884,7 +41137,37 @@ export type Database = {
           p_offset?: number
           p_resident_id?: string
         }
-        Returns: Database["public"]["Tables"]["resident_regulatory_actions"]["Row"][]
+        Returns: {
+          action_type: string
+          anchor_at: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          destination: string | null
+          details: Json
+          due_at: string
+          evidence: string | null
+          exception_basis: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          reason: string
+          recipient_name: string | null
+          recipient_role: string
+          resident_id: string | null
+          source_agreement_version_id: string | null
+          source_census_event_id: string | null
+          source_event_id: string | null
+          source_signature_id: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "resident_regulatory_actions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_resident_service_task_queue: {
         Args: {
@@ -41333,6 +41616,7 @@ export type Database = {
           last_verified_date: string | null
           notes: string | null
           organization_id: string
+          policy_renewal_due_date: string | null
           status: string
           updated_at: string
           verification_method: string | null
@@ -42005,6 +42289,7 @@ export type Database = {
       log_resident_change_of_condition: {
         Args: { p_notes?: string; p_resident_id: string }
         Returns: {
+          carried_from_item_id: string | null
           citation_topic_id: string | null
           completed_date: string | null
           created_at: string
@@ -43316,6 +43601,26 @@ export type Database = {
         }
         Returns: string
       }
+      record_resident_agreement_wet_outcome: {
+        Args: {
+          p_attestation: string
+          p_copy_delivered_at?: string
+          p_copy_delivery_method?: string
+          p_device_evidence?: string
+          p_legal_authority: string
+          p_outcome: string
+          p_reason: string
+          p_relationship: string
+          p_signed_at: string
+          p_signed_document_id: string
+          p_signer_name: string
+          p_signer_role: string
+          p_version_id: string
+          p_witness_name: string
+          p_witness_relationship: string
+        }
+        Returns: string
+      }
       record_resident_dme_event: {
         Args: {
           p_dme_item_id: string
@@ -44433,6 +44738,7 @@ export type Database = {
           last_verified_date: string | null
           notes: string | null
           organization_id: string
+          policy_renewal_due_date: string | null
           status: string
           updated_at: string
           verification_method: string | null

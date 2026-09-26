@@ -175,7 +175,9 @@ returns trigger language plpgsql set search_path='' as $$
 declare v public.facility_site_reviews%rowtype; v_key text;
 begin
   if new.vehicle_id is null or new.status<>'scheduled' then return new; end if;
-  if tg_op='UPDATE' and new.vehicle_id is not distinct from old.vehicle_id and new.starts_at is not distinct from old.starts_at then return new; end if;
+  if tg_op='UPDATE' and new.status is not distinct from old.status
+    and new.facility_id is not distinct from old.facility_id
+    and new.vehicle_id is not distinct from old.vehicle_id and new.starts_at is not distinct from old.starts_at then return new; end if;
   if not exists(select 1 from public.facilities where id=new.facility_id and facility_type in ('PCH','ALR')) then return new; end if;
   if not exists(select 1 from public.facility_transport_vehicles where id=new.vehicle_id and facility_id=new.facility_id and status='available') then raise exception 'The vehicle is not available' using errcode='23514'; end if;
   select r.* into v from public.facility_site_reviews r where r.vehicle_id=new.vehicle_id and r.review_type='vehicle_documents' and not exists(select 1 from public.facility_site_reviews child where child.supersedes_id=r.id) order by r.created_at desc,r.id desc limit 1;
@@ -208,7 +210,10 @@ revoke all on function public.require_current_transport_driver_license() from pu
 create trigger require_driver_license before insert or update on public.resident_service_calendar_event_staff for each row execute function public.require_current_transport_driver_license();
 create or replace function public.recheck_transport_driver_on_reschedule()
 returns trigger language plpgsql set search_path='' as $$ begin
-  if new.status='scheduled' and (new.starts_at is distinct from old.starts_at or new.vehicle_id is distinct from old.vehicle_id) then
+  if new.status='scheduled' and (new.status is distinct from old.status
+    or new.transportation_mode is distinct from old.transportation_mode
+    or new.facility_id is distinct from old.facility_id
+    or new.starts_at is distinct from old.starts_at or new.vehicle_id is distinct from old.vehicle_id) then
     update public.resident_service_calendar_event_staff set instructions=instructions where event_id=new.id and assignment_role='driver';
   end if;
   return new;

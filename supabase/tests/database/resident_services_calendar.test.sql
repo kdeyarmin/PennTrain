@@ -1,5 +1,5 @@
 begin;
-select plan(65);
+select plan(69);
 
 select has_table('public', 'facility_transport_vehicles', 'facility vehicles are governed records');
 select has_table('public', 'resident_service_calendar_events', 'resident services share one calendar');
@@ -82,6 +82,11 @@ jsonb_build_object('eventType','transportation','title','No document copies','st
 -- Scheduling uses the actual fleet and driver document package, not a generic
 -- vehicle "available" label. Seed legitimate copies for this calendar fixture.
 reset role;
+select lives_ok($$insert into public.resident_service_calendar_events(id,organization_id,facility_id,resident_id,event_type,title,starts_at,ends_at,transportation_mode,vehicle_id,status,resolved_at)
+values('74000000-0000-4000-8000-000000000501','74000000-0000-4000-8000-000000000001','74000000-0000-4000-8000-000000000011','74000000-0000-4000-8000-000000000201','transportation','Historical canceled trip',now()+interval '40 days',now()+interval '40 days 1 hour','facility_vehicle',(select id from calendar_ids where key='vehicle'),'canceled',now())$$,'a canceled historical trip does not require current vehicle copies');
+select throws_ok($$update public.resident_service_calendar_events set status='scheduled',resolved_at=null
+where id='74000000-0000-4000-8000-000000000501'$$,'23514',null,'reactivating an unchanged trip rechecks vehicle documents');
+delete from public.resident_service_calendar_events where id='74000000-0000-4000-8000-000000000501';
 insert into public.training_documents(id,organization_id,facility_id,employee_id,file_name,storage_bucket,storage_path,file_type,document_type)
 select ('74000000-0000-4000-8000-00000000040'||n)::uuid,'74000000-0000-4000-8000-000000000001','74000000-0000-4000-8000-000000000011',
 case when n=4 then '74000000-0000-4000-8000-000000000301'::uuid else null end,
@@ -97,6 +102,13 @@ jsonb_build_object('eventType','transportation','title','Expired future document
 select throws_ok($$select public.create_resident_service_calendar_event('74000000-0000-4000-8000-000000000201',
 jsonb_build_object('eventType','transportation','title','No driver license','startsAt',now()+interval '2 days','endsAt',now()+interval '2 days 1 hour','transportationMode','facility_vehicle','vehicleId',(select id from calendar_ids where key='vehicle'),'requiredRecords','[]'::jsonb),jsonb_build_array(jsonb_build_object('employeeId','74000000-0000-4000-8000-000000000301','role','driver')))$$,'23514',null,'driver assignment requires their own license evidence');
 reset role;
+select lives_ok($$insert into public.resident_service_calendar_events(id,organization_id,facility_id,resident_id,event_type,title,starts_at,ends_at,transportation_mode,vehicle_id,status,resolved_at)
+values('74000000-0000-4000-8000-000000000502','74000000-0000-4000-8000-000000000001','74000000-0000-4000-8000-000000000011','74000000-0000-4000-8000-000000000201','transportation','Canceled trip with driver',now()+interval '40 days',now()+interval '40 days 1 hour','facility_vehicle',(select id from calendar_ids where key='vehicle'),'canceled',now());
+insert into public.resident_service_calendar_event_staff(organization_id,facility_id,event_id,employee_id,assignment_role)
+values('74000000-0000-4000-8000-000000000001','74000000-0000-4000-8000-000000000011','74000000-0000-4000-8000-000000000502','74000000-0000-4000-8000-000000000301','driver')$$,'a canceled historical trip retains its driver without requiring a current license');
+select throws_ok($$update public.resident_service_calendar_events set status='scheduled',resolved_at=null
+where id='74000000-0000-4000-8000-000000000502'$$,'23514',null,'reactivating an unchanged trip rechecks its assigned driver license');
+delete from public.resident_service_calendar_events where id='74000000-0000-4000-8000-000000000502';
 insert into public.facility_site_reviews(organization_id,facility_id,review_type,employee_id,occurred_at,details,evidence)
 values('74000000-0000-4000-8000-000000000001','74000000-0000-4000-8000-000000000011','driver_license','74000000-0000-4000-8000-000000000301',now(),
 jsonb_build_object('license_document_id','74000000-0000-4000-8000-000000000404','license_expires_on',public.pa_today()+30,'adult_driver_verified','true','cdl_required','false'),'Adult driver valid license copy reviewed');
