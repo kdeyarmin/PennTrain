@@ -116,6 +116,7 @@ select lives_ok($$
     'employee_id','71000000-0000-4000-8000-000000000031',
     'credential_type','act34_criminal_history',
     'credential_label','Criminal history clearance',
+    'issue_date',public.pa_today()-10,
     'status','compliant',
     'verified_by_profile_id','71000000-0000-4000-8000-000000000024'
   ))).*;

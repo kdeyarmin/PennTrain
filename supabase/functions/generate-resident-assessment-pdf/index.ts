@@ -1334,8 +1334,7 @@ Deno.serve(async (req: Request) => {
         409,
       );
     }
-    console.error("resident assessment pdf: resident_documents insert failed", docError.message);
-    return json(req, { error: "Unable to record the generated document" }, 500);
+    return json(req, { error: publicGeneratorError("save", docError) }, 500);
   }
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage

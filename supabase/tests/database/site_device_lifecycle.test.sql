@@ -1,5 +1,5 @@
 begin;
-select plan(24);
+select plan(26);
 insert into public.organizations(id,name,slug) values('e3900000-0000-4000-8000-000000001001','Site Lifecycle','site-lifecycle');
 insert into public.facilities(id,organization_id,name,facility_type) values
 ('e3900000-0000-4000-8000-000000001011','e3900000-0000-4000-8000-000000001001','Site PCH','PCH'),
@@ -26,6 +26,8 @@ select throws_ok($$delete from public.inspection_items where id='e3900000-0000-4
 insert into public.facility_site_reviews(id,organization_id,facility_id,review_type,inspection_item_id,event_kind,occurred_at,evidence)
 values('e3900000-0000-4000-8000-000000001301','e3900000-0000-4000-8000-000000001001','e3900000-0000-4000-8000-000000001011','fire_approval','e3900000-0000-4000-8000-000000001102','restricted',now()-interval '3 days','Fire authority restricted west wing; notices pending');
 select throws_ok($$update public.facility_site_reviews set evidence='Replace recorded evidence' where id='e3900000-0000-4000-8000-000000001301'$$,'23514',null,'site evidence cannot be rewritten');
+select throws_ok($$delete from public.facility_site_reviews where id='e3900000-0000-4000-8000-000000001301'$$,'23514',null,'site evidence cannot be deleted even by the table owner');
+select throws_ok($$truncate public.facility_site_reviews$$,'23514',null,'site evidence refuses TRUNCATE as well as row deletion');
 select ok(not has_table_privilege('authenticated','public.facility_site_reviews','DELETE'),'browser cannot delete site history');
 select throws_ok($$insert into public.facility_site_reviews(organization_id,facility_id,review_type,inspection_item_id,event_kind,occurred_at,evidence,supersedes_id)
 values('e3900000-0000-4000-8000-000000001001','e3900000-0000-4000-8000-000000001011','fire_approval','e3900000-0000-4000-8000-000000001102','restricted',now(),'Moving the deadline is not a correction','e3900000-0000-4000-8000-000000001301')$$,'23514',null,'notice follow-up cannot reset its event clock');

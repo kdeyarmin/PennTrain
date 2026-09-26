@@ -1,7 +1,7 @@
 begin;
 select no_plan();
 create function pg_temp.id(n integer) returns uuid language sql immutable as $$ select ('b2260000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid $$;
-insert into public.organizations(id,name,slug,subscription_status,is_demo) values(pg_temp.id(1),'Clinical workflow tests','clinical-workflow-tests','active',true);
+insert into public.organizations(id,name,slug,subscription_status) values(pg_temp.id(1),'Clinical workflow tests','clinical-workflow-tests','active');
 insert into public.facilities(id,organization_id,name,facility_type,campus_identifier) values
  (pg_temp.id(11),pg_temp.id(1),'Campus PCH A','PCH','shared-campus'),
  (pg_temp.id(12),pg_temp.id(1),'Campus PCH B','PCH','shared-campus'),

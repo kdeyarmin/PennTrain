@@ -19,9 +19,9 @@ on conflict(id) do update set organization_id=excluded.organization_id,role=excl
 select set_config('app.privileged_write','off',true);
 insert into public.residents(id,organization_id,facility_id,first_name,last_name,admission_date,status,clinical_data_consent)
 values('e5100000-0000-4000-8000-000000000201','e5100000-0000-4000-8000-000000000001','e5100000-0000-4000-8000-000000000011','Resident','Outbound',public.pa_today()-20,'active','granted');
-insert into public.fhir_integration_sources(id,organization_id,facility_id,name,vendor_name,fhir_base_url,status,writeback_enabled,writeback_contract_reference,writeback_conditional_create_confirmed) values
-('e5100000-0000-4000-8000-000000000301','e5100000-0000-4000-8000-000000000001','e5100000-0000-4000-8000-000000000011','Source A','FHIR vendor','https://ehr-a.example/fhir','active',false,null,false),
-('e5100000-0000-4000-8000-000000000302','e5100000-0000-4000-8000-000000000001','e5100000-0000-4000-8000-000000000011','Source B','FHIR vendor','https://ehr-b.example/fhir','active',true,'Vendor contract B',true);
+insert into public.fhir_integration_sources(id,organization_id,facility_id,external_facility_id,name,vendor_name,fhir_base_url,status,writeback_enabled,writeback_contract_reference,writeback_conditional_create_confirmed) values
+('e5100000-0000-4000-8000-000000000301','e5100000-0000-4000-8000-000000000001','e5100000-0000-4000-8000-000000000011','outbound-a','Source A','FHIR vendor','https://ehr-a.example/fhir','active',false,null,false),
+('e5100000-0000-4000-8000-000000000302','e5100000-0000-4000-8000-000000000001','e5100000-0000-4000-8000-000000000011','outbound-b','Source B','FHIR vendor','https://ehr-b.example/fhir','active',true,'Vendor contract B',true);
 create function pg_temp.outbound_actor(p_id uuid,p_role text default 'authenticated',p_aal text default 'aal2') returns void language plpgsql as $$ begin
   reset role;
   perform set_config('request.jwt.claims',jsonb_build_object('sub',p_id,'role',p_role,'aal',p_aal,'iat',extract(epoch from now())::bigint)::text,true);

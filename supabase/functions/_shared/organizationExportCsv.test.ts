@@ -47,3 +47,18 @@ Deno.test("CSV export stops reading on cancellation or changed schema", async ()
     : [{ id: "b", new_column: "must not disappear" }],
   { push: async () => {}, finish: async () => {} }, 1), Error, "schema changed");
 });
+
+Deno.test("CSV export refuses a dropped column while preserving explicit null values", async () => {
+  let calls = 0;
+  let finished = false;
+  const chunks: string[] = [];
+  await assertRejects(() => streamOrganizationTableCsv(async () => calls++ === 0
+    ? [{ id: "a", note: "original" }, { id: "b", note: null }]
+    : [{ id: "c" }], {
+      push: async (chunk) => { chunks.push(new TextDecoder().decode(chunk)); },
+      finish: async () => { finished = true; },
+    }, 2), Error, "schema changed");
+  assertEquals(calls, 2);
+  assertEquals(chunks.join(""), '"id","note"\r\n"a","original"\r\n"b",\r\n');
+  assertEquals(finished, false);
+});

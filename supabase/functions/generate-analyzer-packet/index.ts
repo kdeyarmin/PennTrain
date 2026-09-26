@@ -259,11 +259,7 @@ Deno.serve(async (req: Request) => {
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (approversRes.error || facilitiesRes.error) {
-    console.error(
-      "analyzer packet: lookup reads failed",
-      approversRes.error?.message ?? facilitiesRes.error?.message,
-    );
-    return json(req, { error: "Unable to load packet reference data" }, 500);
+    return json(req, { error: publicGeneratorError("read", approversRes.error ?? facilitiesRes.error) }, 500);
   }
   const approverById = new Map((approversRes.data ?? []).map((p) => [p.id, `${p.first_name} ${p.last_name}`]));
   const facilityById = new Map((facilitiesRes.data ?? []).map((f) => [f.id, f.name]));

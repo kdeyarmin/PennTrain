@@ -67,6 +67,7 @@ insert into public.training_types(
   'SUPERSEDED-ANNUAL', 'Superseded Annual Topic', 'annual', 'PA', 'BOTH', 365, 30, true
 );
 
+-- The current record is 25 days from its one-year + 15-day grace deadline.
 -- Last cycle's record, replaced by this cycle's. It is 'expired' and it stays 'expired' -- that is
 -- the evidence of last year's training, not an outstanding obligation.
 insert into public.employee_training_records(
@@ -80,7 +81,7 @@ insert into public.employee_training_records(
   ('7c000000-0000-4000-8000-000000000042', '7c000000-0000-4000-8000-000000000001',
    '7c000000-0000-4000-8000-000000000011', '7c000000-0000-4000-8000-000000000021',
    '7c000000-0000-4000-8000-000000000031',
-   public.pa_today() - 340, public.pa_today() + 25, 'due_soon', now() - interval '340 days');
+   public.pa_today() - 355, public.pa_today() + 25, 'due_soon', now() - interval '355 days');
 
 -- ---------------------------------------------------------------------------------------
 -- B1. The alert belongs to the current record, not to every row ever written

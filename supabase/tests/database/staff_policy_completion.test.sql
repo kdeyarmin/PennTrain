@@ -13,6 +13,14 @@ insert into public.employees(id,organization_id,facility_id,first_name,last_name
 ('a2380000-0000-4000-8000-000000000021','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','Clock','Test','Direct care','2026-01-01'),
 ('a2380000-0000-4000-8000-000000000022','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','Partial','Year','Direct care','2026-11-01'),
 ('a2380000-0000-4000-8000-000000000023','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','Full','Year','Direct care','2020-01-01');
+select throws_ok($$insert into public.employee_regulatory_profiles(employee_id,organization_id,facility_id)
+ values('a2380000-0000-4000-8000-000000000021','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011')$$,
+ '23514',null,'real staff qualification evidence requires the reviewer');
+update public.employees set is_synthetic=true where id='a2380000-0000-4000-8000-000000000021';
+select throws_ok($$insert into public.employee_regulatory_profiles(employee_id,organization_id,facility_id)
+ values('a2380000-0000-4000-8000-000000000021','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011')$$,
+ '23514',null,'synthetic flag alone cannot bypass reviewer attribution in a real tenant');
+update public.employees set is_synthetic=false where id='a2380000-0000-4000-8000-000000000021';
 select ok(not exists(select 1 from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='tb_screening'),'staff TB is not auto-required by either chapter');
 select ok(exists(select 1 from public.employee_onboarding_items i join public.onboarding_checklist_templates t on t.id=i.template_id where i.employee_id='a2380000-0000-4000-8000-000000000021' and t.code='PCH-ADL-COMPETENCY' and i.status='pending' and i.is_blocking),'PCH independent ADL needs evidence');
 select is((select applies_to_facility_type from public.onboarding_checklist_templates where code='CPR-BEFORE-CARE' and organization_id is null),'ALR','before-care CPR is an ALF default');

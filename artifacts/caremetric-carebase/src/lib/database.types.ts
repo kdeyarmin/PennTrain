@@ -9045,7 +9045,7 @@ export type Database = {
           professional_exemption_valid_until: string | null
           role_category: string
           updated_at: string
-          updated_by: string
+          updated_by: string | null
         }
         Insert: {
           adl_competency_evidence?: string
@@ -9063,7 +9063,7 @@ export type Database = {
           professional_exemption_valid_until?: string | null
           role_category?: string
           updated_at?: string
-          updated_by: string
+          updated_by?: string | null
         }
         Update: {
           adl_competency_evidence?: string
@@ -9081,7 +9081,7 @@ export type Database = {
           professional_exemption_valid_until?: string | null
           role_category?: string
           updated_at?: string
-          updated_by?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -24480,6 +24480,13 @@ export type Database = {
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_agreement_signatures_signed_document_id_fkey"
+            columns: ["signed_document_id"]
+            isOneToOne: false
+            referencedRelation: "resident_documents"
             referencedColumns: ["id"]
           },
         ]

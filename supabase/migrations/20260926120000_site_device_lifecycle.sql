@@ -258,7 +258,8 @@ returns trigger language plpgsql set search_path='' as $$ begin
   raise exception 'Site reviews are immutable; append a follow-up or correction record' using errcode='23514';
 end $$;
 revoke all on function public.retain_site_review_history() from public,anon,authenticated;
-create trigger retain_site_review_history before update on public.facility_site_reviews for each row execute function public.retain_site_review_history();
+create trigger retain_site_review_history before update or delete on public.facility_site_reviews for each row execute function public.retain_site_review_history();
+create trigger prevent_site_review_truncate before truncate on public.facility_site_reviews for each statement execute function public.retain_site_review_history();
 
 create or replace function public.get_facility_site_reviews(p_facility_id uuid,p_offset integer default 0)
 returns setof public.facility_site_reviews language plpgsql set search_path='' as $$

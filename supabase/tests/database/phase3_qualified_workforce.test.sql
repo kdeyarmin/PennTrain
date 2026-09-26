@@ -59,6 +59,22 @@ insert into public.employees(
   ('33000000-0000-4000-8000-000000000202', '33000000-0000-4000-8000-000000000001', '33000000-0000-4000-8000-000000000011', '33000000-0000-4000-8000-000000000104', 'P3-B', 'Worker', 'Beta', 'p3-worker-b@test.local', public.pa_today()-80, 'Direct Care', 'active', false),
   ('33000000-0000-4000-8000-000000000203', '33000000-0000-4000-8000-000000000001', '33000000-0000-4000-8000-000000000011', '33000000-0000-4000-8000-000000000102', 'P3-T', 'Phase', 'Trainer', 'p3-trainer@test.local', public.pa_today()-200, 'Trainer', 'active', true);
 
+-- These schedule fixtures are adults with verified education, fitness and PSP
+-- evidence. The tests below independently vary permissions and unit qualifications.
+insert into public.employee_regulatory_profiles(employee_id,organization_id,facility_id,birth_date,education,role_category,education_evidence,medical_fitness_confirmed,updated_by)
+select e.id,e.organization_id,e.facility_id,date '1990-01-01','high_school',
+ case when e.job_title in ('Manager','Trainer') then 'other' else 'direct_care' end,
+ 'Synthetic fixture diploma verified',true,
+ (select p.id from public.profiles p where p.organization_id=e.organization_id and p.role='org_admin' order by p.id limit 1)
+from public.employees e where e.id::text like '33000000%';
+insert into public.employee_background_check_profiles(organization_id,facility_id,employee_id,pa_resident_two_years,suitability_determination,psp_requested_on,suitability_notes)
+select organization_id,facility_id,id,true,'suitable',coalesce(hire_date,public.pa_today()-100),'Synthetic fixture PSP clearance reviewed'
+from public.employees where id::text like '33000000%';
+update public.employee_credentials set issue_date=public.pa_today()-100,expiration_date=public.pa_today()+365,status='compliant',
+ verified_at=now(),verification_method='Synthetic fixture PSP clearance'
+where employee_id::text like '33000000%' and credential_type='act34_criminal_history';
+
+
 create or replace function pg_temp.act_as(p_profile_id uuid, p_aal text default 'aal2', p_role text default 'authenticated')
 returns void language plpgsql as $$
 begin

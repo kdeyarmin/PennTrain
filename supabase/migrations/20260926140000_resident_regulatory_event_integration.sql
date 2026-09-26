@@ -30,6 +30,8 @@ grant select on public.resident_regulatory_events to authenticated;
 grant select,insert on public.resident_regulatory_events to service_role;
 create trigger immutable_regulatory_event before update or delete on public.resident_regulatory_events
  for each row execute function app_private.prevent_phase5_evidence_mutation();
+create trigger prevent_regulatory_event_truncate before truncate on public.resident_regulatory_events
+ for each statement execute function app_private.prevent_phase5_evidence_mutation();
 create trigger audit_log after insert or update or delete on public.resident_regulatory_events
  for each row execute function public.audit_log_trigger();
 insert into app_private.product_module_resources(resource_schema,resource_name,module_key)

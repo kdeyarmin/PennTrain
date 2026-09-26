@@ -29,7 +29,8 @@ export async function streamOrganizationTableCsv(
     for (const row of page) {
       // SELECT * returns a stable schema. A concurrent schema change must fail the
       // export, not silently omit a column absent from an already-written header.
-      if (Object.keys(row).some((key) => !columns!.includes(key))) {
+      const rowColumns = Object.keys(row);
+      if (rowColumns.length !== columns!.length || rowColumns.some((key) => !columns!.includes(key))) {
         throw new Error("Export table schema changed; retry the export.");
       }
       await sink.push(encoder.encode(columns!.map((column) => csvCell(row[column])).join(",") + "\r\n"));
