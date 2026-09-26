@@ -296,7 +296,8 @@ Deno.serve(async (req: Request) => {
     if (body.product === "train") {
       const { error: trainError } = await adminClient.rpc("configure_train_signup", {
         p_organization_id: organization.id,
-        p_complimentary: Deno.env.get("TRAIN_SIGNUP_COMPLIMENTARY") === "true",
+        // Public registrations follow commercial terms. Complimentary partners are provisioned by the owner.
+        p_complimentary: false,
       });
       if (trainError) throw new HttpError(500, "train_signup_failed", "Training signup is temporarily unavailable.", trainError.message);
     }

@@ -11,7 +11,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,8 @@ export default function InvitationLifecycle() {
   const { toast } = useToast();
   const [status, setStatus] = useState("all");
   const [role, setRole] = useState("all");
-  const [search, setSearch] = useState("");
+  const locationSearch = useSearch();
+  const [search, setSearch] = useState(new URLSearchParams(locationSearch).get("search") || "");
   const [page, setPage] = useState(0);
   const [revokeTarget, setRevokeTarget] = useState<UserInvitation | null>(null);
   const [revokeReason, setRevokeReason] = useState("");

@@ -12,7 +12,10 @@ import { spawn } from "node:child_process";
 // deleting it would drop the count below the floor.
 // Whenever a function gains its first runtime test, RAISE this floor to the new count in
 // the same PR so coverage can only ratchet up. Never lower it.
-const RUNTIME_TEST_FLOOR = 28;
+// generate-certificate-pdf now exercises its imported PDF renderer, including award text,
+// attribution, local dates and long-content bounds; request authorization remains checked separately.
+// fhir-writeback also exercises the authenticated outbound handler and source binding.
+const RUNTIME_TEST_FLOOR = 29;
 
 async function findEntrypoints(dir) {
   const entries = await readdir(dir, { withFileTypes: true });

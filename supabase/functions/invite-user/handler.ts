@@ -243,7 +243,7 @@ export function createInviteUserHandler({
     // the portal. Resolve and authorize the employee before sending any email. RLS on callerClient
     // also ensures a facility_manager can only target an employee in one of their assigned
     // facilities.
-    let employeeToLink: { id: string; profile_id: string | null; email: string | null } | null = null;
+    let employeeToLink: { id: string; profile_id: string | null; email: string | null; facility_id?: string | null } | null = null;
     if (role === "employee") {
       if (!effectiveOrgId) {
         return json(req, { error: "organization_id is required for employee users" }, 400);
@@ -251,7 +251,7 @@ export function createInviteUserHandler({
 
       let employeeQuery = callerClient
         .from("employees")
-        .select("id, profile_id, email")
+        .select("id, profile_id, email, facility_id")
         .eq("organization_id", effectiveOrgId);
       if (delegated) employeeQuery = employeeQuery.eq("facility_id", delegated.facilityId);
       // ilike here means "case-insensitive equality", not a pattern match -- but '%' and '_' are LIKE
@@ -293,11 +293,92 @@ export function createInviteUserHandler({
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    // Display copy comes only from the organization/employee scope authorized
+    // above. These optional metadata values never grant a role or tenant access.
+    // A branding lookup failure must not break an otherwise valid invitation.
+    let invitationWorkspaceName: string | undefined;
+    let invitationLogoUrl: string | undefined;
+    let invitationContactName: string | undefined;
+    let invitationContactEmail: string | undefined;
+    let invitationHasTraining = false;
+    const displayName = (value: unknown): string | undefined => typeof value === "string"
+      ? value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 160) || undefined : undefined;
+    if (effectiveOrgId) {
+      try {
+        const { data: organization, error } = await callerClient.from("organizations").select("name").eq("id", effectiveOrgId).maybeSingle();
+        if (!error) invitationWorkspaceName = displayName(organization?.name);
+        const { data: entitlements, error: entitlementError } = await callerClient.rpc("get_effective_entitlements", { p_organization_id: effectiveOrgId });
+        invitationHasTraining = !entitlementError && Array.isArray(entitlements) && entitlements.some((entry: { feature_key?: string; is_entitled?: boolean }) => entry.feature_key === "modules.train" && entry.is_entitled === true);
+        const facilityId = employeeToLink?.facility_id ?? delegated?.facilityId;
+        if (facilityId) {
+          const { data: facility, error: facilityError } = await callerClient.from("facilities").select("name")
+            .eq("id", facilityId).eq("organization_id", effectiveOrgId).maybeSingle();
+          if (!facilityError) invitationWorkspaceName = displayName(facility?.name) ?? invitationWorkspaceName;
+        }
+        if (invitationHasTraining) {
+          const { data: branding, error: brandingError } = await adminClient.rpc("get_training_invitation_branding", {
+            p_organization_id: effectiveOrgId, p_facility_id: facilityId ?? null,
+          });
+          if (!brandingError && branding) {
+            invitationContactName = displayName(branding.contact_name);
+            if (typeof branding.contact_email === "string" && branding.contact_email.length <= 254
+              && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(branding.contact_email)) invitationContactEmail = branding.contact_email;
+            const logoPath = branding.logo_path;
+            // Never sign an arbitrary path supplied by the invitation request or
+            // a corrupted cross-tenant branding reference. Expiry matches the invite.
+            // URL clients normalize encoded dot segments and backslashes before
+            // dispatch. Check the canonical object key, not just a raw prefix.
+            if (typeof logoPath === "string" && logoPath.length <= 1024
+              && logoPath.startsWith(`${effectiveOrgId}/`) && !/[\\%?#\u0000-\u0020\u007f]/.test(logoPath)
+              && logoPath.split("/").every(segment => segment !== "" && segment !== "." && segment !== "..")) {
+              const { data: logo, error: logoError } = await adminClient.storage.from("org-branding").createSignedUrl(logoPath, 3600);
+              if (!logoError && typeof logo?.signedUrl === "string") invitationLogoUrl = logo.signedUrl;
+            }
+          }
+        }
+      } catch {
+        console.warn("invite-user: display branding unavailable; using standard invitation copy");
+      }
+    }
     let redirectTo: string;
     try {
       redirectTo = resolveRedirectTo(redirect_to, getEnv);
     } catch (error) {
       return json(req, { error: error instanceof Error ? error.message : "Invalid invite redirect URL" }, 400);
+    }
+
+    const invitationAudience = invitationHasTraining && role === "employee" ? "learner"
+      : invitationHasTraining && ["org_admin", "facility_manager"].includes(role) ? "administrator" : "workspace";
+    // GoTrue ignores options.data when re-inviting an existing unconfirmed user.
+    // Refresh presentation metadata only after proving this exact tenant identity;
+    // otherwise an old signed image URL and contact survive every resend.
+    let returningUserId: string | undefined;
+    try {
+      const emailPattern = email.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+      // This service lookup is only an exact supplied-email collision check. It
+      // exposes no profile information and cannot authorize another tenant.
+      const { data: profiles, error: profileError } = await adminClient.from("profiles")
+        .select("id, email, organization_id").ilike("email", emailPattern).limit(2);
+      if (profileError || !Array.isArray(profiles)) return json(req, { error: "Unable to verify an existing invitation; no email was sent" }, 500);
+      if (profiles.length > 1) return json(req, { error: "Multiple profiles match this invitation; administrator review is required" }, 409);
+      if (profiles.length) {
+        const profile = profiles[0];
+        if (profile.organization_id !== effectiveOrgId || typeof profile.email !== "string"
+          || profile.email.trim().toLowerCase() !== email || !UUID_PATTERN.test(profile.id)) {
+          return json(req, { error: "This email is already associated with an account" }, 409);
+        }
+        const { data: existing, error: identityError } = await adminClient.auth.admin.getUserById(profile.id);
+        const user = existing?.user;
+        if (identityError || !user || user.id !== profile.id || typeof user.email !== "string" || user.email.trim().toLowerCase() !== email) {
+          return json(req, { error: "Unable to verify an existing invitation; no email was sent" }, 500);
+        }
+        if (user.email_confirmed_at || user.confirmed_at || !user.invited_at) {
+          return json(req, { error: "This identity is not a pending invitation; use its existing account access" }, 409);
+        }
+        returningUserId = user.id;
+      }
+    } catch {
+      return json(req, { error: "Unable to verify an existing invitation; no email was sent" }, 500);
     }
 
     // Recheck the native authority and exact durable reservation immediately before sending.
@@ -307,9 +388,36 @@ export function createInviteUserHandler({
       catch { return json(req, { error: "Delegated invitation authority is no longer current" }, 403); }
     }
 
+    if (returningUserId) {
+      try {
+        const { error: refreshError } = await adminClient.auth.admin.updateUserById(returningUserId, {
+          user_metadata: {
+            invitation_workspace_name: invitationWorkspaceName ?? null,
+            invitation_logo_url: invitationLogoUrl ?? null,
+            invitation_contact_name: invitationContactName ?? null,
+            invitation_contact_email: invitationContactEmail ?? null,
+            invitation_audience: invitationAudience,
+          },
+        });
+        if (refreshError) return json(req, { error: "Invitation details could not be refreshed; no email was sent" }, 500);
+      } catch {
+        return json(req, { error: "Invitation details could not be refreshed; no email was sent" }, 500);
+      }
+      if (delegated) {
+        try { await delegated.revalidate(); }
+        catch { return json(req, { error: "Delegated invitation authority is no longer current" }, 403); }
+      }
+    }
+
     delegated?.beforeEmailDispatch?.();
     const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      data: { first_name, last_name },
+      data: { first_name, last_name,
+        ...(invitationWorkspaceName ? { invitation_workspace_name: invitationWorkspaceName } : {}),
+        ...(invitationLogoUrl ? { invitation_logo_url: invitationLogoUrl } : {}),
+        ...(invitationContactName ? { invitation_contact_name: invitationContactName } : {}),
+        ...(invitationContactEmail ? { invitation_contact_email: invitationContactEmail } : {}),
+        invitation_audience: invitationAudience,
+      },
       redirectTo,
     });
     if (inviteError) {

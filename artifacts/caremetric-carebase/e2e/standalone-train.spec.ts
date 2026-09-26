@@ -28,15 +28,16 @@ test.describe("standalone Train", () => {
 
     await signInAs(page, email, password, "/app/train");
     await expect(page.getByRole("heading", { name: "CareMetric Train", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Staff", exact: true }).click();
     await expect(page.getByRole("link", { name: "Import students", exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Students", exact: true }).click();
     await page.getByLabel("Training student").selectOption(student.id);
     await page.getByLabel("Direct care staff", { exact: true }).check();
     await page.getByLabel("Position and actual duties").fill("Assists with activities of daily living");
     await page.getByLabel("First work date at this facility").fill("2026-01-01");
     await page.getByRole("button", { name: "Confirm duties and audience" }).click();
     await expect(page.getByText("Training record saved", { exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Evidence", exact: true }).click();
+    await page.getByText("Classroom, external evidence and advanced training records", { exact: true }).click();
+    await page.getByRole("tab", { name: "External / classroom evidence", exact: true }).click();
     await page.getByLabel("Training title / content").fill("Resident rights instruction");
     await page.getByLabel("Completion date", { exact: true }).fill("2026-01-02");
     await page.getByLabel("Actual duration in minutes").fill("60");
@@ -60,7 +61,7 @@ test.describe("standalone Train", () => {
     await expect(page.getByText("Fulfillment: Open", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Record fulfillment", exact: true }).click();
     await expect(page.getByText("Fulfillment: Open", { exact: true })).toHaveCount(0);
-    await page.getByRole("tab", { name: "Reports", exact: true }).click();
+    await page.getByRole("tab", { name: "Evidence readiness", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Taylor Learner", exact: true })).toBeVisible();
     const downloaded = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export CSV and evidence index" }).click();

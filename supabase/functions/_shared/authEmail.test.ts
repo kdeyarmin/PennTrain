@@ -51,3 +51,43 @@ Deno.test("escapeHtml escapes text inserted into auth email templates", () => {
     "&lt;script&gt;alert(&#39;x&#39;) &amp; &quot;y&quot;&lt;/script&gt;",
   );
 });
+
+Deno.test("learner invitations explain activation, assignments and saved certificates with escaped branding", () => {
+  const [message] = buildAuthEmailMessages({ email: "learner@example.test", user_metadata: {
+    invitation_workspace_name: 'Cedar <House> & "Care"', invitation_audience: "learner",
+  } }, { email_action_type: "invite", token_hash: "test-token", redirect_to: "https://cmcarebase.com/reset-password" }, "https://project.test");
+  assertStringIncludes(message.html, "Cedar &lt;House&gt; &amp; &quot;Care&quot;");
+  assertStringIncludes(message.text, "Open My Learning");
+  assertStringIncludes(message.text, "My Certificates");
+  assertStringIncludes(message.text, "ask your administrator to resend");
+  assertEquals(message.html.includes("<House>"), false);
+});
+
+Deno.test("administrator invitation explains security setup and facility onboarding", () => {
+  const [message] = buildAuthEmailMessages({ email: "admin@example.test", user_metadata: { invitation_audience: "administrator" } },
+    { email_action_type: "invite", token_hash: "test-token" }, "https://project.test");
+  assertStringIncludes(message.text, "Complete the sign-in security setup");
+  assertStringIncludes(message.text, "add staff, prepare learning plans, and review reports");
+  assertStringIncludes(message.text, "You've been invited to create a CareMetric CareBase account");
+});
+
+Deno.test("invitation displays a signed facility logo and escaped training contact", () => {
+  const [message] = buildAuthEmailMessages({ email: "learner@example.test", user_metadata: {
+    invitation_workspace_name: "Cedar <House>", invitation_audience: "learner",
+    invitation_logo_url: "https://project.test/storage/v1/object/sign/org-branding/org/logo.png?token=signed&x=1",
+    invitation_contact_name: "Sam <Coordinator>", invitation_contact_email: "training@example.test",
+  } }, { email_action_type: "invite", token_hash: "activation-token" }, "https://project.test");
+  assertStringIncludes(message.html, '<img src="https://project.test/storage/v1/object/sign/org-branding/org/logo.png?token=signed&amp;x=1"');
+  assertStringIncludes(message.html, "Sam &lt;Coordinator&gt;");
+  assertStringIncludes(message.text, "Training questions? Contact Sam <Coordinator> · training@example.test.");
+  assertStringIncludes(message.text, "activation-token");
+});
+
+for (const logo of ["https://untrusted.test/logo.png", "javascript:alert(1)", "https://project.test/storage/v1/object/sign/external-uploads/file?token=signed", "https://project.test/storage/v1/object/sign/org-branding/logo.png"]) {
+  Deno.test(`invitation ignores an untrusted branding image: ${logo}`, () => {
+    const [message] = buildAuthEmailMessages({ email: "learner@example.test", user_metadata: { invitation_logo_url: logo } },
+      { email_action_type: "invite", token_hash: "activation-token" }, "https://project.test");
+    assertEquals(message.html.includes("<img"), false);
+    assertStringIncludes(message.text, "Accept invitation");
+  });
+}

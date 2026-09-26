@@ -216,6 +216,13 @@ minimum_password_length = 8
 # how long the emailed link lives; the two are different clocks on purpose.
 otp_expiry = 3600
 
+# Rehearse the same welcome copy locally when the send-email hook is disabled.
+# Hosted hook delivery uses _shared/authEmail.ts; SMTP-only hosted projects can
+# copy this template to the dashboard. This does not change hosted Auth settings.
+[auth.email.template.invite]
+subject = "You've been invited to CareMetric CareBase"
+content_path = "./supabase/templates/invite.html"
+
 # D7 makes TOTP a required control for privileged tenant roles. Keep the local
 # and CI Auth service aligned with hosted configuration so enrollment and AAL2
 # browser journeys exercise the real factor lifecycle.

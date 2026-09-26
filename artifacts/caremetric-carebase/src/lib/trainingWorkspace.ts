@@ -23,6 +23,7 @@ export type TrainingProfile = {
   applicability?: Partial<Record<"ancillary" | "annual_common" | "staff_supervision" | "mobility_needs" | "mental_health_population" | "new_population", boolean>>;
 };
 export type TrainingEvent = {
+  automatic?: boolean; certificate_id?: string | null;
   id: string; employee_id: string; title: string; completed_on: string; completed_at?: string | null; minutes: number;
   delivery: string; provider: string; source_reference: string; provider_qualification: string;
   topics: string[]; allocations: Record<string, number>; valid_until: string | null;

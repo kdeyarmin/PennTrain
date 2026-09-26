@@ -11,6 +11,8 @@ export interface AuthEmailData {
 export interface AuthEmailUser {
   email: string;
   new_email?: string;
+  /** Presentation only. User-editable metadata is never an authorization source. */
+  user_metadata?: Record<string, unknown>;
 }
 
 export interface AuthEmailMessage {
@@ -139,16 +141,41 @@ export function buildAuthEmailMessages(
           verifyUrl,
         ),
       ];
-    case "invite":
-      return [
-        linkEmail(
+    case "invite": {
+      const metadata = user.user_metadata ?? {};
+      const workspace = typeof metadata.invitation_workspace_name === "string"
+        ? metadata.invitation_workspace_name.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 160) : "";
+      const steps = metadata.invitation_audience === "learner"
+        ? "1. Accept this invitation and create your password. 2. Open My Learning to see your assigned courses and deadlines. 3. Start your next required course, or explore optional courses in the Course Library. Your certificates are saved under My Certificates."
+        : metadata.invitation_audience === "administrator"
+          ? "1. Accept this invitation and create your password. 2. Complete the sign-in security setup. 3. Open your facility workspace and follow the setup guide to confirm facility information, add staff, prepare learning plans, and review reports."
+          : "Accept this invitation and create your password. Then sign in to open the workspace your administrator has prepared for you.";
+      const contactName = typeof metadata.invitation_contact_name === "string"
+        ? metadata.invitation_contact_name.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 160) : "";
+      const contactEmail = typeof metadata.invitation_contact_email === "string" && metadata.invitation_contact_email.length <= 254
+        && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(metadata.invitation_contact_email) ? metadata.invitation_contact_email : "";
+      const contact = contactName || contactEmail ? `Training questions? Contact ${[contactName, contactEmail].filter(Boolean).join(" · ")}.` : "";
+      const message = linkEmail(
           user.email,
           subject,
-          "You've been invited to create a CareMetric CareBase account.",
+          workspace ? `${workspace} has invited you to its CareMetric workspace.` : "You've been invited to create a CareMetric CareBase account.",
           "Accept invitation",
           verifyUrl,
-        ),
-      ];
+          `${steps} ${contact ? `${contact} ` : ""}This invitation link expires after one hour and can be used once. If it expires, ask your administrator to resend the invitation. If you were not expecting this invitation, you can ignore it.`,
+        );
+      // Metadata is presentation only and user-editable. Only render our own
+      // signed branding image URLs; never embed arbitrary tracking URLs or HTML.
+      try {
+        if (typeof metadata.invitation_logo_url === "string") {
+          const logo = new URL(metadata.invitation_logo_url), backend = new URL(supabaseUrl);
+          if (logo.origin === backend.origin && !logo.username && !logo.password
+            && logo.pathname.startsWith("/storage/v1/object/sign/org-branding/") && logo.searchParams.has("token")) {
+            message.html = `<img src="${escapeHtml(logo.href)}" alt="${escapeHtml(workspace || "Facility")} logo" style="max-width:180px;max-height:80px;object-fit:contain">${message.html}`;
+          }
+        }
+      } catch { /* Missing/expired branding never blocks the activation link. */ }
+      return [message];
+    }
     case "magiclink":
       return [
         linkEmail(

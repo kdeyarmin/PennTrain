@@ -669,6 +669,7 @@ export default function Employees() {
             <DialogTitle>{editEmp ? "Edit Employee" : "Add Employee"}</DialogTitle>
           </DialogHeader>
           <EmployeeFormFields
+            trainingOnly={trainingHandoff}
             form={form}
             onChange={field}
             facilities={assignableFacilities}

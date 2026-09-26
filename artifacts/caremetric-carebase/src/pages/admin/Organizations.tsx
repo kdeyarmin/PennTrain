@@ -1,3 +1,5 @@
+import { TrainingPartnerFacilities } from "@/components/billing/TrainingPartnerFacilities";
+import { TrainingDiscoveryAdmin } from "@/components/training-discovery/TrainingDiscoveryAdmin";
 import { CreateTrainingFacility } from "@/components/billing/CreateTrainingFacility";
 import { useId, useMemo, useState } from "react";
 import { useListOrganizations, useCreateOrganization } from "@/hooks/useOrganizations";
@@ -176,6 +178,8 @@ export default function Organizations() {
   return (
     <div className="space-y-6">
       <CreateTrainingFacility />
+      <TrainingPartnerFacilities />
+      <details className="rounded border p-4"><summary className="cursor-pointer font-semibold">Training library collections and optional refreshers</summary><div className="mt-4"><TrainingDiscoveryAdmin /></div></details>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Organizations</h1>

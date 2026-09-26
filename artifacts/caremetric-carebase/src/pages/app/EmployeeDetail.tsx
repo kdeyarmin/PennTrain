@@ -404,7 +404,7 @@ export default function EmployeeDetail() {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Link>
         </Button>
-        {moduleAccess.canAccessPath("/app/train") && user?.role !== "platform_admin" && <Button asChild variant="outline" size="sm"><Link href={trainingWorkspaceHref(employee.facility_id)}>Facility training, reports &amp; certificates</Link></Button>}
+        {moduleAccess.canAccessPath("/app/train") && user?.role !== "platform_admin" && <Button asChild variant="outline" size="sm"><Link href={trainingWorkspaceHref(employee.facility_id, employee.id)}>Training progress, transcript &amp; certificates</Link></Button>}
       </div>
 
       <div className="flex items-start justify-between gap-4">

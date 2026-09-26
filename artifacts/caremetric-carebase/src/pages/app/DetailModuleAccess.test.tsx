@@ -58,7 +58,7 @@ describe("training-only directory details", () => {
     const html = renderToStaticMarkup(<TooltipProvider><EmployeeDetail /></TooltipProvider>);
     expect(html).toContain("Taylor Learner");
     expect(html).toContain("Invite to Portal");
-    expect(html).toContain("Facility training, reports &amp; certificates");
+    expect(html).toContain("Training progress, transcript &amp; certificates");
     expect(html).toContain("Diabetes training history");
     for (const label of ["Credentials &amp; Clearances", "Annual Practicums", "Start lifecycle case", "Retention Check-Ins", "Not survey-ready"]) expect(html).not.toContain(label);
     for (const read of ["practicums", "credentials", "duty requirements", "schedule facility assignments", "workforce onboarding", "retention"]) expect(harness.reads.get(read), read).toBe(false);

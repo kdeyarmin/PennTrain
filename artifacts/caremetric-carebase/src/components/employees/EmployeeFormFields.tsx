@@ -84,9 +84,10 @@ export interface EmployeeFormFieldsProps {
    */
   lockLifecycleFields?: boolean;
   lifecycleHref?: string;
+  trainingOnly?: boolean;
 }
 
-export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMode, lockLifecycleFields = false, lifecycleHref }: EmployeeFormFieldsProps) {
+export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMode, lockLifecycleFields = false, lifecycleHref, trainingOnly = false }: EmployeeFormFieldsProps) {
   const __fieldIds = useId();
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
@@ -141,6 +142,10 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
         <Label htmlFor={`${__fieldIds}-hire-date`} className="text-[13px]">Hire Date</Label>
         <Input id={`${__fieldIds}-hire-date`} type="date" value={form.hireDate} onChange={e => onChange("hireDate", e.target.value)} className="h-9" disabled={lockLifecycleFields} />
       </div>
+      <details className="col-span-full" open={!trainingOnly}>
+        <summary className="cursor-pointer font-medium">Additional workforce details and training duties</summary>
+        <p className="text-xs text-muted-foreground my-2">Use these fields when applicable to orientation, classroom training, or duty-specific requirements. They are not needed to create an online learner account.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
       <div className="space-y-1.5">
         <Label htmlFor={`${__fieldIds}-scheduled-hours-week`} className="text-[13px]">Scheduled Hours / Week</Label>
         <Input id={`${__fieldIds}-scheduled-hours-week`}
@@ -220,6 +225,8 @@ export function EmployeeFormFields({ form, onChange, facilities, facilityFieldMo
         <Label htmlFor={`${__fieldIds}-notes`} className="text-[13px]">Notes</Label>
         <Textarea id={`${__fieldIds}-notes`} value={form.notes} onChange={e => onChange("notes", e.target.value)} placeholder="Optional notes" className="min-h-20" />
       </div>
+        </div>
+      </details>
     </div>
   );
 }

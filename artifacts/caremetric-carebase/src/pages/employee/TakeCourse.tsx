@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { courseCompletionWaitSeconds } from "@/lib/courseCompletionTime";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseMediaDocumentLink } from "@/components/learning/CourseMediaDocumentLink";
@@ -206,6 +207,15 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   }, []);
   const ownsAssignment = !!assignment && !!employee && assignment.employee_id === employee.id;
   const completionEvidenceLocked = assignment?.status === "completed";
+  const [completionClock, setCompletionClock] = useState(Date.now);
+  const completionWaitSeconds = course && progress?.assignment_id === assignmentId && progressFetchedAfterMount && !progressError
+    ? courseCompletionWaitSeconds(progress?.started_at, course.estimated_duration_minutes, completionClock)
+    : null;
+  useEffect(() => {
+    if (completionEvidenceLocked || completionWaitSeconds === 0) return;
+    const timer = window.setTimeout(() => setCompletionClock(Date.now()), 1000);
+    return () => window.clearTimeout(timer);
+  }, [assignmentId, completionEvidenceLocked, completionWaitSeconds, completionClock]);
   const canMutateEvidence = canMutateCourseEvidence(
     assignment?.employee_id,
     employee?.id,
@@ -255,6 +265,9 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   );
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
+  const [usefulness, setUsefulness] = useState("");
+  const [contentFlag, setContentFlag] = useState("");
+  const [flagDetail, setFlagDetail] = useState("");
   const [lessonNotes, setLessonNotes] = useState<Record<string, string>>({});
   const [lessonConfidence, setLessonConfidence] = useState<Record<string, LessonConfidence>>({});
   // Tracks which assignmentId's data is currently loaded in lessonNotes/lessonConfidence.
@@ -660,7 +673,7 @@ useEffect(() => {
 }, [blocks, canAdvance, canMutateEvidence, currentBlock, isLastBlock, ownsAssignment, showClearLearningToolsConfirm, showRatingPrompt, stepIndex]);
 
   const handleComplete = async () => {
-    if (!assignment || !canMutateEvidence || !isLastBlock || !canAdvance || progressWriter.isClosed()) return;
+    if (!assignment || !canMutateEvidence || !isLastBlock || !canAdvance || completionWaitSeconds !== 0 || progressWriter.isClosed()) return;
     const finalSnapshot = buildProgressCheckpoint();
     if (!finalSnapshot) return;
     setCompletionPending(true);
@@ -719,6 +732,9 @@ useEffect(() => {
         organization_id: employee.organization_id,
         rating: ratingValue,
         comment: ratingComment.trim() || null,
+        usefulness: usefulness || null,
+        content_flag: contentFlag || null,
+        flag_detail: contentFlag ? flagDetail.trim() || null : null,
       },
       {
         onSuccess: () => {
@@ -1304,7 +1320,7 @@ useEffect(() => {
                   )}
                 </div>
               ) : (
-                <Button onClick={handleComplete} disabled={!canAdvance || completionPending || quizNavigationPending}>
+                <Button onClick={handleComplete} disabled={!canAdvance || completionWaitSeconds !== 0 || completionPending || quizNavigationPending} aria-describedby={completionWaitSeconds !== 0 ? "completion-time-help" : undefined}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   {completionPending ? "Completing..." : "Mark Training Complete"}
                 </Button>
@@ -1327,6 +1343,13 @@ useEffect(() => {
               </div>
             )}
           </div>
+          {isLastBlock && !alreadyCompleted && completionWaitSeconds !== 0 && (
+            <p id="completion-time-help" className="text-sm text-right">
+              {completionWaitSeconds === null
+                ? "Saving your course start. Completion will be available after the minimum learning time."
+                : `Continue reviewing the lesson. Completion is available in ${Math.floor(completionWaitSeconds / 60)}:${String(completionWaitSeconds % 60).padStart(2, "0")}.`}
+            </p>
+          )}
           {!canAdvance && (
             <p className="text-xs text-muted-foreground text-right">
               {videoGateBlocksAdvance
@@ -1352,7 +1375,7 @@ useEffect(() => {
       )}
 
       <Dialog open={showRatingPrompt} onOpenChange={(o) => { if (!o) handleSkipRating(); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Rate this training</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
@@ -1377,6 +1400,9 @@ useEffect(() => {
               placeholder="Anything you'd add? (optional)"
               rows={3}
             />
+            <label className="block text-sm">Will this help in your day-to-day work? (optional)<select className="mt-1 w-full rounded border p-2" value={usefulness} onChange={e => setUsefulness(e.target.value)}><option value="">Prefer not to answer</option><option value="useful">Useful</option><option value="somewhat_useful">Somewhat useful</option><option value="not_useful">Not useful for my work</option></select></label>
+            <label className="block text-sm">Flag a content concern (optional)<select className="mt-1 w-full rounded border p-2" value={contentFlag} onChange={e => setContentFlag(e.target.value)}><option value="">No concern to flag</option><option value="confusing">Confusing explanation</option><option value="outdated">Possibly outdated information</option><option value="technical_issue">Technical or accessibility problem</option><option value="other">Other content concern</option></select></label>
+            {contentFlag && <label className="block text-sm">What should we review?<Textarea maxLength={2000} value={flagDetail} onChange={e => setFlagDetail(e.target.value)} placeholder="Describe the lesson or issue. Do not include resident or patient information." /></label>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleSkipRating}>Skip</Button>

@@ -14,9 +14,9 @@ export function useTrainingYearPolicy(facilityId: string | undefined) {
     } });
 }
 
-export function useTrainingWorkspace(facilityId: string) {
+export function useTrainingWorkspace(facilityId: string, enabled = true) {
   return useQuery({
-    queryKey: ["training-workspace", facilityId], enabled: !!facilityId,
+    queryKey: ["training-workspace", facilityId], enabled: !!facilityId && enabled,
     queryFn: async () => {
       const result: TrainingWorkspace = { policies: [], profiles: [], events: [], shifts: [], plans: [], generated_at: "" };
       for (let offset = 0; ; offset += 500) {
@@ -30,6 +30,13 @@ export function useTrainingWorkspace(facilityId: string) {
         result.profiles.push(...page.profiles); result.events.push(...page.events);
         result.shifts.push(...page.shifts); result.plans.push(...page.plans);
         if ([page.profiles, page.events, page.shifts, page.plans, page.regulatory_profiles ?? [], Object.keys(page.annual_summaries ?? {})].every(rows => rows.length < 500)) break;
+      }
+      for (let offset = 0; ; offset += 500) {
+        const { data, error } = await supabase.rpc("get_training_completion_evidence", { p_facility_id: facilityId, p_limit: 500, p_offset: offset });
+        if (error) throw error;
+        if (!Array.isArray(data)) throw new Error("Online completion evidence is unavailable.");
+        result.events.push(...data as unknown as TrainingWorkspace["events"]);
+        if (data.length < 500) break;
       }
       result.events.sort((a, b) => a.completed_on.localeCompare(b.completed_on) || a.id.localeCompare(b.id));
       return result;

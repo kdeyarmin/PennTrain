@@ -1,3 +1,7 @@
+import TrainingRosterDashboard from "@/components/training/TrainingRosterDashboard";
+import { TrainingAdminWalkthrough, TrainingWelcomeSettings } from "@/components/training/TrainingWelcome";
+import { TrainingRecords } from "@/components/training/TrainingRecords";
+import { TrainingDiscoveryAdmin } from "@/components/training-discovery/TrainingDiscoveryAdmin";
 import { useInviteUser } from "@/hooks/useProfiles";
 import { trainingActionError } from "@/lib/trainingWorkspace";
 import { certificatePrintPacket } from "@/lib/certificatePrintPacket";
@@ -42,6 +46,25 @@ export default function TrainWorkspace() {
   const facilityScope = useTrainingFacilityScope(facilities);
   const locationSearch = useSearch();
   const [location, navigate] = useLocation();
+  const validTabs = ["overview", "students", "yearly-plans", "enrollments", "certificates", "records", "evidence", "plans", "reports", "settings"];
+  const requestedTab = new URLSearchParams(locationSearch).get("tab") || "overview";
+  const [tab, setActiveTab] = useState(validTabs.includes(requestedTab) ? requestedTab : "overview");
+  const [student, setStudent] = useState(new URLSearchParams(locationSearch).get("employeeId") || "");
+  useEffect(() => { setActiveTab(validTabs.includes(requestedTab) ? requestedTab : "overview"); setStudent(new URLSearchParams(locationSearch).get("employeeId") || ""); }, [locationSearch]);
+  function setTab(next: string) {
+    setActiveTab(next);
+    const params = new URLSearchParams(locationSearch); params.set("tab", next); params.set("source", "train");
+    if (facilityId) params.set("facilityId", facilityId);
+    if (student) params.set("employeeId", student); else params.delete("employeeId");
+    navigate(`${location.split("?")[0]}?${params}`);
+  }
+  function openEmployeeProgress(id: string) {
+    const params = new URLSearchParams({ facilityId, employeeId: id, tab: "enrollments", source: "train" });
+    navigate(`/app/train?${params}`);
+  }
+  const needsEvidence = ["evidence", "plans", "reports", "settings"].includes(tab) || (tab === "students" && !!student);
+  const needsCertificates = ["certificates", "reports"].includes(tab);
+  const needsRoster = ["students", "certificates", "records", "evidence", "plans", "reports"].includes(tab);
   const facilityChoice = new URLSearchParams(locationSearch).get("facilityId") || "";
   const facility = facilityChoice
     ? facilityScope.facilities.find(f => f.id === facilityChoice)
@@ -52,6 +75,7 @@ export default function TrainWorkspace() {
     if (!facilityScope.isReady || !facilityScope.facilities.some(f => f.id === id)) return;
     const params = new URLSearchParams(locationSearch);
     params.set("facilityId", id);
+    params.delete("employeeId");
     params.set("source", "train");
     navigate(`${location.split("?")[0]}?${params}`);
   }
@@ -59,33 +83,32 @@ export default function TrainWorkspace() {
   const addStudentHref = `/app/employees?action=add&${trainingContext}`;
   const importStudentsHref = `/app/employees?action=bulk-import&${trainingContext}`;
   const assignmentsHref = `/app/course-assignments?${trainingContext}`;
-  const employees = useListEmployees({ organizationId: org || undefined, facilityId }, { enabled: !!org && !!facilityId });
-  const workspace = useTrainingWorkspace(facilityId);
-  const certificates = useListCertificates({ facilityId }, { enabled: !!facilityId });
+  const employees = useListEmployees({ organizationId: org || undefined, facilityId }, { enabled: !!org && !!facilityId && needsRoster });
+  const workspace = useTrainingWorkspace(facilityId, needsEvidence);
+  const certificates = useListCertificates({ facilityId }, { enabled: !!facilityId && needsCertificates });
   const preparePdf = usePrepareCertificatePdf();
   const save = useSaveTrainingWorkspace();
   const { toast } = useToast();
-  const [student, setStudent] = useState("");
   const inviteUser = useInviteUser();
   const [inviteSelection, setInviteSelection] = useState<Set<string>>(new Set());
   const [inviteResults, setInviteResults] = useState<Record<string, string>>({});
   const [inviting, setInviting] = useState(false);
-  const documents = useListDocuments({ facilityId }, !!facilityId);
+  const documents = useListDocuments({ facilityId }, !!facilityId && needsEvidence);
   const signedDocumentUrl = useDocumentSignedUrl();
-  const progress = useListCourseAssignments({ facilityId }, { enabled: !!facilityId });
-  const assignments = useListCourseAssignments({ facilityId, employeeId: student, status: "completed" }, { enabled: !!student && !!facilityId });
-  const courses = useListCourses();
+  const progress = useListCourseAssignments({ facilityId }, { enabled: !!facilityId && needsCertificates });
+  const assignments = useListCourseAssignments({ facilityId, employeeId: student, status: "completed" }, { enabled: !!student && !!facilityId && needsEvidence });
+  const courses = useListCourses({}, needsEvidence || needsCertificates);
   const assignedVersions = useListCourseVersionsByIds((progress.data || []).flatMap(assignment => assignment.course_version_id ? [assignment.course_version_id] : []));
   const assignmentById = new Map((progress.data || []).map(assignment => [assignment.id, assignment]));
   const versionById = new Map((assignedVersions.data || []).map(version => [version.id, version]));
   const certificateCourseTitle = (certificate: NonNullable<typeof certificates.data>[number]) => {
+    if (certificate.course_title_snapshot) return certificate.course_title_snapshot;
     const assignment = certificate.course_assignment_id ? assignmentById.get(certificate.course_assignment_id) : undefined;
     if (assignment?.course_version_id) return versionById.get(assignment.course_version_id)?.title || "Assigned course title unavailable";
     if (certificate.course_assignment_id && !assignment) return "Assigned course title unavailable";
     return courses.data?.find(course => course.id === certificate.course_id)?.title || "Course unavailable";
   };
   const [batchBusy, setBatchBusy] = useState(false);
-  const [tab, setTab] = useState("overview");
   const [shiftId, setShiftId] = useState("");
   const [search, setSearch] = useState("");
   const [reportMode, setReportMode] = useState("all");
@@ -97,7 +120,7 @@ export default function TrainWorkspace() {
   // URL changes include browser Back/Forward, not just dropdown clicks. Never retain a student
   // or certificate selection from the facility the user just left.
   useEffect(() => {
-    setStudent("");
+    setStudent(new URLSearchParams(locationSearch).get("employeeId") || "");
     setShiftId("");
     setInviteSelection(new Set());
     setInviteResults({});
@@ -239,58 +262,34 @@ export default function TrainWorkspace() {
   }
   if (!org) return <p>Select an organization in the administrator workspace first.</p>;
   if (facilityScope.isError) return <div role="alert">Your training facilities could not be loaded. <Button onClick={facilityScope.refetch}>Retry</Button></div>;
-  if (facilityId && (employees.isError || workspace.isError || progress.isError || courses.isError)) return <div role="alert">Training data could not be loaded. <Button onClick={() => { void employees.refetch(); void workspace.refetch(); void progress.refetch(); void courses.refetch(); }}>Retry</Button></div>;
-  const loading = facilityScope.isLoading || employees.isLoading || workspace.isLoading || progress.isLoading || courses.isLoading;
+  if (facilityId && ((needsRoster && employees.isError) || (needsEvidence && workspace.isError) || (needsCertificates && progress.isError) || ((needsEvidence || needsCertificates) && courses.isError))) return <div role="alert">Training data could not be loaded. <Button onClick={() => { void employees.refetch(); void workspace.refetch(); void progress.refetch(); void courses.refetch(); }}>Retry</Button></div>;
+  const loading = facilityScope.isLoading || (needsRoster && employees.isLoading) || (needsEvidence && workspace.isLoading) || (needsCertificates && progress.isLoading) || ((needsEvidence || needsCertificates) && courses.isLoading);
   return <div className="space-y-6" id="train-workspace">
-    <div><h1 className="text-2xl font-bold">CareMetric Train</h1><p className="text-muted-foreground">Staff learning, evidence, annual plans, certificates and inspection reports.</p></div>
+    <div><h1 className="text-2xl font-bold">CareMetric Train</h1><p className="text-muted-foreground">Manage staff learning, required plans, progress and certificates.</p></div>
     <div className="flex flex-wrap gap-3 print:hidden">
       <label className="min-w-64 text-sm">Facility<select aria-label="Training facility" className={selectClass} value={facilityId} disabled={!facilityScope.isReady || inviting || batchBusy || save.isPending} onChange={e => setFacility(e.target.value)}>{!facilityId && <option value="">{facilityScope.isLoading ? "Loading facilities…" : "Choose an available facility"}</option>}{facilityScope.facilities.map(f => <option value={f.id} key={f.id}>{f.name}</option>)}</select></label>
       {facilityId && <>
         {canInvite && <><Button asChild variant="outline"><Link href={addStudentHref}>Add student</Link></Button>
-        <Button asChild variant="outline"><Link href={importStudentsHref}>Import students</Link></Button>
-        <Button asChild variant="outline"><Link href="/app/invitations">Invite / resend access</Link></Button></>}
+</>}
         {canWrite && <Button onClick={() => setTab("yearly-plans")}>Build yearly plan</Button>}
         <Button asChild variant="outline"><Link href={assignmentsHref}>{canWrite ? "Assign courses / view progress" : "View course progress"}</Link></Button>
       </>}
     </div>
     {facilityScope.isLoading ? <p role="status">Loading your available facilities…</p> : invalidFacility ? <p role="alert">The linked facility is unavailable or is not assigned to you. Choose an available facility above.</p> : !facilityId ? <p>{user?.role === "org_admin" || user?.role === "platform_admin" ? <>Create a facility to begin. <Link href="/app/facilities" className="underline">Facility setup</Link></> : "No training facilities are assigned to you. Contact your organization administrator."}</p> : loading ? <p role="status">Loading complete training records…</p> : <>
     <Tabs value={tab} onValueChange={setTab}>
-      <TabsList className="flex flex-wrap h-auto print:hidden">{["overview", "students", "yearly-plans", "enrollments", "certificates", "evidence", "plans", "reports", "settings"].map(t => <TabsTrigger key={t} value={t}>{t === "enrollments" ? "Enrollment & completion" : t === "yearly-plans" ? "Yearly course plans" : t === "plans" ? "Scheduled instruction" : t[0].toUpperCase() + t.slice(1)}</TabsTrigger>)}</TabsList>
+      <TabsList className="flex flex-wrap h-auto print:hidden">{Object.entries({ overview: "Dashboard", students: "Staff", "yearly-plans": "Learning Plans", enrollments: "Reports", certificates: "Certificates", records: "Skills & Outside Training", settings: "Facility Settings" }).map(([key, label]) => <TabsTrigger key={key} value={key}>{label}</TabsTrigger>)}</TabsList>
+      <details className="print:hidden rounded border p-3" open={["evidence", "plans", "reports"].includes(tab)}><summary className="cursor-pointer text-sm">Classroom, external evidence and advanced training records</summary><TabsList className="flex flex-wrap h-auto my-2">{Object.entries({ evidence: "External / classroom evidence", plans: "Scheduled instruction", reports: "Evidence readiness" }).map(([key, label]) => <TabsTrigger key={key} value={key}>{label}</TabsTrigger>)}</TabsList><div className="flex flex-wrap gap-3 text-sm"><Link href="/trainer/classes" className="underline">Classes and attendance</Link><Link href="/app/training-matrix" className="underline">Training matrix</Link><Link href="/app/documents" className="underline">Supporting documents</Link></div></details>
       <TabsContent value="yearly-plans"><Suspense fallback={<p role="status">Loading yearly course plans…</p>}><YearlyTrainingPlans key={facilityId} facilityId={facilityId} embedded /></Suspense></TabsContent>
-      <TabsContent value="overview" className="space-y-4">
-        <div className="grid md:grid-cols-4 gap-3">{[
-          { label: "Students with missing evidence", count: allRows.filter(r => r.checks.some(c => c.status === "missing")).length, mode: "missing" },
-          { label: "Students with evidence past a reference date", count: allRows.filter(r => r.checks.some(isOverdue)).length, mode: "overdue" },
-          { label: "Students needing applicability review", count: allRows.filter(r => r.checks.some(c => c.status === "review")).length, mode: "review" },
-        ].map(q => <Button key={q.mode} variant="outline" className="h-auto whitespace-normal p-4" onClick={() => { setReportMode(q.mode); setSearch(""); setTab("reports"); }}>{q.count} · {q.label}</Button>)}<Button variant="outline" className="h-auto whitespace-normal p-4" onClick={() => setTab("evidence")}>{data?.events.filter(e => e.status === "pending").length || 0} · Evidence awaiting verification</Button></div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Button variant="outline" className="h-auto p-4" onClick={() => setTab("students")}>{roster.length} students</Button>
-          <Button variant="outline" className="h-auto p-4" onClick={() => setTab("enrollments")}>{progress.data?.filter(a => a.status === "completed").length || 0} completed / {progress.data?.length || 0} enrollments</Button>
-          <Button variant="outline" className="h-auto p-4" onClick={() => setTab("certificates")}>{certificates.isLoading || certificates.isError ? "View certificates" : `${certificates.data?.length || 0} certificates`}</Button>
-        </div>
-        <p><Link className="underline" href={assignmentsHref}>View individual course progress</Link> · <Button variant="link" className="p-0" onClick={() => setTab("enrollments")}>Run enrollment and completion reports</Button></p>
-        <p>{certificates.isError ? "Certificate job status unavailable." : `${certificates.data?.filter(c => c.pdf_status === "failed").length || 0} certificate PDF jobs need attention.`} <Link className="underline" href="/app/invitations">Review invitation delivery / retry</Link> · <Link className="underline" href="/account/notifications">Reminder preferences</Link></p>
-        <Card><CardHeader><CardTitle role="heading" aria-level={2}>Get your facility started</CardTitle></CardHeader><CardContent className="space-y-3">
-          <p>{roster.length} students · {data?.profiles.length || 0} duty profiles confirmed · {data?.events.filter(e => e.status === "pending").length || 0} evidence items awaiting review</p>
-          <ol className="list-decimal pl-5 space-y-3">
-            <li><span className="font-medium">Add students.</span> {roster.length ? `${roster.length} students on this facility's roster.` : "Start with one student or import your staff roster."} {canInvite && <><Link href={addStudentHref} className="underline">Add one</Link> · <Link href={importStudentsHref} className="underline">Import a roster</Link></>}</li>
-            <li><span className="font-medium">Give students access.</span> {roster.filter(e => e.profile_id).length} linked portal accounts. <Button variant="link" className="h-auto p-0" onClick={() => setTab("students")}>Select students to invite</Button> · <Link className="underline" href="/app/invitations">Check invitation status</Link></li>
-            <li><span className="font-medium">Build your yearly training plan.</span> <Button variant="link" className="h-auto p-0" onClick={() => setTab("yearly-plans")}>Choose courses and enter the completion deadline</Button>, then apply the plan to selected staff together. Use <Button variant="link" className="h-auto p-0" onClick={() => setTab("enrollments")}>Enrollment &amp; completion</Button> to follow progress, export and print reports.</li>
-            <li><span className="font-medium">Confirm training requirements.</span> <Button variant="link" className="h-auto p-0" onClick={() => setTab("students")}>Confirm student duties</Button> and <Button variant="link" className="h-auto p-0" onClick={() => setTab("settings")}>{policy ? "review the training-year policy" : "document the training-year policy"}</Button>. Record classroom or external evidence and schedule annual training as needed.</li>
-            <li><span className="font-medium">Print and share results.</span> <Button variant="link" className="h-auto p-0" onClick={() => setTab("certificates")}>Print issued certificates</Button> or <Button variant="link" className="h-auto p-0" onClick={() => setTab("reports")}>export an inspection evidence packet</Button>.</li>
-          </ol>
-          {!policy && <p className="font-medium">Action needed: annual training-year policy has not been documented.</p>}
-          <p>Staff without email can attend supervised classes with individually attributed attendance and practical evidence. Individual online accounts and external DHS programs retain their own login requirements.</p>
-          <p>Readiness covers recorded training evidence. Staffing coverage, authorization to work, facility operations and DHS approval require separate verification.</p>
-          <div className="flex gap-3"><Link href="/app/courses" className="underline">Course library</Link><Link href="/trainer/classes" className="underline">Classes, attendance and supervised kiosk</Link><Link href="/app/documents" className="underline">Upload evidence</Link><Link href="/app/training-matrix" className="underline">Existing training records</Link><Link href="/app/billing" className="underline">Optional modules and billing</Link></div>
-        </CardContent></Card>
-      </TabsContent>
-      <TabsContent value="enrollments"><TrainingEnrollmentReport key={facilityId} organizationId={org} facilityId={facilityId} /></TabsContent>
+      <TabsContent value="overview" className="space-y-4">{canWrite && <TrainingAdminWalkthrough key={`guide-${facilityId}`} facilityId={facilityId} onTab={setTab} addStudentHref={addStudentHref} />}<TrainingRosterDashboard key={facilityId} facilityId={facilityId} organizationId={org} onEmployee={openEmployeeProgress} onTab={setTab} /></TabsContent>
+      <TabsContent value="records"><TrainingRecords key={facilityId} facilityId={facilityId} organizationId={org} employees={roster} canManage={canWrite} /></TabsContent>
+      <TabsContent value="enrollments"><TrainingEnrollmentReport key={`${facilityId}:${student}`} organizationId={org} facilityId={facilityId} employeeId={student || undefined} /></TabsContent>
       {["students", "evidence", "plans", "certificates"].includes(tab) && <label className="block my-4 max-w-lg">Student<select aria-label="Training student" className={selectClass} value={student} onChange={e => { setStudent(e.target.value); setShiftId(""); }}><option value="">All students / choose a student</option>{roster.map(e => <option key={e.id} value={e.id}>{e.last_name}, {e.first_name}</option>)}</select></label>}
       {["evidence", "plans"].includes(tab) && !chosen && <p role="status" className="rounded-lg border p-4">{roster.length ? "Choose a student above to view and manage their training records." : "Add a student first to record training evidence and annual plans."}</p>}
       <TabsContent value="students" className="space-y-4">
+        {canInvite && <div className="flex flex-wrap gap-3"><Button asChild variant="outline"><Link href={importStudentsHref}>Import students</Link></Button><Button asChild variant="outline"><Link href="/app/invitations">Invitation history / retry</Link></Button></div>}
+        <TrainingRosterDashboard key={facilityId} facilityId={facilityId} organizationId={org} onEmployee={openEmployeeProgress} onTab={setTab} />
         {!roster.length && <p role="status">No students yet. Add one student or import your roster to begin.</p>}
-        <Card><CardHeader><CardTitle>Student access</CardTitle></CardHeader><CardContent className="space-y-3"><p>Roster import and portal invitations are separate. A linked account does not by itself establish activation; use Invitations to check delivery and acceptance.</p>
+        <Card><CardHeader><CardTitle>Student access</CardTitle></CardHeader><CardContent className="space-y-3"><p>After importing staff, select the people below and send their invitations. Activation and delivery status appear in the staff progress table above. Staff without email can use supervised classroom attendance.</p>
           {canInvite && <Button variant="outline" disabled={inviting} onClick={() => setInviteSelection(new Set(roster.filter(e => e.email && !e.profile_id && e.status === "active").slice(0, 50).map(e => e.id)))}>Select next 50 eligible students</Button>}
           {canInvite && <Button onClick={() => void inviteSelectedStudents()} disabled={inviting || !inviteSelection.size || inviteSelection.size > 50}>{inviting ? "Sending selected invitations…" : `Invite ${inviteSelection.size} selected students (maximum 50)`}</Button>}
           <div className="max-h-64 overflow-auto">{roster.map(e => <div key={e.id} className="border-b py-2"><label>{canInvite && <input type="checkbox" disabled={inviting || !e.email || !!e.profile_id || e.status !== "active"} checked={inviteSelection.has(e.id)} onChange={ev => setInviteSelection(old => { const next = new Set(old); if (ev.target.checked) next.add(e.id); else next.delete(e.id); return next; })} />} {e.last_name}, {e.first_name} · {e.profile_id ? "Portal account linked" : e.email ? "Ready to invite" : "No email — use individually recorded classroom / kiosk attendance"}</label>{inviteResults[e.id] && <p role="status" className="text-sm">{inviteResults[e.id]}</p>}</div>)}</div>
@@ -324,14 +323,15 @@ export default function TrainWorkspace() {
           <Button disabled={save.isPending}>Save for review</Button>
         </form></CardContent></Card>}
         {studentEvents.map(e => <Card key={e.id}><CardContent className="pt-5 space-y-2"><p className="font-semibold">{e.title} · {e.status}</p><p>{e.completed_on} · {e.minutes} minutes · {e.provider} · {e.source_reference}</p><p className="text-sm">{e.topics.join(", ")} · {e.review_note}</p>
-          {canWrite && e.status !== "void" && <form onSubmit={ev => void submit("review", ev)} className="flex flex-wrap gap-3 items-end"><input type="hidden" name="id" value={e.id} /><Options name="status" label="Decision" options={e.status === "pending" ? { verified: "Verified eligible evidence", rejected: "Rejected", void: "Void" } : { void: "Void / correct evidence" }} /><Field name="review_note" label="Review basis, qualifications and evidence checked" /><Button disabled={save.isPending}>Record review</Button></form>}
+          {canWrite && !e.automatic && e.status !== "void" && <form onSubmit={ev => void submit("review", ev)} className="flex flex-wrap gap-3 items-end"><input type="hidden" name="id" value={e.id} /><Options name="status" label="Decision" options={e.status === "pending" ? { verified: "Verified eligible evidence", rejected: "Rejected", void: "Void" } : { void: "Void / correct evidence" }} /><Field name="review_note" label="Review basis, qualifications and evidence checked" /><Button disabled={save.isPending}>Record review</Button></form>}
         </CardContent></Card>)}
       </>}</TabsContent>
       <TabsContent value="plans" className="space-y-4">{!chosen ? <p>Choose a student to schedule classroom or external instruction.</p> : <>
         {canWrite && <form onSubmit={e => void submit("plan", e)} className="grid md:grid-cols-2 gap-4"><Field name="title" label="Required course / instruction" /><Field name="duties_snapshot" label="Position and duties for this plan" value={profile?.duties} /><Field name="scheduled_at" label="Scheduled time (Pennsylvania)" type="datetime-local" /><Field name="duration_minutes" label="Minutes" type="number" /><Field name="location" label="Location / online meeting" /><fieldset className="col-span-full"><legend className="font-medium">Required topics for this course</legend><div className="grid md:grid-cols-2 gap-2">{Object.entries(TRAINING_TOPICS).map(([key, label]) => <label key={key} className="text-sm"><input type="checkbox" name="requirement_keys" value={key} /> {label}</label>)}</div><p className="text-sm text-muted-foreground">Fulfillment must match these topics, the course title, scheduled Pennsylvania date and planned duration.</p></fieldset><Button disabled={save.isPending}>Add scheduled instruction</Button></form>}
-        {data?.plans.filter(p => p.employee_id === student).map(p => <Card key={p.id}><CardContent className="pt-5"><p className="font-semibold">{p.title}</p><p>{p.duties_snapshot} · {toFacilityDateTimeLocal(p.scheduled_at)} · {p.location}</p><p>Fulfillment: {p.completed_event_id || (p.canceled_at ? "Canceled" : "Open")}</p>{canWrite && !p.completed_event_id && !p.canceled_at && <Button variant="outline" size="sm" disabled={save.isPending} onClick={async () => { try { await save.mutateAsync({ kind: "plan_cancel", facilityId, employeeId: student, data: { id: p.id } }); } catch (error) { message(error); } }}>Cancel plan entry</Button>}{canWrite && !p.completed_event_id && !p.canceled_at && <form onSubmit={e => void submit("plan_complete", e)} className="flex gap-3 mt-2"><input type="hidden" name="id" value={p.id} /><Options name="event_id" label="Verified fulfillment" options={Object.fromEntries(studentEvents.filter(e => e.status === "verified").map(e => [e.id, `${e.title} (${e.completed_on})`]))} /><Button disabled={save.isPending || !studentEvents.some(e => e.status === "verified")}>Record fulfillment</Button></form>}</CardContent></Card>)}
+        {data?.plans.filter(p => p.employee_id === student).map(p => <Card key={p.id}><CardContent className="pt-5"><p className="font-semibold">{p.title}</p><p>{p.duties_snapshot} · {toFacilityDateTimeLocal(p.scheduled_at)} · {p.location}</p><p>Fulfillment: {p.completed_event_id || (p.canceled_at ? "Canceled" : "Open")}</p>{canWrite && !p.completed_event_id && !p.canceled_at && <Button variant="outline" size="sm" disabled={save.isPending} onClick={async () => { try { await save.mutateAsync({ kind: "plan_cancel", facilityId, employeeId: student, data: { id: p.id } }); } catch (error) { message(error); } }}>Cancel plan entry</Button>}{canWrite && !p.completed_event_id && !p.canceled_at && <form onSubmit={e => void submit("plan_complete", e)} className="flex gap-3 mt-2"><input type="hidden" name="id" value={p.id} /><Options name="event_id" label="Verified fulfillment" options={Object.fromEntries(studentEvents.filter(e => e.status === "verified" && !e.automatic).map(e => [e.id, `${e.title} (${e.completed_on})`]))} /><Button disabled={save.isPending || !studentEvents.some(e => e.status === "verified" && !e.automatic)}>Record fulfillment</Button></form>}</CardContent></Card>)}
       </>}</TabsContent>
       <TabsContent value="certificates" className="space-y-4">
+        <p className="text-sm">Certificate course details preserve the completed version. For a name or award correction, <Link href="/app/help" className="underline">open a support request</Link> with the certificate number and correction reason.</p>
         <div className="grid md:grid-cols-4 gap-3"><label>Course<select className={selectClass} value={certificateCourse} onChange={e => setCertificateCourse(e.target.value)}><option value="">All courses</option>{courses.data?.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select></label><label>Issued on or after<Input type="date" value={certificateFrom} onChange={e => setCertificateFrom(e.target.value)} /></label><label>Issued through<Input type="date" value={certificateThrough} onChange={e => setCertificateThrough(e.target.value)} /></label><label>PDF status<select className={selectClass} value={certificateStatus} onChange={e => setCertificateStatus(e.target.value)}><option value="">All statuses</option>{["ready", "pending", "processing", "failed"].map(status => <option key={status}>{status}</option>)}</select></label></div>
         <Button variant="outline" onClick={() => setSelectedCerts(new Set(certs.map(c => c.id)))} disabled={!certs.length || certs.length > 100}>Select {certs.length} matching certificates (maximum 100)</Button>
         <p>Certificates are issued by the existing course-completion workflow. Training credit still requires an eligibility review.</p>
@@ -354,7 +354,7 @@ export default function TrainWorkspace() {
           {(data?.events || []).filter(e => e.employee_id === employee.id).map(e => <p key={e.id} className="text-sm my-2">{e.title} · {e.completed_on} · {e.minutes} minutes · {e.provider} · {e.source_reference} · {e.status}. {e.review_note} Credit: {Object.entries(e.allocations).filter(([, minutes]) => minutes > 0).map(([key, minutes]) => `${key}: ${minutes} minutes`).join(", ") || "None"}</p>)}
         </section>)}
       </TabsContent>
-      <TabsContent value="settings"><Card><CardHeader><CardTitle>Document the facility training year</CardTitle></CardHeader><CardContent className="space-y-4"><p>Confirm the written facility policy and DHS interpretation before changing periods. Each revision is retained.</p>{policy && <p>Current policy: {policy.policy_reference} · effective {policy.effective_from}</p>}
+      <TabsContent value="settings" className="space-y-4">{canWrite && <><TrainingWelcomeSettings key={`welcome-${facilityId}`} facilityId={facilityId} /><TrainingDiscoveryAdmin key={`discovery-${facilityId}`} facilityId={facilityId} /></>}<div className="mb-4 rounded border p-4"><h2 className="font-semibold">Facility information</h2><p>Keep your facility address, license, contact and administrator details current.</p><Button asChild variant="outline"><Link href={`/app/facilities/${facilityId}?source=train`}>Review / edit facility information</Link></Button></div><Card><CardHeader><CardTitle>Document the facility training year</CardTitle></CardHeader><CardContent className="space-y-4"><p>Confirm the written facility policy and DHS interpretation before changing periods. Each revision is retained.</p>{policy && <p>Current policy: {policy.policy_reference} · effective {policy.effective_from}</p>}
         {canWrite && user?.role !== "trainer" && <form key={policy?.id ?? "new-policy"} onSubmit={e => void submit("policy", e)} className="grid md:grid-cols-2 gap-4"><Field name="effective_from" label="Effective date" type="date" value={policyDefaults.effective_from} /><Options name="year_basis" label="Staff year" value={policyDefaults.year_basis} options={{ fixed: "Fixed annual date", anniversary: "Employment anniversary" }} /><Field name="year_start" label="Staff fixed start (MM-DD)" value={policyDefaults.year_start} /><Options name="administrator_year_basis" label="Administrator year" value={policyDefaults.administrator_year_basis} options={{ fixed: "Fixed annual date", anniversary: "Employment anniversary" }} /><Field name="administrator_year_start" label="Administrator fixed start (MM-DD)" value={policyDefaults.administrator_year_start} /><Field name="policy_reference" label="Written policy and basis / approval reference" value={policyDefaults.policy_reference} /><Button disabled={save.isPending}>Save policy revision</Button></form>}
         <p><a className="underline" href="https://www.pa.gov/agencies/dhs/resources/licensing/pch-alr-licensing/pch-alr-training" target="_blank" rel="noreferrer">Pennsylvania DHS training requirements and approved pathways</a></p>
       </CardContent></Card></TabsContent>
