@@ -38,8 +38,14 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
   const labelId = useId();
   const locationSearch = useSearch();
   const [location, navigate] = useLocation();
-  const overdueLink = new URLSearchParams(locationSearch).get("deadline") === "overdue";
-  const savedReportId = new URLSearchParams(locationSearch).get("savedTrainingReport") || undefined;
+  const requested = new URLSearchParams(locationSearch);
+  const overdueLink = requested.get("deadline") === "overdue";
+  const savedReportId = requested.get("savedTrainingReport") || undefined;
+  // The workspace synchronizes its student selection after navigation. Wait for
+  // the matching keyed child before consuming a link, including student removal.
+  // The owner's organization-wide report has no bound facility/student scope.
+  const linkScopeReady = !facilityId || ((!requested.get("facilityId") || requested.get("facilityId") === facilityId)
+    && (requested.get("employeeId") || "") === (employeeId || ""));
   const savedReport = useSavedTrainingReport(savedReportId);
   const [openedSavedReport, setOpenedSavedReport] = useState<{ id: string; name: string }>();
   const { user } = useAuth();
@@ -63,6 +69,7 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
   const failure = (error: unknown) => toast({ title: "Training report unavailable", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
 
   useEffect(() => {
+    if (!linkScopeReady) return;
     if (savedReportId) {
       const saved = savedReport.data;
       if (!saved || saved.id !== savedReportId || saved.organizationId !== organizationId || (facilityId && saved.facilityId !== facilityId)) return;
@@ -80,7 +87,7 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
     const params = new URLSearchParams(locationSearch);
     params.delete("deadline"); params.delete("savedTrainingReport");
     navigate(`${location}${params.size ? `?${params.toString()}` : ""}`, { replace: true });
-  }, [savedReportId, savedReport.data, overdueLink, organizationId, facilityId, employeeId, location, locationSearch, navigate]);
+  }, [savedReportId, savedReport.data, overdueLink, linkScopeReady, organizationId, facilityId, employeeId, location, locationSearch, navigate]);
 
   useEffect(() => {
     if (!printJob) return;

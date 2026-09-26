@@ -401,6 +401,26 @@ test.describe("new training facility administrator", () => {
       await expect(report.getByRole("combobox", { name: "Required or optional", exact: true })).toHaveValue("required");
       await expect(report.getByRole("combobox", { name: "Enrollment status", exact: true })).toHaveValue("all");
       await expect.poll(() => new URL(page.url()).searchParams.has("deadline")).toBe(false);
+      // Employee selection is synchronized by the parent workspace. The intent
+      // must survive both a new employee's keyed report and returning to all staff.
+      await page.evaluate(id => {
+        const target = new URL(window.location.href);
+        target.searchParams.set("employeeId", id);
+        target.searchParams.set("deadline", "overdue");
+        window.history.pushState(null, "", target);
+      }, studentId);
+      await expect(report.getByRole("combobox", { name: "Employee", exact: true })).toHaveValue(studentId);
+      await expect(report.getByRole("combobox", { name: "Deadlines", exact: true })).toHaveValue("overdue");
+      await expect.poll(() => new URL(page.url()).searchParams.has("deadline")).toBe(false);
+      await page.evaluate(() => {
+        const target = new URL(window.location.href);
+        target.searchParams.delete("employeeId");
+        target.searchParams.set("deadline", "overdue");
+        window.history.pushState(null, "", target);
+      });
+      await expect(report.getByRole("combobox", { name: "Employee", exact: true })).toHaveValue("");
+      await expect(report.getByRole("combobox", { name: "Deadlines", exact: true })).toHaveValue("overdue");
+      await expect.poll(() => new URL(page.url()).searchParams.has("deadline")).toBe(false);
       await report.getByRole("combobox", { name: "Deadlines", exact: true }).selectOption("all");
       await page.getByRole("tab", { name: "Dashboard", exact: true }).click();
       await page.getByRole("tab", { name: "Reports", exact: true }).click();
