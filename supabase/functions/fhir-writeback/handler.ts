@@ -132,8 +132,8 @@ export function createFhirWritebackHandler({
   const configuredCredentials = new Map<string, FhirOutboundCredential>();
   if (credentials.size > 0) {
     const { data: sources, error: sourcesError } = await admin.from("fhir_integration_sources")
-      .select("id,organization_id,fhir_base_url,writeback_contract_reference,writeback_conditional_create_confirmed")
-      .in("id", [...credentials.keys()]).eq("writeback_enabled", true).eq("status", "active");
+      .select("id,organization_id,fhir_base_url,writeback_contract_reference,writeback_conditional_create_confirmed,facility:facilities!inner(clinical_enabled)")
+      .in("id", [...credentials.keys()]).eq("writeback_enabled", true).eq("status", "active").eq("facility.clinical_enabled", true);
     if (sourcesError) {
       await finishRun("failed", 0, 0, 0, { correlationId }, "outbound source authorization lookup failed");
       return json({ error: "source_authorization_unavailable", correlationId }, 503);

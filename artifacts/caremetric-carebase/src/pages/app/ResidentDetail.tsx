@@ -16,7 +16,6 @@ import { ArrowLeft, HeartPulse, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
-import { ProtectedIdentitySupplement } from "@/components/residents/ProtectedIdentitySupplement";
 import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
 import { ResidentCareHeaderPanel } from "@/components/residents/ResidentCareHeader";
 import { ResidentNeedsAttentionPanel } from "@/components/residents/ResidentNeedsAttention";
@@ -48,6 +47,7 @@ const ResidentHospitalSection = lazy(() => import("@/components/residents/Reside
 // Lazy for the same reason, and mounted only while open: the census dialog pulls in the admissions
 // hook module, which nothing else on this route needs.
 const ResidentCensusStatusDialog = lazy(() => import("@/components/residents/ResidentCensusStatusDialog"));
+const ProtectedIdentitySupplement = lazy(() => import("@/components/residents/ProtectedIdentitySupplement").then(module => ({ default: module.ProtectedIdentitySupplement })));
 
 const TAB_COMPONENTS: Record<string, React.LazyExoticComponent<React.ComponentType<ResidentTabProps>>> = {
   overview: lazy(() => import("./resident-tabs/OverviewTab")),
@@ -393,7 +393,7 @@ export default function ResidentDetail() {
             <p className="text-sm">{faceSheetPacket.clinical.diagnoses.length} diagnoses · {faceSheetPacket.clinical.allergies.length} imported allergies · {faceSheetPacket.clinical.medications.length} active medications</p>
             <ul className="list-disc space-y-2 pl-5 text-sm">{faceSheetPacket.clinical.outstanding.map((item) => <li key={item}>{item}</li>)}</ul>
           </>}
-          <ProtectedIdentitySupplement residentId={resident.id} value={(resident as typeof resident & { protected_identity_supplement?: unknown }).protected_identity_supplement} canManage={canManage} />
+          {faceSheetOpen && <Suspense fallback={<Skeleton className="h-24 w-full" />}><ProtectedIdentitySupplement residentId={resident.id} value={resident.protected_identity_supplement} canManage={canManage} /></Suspense>}
           <DialogFooter><Button onClick={() => window.print()} disabled={faceSheetClinical.isLoading || faceSheetClinical.isFetching}>Print face sheet{faceSheetClinical.isError ? " with missing-data notice" : ""}</Button></DialogFooter>
         </DialogContent>
       </Dialog>

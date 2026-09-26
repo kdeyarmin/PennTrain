@@ -49,5 +49,33 @@ values
 select is(public.staff_eligible_training_minutes('a2380000-0000-4000-8000-000000000023','general_annual','2025-07-01','2026-06-30'),720::numeric,'6h medication +4h emergency +2h orientation credit exactly12h');
 select is((public.get_staff_training_summary('a2380000-0000-4000-8000-000000000023','2026-06-30')->>'completedHours')::numeric,12::numeric,'core summary and Train use the same numerator');
 select throws_ok($$update public.employee_onboarding_items i set status='completed' from public.onboarding_checklist_templates t where i.template_id=t.id and t.code='PCH-ADL-COMPETENCY' and i.employee_id='a2380000-0000-4000-8000-000000000021'$$,'23514',null,'a checkbox cannot bypass missing ADL evidence');
+-- A grace-period source is allocated before the following year's source caps.
+insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,hire_date)
+values('a2380000-0000-4000-8000-000000000024','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','Grace','Allocation','Direct care','2020-01-01');
+insert into public.training_evidence_events(organization_id,facility_id,employee_id,title,completed_on,minutes,delivery,provider,source_reference,provider_qualification,topics,allocations,status,created_by)
+select 'a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','a2380000-0000-4000-8000-000000000024',
+ title,completed_on,minutes,'classroom','Approved trainer',title,'Current instructor',topics,allocations,'verified','a2380000-0000-4000-8000-000000000101'
+from (values
+ ('General prior year',date '2025-11-01',600,array['personal_care'],'{"base":600}'::jsonb),
+ ('Grace medication',date '2026-07-01',120,array['medication_authorization'],'{"base":120}'::jsonb),
+ ('Current medication',date '2026-08-01',360,array['medication_authorization'],'{"base":360}'::jsonb),
+ ('Prior special unit',date '2025-11-01',300,array['dementia'],'{"special_annual":300}'::jsonb),
+ ('Grace special unit',date '2026-07-01',60,array['dementia'],'{"special_annual":60}'::jsonb),
+ ('Prior dementia',date '2025-11-01',60,array['dementia'],'{"dementia_annual":60}'::jsonb),
+ ('Grace dementia',date '2026-07-01',60,array['dementia'],'{"dementia_annual":60}'::jsonb)
+)v(title,completed_on,minutes,topics,allocations);
+select is((public.get_staff_training_summary('a2380000-0000-4000-8000-000000000024','2026-08-31')->>'completedHours')::numeric,6::numeric,'prior-year medication repair does not consume the new-year six-hour cap');
+select is((public.get_staff_training_summary('a2380000-0000-4000-8000-000000000024','2026-08-31')->>'previousCompletedHours')::numeric,12::numeric,'grace medication hours finish the prior year exactly once');
+select is((public.get_staff_training_summary('a2380000-0000-4000-8000-000000000024','2026-08-31')->>'previousSpecialUnitHours')::numeric,6::numeric,'special-unit annual hours receive the selected grace period');
+select is((public.get_staff_training_summary('a2380000-0000-4000-8000-000000000024','2026-08-31')->>'previousAlrDementiaHours')::numeric,2::numeric,'dementia annual hours receive the selected grace period');
+select is((public.get_staff_training_summary('a2380000-0000-4000-8000-000000000024','2026-08-31')->>'specialUnitHours')::numeric,0::numeric,'special-unit grace hours are not counted twice');
+
+insert into public.facilities(id,organization_id,name,facility_type) values('a2380000-0000-4000-8000-000000000012','a2380000-0000-4000-8000-000000000001','Float primary site','NH');
+insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,hire_date)
+values('a2380000-0000-4000-8000-000000000025','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000012','Float','Worker','Direct care','2020-01-01');
+insert into public.employee_facility_assignments(organization_id,facility_id,employee_id)
+values('a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','a2380000-0000-4000-8000-000000000025');
+select ok(public.evaluate_schedule_eligibility('a2380000-0000-4000-8000-000000000025','a2380000-0000-4000-8000-000000000011',now()+interval '1 day',now()+interval '1 day 8 hours')->'hardBlocks' @> '["staff_qualification_evidence_missing"]'::jsonb,
+ 'qualification rules follow the assigned PCH even when the employee primary site is NH');
 select * from finish();
 rollback;

@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { facilityToday } from "@/lib/dateUtils";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { INSPECTION_RULES, maximumInspectionInterval } from "@/lib/inspectionRules";
+import { paRegulatoryFacilitySelection } from "@/lib/facilityTypes";
 
 const PAGE_SIZE = 15;
 
@@ -137,9 +138,12 @@ export default function InspectionItems() {
   // facility_manager/trainer must not be shown a delete action that will always fail.
   const canDelete = user?.role === "org_admin";
 
-  const { data: facilities } = useListFacilities();
+  const { data: allFacilities } = useListFacilities();
+  const { facilities, activeFacilityId } = paRegulatoryFacilitySelection(allFacilities, urlState.facility);
+  const selectedFacilityId = facilities.some((facility) => facility.id === urlState.facility) ? urlState.facility : "all";
   const { data: itemsPage, isLoading, isError, error, refetch } = usePaginatedDomainList<InspectionItem>("inspection_items", {
-    facilityId: urlState.facility !== "all" ? urlState.facility : undefined,
+    facilityId: selectedFacilityId !== "all" ? selectedFacilityId : undefined,
+    facilityIds: facilities.map((facility) => facility.id),
     itemKind: urlState.kind !== "all" ? urlState.kind : undefined,
     status: urlState.status !== "all" ? urlState.status : undefined,
     search: urlState.search,
@@ -199,7 +203,7 @@ export default function InspectionItems() {
   // Defaults to the current facility filter (if one is selected) or the user's sole facility,
   // same auto-fill reasoning as the create-item dialog above -- and always the current month.
   const openTrackerDialog = () => {
-    setTrackerFacilityId(urlState.facility !== "all" ? urlState.facility : (facilities?.length === 1 ? facilities[0].id : ""));
+    setTrackerFacilityId(activeFacilityId);
     setTrackerMonth(facilityToday().slice(0, 7));
     setTrackerOpen(true);
   };
@@ -361,7 +365,7 @@ export default function InspectionItems() {
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Inspections &amp; Equipment</h1>
-          <p>Track the fire-drill program, life-safety equipment, and emergency-preparedness requirements for each facility.</p>
+          <p>Track PCH and ALF fire drills, life-safety equipment, and emergency preparedness under Chapters 2600 and 2800.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={openTrackerDialog}>
@@ -386,7 +390,7 @@ export default function InspectionItems() {
               className="pl-9 h-9 bg-card"
             />
           </div>
-          <Select value={urlState.facility} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
+          <Select value={selectedFacilityId} onValueChange={(v) => setUrlState({ facility: v, page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>

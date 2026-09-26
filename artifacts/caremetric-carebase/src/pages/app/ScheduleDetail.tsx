@@ -67,7 +67,11 @@ const ELIGIBILITY_LABELS: Record<string, string> = {
   lifecycle_inactive: "Inactive employment",
   facility_not_assigned: "Not assigned to this facility",
   oapsa_not_suitable: "OAPSA: determined not suitable for employment",
-  oapsa_provisional_expired: "OAPSA: provisional period ended without clearances",
+  oapsa_provisional_expired: "OAPSA: required clearances or provisional conditions are incomplete",
+  staff_qualification_evidence_missing: "Document staff age and role before assigning work",
+  staff_age_not_qualified: "Age does not meet the requirement for this staff role",
+  staff_education_evidence_missing: "Direct-care education evidence is missing",
+  staff_fitness_evidence_missing: "Staff medical-fitness confirmation is missing",
   oapsa_provisional_expiring: "OAPSA: provisional period ends within 14 days",
   schedule_conflict: "Overlapping shift",
   insufficient_rest: "Insufficient rest between shifts",
@@ -100,6 +104,11 @@ const NON_OVERRIDABLE_BLOCKS = new Set([
   "facility_not_assigned",
   "schedule_conflict",
   "oapsa_not_suitable",
+  "oapsa_provisional_expired",
+  "staff_qualification_evidence_missing",
+  "staff_age_not_qualified",
+  "staff_education_evidence_missing",
+  "staff_fitness_evidence_missing",
 ]);
 
 // Per-employee "can this person currently pass meds" signal for the shift grid -- only rendered for

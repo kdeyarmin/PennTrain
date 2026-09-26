@@ -91,21 +91,31 @@ function statusFromDueDate(dueDate: string | null, today: string, present: boole
   return "compliant";
 }
 
-function rollingCe(ceEntries: AdministratorRulePackCeEntry[], today: string, from?: string) {
+function allocateCe(ceEntries: AdministratorRulePackCeEntry[], today: string, from?: string, options: {
+  excluded?: Map<AdministratorRulePackCeEntry, number>; remaining?: { medication: number; resuscitation: number; online: number }; limit?: number;
+} = {}) {
   const cutoff = from ?? addFacilityCalendarDays(today, -CE_WINDOW_DAYS);
-  let medication = 6, resuscitation = 4, online = 12;
-  return ceEntries.filter(entry => entry.completed_date >= cutoff && entry.completed_date <= today)
+  let { medication, resuscitation, online } = options.remaining ?? { medication: 6, resuscitation: 4, online: 12 };
+  const credits = new Map<AdministratorRulePackCeEntry, number>();
+  const total = ceEntries.filter(entry => entry.completed_date >= cutoff && entry.completed_date <= today)
     .sort((a, b) => Number(/online|webinar/i.test(a.source ?? "")) - Number(/online|webinar/i.test(b.source ?? "")))
     .reduce((sum, entry) => {
       const isOnline = /online|webinar/i.test(entry.source ?? "");
       if (entry.credit_category === "resuscitation" && isOnline) return sum;
-      const hours = Math.min(Number(entry.hours), isOnline ? online : Infinity, entry.credit_category === "medication" ? medication : Infinity,
-        entry.credit_category === "resuscitation" ? resuscitation : Infinity);
+      const hours = Math.max(0, Math.min(Number(entry.hours) - (options.excluded?.get(entry) ?? 0), (options.limit ?? Infinity) - sum,
+        isOnline ? online : Infinity, entry.credit_category === "medication" ? medication : Infinity,
+        entry.credit_category === "resuscitation" ? resuscitation : Infinity));
       if (isOnline) online -= hours;
       if (entry.credit_category === "medication") medication -= hours;
       if (entry.credit_category === "resuscitation") resuscitation -= hours;
+      credits.set(entry, hours);
       return sum + hours;
     }, 0);
+  return { total, credits, remaining: { medication, resuscitation, online } };
+}
+
+function rollingCe(ceEntries: AdministratorRulePackCeEntry[], today: string, from?: string) {
+  return allocateCe(ceEntries, today, from).total;
 }
 
 export function buildAdministratorRulePack(facilityType: FacilityType, evidence: AdministratorRulePackEvidence): AdministratorRulePackRequirement[] {
@@ -120,8 +130,10 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   const legacy = Boolean(profile?.qualification_path === "legacy_pch" && !isAlr && firstEmployed && firstEmployed < "2005-10-24"
     && profile.legacy_no_break_over_one_year && profile.legacy_training_document_path);
   const supplement = Boolean(profile?.qualification_path === "pch_course_supplement" && isAlr
-    && ((profile.hundred_hour_course_completed_date && profile.hundred_hour_course_document_path)
-      || (profile.legacy_training_document_path && profile.legacy_no_break_over_one_year))
+    && ((profile.hundred_hour_course_completed_date && profile.hundred_hour_course_document_path
+      && profile.hundred_hour_course_completed_date <= evidence.today
+      && profile.alf_supplement_completed_date && profile.hundred_hour_course_completed_date <= profile.alf_supplement_completed_date)
+      || (profile.legacy_training_document_path && profile.legacy_no_break_over_one_year && firstEmployed && firstEmployed < "2005-10-24"))
     && profile.alf_supplement_completed_date && profile.alf_supplement_completed_date <= evidence.today
     && Number(profile.alf_supplement_hours) >= 15 && profile.alf_supplement_test_passed && profile.alf_supplement_document_path);
 
@@ -139,7 +151,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   );
   const nhaCutoff = rcgTestExemption ? "2009-01-01" : NHA_EXEMPTION_EMPLOYED_BEFORE[isAlr ? "ALR" : "PCH"];
   const nhaSection = isAlr ? "2800.64(g)" : "2600.64(g)";
-  const nhaTestRecorded = Boolean(profile?.competency_test_passed && profile?.competency_test_date);
+  const nhaTestRecorded = Boolean(profile?.competency_test_passed && profile?.competency_test_date && profile.competency_test_date <= evidence.today);
   const nhaEmployedBeforeCutoff = Boolean(firstEmployed && firstEmployed < nhaCutoff);
   const qualifiedByNha = nhaLicenseCurrent && (nhaTestRecorded || nhaEmployedBeforeCutoff);
   // The NHA license expiration only governs the NHA-exemption path; a stale
@@ -216,12 +228,12 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   let priorOverdue = false;
   if (previousPeriod && firstEmployed && firstEmployed <= previousPeriod.start
     && !(qualifiedByCourse && addFacilityCalendarYears(firstEmployed, 1) > previousPeriod.end)) {
-    const priorBeforeGrace = rollingCe(ceEntries, previousPeriod.end, previousPeriod.start);
+    const prior = allocateCe(ceEntries, previousPeriod.end, previousPeriod.start);
     const graceEnd = addFacilityCalendarDays(previousPeriod.end, evidence.annualGraceDays ?? 15);
     const through = evidence.today < graceEnd ? evidence.today : graceEnd;
-    const repair = Math.min(Math.max(0, 24 - priorBeforeGrace), Math.max(0, rollingCe(ceEntries, through, previousPeriod.start) - priorBeforeGrace));
-    ceHours = Math.max(0, ceHours - repair);
-    priorOverdue = evidence.today > graceEnd && priorBeforeGrace + repair < 24;
+    const repair = allocateCe(ceEntries, through, selectedPeriod!.start, { remaining: prior.remaining, limit: Math.max(0, 24 - prior.total) });
+    ceHours = allocateCe(ceEntries, evidence.today, selectedPeriod!.start, { excluded: repair.credits }).total;
+    priorOverdue = evidence.today > graceEnd && prior.total + repair.total < 24;
   }
   // The CE requirement lapses on the first day the trailing-365-day total drops
   // below 24 hours, i.e. when enough of the oldest entries age out of the window.

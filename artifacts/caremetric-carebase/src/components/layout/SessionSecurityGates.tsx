@@ -1,3 +1,4 @@
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { IdentityReverificationContext } from "@/lib/identityReverification";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import { sanitizePostLoginPath } from "@/lib/loginRedirect";
 // The outer policy gate preserves an already-mounted page while its opaque idle-lock overlay
 // completes password + MFA. Server policies continue denying reads/writes throughout that lock.
 const IdleVerificationContext = createContext<(active: boolean) => void>(() => undefined);
+const SessionReverificationRequiredContext = createContext(false);
 
 const ACTIVITY_EVENTS = ["pointerdown", "keydown", "touchstart", "wheel"] as const;
 
@@ -59,6 +61,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   const [locked, setLocked] = useState(false);
   const [manualVerification, setManualVerification] = useState(false);
   const setVerificationOverlayActive = useContext(IdleVerificationContext);
+  const sessionReverificationRequired = useContext(SessionReverificationRequiredContext);
   const [password, setPassword] = useState("");
   const [unlocking, setUnlocking] = useState(false);
   const [lockEventId, setLockEventId] = useState<string | null>(null);
@@ -96,6 +99,10 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
       p_lock_reason: reason,
     }).then(({ data }) => { if (typeof data === "string") setLockEventId(data); });
   }, [isKiosk, location, locked, user, setVerificationOverlayActive]);
+
+  useEffect(() => {
+    if (sessionReverificationRequired && !locked) lock("manual");
+  }, [sessionReverificationRequired, locked, lock]);
 
   useEffect(() => {
     const markActivity = () => { if (!locked) lastActivity.current = Date.now(); };
@@ -264,14 +271,18 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
 
   return (
     <IdentityReverificationContext.Provider value={requestVerification}>
-      {children}
-      {locked && (
-        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/95 px-4" role="dialog" aria-modal="true" aria-labelledby="session-lock-title">
-          <Card className="w-full max-w-md">
-            <CardHeader className="text-center"><div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-primary/10"><LockKeyhole className="h-6 w-6 text-primary" /></div><CardTitle id="session-lock-title">{stepUpFactors ? "One more step" : manualVerification ? "Verify your identity" : "Session locked"}</CardTitle><CardDescription>{stepUpFactors
+      <div className="contents" inert={locked || sessionReverificationRequired || undefined} aria-hidden={locked || sessionReverificationRequired || undefined}>{children}</div>
+      {(locked || sessionReverificationRequired) && (
+        <DialogPrimitive.Root open>
+          <DialogPrimitive.Portal>
+            <DialogPrimitive.Overlay className="fixed inset-0 z-[100] bg-slate-950/95" />
+            <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[101] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 outline-none"
+              onEscapeKeyDown={event => event.preventDefault()} onPointerDownOutside={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()}>
+          <Card className="w-full">
+            <CardHeader className="text-center"><div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-primary/10"><LockKeyhole className="h-6 w-6 text-primary" /></div><DialogPrimitive.Title asChild><CardTitle>{stepUpFactors ? "One more step" : manualVerification || sessionReverificationRequired ? "Verify your identity" : "Session locked"}</CardTitle></DialogPrimitive.Title><DialogPrimitive.Description asChild><CardDescription>{stepUpFactors
               ? "Your password was accepted. Unlocking starts a new sign-in session, so verify your second factor to finish -- the page behind this is still exactly where you left it."
-              : manualVerification ? "Re-enter your password and verify your second factor to continue editing. Your current page and form entries will stay open."
-              : `This shared-device session was locked after ${timeoutMinutes} minutes without activity. Re-enter your password to continue without losing the current page.`}</CardDescription></CardHeader>
+              : manualVerification || sessionReverificationRequired ? "Re-enter your password and verify your second factor to continue editing. Your current page and form entries will stay open."
+              : `This shared-device session was locked after ${timeoutMinutes} minutes without activity. Re-enter your password to continue without losing the current page.`}</CardDescription></DialogPrimitive.Description></CardHeader>
             <CardContent>{stepUpFactors ? (
               <form onSubmit={verifyStepUp} className="space-y-4">
                 {stepUpFactors.length > 1 && (
@@ -309,7 +320,9 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
               <form onSubmit={unlock} className="space-y-4"><div className="space-y-1.5"><Label htmlFor="unlock-email">Account</Label><Input id="unlock-email" value={user?.email ?? ""} disabled /></div><div className="space-y-1.5"><Label htmlFor="unlock-password">Password</Label><Input id="unlock-password" type="password" autoFocus value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /></div><Button className="w-full" type="submit" disabled={unlocking || !password}><KeyRound className="mr-2 h-4 w-4" />{unlocking ? "Unlocking…" : "Unlock session"}</Button><Button className="w-full" variant="ghost" type="button" onClick={() => void signOut()}><LogOut className="mr-2 h-4 w-4" />Sign out instead</Button></form>
             )}</CardContent>
           </Card>
-        </div>
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
       )}
     </IdentityReverificationContext.Provider>
   );
@@ -317,6 +330,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
 
 export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
   const [verificationOverlayActive, setVerificationOverlayActive] = useState(false);
+  const openedWithCurrentAssurance = useRef(false);
   const [location] = useLocation();
   const signOut = useSignOut();
   const policy = useQuery({
@@ -362,7 +376,8 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
 
   // Enrollment and step-up live on this route; the gate must never block it, including while the
   // policy query is still loading or has failed.
-  const protectedChildren = <IdleVerificationContext.Provider value={setVerificationOverlayActive}>{children}</IdleVerificationContext.Provider>;
+  const privilegedWindowClosed = !!policy.data?.requirement.required && !policy.data.assuranceIsCurrent;
+  const protectedChildren = <IdleVerificationContext.Provider value={setVerificationOverlayActive}><SessionReverificationRequiredContext.Provider value={openedWithCurrentAssurance.current && privilegedWindowClosed}>{children}</SessionReverificationRequiredContext.Provider></IdleVerificationContext.Provider>;
   if (location === "/account/security" || verificationOverlayActive) return protectedChildren;
 
   // BACKLOG J74 (P3, identity). The wall used to hand the user a bare /account/security link, so a
@@ -422,11 +437,10 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
   // yesterday held yesterday's auth.sessions row (Supabase sessions do not expire on their own),
   // and past max_privileged_session_minutes the whole privileged half of the product refused with
   // nothing on screen to explain it. Only a NEW session clears it, which is why the one control
-  // here is Sign out.
-  const privilegedWindowClosed = policy.data?.requirement.required
-    && !mustVerify
-    && !policy.data.assuranceIsCurrent;
-  if (privilegedWindowClosed) {
+  // here is Sign out on initial entry. A page already opened under current
+  // assurance keeps its state behind IdleSessionLock's password/MFA overlay.
+  if (privilegedWindowClosed && openedWithCurrentAssurance.current) return protectedChildren;
+  if (privilegedWindowClosed && !mustVerify) {
     return (
       <div className="min-h-screen grid place-items-center bg-background px-4">
         <Card className="w-full max-w-lg">
@@ -445,7 +459,7 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!mustVerify) return protectedChildren;
+  if (!mustVerify) { openedWithCurrentAssurance.current = true; return protectedChildren; }
   return (
     <div className="min-h-screen grid place-items-center bg-background px-4">
       {/* A real heading role: CardTitle renders a div, which left this full-screen gate invisible to

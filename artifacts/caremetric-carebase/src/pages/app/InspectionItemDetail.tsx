@@ -28,6 +28,7 @@ import { cn, humanize } from "@/lib/utils";
 import { facilityToday } from "@/lib/dateUtils";
 import { evacuationSeconds, fireDrillRecordErrors, type FireDrillRecordErrors } from "@/lib/fireDrillRecord";
 import { INSPECTION_RULES, evacuationFinding, isSleepingHours } from "@/lib/inspectionRules";
+import { PCH_ALR_ONLY_FACILITY_TYPES, type FacilityType } from "@/lib/facilityTypes";
 
 const SHIFT_OPTIONS = ["day", "evening", "overnight"] as const;
 
@@ -178,7 +179,8 @@ export default function InspectionItemDetail() {
   // shouldn't greet the user with a wall of red borders.
   const [showValidation, setShowValidation] = useState(false);
 
-  const facilityName = facilities?.find((f) => f.id === item?.facility_id)?.name;
+  const facility = facilities?.find((f) => f.id === item?.facility_id);
+  const facilityName = facility?.name;
   const isFireDrill = item?.item_type === "fire_drill_program" || item?.item_type === "fire_safety_expert_inspection";
   const { data: equipmentItems, isError: equipmentError } = useListInspectionItems(
     { facilityId: item?.facility_id, itemKind: "equipment", isActive: true },
@@ -304,6 +306,10 @@ export default function InspectionItemDetail() {
         </Button>
       </div>
     );
+  }
+
+  if (!facility || !PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType)) {
+    return <div className="space-y-4"><h1>PA inspection workspace</h1><p>This workflow covers Personal Care Homes under Chapter 2600 and Assisted Living Facilities under Chapter 2800. It does not assess other facility types.</p><Button asChild variant="outline"><Link href={backDestination.href}>Back to {backDestination.label}</Link></Button></div>;
   }
 
   return (

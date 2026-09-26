@@ -244,6 +244,22 @@ describe("administrator legacy pathways", () => {
     expect(qualification("ALR", profile)).toBe("compliant");
     expect(qualification("ALR", { ...profile, alf_supplement_hours: 14 })).toBe("missing");
     expect(qualification("ALR", { ...profile, alf_supplement_test_passed: false })).toBe("missing");
+    expect(qualification("ALR", { ...profile, hundred_hour_course_completed_date: "2027-01-01" })).toBe("missing");
+    expect(qualification("ALR", { ...profile, hundred_hour_course_completed_date: "2022-01-01" })).toBe("missing");
+  });
+  it("rejects a future competency test under the NHA pathway", () => {
+    expect(qualification("PCH", { qualification_path: "nha_exemption", nha_license_number: "NHA-1", nha_license_expiration: "2027-01-01",
+      first_employed_as_administrator_on: "2020-01-01", competency_test_passed: true, competency_test_date: "2027-01-01" })).toBe("missing");
+  });
+  it("allocates grace credit before applying the new year's medication cap", () => {
+    const annual = buildAdministratorRulePack("PCH", { profile: { first_employed_as_administrator_on: "2020-01-01" }, today: "2026-09-26",
+      trainingPolicy: { id: "policy", effective_from: "2020-01-01", year_basis: "fixed", year_start: "01-01", administrator_year_basis: "fixed", administrator_year_start: "01-01", policy_reference: "Calendar year" },
+      ceEntries: [ { completed_date: "2025-06-01", hours: 22, source: "Classroom" },
+        { completed_date: "2026-01-01", hours: 2, credit_category: "medication", source: "Classroom" },
+        { completed_date: "2026-02-01", hours: 6, credit_category: "medication", source: "Classroom" } ],
+    }).find(rule => rule.id === "administrator-continuing-education");
+    expect(annual?.earnedHours).toBe(6);
+    expect(annual?.detail).not.toContain("previous full training year");
   });
   it("applies the pre-2009 test exemption only with an explicit documented RCG choice", () => {
     const profile = { qualification_path: "hundred_hour_course", hundred_hour_course_completed_date: "2007-01-01", hundred_hour_course_document_path: "pch.pdf",

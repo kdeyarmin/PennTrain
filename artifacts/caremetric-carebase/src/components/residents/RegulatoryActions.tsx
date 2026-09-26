@@ -33,6 +33,7 @@ export function RegulatoryActions({ organizationId, facilityId, residentId, faci
   const [form, setForm] = useState(EMPTY);
   const [status, setStatus] = useState("pending");
   const completionLocked = editing?.status === "completed";
+  const sourceAnchored = !!editing && !!(editing.source_event_id || editing.source_census_event_id || editing.source_agreement_version_id || editing.source_signature_id);
   const canManage = ["org_admin", "facility_manager", "platform_admin"].includes(user?.role ?? "");
   const set = (key: keyof typeof EMPTY, value: string) => setForm((previous) => ({ ...previous, [key]: value }));
   const edit = (row: ResidentRegulatoryAction) => {
@@ -51,7 +52,7 @@ export function RegulatoryActions({ organizationId, facilityId, residentId, faci
     if (!form.anchor || form.reason.trim().length < 3 || (status === "completed" && (!form.completed || form.evidence.trim().length < 3)) || (status === "not_applicable" && form.exception.trim().length < 3)) {
       toast({ title: "Enter the event time, reason and completion or exception evidence", variant: "destructive" }); return;
     }
-    const common = { action_type: type, anchor_at: facilityDateTimeLocalToUtcIso(form.anchor), reason: form.reason.trim(), destination: form.destination.trim() || null,
+    const common = { action_type: type, anchor_at: sourceAnchored ? editing!.anchor_at : facilityDateTimeLocalToUtcIso(form.anchor), reason: form.reason.trim(), destination: form.destination.trim() || null,
       recipient_name: form.recipientName.trim() || null, status, completed_at: form.completed ? facilityDateTimeLocalToUtcIso(form.completed) : null,
       evidence: form.evidence.trim() || null, exception_basis: form.exception.trim() || null,
       details: { ...(editing?.details as Record<string, string> | undefined), language: form.language, ombudsman_contacts: form.ombudsman, rights_and_appeal: form.rights, aging_in_place_attempts: form.accommodation,
@@ -61,7 +62,7 @@ export function RegulatoryActions({ organizationId, facilityId, residentId, faci
       onError: (error: Error) => toast({ title: "Could not save regulatory record", description: error.message, variant: "destructive" }),
     });
   };
-  const field = (key: keyof typeof EMPTY, label: string, inputType?: string) => <div className="space-y-1"><Label htmlFor={`${id}-${key}`}>{label}</Label>{inputType ? <Input id={`${id}-${key}`} type={inputType} value={form[key]} disabled={completionLocked} onChange={(e) => set(key, e.target.value)} /> : <Textarea id={`${id}-${key}`} value={form[key]} disabled={completionLocked} onChange={(e) => set(key, e.target.value)} />}</div>;
+  const field = (key: keyof typeof EMPTY, label: string, inputType?: string) => <div className="space-y-1"><Label htmlFor={`${id}-${key}`}>{label}</Label>{inputType ? <Input id={`${id}-${key}`} type={inputType} value={form[key]} disabled={completionLocked || (key === "anchor" && sourceAnchored)} onChange={(e) => set(key, e.target.value)} /> : <Textarea id={`${id}-${key}`} value={form[key]} disabled={completionLocked} onChange={(e) => set(key, e.target.value)} />}</div>;
 
   return <Card>
     <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Notices, transfers and fund deadlines</CardTitle>{canManage && <Button className="print:hidden" onClick={() => { setEditing(null); setCorrectionOf(null); setForm(EMPTY); setStatus("pending"); setType(residentId ? "discharge_notice" : "closure_department_notice"); setOpen(true); }}>Add deadline</Button>}</CardHeader>
@@ -86,6 +87,7 @@ export function RegulatoryActions({ organizationId, facilityId, residentId, faci
           {correctionOf && <p className="text-sm">This appends a correction to record {correctionOf.id} for {humanize(correctionOf.recipient_role)}. Explain the correction and record its evidence; the original remains unchanged.</p>}
           {!editing && !correctionOf && regulatoryActionRecipients(type).length > 1 && <p className="text-sm">Creates separate pending records for the resident, designated person/family and referral agent. Record each actual delivery separately.</p>}
           {field("anchor", `${REGULATORY_ACTIONS[type].anchor} (Pennsylvania time) *`, "datetime-local")}
+          {sourceAnchored && <p className="text-sm text-muted-foreground">This event time comes from the recorded departure, closure, census or agreement event and is read-only.</p>}
           {field("reason", "Reason / triggering event *")}
           {["discharge_notice", "closure_resident_notice", "transfer_record"].includes(type) && field("destination", "Destination (or explain that it is unknown)")}
           {(facilityType === "ALR" || editing?.resident_id || correctionOf?.resident_id) && ["discharge_notice", "closure_resident_notice"].includes(type) && <>{field("language", "Notice language / accessible delivery format (ALF)")}{field("ombudsman", "State and local ombudsman names, mailing addresses and phone numbers (ALF)")}{field("rights", "Discharge rights and how to challenge the decision (ALF)")}{field("accommodation", "Aging-in-place accommodations attempted / supporting record (ALF)")}</>}

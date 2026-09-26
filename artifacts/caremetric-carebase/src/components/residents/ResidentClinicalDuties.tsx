@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useResidentRegulatoryActions, useSaveResidentRegulatoryAction, type ResidentRegulatoryAction } from "@/hooks/useResidentRegulatoryActions";
+import { useResidentRegulatoryActions, useSaveResidentClinicalDuty, type ResidentRegulatoryAction } from "@/hooks/useResidentRegulatoryActions";
 import { useListResidentDocuments, useUploadResidentDocument } from "@/hooks/useResidentDocuments";
 import { RESIDENT_CLINICAL_DUTIES, isResidentClinicalDuty, type ResidentClinicalDutyType } from "@/lib/residentClinicalDuties";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
@@ -20,7 +20,7 @@ export function ResidentClinicalDuties({ resident, facilityType, canManage }: { 
   const cache = useQueryClient();
   const query = useResidentRegulatoryActions(resident.facility_id, resident.id);
   const docs = useListResidentDocuments(resident.id);
-  const save = useSaveResidentRegulatoryAction();
+  const save = useSaveResidentClinicalDuty(resident.id);
   const upload = useUploadResidentDocument();
   const [type, setType] = useState<ResidentClinicalDutyType | null>(null);
   const [editing, setEditing] = useState<ResidentRegulatoryAction | null>(null);
@@ -47,11 +47,10 @@ export function ResidentClinicalDuties({ resident, facilityType, canManage }: { 
           ...(values.screened_at ? { screened_at: facilityDateTimeLocalToUtcIso(values.screened_at) } : {}) };
         const complete = !!editing || type === "scu_admission";
         const completion = values.completed ? facilityDateTimeLocalToUtcIso(values.completed) : null;
-        const common = { details, status: values.prescriber_instruction?.trim() ? "not_applicable" : complete ? "completed" : "pending", completed_at: complete ? completion : null,
-          evidence: values.evidence || null, recipient_name: values.recipient_name || null, exception_basis: values.prescriber_instruction || null };
-        await save.mutateAsync(editing ? { id: editing.id, changes: common } : { rows: [{ ...common, organization_id: resident.organization_id, facility_id: resident.facility_id, resident_id: resident.id,
-          action_type: type, anchor_at: facilityDateTimeLocalToUtcIso(values.anchor), reason: values.reason,
-          recipient_role: type === "alf_exception_request" ? "department" : "resident" }] });
+        await save.mutateAsync({ id: editing?.id, actionType: type, details,
+          status: values.prescriber_instruction?.trim() ? "not_applicable" : complete ? "completed" : "pending",
+          completedAt: complete ? completion : null, evidence: values.evidence || null, recipientName: values.recipient_name || null, exceptionBasis: values.prescriber_instruction || null,
+          ...(!editing ? { anchorAt: facilityDateTimeLocalToUtcIso(values.anchor), reason: values.reason } : {}) });
       }
       await cache.invalidateQueries({ queryKey: ["resident_regulatory_actions"] }); await cache.invalidateQueries({ queryKey: ["residents", resident.id] });
       setType(null); toast({ title: "Clinical duty recorded" });

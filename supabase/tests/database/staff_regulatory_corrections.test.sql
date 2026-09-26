@@ -1,5 +1,5 @@
 begin;
-select plan(22);
+select plan(26);
 
 select is((select applies_to_track from public.onboarding_checklist_templates where organization_id is null and code='ORIENT-40HR'),'all','the statutory 40-hour orientation covers agency, substitutes and volunteers');
 select is((select deadline_value::integer from public.onboarding_checklist_templates where organization_id is null and code='DAY1-FIRE-EP'),0,'fire orientation is due on day one, not the following day');
@@ -68,6 +68,26 @@ select is((public.schedule_emergency_coverage('a2370000-0000-4000-8000-000000000
 select ok((public.schedule_emergency_coverage('a2370000-0000-4000-8000-000000000031')->1 @> '{"first_aid":1,"cpr_airway":1}'),'the RCG permits separate first-aid and CPR/airway staff');
 select is((public.schedule_emergency_coverage('a2370000-0000-4000-8000-000000000031')->0->>'first_aid')::integer,0,'an unstaffed interval has no invented coverage');
 select ok((public.schedule_emergency_coverage('a2370000-0000-4000-8000-000000000032')->0 @> '{"first_aid":1,"cpr_airway":1}'),'the competing draft has its own qualified coverage, not shared with the selected schedule');
+-- Existing assignments remain visible but cannot supply qualified-care hours
+-- merely because a role and awake checkbox were entered.
+insert into public.employee_regulatory_profiles(employee_id,organization_id,facility_id,birth_date,role_category,updated_by)
+values('a2370000-0000-4000-8000-000000000021','a2370000-0000-4000-8000-000000000001','a2370000-0000-4000-8000-000000000011','1990-01-01','direct_care','a2370000-0000-4000-8000-000000000101');
+update public.shift_assignments set awake_direct_care=true where employee_id='a2370000-0000-4000-8000-000000000021';
+select is((public.schedule_staff_care_coverage('a2370000-0000-4000-8000-000000000031')->'days'->0->>'available_hours')::numeric,0::numeric,
+ 'an existing awake assignment with incomplete qualifications contributes no care hours');
+select ok(not exists(select 1 from jsonb_array_elements(public.schedule_staff_care_coverage('a2370000-0000-4000-8000-000000000031')->'intervals') i where (i->>'adult21_staff')::integer>0),
+ 'a birth date alone does not establish a qualified direct-care adult');
+insert into public.employee_background_check_profiles(organization_id,facility_id,employee_id,pa_resident_two_years,suitability_determination)
+values('a2370000-0000-4000-8000-000000000001','a2370000-0000-4000-8000-000000000011','a2370000-0000-4000-8000-000000000021',true,'suitable');
+update public.employee_credentials set issue_date='2026-01-01',status='compliant'
+where employee_id='a2370000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
+update public.employee_regulatory_profiles set education='high_school',education_evidence='Verified diploma',medical_fitness_confirmed=true
+where employee_id='a2370000-0000-4000-8000-000000000021';
+select is((public.schedule_staff_care_coverage('a2370000-0000-4000-8000-000000000031')->'days'->0->>'available_hours')::numeric,8::numeric,
+ 'current qualification and clearance evidence restore the existing eight-hour shift');
+update public.employee_regulatory_profiles set medical_fitness_confirmed=false where employee_id='a2370000-0000-4000-8000-000000000021';
+select is((public.schedule_staff_care_coverage('a2370000-0000-4000-8000-000000000031')->'days'->0->>'available_hours')::numeric,0::numeric,
+ 'withdrawn fitness evidence invalidates coverage without deleting the assignment');
 update public.facilities set facility_type='ALR' where id='a2370000-0000-4000-8000-000000000011';
 select is((public.schedule_emergency_coverage('a2370000-0000-4000-8000-000000000031')->1->>'required')::integer,2,'36 ALF residents require two in each skill group');
 select * from finish();

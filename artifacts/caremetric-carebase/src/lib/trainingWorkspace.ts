@@ -3,6 +3,7 @@ import type { StaffRegulatoryPolicy, EmployeeRegulatoryProfile } from "@/hooks/u
 export type StaffTrainingSummary = { start: string; end: string; graceThrough: string; basis: string; partialFirstYear: boolean;
   documented: boolean; completedHours: number; requiredHours: number; administratorHours: number; alrDementiaHours: number; specialUnitHours: number;
   previousYearOverdue?: boolean; previousCompletedHours?: number; graceHoursAllocatedToPrevious?: number;
+  previousAlrDementiaOverdue?: boolean; previousSpecialUnitOverdue?: boolean; previousAdministratorOverdue?: boolean;
   previousPeriod?: {start: string; end: string; graceThrough: string; partialFirstYear: boolean} };
 export type TrainingPolicy = {
   id: string; effective_from: string; year_basis: "fixed" | "anniversary"; year_start: string;
@@ -242,10 +243,10 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
         `Direct care, ancillary, substitutes and regularly scheduled volunteers: missing ${names(missing)}. Fire instruction requires the qualified expert or trained on-site instructor. Confirm audience in the duty profile.`, period.end);
       conditionalTopic("new_population", "new_population", `${chapter}.65(${alr ? "j" : "g"})`, from, period.end);
     }
-    if (alr) add("dementia_annual", "ALF annual dementia instruction", "2800.69", !hireDate || today < inYear(Number(hireDate.slice(0, 4)) + 1, hireDate.slice(5)) ? null : hours("dementia_annual", from, today) >= 2 && has("dementia", from),
-      "2 additional hours annually thereafter; verify first-year applicability and documented training-year policy.", period.end);
-    if (p.direct_care && validUnit) add("special_annual", "Special unit annual hours and topics", `${chapter}.236`, hours("special_annual", from, today) >= (alr ? 8 : 6) && missingTopics(alr ? specialTopics : ["dementia"], from).length === 0,
-      `Additional ${alr ? 8 : 6} hours of structured training for direct-care staff in this unit; on-the-job hours do not count. Required topics: ${names(alr ? specialTopics : ["dementia"])}.`, period.end);
+    if (alr) add("dementia_annual", "ALF annual dementia instruction", "2800.69", !hireDate || today < inYear(Number(hireDate.slice(0, 4)) + 1, hireDate.slice(5)) ? null : (input.annualSummary?.alrDementiaHours ?? hours("dementia_annual", from, today)) >= 2 && has("dementia", from),
+      "2 additional hours annually thereafter; verify first-year applicability and documented training-year policy.", input.annualSummary?.graceThrough ?? addDays(period.end, input.staffPolicy?.annual_grace_days ?? 15));
+    if (p.direct_care && validUnit) add("special_annual", "Special unit annual hours and topics", `${chapter}.236`, (input.annualSummary?.specialUnitHours ?? hours("special_annual", from, today)) >= (alr ? 8 : 6) && missingTopics(alr ? specialTopics : ["dementia"], from).length === 0,
+      `Additional ${alr ? 8 : 6} hours of structured training for direct-care staff in this unit; on-the-job hours do not count. Required topics: ${names(alr ? specialTopics : ["dementia"])}.`, input.annualSummary?.graceThrough ?? addDays(period.end, input.staffPolicy?.annual_grace_days ?? 15));
     if (p.administrator) {
       const admin = trainingPeriod(today, hireDate || p.first_work_date, policy.administrator_year_basis, policy.administrator_year_start);
       const earned = input.annualSummary?.administratorHours ?? hours("administrator", admin.start, today);
@@ -271,6 +272,11 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     "The initial medication course remains valid under the RCG; complete the course-defined practicum each year. Retain observed-performance evidence.");
   if (input.annualSummary?.previousYearOverdue) add("previous_annual", "Previous training year remains deficient", `${chapter}.65 RCG`, false,
     `${input.annualSummary.previousCompletedHours ?? 0} / ${input.annualSummary.requiredHours} hours recorded for ${input.annualSummary.previousPeriod?.start} through ${input.annualSummary.previousPeriod?.end}. Starting a new year does not clear the prior deficiency.`, input.annualSummary.previousPeriod?.graceThrough ?? null);
+  for (const [needed, key, label, citation] of [
+    [alr && input.annualSummary?.previousAlrDementiaOverdue, "previous_dementia", "Previous annual dementia training remains deficient", `${chapter}.69`],
+    [p.direct_care && validUnit && input.annualSummary?.previousSpecialUnitOverdue, "previous_special", "Previous special-unit training remains deficient", `${chapter}.236`],
+    [p.administrator && input.annualSummary?.previousAdministratorOverdue, "previous_administrator", "Previous administrator training remains deficient", `${chapter}.64`],
+  ] as const) if (needed) add(key, label, citation, false, "The previous full training year remains below its required hours after the documented grace period. Current-year progress does not erase that deficiency.");
   return checks;
 }
 

@@ -40506,6 +40506,14 @@ export type Database = {
         Args: { p_request_fingerprint_sha256?: string; p_token: string }
         Returns: Json
       }
+      get_resident_regulatory_actions: {
+        Args: {
+          p_facility_id: string
+          p_offset?: number
+          p_resident_id?: string
+        }
+        Returns: Database["public"]["Tables"]["resident_regulatory_actions"]["Row"][]
+      }
       get_resident_service_task_queue: {
         Args: {
           p_facility_id?: string
@@ -44274,6 +44282,22 @@ export type Database = {
         Args: { p_profile: Json; p_resident_id: string }
         Returns: boolean
       }
+      save_resident_clinical_duty: {
+        Args: {
+          p_action_id?: string
+          p_action_type: string
+          p_anchor_at?: string
+          p_completed_at?: string
+          p_details: Json
+          p_evidence?: string
+          p_exception_basis?: string
+          p_reason?: string
+          p_recipient_name?: string
+          p_resident_id: string
+          p_status?: string
+        }
+        Returns: undefined
+      }
       save_resident_payment_link: {
         Args: {
           p_amount_due: number
@@ -44785,6 +44809,18 @@ export type Database = {
       staff_emergency_qualification_mask: {
         Args: { p_employee_id: string; p_end: string; p_start: string }
         Returns: number
+      }
+      staff_training_credit_allocation: {
+        Args: {
+          p_bucket: string
+          p_employee_id: string
+          p_exclude?: Json
+          p_from: string
+          p_limit?: number
+          p_remaining?: Json
+          p_through: string
+        }
+        Returns: Json
       }
       staff_training_period: {
         Args: {

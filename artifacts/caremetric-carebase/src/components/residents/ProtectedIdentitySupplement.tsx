@@ -20,7 +20,7 @@ export function ProtectedIdentitySupplement({ residentId, value, canManage }: { 
   const cache = useQueryClient();
   const { toast } = useToast();
   const save = useMutation({ mutationFn: async () => {
-    const { error } = await supabase.rpc("record_protected_identity_supplement" as never, { p_resident_id: residentId, p_external_reference: reference, p_custodian: custodian, p_access_instructions: instructions, p_verified_at: facilityDateTimeLocalToUtcIso(verified), p_reason: reason } as never);
+    const { error } = await supabase.rpc("record_protected_identity_supplement", { p_resident_id: residentId, p_external_reference: reference, p_custodian: custodian, p_access_instructions: instructions, p_verified_at: facilityDateTimeLocalToUtcIso(verified), p_reason: reason });
     if (error) throw error;
   }, onSuccess: () => { void cache.invalidateQueries({ queryKey: ["residents"] }); setEditing(false); toast({ title: "Protected supplement reference recorded" }); }, onError: (error: Error) => toast({ title: "Could not record supplement", description: error.message, variant: "destructive" }) });
   return <div className="space-y-2 rounded border p-3 text-sm">

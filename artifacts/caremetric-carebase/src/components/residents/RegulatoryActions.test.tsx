@@ -83,4 +83,17 @@ describe("completed regulatory notice evidence", () => {
     expect(completed.destination).toBe("Original destination");
     expect(completed.evidence).toBe("Original written notice");
   });
+
+  it("preserves the exact source timestamp when recording notice delivery", () => {
+    const anchor = "2026-04-01T14:00:47.123456+00:00";
+    harness.rows = [{ ...completed, status: "pending", completed_at: null, anchor_at: anchor, source_event_id: "departure-plan" }];
+    click("Record delivery / update");
+    expect(render().find(node => node.props.id === "regulatory-form-anchor" && node.props.onChange)?.props.disabled).toBe(true);
+    const status = render().find(node => node.props.value === "pending" && node.props.onValueChange)!;
+    (status.props.onValueChange as (value: string) => void)("completed");
+    enter("completed", "2026-03-01T10:00");
+    enter("evidence", "Signed delivery receipt retained");
+    click("Save record");
+    expect(harness.save.mock.calls[0][0]).toMatchObject({ id: "completed-record", changes: { anchor_at: anchor, status: "completed" } });
+  });
 });

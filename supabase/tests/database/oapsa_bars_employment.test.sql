@@ -7,7 +7,7 @@
 -- would offer them the next shift. Run with: supabase test db.
 
 begin;
-select plan(28);
+select plan(30);
 
 ------------------------------------------------------------------------------------------------
 -- The window: unknown residency used to take the LONGER one
@@ -230,7 +230,8 @@ select is(
   'and an employee with no provisional period raises nothing'
 );
 
--- Re-running must not duplicate, and clearing the period must resolve.
+-- Re-running must not duplicate. Receipt of the actual clearance resolves the
+-- alert without deleting the historical provisional date or request evidence.
 select public.run_oapsa_provisional_maintenance();
 select is(
   (select count(*)::int from public.alerts
@@ -240,17 +241,24 @@ select is(
   'a second sweep does not duplicate the alert'
 );
 
-update public.employee_background_check_profiles
-set provisional_start_date = null
-where employee_id = '17000000-0000-4000-8000-000000000033';
+update public.employee_credentials set issue_date=public.pa_today(),status='compliant'
+where employee_id='17000000-0000-4000-8000-000000000033' and credential_type='act34_criminal_history';
 select public.run_oapsa_provisional_maintenance();
 select is(
   (select status from public.alerts
    where employee_id = '17000000-0000-4000-8000-000000000033'
      and alert_type = 'oapsa_provisional_expiring'),
   'resolved',
-  'and clearing the provisional period resolves the alert rather than leaving it open'
+  'receiving the clearance resolves the alert while keeping the provisional history'
 );
+
+select is((select provisional_start_date from public.employee_background_check_profiles where employee_id='17000000-0000-4000-8000-000000000033'),public.pa_today()-40,
+ 'resolving the alert preserves the actual provisional start date');
+select throws_ok(
+ $$insert into public.schedule_eligibility_overrides(organization_id,facility_id,employee_id,block_code,scope_type,reason,authority_reference,effective_from,expires_at,granted_by)
+ values('17000000-0000-4000-8000-000000000001','17000000-0000-4000-8000-000000000011','17000000-0000-4000-8000-000000000034',
+ 'oapsa_provisional_expired','facility','Do not override the clearance clock','pgTAP',now()-interval '1 day',now()+interval '1 day','17000000-0000-4000-8000-000000000041')$$,
+ '23514',null,'expired or incomplete provisional conditions cannot be overridden');
 
 
 ------------------------------------------------------------------------------------------------

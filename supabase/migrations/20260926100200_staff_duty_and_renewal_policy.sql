@@ -159,7 +159,7 @@ from public.training_types tt where tt.id=r.training_type_id and tt.organization
   and r.completion_date is null and r.status in ('missing','pending_review') and r.approval_status is null;
 
 do $$ declare e record; begin
- for e in select e.id from public.employees e join public.facilities f on f.id=e.facility_id where f.facility_type in ('PCH','ALR') and e.status='active' loop
+ for e in select emp.id from public.employees emp join public.facilities f on f.id=emp.facility_id where f.facility_type in ('PCH','ALR') and emp.status='active' loop
   perform public.instantiate_employee_onboarding_checklist(e.id);
  end loop;
 end $$;

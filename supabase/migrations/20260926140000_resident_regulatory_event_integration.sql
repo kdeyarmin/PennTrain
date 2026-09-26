@@ -50,7 +50,7 @@ create unique index regulatory_signature_duty on public.resident_regulatory_acti
 
 create function app_private.validate_regulatory_source()
 returns trigger language plpgsql security definer set search_path='' as $$
-declare v_anchor timestamptz; v_resident uuid; v_facility uuid; v_type text;
+declare v_anchor timestamptz; v_resident uuid; v_facility uuid; v_type text; v_agreement uuid;
 begin
  if num_nonnulls(new.source_event_id,new.source_census_event_id,new.source_agreement_version_id,new.source_signature_id)>1 then
   raise exception 'A regulatory duty has one triggering source' using errcode='23514'; end if;
@@ -68,14 +68,30 @@ begin
    or (v_type='facility_closed' and new.action_type='closure_license_return')) then
    raise exception 'Duty does not match its triggering event' using errcode='23514'; end if;
  elsif new.source_census_event_id is not null then
-  select effective_at,resident_id,facility_id into v_anchor,v_resident,v_facility from public.resident_census_events where id=new.source_census_event_id;
+  select effective_at,resident_id,facility_id into v_anchor,v_resident,v_facility from public.resident_census_events
+   where id=new.source_census_event_id and prior_status in ('active','temporarily_out','hospital_leave')
+    and (resulting_status='discharged' or (resulting_status='deceased' and new.action_type in ('transfer_record','itemized_funds_account')));
   if new.action_type not in ('transfer_record','discharge_notice','itemized_funds_account','refund_due','personal_needs_refund') then raise exception 'Duty does not match census departure' using errcode='23514'; end if;
  elsif new.source_agreement_version_id is not null then
-  select effective_at,resident_id,facility_id into v_anchor,v_resident,v_facility from public.resident_agreement_versions where id=new.source_agreement_version_id;
+  -- Version numbers and agreement types establish an amendment. A later version
+  -- superseding this one must not prevent completion of its historical notice.
+  select v.effective_at,v.resident_id,v.facility_id into v_anchor,v_resident,v_facility
+   from public.resident_agreement_versions v join public.resident_agreements a on a.id=v.agreement_id
+   where v.id=new.source_agreement_version_id and v.version_number>1
+    and a.agreement_type in ('resident_home_contract','fee_schedule','service_addendum');
   if new.action_type<>'contract_change_notice' then raise exception 'A version creates a contract change notice' using errcode='23514'; end if;
  elsif new.source_signature_id is not null then
-  select signed_at,resident_id,facility_id into v_anchor,v_resident,v_facility from public.resident_agreement_signatures where id=new.source_signature_id;
+  select s.signed_at,s.resident_id,s.facility_id,s.agreement_id into v_anchor,v_resident,v_facility,v_agreement
+   from public.resident_agreement_signatures s join public.resident_agreement_versions v on v.id=s.agreement_version_id
+   join public.resident_agreements a on a.id=s.agreement_id
+   where s.id=new.source_signature_id and s.outcome='signed' and v.version_number=1
+    and v.agreement_id=a.id and a.agreement_type='resident_home_contract';
   if new.action_type<>'contract_rescission_window' then raise exception 'A signature creates a rescission window' using errcode='23514'; end if;
+  if tg_op='INSERT' and (exists(select 1 from public.resident_agreement_signatures s
+    where s.agreement_id=v_agreement and s.outcome='signed' and s.signed_at<v_anchor)
+   or exists(select 1 from public.resident_regulatory_actions d join public.resident_agreement_signatures s on s.id=d.source_signature_id
+    where s.agreement_id=v_agreement and d.action_type='contract_rescission_window' and s.id<>new.source_signature_id)) then
+   raise exception 'A later signer cannot restart the original contract rescission window' using errcode='23514'; end if;
  else return new;
  end if;
  if v_anchor is null or new.anchor_at is distinct from v_anchor or new.resident_id is distinct from v_resident or new.facility_id is distinct from v_facility then

@@ -7,7 +7,7 @@ vi.mock("react", async original => ({ ...await original<typeof import("react")>(
 } }));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: h.invalidate }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
-vi.mock("@/hooks/useResidentRegulatoryActions", () => ({ useResidentRegulatoryActions: () => ({ data: h.rows }), useSaveResidentRegulatoryAction: () => ({ mutateAsync: h.save }) }));
+vi.mock("@/hooks/useResidentRegulatoryActions", () => ({ useResidentRegulatoryActions: () => ({ data: h.rows }), useSaveResidentClinicalDuty: () => ({ mutateAsync: h.save }) }));
 vi.mock("@/hooks/useResidentDocuments", () => ({ useListResidentDocuments: () => ({ data: [] }), useUploadResidentDocument: () => ({ mutateAsync: h.upload }) }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: vi.fn() } }));
 import { ResidentClinicalDuties } from "./ResidentClinicalDuties";
@@ -24,13 +24,13 @@ describe("resident clinical duty completion",()=>{
     expect(render().find(n=>n.props.children==="Save clinical record")?.props.disabled).toBe(true);
     fill("recipient_name","Dr Recorded Prescriber"); fill("completed","2026-09-01T10:15"); fill("evidence","Prescriber contacted; requested monitoring and next-dose review.");
     click("Save clinical record");
-    await vi.waitFor(()=>expect(h.save).toHaveBeenCalledWith({ id:"duty",changes:expect.objectContaining({status:"completed",completed_at:"2026-09-01T14:15:00.000Z",recipient_name:"Dr Recorded Prescriber",details:expect.objectContaining({external_event_id:"source-event"})}) }));
+    await vi.waitFor(()=>expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ id:"duty",actionType:"medication_refusal_notice",status:"completed",completedAt:"2026-09-01T14:15:00.000Z",recipientName:"Dr Recorded Prescriber",details:expect.objectContaining({external_event_id:"source-event"}) })));
     expect(h.upload).not.toHaveBeenCalled();
   });
   it("records a prescriber's alternative refusal schedule as evidence, without inventing a completion",async()=>{
     click("Record completion / decision"); fill("prescriber_instruction","Prescriber directed reporting at the next scheduled review; signed order retained.");
     click("Save clinical record");
-    await vi.waitFor(()=>expect(h.save).toHaveBeenCalledWith({id:"duty",changes:expect.objectContaining({status:"not_applicable",completed_at:null,exception_basis:expect.stringContaining("signed order retained")})}));
+    await vi.waitFor(()=>expect(h.save).toHaveBeenCalledWith(expect.objectContaining({id:"duty",status:"not_applicable",completedAt:null,exceptionBasis:expect.stringContaining("signed order retained")})));
   });
   it("does not offer write actions to a reader",()=>{
     expect(render(false).some(n=>n.props.children==="Record completion / decision")).toBe(false);
