@@ -40,6 +40,8 @@ The first complete integrated revision `c866444d` passed [CI 36275556812](https:
 
 The continued pass additionally verified frozen-lockfile installation and a clean npm dependency audit, reproduced public credential carryover in a real Chromium browser before correction, and passed all eight new mocked-service browser regressions afterward. The current commit's complete application/database/browser results are linked from the PR; the earlier run above is historical evidence, not a substitute for validating the continued fixes.
 
+Visual inspection of the continued CI previews caught singular counts labeled as plural in the training-rule confirmation and success message. Both labels now match the actual selected/created count; the existing real enrollment browser journey uses the corrected confirmation text.
+
 
 ## Training workflow review — September 25, 2026
 

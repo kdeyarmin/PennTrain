@@ -64,6 +64,8 @@ The same review found policy-signing feedback surviving its original review. Suc
 
 The public routes required an independent credential boundary: Wouter retains the same page component across tokenized and scrubbed paths, so a token captured only in initial state could survive token A-to-B navigation. A shared boundary now resets the six guest/check-in page families by credential while preserving the current page during URL scrubbing. Reopening the same grant preserves a draft and scrubs the URL again. An explicit repeat check-in scan issues another action, while automatic scrubbing does not. The designated-person document navigation callback also expires with its page observer. Eight real Chromium regressions cover these transitions, prior draft removal, delayed downloads and action counts; their mocked services establish browser lifecycle behavior, with actual server authorization covered separately by CI's existing database and authenticated journeys.
 
+The continued CI assignment preview also exposed singular counts rendered as “1 assignments” and “1 employees.” Training-rule confirmation and completion feedback now use the appropriate singular/plural labels, with the existing enrollment browser journey updated to the correct visible control name.
+
 ## Execution evidence
 
 Validation results and the initial integrated CI link are recorded in the matching `BACKLOG.md` review entry. The final branch's complete gate is attached to [PR #576](https://github.com/kdeyarmin/PennTrain/pull/576/checks). Local Docker's engine did not respond, so database-backed and authenticated browser checks use CI's disposable Supabase stack rather than a production tenant. Build-only fixtures use the same non-production keys as the existing CI application lane.
