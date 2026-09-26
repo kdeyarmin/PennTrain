@@ -84,7 +84,7 @@ export const FAQS: MarketingFaq[] = [
     category: "Compliance boundaries",
     question: "Does it track resident-level compliance, not just staff?",
     answer:
-      "Yes, for PCH and ALF: RASP/ASP preadmission screening, the initial assessment (due 15 days after admission for a personal care home; normally completed 30 days before admission for an assisted living facility), annual and significant-change reassessments, and support-plan updates — each on its own due date. The signed, DHS-prescribed form on file is still what closes the requirement.",
+      "Yes, for PCH and ALF: the personal care home preadmission screening, the initial assessment (within 15 days after admission for a personal care home; within the 30 days before admission for an assisted living facility, or up to 15 days after for a direct hospital admission, an escape from abuse, or no alternative living arrangement), annual and significant-change reassessments, and support-plan updates — each on its own due date. The signed, DHS-prescribed form on file is still what closes the requirement.",
   },
   {
     category: "Training & daily operations",

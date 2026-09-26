@@ -27,10 +27,17 @@ describe("PCH/ALR operations catalog", () => {
     expect(searchPchAlrOperations("grievance").map((item) => item.id)).toContain("rights-grievances");
   });
 
-  it("finds ALF-only workflows by the label the page shows, not just the stored ALR code", () => {
+  it("finds ALF workflows by the label the page shows, not just the stored ALR code", () => {
     expect(searchPchAlrOperations("alf").map((item) => item.id)).toContain("special-care");
     expect(searchPchAlrOperations("assisted living").map((item) => item.id)).toContain("special-care");
     expect(searchPchAlrOperations("alr").map((item) => item.id)).toContain("special-care");
+  });
+
+  it("covers PCH secured dementia care units as well as ALF special care units", () => {
+    const specialCare = PCH_ALR_OPERATIONS_ITEMS.find((item) => item.id === "special-care");
+    expect(specialCare?.programs).toEqual(["PCH", "ALR"]);
+    expect(specialCare?.citations).toEqual(["55 Pa. Code 2600.231–2600.239", "55 Pa. Code 2800.69, 2800.231–2800.239"]);
+    expect(getPchAlrItemsByProgram("PCH").map((item) => item.id)).toContain("special-care");
   });
 
   it("returns domain-specific workflows", () => {

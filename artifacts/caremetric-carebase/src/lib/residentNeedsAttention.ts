@@ -172,7 +172,8 @@ const TYPED_ASSISTANCE_OR_REFUSAL = new Set([
 // 2600.141 / 2800.141) raised no Needs Attention card at all: the one obligation whose absence a
 // surveyor reads as "care decisions rest on nothing" was the one the card could not see.
 // support_plan_30day is deliberately absent: it has its own support_plan_* cards below, and adding
-// it here would raise two cards for one obligation.
+// it here would raise two cards for one obligation. The ALF quarterly review is present: those
+// cards read the plan's own review date, which nothing ties to the 2800.227(c) quarterly cycle.
 const ASSESSMENT_ITEM_TYPES = new Set([
   "preadmission_screening",
   "initial_assessment_15day",
@@ -180,6 +181,7 @@ const ASSESSMENT_ITEM_TYPES = new Set([
   "significant_change_reassessment",
   "medical_evaluation",
   "annual_medical_evaluation",
+  "support_plan_quarterly_review",
 ]);
 
 const OPEN_COMPLIANCE_STATUSES = new Set(["missing", "expired", "due_soon", "overdue"]);
@@ -262,12 +264,17 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
   for (const item of assessmentItems) {
     if (!OPEN_COMPLIANCE_STATUSES.has(item.status)) continue;
     const overdue = isDateOverdue(item.due_date, now);
+    const quarterlyReview = item.item_type === "support_plan_quarterly_review";
     cards.push({
       id: `assessment-${item.id}`,
       kind: "assessment_overdue",
       severity: overdue ? "urgent" : "high",
-      title: overdue ? "Assessment overdue" : "Assessment due soon",
-      why: "PA requires a current assessment on the DHS-prescribed form before care decisions rest on it.",
+      title: quarterlyReview
+        ? overdue ? "Quarterly support plan review overdue" : "Quarterly support plan review due soon"
+        : overdue ? "Assessment overdue" : "Assessment due soon",
+      why: quarterlyReview
+        ? "55 Pa. Code 2800.227(c) requires each ALF resident's final support plan to be reviewed quarterly."
+        : "PA requires a current assessment on the DHS-prescribed form before care decisions rest on it.",
       evidence: `Compliance item ${item.item_type} is ${item.status}.`,
       owner: "Administrator",
       dueDate: item.due_date ?? null,

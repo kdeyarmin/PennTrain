@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAdministratorRulePack, summarizeAdministratorRulePack } from "./administratorRulePacks";
+import { buildAdministratorRulePack, summarizeAdministratorRulePack, type AdministratorRulePackProfile } from "./administratorRulePacks";
 
 describe("administrator rule packs", () => {
   it("evaluates PCH and ALR facilities with different rule packs", () => {
@@ -92,5 +92,92 @@ describe("administrator rule packs", () => {
     expect(rules.find((rule) => rule.id === "alr-approved-course-test")?.status).toBe("missing");
     expect(rules.find((rule) => rule.id === "administrator-continuing-education")?.status).toBe("missing");
     expect(summarizeAdministratorRulePack(rules).blockingCount).toBeGreaterThan(0);
+  });
+
+  it("cites the chapter's own administrator sections for each facility type", () => {
+    const pch = buildAdministratorRulePack("PCH", { today: "2026-07-13", profile: null, ceEntries: [] });
+    const alr = buildAdministratorRulePack("ALR", { today: "2026-07-13", profile: null, ceEntries: [] });
+
+    expect(pch.find((rule) => rule.id === "pch-administrator-qualification")?.citation).toBe("55 Pa. Code 2600.64");
+    expect(pch.find((rule) => rule.id === "administrator-coverage")?.citation).toBe("55 Pa. Code 2600.56; 2600.64(e)");
+    expect(pch.find((rule) => rule.id === "administrator-coverage")?.detail).toContain("20 hours a week");
+    expect(alr.find((rule) => rule.id === "alr-approved-course-test")?.citation).toBe("55 Pa. Code 2800.64");
+    expect(alr.find((rule) => rule.id === "alr-orientation-and-dementia")?.citation).toBe("55 Pa. Code 2800.64(a); 2800.69");
+    expect(alr.find((rule) => rule.id === "administrator-coverage")?.citation).toBe("55 Pa. Code 2800.56; 2800.64(e)");
+    expect(alr.find((rule) => rule.id === "administrator-coverage")?.detail).toContain("36 hours a week");
+    for (const rule of [...pch, ...alr]) {
+      expect(rule.detail).not.toMatch(/Assisted Living Residence|\bALR\b/);
+    }
+  });
+
+  describe("licensed-NHA exemption (2600.64(g) / 2800.64(g))", () => {
+    const nhaProfile = {
+      qualification_path: "nha_exemption",
+      nha_license_number: "NHA-123",
+      nha_license_expiration: "2027-07-01",
+    };
+    const qualification = (facilityType: "PCH" | "ALR", profile: AdministratorRulePackProfile) =>
+      buildAdministratorRulePack(facilityType, { today: "2026-07-13", profile, ceEntries: [] })
+        .find((rule) => rule.id === (facilityType === "ALR" ? "alr-approved-course-test" : "pch-administrator-qualification"));
+
+    it("does not read a licensed NHA as qualified with neither a test nor an employment date on file", () => {
+      const pch = qualification("PCH", nhaProfile);
+      const alr = qualification("ALR", nhaProfile);
+
+      expect(pch?.status).toBe("missing");
+      expect(pch?.detail).toContain("Record when this NHA was first employed as an administrator");
+      expect(pch?.detail).toContain("before 10/24/2006");
+      expect(pch?.detail).toContain("2600.64(g)");
+      expect(alr?.status).toBe("missing");
+      expect(alr?.detail).toContain("before 1/18/2011");
+      expect(alr?.detail).toContain("2800.64(g)");
+    });
+
+    it("reads an NHA employed as administrator before the chapter's cutoff as exempt", () => {
+      const pch = qualification("PCH", { ...nhaProfile, first_employed_as_administrator_on: "2006-10-23" });
+      const alr = qualification("ALR", { ...nhaProfile, first_employed_as_administrator_on: "2011-01-17" });
+
+      expect(pch?.status).toBe("compliant");
+      expect(pch?.detail).toContain("before 10/24/2006, so 2600.64(g) exempts them");
+      expect(alr?.status).toBe("compliant");
+      expect(alr?.detail).toContain("before 1/18/2011, so 2800.64(g) exempts them");
+    });
+
+    it("requires the competency test from an NHA hired on or after the cutoff", () => {
+      const pch = qualification("PCH", { ...nhaProfile, first_employed_as_administrator_on: "2006-10-24" });
+      const alrOnTheDay = qualification("ALR", { ...nhaProfile, first_employed_as_administrator_on: "2011-01-18" });
+      // Past the personal care home cutoff, but before the assisted living one.
+      const between = { ...nhaProfile, first_employed_as_administrator_on: "2009-05-01" };
+
+      expect(pch?.status).toBe("missing");
+      expect(pch?.detail).toContain("first employed as an administrator on 10/24/2006");
+      expect(pch?.detail).toContain("record the passed Department competency-based test");
+      expect(alrOnTheDay?.status).toBe("missing");
+      expect(qualification("PCH", between)?.status).toBe("missing");
+      expect(qualification("ALR", between)?.status).toBe("compliant");
+    });
+
+    it("accepts a passed and dated test regardless of when the NHA was hired", () => {
+      const tested = { ...nhaProfile, first_employed_as_administrator_on: "2020-03-01", competency_test_passed: true, competency_test_date: "2020-06-15" };
+      const undated = { ...nhaProfile, competency_test_passed: true };
+
+      expect(qualification("ALR", tested)?.status).toBe("compliant");
+      expect(qualification("ALR", tested)?.detail).toBe("NHA exemption and the Department competency test are documented.");
+      expect(qualification("PCH", undated)?.status).toBe("missing");
+    });
+
+    it("stops reading an exempt NHA as qualified once the license lapses", () => {
+      const lapsed = qualification("PCH", { ...nhaProfile, nha_license_expiration: "2026-07-01", first_employed_as_administrator_on: "2001-01-01" });
+
+      expect(lapsed?.status).toBe("missing");
+      expect(lapsed?.detail).toBe("Missing approved-course/test proof or current NHA exemption documentation.");
+    });
+
+    it("flags an exempt NHA's license as due soon inside 30 days", () => {
+      const expiring = qualification("PCH", { ...nhaProfile, nha_license_expiration: "2026-08-01", first_employed_as_administrator_on: "2001-01-01" });
+
+      expect(expiring?.status).toBe("due_soon");
+      expect(expiring?.dueDate).toBe("2026-08-01");
+    });
   });
 });

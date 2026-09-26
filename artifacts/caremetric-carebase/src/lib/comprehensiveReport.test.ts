@@ -220,6 +220,21 @@ describe("buildComprehensiveReport", () => {
     expect(operations?.metrics.some((m) => m.label === "Overdue policy attestations")).toBe(true);
   });
 
+  it("pairs every Chapter 2600 section a reference names with its Chapter 2800 counterpart", () => {
+    // Both chapters number these obligations identically, so a PCH section with no ALF twin in the
+    // same reference is a typo (the training section once cited a §2600.77 that does not exist).
+    const report = buildComprehensiveReport(fullInputs());
+    for (const section of report.sections) {
+      const pch = [...(section.reference ?? "").matchAll(/§2600\.(\d+)/g)].map((m) => m[1]);
+      const alf = new Set([...(section.reference ?? "").matchAll(/§2800\.(\d+)/g)].map((m) => m[1]));
+      for (const number of pch) expect(alf.has(number), `${section.id}: §2600.${number}`).toBe(true);
+    }
+    expect(report.sections.find((s) => s.id === "training")?.reference)
+      .toBe("55 Pa. Code §2600.65, §2600.190 / §2800.65, §2800.190");
+    expect(report.sections.find((s) => s.id === "residents")?.reference)
+      .toBe("55 Pa. Code §2600.224–§2600.227 / §2800.22, §2800.224–§2800.227");
+  });
+
   it("drops organization-wide recent uploads from a single-facility documentation section", () => {
     const orgWide = buildComprehensiveReport(fullInputs());
     expect(orgWide.sections.find((s) => s.id === "documentation")?.metrics.some((m) => m.label === "Recent uploads")).toBe(true);

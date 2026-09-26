@@ -55,6 +55,7 @@ import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { hasAnyFacilityType, PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { defaultNotificationHours, notificationDueHours, type IncidentNotificationType } from "@/lib/incidentNotificationHours";
 
 // Lazy: the follow-through section carries the pathway question set and three dialogs, and this page
 // is already one of the larger routes. Loading it on demand keeps it out of the main bundle.
@@ -167,8 +168,9 @@ export default function IncidentDetail() {
   // `written_report` is the 48-hour report that follows the department call (BACKLOG.md I10
   // residual / J74). The presets create one automatically for every reportable type; it is offered
   // here too so a manager can add one to an incident whose determination was made outside them.
-  const [newNotificationType, setNewNotificationType] = useState<"state_hotline" | "family_guardian" | "law_enforcement" | "licensing_agency" | "written_report" | "other">("state_hotline");
-  const [newNotificationHours, setNewNotificationHours] = useState("24");
+  // `protective_services` is the OAPSA report to the area agency on aging (6 Pa. Code 15.151).
+  const [newNotificationType, setNewNotificationType] = useState<IncidentNotificationType>("state_hotline");
+  const [newNotificationHours, setNewNotificationHours] = useState(String(defaultNotificationHours("state_hotline")));
   const [newActionDueDate, setNewActionDueDate] = useState("");
   const [assignRetraining, setAssignRetraining] = useState(false);
   const [retrainEmployeeId, setRetrainEmployeeId] = useState("");
@@ -615,10 +617,17 @@ export default function IncidentDetail() {
           )}
           {canManage && (
             <div className="flex items-center gap-2 pt-2 border-t">
-              <Select value={newNotificationType} onValueChange={(v) => setNewNotificationType(v as typeof newNotificationType)}>
+              <Select
+                value={newNotificationType}
+                onValueChange={(v) => {
+                  const type = v as IncidentNotificationType;
+                  setNewNotificationType(type);
+                  setNewNotificationHours(String(defaultNotificationHours(type)));
+                }}
+              >
                 <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "written_report", "other"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
+                  {["state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "protective_services", "written_report", "other"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-1.5 shrink-0">
@@ -630,7 +639,7 @@ export default function IncidentDetail() {
                 onClick={() => addNotification(
                   {
                     incident_id: incident.id, notification_type: newNotificationType,
-                    due_at: new Date(Date.now() + Number(newNotificationHours || 24) * 3600_000).toISOString(),
+                    due_at: new Date(Date.now() + notificationDueHours(newNotificationType, newNotificationHours) * 3600_000).toISOString(),
                     organization_id: incident.organization_id, facility_id: incident.facility_id,
                   },
                   { onError: (e: Error) => toast({ title: "Failed to add notification", description: e.message, variant: "destructive" }) },

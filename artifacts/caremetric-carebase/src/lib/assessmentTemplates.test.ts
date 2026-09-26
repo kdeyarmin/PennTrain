@@ -48,11 +48,41 @@ describe("catalog shape", () => {
     }
   });
 
-  it("resolves every declared citation against the governed library", () => {
+  it("resolves every declared citation, for every facility type it serves, to that type's own chapter", () => {
+    const chapter = { PCH: "2600", ALR: "2800" } as const;
     for (const template of ASSESSMENT_TEMPLATES) {
       if (!template.citation) continue;
-      expect(templateCitation(template)).toBeDefined();
+      for (const facilityType of template.facilityTypes) {
+        if (facilityType !== "PCH" && facilityType !== "ALR") continue;
+        const entry = templateCitation(template, facilityType);
+        expect(entry, `${template.key} / ${facilityType}`).toBeDefined();
+        expect(entry!.chapter).toBe(chapter[facilityType]);
+      }
+      for (const field of templateFields(template)) {
+        for (const [facilityType, section] of Object.entries(field.citation ?? {})) {
+          expect(section.startsWith(chapter[facilityType as keyof typeof chapter])).toBe(true);
+        }
+      }
     }
+  });
+
+  it("cites the sections the two chapters actually number these instruments under", () => {
+    const sections = (key: string) => ({
+      PCH: templateCitation(getTemplate(key)!, "PCH")?.citation,
+      ALR: templateCitation(getTemplate(key)!, "ALR")?.citation,
+    });
+    // Chapter 2800 has no preadmission screening section: the ALF "can meet needs" certification is
+    // 2800.22(b), and 2800.224 is the initial assessment.
+    expect(sections("preadmission_assessment")).toEqual({ PCH: "2600.224", ALR: "2800.22" });
+    expect(sections("initial_assessment")).toEqual({ PCH: "2600.225", ALR: "2800.224" });
+    expect(sections("annual_assessment")).toEqual({ PCH: "2600.225", ALR: "2800.225" });
+    expect(sections("significant_change_assessment")).toEqual({ PCH: "2600.225", ALR: "2800.225" });
+    expect(sections("support_plan")).toEqual({ PCH: "2600.227", ALR: "2800.227" });
+  });
+
+  it("gives no citation for a facility type outside Chapters 2600 and 2800", () => {
+    expect(templateCitation(preadmission, "NH")).toBeUndefined();
+    expect(templateCitation(preadmission, null)).toBeUndefined();
   });
 
   it("has unique field keys within each template", () => {

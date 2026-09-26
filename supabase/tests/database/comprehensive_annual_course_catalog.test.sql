@@ -555,6 +555,18 @@ select is(
       union all
       select 'regulatory_rule_pack_templates.name' from public.regulatory_rule_pack_templates, alr
         where name ~ word or name ilike '%assisted living residence%'
+      union all
+      -- 20260925120500 (REG29): the lesson text itself, which neither earlier sweep reached.
+      select 'course_blocks.title' from public.course_blocks, alr
+        where organization_id is null and (title ~ word or title ilike '%assisted living residence%')
+      union all
+      select 'course_blocks.body.content' from public.course_blocks, alr
+        where organization_id is null
+          and (body->>'content' ~ word or body->>'content' ilike '%assisted living residence%')
+      union all
+      select 'course_blocks.body.script' from public.course_blocks, alr
+        where organization_id is null
+          and (body->>'script' ~ word or body->>'script' ilike '%assisted living residence%')
     )
     select coalesce(string_agg(distinct spot, ', ' order by spot), '(none)') from leaked
   ),
