@@ -11,19 +11,7 @@ import { Button } from "@/components/ui/button";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, Upload } from "lucide-react";
-
-const CREDENTIAL_TYPE_LABELS: Record<string, string> = {
-  act34_criminal_history: "Act 34 Criminal History Clearance",
-  act73_fbi_fingerprint: "Act 73 FBI Fingerprint Clearance",
-  act33_child_abuse: "Act 33 Child Abuse Clearance",
-  rn_license: "RN License",
-  lpn_license: "LPN License",
-  nurse_aide_registry: "Nurse Aide Registry Status",
-  tb_screening: "TB Screening (facility policy)",
-  immunization: "Immunization",
-  i9_employment_eligibility: "I-9 Employment Eligibility",
-  other: "Other",
-};
+import { CREDENTIAL_TYPE_LABELS } from "@/lib/credentialLabels";
 
 function credentialTitle(c: EmployeeCredential): string {
   return c.credential_label || CREDENTIAL_TYPE_LABELS[c.credential_type] || c.credential_type.replace(/_/g, " ");

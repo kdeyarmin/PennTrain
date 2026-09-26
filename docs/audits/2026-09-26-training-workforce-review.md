@@ -30,6 +30,7 @@ This is evidence for the repository-wide review, not a planning register. BACKLO
 9. Failed swap-request lookups hid outstanding requests. My Schedule now exposes a retry.
 10. Passport loading/failure was treated as no passport, offering creation prematurely. Loading and error states are explicit; clipboard failure is caught and explained. Concurrent credential-renewal buttons are disabled while a submission is in progress.
 11. Public passport QR state could outlive its slug, allowing an earlier asynchronous QR result to appear under another learner's transcript. A slug-keyed QR component clears the old image immediately, cancels obsolete results, and presents a generation-failure fallback with a verification link.
+12. Employee readiness explanations displayed raw clearance codes such as `act33_child_abuse`. Known codes now use the established credential labels shared with My Credentials. Requirement matching, eligibility, and custom labels are unchanged.
 
 ## Verification
 
@@ -37,6 +38,7 @@ This is evidence for the repository-wide review, not a planning register. BACKLO
 - `SelfServiceStates.test.tsx`: 12 passing cases for scoped disabled queries, recoverable profile errors, missing profiles, passport loading/failure/clipboard rejection and failed swap requests.
 - `useQuizzes.test.ts`: 2 passing cases for a 1,001-attempt history with an older passing attempt, all-page filters/stable ordering, and later-page failure.
 - `TrainingPassport.test.tsx`: 3 passing cases for immediate QR isolation when changing passports, a late previous-passport QR result, and accessible generation failure.
+- `employeeReadiness.test.ts`: 18 passing cases, including 3 added regressions for readable clearance/required-item explanations, unchanged identifier matching and eligibility, and preserved custom labels. The related 12 self-service state cases also passed after extracting the existing credential label map.
 - App typecheck passed after the first implementation checkpoint and again after the historical practicum name fix. The root review owns final whole-repository typecheck/build/tests after integration.
 - Existing focused suites were run for plans, matrix, starter kits, assignment creation, offline learning, standards runtime/package ingestion, annual hours, current records, class permissions/attendance credit, course completion time, schedule analytics, time-off requests and quiz queues/shuffling. Their individual results passed in the observed output; final aggregate execution is recorded by the root check run.
 

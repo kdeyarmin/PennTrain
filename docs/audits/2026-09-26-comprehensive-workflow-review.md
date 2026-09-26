@@ -42,6 +42,8 @@ Confidential reports, evidence collections and move-in workspaces also have inde
 
 The public passport lives outside the authenticated boundary. Its QR renderer is keyed to the passport slug and cancels obsolete generation callbacks; tests cover both immediate switching and delayed results. A visible verification link remains available while the QR loads or if it cannot be generated.
 
+Visual inspection of the employee browser journey also found raw credential codes in readiness warnings. These now use the existing clearance names shared with My Credentials; matching, eligibility and custom labels remain unchanged, with three focused regressions.
+
 ## Execution evidence
 
 Validation results and the initial integrated CI link are recorded in the matching `BACKLOG.md` review entry. The final branch's complete gate is attached to [PR #576](https://github.com/kdeyarmin/PennTrain/pull/576/checks). Local Docker's engine did not respond, so database-backed and authenticated browser checks use CI's disposable Supabase stack rather than a production tenant. Build-only fixtures use the same non-production keys as the existing CI application lane.

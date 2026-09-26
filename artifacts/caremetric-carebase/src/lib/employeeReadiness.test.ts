@@ -10,6 +10,43 @@ import {
 const TODAY = new Date("2026-07-24T12:00:00Z");
 
 describe("computeEmployeeReadiness", () => {
+  it("uses established clearance names for raw credential codes in missing warnings", () => {
+    const result = computeEmployeeReadiness({
+      credentials: [
+        { label: "act33_child_abuse", status: "missing" },
+        { label: "act34_criminal_history", status: "missing" },
+      ],
+    }, TODAY);
+    expect(result.reasons).toEqual([
+      "Act 33 Child Abuse Clearance is missing.",
+      "Act 34 Criminal History Clearance is missing.",
+    ]);
+    expect(result.status).toBe("incomplete");
+    expect(result.canWork).toBe(false);
+  });
+
+  it("translates known codes in missing requirement explanations without rewriting custom labels", () => {
+    const result = computeEmployeeReadiness({ requiredItems: ["act34_criminal_history", "Facility-specific clearance"] }, TODAY);
+    expect(result.reasons).toEqual([
+      'Required "Act 34 Criminal History Clearance" has no record on file.',
+      'Required "Facility-specific clearance" has no record on file.',
+    ]);
+    expect(result.status).toBe("incomplete");
+    expect(result.canWork).toBe(false);
+  });
+
+  it("keeps requirement matching on original identifiers while preserving custom credential names", () => {
+    const covered = computeEmployeeReadiness({
+      clearedForUnsupervisedDuty: true,
+      credentials: [{ label: "act34_criminal_history", status: "compliant" }],
+      requiredItems: ["act34_criminal_history"],
+    }, TODAY);
+    expect(covered.status).toBe("ready");
+    expect(covered.canWork).toBe(true);
+    const custom = computeEmployeeReadiness({ credentials: [{ label: "Facility-only clearance", status: "missing" }] }, TODAY);
+    expect(custom.reasons).toEqual(["Facility-only clearance is missing."]);
+  });
+
   it("is ready when cleared and everything is current", () => {
     const v = computeEmployeeReadiness({
       clearedForUnsupervisedDuty: true,
