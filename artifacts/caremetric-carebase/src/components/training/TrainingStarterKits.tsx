@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useListCourses } from "@/hooks/useCourses";
+import { useListCourses, type Course } from "@/hooks/useCourses";
+import { useListTrainingPlanItems, useListTrainingPlans } from "@/hooks/useTrainingPlans";
 import { useCopyTrainingStarterKit, useSaveTrainingStarterKit, useSelectTrainingStarterKit, useTrainingStarterKits, useTrainingStarterSelections, type StarterKit } from "@/hooks/useTrainingStarterKits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,40 @@ import { facilityToday } from "@/lib/dateUtils";
 import { isExplicitCompletionDeadline } from "@/lib/trainingPlanEditing";
 
 const emptyKit = () => ({ name: "", description: "", items: [] as StarterKit["items"], is_published: false });
+
+export function starterKitDuration(items: StarterKit["items"], courses: Pick<Course, "id" | "estimated_duration_minutes">[]) {
+  const durations = new Map(courses.map(course => [course.id, course.estimated_duration_minutes]));
+  let minutes = 0, unknown = 0;
+  for (const item of items) {
+    const duration = durations.get(item.course_id);
+    if (typeof duration === "number" && Number.isFinite(duration) && duration > 0) minutes += duration;
+    else unknown++;
+  }
+  if (!minutes) return "Learning time not yet estimated";
+  const hours = Math.floor(minutes / 60), remainder = minutes % 60;
+  const time = hours ? `${hours} hr${remainder ? ` ${remainder} min` : ""}` : `${minutes} min`;
+  return `${time} estimated${unknown ? ` + ${unknown} course${unknown === 1 ? "" : "s"} without a time estimate` : ""}`;
+}
+
+export function StarterKitPlanComparison({ kit, planId, courses }: { kit: StarterKit; planId: string; courses: Course[] }) {
+  const current = useListTrainingPlanItems(planId);
+  if (current.isError) return <QueryError what="current plan courses" error={current.error} onRetry={() => void current.refetch()} />;
+  if (current.isLoading) return <p className="text-sm">Loading current plan comparison…</p>;
+  const items = current.data ?? [];
+  const added = kit.items.filter(item => !items.some(existing => existing.course_id === item.course_id));
+  const removed = items.filter(item => item.course_id && !kit.items.some(proposed => proposed.course_id === item.course_id));
+  const changed = kit.items.filter(item => items.some(existing => existing.course_id === item.course_id && existing.is_required !== item.is_required));
+  const title = (id: string | null) => courses.find(course => course.id === id)?.title || "Unavailable course";
+  return <div className="rounded border p-3 space-y-2 text-sm" aria-label="Starter kit changes">
+    <p className="font-medium">Compared with your current facility plan</p>
+    <p>Your facility’s edits are included in this comparison. Reviewing or copying this kit keeps that plan, its assignments, deadlines, and completions intact.</p>
+    {!!added.length && <div><p className="font-medium">Added to the kit</p><ul className="list-disc pl-5">{added.map(item => <li key={item.course_id}>{title(item.course_id)} — {item.is_required ? "Required" : "Optional"}</li>)}</ul></div>}
+    {!!removed.length && <div><p className="font-medium">Current courses not in this kit</p><ul className="list-disc pl-5">{removed.map(item => <li key={item.id}>{title(item.course_id)}</li>)}</ul></div>}
+    {!!changed.length && <div><p className="font-medium">Changed requirement setting</p><ul className="list-disc pl-5">{changed.map(item => <li key={item.course_id}>{title(item.course_id)} — {item.is_required ? "Required" : "Optional"} in this kit</li>)}</ul></div>}
+    {!added.length && !removed.length && !changed.length && <p>The course choices and required/optional settings match your current plan.</p>}
+    {items.some(item => item.training_type_id) && <p>Facility-specific training requirements in your current plan are not included in this course kit.</p>}
+  </div>;
+}
 export function ManageTrainingStarterKits() {
   const kits = useTrainingStarterKits();
   const [editing, setEditing] = useState<ReturnType<typeof emptyKit> & { id?: string; revision?: number } | null>(null);
@@ -41,6 +76,7 @@ export function ManageTrainingStarterKits() {
       {editing.items.filter(item => !catalog.some(c => c.id === item.course_id)).map(item => <div className="border rounded p-2" key={item.course_id}>Previously selected course is unavailable. <Button type="button" size="sm" variant="outline" onClick={() => setEditing({ ...editing, items: editing.items.filter(i => i.course_id !== item.course_id) })}>Remove unavailable course</Button></div>)}
       <label className="flex gap-2"><input type="checkbox" checked={editing.is_published} onChange={e => setEditing({ ...editing, is_published: e.target.checked })} />Publish for facility administrators</label>
       <p className="text-xs">{editing.items.length} courses selected. No completion dates are included.</p>
+      {!courses.isLoading && !courses.isError && <p className="text-xs">{starterKitDuration(editing.items, catalog)}</p>}
       {save.isError && <p role="alert" className="text-destructive">{save.error.message}</p>}
       <Button disabled={courses.isLoading || courses.isError || (editing.is_published && !editing.items.length)}>{save.isPending ? "Saving…" : "Save starter kit"}</Button>
     </fieldset></form>}</DialogContent></Dialog>
@@ -59,11 +95,12 @@ export function SelectPartnerStarterKit({ facilityId }: { facilityId: string }) 
   </div>;
 }
 
-export function FacilityTrainingStarterKits({ facilities, selectedFacility, onCreated }: { facilities: { id: string; name: string }[]; selectedFacility?: string; onCreated: (id: string) => void }) {
+export function FacilityTrainingStarterKits({ facilities, selectedFacility, onCreated, onOpenPlan }: { facilities: { id: string; name: string }[]; selectedFacility?: string; onCreated: (id: string) => void; onOpenPlan: (id: string) => void }) {
   const kits = useTrainingStarterKits();
   const [facilityChoice, setFacilityChoice] = useState("");
   const facilityId = selectedFacility || facilityChoice || (facilities.length === 1 ? facilities[0].id : "");
   const selections = useTrainingStarterSelections(facilityId);
+  const plans = useListTrainingPlans();
   const courses = useListCourses();
   const [kit, setKit] = useState<StarterKit | null>(null);
   const [name, setName] = useState(""), [year, setYear] = useState(""), [deadline, setDeadline] = useState("");
@@ -71,6 +108,9 @@ export function FacilityTrainingStarterKits({ facilities, selectedFacility, onCr
   const select = useSelectTrainingStarterKit(), copy = useCopyTrainingStarterKit();
   const currentKit = kits.data?.find(item => item.id === kit?.id);
   const pending = (selections.data ?? []).filter(s => !s.copied_plan_id);
+  const previousCopy = (kitId: string) => selections.data?.find(s => s.kit_id === kitId && s.copied_plan_id && s.copied_revision !== null);
+  const adoptedPlan = (kitId: string) => plans.data?.find(plan => plan.id === previousCopy(kitId)?.copied_plan_id && plan.facility_id === facilityId);
+  const comparisonPlan = kit ? adoptedPlan(kit.id) : undefined;
   const busy = select.isPending || copy.isPending;
   const valid = !!kit && currentKit?.revision === kit.revision && facilities.some(f => f.id === facilityId) && name.trim().length >= 2
     && /^\d{4}$/.test(year) && +year >= 1990 && +year <= 2200 && isExplicitCompletionDeadline(deadline) && deadline >= facilityToday();
@@ -81,13 +121,22 @@ export function FacilityTrainingStarterKits({ facilities, selectedFacility, onCr
   }
   return <section className="rounded-lg border bg-card p-4 space-y-3" aria-label="Facility starter kits"><h2 className="text-lg font-semibold">Start with a reviewed course kit</h2>
     <p className="text-sm text-muted-foreground">Copy a kit into an editable facility learning plan, review the courses, then assign staff. You choose the training year and completion deadline.</p>
+    <ol className="list-decimal pl-5 text-sm space-y-1"><li>Review the kit’s courses and suggested audience.</li><li>Enter a plan name, training year, and completion deadline to create your facility’s copy.</li><li>Adjust the copied courses, add your staff, then preview and confirm their assignments.</li></ol>
     {!selectedFacility && facilities.length > 1 && <label className="block text-sm">Starter kit facility<select className="block border rounded p-2" value={facilityId} onChange={e => setFacilityChoice(e.target.value)}><option value="">Choose facility</option>{facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>}
-    {kits.isError ? <QueryError what="starter kits" error={kits.error} onRetry={() => void kits.refetch()} /> : kits.isLoading ? <p>Loading starter kits…</p> : <div className="grid sm:grid-cols-2 gap-3">{kits.data?.filter(k => k.is_published).map(value => <article key={value.id} className="rounded border p-3 space-y-2">
+    {kits.isError ? <QueryError what="starter kits" error={kits.error} onRetry={() => void kits.refetch()} /> : kits.isLoading ? <p>Loading starter kits…</p> : <div className="grid sm:grid-cols-2 gap-3">{kits.data?.filter(k => k.is_published).map(value => {
+      const adopted = previousCopy(value.id), plan = adoptedPlan(value.id);
+      const newer = adopted?.copied_revision !== null && adopted?.copied_revision !== undefined && adopted.copied_revision < value.revision;
+      return <article key={value.id} className="rounded border p-3 space-y-2">
       <h3 className="font-medium">{value.name}</h3><p className="text-sm text-muted-foreground">{value.description}</p><p className="text-xs">{value.items.length} courses{pending.some(s => s.kit_id === value.id) ? " · Selected for your facility" : ""}</p>
-      <Button size="sm" variant="outline" disabled={!facilityId || selections.isLoading || selections.isError} onClick={() => void openKit(value)}>Review {value.name}</Button>
-    </article>)}</div>}
+      <p className="text-xs">{courses.isLoading ? "Loading learning time…" : courses.isError ? "Learning time unavailable" : starterKitDuration(value.items, courses.data ?? [])}</p>
+      {newer && <p role="status" className="rounded bg-muted p-2 text-sm">Newer kit available: revision {value.revision}. Your latest facility copy used revision {adopted.copied_revision}. Review the changes and choose whether to create a separate plan.</p>}
+      {plan && <Button size="sm" variant="link" className="h-auto p-0 whitespace-normal text-left" onClick={() => onOpenPlan(plan.id)}>View current plan: {plan.name}</Button>}
+      <div><Button size="sm" variant="outline" disabled={!facilityId || selections.isLoading || selections.isError} onClick={() => void openKit(value)}>{newer ? "Review newer kit" : `Review ${value.name}`}</Button></div>
+    </article>;
+    })}</div>}
     {!kits.isLoading && !kits.isError && !kits.data?.some(k => k.is_published) && <p className="text-sm">No starter kits have been published yet. You can create a learning plan above.</p>}
     {selections.isError && <QueryError what="facility kit selections" error={selections.error} onRetry={() => void selections.refetch()} />}
+    {plans.isError && <QueryError what="existing facility plans" error={plans.error} onRetry={() => void plans.refetch()} />}
     {pending.some(s => !kits.data?.some(k => k.id === s.kit_id)) && <p role="status">A previously selected kit is unavailable. Choose a current kit or contact your training advisor.</p>}
     <Dialog open={!!kit} onOpenChange={open => { if (!open && !busy) setKit(null); }}><DialogContent className="max-h-[85vh] overflow-y-auto"><DialogHeader><DialogTitle>Review starter kit</DialogTitle><DialogDescription>The copy belongs to this facility and can be edited independently. Copying does not assign any employees.</DialogDescription></DialogHeader>
       {kit && <form className="space-y-3" onSubmit={async e => { e.preventDefault(); if (!valid) return; try {
@@ -96,6 +145,9 @@ export function FacilityTrainingStarterKits({ facilities, selectedFacility, onCr
         setKit(null); onCreated(planId);
       } catch { /* Keep fields and idempotent selection available for retry. */ } }}><fieldset className="space-y-3" disabled={busy}>
         <p className="font-medium">{kit.name} · Revision {kit.revision}</p>
+        {!courses.isLoading && !courses.isError && <p className="text-sm">{starterKitDuration(kit.items, courses.data ?? [])}</p>}
+        {comparisonPlan && <StarterKitPlanComparison kit={kit} planId={comparisonPlan.id} courses={courses.data ?? []} />}
+        {previousCopy(kit.id) && !comparisonPlan && <p className="text-sm">Your existing copy remains separate. {plans.isLoading ? "Loading the current plan comparison…" : "The current plan comparison is unavailable; review its courses before assigning a new copy."}</p>}
         <ul className="list-disc pl-5 text-sm space-y-1">{kit.items.map(item => <li key={item.course_id}>{courses.data?.find(c => c.id === item.course_id)?.title || "Loading course details…"} — {item.is_required ? "Required" : "Optional"}</li>)}</ul>
         {courses.isError && <QueryError what="course details" error={courses.error} onRetry={() => void courses.refetch()} />}
         <label className="block text-sm">Facility plan name<Input required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} /></label>
@@ -103,7 +155,7 @@ export function FacilityTrainingStarterKits({ facilities, selectedFacility, onCr
         <label className="block text-sm">Completion deadline<Input required type="date" min={facilityToday()} value={deadline} onChange={e => setDeadline(e.target.value)} /></label>
         {currentKit?.revision !== kit.revision && <p role="alert">This kit changed. Close this review and reopen the current kit.</p>}
         {(copy.isError || select.isError) && <p role="alert" className="text-destructive">{copy.error?.message || select.error?.message}</p>}
-        <Button disabled={!valid || courses.isLoading || courses.isError}>{busy ? "Creating plan…" : "Create editable facility plan"}</Button>
+        <Button disabled={!valid || courses.isLoading || courses.isError}>{busy ? "Creating plan…" : comparisonPlan ? "Create separate editable plan" : "Create editable facility plan"}</Button>
       </fieldset></form>}
     </DialogContent></Dialog>
   </section>;

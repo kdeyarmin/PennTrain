@@ -2,8 +2,8 @@ import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({ state: [] as unknown[], index: 0, save: vi.fn(), upload: vi.fn(), toast: vi.fn(), signed: vi.fn(), open: vi.fn(), export: vi.fn(),
-  data: { templates: [{ id: "checklist", title: "Hand hygiene", instructions: "Observe a complete demonstration.", items: ["Cleans hands", "Uses clean equipment"], archived: false }], observations: [] as unknown[], external: [] as unknown[] },
-  documents: [{ id: "proof", file_name: "Outside course.pdf", document_type: "external_certificate" }],
+  data: { templates: [{ id: "checklist", title: "Hand hygiene", instructions: "Observe a complete demonstration.", items: ["Cleans hands", "Uses clean equipment"], archived: false }], observations: [] as unknown[], external: [] as unknown[], submission_document_ids: ["proof"] },
+  documents: [{ id: "proof", file_name: "Outside course.pdf", document_type: "external_certificate" }, { id: "manager-proof", file_name: "Manager-uploaded.pdf", document_type: "external_certificate" }],
   pending: false, error: false, refetch: vi.fn(), records: vi.fn(), listDocuments: vi.fn(),
 }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useState: (initial: unknown) => {
@@ -56,6 +56,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("outside training submissions", () => {
+  it("offers only actual learner-owned uploads while explaining how to submit a manager-uploaded certificate", () => {
+    const tree = render();
+    const choices = text(field(tree, "Or choose an existing document"));
+    expect(choices).toContain("Outside course.pdf");
+    expect(choices).not.toContain("Manager-uploaded.pdf");
+    expect(text(tree)).toContain("If someone else uploaded your certificate, upload your own copy.");
+  });
   it("submits selected evidence with the learner and facility, without completing an assigned course", async () => {
     let tree = render();
     expect(h.records).toHaveBeenCalledWith("facility-a", "employee-a");

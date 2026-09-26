@@ -48,6 +48,23 @@ insert into app_private.audit_entity_manifest(table_schema,table_name,audit_mode
 ('app_private','training_practice_templates','row_trigger',false,'Facility practice checklist authoring and retirement retain actor history.'),
 ('app_private','training_practice_observations','row_trigger',true,'Signed practice observations and correction reasons preserve dated snapshots.');
 
+-- Document metadata also grants Storage read access. Registering an external
+-- upload must therefore prove ownership of the actual object, not a client-sent
+-- employee ID or uploaded_by_profile_id. A private lookup avoids the circular
+-- Storage -> document -> Storage RLS dependency. Existing metadata is not proof
+-- of provenance; learner submission independently checks the object below.
+create function app_private.owns_training_external_upload(p_org uuid,p_facility uuid,p_bucket text,p_path text)
+returns boolean language sql stable security definer set search_path='' as $$
+  select auth.uid() is not null and p_bucket='external-uploads'
+    and split_part(p_path,'/',1)=p_org::text and split_part(p_path,'/',2)=p_facility::text
+    and nullif(split_part(p_path,'/',3),'') is not null
+    and exists(select 1 from storage.objects o where o.bucket_id=p_bucket and o.name=p_path and o.owner_id=auth.uid()::text);
+$$;
+revoke all on function app_private.owns_training_external_upload(uuid,uuid,text,text) from public,anon,authenticated,service_role;
+grant execute on function app_private.owns_training_external_upload(uuid,uuid,text,text) to authenticated;
+create policy training_external_document_upload_owner on public.training_documents as restrictive for insert to authenticated
+  with check(storage_bucket<>'external-uploads' or app_private.owns_training_external_upload(organization_id,facility_id,storage_bucket,storage_path));
+
 create function public.training_experience(p_action text,p_facility_id uuid default null,p_employee_id uuid default null,p_data jsonb default '{}')
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare
@@ -88,6 +105,10 @@ begin
   elsif p_action='records' then
     v_offset := greatest(0,coalesce((p_data->>'offset')::integer,0));
     return jsonb_build_object('templates',coalesce((select jsonb_agg(to_jsonb(t) order by t.title) from app_private.training_practice_templates t where t.facility_id=v_facility),'[]'),
+      'submission_document_ids',case when v_self and v_offset=0 then coalesce((select jsonb_agg(d.id order by d.created_at desc,d.id)
+        from public.training_documents d where d.employee_id=v_employee.id and d.organization_id=v_org and d.facility_id=v_facility
+        and d.document_type in ('external_certificate','transcript')
+        and app_private.owns_training_external_upload(d.organization_id,d.facility_id,d.storage_bucket,d.storage_path)),'[]') else '[]'::jsonb end,
       'observations',coalesce((select jsonb_agg(to_jsonb(o) order by o.created_at desc,o.id) from
         (select * from app_private.training_practice_observations where facility_id=v_facility
         and (case when v_reader then p_employee_id is null or employee_id=p_employee_id else employee_id=v_employee.id end)
@@ -113,8 +134,13 @@ begin
       and organization_id=v_org and facility_id=v_facility and storage_bucket='external-uploads' and document_type in ('external_certificate','transcript') for share;
     if not found then
       raise exception 'Upload your certificate or transcript before submitting' using errcode='22023'; end if;
-    perform 1 from storage.objects where bucket_id=v_doc.storage_bucket and name=v_doc.storage_path for share;
-    if not found then raise exception 'Upload your certificate or transcript before submitting' using errcode='22023'; end if;
+    -- Keep both metadata and the actual object stable until the evidence row is
+    -- inserted and its immutability guards become effective. Legacy metadata can
+    -- name another person's object, even with a forged uploaded_by_profile_id.
+    perform 1 from storage.objects where bucket_id=v_doc.storage_bucket and name=v_doc.storage_path
+      and owner_id=auth.uid()::text and split_part(name,'/',1)=v_org::text and split_part(name,'/',2)=v_facility::text
+      and nullif(split_part(name,'/',3),'') is not null for share;
+    if not found then raise exception 'Upload your own copy of the certificate or transcript before submitting; files uploaded by someone else cannot be submitted from your account' using errcode='42501'; end if;
     if nullif(p_data->>'completed_on','') is null or (p_data->>'completed_on')::date>v_today then
       raise exception 'Enter the actual completion date, today or earlier' using errcode='22023'; end if;
     insert into public.training_evidence_events(organization_id,facility_id,employee_id,title,completed_on,minutes,delivery,provider,source_reference,evidence_document_id,created_by)

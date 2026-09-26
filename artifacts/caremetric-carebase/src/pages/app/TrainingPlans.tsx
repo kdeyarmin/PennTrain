@@ -681,7 +681,14 @@ export default function TrainingPlans({ facilityId, embedded = false }: { facili
       </div>
 
       {canCreatePlan && scope.isReady && !requestedUnavailable && facilities.length > 0 && <FacilityTrainingStarterKits
-        facilities={facilities} selectedFacility={requestedFacility || undefined} onCreated={id => {
+        facilities={facilities} selectedFacility={requestedFacility || undefined} onOpenPlan={id => {
+          setSearch(""); setExpandedPlanId(id);
+          requestAnimationFrame(() => {
+            const planButton = document.getElementById(`training-plan-${id}`);
+            planButton?.scrollIntoView({ block: "center", behavior: "smooth" });
+            planButton?.focus({ preventScroll: true });
+          });
+        }} onCreated={id => {
           setExpandedPlanId(id); toast({ title: "Facility learning plan created", description: "Review the copied courses, then apply the plan or set a role-based assignment rule." });
         }} />}
 
@@ -750,7 +757,7 @@ export default function TrainingPlans({ facilityId, embedded = false }: { facili
                           )}
                         </td>
                         <td>
-                          <button type="button" aria-expanded={isExpanded} onClick={e => { e.stopPropagation(); toggleExpanded(plan.id); }} className="font-medium text-foreground text-left">{plan.name}</button>
+                          <button id={`training-plan-${plan.id}`} type="button" aria-expanded={isExpanded} onClick={e => { e.stopPropagation(); toggleExpanded(plan.id); }} className="font-medium text-foreground text-left">{plan.name}</button>
                           {plan.facility_id && <p className="text-xs text-muted-foreground">{facilities.find(f => f.id === plan.facility_id)?.name} · {plan.training_year} · due {formatDateForDisplay(plan.due_date)}</p>}
                         </td>
                         <td className="text-muted-foreground max-w-md truncate">

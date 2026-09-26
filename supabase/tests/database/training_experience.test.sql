@@ -53,12 +53,26 @@ select set_config('app.privileged_write','off',true);
 create temp table experience_results(name text primary key,result jsonb);
 grant all on experience_results to authenticated;
 insert into storage.objects(bucket_id,name,owner_id) values
-('external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf',pg_temp.id(103)::text);
+('external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf',pg_temp.id(103)::text),
+('external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/fresh.pdf',pg_temp.id(103)::text),
+('external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/private-staff.pdf',pg_temp.id(104)::text),
+('external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/legacy-forged.pdf',pg_temp.id(104)::text),
+('external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/manager-proof.pdf',pg_temp.id(102)::text),
+('external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/ownerless.pdf',null),
+('external-uploads',pg_temp.id(2)::text||'/'||pg_temp.id(13)::text||'/wrong-scope.pdf',pg_temp.id(103)::text);
 insert into public.training_documents(id,organization_id,facility_id,employee_id,document_type,file_name,storage_bucket,storage_path,file_type,uploaded_by_profile_id)
-values(pg_temp.id(901),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','proof.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf','application/pdf',pg_temp.id(103));
+values(pg_temp.id(901),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','proof.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf','application/pdf',pg_temp.id(103)),
+-- These legacy metadata rows model the previous permissive registration policy.
+-- Their employee scope and uploaded_by fields cannot establish actual ownership.
+(pg_temp.id(902),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','legacy-forged.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/legacy-forged.pdf','application/pdf',pg_temp.id(103)),
+(pg_temp.id(903),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','manager-proof.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/manager-proof.pdf','application/pdf',pg_temp.id(102)),
+(pg_temp.id(904),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','ownerless.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/ownerless.pdf','application/pdf',pg_temp.id(103)),
+(pg_temp.id(905),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','wrong-scope.pdf','external-uploads',pg_temp.id(2)::text||'/'||pg_temp.id(13)::text||'/wrong-scope.pdf','application/pdf',pg_temp.id(103));
 select ok(not has_function_privilege('anon','public.training_experience(text,uuid,uuid,jsonb)','execute'),'anonymous callers cannot read training records');
 select ok(not has_table_privilege('authenticated','app_private.training_practice_observations','update'),'clients cannot rewrite signed observations');
 select pg_temp.act(102);
+select lives_ok($$insert into public.training_documents(id,organization_id,facility_id,employee_id,document_type,file_name,storage_bucket,storage_path,file_type)
+values(pg_temp.id(911),pg_temp.id(1),pg_temp.id(11),pg_temp.id(202),'external_certificate','manager-proof.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/manager-proof.pdf','application/pdf')$$,'manager can still register their actual upload for assigned staff');
 select lives_ok($$select public.training_experience('save_welcome',pg_temp.id(11),null,'{"welcome_message":"Welcome to your learning program","contact_name":"Training desk","contact_email":"training@example.test"}')$$,'assigned manager can configure learner welcome');
 select throws_ok($$select public.training_experience('save_welcome',pg_temp.id(12),null,'{}')$$,'42501',null,'manager cannot configure an unassigned facility');
 insert into experience_results values('template',public.training_experience('save_template',pg_temp.id(11),null,'{"title":"Safe equipment check","items":["Identify equipment","Explain the next step"],"instructions":"Observe each step in person."}'));
@@ -74,6 +88,22 @@ select is(public.training_experience('welcome')->'welcome'->>'contact_name','Tra
 select is(jsonb_array_length(public.training_experience('records',pg_temp.id(11),pg_temp.id(201))->'observations'),1,'learner sees own observation');
 select throws_ok($$select public.training_experience('records',pg_temp.id(11),pg_temp.id(202))$$,'42501',null,'learner cannot read another staff member');
 select throws_ok($$select public.training_experience('save_welcome',pg_temp.id(11),pg_temp.id(201),'{}')$$,'42501',null,'learner cannot edit facility welcome');
+select lives_ok($$insert into public.training_documents(id,organization_id,facility_id,employee_id,document_type,file_name,storage_bucket,storage_path,file_type)
+values(pg_temp.id(910),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','fresh.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/fresh.pdf','application/pdf')$$,'learner can register their actual upload without trusting a client uploader field');
+select throws_ok($$insert into public.training_documents(organization_id,facility_id,employee_id,document_type,file_name,storage_bucket,storage_path,file_type,uploaded_by_profile_id)
+values(pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','private-staff.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/private-staff.pdf','application/pdf',pg_temp.id(103))$$,'42501',null,'forging metadata cannot claim another staff member storage object');
+select is((select count(*)::int from storage.objects where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/private-staff.pdf'),0,'failed metadata forgery does not grant private file reads');
+select throws_ok($$insert into public.training_documents(organization_id,facility_id,employee_id,document_type,file_name,storage_bucket,storage_path,file_type)
+values(pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','wrong-scope.pdf','external-uploads',pg_temp.id(2)::text||'/'||pg_temp.id(13)::text||'/wrong-scope.pdf','application/pdf')$$,'42501',null,'owned object cannot be registered under a different organization or facility path');
+select throws_ok($$insert into public.training_documents(organization_id,facility_id,employee_id,document_type,file_name,storage_bucket,storage_path,file_type)
+values(pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','missing.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/missing.pdf','application/pdf')$$,'42501',null,'metadata cannot reserve a path before an actual upload exists');
+select is(public.training_experience('records',pg_temp.id(11),pg_temp.id(201))->'submission_document_ids' @> jsonb_build_array(pg_temp.id(910)),true,'existing-document chooser includes actual own upload');
+select is(jsonb_array_length(public.training_experience('records',pg_temp.id(11),pg_temp.id(201))->'submission_document_ids'),2,'chooser excludes foreign, manager, ownerless and wrong-path legacy metadata');
+select throws_ok($$select public.training_experience('submit_external',pg_temp.id(11),pg_temp.id(201),jsonb_build_object('document_id',pg_temp.id(902),'title','Forged proof','provider','Independent provider','minutes',60,'completed_on',public.pa_today()))$$,'42501',null,'forged legacy uploader metadata cannot seal another person file');
+select throws_ok($$select public.training_experience('submit_external',pg_temp.id(11),pg_temp.id(201),jsonb_build_object('document_id',pg_temp.id(903),'title','Manager proof','provider','Independent provider','minutes',60,'completed_on',public.pa_today()))$$,'42501',null,'learner must upload their own copy when manager provenance cannot be verified');
+select throws_ok($$select public.training_experience('submit_external',pg_temp.id(11),pg_temp.id(201),jsonb_build_object('document_id',pg_temp.id(904),'title','Ownerless proof','provider','Independent provider','minutes',60,'completed_on',public.pa_today()))$$,'42501',null,'ownerless service upload is not treated as learner-owned proof');
+select throws_ok($$select public.training_experience('submit_external',pg_temp.id(11),pg_temp.id(201),jsonb_build_object('document_id',pg_temp.id(905),'title','Wrong facility','provider','Independent provider','minutes',60,'completed_on',public.pa_today()))$$,'42501',null,'forged legacy scope cannot seal an owned object outside the learner facility');
+select is(jsonb_array_length(public.training_experience('records',pg_temp.id(11),pg_temp.id(201))->'external'),0,'rejected proof ownership attempts create no evidence records');
 select throws_ok($$select public.training_experience('submit_external',pg_temp.id(11),pg_temp.id(201),jsonb_build_object('document_id',pg_temp.id(901),'title','Outside class','provider','Independent provider','minutes',60,'completed_on',public.pa_today()+1))$$,'22023',null,'future completion is rejected');
 insert into experience_results values('external',public.training_experience('submit_external',pg_temp.id(11),pg_temp.id(201),jsonb_build_object('document_id',pg_temp.id(901),'title','Outside class','provider','Independent provider','minutes',60,'completed_on',public.pa_today())));
 select is(public.training_experience('submit_external',pg_temp.id(11),pg_temp.id(201),jsonb_build_object('document_id',pg_temp.id(901),'title','Outside class','provider','Independent provider','minutes',60,'completed_on',public.pa_today()))->>'id',(select result->>'id' from experience_results where name='external'),'retry does not duplicate outside evidence');

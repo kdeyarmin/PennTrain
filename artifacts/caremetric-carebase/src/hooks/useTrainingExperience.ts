@@ -17,7 +17,7 @@ export interface OutsideTraining {
   id: string; employee_id: string; employee_name: string; title: string; completed_on: string; minutes: number; provider: string;
   status: string; review_note: string | null; evidence_document_id: string; created_at: string;
 }
-export interface TrainingRecords { templates: PracticeTemplate[]; observations: PracticeObservation[]; external: OutsideTraining[] }
+export interface TrainingRecords { templates: PracticeTemplate[]; observations: PracticeObservation[]; external: OutsideTraining[]; submission_document_ids: string[] }
 
 export async function trainingExperience(action: string, facilityId?: string, employeeId?: string, data: Json = {}) {
   const response = await supabase.rpc("training_experience", { p_action: action, p_facility_id: facilityId, p_employee_id: employeeId, p_data: data });
@@ -31,11 +31,11 @@ export function useTrainingWelcome(facilityId?: string, enabled = true) {
 export function useTrainingRecords(facilityId: string, employeeId?: string) {
   return useQuery({ queryKey: ["training-experience", "records", facilityId, employeeId], enabled: !!facilityId,
     queryFn: async () => {
-      const result: TrainingRecords = { templates: [], observations: [], external: [] };
+      const result: TrainingRecords = { templates: [], observations: [], external: [], submission_document_ids: [] };
       for (let offset = 0; ; offset += 500) {
         const page = await trainingExperience("records", facilityId, employeeId, { offset }) as unknown as TrainingRecords;
-        if (!page || ![page.templates, page.observations, page.external].every(Array.isArray)) throw new Error("Training records could not be loaded completely.");
-        if (!offset) result.templates = page.templates;
+        if (!page || ![page.templates, page.observations, page.external, page.submission_document_ids].every(Array.isArray) || !page.submission_document_ids.every(id => typeof id === "string")) throw new Error("Training records could not be loaded completely.");
+        if (!offset) { result.templates = page.templates; result.submission_document_ids = page.submission_document_ids; }
         result.observations.push(...page.observations); result.external.push(...page.external);
         if (page.observations.length < 500 && page.external.length < 500) return result;
       }

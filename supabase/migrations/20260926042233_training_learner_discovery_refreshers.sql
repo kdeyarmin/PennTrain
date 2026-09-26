@@ -77,7 +77,7 @@ alter table public.course_feedback
   add column usefulness text check(usefulness in ('useful','somewhat_useful','not_useful')),
   add column content_flag text check(content_flag in ('confusing','outdated','technical_issue','other')),
   add column flag_detail text check(length(flag_detail)<=2000),
-  add constraint course_feedback_flag_detail_check check(flag_detail is null or content_flag is not null);
+  add constraint course_feedback_flag_requires_category_check check(flag_detail is null or content_flag is not null);
 
 -- Richer employee comments stay inside the reviewer's actual facility scope.
 -- Existing permissive policies still determine completed-assignment ownership.

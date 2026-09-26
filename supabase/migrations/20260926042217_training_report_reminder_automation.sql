@@ -151,8 +151,8 @@ begin
     or (p_settings->>'digest_weekday')::integer not between 1 and 7 or (p_settings->>'escalation_days')::integer not between 1 and 90 then
     raise exception 'Invalid reminder settings' using errcode='22023'; end if;
   select coalesce(array_agg(distinct v::uuid),'{}') into v_ids from jsonb_array_elements_text(p_settings->'recipient_ids') v;
-  if cardinality(v_ids)>50 or array_position(v_ids,null) is not null or exists(select 1 from unnest(v_ids) id where not app_private.training_manager_has_scope(id,p_facility_id)
-    or not exists(select 1 from public.profiles p where p.id=id and p.organization_id=v_org and p.role in ('org_admin','facility_manager'))) then
+  if cardinality(v_ids)>50 or array_position(v_ids,null) is not null or exists(select 1 from unnest(v_ids) recipient(profile_id) where not app_private.training_manager_has_scope(recipient.profile_id,p_facility_id)
+    or not exists(select 1 from public.profiles p where p.id=recipient.profile_id and p.organization_id=v_org and p.role in ('org_admin','facility_manager'))) then
     raise exception 'Choose active administrators for this facility' using errcode='22023'; end if;
   insert into app_private.training_reminder_policies(facility_id,organization_id,learner_enabled,lead_days,repeat_days,digest_enabled,digest_weekday,escalation_days,recipient_ids,updated_by)
   values(p_facility_id,v_org,(p_settings->>'learner_enabled')::boolean,(p_settings->>'lead_days')::integer,(p_settings->>'repeat_days')::integer,
@@ -181,8 +181,8 @@ begin
   v_next:=app_private.training_report_next_date(p_frequency,p_delivery_day,public.pa_today());
   if p_name is null or length(btrim(p_name)) not between 1 and 120 or p_enabled is null or p_recipient_ids is null
     or cardinality(p_recipient_ids) not between 1 and 50 or array_position(p_recipient_ids,null) is not null
-    or exists(select 1 from unnest(p_recipient_ids) id where not app_private.training_manager_has_scope(id,p_facility_id)
-      or not exists(select 1 from public.profiles p where p.id=id and p.organization_id=v_org and p.role in ('org_admin','facility_manager'))) then
+    or exists(select 1 from unnest(p_recipient_ids) recipient(profile_id) where not app_private.training_manager_has_scope(recipient.profile_id,p_facility_id)
+      or not exists(select 1 from public.profiles p where p.id=recipient.profile_id and p.organization_id=v_org and p.role in ('org_admin','facility_manager'))) then
     raise exception 'Enter a report name and choose active facility administrators' using errcode='22023'; end if;
   if p_schedule_id is null then
     if (select count(*) from app_private.training_report_schedules where facility_id=p_facility_id)>=30 then
@@ -267,13 +267,13 @@ begin
   select a.organization_id,e.profile_id,'course_assignment_due_soon',case when a.due_date<v_today then 'Required training is overdue' else 'Required training is due soon' end,
     coalesce(cv.title,c.title)||' is due '||to_char(a.due_date,'Mon DD, YYYY')||'. Open My Learning to start or continue.','/me/courses/'||a.id
   from public.course_assignments a join public.employees e on e.id=a.employee_id and e.facility_id=a.facility_id
-  join public.profiles p on p.id=e.profile_id join public.organizations o on o.id=a.organization_id
+  join public.profiles learner_profile on learner_profile.id=e.profile_id join public.organizations o on o.id=a.organization_id
   join public.facilities fac on fac.id=a.facility_id
   join public.courses c on c.id=a.course_id left join public.course_versions cv on cv.id=a.course_version_id
   left join app_private.training_reminder_policies policy on policy.facility_id=a.facility_id
   where coalesce(policy.learner_enabled,true) and (a.is_required or public.training_assignment_is_required(a.id))
     and a.status in ('assigned','in_progress','overdue') and a.due_date<=v_today+coalesce(policy.lead_days,7)
-    and e.status='active' and p.is_active and fac.is_active and o.subscription_status not in ('suspended','canceled')
+    and e.status='active' and learner_profile.is_active and fac.is_active and o.subscription_status not in ('suspended','canceled')
     and exists(select 1 from public.get_effective_entitlements(a.organization_id) ent where ent.feature_key='modules.train' and ent.is_entitled)
     and not exists(select 1 from public.notifications n where n.profile_id=e.profile_id and n.notification_type='course_assignment_due_soon'
       and n.link='/me/courses/'||a.id and n.created_at>p_now-make_interval(days=>coalesce(policy.repeat_days,7)));

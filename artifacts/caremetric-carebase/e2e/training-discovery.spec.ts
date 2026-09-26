@@ -89,7 +89,9 @@ test.describe("optional course discovery and refresher practice", () => {
       await page.getByRole("checkbox", { name: "Reviewed and ready to publish", exact: true }).check();
       await page.getByRole("button", { name: "Save refresher", exact: true }).click();
       await expect(page.getByText("Refresher saved", { exact: true })).toBeVisible();
-      await page.getByLabel("Course", { exact: true }).selectOption(course.id);
+      // The wrapping label also contains every option's text; use the select's
+      // accessible role/name so an exact label-text match cannot miss it.
+      await page.getByRole("combobox", { name: "Course", exact: true }).selectOption(course.id);
       await page.getByLabel("Documented language", { exact: true }).fill("English");
       await page.getByRole("button", { name: "Save discovery information", exact: true }).click();
       await expect(page.getByText("Course discovery information saved", { exact: true })).toBeVisible();

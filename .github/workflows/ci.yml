@@ -495,6 +495,17 @@ jobs:
         # filter preserves the complete matrix without repeating those journeys.
         run: pnpm --filter @workspace/caremetric-carebase run test:e2e --grep-invert "new training facility administrator"
 
+      - name: Upload Training discovery and assignment previews
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: training-enhancement-screens
+          path: |
+            artifacts/caremetric-carebase/test-results/training-optional-practice.png
+            artifacts/caremetric-carebase/test-results/training-starter-rules.png
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Build standalone Train and verify its application boundary
         run: |
           pnpm --filter @workspace/caremetric-carebase run build:train

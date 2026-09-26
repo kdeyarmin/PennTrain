@@ -43,6 +43,7 @@ export function TrainingRecords({ facilityId, organizationId, employeeId, employ
   }
   const observations = (query.data?.observations || []).filter(row => !student || row.employee_id === student);
   const outside = (query.data?.external || []).filter(row => (!student || row.employee_id === student) && (recordFilter === "all" || row.status === recordFilter));
+  const submissionDocuments = documents.data?.filter(document => query.data?.submission_document_ids.includes(document.id));
   function exportRecords() {
     const rows: Record<string, unknown>[] = [
       ...observations.map(row => ({ type: "Observed practice", student: row.employee_name_snapshot, title: row.title_snapshot, date: row.observed_on, minutes: "", provider: row.evaluator_name_snapshot, status: row.voided_at ? "Voided" : resultLabel(row.result), notes: row.void_reason || row.notes })),
@@ -84,7 +85,7 @@ export function TrainingRecords({ facilityId, organizationId, employeeId, employ
         <label className="text-sm">Completion date<input className={fieldClass} type="date" name="completed_on" required max={facilityToday()} /></label>
         <label className="text-sm">Training duration in minutes<input className={fieldClass} type="number" name="minutes" required min={1} max={1440} /></label>
         <label className="text-sm">Upload certificate or transcript<input className={fieldClass} type="file" accept="application/pdf,image/png,image/jpeg" disabled={busy} onChange={e => { setFile(e.target.files?.[0] || null); setDocumentId(""); }} /><span className="text-muted-foreground">PDF, PNG or JPEG; maximum 20 MB.</span></label>
-        <label className="text-sm">Or choose an existing document<select className={fieldClass} value={documentId} disabled={busy} onChange={e => { setDocumentId(e.target.value); setFile(null); }}><option value="">Choose a document</option>{documents.data?.map(d => <option key={d.id} value={d.id}>{d.file_name}</option>)}</select></label>
+        <label className="text-sm">Or choose an existing document<select className={fieldClass} value={documentId} disabled={busy} onChange={e => { setDocumentId(e.target.value); setFile(null); }}><option value="">Choose a document</option>{documentId && !submissionDocuments?.some(d => d.id === documentId) && <option value={documentId}>Your newly uploaded evidence</option>}{submissionDocuments?.map(d => <option key={d.id} value={d.id}>{d.file_name}</option>)}</select><span className="text-muted-foreground">Only files you uploaded yourself can be submitted here. If someone else uploaded your certificate, upload your own copy.</span></label>
         <Button disabled={busy || (!file && !documentId)}>{busy ? "Submitting…" : "Submit for review"}</Button>
       </form>
     </CardContent></Card>}
