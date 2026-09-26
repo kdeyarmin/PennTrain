@@ -2,7 +2,7 @@ import { useId, useEffect, useMemo, useState } from "react";
 import { formatDateForDisplay, facilityYear } from "@/lib/dateUtils";
 import { usePaginatedPracticums, useCreatePracticum, useUpdatePracticum, type Practicum, type PracticumInsert } from "@/hooks/usePracticums";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListEmployees } from "@/hooks/useEmployees";
+import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -138,8 +138,8 @@ export default function Practicums() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const { data: facilities } = useListFacilities();
-  // Active staff only; push the page's facility filter into the query so selecting a site does
-  // not download every other facility's roster just to resolve names / populate the create dialog.
+  // Active staff only for new records and observer selections. Historical records may belong
+  // to staff who have since left; resolve those names by the visible record IDs separately.
   const { data: employeesAll } = useListEmployees({
     status: "active",
     facilityId: facilityId !== "all" ? facilityId : undefined,
@@ -148,6 +148,11 @@ export default function Practicums() {
   // medications are relevant here -- mirrors this page's pre-existing employee filter.
   const employees = useMemo(() => employeesAll?.filter(e => e.administers_medications), [employeesAll]);
   const employeeMap = useMemo(() => new Map((employeesAll ?? []).map(e => [e.id, e])), [employeesAll]);
+  const recordEmployees = useListEmployeesByIds(practicums.map(p => p.employee_id));
+  const recordEmployeeMap = useMemo(
+    () => new Map([...employeeMap, ...(recordEmployees.data ?? []).map(e => [e.id, e] as const)]),
+    [employeeMap, recordEmployees.data],
+  );
   // "Qualified observer" roster for the window observer pickers: a designated trainer, or someone
   // already administering medications themselves (able to verify a peer's technique/MAR review).
   const qualifiedObservers = useMemo(
@@ -156,7 +161,11 @@ export default function Practicums() {
   );
   const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);
 
-  const getEmployee = (id: string) => employeeMap.get(id);
+  const employeeName = (id: string) => {
+    const employee = recordEmployeeMap.get(id);
+    if (employee) return `${employee.first_name} ${employee.last_name}`;
+    return recordEmployees.isLoading ? "Loading employee…" : `Employee #${id}`;
+  };
 
   const createPracticum = useCreatePracticum();
   const updatePracticum = useUpdatePracticum();
@@ -334,9 +343,11 @@ export default function Practicums() {
             </div>
           ) : (
             <div className="space-y-4">
+            {recordEmployees.isError && practicums.length > 0 && (
+              <QueryError what="employee names for these practicum records" error={recordEmployees.error} onRetry={() => recordEmployees.refetch()} />
+            )}
             <div className="space-y-2">
               {practicums.map(p => {
-                const emp = getEmployee(p.employee_id);
                 return (
                   <div
                     key={p.id}
@@ -349,7 +360,7 @@ export default function Practicums() {
                       </div>
                       <div>
                         <p className="font-medium text-sm">
-                          {emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${p.employee_id}`}
+                          {employeeName(p.employee_id)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {p.completion_date ? `Completed: ${formatDateForDisplay(p.completion_date)}` : `Due: ${p.due_date ? formatDateForDisplay(p.due_date) : "N/A"}`}
@@ -405,10 +416,7 @@ export default function Practicums() {
           <div className="space-y-4">
             {editingPracticum ? (
               <div className="text-sm text-muted-foreground">
-                {(() => {
-                  const emp = employeeMap.get(editingPracticum.employee_id);
-                  return emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${editingPracticum.employee_id}`;
-                })()}
+                {employeeName(editingPracticum.employee_id)}
               </div>
             ) : (
               <div className="space-y-1.5">

@@ -209,6 +209,32 @@ test.describe("authenticated role journeys", () => {
       const critical = (await new AxeBuilder({ page }).analyze()).violations
         .filter((v) => v.impact === "critical");
       expect(critical, JSON.stringify(critical, null, 2)).toEqual([]);
+
+      if (role === "org_admin") {
+        await test.step("changing employee routes discards the previous employee's draft", async () => {
+          const { data: staff, error } = await admin.from("employees").insert([
+            { organization_id: organizationId, facility_id: facilityId, first_name: "RouteAlpha", last_name: "Staff", status: "active", job_title: "Caregiver" },
+            { organization_id: organizationId, facility_id: facilityId, first_name: "RouteBeta", last_name: "Staff", status: "active", job_title: "Caregiver" },
+          ]).select("id,first_name");
+          if (error) throw error;
+          const first = staff!.find(employee => employee.first_name === "RouteAlpha")!;
+          const second = staff!.find(employee => employee.first_name === "RouteBeta")!;
+          await gotoAppRoute(page, `/app/employees/${first.id}`);
+          await expect(page.getByRole("heading", { name: "RouteAlpha Staff", exact: true })).toBeVisible();
+          await page.getByRole("button", { name: "Edit", exact: true }).click();
+          const editDialog = page.getByRole("dialog", { name: "Edit Employee", exact: true });
+          await editDialog.getByLabel("First Name", { exact: false }).fill("Unsaved Alpha Draft");
+
+          // Exercise client-side route reuse, which a full page.goto reload would conceal.
+          await page.evaluate(path => window.history.pushState(null, "", path), `/app/employees/${second.id}`);
+          await expect(page.getByRole("heading", { name: "RouteBeta Staff", exact: true })).toBeVisible();
+          await expect(editDialog).not.toBeVisible();
+          await page.getByRole("button", { name: "Edit", exact: true }).click();
+          await expect(editDialog.getByLabel("First Name", { exact: false })).toHaveValue("RouteBeta");
+          await editDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+        });
+      }
+
     });
   }
 });

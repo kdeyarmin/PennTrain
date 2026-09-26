@@ -60,8 +60,16 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function ConfidentialIncidentDetail() {
-  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+
+  // Protected reads are authorized and logged for this report and reviewer. A new
+  // route or reviewer must start locked, including while an old read is in flight.
+  return <ConfidentialIncidentRecord key={JSON.stringify([id, user?.id, user?.organizationId, user?.role])} id={id} />;
+}
+
+function ConfidentialIncidentRecord({ id }: { id: string | undefined }) {
+  const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
 

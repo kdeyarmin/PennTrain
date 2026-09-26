@@ -1,7 +1,12 @@
 import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ state: [] as unknown[], index: 0, save: vi.fn(), toast: vi.fn(), practicumQuery: vi.fn() }));
+const h = vi.hoisted(() => ({
+  state: [] as unknown[], index: 0, save: vi.fn(), toast: vi.fn(), practicumQuery: vi.fn(),
+  practicumRows: [] as Record<string, unknown>[], historicalEmployees: [] as Record<string, unknown>[],
+  employeeRoster: vi.fn(), employeeLookup: vi.fn(), employeeLookupRetry: vi.fn(),
+  employeeLookupError: false, employeeLookupLoading: false,
+}));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(),
   useId: () => "test", useMemo: (compute: () => unknown) => compute(), useRef: (value: unknown) => ({ current: value }), useEffect: () => {},
   useState: (initial: unknown) => {
@@ -19,11 +24,20 @@ vi.mock("@/hooks/useSchedules", () => ({ useListSchedules: () => ({ data: [] }),
 vi.mock("@/hooks/useTrainingClasses", () => ({ useListTrainingClasses: () => ({ data: [] }), useClassAttendeeCounts: () => ({ data: {} }), useCreateTrainingClass: () => ({ mutate: h.save }) }));
 vi.mock("@/hooks/useProfiles", () => ({ useListProfiles: () => ({ data: [{ id: "trainer", first_name: "Training", last_name: "Lead" }] }) }));
 vi.mock("@/hooks/useTrainingTypes", () => ({ useListTrainingTypes: () => ({ data: [] }), useCreateTrainingType: () => ({ mutate: h.save }), useUpdateTrainingType: () => ({ mutate: h.save }) }));
-vi.mock("@/hooks/useEmployees", () => ({ useListEmployees: () => ({ data: [{ id: "employee", first_name: "Casey", last_name: "Learner", facility_id: "facility-a", organization_id: "org", status: "active" }] }) }));
+vi.mock("@/hooks/useEmployees", () => ({
+  useListEmployees: (filters: unknown) => {
+    h.employeeRoster(filters);
+    return { data: [{ id: "employee", first_name: "Casey", last_name: "Learner", facility_id: "facility-a", organization_id: "org", status: "active", administers_medications: true }] };
+  },
+  useListEmployeesByIds: (ids: string[]) => {
+    h.employeeLookup(ids);
+    return { data: h.historicalEmployees, isError: h.employeeLookupError, error: h.employeeLookupError ? new Error("Lookup failed") : null, isLoading: h.employeeLookupLoading, refetch: h.employeeLookupRetry };
+  },
+}));
 vi.mock("@/hooks/useEmployeeCredentials", () => ({ useListEmployeeCredentials: () => ({ data: [] }), useCreateEmployeeCredential: () => ({ mutate: h.save }), useUpdateEmployeeCredential: () => ({ mutate: h.save }), useDeleteEmployeeCredential: () => ({ mutate: vi.fn() }) }));
 vi.mock("@/hooks/useFacilityAssignments", () => ({ useAssignableFacilities: (facilities: unknown) => facilities }));
 vi.mock("@/hooks/useUrlState", () => ({ useUrlState: (defaults: unknown) => [defaults, vi.fn()] }));
-vi.mock("@/hooks/usePracticums", () => ({ usePaginatedPracticums: (filters: unknown) => { h.practicumQuery(filters); return { data: { rows: [], count: 0 } }; }, useCreatePracticum: () => ({ mutateAsync: h.save }), useUpdatePracticum: () => ({ mutateAsync: h.save }) }));
+vi.mock("@/hooks/usePracticums", () => ({ usePaginatedPracticums: (filters: unknown) => { h.practicumQuery(filters); return { data: { rows: h.practicumRows, count: h.practicumRows.length } }; }, useCreatePracticum: () => ({ mutateAsync: h.save }), useUpdatePracticum: () => ({ mutateAsync: h.save }) }));
 
 import Schedule from "./Schedule";
 import ScheduleSetup from "./ScheduleSetup";
@@ -54,7 +68,11 @@ function field(tree: ReactNode, id: string, value: string) {
   if (!node) throw new Error(`Missing input: ${id}`);
   (node.props.onChange as (event: unknown) => void)({ target: { value } });
 }
-beforeEach(() => { h.state = []; h.index = 0; vi.clearAllMocks(); });
+beforeEach(() => {
+  h.state = []; h.index = 0; h.practicumRows = []; h.historicalEmployees = [];
+  h.employeeLookupError = false; h.employeeLookupLoading = false;
+  vi.clearAllMocks();
+});
 
 describe("schedule form recovery", () => {
   it("keeps the form usable when its start date is cleared and requires a valid date before saving", () => {
@@ -138,6 +156,50 @@ describe("class attendance credit duration", () => {
 });
 
 describe("annual practicum history", () => {
+  function priorYearRecord() {
+    h.practicumRows = [{ id: "prior-practicum", employee_id: "former-employee", practicum_year: 2023, completion_date: "2023-08-15", status: "expired" }];
+    const tree = render(Practicums);
+    const select = nodes(tree).find(node => typeof node.props.onValueChange === "function" && /^\d{4}$/.test(String(node.props.value)))!;
+    (select.props.onValueChange as (value: string) => void)("2023");
+    return render(Practicums);
+  }
+  it("resolves a prior-year learner who left while keeping new learner and observer options active", () => {
+    h.historicalEmployees = [{ id: "former-employee", first_name: "Former", last_name: "Learner", status: "terminated", administers_medications: true, trainer_status: true }];
+    const tree = priorYearRecord();
+    expect(h.practicumQuery).toHaveBeenLastCalledWith(expect.objectContaining({ year: 2023 }));
+    expect(h.employeeLookup).toHaveBeenLastCalledWith(["former-employee"]);
+    expect(h.employeeRoster).toHaveBeenLastCalledWith({ status: "active", facilityId: undefined });
+    expect(text(tree)).toContain("Former Learner");
+    expect(text(tree)).not.toContain("Employee #former-employee");
+    click(tree, " Record Practicum");
+    const createTree = render(Practicums);
+    expect(nodes(createTree).filter(node => node.props.value === "employee")).toHaveLength(5);
+    expect(nodes(createTree).filter(node => node.props.value === "former-employee")).toHaveLength(0);
+    click(createTree, "Cancel");
+    const record = nodes(render(Practicums)).find(node => typeof node.props.onClick === "function" && text(node).includes("Former Learner"))!;
+    (record.props.onClick as () => void)();
+    const editTree = render(Practicums);
+    expect(text(editTree)).toContain("Edit Practicum");
+    expect(text(editTree).match(/Former Learner/g)).toHaveLength(2);
+  });
+  it("distinguishes pending historical name lookup from a missing employee", () => {
+    h.employeeLookupLoading = true;
+    const tree = priorYearRecord();
+    expect(text(tree)).toContain("Loading employee…");
+    expect(text(tree)).not.toContain("Employee #former-employee");
+    expect(text(tree)).not.toContain("No practicum records found");
+  });
+  it("keeps historical evidence visible and offers retry when its employee name lookup fails", () => {
+    h.employeeLookupError = true;
+    const tree = priorYearRecord();
+    const errorState = nodes(tree).find(node => node.props.what === "employee names for these practicum records");
+    expect(errorState?.props.error).toEqual(new Error("Lookup failed"));
+    (errorState?.props.onRetry as () => void)();
+    expect(h.employeeLookupRetry).toHaveBeenCalledOnce();
+    expect(text(tree)).toContain("Employee #former-employee");
+    expect(text(tree)).toContain("Completed:");
+    expect(text(tree)).not.toContain("No practicum records found");
+  });
   it("loads the selected prior year and uses it for new practicum defaults", () => {
     const tree = render(Practicums);
     const select = nodes(tree).find(node => typeof node.props.onValueChange === "function" && /^\d{4}$/.test(String(node.props.value)))!;

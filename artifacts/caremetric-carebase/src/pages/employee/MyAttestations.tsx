@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import {
@@ -43,7 +43,8 @@ function AttestationBadge({ attestation }: { attestation: PolicyAttestation }) {
 export default function MyAttestations() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   // Gate on a resolved employee id -- see useListPolicyAttestations' own comment on why `enabled`,
   // not just the filter, is required to avoid an unscoped fetch-then-refetch on every page load.
   const {
@@ -56,9 +57,13 @@ export default function MyAttestations() {
     { employeeId: employee?.id },
     { enabled: !!employee?.id },
   );
-  const { data: campaigns } = useListPolicyAttestationCampaigns({ organizationId: user?.organizationId ?? undefined });
-  const { data: documents } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
-  const { data: versions } = useListPolicyDocumentVersionsForOrg(user?.organizationId ?? undefined);
+  const campaignsQuery = useListPolicyAttestationCampaigns({ organizationId: user?.organizationId ?? undefined });
+  const documentsQuery = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
+  const versionsQuery = useListPolicyDocumentVersionsForOrg(user?.organizationId ?? undefined);
+  const { data: campaigns } = campaignsQuery;
+  const { data: documents } = documentsQuery;
+  const { data: versions } = versionsQuery;
+  const documentDetailsError = [campaignsQuery, documentsQuery, versionsQuery].find(query => query.isError);
   const { mutateAsync: getSignedUrl } = usePolicyDocumentSignedUrl();
   const { mutateAsync: attestPolicy, isPending: attesting } = useAttestPolicy();
 
@@ -70,6 +75,14 @@ export default function MyAttestations() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [knowledgeCheckPassed, setKnowledgeCheckPassed] = useState(false);
+  const reviewRequest = useRef(0);
+
+  const closeReview = () => {
+    reviewRequest.current++;
+    setReviewing(null);
+    setPdfUrl(null);
+    setLoadingPdf(false);
+  };
 
   // Same query key as the PolicyKnowledgeCheck component below, so react-query serves both from one
   // fetch. Read here only to know *whether* a check applies -- the questions themselves are rendered
@@ -85,6 +98,7 @@ export default function MyAttestations() {
   // can't be attested right now.
   const requiresKnowledgeCheck =
     knowledgeCheckLoading || knowledgeCheckError || (knowledgeCheckQuestions?.length ?? 0) > 0;
+  const renderedReviewRequest = reviewRequest.current;
 
   const campaignById = useMemo(() => new Map((campaigns ?? []).map((c) => [c.id, c])), [campaigns]);
   const documentById = useMemo(() => new Map((documents ?? []).map((d) => [d.id, d])), [documents]);
@@ -101,11 +115,13 @@ export default function MyAttestations() {
     return (a.due_date ?? "9999-99-99").localeCompare(b.due_date ?? "9999-99-99");
   });
 
-  const isLoading = employeeLoading || attestationsLoading;
+  const isLoading = employeeLoading || attestationsLoading || campaignsQuery.isLoading || documentsQuery.isLoading || versionsQuery.isLoading;
 
   const openReview = async (a: PolicyAttestation) => {
+    const request = ++reviewRequest.current;
     setReviewing(a);
     setPdfUrl(null);
+    setLoadingPdf(false);
     setKnowledgeCheckPassed(false);
     const version = versionById.get(a.policy_document_version_id);
     if (!version) return;
@@ -114,20 +130,23 @@ export default function MyAttestations() {
       // Longer TTL than the list-page default: the reader has to get through the whole
       // document inside this dialog before the "read and understood" step.
       const url = await getSignedUrl({ version, ttlSeconds: 600 });
-      setPdfUrl(url);
+      if (request === reviewRequest.current) setPdfUrl(url);
     } catch (e) {
-      toast({ variant: "destructive", title: "Couldn't load document", description: e instanceof Error ? e.message : String(e) });
+      if (request === reviewRequest.current) {
+        toast({ variant: "destructive", title: "Couldn't load document", description: e instanceof Error ? e.message : String(e) });
+      }
     } finally {
-      setLoadingPdf(false);
+      if (request === reviewRequest.current) setLoadingPdf(false);
     }
   };
 
   const handleAttest = async () => {
-    if (!reviewing) return;
+    if (!reviewing || !pdfUrl || loadingPdf || attesting || (requiresKnowledgeCheck && !knowledgeCheckPassed)) return;
+    const request = reviewRequest.current;
     try {
       await attestPolicy(reviewing.id);
       toast({ title: "Attestation recorded", description: `You've confirmed you read and understood "${titleFor(reviewing)}".` });
-      setReviewing(null);
+      if (request === reviewRequest.current) closeReview();
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't record attestation", description: e instanceof Error ? e.message : String(e) });
     }
@@ -147,12 +166,18 @@ export default function MyAttestations() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {attestationsError ? (
+          {employeeQuery.isError ? (
+            <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => employeeQuery.refetch()} />
+          ) : attestationsError ? (
             <QueryError what="your attestations" error={attestationsErrorDetail} onRetry={() => refetchAttestations()} />
+          ) : documentDetailsError ? (
+            <QueryError what="policy document details" error={documentDetailsError.error} onRetry={() => documentDetailsError.refetch()} />
           ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}
             </div>
+          ) : !employee ? (
+            <p className="text-muted-foreground text-sm text-center py-8">Your account is not linked to an employee profile. Ask your administrator to link your staff record so you can review assigned policies.</p>
           ) : !sorted.length ? (
             <p className="text-muted-foreground text-sm text-center py-8">No policies are awaiting your attestation.</p>
           ) : (
@@ -193,7 +218,7 @@ export default function MyAttestations() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!reviewing} onOpenChange={(o) => { if (!o) setReviewing(null); }}>
+      <Dialog open={!!reviewing} onOpenChange={(o) => { if (!o) closeReview(); }}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{reviewing ? titleFor(reviewing) : ""}</DialogTitle>
@@ -229,8 +254,11 @@ export default function MyAttestations() {
 
           {reviewing && isActionable(reviewing) && (
             <PolicyKnowledgeCheck
+              key={reviewing.id}
               attestationId={reviewing.id}
-              onPassed={() => setKnowledgeCheckPassed(true)}
+              onPassed={() => {
+                if (renderedReviewRequest === reviewRequest.current) setKnowledgeCheckPassed(true);
+              }}
             />
           )}
 
@@ -243,7 +271,7 @@ export default function MyAttestations() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewing(null)}>Cancel</Button>
+            <Button variant="outline" onClick={closeReview}>Cancel</Button>
             {reviewing && isActionable(reviewing) && (
               // The attestation is a legal signature -- never allow sign-off
               // unless the document actually loaded and could be read, and (when the campaign has
@@ -252,7 +280,7 @@ export default function MyAttestations() {
               // skips this UI entirely still cannot attest without a passing attempt on record.
               <Button
                 onClick={handleAttest}
-                disabled={attesting || !pdfUrl || (requiresKnowledgeCheck && !knowledgeCheckPassed)}
+                disabled={attesting || loadingPdf || !pdfUrl || (requiresKnowledgeCheck && !knowledgeCheckPassed)}
               >
                 {attesting ? "Recording..." : "I Have Read and Understood"}
               </Button>

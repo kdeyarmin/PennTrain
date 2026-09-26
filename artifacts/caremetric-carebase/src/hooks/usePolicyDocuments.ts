@@ -18,11 +18,17 @@ export function useListPolicyDocuments(filters: ListPolicyDocumentsFilters = {})
   return useQuery({
     queryKey: ["policy_documents", filters],
     queryFn: async () => {
-      let query = supabase.from("policy_documents").select("*").order("title");
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const rows: PolicyDocument[] = [];
+      for (let from = 0; ; ) {
+        let query = supabase.from("policy_documents").select("*").order("title").order("id")
+          .range(from, from + 999);
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data);
+        from += data.length;
+      }
     },
   });
 }
@@ -55,10 +61,8 @@ export function useCreatePolicyDocument() {
 
 // ---------------------------------------------------------------------------
 // Policy document versions -- same "course_versions" shape: draft versions can
-// be edited/replaced, publishing locks the row immutable (DB trigger) and
-// callers separately point policy_documents.current_version_id via a direct
-// supabase.from("policy_documents").update(...) call (see
-// usePublishPolicyDocumentVersion below).
+// be edited/replaced, publishing locks the row immutable (DB trigger) and advances
+// policy_documents.current_version_id in the same transactional publication RPC.
 //
 // Versions are scoped under the "policy_documents" query-key namespace so a
 // broad invalidateQueries({ queryKey: ["policy_documents"] }) also sweeps
@@ -69,13 +73,16 @@ export function useListPolicyDocumentVersions(policyDocumentId: string | undefin
   return useQuery({
     queryKey: ["policy_documents", "versions", policyDocumentId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("policy_document_versions")
-        .select("*")
-        .eq("policy_document_id", policyDocumentId!)
-        .order("version_number", { ascending: false });
-      if (error) throw error;
-      return data;
+      const rows: PolicyDocumentVersion[] = [];
+      for (let from = 0; ; ) {
+        const { data, error } = await supabase.from("policy_document_versions").select("*")
+          .eq("policy_document_id", policyDocumentId!)
+          .order("version_number", { ascending: false }).order("id").range(from, from + 999);
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data);
+        from += data.length;
+      }
     },
     enabled: !!policyDocumentId,
   });
@@ -89,12 +96,17 @@ export function useListPolicyDocumentVersionsForOrg(organizationId: string | und
   return useQuery({
     queryKey: ["policy_documents", "versions", "org", organizationId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("policy_document_versions")
-        .select("*")
-        .eq("organization_id", organizationId!);
-      if (error) throw error;
-      return data;
+      // Personal review joins assignments to these versions. A capped response makes a real
+      // assigned document look unavailable, so read every page, including under a lower API cap.
+      const rows: PolicyDocumentVersion[] = [];
+      for (let from = 0; ; ) {
+        const { data, error } = await supabase.from("policy_document_versions").select("*")
+          .eq("organization_id", organizationId!).order("id").range(from, from + 999);
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data);
+        from += data.length;
+      }
     },
     enabled: !!organizationId,
   });
