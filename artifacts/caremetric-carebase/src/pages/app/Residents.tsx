@@ -42,6 +42,8 @@ interface ResidentFormData {
   sdcu: boolean;
   hospice: boolean;
   admissionTrack: "standard" | "expedited";
+  expeditedBasis: string;
+  expeditedEvidence: string;
 }
 
 // A function, not a constant: `facilityToday()` must be evaluated when the dialog opens, not when
@@ -50,6 +52,7 @@ interface ResidentFormData {
 const emptyForm = (): ResidentFormData => ({
   facilityId: "", firstName: "", lastName: "", room: "",
   admissionDate: facilityToday(), sdcu: false, hospice: false, admissionTrack: "standard",
+  expeditedBasis: "", expeditedEvidence: "",
 });
 
 const RESIDENTS_URL_DEFAULTS = { search: "", facility: "all", status: "active", page: "1" };
@@ -153,6 +156,9 @@ export default function Residents() {
     }
     const facility = facilityById.get(form.facilityId);
     if (!facility) return;
+    if (facility.facility_type === "ALR" && form.admissionTrack === "expedited" && (!form.expeditedBasis || form.expeditedEvidence.trim().length < 10)) {
+      toast({ title: "Record the expedited-admission basis and supporting documentation", variant: "destructive" }); return;
+    }
 
     const payload: ResidentInsert = {
       organization_id: facility.organization_id,
@@ -164,6 +170,8 @@ export default function Residents() {
       sdcu: form.sdcu,
       hospice: form.hospice,
       admission_track: facility.facility_type === "ALR" ? form.admissionTrack : "standard",
+      ...({ expedited_admission_basis: form.admissionTrack === "expedited" ? form.expeditedBasis : null,
+        expedited_admission_evidence: form.admissionTrack === "expedited" ? form.expeditedEvidence.trim() : null }),
     };
 
     const formLabel = getComplianceFormLabel(facility.facility_type);
@@ -391,6 +399,13 @@ export default function Residents() {
                     Expedited applies only for: direct transfer from an acute-care hospital, admission to escape an
                     abusive situation, or no alternative living arrangement available.
                   </p>
+                  {form.admissionTrack === "expedited" && <>
+                    <Label htmlFor="expedited-admission-basis">Expedited admission basis *</Label>
+                    <Select value={form.expeditedBasis} onValueChange={value => setForm(previous => ({ ...previous, expeditedBasis: value }))}><SelectTrigger id="expedited-admission-basis"><SelectValue placeholder="Select the applicable condition" /></SelectTrigger><SelectContent>
+                      <SelectItem value="acute_care_hospital">Directly from an acute-care hospital</SelectItem><SelectItem value="escape_abuse">Escaping an abusive situation</SelectItem><SelectItem value="no_alternative_arrangement">No alternative living arrangement</SelectItem>
+                    </SelectContent></Select>
+                    <Label htmlFor="expedited-admission-evidence">Supporting documentation reference and explanation *</Label><Input id="expedited-admission-evidence" value={form.expeditedEvidence} onChange={event => setForm(previous => ({ ...previous, expeditedEvidence: event.target.value }))} />
+                  </>}
                 </div>
               )}
             </div>

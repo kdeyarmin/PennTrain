@@ -22,6 +22,7 @@ const invalidate = (client: ReturnType<typeof useQueryClient>, residentId?: stri
   client.invalidateQueries({ queryKey: ["resident-administrative-master", residentId] });
   client.invalidateQueries({ queryKey: ["residents", residentId] });
   client.invalidateQueries({ queryKey: ["admissions"] });
+  client.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
 };
 
 export function useResidentAgreements(residentId?: string) {

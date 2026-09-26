@@ -5,6 +5,7 @@
 // signs its URL. Only approved rows can be exported -- approval is the human gate the
 // review workflow enforces upstream -- and the packet renders the reviewed draft, never
 // raw AI output.
+import { publicGeneratorError } from "../_shared/generatorErrors.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
@@ -237,7 +238,7 @@ Deno.serve(async (req: Request) => {
     .limit(MAX_PACKET_JOBS);
   if (requestedIds) jobsQuery = jobsQuery.in("id", requestedIds);
   const { data: jobs, error: jobsError, count: approvedCount } = await jobsQuery;
-  if (jobsError) return json(req, { error: jobsError.message }, 500);
+  if (jobsError) return json(req, { error: publicGeneratorError("read", jobsError) }, 500);
   if (!jobs || jobs.length === 0) {
     return json(req, { error: "No approved forms to export. Approve at least one reviewed form first." }, 400);
   }
@@ -352,13 +353,13 @@ Deno.serve(async (req: Request) => {
   const { error: uploadError } = await adminClient.storage
     .from(ANALYZER_BUCKET)
     .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
-  if (uploadError) return json(req, { error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: publicGeneratorError("save", uploadError) }, 500);
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(ANALYZER_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    return json(req, { error: publicGeneratorError("link", signedUrlError) }, 500);
   }
 
   // The deterministic path above means each re-export overwrites the previous packet
@@ -373,7 +374,7 @@ Deno.serve(async (req: Request) => {
     new_values: { job_ids: jobs.map((j) => j.id), storage_path: path },
   });
   if (auditError) {
-    return json(req, { error: `The packet was generated but could not be recorded in the audit log (${auditError.message}). The download link is withheld until the export can be audited.` }, 500);
+    return json(req, { error: publicGeneratorError("audit", auditError) }, 500);
   }
 
   return json(req, {

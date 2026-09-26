@@ -1,4 +1,5 @@
 // @ts-nocheck -- retained: npm pdf-lib module causes widespread type errors
+import { publicGeneratorError } from "../_shared/generatorErrors.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFName } from "npm:pdf-lib@1.17.1";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
@@ -223,7 +224,7 @@ Deno.serve(async (req: Request) => {
     )
     .eq("id", complianceItemId)
     .maybeSingle();
-  if (itemError) return json(req, { error: itemError.message }, 500);
+  if (itemError) return json(req, { error: publicGeneratorError("read", itemError) }, 500);
   if (!item) return json(req, { error: "Compliance item not found" }, 404);
 
   const templatesForType = hasStateFormPrefill(item.item_type) ? DHS_PREFILL_TEMPLATES[item.item_type] : undefined;
@@ -285,7 +286,7 @@ Deno.serve(async (req: Request) => {
     // A real error, not a silent success-without-url: the document row exists but its file can't
     // be served right now, and the caller needs something actionable to surface.
     if (signedError || !signed) {
-      return json(req, { error: signedError?.message ?? "failed to create signed url" }, 500);
+      return json(req, { error: publicGeneratorError("link", signedError) }, 500);
     }
     return json(req, {
       success: true,
@@ -354,7 +355,7 @@ Deno.serve(async (req: Request) => {
     adminClient.storage, item.organization_id, item.facility_id,
     `${item.resident_id}-${item.item_type}-prefill-${item.id}`, pdfBytes,
   );
-  if (uploadError) return json(req, { error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: publicGeneratorError("save", uploadError) }, 500);
 
   // is_state_form is explicitly false (matches the column default, but stated here so it can
   // never be mistaken for an oversight): a CareMetric-prefilled download is not the signed
@@ -384,14 +385,14 @@ Deno.serve(async (req: Request) => {
       const raced = await existingResponse();
       if (raced) return raced;
     }
-    return json(req, { error: docError.message }, 500);
+    return json(req, { error: publicGeneratorError("save", docError) }, 500);
   }
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    return json(req, { error: publicGeneratorError("link", signedUrlError) }, 500);
   }
 
   return json(req, {

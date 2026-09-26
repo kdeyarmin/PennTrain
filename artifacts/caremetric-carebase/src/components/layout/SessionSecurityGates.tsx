@@ -1,3 +1,4 @@
+import { IdentityReverificationContext } from "@/lib/identityReverification";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
@@ -56,6 +57,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   const signOut = useSignOut();
   const settings = useGetOrganizationSettings(user?.organizationId ?? undefined);
   const [locked, setLocked] = useState(false);
+  const [manualVerification, setManualVerification] = useState(false);
   const setVerificationOverlayActive = useContext(IdleVerificationContext);
   const [password, setPassword] = useState("");
   const [unlocking, setUnlocking] = useState(false);
@@ -83,14 +85,15 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
     ? settings.data?.kiosk_idle_timeout_minutes ?? 5
     : settings.data?.idle_timeout_minutes ?? 30;
 
-  const lock = useCallback(() => {
+  const lock = useCallback((reason: "idle_timeout" | "kiosk_timeout" | "manual" = isKiosk ? "kiosk_timeout" : "idle_timeout") => {
     if (locked || !user) return;
     setVerificationOverlayActive(true);
     setLocked(true);
     setPassword("");
+    setManualVerification(reason === "manual");
     void supabase.rpc("record_idle_session_lock", {
       p_route_path: location,
-      p_lock_reason: isKiosk ? "kiosk_timeout" : "idle_timeout",
+      p_lock_reason: reason,
     }).then(({ data }) => { if (typeof data === "string") setLockEventId(data); });
   }, [isKiosk, location, locked, user, setVerificationOverlayActive]);
 
@@ -117,6 +120,8 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
     // would re-lock a session that is now demonstrably unlocked.
     await queryClient.invalidateQueries({ queryKey: ["current_idle_session_lock"] });
     await invalidateMfaDependentQueries(queryClient);
+    await queryClient.invalidateQueries({ queryKey: ["identity_assurance"] });
+    setManualVerification(false);
     setLocked(false);
     setVerificationOverlayActive(false);
     setLockEventId(null);
@@ -165,6 +170,8 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
       setUnlocking(false);
     }
   };
+
+  const requestVerification = useCallback(() => lock("manual"), [lock]);
 
   const selectedStepUpFactor = stepUpFactors?.find((factor) => factor.id === stepUpFactorId) ?? null;
   const isPhoneStepUp = selectedStepUpFactor?.factorType === "phone" || selectedStepUpFactor?.factorType === "sms";
@@ -256,13 +263,14 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <>
+    <IdentityReverificationContext.Provider value={requestVerification}>
       {children}
       {locked && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/95 px-4" role="dialog" aria-modal="true" aria-labelledby="session-lock-title">
           <Card className="w-full max-w-md">
-            <CardHeader className="text-center"><div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-primary/10"><LockKeyhole className="h-6 w-6 text-primary" /></div><CardTitle id="session-lock-title">{stepUpFactors ? "One more step" : "Session locked"}</CardTitle><CardDescription>{stepUpFactors
+            <CardHeader className="text-center"><div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-primary/10"><LockKeyhole className="h-6 w-6 text-primary" /></div><CardTitle id="session-lock-title">{stepUpFactors ? "One more step" : manualVerification ? "Verify your identity" : "Session locked"}</CardTitle><CardDescription>{stepUpFactors
               ? "Your password was accepted. Unlocking starts a new sign-in session, so verify your second factor to finish -- the page behind this is still exactly where you left it."
+              : manualVerification ? "Re-enter your password and verify your second factor to continue editing. Your current page and form entries will stay open."
               : `This shared-device session was locked after ${timeoutMinutes} minutes without activity. Re-enter your password to continue without losing the current page.`}</CardDescription></CardHeader>
             <CardContent>{stepUpFactors ? (
               <form onSubmit={verifyStepUp} className="space-y-4">
@@ -303,7 +311,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
           </Card>
         </div>
       )}
-    </>
+    </IdentityReverificationContext.Provider>
   );
 }
 

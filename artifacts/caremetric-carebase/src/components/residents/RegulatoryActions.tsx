@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RegulatoryEvents } from "./RegulatoryEvents";
 
 const EMPTY = { anchor: "", reason: "", destination: "", recipientName: "", completed: "", evidence: "", exception: "", language: "", ombudsman: "", rights: "", accommodation: "" };
 const local = (value: string) => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)).replace(" ", "T");
@@ -65,11 +66,13 @@ export function RegulatoryActions({ organizationId, facilityId, residentId, faci
   return <Card>
     <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Notices, transfers and fund deadlines</CardTitle>{canManage && <Button className="print:hidden" onClick={() => { setEditing(null); setCorrectionOf(null); setForm(EMPTY); setStatus("pending"); setType(residentId ? "discharge_notice" : "closure_department_notice"); setOpen(true); }}>Add deadline</Button>}</CardHeader>
     <CardContent className="space-y-3">
+      <RegulatoryEvents facilityId={facilityId} residentId={residentId} canManage={canManage} />
       <p className="text-sm text-muted-foreground">Record actual delivery and transaction evidence for each recipient. Times use Pennsylvania time. Creating a deadline does not send a notice, transfer a resident or move funds.</p>
-      {query.isError ? <QueryError what="regulatory deadlines" error={query.error} onRetry={() => void query.refetch()} /> : query.isLoading ? <p>Loading deadlines…</p> : !query.data?.length ? <p className="text-sm text-muted-foreground">No notice or fund deadlines recorded.</p> : query.data.map((row) => <div key={row.id} className="border rounded-md p-3 text-sm space-y-1">
+      {query.isError ? <QueryError what="regulatory deadlines" error={query.error} onRetry={() => void query.refetch()} /> : query.isLoading ? <p>Loading deadlines…</p> : !query.data?.length ? <p className="text-sm text-muted-foreground">No notice or fund deadlines recorded.</p> : query.data.filter(row => Object.hasOwn(REGULATORY_ACTIONS,row.action_type)).map((row) => <div key={row.id} className="border rounded-md p-3 text-sm space-y-1">
         <div className="flex justify-between gap-3"><strong>{REGULATORY_ACTIONS[row.action_type as RegulatoryActionType]?.label ?? humanize(row.action_type)}</strong><span>{regulatoryActionStatus(row)}</span></div>
         <p>{humanize(row.recipient_role)}{row.recipient_name ? `: ${row.recipient_name}` : ""} · Due {display(row.due_at)}</p>
         <p>Event: {display(row.anchor_at)} · {row.reason}{row.destination ? ` · Destination: ${row.destination}` : ""}</p>
+        {(row.details as Record<string, unknown>).initiator === "emergency" && <p>Certified emergency: {(row.details as Record<string, string>).certification_evidence}. Review the exception and actual practicable notice; the original 30-day comparison remains visible.</p>}
         {row.evidence && <p>Evidence: {row.evidence}{row.completed_at ? ` · Completed ${display(row.completed_at)}` : ""}</p>}
         {row.exception_basis && <p>Exception basis: {row.exception_basis}</p>}
         {typeof (row.details as Record<string, unknown>).corrects_action_id === "string" && <p>Correction to record: {(row.details as Record<string, string>).corrects_action_id}</p>}

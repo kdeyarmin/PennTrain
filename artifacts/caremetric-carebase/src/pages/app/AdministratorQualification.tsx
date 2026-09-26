@@ -3,6 +3,8 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useListProfiles } from "@/hooks/useProfiles";
 import { useListFacilities } from "@/hooks/useFacilities";
+import { useTrainingYearPolicy } from "@/hooks/useTrainingWorkspace";
+import { useStaffRegulatoryPolicy } from "@/hooks/useStaffRegulatory";
 import {
   type AdministratorProfileInsert,
   useGetAdministratorProfileByProfileId, useUpsertAdministratorProfile,
@@ -100,15 +102,19 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
   const { mutateAsync: deleteCeEntry } = useDeleteAdministratorCeEntry();
   const facilitiesQuery = useListFacilities();
   const { data: facilities } = facilitiesQuery;
+  const [facilityTypePreview, setFacilityTypePreview] = useState<FacilityType>("PCH");
+  const [policyFacility, setPolicyFacility] = useState("");
+  const activePolicyFacility = policyFacility || facilities?.find(f => f.facility_type === facilityTypePreview)?.id || "";
+  const trainingYearPolicy = useTrainingYearPolicy(activePolicyFacility);
+  const staffPolicy = useStaffRegulatoryPolicy(activePolicyFacility);
   // The rule-pack badge reports whether the administrator meets PCH/ALF qualification.
   // Missing CE hours because of a failed fetch would render as "not ready" and send
   // someone chasing training that is already on file.
-  const qualificationQueries = [profileQuery, ceEntriesQuery, facilitiesQuery];
+  const qualificationQueries = [profileQuery, ceEntriesQuery, facilitiesQuery, ...(activePolicyFacility ? [trainingYearPolicy, staffPolicy] : [])];
   const qualificationFailure = qualificationQueries.find((query) => query.isError);
   const qualificationBusy = qualificationQueries.some((query) => query.isLoading || query.isPending);
 
-  const [ceForm, setCeForm] = useState({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "" });
-  const [facilityTypePreview, setFacilityTypePreview] = useState<FacilityType>("PCH");
+  const [ceForm, setCeForm] = useState({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "", creditCategory: "general" });
 
   const rollingTotal = useMemo(() => {
     // Trailing window on the Pennsylvania facility calendar — not browser `setDate(-365)`.
@@ -125,8 +131,9 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
     return Array.from(types);
   }, [facilities]);
   const administratorRulePack = useMemo(
-    () => buildAdministratorRulePack(facilityTypePreview, { profile, ceEntries, today: facilityToday() }),
-    [facilityTypePreview, profile, ceEntries],
+    () => buildAdministratorRulePack(facilityTypePreview, { profile, ceEntries, today: facilityToday(), trainingPolicy: trainingYearPolicy.data,
+      annualGraceDays: staffPolicy.data?.annual_grace_days }),
+    [facilityTypePreview, profile, ceEntries, trainingYearPolicy.data, staffPolicy.data],
   );
   const administratorRuleSummary = useMemo(() => summarizeAdministratorRulePack(administratorRulePack), [administratorRulePack]);
   const ceRequirement = administratorRulePack.find((requirement) => requirement.id === "administrator-continuing-education");
@@ -164,6 +171,14 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         dementia_annual_completed_date: profile?.dementia_annual_completed_date ?? null,
         dementia_annual_hours: profile?.dementia_annual_hours ?? null,
         dementia_annual_document_path: profile?.dementia_annual_document_path ?? null,
+        legacy_no_break_over_one_year: profile?.legacy_no_break_over_one_year ?? false,
+        legacy_training_document_path: profile?.legacy_training_document_path ?? null,
+        competency_exemption_basis: profile?.competency_exemption_basis ?? "regulation",
+        competency_exemption_evidence: profile?.competency_exemption_evidence ?? null,
+        alf_supplement_completed_date: profile?.alf_supplement_completed_date ?? null,
+        alf_supplement_hours: profile?.alf_supplement_hours ?? null,
+        alf_supplement_test_passed: profile?.alf_supplement_test_passed ?? false,
+        alf_supplement_document_path: profile?.alf_supplement_document_path ?? null,
       };
       const payload = { ...base, ...patch };
       lastSentRef.current = payload;
@@ -186,8 +201,9 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         source: ceForm.source,
         completed_date: ceForm.completedDate,
         provider: ceForm.provider || null,
+        credit_category: ceForm.creditCategory,
       });
-      setCeForm({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "" });
+      setCeForm({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "", creditCategory: "general" });
       toast({ title: "CE entry added" });
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't add CE entry", description: e instanceof Error ? e.message : String(e) });
@@ -226,7 +242,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         <CardContent className="space-y-4">
           <div className="space-y-1.5 max-w-xs">
             <Label htmlFor={`${__fieldIds}-preview-facility-type`} className="text-[13px]">Preview facility type</Label>
-            <Select value={facilityTypePreview} onValueChange={(v) => setFacilityTypePreview(v as FacilityType)}>
+            <Select value={facilityTypePreview} onValueChange={(v) => { setFacilityTypePreview(v as FacilityType); setPolicyFacility(""); }}>
               <SelectTrigger id={`${__fieldIds}-preview-facility-type`} className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {facilityTypeOptions.map((type) => <SelectItem key={type} value={type}>{facilityTypeLabel(type)}</SelectItem>)}
@@ -255,9 +271,10 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5" /> Qualification Path</CardTitle>
-          <CardDescription>The 100-hour DHS-approved administrator course, or the NHA license exemption.</CardDescription>
+          <CardDescription>Approved course, documented legacy qualification, ALF supplement or NHA exemption.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <label className="block text-sm">Facility training-year policy<select className="block w-full rounded border p-2" value={activePolicyFacility} onChange={e => setPolicyFacility(e.target.value)}>{facilities?.filter(f => f.facility_type === facilityTypePreview).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
           <div className="space-y-1.5 max-w-xs">
             <Label htmlFor={`${__fieldIds}-qualification-path`} className="text-[13px]">Qualification Path</Label>
             <Select value={profile?.qualification_path ?? "unset"} onValueChange={(v) => save({ qualification_path: v === "unset" ? null : (v as AdministratorProfile["qualification_path"]) })}>
@@ -266,11 +283,29 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
                 <SelectItem value="unset">Not yet determined</SelectItem>
                 <SelectItem value="hundred_hour_course">100-Hour Administrator Course</SelectItem>
                 <SelectItem value="nha_exemption">NHA License Exemption</SelectItem>
+                <SelectItem value="legacy_pch">PCH administrator before October 24, 2005</SelectItem>
+                <SelectItem value="pch_course_supplement">PCH course plus 15-hour ALF supplement</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {profile?.qualification_path === "hundred_hour_course" && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm">Competency exemption interpretation<select className="block w-full rounded border p-2" value={profile?.competency_exemption_basis ?? "regulation"} onChange={e => save({ competency_exemption_basis: e.target.value })}><option value="regulation">Chapter cutoff</option><option value="rcg_pre_2009">PCH RCG pre-2009 test exemption</option></select></label>
+            <label className="text-sm">Exemption basis and evidence<Input defaultValue={profile?.competency_exemption_evidence ?? ""} onBlur={e => save({ competency_exemption_evidence: e.target.value || null })} /></label>
+          </div>
+          <p className="text-xs text-muted-foreground">The PCH chapter exempts NHAs employed before October 24, 2006; the RCG exempts competency tests for administrators employed before January 1, 2009. Record the chosen interpretation and evidence. Exemptions do not remove ongoing CE or ALF §69 dementia requirements.</p>
+          {(profile?.qualification_path === "legacy_pch" || profile?.qualification_path === "pch_course_supplement") && <div className="space-y-3 border-t pt-3">
+            <label className="block text-sm">First employed as administrator<Input type="date" defaultValue={profile.first_employed_as_administrator_on ?? ""} onBlur={e => save({ first_employed_as_administrator_on: e.target.value || null })} /></label>
+            <label className="flex gap-2 text-sm"><Checkbox checked={profile.legacy_no_break_over_one_year} onCheckedChange={v => save({ legacy_no_break_over_one_year: !!v })} />No break in administrator service longer than one year</label>
+            <DocumentUploadRow label="Legacy course / employment evidence" path={profile.legacy_training_document_path} organizationId={organizationId} profileId={profileId} onUploaded={path => save({ legacy_training_document_path: path }, { rethrow: true })} />
+            {profile.qualification_path === "pch_course_supplement" && <>
+              <label className="block text-sm">15-hour supplement completed<Input type="date" defaultValue={profile.alf_supplement_completed_date ?? ""} onBlur={e => save({ alf_supplement_completed_date: e.target.value || null })} /></label>
+              <label className="block text-sm">Supplement hours<Input type="number" min="0" defaultValue={profile.alf_supplement_hours ?? ""} onBlur={e => save({ alf_supplement_hours: e.target.value ? Number(e.target.value) : null })} /></label>
+              <label className="flex gap-2 text-sm"><Checkbox checked={profile.alf_supplement_test_passed} onCheckedChange={v => save({ alf_supplement_test_passed: !!v })} />Related competency test passed</label>
+              <DocumentUploadRow label="ALF supplement and test evidence" path={profile.alf_supplement_document_path} organizationId={organizationId} profileId={profileId} onUploaded={path => save({ alf_supplement_document_path: path }, { rethrow: true })} />
+            </>}
+          </div>}
+          {(profile?.qualification_path === "hundred_hour_course" || profile?.qualification_path === "pch_course_supplement") && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
               <div className="space-y-1.5">
                 <Label htmlFor={`${__fieldIds}-course-first-employed`}>First employed as administrator</Label>
@@ -396,7 +431,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
             }>
               {ceEntriesQuery.isLoading || ceEntriesQuery.isPending || ceEntriesQuery.isError
                 ? "—"
-                : `${rollingTotal.toFixed(1)} / ${ROLLING_WINDOW_HOURS_REQUIRED} hrs (trailing 12 months)`}
+                : `${(ceRequirement?.earnedHours ?? rollingTotal).toFixed(1)} / ${ROLLING_WINDOW_HOURS_REQUIRED} eligible hours`}
             </Badge>
           </div>
           <CardDescription>{ceRequirement?.detail ?? "Annual CE requirement, with source and documentation captured per entry."}</CardDescription>
@@ -434,6 +469,8 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
             </div>
           </div>
 
+          <label className="block text-sm">CE credit category<select className="block rounded border p-2" value={ceForm.creditCategory} onChange={e => setCeForm(f => ({ ...f, creditCategory: e.target.value }))}><option value="general">General approved training</option><option value="medication">Medication training (6-hour cap)</option><option value="resuscitation">First aid / CPR / airway (4-hour cap)</option></select></label>
+          <p className="text-xs text-muted-foreground">Online and webinar credit is capped at 12 hours. Online-only first aid / CPR / airway receives no credit. Keep Department approval with the training evidence.</p>
           <div className="space-y-2 pt-2 border-t">
             {ceEntriesQuery.isLoading || ceEntriesQuery.isPending ? (
               <p className="text-sm text-muted-foreground text-center py-4">Loading CE entries…</p>

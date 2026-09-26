@@ -62,6 +62,7 @@ export function stateFormBackdateDays(itemType: string, facilityType: string | n
     // 2800.227(a): the final support plan is a post-admission document.
     if (itemType === "support_plan_30day") return 0;
   }
+  if (facilityType === "PCH" && ["initial_assessment_15day", "support_plan_30day"].includes(itemType)) return 0;
   return 180;
 }
 

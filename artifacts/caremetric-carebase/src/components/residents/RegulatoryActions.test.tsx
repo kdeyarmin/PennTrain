@@ -15,6 +15,7 @@ vi.mock("react", async original => ({
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { role: "org_admin" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock("./RegulatoryEvents", () => ({ RegulatoryEvents: () => null }));
 vi.mock("@/hooks/useResidentRegulatoryActions", () => ({
   useResidentRegulatoryActions: () => ({ data: harness.rows, isLoading: false, isError: false }),
   useSaveResidentRegulatoryAction: () => ({ mutate: harness.save, isPending: false }),

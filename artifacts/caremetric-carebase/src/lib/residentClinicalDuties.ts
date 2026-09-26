@@ -1,0 +1,11 @@
+export const RESIDENT_CLINICAL_DUTIES = {
+  scu_admission: { label: "Special-care unit admission", guidance: "Record the actual unit admission time, cognitive/CPB screening within the prior 72 hours, qualified collaborator, admission agreement, alternatives considered and medical evaluation within 60 days (§231)." },
+  scu_support_plan: { label: "Special-care support / rehabilitation plan", guidance: "Develop, implement and document the plan within 72 hours before or after unit admission. Include physical, medical, social, cognitive and safety needs, responsible individuals and resident participation; INRBI also needs emotional and behavioral needs (§234)." },
+  scu_continuing_need: { label: "Continuing need for special care", guidance: "PCH: annually. ALF dementia: quarterly. ALF INRBI: at least semiannually (§231). Record the actual assessment and its conclusion." },
+  scu_plan_review: { label: "Special-care plan review", guidance: "PCH: annually. ALF dementia: quarterly. ALF INRBI: monthly. Revise whenever condition changes (§234(d))." },
+  resident_tb_test: { label: "ALF resident tuberculosis evidence", guidance: "Document a negative tuberculin test within two years or a positive test with chest X-ray result. If no test is available at admission, administer within 15 days (§2800.141(a)(11)). A negative test opens the next review two calendar years from the actual test. Positive-test evidence retains the chest X-ray result without imposing another tuberculin test." },
+  medication_refusal_notice: { label: "Medication refusal — prescriber notice", guidance: "Document the refusal and report it to the prescriber within 24 hours. A different or subsequent-refusal reporting schedule requires the prescriber's instruction (§187(c))." },
+  alf_exception_request: { label: "ALF excludable-condition exception", guidance: "Keep the written request, qualified certification, support plan/accommodations, alternate care arrangements and written determination in the resident record. Record admission denial or transfer/discharge decisions. DHS response target: five business days after receipt (§2800.229)." },
+} as const;
+export type ResidentClinicalDutyType = keyof typeof RESIDENT_CLINICAL_DUTIES;
+export function isResidentClinicalDuty(type: string): type is ResidentClinicalDutyType { return Object.hasOwn(RESIDENT_CLINICAL_DUTIES, type); }

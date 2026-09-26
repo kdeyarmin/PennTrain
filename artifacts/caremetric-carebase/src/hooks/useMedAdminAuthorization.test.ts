@@ -8,7 +8,8 @@ import type { TrainingRecord } from "@/hooks/useTrainingRecords";
 import type { Practicum } from "@/hooks/usePracticums";
 import type { Employee } from "@/hooks/useEmployees";
 
-const TYPE_IDS = { medInitTypeId: "init-type", medRenewTypeId: "renew-type", diabetesEduTypeId: "diabetes-type" };
+const TYPE_IDS = { medInitTypeId: "init-type", medRenewTypeId: "renew-type", diabetesEduTypeId: "diabetes-type",
+  courseRenewalYearsByEmployee: { e1: 2, e3: 2 } };
 
 function employee(id: string, administersMedications = true): Pick<Employee, "id" | "administers_medications"> {
   return { id, administers_medications: administersMedications };
@@ -32,6 +33,15 @@ function practicum(employeeId: string, status: string, overrides: Partial<Practi
 }
 
 describe("computeMedAdminAuthorization", () => {
+  it("keeps an approved initial course valid with the annual practicum under the RCG default", () => {
+    const options = { ...TYPE_IDS, courseRenewalYearsByEmployee: { e1: null }, today: "2026-09-26" };
+    const records = [record({ completion_date: "2020-01-01", status: "expired", approval_status: "approved" })];
+    expect(computeMedAdminAuthorization([employee("e1")], records, [practicum("e1", "compliant")], options)[0].authorizedToday).toBe(true);
+    expect(computeMedAdminAuthorization([employee("e1")], records, [], options)[0].authorizedToday).toBe(false);
+    for (const patch of [{ approval_status: "pending" }, { approval_status: "rejected" }, { completion_date: "2027-01-01" }]) {
+      expect(computeMedAdminAuthorization([employee("e1")], [record({ ...records[0], ...patch })], [practicum("e1", "compliant")], options)[0].authorizedToday).toBe(false);
+    }
+  });
   it("is never authorized for staff not flagged as administering medications, regardless of records", () => {
     const [row] = computeMedAdminAuthorization(
       [employee("e1", false)],

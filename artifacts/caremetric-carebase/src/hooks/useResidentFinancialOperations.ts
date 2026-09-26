@@ -66,6 +66,7 @@ export interface FinancialWorkspace {
 }
 
 function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
   queryClient.invalidateQueries({
     queryKey: ["resident-financial-operations"],
   });

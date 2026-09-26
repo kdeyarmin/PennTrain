@@ -49,6 +49,19 @@ insert into public.employees(
 -- employee_facility_assignments rows come from sync_employee_primary_facility_assignment on insert;
 -- writing them here duplicates the key.
 
+-- These scheduling cases isolate OAPSA from the separate age/role/fitness gate.
+-- A documented non-care role is exempt from direct-care course/ADL prerequisites.
+insert into auth.users(id, instance_id, aud, role, email) values
+  ('17000000-0000-4000-8000-000000000041', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'float.aide@example.test');
+insert into public.employee_regulatory_profiles(
+  employee_id,organization_id,facility_id,birth_date,role_category,medical_fitness_confirmed,updated_by
+)
+select id,organization_id,facility_id,date '1990-01-01','other',true,'17000000-0000-4000-8000-000000000041'
+from public.employees where organization_id='17000000-0000-4000-8000-000000000001';
+update public.employee_credentials set issue_date=public.pa_today()-1,status='compliant'
+where employee_id='17000000-0000-4000-8000-000000000031' and credential_type='act34_criminal_history';
+
 -- provisional_max_days is deliberately NOT supplied: the trigger derives it, and a test that
 -- supplied it would be testing its own arithmetic rather than the rule.
 insert into public.employee_background_check_profiles(
@@ -62,9 +75,15 @@ insert into public.employee_background_check_profiles(
   -- Started 40 days ago on a 30-day resident window: expired ten days ago.
   ('17000000-0000-4000-8000-000000000001', '17000000-0000-4000-8000-000000000011',
    '17000000-0000-4000-8000-000000000033', true, public.pa_today() - 40, 'pending'),
-  -- Started 20 days ago on the same window: five days left.
+  -- Started 25 days ago on the same window: five days left.
   ('17000000-0000-4000-8000-000000000001', '17000000-0000-4000-8000-000000000011',
    '17000000-0000-4000-8000-000000000034', true, public.pa_today() - 25, 'pending');
+
+update public.employee_background_check_profiles
+set psp_requested_on=provisional_start_date,fbi_requested_on=provisional_start_date,
+ non_disqualification_statement_signed=true,supervision_attestation_confirmed=true
+where provisional_start_date is not null
+  and organization_id='17000000-0000-4000-8000-000000000001';
 
 select is(
   (select provisional_max_days from public.employee_background_check_profiles
@@ -250,7 +269,7 @@ insert into public.facilities(id, organization_id, name, facility_type) values
 
 insert into auth.users(id, instance_id, aud, role, email) values
   ('17000000-0000-4000-8000-000000000041', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'float.aide@example.test');
+   'authenticated', 'authenticated', 'float.aide@example.test') on conflict(id) do nothing;
 -- handle_new_user() writes the profile with no organization, and protect_privileged_fields
 -- silently reverts a direct organization_id write -- the same escape hatch the assignment RPCs use.
 select set_config('app.privileged_write', 'on', true);

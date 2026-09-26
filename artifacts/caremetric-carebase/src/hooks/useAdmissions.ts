@@ -548,11 +548,12 @@ export function useRevokeMoveInGuestGrant() {
 export function useCompleteMoveInAdmission() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ workspaceId, reason, admissionDate }: { workspaceId: string; reason: string; admissionDate: string }) => {
+    mutationFn: async ({ workspaceId, reason, admissionDate, admittedAt }: { workspaceId: string; reason: string; admissionDate: string; admittedAt?: string }) => {
       const { data, error } = await supabase.rpc("complete_move_in_admission" as never, {
         p_workspace_id: workspaceId,
         p_reason: reason,
         p_admission_date: admissionDate,
+        p_admitted_at: admittedAt ?? null,
       } as never);
       if (error) throw error;
       return data as string;
@@ -602,6 +603,7 @@ export function useTransitionResidentCensus() {
       // own cache -- without this the resident page a discharge was recorded from keeps showing the
       // previous state until something else happens to refetch it.
       queryClient.invalidateQueries({ queryKey: ["resident-care-header", variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
     },
   });
 }

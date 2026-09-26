@@ -6,6 +6,22 @@ const policy: TrainingPolicy = { id: "p", effective_from: "2026-01-01", year_bas
 const event: TrainingEvent = { id: "e", employee_id: "a", title: "Course", completed_on: "2026-06-01", minutes: 720, delivery: "online", provider: "Provider", provider_qualification: "Qualified source", source_reference: "source1", topics: [], allocations: { base: 720 }, valid_until: null, status: "verified", review_note: "Verified source", evidence_document_id: null, course_assignment_id: null };
 const assess = (events: TrainingEvent[], facilityType = "PCH") => assessTraining({ profile, policy, events, facilityType, shifts: [], hireDate: profile.first_work_date, today: "2026-09-24" });
 describe("standalone training evidence", () => {
+  it("uses explicit ALF OJT policy consistently and does not grant a partial-year annual failure", () => {
+    const ojt = { ...event, delivery: "ojt" };
+    expect(eligibleTrainingMinutes([ojt], "base", "ALR")).toBe(0);
+    expect(eligibleTrainingMinutes([ojt], "base", "ALR", { alf_ojt_allowed: true } as never)).toBe(720);
+    const partial = assessTraining({ profile: { ...profile, first_work_date: "2026-11-01" }, policy, events: [], facilityType: "PCH",
+      shifts: [], hireDate: "2026-11-01", today: "2026-12-15" }).find(c => c.key === "base");
+    expect(partial).toMatchObject({ status: "review", due: "2027-01-15" });
+    expect(partial?.detail).toContain("Partial first training year");
+  });
+  it("separates the nonrecurring medication course from the annual practicum", () => {
+    const input = { profile, policy, shifts: [], facilityType: "PCH", today: "2026-09-26", medications: true,
+      events: [{ ...event, completed_on: "2020-01-01", topics: ["medication_authorization"], valid_until: "2022-01-01" }] };
+    expect(assessTraining(input).find(c => c.key === "medication_authorization")?.status).toBe("met");
+    expect(assessTraining(input).find(c => c.key === "medication_practicum")?.status).toBe("missing");
+    expect(assessTraining({ ...input, events: [...input.events, { ...event, topics: ["medication_practicum"] }] }).find(c => c.key === "medication_practicum")?.status).toBe("met");
+  });
   it("uses the latest same-day training-year revision", () => {
     const older = { ...policy, id: "old", created_at: "2026-09-25T12:00:00Z", year_start: "01-01" };
     const newer = { ...policy, id: "new", created_at: "2026-09-25T18:00:00Z", year_start: "07-01" };

@@ -26,6 +26,7 @@ import {
   type MoveInTaskWithOwner,
 } from "@/hooks/useAdmissions";
 import { useListProfiles } from "@/hooks/useProfiles";
+import { useGetFacility } from "@/hooks/useFacilities";
 import { useListResidentDocuments, useUploadResidentDocument } from "@/hooks/useResidentDocuments";
 import { QueryError } from "@/components/QueryState";
 import { addFacilityCalendarDays, facilityDayBounds, facilityToday, formatDateForDisplay, facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
@@ -70,6 +71,9 @@ export default function MoveInWorkspaceDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
   const workspace = useGetMoveInWorkspace(id);
+  const { data: admissionFacility } = useGetFacility(workspace.data?.facility_id);
+  const allowContractAfterAdmission = admissionFacility?.facility_type === "ALR"
+    && (admissionFacility as typeof admissionFacility & { resident_regulatory_policy?: Record<string, unknown> }).resident_regulatory_policy?.alf_contract_timing === "within_24_hours";
   const history = useListMoveInTaskHistory(id);
   const grants = useListMoveInGuestGrants(id);
   const { data: profiles } = useListProfiles({ organizationId: user?.organizationId ?? undefined });
@@ -99,11 +103,12 @@ export default function MoveInWorkspaceDetail() {
   const [issuedLink, setIssuedLink] = useState("");
   const [admitReason, setAdmitReason] = useState("");
   const [admissionDate, setAdmissionDate] = useState(facilityToday());
+  const [admissionTime, setAdmissionTime] = useState("");
 
   const data = workspace.data;
   const tasks = useMemo(() => data?.tasks ?? [], [data?.tasks]);
   const readyCount = tasks.filter(taskReady).length;
-  const blockers = tasks.length - readyCount;
+  const blockers = tasks.filter(task => !taskReady(task) && !(allowContractAfterAdmission && (task.task_key === "resident_agreement" || (task.task_key === "guest_signing" && task.depends_on_task_keys.includes("resident_agreement"))))).length;
   const progress = tasks.length ? Math.round((readyCount / tasks.length) * 100) : 0;
 
   if (workspace.isLoading) return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -122,6 +127,9 @@ export default function MoveInWorkspaceDetail() {
 
   const saveTask = () => {
     if (!selectedTask) return;
+    if (signatureName.trim() && ["resident_agreement","alf_needs_certification"].includes(selectedTask.task_key) && !signatureSignedAt) {
+      toast({ title: "Enter the actual signature date and time", variant: "destructive" }); return;
+    }
     const signatureEvidence = selectedTask.requires_signature && signatureName.trim()
       ? {
           signerName: signatureName.trim(),
@@ -208,7 +216,7 @@ export default function MoveInWorkspaceDetail() {
         <Alert>
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>Ready to admit</AlertTitle>
-          <AlertDescription>All document, signature, approval, dependency, and exception gates are clear.</AlertDescription>
+          <AlertDescription>Admission prerequisites are clear.{allowContractAfterAdmission ? " The resident contract remains due within 24 hours of actual admission if still open." : " Required contracts are complete before admission."}</AlertDescription>
         </Alert>
       )}
 
@@ -233,7 +241,7 @@ export default function MoveInWorkspaceDetail() {
                 </div>
                 {!!task.depends_on_task_keys.length && <p className="mt-1 text-xs text-muted-foreground">Depends on: {task.depends_on_task_keys.map(humanize).join(", ")}</p>}
                 {task.exception_reason && <p className="mt-1 text-sm text-red-700">Exception: {task.exception_reason}</p>}
-                {task.task_key === "resident_agreement" && data.facility?.facility_type === "ALR" && <p className="mt-1 text-xs text-muted-foreground">2800.22(a)(5): contract before admission or within 24 hours after. This admission workflow requires the agreement before activating the census.</p>}
+                {task.task_key === "resident_agreement" && data.facility?.facility_type === "ALR" && <p className="mt-1 text-xs text-muted-foreground">2800.22(a)(5): {allowContractAfterAdmission ? "The recorded facility policy permits completion within 24 hours after actual admission. An unfinished agreement remains on this checklist after admission." : "Facility policy requires the agreement before admission."}</p>}
               </div>
               <div>
                 <Select
@@ -322,7 +330,8 @@ export default function MoveInWorkspaceDetail() {
           <CardContent className="flex flex-wrap items-end gap-3">
             <div className="min-w-[280px] grow space-y-1"><Label htmlFor={`${__fieldIds}-admission-decision-reason`}>Admission decision reason *</Label><Input id={`${__fieldIds}-admission-decision-reason`} value={admitReason} onChange={event => setAdmitReason(event.target.value)} placeholder="All admission requirements verified" /></div>
             <div className="space-y-1"><Label htmlFor={`${__fieldIds}-actual-admission-date`}>First day residing at the facility *</Label><Input id={`${__fieldIds}-actual-admission-date`} type="date" max={facilityToday()} value={admissionDate} onChange={event => setAdmissionDate(event.target.value)} /><p className="text-xs text-muted-foreground">Admission deadlines run from this day.</p></div>
-            <Button disabled={admitReason.trim().length < 5 || !admissionDate || admissionDate > facilityToday() || admit.isPending} onClick={() => admit.mutate({ workspaceId: data.id, reason: admitReason, admissionDate }, { onSuccess: residentId => { toast({ title: "Resident admitted to active census" }); navigate(`/app/residents/${residentId}`); }, onError: (error: Error) => toast({ title: "Couldn't complete admission", description: error.message, variant: "destructive" }) })}>{admit.isPending ? "Admitting..." : "Admit resident"}</Button>
+            {allowContractAfterAdmission && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-actual-admission-time`}>Actual admission time (Pennsylvania) *</Label><Input id={`${__fieldIds}-actual-admission-time`} type="time" value={admissionTime} onChange={event => setAdmissionTime(event.target.value)} /></div>}
+            <Button disabled={admitReason.trim().length < 5 || !admissionDate || admissionDate > facilityToday() || (allowContractAfterAdmission && !admissionTime) || admit.isPending} onClick={() => admit.mutate({ workspaceId: data.id, reason: admitReason, admissionDate, admittedAt: admissionTime ? facilityDateTimeLocalToUtcIso(`${admissionDate}T${admissionTime}`) : undefined }, { onSuccess: residentId => { toast({ title: "Resident admitted to active census" }); navigate(`/app/residents/${residentId}`); }, onError: (error: Error) => toast({ title: "Couldn't complete admission", description: error.message, variant: "destructive" }) })}>{admit.isPending ? "Admitting..." : "Admit resident"}</Button>
           </CardContent>
         </Card>
       )}
@@ -342,7 +351,7 @@ export default function MoveInWorkspaceDetail() {
             {selectedTask?.requires_signature && (
               <div className="grid gap-2 sm:grid-cols-2"><div className="space-y-1"><Label htmlFor={`${__fieldIds}-signer-name`}>Signer name</Label><Input id={`${__fieldIds}-signer-name`} value={signatureName} onChange={event => setSignatureName(event.target.value)} /></div><div className="space-y-1"><Label htmlFor={`${__fieldIds}-relationship-authority`}>Relationship / authority</Label><Input id={`${__fieldIds}-relationship-authority`} value={signatureRelationship} onChange={event => setSignatureRelationship(event.target.value)} /></div></div>
             )}
-            {selectedTask?.requires_signature && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-signed-at`}>Actual signature date and time{selectedTask.task_key === "alf_needs_certification" ? " *" : ""}</Label><Input id={`${__fieldIds}-signed-at`} type="datetime-local" max={toFacilityDateTimeLocal()} value={signatureSignedAt} onChange={event => setSignatureSignedAt(event.target.value)} /></div>}
+            {selectedTask?.requires_signature && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-signed-at`}>Actual signature date and time{["alf_needs_certification","resident_agreement"].includes(selectedTask.task_key) ? " *" : ""}</Label><Input id={`${__fieldIds}-signed-at`} type="datetime-local" max={toFacilityDateTimeLocal()} value={signatureSignedAt} onChange={event => setSignatureSignedAt(event.target.value)} /></div>}
             {selectedTask?.task_key === "alf_needs_certification" && <div className="space-y-3 rounded border p-3">
               <p className="text-xs text-muted-foreground">2800.22(b): signed certification that this residence can meet the resident's needs, made before admission.</p>
               <Label htmlFor={`${__fieldIds}-certifier-role`}>Certifier authority *</Label><Select value={certifierRole} onValueChange={setCertifierRole}><SelectTrigger id={`${__fieldIds}-certifier-role`}><SelectValue placeholder="Select qualified certifier" /></SelectTrigger><SelectContent><SelectItem value="administrator_consulted">Administrator consulting supplemental health care providers</SelectItem><SelectItem value="physician">Resident's physician</SelectItem><SelectItem value="crnp">Resident's certified registered nurse practitioner</SelectItem><SelectItem value="medical_director">Residence medical director</SelectItem></SelectContent></Select>

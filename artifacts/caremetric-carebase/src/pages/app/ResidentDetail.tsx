@@ -16,6 +16,7 @@ import { ArrowLeft, HeartPulse, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatDateOnly } from "@/lib/residentCompliance";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
+import { ProtectedIdentitySupplement } from "@/components/residents/ProtectedIdentitySupplement";
 import { ResidentFaceSheet } from "@/components/residents/ResidentFaceSheet";
 import { ResidentCareHeaderPanel } from "@/components/residents/ResidentCareHeader";
 import { ResidentNeedsAttentionPanel } from "@/components/residents/ResidentNeedsAttention";
@@ -382,7 +383,7 @@ export default function ResidentDetail() {
       )}
 
       <Dialog open={faceSheetOpen} onOpenChange={(open) => { if (!open) setFaceSheetResidentId(null); }}>
-        <DialogContent className="print:hidden" overlayClassName="print:hidden">
+        <DialogContent className="print:hidden max-h-[90vh] overflow-y-auto" overlayClassName="print:hidden">
           <DialogHeader>
             <DialogTitle>Prepare face sheet</DialogTitle>
             <DialogDescription>Review available clinical information and attach missing emergency-transfer records before sending.</DialogDescription>
@@ -392,6 +393,7 @@ export default function ResidentDetail() {
             <p className="text-sm">{faceSheetPacket.clinical.diagnoses.length} diagnoses · {faceSheetPacket.clinical.allergies.length} imported allergies · {faceSheetPacket.clinical.medications.length} active medications</p>
             <ul className="list-disc space-y-2 pl-5 text-sm">{faceSheetPacket.clinical.outstanding.map((item) => <li key={item}>{item}</li>)}</ul>
           </>}
+          <ProtectedIdentitySupplement residentId={resident.id} value={(resident as typeof resident & { protected_identity_supplement?: unknown }).protected_identity_supplement} canManage={canManage} />
           <DialogFooter><Button onClick={() => window.print()} disabled={faceSheetClinical.isLoading || faceSheetClinical.isFetching}>Print face sheet{faceSheetClinical.isError ? " with missing-data notice" : ""}</Button></DialogFooter>
         </DialogContent>
       </Dialog>

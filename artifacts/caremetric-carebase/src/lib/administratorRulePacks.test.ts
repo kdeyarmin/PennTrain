@@ -229,3 +229,27 @@ describe("administrator rule packs", () => {
     });
   });
 });
+describe("administrator legacy pathways", () => {
+  const qualification = (facility: "PCH" | "ALR", profile: AdministratorRulePackProfile) => buildAdministratorRulePack(facility, { profile, today: "2026-09-26" })[0].status;
+  it("requires dated PCH legacy service, continuity and evidence", () => {
+    const profile = { qualification_path: "legacy_pch", first_employed_as_administrator_on: "2005-10-23", legacy_no_break_over_one_year: true, legacy_training_document_path: "legacy.pdf" };
+    expect(qualification("PCH", profile)).toBe("compliant");
+    expect(qualification("PCH", { ...profile, first_employed_as_administrator_on: "2005-10-24" })).toBe("missing");
+    expect(qualification("PCH", { ...profile, legacy_no_break_over_one_year: false })).toBe("missing");
+    expect(qualification("ALR", profile)).toBe("missing");
+  });
+  it("requires the ALF supplement and its own test after a PCH course", () => {
+    const profile = { qualification_path: "pch_course_supplement", hundred_hour_course_completed_date: "2020-01-01", hundred_hour_course_document_path: "pch.pdf",
+      alf_supplement_completed_date: "2021-01-01", alf_supplement_hours: 15, alf_supplement_test_passed: true, alf_supplement_document_path: "alf.pdf" };
+    expect(qualification("ALR", profile)).toBe("compliant");
+    expect(qualification("ALR", { ...profile, alf_supplement_hours: 14 })).toBe("missing");
+    expect(qualification("ALR", { ...profile, alf_supplement_test_passed: false })).toBe("missing");
+  });
+  it("applies the pre-2009 test exemption only with an explicit documented RCG choice", () => {
+    const profile = { qualification_path: "hundred_hour_course", hundred_hour_course_completed_date: "2007-01-01", hundred_hour_course_document_path: "pch.pdf",
+      first_employed_as_administrator_on: "2007-02-01", competency_exemption_basis: "rcg_pre_2009", competency_exemption_evidence: "Employment and course records" };
+    expect(qualification("PCH", profile)).toBe("compliant");
+    expect(qualification("PCH", { ...profile, competency_exemption_evidence: null })).toBe("missing");
+    expect(qualification("PCH", { ...profile, first_employed_as_administrator_on: "2009-01-01" })).toBe("missing");
+  });
+});

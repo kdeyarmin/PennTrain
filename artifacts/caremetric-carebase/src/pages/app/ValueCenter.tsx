@@ -452,7 +452,7 @@ export default function ValueCenter() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">CareBase Value Center</h1>
           <p className="max-w-3xl text-muted-foreground">
-            Run the workflows that replace spreadsheets, paper binders, reminder calendars, point
+              Optional business planning: explore workflows that replace spreadsheets, paper binders, reminder calendars, point
             solutions, and disconnected follow-up—then measure the time and software cost returned to
             the facility.
           </p>

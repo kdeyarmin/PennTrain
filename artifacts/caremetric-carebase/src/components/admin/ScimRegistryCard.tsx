@@ -51,7 +51,7 @@ export function ScimRegistryCard() {
           <KeyRound className="h-5 w-5" />Directory connections
         </CardTitle>
         <CardDescription>
-          Every SCIM connection provisioned here, its credential rotation, and the manual link for an
+          Optional directory automation: every SCIM connection provisioned here, its credential rotation, and the manual link for an
           SSO identity that did not match on its own.
         </CardDescription>
       </CardHeader>

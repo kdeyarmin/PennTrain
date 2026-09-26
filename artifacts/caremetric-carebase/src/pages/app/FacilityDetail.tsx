@@ -16,6 +16,8 @@ import { useListEmployees } from "@/hooks/useEmployees";
 import { useListResidents } from "@/hooks/useResidents";
 import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
+import { useTrainingYearPolicy } from "@/hooks/useTrainingWorkspace";
+import { useStaffRegulatoryPolicy } from "@/hooks/useStaffRegulatory";
 import { useListPracticums } from "@/hooks/usePracticums";
 import { useListIncidents } from "@/hooks/useIncidents";
 import { useListInspectionItems } from "@/hooks/useInspectionItems";
@@ -40,6 +42,9 @@ import { FacilityLicensingWorkspace } from "@/components/facilities/FacilityLice
 import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { absoluteAppUrl } from "@/lib/appUrl";
+const StaffRegulatoryPolicy = lazy(() => import("@/components/staff/StaffRegulatoryPolicy").then((module) => ({ default: module.StaffRegulatoryPolicy })));
+const ResidentRegulatoryPolicySettings = lazy(() => import("@/components/residents/ResidentRegulatoryPolicySettings").then((module) => ({ default: module.ResidentRegulatoryPolicySettings })));
+const FacilitySiteCompliance = lazy(() => import("@/components/facilities/FacilitySiteCompliance").then((module) => ({ default: module.FacilitySiteCompliance })));
 const RegulatoryActions = lazy(() => import("@/components/residents/RegulatoryActions").then((module) => ({ default: module.RegulatoryActions })));
 
 interface FacilityFormData {
@@ -150,13 +155,16 @@ export default function FacilityDetail() {
     error: inspectionsErrorDetail,
     refetch: refetchInspections,
   } = useListInspectionItems({ facilityId: id, isActive: true }, { enabled: hasCompliance });
-  const { data: administratorProfiles, isLoading: administratorsLoading } = useListAdministratorProfiles(hasWorkforce ? user?.organizationId ?? undefined : undefined);
+  const { data: administratorProfiles, isLoading: administratorsLoading, isError: administratorProfilesError } = useListAdministratorProfiles(hasWorkforce ? user?.organizationId ?? undefined : undefined);
+  const administratorYearPolicy = useTrainingYearPolicy(hasWorkforce ? id : undefined);
+  const administratorStaffPolicy = useStaffRegulatoryPolicy(hasWorkforce ? id ?? "" : "");
   const {
     data: administratorCeEntries,
     isLoading: administratorCeLoading,
     isError: administratorCeError,
   } = useListAdministratorCeEntriesByOrganization(hasWorkforce ? user?.organizationId ?? undefined : undefined);
-  const administratorRuleBusy = administratorsLoading || administratorCeLoading || administratorCeError;
+  const administratorRuleBusy = administratorsLoading || administratorCeLoading || administratorCeError || administratorProfilesError
+    || administratorYearPolicy.isLoading || administratorYearPolicy.isError || administratorStaffPolicy.isLoading || administratorStaffPolicy.isError;
   const unitsQuery = useListFacilityUnits({ facilityId: id }, { enabled: hasSpecialCare });
   const schedulePreferencesQuery = useListEmployeeSchedulePreferences({ facilityId: id }, { enabled: hasSpecialCare });
   const { data: units } = unitsQuery;
@@ -193,8 +201,9 @@ export default function FacilityDetail() {
       profiles: administratorProfiles ?? [],
       ceEntries: administratorCeEntries ?? [],
       today: facilityToday(),
+      trainingPolicy: administratorYearPolicy.data, annualGraceDays: administratorStaffPolicy.data?.annual_grace_days,
     });
-  }, [administratorProfiles, administratorCeEntries, facility]);
+  }, [administratorProfiles, administratorCeEntries, facility, administratorYearPolicy.data, administratorStaffPolicy.data]);
   const administratorRuleSummary = administratorEvaluation?.summary ?? summarizeAdministratorRulePack([]);
   const specialCareSummary = useMemo(() => buildSpecialCareComplianceSummary({
     units: units ?? [],
@@ -416,8 +425,12 @@ export default function FacilityDetail() {
         clinicalEnabled={facility.clinical_enabled}
         canManage={["platform_admin", "org_admin"].includes(user?.role ?? "")}
       />
+      {["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading resident policy…</p>}><ResidentRegulatoryPolicySettings facilityId={facility.id} canManage={["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "")} /></Suspense>}
+      {["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading site compliance…</p>}><FacilitySiteCompliance organizationId={facility.organization_id} facilityId={facility.id} facilityType={facility.facility_type} /></Suspense>}
       {["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading regulatory deadlines…</p>}><RegulatoryActions organizationId={facility.organization_id} facilityId={facility.id} facilityType={facility.facility_type} /></Suspense>}
       </>}
+
+      {hasWorkforce && ["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading staff policy…</p>}><StaffRegulatoryPolicy facilityId={facility.id} /></Suspense>}
 
       {/* Public safety-report poster QR — opaque token, never show facility UUID */}
       {hasCompliance && ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "") && (
@@ -876,6 +889,7 @@ export default function FacilityDetail() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">Chapter 2600 applies to PCH and Chapter 2800 to ALF. Other facility types use separate training configuration.</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-license-number`} className="text-[13px]">License Number</Label>

@@ -169,7 +169,13 @@ Data model (delivered in M2 — FHIR medication lane):
   (`queue_clinical_observation_writeback`), then drained by the cron-only `fhir-writeback` edge
   function over the same SSRF-guarded, TLS-pinned transport as signed webhooks
   (`claim_fhir_writeback_batch` / `complete_fhir_writeback`). Delivery must be scheduled to run;
-  with no write-back-enabled sources the drain is a no-op. CareBase still never becomes the clinical
+  Each source additionally needs a documented vendor contract, confirmed FHIR conditional-create
+  support, and a matching server-only outbound bearer credential. Configuration is bound to the
+  source UUID, organization UUID, exact HTTPS base path and contract reference. Inbound hashed
+  keys cannot authorize outbound delivery. Unconfigured pending sources remain queued without
+  consuming attempts and appear as blocked/partial job outcomes. Disabling clinical access stops
+  new claims; managers can still revoke write-back. See `DEPLOYMENT.md` for provisioning and
+  vendor acceptance. CareBase still never becomes the clinical
   source of truth for ingested (Lane A) data.
 - **Customer-facing "not an EHR" copy — UPDATED 2026-07 (per product-owner approval).** The
   positioning/Terms language that described CareBase as "not an EHR/eMAR" has been revised to

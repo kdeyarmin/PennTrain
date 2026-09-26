@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert } from "@/lib/database.types";
 import type { AcuityResidentLike, AcuityShiftLike } from "@/lib/acuityWorkload";
+import type { StaffCareCoverageData } from "@/components/staff/StaffCareCoverage";
 
 export type ServiceWorkloadProfile = Tables<"service_workload_profiles">;
 export type ServiceWorkloadProfileInsert = TablesInsert<"service_workload_profiles">;
@@ -51,6 +52,7 @@ export interface ScheduleServiceWorkload {
   coverageRows: CoverageRow[];
   emergencyCoverageRows?: Array<{ starts: string; ends: string; census: number; required: number; first_aid: number; cpr_airway: number }>;
   emergencyCoverageBasis?: string;
+  staffCareCoverage?: StaffCareCoverageData;
 }
 
 export function usePreviewShiftAssignmentCandidates(params: {

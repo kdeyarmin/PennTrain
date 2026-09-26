@@ -303,6 +303,7 @@ export default function Facilities() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">Chapter 2600 applies to PCH and Chapter 2800 to ALF. Other facility types use separate training configuration.</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-license-number`} className="text-[13px]">License Number</Label>

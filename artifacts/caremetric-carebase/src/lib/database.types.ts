@@ -39,6 +39,7 @@ export type Database = {
           administrator_profile_id: string
           completed_date: string
           created_at: string
+          credit_category: string
           document_path: string | null
           hours: number
           id: string
@@ -51,6 +52,7 @@ export type Database = {
           administrator_profile_id: string
           completed_date: string
           created_at?: string
+          credit_category?: string
           document_path?: string | null
           hours: number
           id?: string
@@ -63,6 +65,7 @@ export type Database = {
           administrator_profile_id?: string
           completed_date?: string
           created_at?: string
+          credit_category?: string
           document_path?: string | null
           hours?: number
           id?: string
@@ -90,6 +93,12 @@ export type Database = {
       }
       administrator_profiles: {
         Row: {
+          alf_supplement_completed_date: string | null
+          alf_supplement_document_path: string | null
+          alf_supplement_hours: number | null
+          alf_supplement_test_passed: boolean
+          competency_exemption_basis: string
+          competency_exemption_evidence: string | null
           competency_test_date: string | null
           competency_test_passed: boolean
           created_at: string
@@ -106,6 +115,8 @@ export type Database = {
           hundred_hour_course_document_path: string | null
           hundred_hour_course_provider: string | null
           id: string
+          legacy_no_break_over_one_year: boolean
+          legacy_training_document_path: string | null
           nha_license_expiration: string | null
           nha_license_number: string | null
           nha_license_state: string | null
@@ -118,6 +129,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          alf_supplement_completed_date?: string | null
+          alf_supplement_document_path?: string | null
+          alf_supplement_hours?: number | null
+          alf_supplement_test_passed?: boolean
+          competency_exemption_basis?: string
+          competency_exemption_evidence?: string | null
           competency_test_date?: string | null
           competency_test_passed?: boolean
           created_at?: string
@@ -134,6 +151,8 @@ export type Database = {
           hundred_hour_course_document_path?: string | null
           hundred_hour_course_provider?: string | null
           id?: string
+          legacy_no_break_over_one_year?: boolean
+          legacy_training_document_path?: string | null
           nha_license_expiration?: string | null
           nha_license_number?: string | null
           nha_license_state?: string | null
@@ -146,6 +165,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          alf_supplement_completed_date?: string | null
+          alf_supplement_document_path?: string | null
+          alf_supplement_hours?: number | null
+          alf_supplement_test_passed?: boolean
+          competency_exemption_basis?: string
+          competency_exemption_evidence?: string | null
           competency_test_date?: string | null
           competency_test_passed?: boolean
           created_at?: string
@@ -162,6 +187,8 @@ export type Database = {
           hundred_hour_course_document_path?: string | null
           hundred_hour_course_provider?: string | null
           id?: string
+          legacy_no_break_over_one_year?: boolean
+          legacy_training_document_path?: string | null
           nha_license_expiration?: string | null
           nha_license_number?: string | null
           nha_license_state?: string | null
@@ -8155,6 +8182,7 @@ export type Database = {
           created_at: string
           employee_id: string
           facility_id: string
+          fbi_requested_on: string | null
           id: string
           non_disqualification_statement_signed: boolean
           non_disqualification_statement_signed_at: string | null
@@ -8162,6 +8190,7 @@ export type Database = {
           pa_resident_two_years: boolean | null
           provisional_max_days: number | null
           provisional_start_date: string | null
+          psp_requested_on: string | null
           suitability_conditions: string | null
           suitability_determination: string
           suitability_determined_at: string | null
@@ -8177,6 +8206,7 @@ export type Database = {
           created_at?: string
           employee_id: string
           facility_id: string
+          fbi_requested_on?: string | null
           id?: string
           non_disqualification_statement_signed?: boolean
           non_disqualification_statement_signed_at?: string | null
@@ -8184,6 +8214,7 @@ export type Database = {
           pa_resident_two_years?: boolean | null
           provisional_max_days?: number | null
           provisional_start_date?: string | null
+          psp_requested_on?: string | null
           suitability_conditions?: string | null
           suitability_determination?: string
           suitability_determined_at?: string | null
@@ -8199,6 +8230,7 @@ export type Database = {
           created_at?: string
           employee_id?: string
           facility_id?: string
+          fbi_requested_on?: string | null
           id?: string
           non_disqualification_statement_signed?: boolean
           non_disqualification_statement_signed_at?: string | null
@@ -8206,6 +8238,7 @@ export type Database = {
           pa_resident_two_years?: boolean | null
           provisional_max_days?: number | null
           provisional_start_date?: string | null
+          psp_requested_on?: string | null
           suitability_conditions?: string | null
           suitability_determination?: string
           suitability_determined_at?: string | null
@@ -8501,6 +8534,7 @@ export type Database = {
           last_verified_date: string | null
           notes: string | null
           organization_id: string
+          policy_renewal_due_date: string | null
           status: string
           updated_at: string
           verification_method: string | null
@@ -8523,6 +8557,7 @@ export type Database = {
           last_verified_date?: string | null
           notes?: string | null
           organization_id: string
+          policy_renewal_due_date?: string | null
           status?: string
           updated_at?: string
           verification_method?: string | null
@@ -8545,6 +8580,7 @@ export type Database = {
           last_verified_date?: string | null
           notes?: string | null
           organization_id?: string
+          policy_renewal_due_date?: string | null
           status?: string
           updated_at?: string
           verification_method?: string | null
@@ -8964,6 +9000,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      employee_regulatory_profiles: {
+        Row: {
+          adl_competency_evidence: string
+          adl_competency_verified_on: string | null
+          birth_date: string | null
+          continuous_service_since: string | null
+          education: string
+          education_evidence: string
+          employee_id: string
+          exemption_evidence: string
+          facility_id: string
+          licensed_professional_exemption: boolean
+          medical_fitness_confirmed: boolean
+          organization_id: string
+          professional_exemption_valid_until: string | null
+          role_category: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          adl_competency_evidence?: string
+          adl_competency_verified_on?: string | null
+          birth_date?: string | null
+          continuous_service_since?: string | null
+          education?: string
+          education_evidence?: string
+          employee_id: string
+          exemption_evidence?: string
+          facility_id: string
+          licensed_professional_exemption?: boolean
+          medical_fitness_confirmed?: boolean
+          organization_id: string
+          professional_exemption_valid_until?: string | null
+          role_category?: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          adl_competency_evidence?: string
+          adl_competency_verified_on?: string | null
+          birth_date?: string | null
+          continuous_service_since?: string | null
+          education?: string
+          education_evidence?: string
+          employee_id?: string
+          exemption_evidence?: string
+          facility_id?: string
+          licensed_professional_exemption?: boolean
+          medical_fitness_confirmed?: boolean
+          organization_id?: string
+          professional_exemption_valid_until?: string | null
+          role_category?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
       }
       employee_schedule_preferences: {
         Row: {
@@ -10852,6 +10945,7 @@ export type Database = {
           address: string | null
           administrator_email: string | null
           administrator_name: string | null
+          campus_identifier: string | null
           city: string | null
           clinical_enabled: boolean
           created_at: string
@@ -10865,6 +10959,7 @@ export type Database = {
           name: string
           organization_id: string
           phone: string | null
+          resident_regulatory_policy: Json
           safety_report_token: string
           sandbox_reset_at: string | null
           sandbox_seed_version: number | null
@@ -10876,6 +10971,7 @@ export type Database = {
           address?: string | null
           administrator_email?: string | null
           administrator_name?: string | null
+          campus_identifier?: string | null
           city?: string | null
           clinical_enabled?: boolean
           created_at?: string
@@ -10889,6 +10985,7 @@ export type Database = {
           name: string
           organization_id: string
           phone?: string | null
+          resident_regulatory_policy?: Json
           safety_report_token?: string
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
@@ -10900,6 +10997,7 @@ export type Database = {
           address?: string | null
           administrator_email?: string | null
           administrator_name?: string | null
+          campus_identifier?: string | null
           city?: string | null
           clinical_enabled?: boolean
           created_at?: string
@@ -10913,6 +11011,7 @@ export type Database = {
           name?: string
           organization_id?: string
           phone?: string | null
+          resident_regulatory_policy?: Json
           safety_report_token?: string
           sandbox_reset_at?: string | null
           sandbox_seed_version?: number | null
@@ -11596,6 +11695,105 @@ export type Database = {
           },
         ]
       }
+      facility_site_policies: {
+        Row: {
+          alf_approval_renewal: string
+          count_unsuccessful_pch_drills: boolean
+          facility_id: string
+          inspection_grace: string
+          organization_id: string
+          rationale: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alf_approval_renewal?: string
+          count_unsuccessful_pch_drills?: boolean
+          facility_id: string
+          inspection_grace?: string
+          organization_id: string
+          rationale: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alf_approval_renewal?: string
+          count_unsuccessful_pch_drills?: boolean
+          facility_id?: string
+          inspection_grace?: string
+          organization_id?: string
+          rationale?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      facility_site_reviews: {
+        Row: {
+          agreement_version_id: string | null
+          created_at: string
+          created_by: string | null
+          details: Json
+          employee_id: string | null
+          event_kind: string
+          evidence: string
+          external_driver_name: string | null
+          facility_id: string
+          id: string
+          inspection_item_id: string | null
+          next_review_on: string | null
+          occurred_at: string
+          organization_id: string
+          resident_id: string | null
+          review_type: string
+          supersedes_id: string | null
+          support_plan_id: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          agreement_version_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          details?: Json
+          employee_id?: string | null
+          event_kind?: string
+          evidence: string
+          external_driver_name?: string | null
+          facility_id: string
+          id?: string
+          inspection_item_id?: string | null
+          next_review_on?: string | null
+          occurred_at: string
+          organization_id: string
+          resident_id?: string | null
+          review_type: string
+          supersedes_id?: string | null
+          support_plan_id?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          agreement_version_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          details?: Json
+          employee_id?: string | null
+          event_kind?: string
+          evidence?: string
+          external_driver_name?: string | null
+          facility_id?: string
+          id?: string
+          inspection_item_id?: string | null
+          next_review_on?: string | null
+          occurred_at?: string
+          organization_id?: string
+          resident_id?: string | null
+          review_type?: string
+          supersedes_id?: string | null
+          support_plan_id?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: []
+      }
       facility_transport_vehicles: {
         Row: {
           capacity: number
@@ -12237,6 +12435,8 @@ export type Database = {
           supported_resources: string[]
           updated_at: string
           vendor_name: string
+          writeback_conditional_create_confirmed: boolean
+          writeback_contract_reference: string | null
           writeback_enabled: boolean
         }
         Insert: {
@@ -12259,6 +12459,8 @@ export type Database = {
           supported_resources?: string[]
           updated_at?: string
           vendor_name: string
+          writeback_conditional_create_confirmed?: boolean
+          writeback_contract_reference?: string | null
           writeback_enabled?: boolean
         }
         Update: {
@@ -12281,6 +12483,8 @@ export type Database = {
           supported_resources?: string[]
           updated_at?: string
           vendor_name?: string
+          writeback_conditional_create_confirmed?: boolean
+          writeback_contract_reference?: string | null
           writeback_enabled?: boolean
         }
         Relationships: [
@@ -25571,6 +25775,7 @@ export type Database = {
       }
       resident_compliance_items: {
         Row: {
+          carried_from_item_id: string | null
           citation_topic_id: string | null
           completed_date: string | null
           created_at: string
@@ -25591,6 +25796,7 @@ export type Database = {
           warning_days: number
         }
         Insert: {
+          carried_from_item_id?: string | null
           citation_topic_id?: string | null
           completed_date?: string | null
           created_at?: string
@@ -25611,6 +25817,7 @@ export type Database = {
           warning_days?: number
         }
         Update: {
+          carried_from_item_id?: string | null
           citation_topic_id?: string | null
           completed_date?: string | null
           created_at?: string
@@ -28633,6 +28840,10 @@ export type Database = {
           recipient_name: string | null
           recipient_role: string
           resident_id: string | null
+          source_agreement_version_id: string | null
+          source_census_event_id: string | null
+          source_event_id: string | null
+          source_signature_id: string | null
           status: string
           updated_at: string
         }
@@ -28654,6 +28865,10 @@ export type Database = {
           recipient_name?: string | null
           recipient_role?: string
           resident_id?: string | null
+          source_agreement_version_id?: string | null
+          source_census_event_id?: string | null
+          source_event_id?: string | null
+          source_signature_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -28675,6 +28890,10 @@ export type Database = {
           recipient_name?: string | null
           recipient_role?: string
           resident_id?: string | null
+          source_agreement_version_id?: string | null
+          source_census_event_id?: string | null
+          source_event_id?: string | null
+          source_signature_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -28715,6 +28934,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      resident_regulatory_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          details: Json
+          event_at: string
+          event_type: string
+          evidence: string
+          facility_id: string
+          id: string
+          organization_id: string
+          reason: string
+          resident_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          details?: Json
+          event_at: string
+          event_type: string
+          evidence: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          reason: string
+          resident_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          details?: Json
+          event_at?: string
+          event_type?: string
+          evidence?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          reason?: string
+          resident_id?: string | null
+        }
+        Relationships: []
       }
       resident_service_calendar_event_staff: {
         Row: {
@@ -29845,6 +30106,7 @@ export type Database = {
           allergies: string[]
           ambulation_status: string
           bed_id: string | null
+          campus_transfer_evidence: Json | null
           care_profile_reviewed_at: string | null
           care_profile_reviewed_by: string | null
           case_manager_name: string | null
@@ -29864,6 +30126,8 @@ export type Database = {
           dietary_requirements: string | null
           discharge_date: string | null
           elopement_risk: string
+          expedited_admission_basis: string | null
+          expedited_admission_evidence: string | null
           external_id: string | null
           facility_id: string
           fall_risk: string
@@ -29879,6 +30143,7 @@ export type Database = {
           is_synthetic: boolean
           last_name: string
           level_of_care: string
+          mobility_needs: boolean | null
           mobility_summary: string | null
           organization_id: string
           pharmacy_email: string | null
@@ -29894,6 +30159,7 @@ export type Database = {
           prior_address_line2: string | null
           prior_address_postal_code: string | null
           prior_address_state: string | null
+          protected_identity_supplement: Json | null
           religious_cultural_preferences: string | null
           resident_rights_acknowledged_at: string | null
           resident_rights_document_id: string | null
@@ -29912,6 +30178,7 @@ export type Database = {
           allergies?: string[]
           ambulation_status?: string
           bed_id?: string | null
+          campus_transfer_evidence?: Json | null
           care_profile_reviewed_at?: string | null
           care_profile_reviewed_by?: string | null
           case_manager_name?: string | null
@@ -29931,6 +30198,8 @@ export type Database = {
           dietary_requirements?: string | null
           discharge_date?: string | null
           elopement_risk?: string
+          expedited_admission_basis?: string | null
+          expedited_admission_evidence?: string | null
           external_id?: string | null
           facility_id: string
           fall_risk?: string
@@ -29946,6 +30215,7 @@ export type Database = {
           is_synthetic?: boolean
           last_name: string
           level_of_care?: string
+          mobility_needs?: boolean | null
           mobility_summary?: string | null
           organization_id: string
           pharmacy_email?: string | null
@@ -29961,6 +30231,7 @@ export type Database = {
           prior_address_line2?: string | null
           prior_address_postal_code?: string | null
           prior_address_state?: string | null
+          protected_identity_supplement?: Json | null
           religious_cultural_preferences?: string | null
           resident_rights_acknowledged_at?: string | null
           resident_rights_document_id?: string | null
@@ -29979,6 +30250,7 @@ export type Database = {
           allergies?: string[]
           ambulation_status?: string
           bed_id?: string | null
+          campus_transfer_evidence?: Json | null
           care_profile_reviewed_at?: string | null
           care_profile_reviewed_by?: string | null
           case_manager_name?: string | null
@@ -29998,6 +30270,8 @@ export type Database = {
           dietary_requirements?: string | null
           discharge_date?: string | null
           elopement_risk?: string
+          expedited_admission_basis?: string | null
+          expedited_admission_evidence?: string | null
           external_id?: string | null
           facility_id?: string
           fall_risk?: string
@@ -30013,6 +30287,7 @@ export type Database = {
           is_synthetic?: boolean
           last_name?: string
           level_of_care?: string
+          mobility_needs?: boolean | null
           mobility_summary?: string | null
           organization_id?: string
           pharmacy_email?: string | null
@@ -30028,6 +30303,7 @@ export type Database = {
           prior_address_line2?: string | null
           prior_address_postal_code?: string | null
           prior_address_state?: string | null
+          protected_identity_supplement?: Json | null
           religious_cultural_preferences?: string | null
           resident_rights_acknowledged_at?: string | null
           resident_rights_document_id?: string | null
@@ -31251,6 +31527,7 @@ export type Database = {
       }
       shift_assignments: {
         Row: {
+          awake_direct_care: boolean | null
           created_at: string
           eligibility_decision_id: string | null
           employee_id: string
@@ -31269,6 +31546,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          awake_direct_care?: boolean | null
           created_at?: string
           eligibility_decision_id?: string | null
           employee_id: string
@@ -31287,6 +31565,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          awake_direct_care?: boolean | null
           created_at?: string
           eligibility_decision_id?: string | null
           employee_id?: string
@@ -31931,6 +32210,63 @@ export type Database = {
           legal_accepted?: boolean | null
           service_agreement_version?: string | null
           success?: boolean
+        }
+        Relationships: []
+      }
+      staff_regulatory_policies: {
+        Row: {
+          alf_ojt_allowed: boolean
+          alf_transfer_months: number | null
+          annual_grace_days: number
+          clearance_renewal_years: number | null
+          facility_id: string
+          medication_course_years: number | null
+          organization_id: string
+          pch_cpr_before_care: boolean
+          pch_dementia_30day: boolean
+          policy_reference: string
+          staff_tb_required: boolean
+          trainer_recertification_years: number
+          updated_at: string
+          updated_by: string
+          waking_end: string
+          waking_start: string
+        }
+        Insert: {
+          alf_ojt_allowed?: boolean
+          alf_transfer_months?: number | null
+          annual_grace_days?: number
+          clearance_renewal_years?: number | null
+          facility_id: string
+          medication_course_years?: number | null
+          organization_id: string
+          pch_cpr_before_care?: boolean
+          pch_dementia_30day?: boolean
+          policy_reference: string
+          staff_tb_required?: boolean
+          trainer_recertification_years?: number
+          updated_at?: string
+          updated_by: string
+          waking_end?: string
+          waking_start?: string
+        }
+        Update: {
+          alf_ojt_allowed?: boolean
+          alf_transfer_months?: number | null
+          annual_grace_days?: number
+          clearance_renewal_years?: number | null
+          facility_id?: string
+          medication_course_years?: number | null
+          organization_id?: string
+          pch_cpr_before_care?: boolean
+          pch_dementia_30day?: boolean
+          policy_reference?: string
+          staff_tb_required?: boolean
+          trainer_recertification_years?: number
+          updated_at?: string
+          updated_by?: string
+          waking_end?: string
+          waking_start?: string
         }
         Relationships: []
       }
@@ -37587,6 +37923,15 @@ export type Database = {
         Args: { p_reason: string; p_request_id: string }
         Returns: boolean
       }
+      carry_campus_resident_evidence: {
+        Args: {
+          p_addendum_document_id: string
+          p_evidence: Json
+          p_resident_id: string
+          p_source_resident_id: string
+        }
+        Returns: undefined
+      }
       checkin_via_kiosk_pin: {
         Args: { p_class_id: string; p_employee_id: string; p_pin: string }
         Returns: {
@@ -37733,7 +38078,11 @@ export type Database = {
         }[]
       }
       claim_fhir_writeback_batch: {
-        Args: { p_limit?: number; p_stale_after_seconds?: number }
+        Args: {
+          p_limit?: number
+          p_source_ids?: string[]
+          p_stale_after_seconds?: number
+        }
         Returns: {
           attempts: number
           created_at: string
@@ -38072,6 +38421,7 @@ export type Database = {
       complete_move_in_admission: {
         Args: {
           p_admission_date: string
+          p_admitted_at?: string
           p_reason: string
           p_workspace_id: string
         }
@@ -38911,6 +39261,15 @@ export type Database = {
         Args: { p_effective_to?: string; p_grant_id: string; p_reason?: string }
         Returns: undefined
       }
+      end_resident_special_care: {
+        Args: {
+          p_evidence: string
+          p_left_at: string
+          p_reason: string
+          p_resident_id: string
+        }
+        Returns: undefined
+      }
       enforce_request_impersonation_lifetime: {
         Args: never
         Returns: undefined
@@ -39601,6 +39960,10 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_facility_site_reviews: {
+        Args: { p_facility_id: string; p_offset?: number }
+        Returns: Database["public"]["Tables"]["facility_site_reviews"]["Row"][]
+      }
       get_fhir_integration_review_queue: {
         Args: { p_facility_id: string }
         Returns: Json
@@ -39857,6 +40220,10 @@ export type Database = {
       }
       get_notification_template_library: {
         Args: { p_organization_id?: string }
+        Returns: Json
+      }
+      get_oapsa_duty_statuses: {
+        Args: { p_employee_ids: string[] }
         Returns: Json
       }
       get_operational_configuration: {
@@ -40232,6 +40599,10 @@ export type Database = {
           employee_id: string
           employee_name: string
         }[]
+      }
+      get_staff_training_summary: {
+        Args: { p_as_of?: string; p_employee_id: string }
+        Returns: Json
       }
       get_staffing_optimization_snapshot: {
         Args: { p_facility_id: string; p_from?: string; p_through?: string }
@@ -42395,6 +42766,17 @@ export type Database = {
         Args: { p_error: string; p_version_id: string }
         Returns: undefined
       }
+      record_protected_identity_supplement: {
+        Args: {
+          p_access_instructions: string
+          p_custodian: string
+          p_external_reference: string
+          p_reason: string
+          p_resident_id: string
+          p_verified_at: string
+        }
+        Returns: undefined
+      }
       record_qapi_measurement: {
         Args: {
           p_denominator: number
@@ -42514,6 +42896,18 @@ export type Database = {
         }
         Returns: string
       }
+      record_resident_regulatory_event: {
+        Args: {
+          p_details?: Json
+          p_event_at: string
+          p_event_type: string
+          p_evidence: string
+          p_facility_id: string
+          p_reason: string
+          p_resident_id?: string
+        }
+        Returns: string
+      }
       record_resident_service_calendar_outcome: {
         Args: {
           p_event_id: string
@@ -42625,6 +43019,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      record_shift_awake_coverage: {
+        Args: { p_assignment_id: string; p_awake: boolean }
+        Returns: undefined
       }
       record_shift_call_off: {
         Args: {
@@ -43886,6 +44284,19 @@ export type Database = {
         }
         Returns: string
       }
+      save_resident_regulatory_policy: {
+        Args: {
+          p_campus_identifier?: string
+          p_facility_id: string
+          p_policy: Json
+          p_reason: string
+        }
+        Returns: undefined
+      }
+      save_staff_regulatory_settings: {
+        Args: { p_data: Json; p_employee_id: string; p_facility_id: string }
+        Returns: Json
+      }
       save_training_record: {
         Args: { p_payload?: Json; p_record_id?: string }
         Returns: {
@@ -43966,6 +44377,10 @@ export type Database = {
           p_vehicle_identifier?: string
         }
         Returns: string
+      }
+      schedule_staff_care_coverage: {
+        Args: { p_schedule_id: string }
+        Returns: Json
       }
       search_workspace: { Args: { p_query: string }; Returns: Json }
       self_enroll_course: { Args: { p_course_id: string }; Returns: string }
@@ -44131,6 +44546,15 @@ export type Database = {
           p_reason?: string
         }
         Returns: string
+      }
+      set_fhir_source_writeback: {
+        Args: {
+          p_conditional_create_confirmed?: boolean
+          p_contract_reference?: string
+          p_enabled: boolean
+          p_source_id: string
+        }
+        Returns: undefined
       }
       set_hris_import_row_decision: {
         Args: {
@@ -44349,9 +44773,26 @@ export type Database = {
         Args: { p_now?: string }
         Returns: number
       }
+      staff_eligible_training_minutes: {
+        Args: {
+          p_bucket: string
+          p_employee_id: string
+          p_from: string
+          p_through: string
+        }
+        Returns: number
+      }
       staff_emergency_qualification_mask: {
         Args: { p_employee_id: string; p_end: string; p_start: string }
         Returns: number
+      }
+      staff_training_period: {
+        Args: {
+          p_administrator?: boolean
+          p_as_of?: string
+          p_employee_id: string
+        }
+        Returns: Json
       }
       stage_hris_import_row: {
         Args: {

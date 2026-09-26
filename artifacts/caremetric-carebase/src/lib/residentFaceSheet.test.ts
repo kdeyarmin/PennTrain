@@ -337,3 +337,14 @@ describe("face sheet clinical transfer information", () => {
     expect(packet.clinical.outstanding).toContain("One or more medications lack recorded dosage and frequency.");
   });
 });
+
+  it("prints the verified protected supplement reference while keeping the identifier external", () => {
+    const packet = buildResidentFaceSheetPacket({ resident: { ...baseResident, protected_identity_supplement: { external_reference: "Emergency vault / Jane Doe", custodian: "Nursing supervisor", access_instructions: "Obtain sealed record through the emergency transfer procedure", verified_at: "2026-09-24T12:00:00Z" } }, facility: baseFacility, supports: [], complianceItems: [], documents: [] });
+    expect(packet.clinical.outstanding.join(" ")).toContain("Attach protected identifying-information supplement Emergency vault / Jane Doe");
+    expect(packet.clinical.outstanding.join(" ")).toContain("Nursing supervisor");
+    expect(packet.clinical.outstanding.join(" ")).toContain("actual identifier remains in that separate protected record");
+  });
+  it("does not treat malformed supplement metadata as verified", () => {
+    const packet = buildResidentFaceSheetPacket({ resident: { ...baseResident, protected_identity_supplement: { external_reference: "Incomplete reference", verified_at: "invalid" } }, facility: baseFacility, supports: [], complianceItems: [], documents: [] });
+    expect(packet.clinical.outstanding.join(" ")).toContain("Verify the protected external supplement reference");
+  });

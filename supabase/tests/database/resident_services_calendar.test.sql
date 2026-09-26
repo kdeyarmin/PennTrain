@@ -1,5 +1,5 @@
 begin;
-select plan(61);
+select plan(65);
 
 select has_table('public', 'facility_transport_vehicles', 'facility vehicles are governed records');
 select has_table('public', 'resident_service_calendar_events', 'resident services share one calendar');
@@ -76,6 +76,31 @@ select lives_ok($$
   ))
 $$, 'manager creates a facility vehicle');
 select is((select status from public.facility_transport_vehicles where id = (select id from calendar_ids where key='vehicle')), 'available', 'vehicle roster retains operational status');
+select throws_ok($$select public.create_resident_service_calendar_event('74000000-0000-4000-8000-000000000201',
+jsonb_build_object('eventType','transportation','title','No document copies','startsAt',now()+interval '2 days','endsAt',now()+interval '2 days 1 hour','transportationMode','facility_vehicle','vehicleId',(select id from calendar_ids where key='vehicle'),'requiredRecords','[]'::jsonb),'[]')$$,'23514',null,'an available vehicle without current copies cannot be booked');
+
+-- Scheduling uses the actual fleet and driver document package, not a generic
+-- vehicle "available" label. Seed legitimate copies for this calendar fixture.
+reset role;
+insert into public.training_documents(id,organization_id,facility_id,employee_id,file_name,storage_bucket,storage_path,file_type,document_type)
+select ('74000000-0000-4000-8000-00000000040'||n)::uuid,'74000000-0000-4000-8000-000000000001','74000000-0000-4000-8000-000000000011',
+case when n=4 then '74000000-0000-4000-8000-000000000301'::uuid else null end,
+'Transport evidence '||n||'.pdf','external-uploads','74000000-0000-4000-8000-000000000001/74000000-0000-4000-8000-000000000011/transport-'||n||'.pdf','application/pdf','other'
+from generate_series(1,4) n;
+insert into public.facility_site_reviews(organization_id,facility_id,review_type,vehicle_id,occurred_at,details,evidence)
+values('74000000-0000-4000-8000-000000000001','74000000-0000-4000-8000-000000000011','vehicle_documents',(select id from calendar_ids where key='vehicle'),now(),
+jsonb_build_object('registration_document_id','74000000-0000-4000-8000-000000000401','insurance_document_id','74000000-0000-4000-8000-000000000402','inspection_document_id','74000000-0000-4000-8000-000000000403',
+'registration_expires_on',public.pa_today()+365,'insurance_expires_on',public.pa_today()+365,'inspection_expires_on',public.pa_today()+365),'Registration, insurance and inspection copies reviewed');
+select pg_temp.act_as('74000000-0000-4000-8000-000000000101');
+select throws_ok($$select public.create_resident_service_calendar_event('74000000-0000-4000-8000-000000000201',
+jsonb_build_object('eventType','transportation','title','Expired future documents','startsAt',now()+interval '367 days','endsAt',now()+interval '367 days 1 hour','transportationMode','facility_vehicle','vehicleId',(select id from calendar_ids where key='vehicle'),'requiredRecords','[]'::jsonb),'[]')$$,'23514',null,'vehicle documents must remain current on the actual trip date');
+select throws_ok($$select public.create_resident_service_calendar_event('74000000-0000-4000-8000-000000000201',
+jsonb_build_object('eventType','transportation','title','No driver license','startsAt',now()+interval '2 days','endsAt',now()+interval '2 days 1 hour','transportationMode','facility_vehicle','vehicleId',(select id from calendar_ids where key='vehicle'),'requiredRecords','[]'::jsonb),jsonb_build_array(jsonb_build_object('employeeId','74000000-0000-4000-8000-000000000301','role','driver')))$$,'23514',null,'driver assignment requires their own license evidence');
+reset role;
+insert into public.facility_site_reviews(organization_id,facility_id,review_type,employee_id,occurred_at,details,evidence)
+values('74000000-0000-4000-8000-000000000001','74000000-0000-4000-8000-000000000011','driver_license','74000000-0000-4000-8000-000000000301',now(),
+jsonb_build_object('license_document_id','74000000-0000-4000-8000-000000000404','license_expires_on',public.pa_today()+30,'adult_driver_verified','true','cdl_required','false'),'Adult driver valid license copy reviewed');
+select pg_temp.act_as('74000000-0000-4000-8000-000000000101');
 
 select lives_ok($$
   insert into calendar_ids values ('medical', public.create_resident_service_calendar_event(
@@ -98,6 +123,7 @@ $$, 'manager schedules a complete medical appointment');
 select is((select required_records from public.resident_service_calendar_events where id=(select id from calendar_ids where key='medical')), array['Insurance card','Medication administration record']::text[], 'required records are normalized');
 select is((select count(*)::integer from public.resident_service_calendar_event_staff where event_id=(select id from calendar_ids where key='medical')), 2, 'driver and accompanying staff are assigned');
 select is((select vehicle_id from public.resident_service_calendar_events where id=(select id from calendar_ids where key='medical')), (select id from calendar_ids where key='vehicle'), 'appointment reserves the selected vehicle');
+select throws_ok($$select public.reschedule_resident_service_calendar_event((select id from calendar_ids where key='medical'),now()+interval '32 days',now()+interval '32 days 1 hour','License would expire before rescheduled trip')$$,'23514',null,'rescheduling rechecks driver license expiration');
 select is((public.get_resident_administrative_packet('74000000-0000-4000-8000-000000000201') #>> '{upcomingResidentServices,0,title}'), 'Primary care follow-up', 'resident packet includes upcoming calendar obligations');
 select is((public.get_resident_administrative_packet('74000000-0000-4000-8000-000000000201') #>> '{dietaryProfile}'), null, 'calendar wrapper preserves prior packet keys when optional dietary data is absent');
 select lives_ok($$

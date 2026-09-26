@@ -10,6 +10,19 @@ import { FACILITY_TYPES } from "@/lib/facilityTypes";
 import { humanize } from "@/lib/utils";
 import { facilityDateOf } from "@/lib/dateUtils";
 
+export interface ProtectedIdentitySupplementRecord {
+  external_reference: string;
+  custodian: string;
+  access_instructions: string;
+  verified_at: string;
+}
+export function readProtectedIdentitySupplement(value: unknown): ProtectedIdentitySupplementRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (!["external_reference", "custodian", "access_instructions", "verified_at"].every(key => typeof row[key] === "string" && String(row[key]).trim()) || !Number.isFinite(Date.parse(String(row.verified_at)))) return null;
+  return row as unknown as ProtectedIdentitySupplementRecord;
+}
+
 export interface ResidentFaceSheetPacket {
   title: string;
   generatedAt: string;
@@ -82,6 +95,7 @@ export function buildResidentFaceSheetPacket({
     { type: "designated_person", label: "Designated Person", value: blank(resident.designated_person_name) },
   ].filter((contact) => !officialContacts.some((row) => row.contact_type === contact.type))
     .map(({ label, value }) => ({ label, value }));
+  const supplement = readProtectedIdentitySupplement((resident as Resident & { protected_identity_supplement?: unknown }).protected_identity_supplement);
   const outstanding = [
     ...(clinicalUnavailable ? ["Clinical information could not be loaded. Attach the current diagnoses, allergy list and medication record."] : []),
     ...(!diagnoses.length ? ["Verify and attach current medical diagnoses; none are available in this packet."] : []),
@@ -89,7 +103,9 @@ export function buildResidentFaceSheetPacket({
     ...(!medications.length ? ["Verify current medications and attach a medication record with dosage and frequency; none are available in this packet."] : []),
     ...(medications.some((row) => row.directions.startsWith("Dosage and frequency not recorded")) ? ["One or more medications lack recorded dosage and frequency."] : []),
     "Verify imported information against the current clinical record before sending; source updates may be incomplete or delayed.",
-    "Social Security number is not stored in this packet. Supply required identifying information through the facility's protected emergency-transfer process.",
+    supplement
+      ? `Attach protected identifying-information supplement ${supplement.external_reference}, verified ${formatDateOnly(facilityDateOf(supplement.verified_at))}. Custodian: ${supplement.custodian}. ${supplement.access_instructions}. The actual identifier remains in that separate protected record.`
+      : "Social Security number is not stored in this packet. Verify the protected external supplement reference and supply required identifying information through the facility's protected emergency-transfer process.",
   ];
   return {
     title: `${resident.last_name}, ${resident.first_name}${resident.preferred_name ? ` (“${resident.preferred_name}”)` : ""}`,

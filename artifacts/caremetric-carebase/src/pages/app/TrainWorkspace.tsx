@@ -117,6 +117,7 @@ export default function TrainWorkspace() {
   const editingShift = data?.shifts.find(s => s.id === shiftId && s.employee_id === student);
   const allRows = roster.map(employee => ({ employee,
     checks: ["terminated", "inactive"].includes(employee.status) ? [{ key: "inactive", label: "Inactive staff record", citation: "2600/2800.65", status: "review" as const, detail: "Historical training is retained. Confirm new duties and applicability on return; current active-staff deadlines are not inferred for this record.", due: null }] : assessTraining({ profile: data?.profiles.find(p => p.employee_id === employee.id), policy, events: data?.events || [], shifts: data?.shifts || [],
+      staffPolicy: data?.staff_policy, regulatoryProfile: data?.regulatory_profiles?.find(p => p.employee_id === employee.id), annualSummary: data?.annual_summaries?.[employee.id],
       facilityType: facility?.facility_type || "", today, hireDate: employee.hire_date, medications: employee.administers_medications, insulin: employee.administers_insulin }),
   }));
   const isOverdue = (check: typeof allRows[number]["checks"][number]) => check.status !== "met" && !!check.due && /^\d{4}-\d{2}-\d{2}$/.test(check.due) && check.due < today;

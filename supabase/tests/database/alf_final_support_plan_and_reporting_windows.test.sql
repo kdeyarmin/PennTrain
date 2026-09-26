@@ -70,7 +70,7 @@ select is(
     public.resident_compliance_backdate_days('support_plan_30day', 'PCH'),
     public.resident_compliance_backdate_days('annual_reassessment', 'ALR')
   ],
-  array[60, 60, 30, 30, 0, 180, 180],
+  array[60, 60, 30, 30, 0, 0, 180],
   'each form may predate admission by its own regulatory look-back, and no further'
 );
 

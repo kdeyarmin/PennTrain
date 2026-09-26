@@ -102,9 +102,10 @@ export interface FireDrillRow {
   evacuation_exception?: string | null;
 }
 
-export function drillMonthVerdict(drills: FireDrillRow[]): string {
+export function drillMonthVerdict(drills: FireDrillRow[], countUnsuccessful = false): string {
   const exceeded = drills.filter((drill) => drill.evacuation_time_exceeded).length;
   if (exceeded) return `Evacuation-time violation recorded in ${exceeded} drill${exceeded === 1 ? "" : "s"}; later successful drills do not erase it`;
+  if (countUnsuccessful && drills.length) return `Frequency met — ${drills.length} recorded drill${drills.length === 1 ? "" : "s"} under selected PCH RCG policy; review unsuccessful outcomes separately`;
   const passing = drills.filter((drill) => drill.result === "pass").length;
   return passing ? `Met — ${passing} passing drill${passing === 1 ? "" : "s"} logged this month`
     : drills.length ? `NOT met — ${drills.length} drill${drills.length === 1 ? "" : "s"} logged, none passing`
@@ -315,6 +316,7 @@ export async function buildFireDrillTrackerPdf(input: {
   licenseNumber: string | null;
   month: string;
   drills: FireDrillRow[];
+  countUnsuccessful?: boolean;
 }): Promise<Uint8Array> {
   const w = new PdfWriter();
   await w.init();
@@ -346,10 +348,14 @@ export async function buildFireDrillTrackerPdf(input: {
   w.field("Passing Drills", String(passing));
   w.field("Shifts Covered", shiftsCovered.length ? shiftsCovered.map(humanize).join(", ") : "—");
   w.field("Drills Not Passing", String(notPassing));
-  w.field("Sleeping-Hours Drills", String(input.drills.filter((d) => d.is_sleeping_hours_drill && d.result === "pass").length));
+  const countUnsuccessful = input.facilityType === "PCH" && input.countUnsuccessful === true;
+  w.field("Sleeping-Hours Drills", String(input.drills.filter((d) => d.is_sleeping_hours_drill && (d.result === "pass" || countUnsuccessful)).length));
+  w.field("Counting Policy", countUnsuccessful ? "PCH RCG: all recorded drills; outcome findings retained" : "Passing drills required by facility policy");
+  const weekdays = [...new Set(input.drills.map((drill) => { const [y, m, d] = drill.performed_date.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" }); }))];
+  w.field("Weekdays Used", weekdays.join(", ") || "None");
   w.field(
     "Monthly Requirement",
-    drillMonthVerdict(input.drills),
+    drillMonthVerdict(input.drills, countUnsuccessful),
   );
   w.field("Regulatory Citation", fireDrillCitation(input.facilityType));
   w.y -= 6;
@@ -522,6 +528,8 @@ export function createGenerateFireDrillTrackerPdfHandler({
     if (eventsError) return json(req, { error: eventsError.message }, 500);
 
     const drills = (events ?? []) as unknown as FireDrillRow[];
+    const { data: sitePolicy, error: sitePolicyError } = await callerClient.from("facility_site_policies").select("count_unsuccessful_pch_drills").eq("facility_id", facilityId).maybeSingle();
+    if (sitePolicyError) return json(req, { error: sitePolicyError.message }, 500);
 
     const organizationName = (facility.organizations as unknown as { name: string } | null)?.name ?? "";
 
@@ -532,6 +540,7 @@ export function createGenerateFireDrillTrackerPdfHandler({
       licenseNumber: facility.license_number,
       month,
       drills,
+      countUnsuccessful: facility.facility_type === "PCH" && sitePolicy?.count_unsuccessful_pch_drills === true,
     });
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);

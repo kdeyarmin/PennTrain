@@ -867,6 +867,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                 </div>
               ))}
             </div>
+            {serviceWorkload?.staffCareCoverage && <StaffCareCoverage data={serviceWorkload.staffCareCoverage} />}
             {!!serviceWorkload?.emergencyCoverageRows?.length && <div className="space-y-2">
               <h4 className="text-sm font-medium">Required first aid, CPR and airway coverage</h4>
               <p className="text-xs text-muted-foreground">One trained person per 50 PCH residents or 35 ALF residents, throughout the schedule. First aid and CPR / airway may be covered by separate people. {serviceWorkload.emergencyCoverageBasis}</p>
@@ -1364,3 +1365,4 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
     </div>
   );
 }
+import { StaffCareCoverage } from "@/components/staff/StaffCareCoverage";

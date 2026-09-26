@@ -17,7 +17,7 @@ select throws_ok($$insert into public.incidents(organization_id,facility_id,inci
 select is(app_private.incident_rule_due_at('2026-09-25 22:00:00+00',0,'same_business_day'),'2026-09-28 12:00:00+00'::timestamptz,'an after-hours Friday Aging report is reminded at Monday opening');
 select is(app_private.incident_rule_due_at('2026-09-25 15:00:00+00',0,'same_business_day'),'2026-09-25 21:00:00+00'::timestamptz,'a daytime Aging report stays within that business day');
 select ok(not has_function_privilege('authenticated','app_private.complete_resident_compliance_item_core(uuid,uuid,date)','EXECUTE'),'clients cannot bypass the final-plan review wrapper');
-select has_function('public','complete_move_in_admission',array['uuid','text','date'],'admission accepts the actual first day of residence');
+select has_function('public','complete_move_in_admission',array['uuid','text','date','timestamp with time zone'],'admission accepts the actual first day and optional exact admission time');
 select throws_ok($$insert into public.incident_notifications(organization_id,facility_id,incident_id,notification_type,due_at,status,completed_at)
 values('aa260000-0000-4000-8000-000000000001','aa260000-0000-4000-8000-000000000011','aa260000-0000-4000-8000-000000000103','prescriber',now(),'completed',now())$$,
 '23514',null,'an already-completed insert cannot bypass prescriber response evidence');

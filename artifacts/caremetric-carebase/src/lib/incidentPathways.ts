@@ -249,6 +249,11 @@ export const INCIDENT_PATHWAYS: IncidentPathway[] = [
     purpose: "A medication error, near miss, or adverse reaction.",
     reportability: "presumed_reportable", incidentType: "medication_error", version: 1,
     sections: basicSections([
+      { key: "event_kind", label: "Medication event classification", type: "single_select", required: true,
+        options: [{ value: "actual_error", label: "Medication error occurred" }, { value: "near_miss", label: "Near miss — error prevented" }, { value: "adverse_reaction", label: "Adverse reaction" }],
+        guidance: "The recorded facility policy controls the initial Department-report presumption. Near misses and adverse reactions still require a recorded determination; clinical notifications remain separate." },
+      { key: "administration_by", label: "Who administered or was responsible for the dose?", type: "single_select", required: true,
+        options: [{ value: "staff", label: "Facility staff" }, { value: "self", label: "Resident self-administered" }, { value: "unknown", label: "Not yet established" }] },
       {
         key: "error_category", label: "What went wrong", type: "single_select",
         options: [
@@ -257,6 +262,8 @@ export const INCIDENT_PATHWAYS: IncidentPathway[] = [
           { value: "wrong_dose", label: "Wrong dose" },
           { value: "wrong_time", label: "Wrong time" },
           { value: "omitted", label: "Dose omitted" },
+          { value: "wrong_route", label: "Wrong route" },
+          { value: "near_miss", label: "Near miss" },
           { value: "adverse_reaction", label: "Adverse reaction" },
         ],
         required: true,
@@ -481,7 +488,9 @@ export function isPathwayComplete(pathway: IncidentPathway, answers: TemplateAns
  */
 export function reportabilityPrompts(pathway: IncidentPathway, answers: TemplateAnswers): string[] {
   const prompts: string[] = [];
-  if (pathway.reportability === "presumed_reportable") {
+  if (pathway.key === "medication_event") {
+    prompts.push("Apply the recorded facility medication-reporting policy. A staff prescription error under §188 is reportable; a near miss, self-administration error or adverse reaction needs a documented review of other §16 criteria. Immediate clinical care and prescriber/designated-person notifications remain separate.");
+  } else if (pathway.reportability === "presumed_reportable") {
     prompts.push(`${pathway.label} is normally a reportable event — confirm the notification requirements.`);
   }
   if (answers.head_strike === "yes" || answers.head_strike === "unknown") {

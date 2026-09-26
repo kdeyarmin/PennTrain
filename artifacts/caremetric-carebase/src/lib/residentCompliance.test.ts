@@ -83,9 +83,9 @@ describe("stateFormBackdateDays", () => {
     expect(stateFormBackdateDays("support_plan_30day", "ALR")).toBe(0);
   });
 
-  it("keeps the general 180-day look-back for PCH assessment items and recurring items", () => {
-    expect(stateFormBackdateDays("initial_assessment_15day", "PCH")).toBe(180);
-    expect(stateFormBackdateDays("support_plan_30day", "PCH")).toBe(180);
+  it("requires ordinary PCH initial assessments and plans after admission; campus carry uses its separate evidenced workflow", () => {
+    expect(stateFormBackdateDays("initial_assessment_15day", "PCH")).toBe(0);
+    expect(stateFormBackdateDays("support_plan_30day", "PCH")).toBe(0);
     expect(stateFormBackdateDays("annual_reassessment", "ALR")).toBe(180);
     expect(stateFormBackdateDays("support_plan_30day", null)).toBe(180);
   });

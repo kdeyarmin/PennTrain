@@ -30,6 +30,14 @@ function answerEverything(pathway: IncidentPathway): Record<string, unknown> {
 }
 
 describe("pathway catalogue", () => {
+  it("distinguishes actual staff errors, near misses, self-administration and adverse reactions for the recorded medication policy", () => {
+    const medication = getIncidentPathway("medication_event")!;
+    const fields = pathwayFields(medication);
+    expect(fields.find(field => field.key === "event_kind")?.options?.map(option => option.value)).toEqual(["actual_error", "near_miss", "adverse_reaction"]);
+    expect(fields.find(field => field.key === "administration_by")?.options?.map(option => option.value)).toEqual(["staff", "self", "unknown"]);
+    expect(fields.find(field => field.key === "error_category")?.options?.map(option => option.value)).toContain("wrong_route");
+    expect(reportabilityPrompts(medication, { event_kind: "near_miss" }).join(" ")).toContain("recorded facility medication-reporting policy");
+  });
   it("provides a completion path for every reportable category", () => {
     for (const type of INCIDENT_TYPE_OPTIONS.filter(type => type !== "other")) {
       expect(INCIDENT_PATHWAYS.some(pathway => pathway.incidentType === type), type).toBe(true);
