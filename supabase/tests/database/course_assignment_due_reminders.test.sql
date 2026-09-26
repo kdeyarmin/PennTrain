@@ -1,10 +1,8 @@
 begin;
-select plan(7);
+select no_plan();
 
--- Daily start-reminder for never-started course assignments approaching their due date:
--- covers status='assigned' only (the continuation job owns in-progress work), skips
--- assignments without due dates or with far-off due dates, dedups one nudge per
--- assignment, and its provider delivery stays behind the expanded-delivery flag.
+-- Deadline reminders include both unstarted and in-progress required work.
+-- Elective/paused/closed work stays out; repeat runs are bounded by a weekly cadence.
 
 select ok(
   exists (select 1 from cron.job where jobname = 'course-assignment-due-reminders-daily'),
@@ -88,14 +86,14 @@ select results_eq(
   $$ select count(*)::int from public.notifications
      where notification_type = 'course_assignment_due_soon'
        and organization_id = '14000000-0000-4000-8000-000000000001' $$,
-  array[1],
-  'only the unstarted assignment due within the window gets a reminder'
+  array[2],
+  'both unstarted and in-progress required assignments receive deadline reminders'
 );
 select results_eq(
   $$ select link from public.notifications
      where notification_type = 'course_assignment_due_soon'
-       and organization_id = '14000000-0000-4000-8000-000000000001' $$,
-  array['/me/courses/14000000-0000-4000-8000-000000000061'::text],
+       and organization_id = '14000000-0000-4000-8000-000000000001' order by link $$,
+  array['/me/courses/14000000-0000-4000-8000-000000000061'::text,'/me/courses/14000000-0000-4000-8000-000000000063'::text],
   'the reminder links to the due-soon assignment'
 );
 select public.queue_course_assignment_due_reminders();
@@ -103,7 +101,7 @@ select results_eq(
   $$ select count(*)::int from public.notifications
      where notification_type = 'course_assignment_due_soon'
        and organization_id = '14000000-0000-4000-8000-000000000001' $$,
-  array[1],
+  array[2],
   'reruns do not re-nag the same assignment'
 );
 select results_eq(
@@ -115,5 +113,23 @@ select results_eq(
   'provider delivery for the reminder stays behind the expanded-delivery flag'
 );
 
+update public.notifications set created_at=now()-interval '8 days'
+where organization_id='14000000-0000-4000-8000-000000000001' and notification_type='course_assignment_due_soon';
+select public.queue_course_assignment_due_reminders();
+select is((select count(*)::int from public.notifications where organization_id='14000000-0000-4000-8000-000000000001' and notification_type='course_assignment_due_soon'),4,'unfinished work receives another reminder after the frequency limit');
+-- A partner remains entitled after a paid subscription is canceled.
+insert into app_private.module_access_terms(organization_id,module_key,source,reason)
+values('14000000-0000-4000-8000-000000000001','modules.train','complimentary','Owner-approved complimentary training partner');
+select set_config('app.privileged_write','on',true);
+update public.organizations set subscription_status='canceled' where id='14000000-0000-4000-8000-000000000001';
+update public.notifications set created_at=now()-interval '8 days' where organization_id='14000000-0000-4000-8000-000000000001';
+select public.queue_course_assignment_due_reminders();
+select is((select count(*)::int from public.notifications where organization_id='14000000-0000-4000-8000-000000000001' and notification_type='course_assignment_due_soon'),6,'complimentary training reminders survive paid subscription cancellation');
+update public.organizations set subscription_status='suspended' where id='14000000-0000-4000-8000-000000000001';
+select is((select subscription_status from public.organizations where id='14000000-0000-4000-8000-000000000001'),'suspended','fixture uses trusted suspension path rather than a tenant-reverted update');
+select set_config('app.privileged_write','off',true);
+update public.notifications set created_at=now()-interval '8 days' where organization_id='14000000-0000-4000-8000-000000000001';
+select public.queue_course_assignment_due_reminders();
+select is((select count(*)::int from public.notifications where organization_id='14000000-0000-4000-8000-000000000001' and notification_type='course_assignment_due_soon'),6,'administrative suspension still suppresses reminders');
 select * from finish();
 rollback;

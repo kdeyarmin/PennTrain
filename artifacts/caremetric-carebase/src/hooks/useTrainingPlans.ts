@@ -129,7 +129,7 @@ export function useAddTrainingPlanItem() {
       return data;
     },
     onSuccess: (data) =>
-      queryClient.invalidateQueries({ queryKey: ["training_plans", "items", data.training_plan_id] }),
+      queryClient.invalidateQueries({ queryKey: ["training_plans"] }),
   });
 }
 
@@ -159,7 +159,7 @@ export function useUpdateTrainingPlanItem() {
       return { ...data, trainingPlanId };
     },
     onSuccess: (data) =>
-      queryClient.invalidateQueries({ queryKey: ["training_plans", "items", data.trainingPlanId] }),
+      queryClient.invalidateQueries({ queryKey: ["training_plans"] }),
   });
 }
 
@@ -172,7 +172,7 @@ export function useRemoveTrainingPlanItem() {
       return { trainingPlanId };
     },
     onSuccess: (data) =>
-      queryClient.invalidateQueries({ queryKey: ["training_plans", "items", data.trainingPlanId] }),
+      queryClient.invalidateQueries({ queryKey: ["training_plans"] }),
   });
 }
 

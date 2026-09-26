@@ -14,6 +14,7 @@ import { facilityDaysUntil, facilityToday, formatDateForDisplay } from "@/lib/da
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { useMyTrainingPassport } from "@/hooks/useProductExperience";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { TrainingRecords } from "@/components/training/TrainingRecords";
 
 // Certificate PDFs render on a background job queue; while one is still pending/processing,
 // poll the list so the action button flips to "Download" without a manual refresh.
@@ -87,8 +88,11 @@ export default function MyCertificates() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">My Certificates</h1>
+        <p className="text-sm">Need a name or award correction? <Link className="underline" href="/me/help">Contact support</Link> with the certificate number and correction reason.</p>
         <p className="text-muted-foreground">View and verify certificates you've earned from completed training.</p>
       </div>
+
+      {employee && <details className="rounded border p-4"><summary className="cursor-pointer font-semibold">Outside training and practical skills</summary><div className="mt-4"><TrainingRecords key={employee.id} facilityId={employee.facility_id} organizationId={employee.organization_id} employeeId={employee.id} /></div></details>}
 
       <Card>
         <CardHeader>
@@ -143,11 +147,11 @@ export default function MyCertificates() {
                 return (
                   <div
                     key={cert.id}
-                    className="flex items-center justify-between gap-4 p-3 rounded-lg border"
+                    className="flex flex-wrap items-center justify-between gap-4 p-3 rounded-lg border"
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 basis-48">
                       <p className="font-medium text-sm truncate">
-                        {courseTitleById.get(cert.course_id) ?? `Course #${cert.course_id.slice(0, 8)}`}
+                        {cert.course_title_snapshot ?? courseTitleById.get(cert.course_id) ?? `Course #${cert.course_id.slice(0, 8)}`}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Issued {formatDateForDisplay(cert.issued_at)}
@@ -155,7 +159,7 @@ export default function MyCertificates() {
                           <> &middot; {expired ? "Expired" : "Expires"} {formatDateForDisplay(cert.expires_at)}</>
                         )}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                      <p className="text-xs text-muted-foreground mt-0.5 font-mono break-all">
                         {cert.credential_number}
                       </p>
                       {cert.pdf_status !== "ready" && (
@@ -164,7 +168,7 @@ export default function MyCertificates() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex flex-wrap items-center gap-3">
                       <Badge variant={expired ? "destructive" : "default"}>
                         {expired ? "Expired" : "Valid"}
                       </Badge>

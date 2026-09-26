@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { cn } from "@/lib/utils";
 import { canViewPath } from "@/lib/appDomains";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
@@ -508,7 +508,15 @@ function getNavSections(
 }
 
 function isNavItemActive(item: NavItem, location: string): boolean {
-  return location === item.href || (item.href !== "/admin" && item.href !== "/app" && item.href !== "/trainer" && item.href !== "/me" && location.startsWith(`${item.href}/`));
+  const [path, query = ""] = location.split("?");
+  const [target, targetQuery = ""] = item.href.split("?");
+  if (targetQuery) {
+    const current = new URLSearchParams(query);
+    return path === target && [...new URLSearchParams(targetQuery)].every(([key, value]) =>
+      key === "facilityId" || (current.get(key) || (key === "tab" ? "overview" : "")) === value);
+  }
+  if (path === "/me/courses" && new URLSearchParams(query).get("view") === "library") return false;
+  return path === target || (!["/admin", "/app", "/trainer", "/me"].includes(target) && path.startsWith(`${target}/`));
 }
 
 // Persisted per-user so each person's choice of which groups to keep collapsed sticks across
@@ -545,6 +553,8 @@ const DEFAULT_COLLAPSED_SECTIONS = new Set(["Advanced", "Admin"]);
 function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { user } = useAuth();
   const [location] = useLocation();
+  const locationSearch = useSearch();
+  const navigationLocation = `${location}${locationSearch ? `?${locationSearch}` : ""}`;
   const handleLogout = useSignOut();
   const { toast } = useToast();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
@@ -589,7 +599,28 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     || surveyDayFeature.isEnabled;
   const hiddenSections = new Set(organizationSettings.data?.hidden_navigation_sections ?? []);
   const viewOnlyPaths: readonly string[] = VIEW_ONLY_NAV_PATHS_BY_ROLE[user.role] ?? [];
-  const navSections = getNavSections(user.role, showPchAlrModules, showSurveyDay)
+  const trainingOnly = !moduleAccess.isLoading && moduleAccess.enabledModules.has("train")
+    && !(["carebase", "workforce", "compliance", "billing"] as const).some(module => moduleAccess.enabledModules.has(module));
+  const facilityContext = new URLSearchParams(locationSearch).get("facilityId");
+  const trainingHref = (tab: string) => `/app/train?${new URLSearchParams({ tab, ...(facilityContext ? { facilityId: facilityContext } : {}) })}`;
+  const trainingSections: NavSection[] = [{ title: "Training", items: [
+    { href: trainingHref("overview"), label: "Dashboard", icon: LayoutDashboard },
+    { href: trainingHref("students"), label: "Staff", icon: Users },
+    { href: trainingHref("yearly-plans"), label: "Learning Plans", icon: ListChecks },
+    { href: "/app/courses", label: "Course Library", icon: BookOpen },
+    { href: trainingHref("enrollments"), label: "Reports", icon: BarChart3 },
+    { href: trainingHref("certificates"), label: "Certificates", icon: Printer },
+    { href: trainingHref("settings"), label: "Facility Settings", icon: Settings },
+  ] }, { title: "Support", items: [{ href: "/app/help", label: "Help", icon: HelpCircle }, { href: "/account/security", label: "Account security", icon: ShieldCheck }, { href: "/app/billing", label: "Access and subscription", icon: CreditCard }] }];
+  const learnerSections: NavSection[] = [{ title: "My learning", items: [
+    { href: "/me/courses", label: "My Learning", icon: GraduationCap },
+    { href: "/me/courses?view=library", label: "Course Library", icon: BookOpen },
+    { href: "/me/certificates", label: "My Certificates", icon: Printer },
+    { href: "/me/help", label: "Help", icon: HelpCircle },
+  ] }];
+  const navSections = (trainingOnly && user.role === "employee" ? learnerSections
+    : trainingOnly && ["org_admin", "facility_manager", "trainer", "auditor"].includes(user.role) ? trainingSections
+    : getNavSections(user.role, showPchAlrModules, showSurveyDay))
     .filter((section) => !section.title || !hiddenSections.has(section.title))
     .map((section) => ({
       ...section,
@@ -612,7 +643,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   };
 
   const flattenedNavItems = navSections.flatMap((section) => section.items);
-  const currentNavItem = flattenedNavItems.find((item) => isNavItemActive(item, location));
+  const currentNavItem = flattenedNavItems.find((item) => isNavItemActive(item, navigationLocation));
   const pinnedPages = new Set(navigation.favoritePaths);
   const isCurrentPagePinned = !!currentNavItem && pinnedPages.has(currentNavItem.href);
   const toggleCurrentPagePin = () => {
@@ -717,7 +748,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           <p className="px-3 py-6 text-[13px] text-sidebar-foreground/40 text-center">No pages match "{filter.trim()}"</p>
         )}
         {visibleSections.map((section, si) => {
-          const containsActiveItem = section.items.some((item) => isNavItemActive(item, location));
+          const containsActiveItem = section.items.some((item) => isNavItemActive(item, navigationLocation));
           const isOpen = isFiltering || !section.title || containsActiveItem || !collapsedSections.has(section.title);
           const sectionKey = section.title ?? section.items[0]?.href ?? "dashboard";
           return (
@@ -741,7 +772,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               {isOpen && (
                 <div className="space-y-0.5">
                   {section.items.map((item) => {
-                    const isActive = isNavItemActive(item, location);
+                    const isActive = isNavItemActive(item, navigationLocation);
                     const isExactActive = location === item.href;
                     const Icon = item.icon;
                     return (

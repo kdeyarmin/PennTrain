@@ -400,7 +400,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-9 w-9 rounded-lg p-0 hover:bg-muted" aria-label="User menu">
               <Avatar className="h-9 w-9 rounded-lg">
-                <AvatarFallback className="rounded-lg bg-primary/10 text-primary text-xs font-semibold">
+                <AvatarFallback className="rounded-lg bg-primary/10 text-foreground text-xs font-semibold">
                   {initials}
                 </AvatarFallback>
               </Avatar>

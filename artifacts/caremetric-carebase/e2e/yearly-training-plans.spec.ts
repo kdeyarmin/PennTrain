@@ -150,7 +150,9 @@ async function applyToBoth(page: Page, name: string,
   await expect(dialog.getByRole("checkbox", { name: "PlanFirst Learner", exact: true })).toBeVisible();
   await expect(dialog.getByRole("checkbox", { name: "PlanSecond Learner", exact: true })).toBeVisible();
   await dialog.getByRole("checkbox", { name: "Select all matching employees in this facility", exact: true }).check();
-  const applyButton = dialog.getByRole("button", { name: "Apply to 2 Employees", exact: true });
+  await dialog.getByRole("button", { name: "Preview 2 Employees", exact: true }).click();
+  await expect(dialog.getByRole("region", { name: "Assignment preview" })).toContainText("PlanFirst Learner");
+  const applyButton = dialog.getByRole("button", { name: "Confirm apply to 2 Employees", exact: true });
   await applyButton.click();
   const result = dialog.getByRole("status");
   await expect(result).toContainText(`${counts.assigned} assignments created; ${counts.updated} deadlines updated; ${counts.canceled} removed-course assignments canceled; ${counts.completed} completed assignments preserved.`);
@@ -161,8 +163,8 @@ async function applyToBoth(page: Page, name: string,
   } else {
     await expect(result).not.toContainText("Needs attention:");
   }
-  // The shared dialog also has an X named Close. Select the footer beside Apply.
-  await applyButton.locator("..").getByRole("button", { name: "Close", exact: true }).click();
+  // The completed preview returns to its first step; either close control closes the dialog.
+  await dialog.getByRole("button", { name: "Close", exact: true }).first().click();
   await expect(dialog).not.toBeVisible();
 }
 
@@ -191,7 +193,7 @@ test.describe("yearly facility training plans", () => {
           await expect(page.getByLabel("Training facility", { exact: true }).locator(`option[value="${f.otherFacility.id}"]`)).toHaveCount(0);
         }
         await page.getByRole("button", { name: "Build yearly plan", exact: true }).click();
-        await expect(page.getByRole("tab", { name: "Yearly course plans", exact: true })).toHaveAttribute("aria-selected", "true");
+        await expect(page.getByRole("tab", { name: "Learning Plans", exact: true })).toHaveAttribute("aria-selected", "true");
         await page.getByRole("button", { name: "New Plan", exact: true }).click();
         const dialog = page.getByRole("dialog", { name: "New Training Plan", exact: true });
         await expect(dialog.getByLabel("Facility *", { exact: true })).toHaveValue(f.facility.id);
@@ -240,7 +242,7 @@ test.describe("yearly facility training plans", () => {
         if (error) throw error;
         certificateBefore = data;
         await page.getByRole("link", { name: "Back to training", exact: true }).click();
-        await page.getByRole("tab", { name: "Yearly course plans", exact: true }).click();
+        await page.getByRole("tab", { name: "Learning Plans", exact: true }).click();
         await page.getByRole("button", { name: f.planName, exact: true }).click();
         await expect(page.getByRole("button", { name: f.planName, exact: true })).toHaveAttribute("aria-expanded", "true");
       });
@@ -295,13 +297,13 @@ test.describe("yearly facility training plans", () => {
           const employeePage = await context.newPage();
           // Both builds send this Train-only tenant to its course portal after login.
           await signInAs(employeePage, f.learner.email, password, "/me/courses");
-          await expect(employeePage.getByRole("heading", { level: 1, name: "My Training", exact: true })).toBeVisible();
+          await expect(employeePage.getByRole("heading", { level: 1, name: "My Learning", exact: true })).toBeVisible();
           await employeePage.goto("/app/training-plans");
           // Role denial redirects to /me. Train's router then resolves that alias to courses;
           // the universal router renders the employee dashboard at /me itself.
           const standalone = process.env.PLAYWRIGHT_TRAIN_BUILD === "true";
           await expect.poll(() => new URL(employeePage.url()).pathname).toBe(standalone ? "/me/courses" : "/me");
-          await expect(employeePage.getByRole("heading", { level: 1, name: standalone ? "My Training" : "My day", exact: true })).toBeVisible();
+          await expect(employeePage.getByRole("heading", { level: 1, name: standalone ? "My Learning" : "My day", exact: true })).toBeVisible();
           await expect(employeePage.getByRole("button", { name: "New Plan", exact: true })).toHaveCount(0);
         } finally {
           await context.close();

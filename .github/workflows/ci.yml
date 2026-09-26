@@ -365,7 +365,19 @@ jobs:
           retention-days: 7
 
       - name: Database and RLS tests
-        run: supabase test db
+        shell: bash
+        run: |
+          set -o pipefail
+          supabase test db 2>&1 | tee /tmp/training-database-validation.log
+
+      - name: Upload database validation and scale timing
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: database-validation
+          path: /tmp/training-database-validation.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       # `--fail-on error` is not redundant with `--level error`. `--level` selects which findings
       # are PRINTED; `--fail-on` selects which findings change the EXIT CODE, and it defaults to
@@ -472,11 +484,46 @@ jobs:
           restore-keys: |
             playwright-${{ runner.os }}-
 
-      - name: Install Chromium
-        run: pnpm --filter @workspace/caremetric-carebase exec playwright install --with-deps chromium
+      - name: Install Chromium and WebKit
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright install --with-deps chromium webkit
+
+      - name: Training starter-kit, discovery, and refresher journeys
+        id: training-enhancements
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/training-starter-kits.spec.ts e2e/training-discovery.spec.ts --project=chromium
+
+      - name: Upload Training discovery and assignment previews
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: training-enhancement-screens
+          path: |
+            artifacts/caremetric-carebase/test-results/training-optional-practice.png
+            artifacts/caremetric-carebase/test-results/training-starter-rules.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Training invitation, recovery, and certificate journeys
+        id: training-journeys
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/new-training-facility.spec.ts --project=chromium --project=mobile-safari --max-failures=1
+
+      - name: Preserve onboarding failure evidence before the next browser suite
+        if: ${{ failure() && steps.training-journeys.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: training-onboarding-failures-${{ github.sha }}
+          path: |
+            artifacts/caremetric-carebase/test-results
+            artifacts/caremetric-carebase/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Role, public, guest, and accessibility browser journeys
-        run: pnpm --filter @workspace/caremetric-carebase run test:e2e
+        # Focused Training paths run first for fast feedback; the complementary
+        # filter preserves the complete matrix without repeating those journeys.
+        # Collect independent failures in the same disposable run. A failed
+        # onboarding step still fails this job; its evidence is preserved above.
+        if: ${{ !cancelled() && (steps.training-journeys.outcome == 'success' || steps.training-journeys.outcome == 'failure') }}
+        run: pnpm --filter @workspace/caremetric-carebase run test:e2e --grep-invert "new training facility administrator|optional course discovery and refresher practice|reviewed facility starter kits and assignment rules"
 
       - name: Build standalone Train and verify its application boundary
         run: |
@@ -486,7 +533,7 @@ jobs:
       - name: Standalone Train browser journeys
         env:
           PLAYWRIGHT_TRAIN_BUILD: "true"
-        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/standalone-train.spec.ts e2e/new-training-facility.spec.ts e2e/yearly-training-plans.spec.ts --project=chromium
+        run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/standalone-train.spec.ts e2e/new-training-facility.spec.ts e2e/yearly-training-plans.spec.ts e2e/certificate-document-open.spec.ts --project=chromium --project=mobile-safari
 
       - name: Upload Train workflow screenshot
         if: always()
@@ -498,6 +545,9 @@ jobs:
             artifacts/caremetric-carebase/test-results/standalone-train-report.pdf
             artifacts/caremetric-carebase/test-results/new-training-facility-report.png
             artifacts/caremetric-carebase/test-results/new-training-facility-report.pdf
+            artifacts/caremetric-carebase/test-results/training-learner-mobile.png
+            artifacts/caremetric-carebase/test-results/training-learner-next-*.png
+            artifacts/caremetric-carebase/test-results/training-certificate-packet-*.pdf
           if-no-files-found: ignore
           retention-days: 7
 

@@ -29,6 +29,11 @@ export default defineConfig({
       use: { ...devices["Pixel 5"] },
       testMatch: /mobile-workflows|public-smoke|role-journeys/,
     },
+    {
+      name: "mobile-safari",
+      use: { ...devices["iPhone 13"] },
+      testMatch: /new-training-facility|certificate-document-open/,
+    },
   ],
   webServer: {
     command: process.env.PLAYWRIGHT_TRAIN_BUILD === "true" ? "pnpm run serve:train" : "pnpm run serve",

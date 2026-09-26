@@ -7,11 +7,14 @@ const operation={domain:'training.v1',operation:'apply',action:'invitations.crea
   parameters:{role:'org_admin',firstName:'Test',lastName:'Administrator',email:'admin@test.invalid',facilityId:null,employeeId:null},reason:'Set up this facility administrator'};
 const config={supabaseUrl:'https://native.test',serviceKey:'synthetic-key'};
 function fixture(){
-  const state={sends:0,checks:0,deletes:0,receipt:null,reservations:0,failAfterSend:false,failFinalize:false,failProvision:false,loseRecordResponse:false,revokeBeforeSend:false,inviteError:null,events:[]};
+  const state={sends:0,checks:0,deletes:0,receipt:null,reservations:0,failAfterSend:false,failFinalize:false,failProvision:false,loseRecordResponse:false,revokeBeforeSend:false,inviteError:null,events:[],returning:false,failMetadataRefresh:false};
   const actor={user_id:id(3),session_id:id(4),session_started_at:'2026-09-25T00:00:00Z',assurance_expires_at:'2026-09-25T08:00:00Z'};
   function query(table){
     const q={select:()=>q,eq:()=>q,single:async()=>({data:{role:'platform_admin',organization_id:null,is_active:true},error:null}),
-      maybeSingle:async()=>({data:{is_demo:false},error:null})};
+      maybeSingle:async()=>({data:{is_demo:false},error:null}),
+      ilike:(column,value)=>{assert.equal(table,'profiles');assert.equal(column,'email');assert.equal(value,operation.parameters.email);return q;},
+      limit:value=>{assert.equal(value,2);return q;},
+      then:resolve=>resolve({data:state.returning?[{id:id(5),email:operation.parameters.email,organization_id:operation.organizationId}]:[],error:null})};
     assert.ok(['profiles','organizations'].includes(table));return q;
   }
   const native={from:query,auth:{admin:{
@@ -20,8 +23,12 @@ function fixture(){
       if(state.inviteError)return {data:{user:null},error:state.inviteError};
       return {data:{user:{id:id(5),email}},error:null};},
     deleteUser:async()=>{state.deletes++;return {error:null};},
+    getUserById:async userId=>{assert.equal(userId,id(5));return {data:{user:{id:userId,email:operation.parameters.email,invited_at:'2026-01-01T00:00:00Z',email_confirmed_at:null}},error:null};},
+    updateUserById:async(userId,attributes)=>{assert.equal(userId,id(5));assert.deepEqual(Object.keys(attributes),['user_metadata']);
+      assert.equal(attributes.user_metadata.invitation_logo_url,null);state.events.push('refresh');return {error:state.failMetadataRefresh?{message:'update failed'}:null};},
   }},rpc:async(name,args)=>{
     state.events.push(name);
+    if(name==='get_effective_entitlements')return {data:[],error:null};
     if(name==='platform_admin_training_invitation_reserve'){
       assert.equal(args.p_actor,id(6));assert.equal(args.p_hub_user,actor.user_id);assert.equal(args.p_authentication_method,'app_sms');
       if(state.receipt){
@@ -77,6 +84,17 @@ test('provider uncertainty remains observable and never triggers automatic resen
   const {state,run}=fixture();state.failAfterSend=true;
   const first=await run();assert.deepEqual(first.result,{invitationId:null,deliveryStatus:'unknown'});
   assert.deepEqual((await run()).result,first.result);assert.equal(state.sends,1);
+});
+test('delegated resend refreshes presentation only and rechecks authority before its single email',async()=>{
+  const {state,run}=fixture();state.returning=true;
+  assert.equal((await run()).result.deliveryStatus,'sent');assert.equal(state.checks,3);assert.equal(state.sends,1);
+  assert.ok(state.events.indexOf('refresh')<state.events.indexOf('send'));assert.equal(state.deletes,0);
+  await run();assert.equal(state.sends,1);assert.equal(state.events.filter(event=>event==='refresh').length,1);
+});
+test('delegated resend refresh failure is a definitive pre-dispatch failure',async()=>{
+  const {state,run}=fixture();state.returning=true;state.failMetadataRefresh=true;
+  assert.deepEqual((await run()).result,{invitationId:null,deliveryStatus:'failed'});assert.equal(state.sends,0);assert.equal(state.deletes,0);
+  assert.equal((await run()).replayed,true);assert.equal(state.sends,0);
 });
 test('failed unknown finalization leaves the pre-send receipt and retry does not send again',async()=>{
   const {state,run}=fixture();state.failAfterSend=true;state.failFinalize=true;

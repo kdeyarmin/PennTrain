@@ -1380,7 +1380,10 @@ export type Database = {
       certificates: {
         Row: {
           course_assignment_id: string | null
+          course_code_snapshot: string | null
           course_id: string
+          course_title_snapshot: string | null
+          course_version_snapshot: string | null
           created_at: string
           credential_number: string
           employee_id: string
@@ -1388,6 +1391,7 @@ export type Database = {
           facility_id: string
           id: string
           issued_at: string
+          learner_name_snapshot: string | null
           organization_id: string
           pdf_attempt_count: number
           pdf_last_attempt_at: string | null
@@ -1404,7 +1408,10 @@ export type Database = {
         }
         Insert: {
           course_assignment_id?: string | null
+          course_code_snapshot?: string | null
           course_id: string
+          course_title_snapshot?: string | null
+          course_version_snapshot?: string | null
           created_at?: string
           credential_number?: string
           employee_id: string
@@ -1412,6 +1419,7 @@ export type Database = {
           facility_id: string
           id?: string
           issued_at?: string
+          learner_name_snapshot?: string | null
           organization_id: string
           pdf_attempt_count?: number
           pdf_last_attempt_at?: string | null
@@ -1428,7 +1436,10 @@ export type Database = {
         }
         Update: {
           course_assignment_id?: string | null
+          course_code_snapshot?: string | null
           course_id?: string
+          course_title_snapshot?: string | null
+          course_version_snapshot?: string | null
           created_at?: string
           credential_number?: string
           employee_id?: string
@@ -1436,6 +1447,7 @@ export type Database = {
           facility_id?: string
           id?: string
           issued_at?: string
+          learner_name_snapshot?: string | null
           organization_id?: string
           pdf_attempt_count?: number
           pdf_last_attempt_at?: string | null
@@ -4697,6 +4709,7 @@ export type Database = {
           additional_quiz_attempts: Json
           assigned_at: string
           assigned_by: string | null
+          assignment_origin: string
           canceled_at: string | null
           cancellation_reason: string | null
           completed_at: string | null
@@ -4707,6 +4720,7 @@ export type Database = {
           employee_id: string
           facility_id: string
           id: string
+          is_required: boolean
           lifecycle_disposition: string | null
           lifecycle_event_id: string | null
           lifecycle_previous_status: string | null
@@ -4720,6 +4734,7 @@ export type Database = {
           additional_quiz_attempts?: Json
           assigned_at?: string
           assigned_by?: string | null
+          assignment_origin?: string
           canceled_at?: string | null
           cancellation_reason?: string | null
           completed_at?: string | null
@@ -4730,6 +4745,7 @@ export type Database = {
           employee_id: string
           facility_id: string
           id?: string
+          is_required?: boolean
           lifecycle_disposition?: string | null
           lifecycle_event_id?: string | null
           lifecycle_previous_status?: string | null
@@ -4743,6 +4759,7 @@ export type Database = {
           additional_quiz_attempts?: Json
           assigned_at?: string
           assigned_by?: string | null
+          assignment_origin?: string
           canceled_at?: string | null
           cancellation_reason?: string | null
           completed_at?: string | null
@@ -4753,6 +4770,7 @@ export type Database = {
           employee_id?: string
           facility_id?: string
           id?: string
+          is_required?: boolean
           lifecycle_disposition?: string | null
           lifecycle_event_id?: string | null
           lifecycle_previous_status?: string | null
@@ -5073,33 +5091,42 @@ export type Database = {
       course_feedback: {
         Row: {
           comment: string | null
+          content_flag: string | null
           course_assignment_id: string
           course_id: string
           created_at: string
           employee_id: string
+          flag_detail: string | null
           id: string
           organization_id: string
           rating: number
+          usefulness: string | null
         }
         Insert: {
           comment?: string | null
+          content_flag?: string | null
           course_assignment_id: string
           course_id: string
           created_at?: string
           employee_id: string
+          flag_detail?: string | null
           id?: string
           organization_id: string
           rating: number
+          usefulness?: string | null
         }
         Update: {
           comment?: string | null
+          content_flag?: string | null
           course_assignment_id?: string
           course_id?: string
           created_at?: string
           employee_id?: string
+          flag_detail?: string | null
           id?: string
           organization_id?: string
           rating?: number
+          usefulness?: string | null
         }
         Relationships: [
           {
@@ -33239,6 +33266,68 @@ export type Database = {
           },
         ]
       }
+      training_assignment_exemptions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          facility_id: string
+          id: string
+          organization_id: string
+          reason: string
+          training_year: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          facility_id: string
+          id?: string
+          organization_id: string
+          reason: string
+          training_year: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          reason?: string
+          training_year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_assignment_exemptions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_assignment_exemptions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_assignment_exemptions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_assignment_exemptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_attendance_evidence: {
         Row: {
           attendance_status: string
@@ -33897,6 +33986,146 @@ export type Database = {
           },
         ]
       }
+      training_plan_assignment_rules: {
+        Row: {
+          approved_snapshot: string | null
+          automatic_enabled: boolean
+          department: string | null
+          facility_id: string
+          is_enabled: boolean
+          job_title: string | null
+          organization_id: string
+          revision: number
+          training_plan_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          approved_snapshot?: string | null
+          automatic_enabled?: boolean
+          department?: string | null
+          facility_id: string
+          is_enabled?: boolean
+          job_title?: string | null
+          organization_id: string
+          revision?: number
+          training_plan_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          approved_snapshot?: string | null
+          automatic_enabled?: boolean
+          department?: string | null
+          facility_id?: string
+          is_enabled?: boolean
+          job_title?: string | null
+          organization_id?: string
+          revision?: number
+          training_plan_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_plan_assignment_rules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_assignment_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_assignment_rules_training_plan_id_fkey"
+            columns: ["training_plan_id"]
+            isOneToOne: true
+            referencedRelation: "training_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_assignment_rules_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_plan_enrollments: {
+        Row: {
+          applied_at: string
+          applied_by: string | null
+          applied_snapshot: Json | null
+          employee_id: string
+          facility_id: string
+          organization_id: string
+          resolved_assignments: Json
+          training_plan_id: string
+        }
+        Insert: {
+          applied_at?: string
+          applied_by?: string | null
+          applied_snapshot?: Json | null
+          employee_id: string
+          facility_id: string
+          organization_id: string
+          resolved_assignments?: Json
+          training_plan_id: string
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string | null
+          applied_snapshot?: Json | null
+          employee_id?: string
+          facility_id?: string
+          organization_id?: string
+          resolved_assignments?: Json
+          training_plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_plan_enrollments_applied_by_fkey"
+            columns: ["applied_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_enrollments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_enrollments_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_enrollments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_enrollments_training_plan_id_fkey"
+            columns: ["training_plan_id"]
+            isOneToOne: false
+            referencedRelation: "training_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_plan_items: {
         Row: {
           course_id: string | null
@@ -34238,6 +34467,116 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_starter_kit_selections: {
+        Row: {
+          copied_plan_id: string | null
+          copied_revision: number | null
+          facility_id: string
+          id: string
+          kit_id: string
+          organization_id: string
+          selected_at: string
+          selected_by: string | null
+        }
+        Insert: {
+          copied_plan_id?: string | null
+          copied_revision?: number | null
+          facility_id: string
+          id?: string
+          kit_id: string
+          organization_id: string
+          selected_at?: string
+          selected_by?: string | null
+        }
+        Update: {
+          copied_plan_id?: string | null
+          copied_revision?: number | null
+          facility_id?: string
+          id?: string
+          kit_id?: string
+          organization_id?: string
+          selected_at?: string
+          selected_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_starter_kit_selections_copied_plan_id_fkey"
+            columns: ["copied_plan_id"]
+            isOneToOne: false
+            referencedRelation: "training_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_starter_kit_selections_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_starter_kit_selections_kit_id_fkey"
+            columns: ["kit_id"]
+            isOneToOne: false
+            referencedRelation: "training_starter_kits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_starter_kit_selections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_starter_kit_selections_selected_by_fkey"
+            columns: ["selected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_starter_kits: {
+        Row: {
+          description: string
+          id: string
+          is_published: boolean
+          items: Json
+          name: string
+          revision: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          description?: string
+          id?: string
+          is_published?: boolean
+          items?: Json
+          name: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          description?: string
+          id?: string
+          is_published?: boolean
+          items?: Json
+          name?: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_starter_kits_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -36888,6 +37227,14 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_training_assignment_rule: {
+        Args: {
+          p_employee_ids: string[]
+          p_fingerprint: string
+          p_plan_id: string
+        }
+        Returns: Json
+      }
       apply_yearly_training_plan: {
         Args: { p_employee_id: string; p_plan_id: string }
         Returns: Json
@@ -37003,6 +37350,10 @@ export type Database = {
           p_staff_signature?: Json
         }
         Returns: boolean
+      }
+      approve_training_assignment_automation: {
+        Args: { p_enabled: boolean; p_fingerprint: string; p_plan_id: string }
+        Returns: undefined
       }
       approve_training_session_completion: {
         Args: { p_class_id: string; p_reason: string }
@@ -37345,6 +37696,7 @@ export type Database = {
           additional_quiz_attempts: Json
           assigned_at: string
           assigned_by: string | null
+          assignment_origin: string
           canceled_at: string | null
           cancellation_reason: string | null
           completed_at: string | null
@@ -37355,6 +37707,7 @@ export type Database = {
           employee_id: string
           facility_id: string
           id: string
+          is_required: boolean
           lifecycle_disposition: string | null
           lifecycle_event_id: string | null
           lifecycle_previous_status: string | null
@@ -37970,6 +38323,25 @@ export type Database = {
       copy_compliance_requirement: {
         Args: { p_facility_ids: string[]; p_template_id: string }
         Returns: number
+      }
+      copy_training_starter_kit: {
+        Args: {
+          p_due_date: string
+          p_name: string
+          p_revision: number
+          p_selection_id: string
+          p_training_year: number
+        }
+        Returns: string
+      }
+      copy_yearly_training_plan: {
+        Args: {
+          p_due_date: string
+          p_name: string
+          p_plan_id: string
+          p_training_year: number
+        }
+        Returns: string
       }
       correct_completed_class_attendee: {
         Args: {
@@ -39990,6 +40362,10 @@ export type Database = {
           title: string
         }[]
       }
+      get_saved_training_report: {
+        Args: { p_schedule_id: string }
+        Returns: Json
+      }
       get_schedule_acuity_roster: {
         Args: { p_schedule_id: string }
         Returns: Json
@@ -40094,6 +40470,19 @@ export type Database = {
         }[]
       }
       get_trainer_dashboard_summary: { Args: never; Returns: Json }
+      get_training_automation: {
+        Args: { p_facility_id: string }
+        Returns: Json
+      }
+      get_training_completion_evidence: {
+        Args: {
+          p_employee_id?: string
+          p_facility_id: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
       get_training_enrollment_report: {
         Args: {
           p_course_search?: string
@@ -40106,6 +40495,10 @@ export type Database = {
           p_organization_id: string
           p_status?: string
         }
+        Returns: Json
+      }
+      get_training_invitation_branding: {
+        Args: { p_facility_id?: string; p_organization_id: string }
         Returns: Json
       }
       get_training_matrix_page: {
@@ -40121,6 +40514,58 @@ export type Database = {
           p_status_filter?: string
           p_today?: string
           p_trainer_only?: boolean
+        }
+        Returns: Json
+      }
+      get_training_partner_facilities: {
+        Args: { p_limit?: number; p_offset?: number; p_search?: string }
+        Returns: Json
+      }
+      get_training_plan_progress: { Args: { p_plan_id: string }; Returns: Json }
+      get_training_progress_report: {
+        Args: {
+          p_course_search?: string
+          p_date_basis?: string
+          p_date_from?: string
+          p_date_through?: string
+          p_deadline?: string
+          p_department?: string
+          p_employee_id?: string
+          p_facility_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_organization_id: string
+          p_plan_id?: string
+          p_purpose?: string
+          p_status?: string
+          p_training_year?: number
+        }
+        Returns: Json
+      }
+      get_training_reminder_receipts: {
+        Args: { p_employee_id?: string; p_facility_id: string }
+        Returns: Json
+      }
+      get_training_report_analytics: {
+        Args: {
+          p_facility_id: string
+          p_filters?: Json
+          p_stalled_days?: number
+        }
+        Returns: Json
+      }
+      get_training_required_assignments: {
+        Args: { p_employee_id: string }
+        Returns: string[]
+      }
+      get_training_roster_progress: {
+        Args: {
+          p_facility_id: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_state?: string
+          p_training_year?: number
         }
         Returns: Json
       }
@@ -40181,6 +40626,7 @@ export type Database = {
           additional_quiz_attempts: Json
           assigned_at: string
           assigned_by: string | null
+          assignment_origin: string
           canceled_at: string | null
           cancellation_reason: string | null
           completed_at: string | null
@@ -40191,6 +40637,7 @@ export type Database = {
           employee_id: string
           facility_id: string
           id: string
+          is_required: boolean
           lifecycle_disposition: string | null
           lifecycle_event_id: string | null
           lifecycle_previous_status: string | null
@@ -41641,6 +42088,10 @@ export type Database = {
         }
         Returns: Json
       }
+      preview_training_assignment_rule: {
+        Args: { p_plan_id: string }
+        Returns: Json
+      }
       process_due_report_schedules: { Args: never; Returns: number }
       process_stripe_billing_event: {
         Args: {
@@ -42945,6 +43396,14 @@ export type Database = {
         Args: { p_token: string }
         Returns: Json
       }
+      resolve_training_plan_assignment: {
+        Args: {
+          p_assignment_id: string
+          p_employee_id: string
+          p_plan_id: string
+        }
+        Returns: undefined
+      }
       respond_resident_portal_schedule_event: {
         Args: {
           p_calendar_event_id: string
@@ -43666,6 +44125,16 @@ export type Database = {
         }
         Returns: string
       }
+      save_training_assignment_rule: {
+        Args: {
+          p_department: string
+          p_is_enabled: boolean
+          p_job_title: string
+          p_plan_id: string
+          p_revision?: number
+        }
+        Returns: Json
+      }
       save_training_record: {
         Args: { p_payload?: Json; p_record_id?: string }
         Returns: {
@@ -43701,6 +44170,34 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      save_training_reminder_policy: {
+        Args: { p_facility_id: string; p_settings: Json }
+        Returns: undefined
+      }
+      save_training_report_schedule: {
+        Args: {
+          p_delivery_day: number
+          p_enabled?: boolean
+          p_facility_id: string
+          p_filters: Json
+          p_frequency: string
+          p_name: string
+          p_recipient_ids: string[]
+          p_schedule_id?: string
+        }
+        Returns: string
+      }
+      save_training_starter_kit: {
+        Args: {
+          p_description?: string
+          p_id?: string
+          p_is_published?: boolean
+          p_items?: Json
+          p_name?: string
+          p_revision?: number
+        }
+        Returns: Json
       }
       save_training_workspace_item: {
         Args: {
@@ -43744,6 +44241,10 @@ export type Database = {
         Returns: string
       }
       search_workspace: { Args: { p_query: string }; Returns: Json }
+      select_training_starter_kit: {
+        Args: { p_facility_id: string; p_kit_id: string }
+        Returns: string
+      }
       self_enroll_course: { Args: { p_course_id: string }; Returns: string }
       send_monday_digest: { Args: never; Returns: undefined }
       send_policy_attestation_reminders: { Args: never; Returns: undefined }
@@ -43774,7 +44275,10 @@ export type Database = {
         Args: { p_bucket: string; p_certificate_id: string; p_path: string }
         Returns: {
           course_assignment_id: string | null
+          course_code_snapshot: string | null
           course_id: string
+          course_title_snapshot: string | null
+          course_version_snapshot: string | null
           created_at: string
           credential_number: string
           employee_id: string
@@ -43782,6 +44286,7 @@ export type Database = {
           facility_id: string
           id: string
           issued_at: string
+          learner_name_snapshot: string | null
           organization_id: string
           pdf_attempt_count: number
           pdf_last_attempt_at: string | null
@@ -44076,6 +44581,14 @@ export type Database = {
       }
       set_system_job_kill_switch: {
         Args: { p_enabled: boolean; p_job_key: string; p_reason: string }
+        Returns: undefined
+      }
+      set_training_assignment_exemption: {
+        Args: {
+          p_employee_id: string
+          p_reason: string
+          p_training_year: number
+        }
         Returns: undefined
       }
       set_work_item_watching: {
@@ -44467,6 +44980,23 @@ export type Database = {
           p_requires_two_staff?: boolean
           p_resident_id: string
           p_service_kind: string
+        }
+        Returns: Json
+      }
+      training_assignment_is_required: {
+        Args: { p_assignment_id: string }
+        Returns: boolean
+      }
+      training_discovery: {
+        Args: { p_action: string; p_payload?: Json }
+        Returns: Json
+      }
+      training_experience: {
+        Args: {
+          p_action: string
+          p_data?: Json
+          p_employee_id?: string
+          p_facility_id?: string
         }
         Returns: Json
       }

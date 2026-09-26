@@ -45,5 +45,10 @@
     "reason": "Superseded compatibility endpoint, and the migration that superseded it says so outright. `20260711154819_atomic_course_completion_certificates.sql` moved issuance inside `complete_course_assignment()` because the two-call browser flow left a valid completion with no certificate whenever a request failed between the calls, and records that this function \"remains as an idempotent compatibility endpoint\". Its client hook was deleted rather than given a screen: calling it from the product again would mint a certificate with no completion behind it, which is the exact invariant that migration exists to hold. It stays granted because an integration outside this repository could still be calling it. THIS ENTRY IS ALSO THE FOURTH READING BUG'S EVIDENCE -- the function's only apparent call site anywhere was its own error message, `'certificates are not directly writable by clients; use issue_certificate() / service role'`, and the gate counted that string as a caller until `blankSqlStrings` landed.",
     "backlog": "G16.1",
     "introduced_by": "main"
+  },
+  "get_training_enrollment_report": {
+    "reason": "Read-only compatibility endpoint for deployed/cached clients predating the Training workflow update. All current owner and facility report screens call get_training_progress_report, which adds employee, plan, purpose, year and deadline filters. Retain this predecessor's exact signature, authorization, export bounds and response for existing clients; do not execute its full enrollment scan merely as an authorization check. The dedicated training_enrollment_reports pgTAP suite continues to verify its contract and tenant/role restrictions.",
+    "backlog": "F06",
+    "introduced_by": "20260925021711"
   }
 }

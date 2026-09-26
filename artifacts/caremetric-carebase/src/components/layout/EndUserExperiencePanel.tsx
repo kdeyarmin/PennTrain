@@ -92,20 +92,13 @@ export function EndUserExperiencePanel() {
   const navigation = useNavigationWorkspace();
   const [collapsed, setCollapsed] = useState(() => loadExperiencePanelCollapsed(user?.id));
 
+  const trainingOnly = moduleAccess.enabledModules.has("train") && [...moduleAccess.enabledModules].every(module => module === "core" || module === "train");
   const locationPath = location.split(/[?#]/, 1)[0];
   const cards = useMemo(() => {
     if (!user) return [];
     // Role cards are filtered by the role/module map like every other card source: the manager
     // card used to point at the employee-only /me/shift and every facility manager saw a dead button.
-    const trainingOnly = moduleAccess.enabledModules.has("train") && [...moduleAccess.enabledModules].every(module => module === "core" || module === "train");
-    const trainingCards: ExperienceCard[] = user.role === "employee" ? [
-      { id: "student-courses", title: "Start your training", detail: "Open your assigned courses and see what to complete next.", href: "/me/courses", cta: "Open my courses", icon: BadgeCheck },
-      { id: "student-certificates", title: "Keep your certificates", detail: "Download and print certificates from completed courses.", href: "/me/certificates", cta: "Open certificates", icon: CheckCircle2 },
-    ] : [
-      { id: "facility-training", title: "Manage facility training", detail: "Add students, enroll them in courses, follow their progress, and print reports and certificates.", href: "/app/train", cta: "Open training workspace", icon: BadgeCheck },
-      { id: "training-classes", title: "Record classroom learning", detail: "Schedule classes and record individually attributed attendance and practical learning.", href: "/trainer/classes", cta: "Open classes", icon: CalendarClock },
-    ];
-    const roleCards = (trainingOnly && user.role !== "platform_admin" ? trainingCards : ROLE_ONBOARDING[user.role] ?? [])
+    const roleCards = (ROLE_ONBOARDING[user.role] ?? [])
       .filter(card => canViewPath(card.href, user.role, moduleAccess.enabledModules));
     const recents = navigation.recentPaths
       .filter((recent) => recent.path !== locationPath && canViewPath(recent.path, user.role, moduleAccess.enabledModules))
@@ -132,7 +125,9 @@ export function EndUserExperiencePanel() {
     return [...quickCreate, ...recents, ...roleCards].slice(0, 4);
   }, [locationPath, moduleAccess, navigation.recentPaths, user]);
 
-  if (!user || cards.length === 0) return null;
+  // Training has its own saved setup checklist and next-course guidance. The general
+  // workspace panel would push those primary actions below the first phone screen.
+  if (!user || (trainingOnly && user.role !== "platform_admin") || cards.length === 0) return null;
 
   const explainers = [
     { label: "What to do next", icon: Lightbulb },
@@ -149,7 +144,7 @@ export function EndUserExperiencePanel() {
 
   return (
     <section className="mb-5 space-y-3" aria-label="Personalized workflow guidance">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/40 px-3 py-2 text-xs text-foreground">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary" className="gap-1"><Star className="h-3 w-3" /> Personalized workspace</Badge>
           {!collapsed && explainers.map((item) => <span key={item.label} className="inline-flex items-center gap-1"><item.icon className="h-3.5 w-3.5" />{item.label}</span>)}

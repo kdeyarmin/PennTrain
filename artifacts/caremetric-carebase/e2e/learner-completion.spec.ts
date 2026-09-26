@@ -135,8 +135,8 @@ test.describe("learner course completion", () => {
     await test.step("the assigned learner reads the lesson and must watch the video", async () => {
       await signInAs(page, fixture.learner.email, password, "/me");
       await page.goto("/me/courses");
-      await expect(page.getByText(fixture.courseTitle, { exact: true })).toBeVisible();
-      await page.locator(`a[href="/me/courses/${fixture.assignmentId}"]`).click();
+      await expect(page.getByText(fixture.courseTitle, { exact: true }).first()).toBeVisible();
+      await page.locator(`a[href="/me/courses/${fixture.assignmentId}"]`).first().click();
       await expect(page.getByText(LESSON_TEXT, { exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Next", exact: true }).click();
       await expect(page.getByRole("button", { name: "Next", exact: true })).toBeDisabled();
@@ -217,7 +217,7 @@ test.describe("learner course completion", () => {
       await page.getByRole("button", { name: "Submit Quiz", exact: true }).click();
       await expect(page.getByText("You passed!", { exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Back to Training", exact: true }).click();
-      await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toBeVisible();
       const { data: prematureCertificates, error } = await learnerClient.from("certificates").select("id").eq("course_assignment_id", fixture.assignmentId);
       if (error) throw error;
       expect(prematureCertificates, "passing a quiz alone must not issue a certificate").toEqual([]);
@@ -234,11 +234,12 @@ test.describe("learner course completion", () => {
         message: "the learner must satisfy the actual server-enforced minimum seat time",
         timeout: 65_000, intervals: [1_000],
       }).toBeGreaterThanOrEqual(61_000);
+      await expect(page.getByRole("button", { name: "Mark Training Complete", exact: true })).toBeEnabled();
       await page.getByRole("button", { name: "Mark Training Complete", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Rate this training", exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Skip", exact: true }).click();
       await expect(page.getByRole("heading", { name: "My Certificates", exact: true })).toBeVisible();
-      await expect(page.getByText(fixture.courseTitle, { exact: true })).toBeVisible();
+      await expect(page.getByText(fixture.courseTitle, { exact: true }).first()).toBeVisible();
       const { data: assignment, error: assignmentError } = await learnerClient.from("course_assignments").select("status,completed_at").eq("id", fixture.assignmentId).single();
       if (assignmentError) throw assignmentError;
       expect(assignment.status).toBe("completed");

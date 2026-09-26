@@ -1,3 +1,8 @@
+import { boundedSettled } from "@/lib/boundedSettled";
+import { PlanAuthoringTools } from "@/components/training/PlanAuthoringTools";
+import { FacilityTrainingStarterKits } from "@/components/training/TrainingStarterKits";
+import { TrainingAssignmentRules } from "@/components/training/TrainingAssignmentRules";
+import YearlyPlanProgress from "@/components/training/YearlyPlanProgress";
 import { useId, Fragment, useMemo, useState } from "react";
 import { useSearch } from "wouter";
 import {
@@ -84,7 +89,7 @@ function ItemTypeBadge({ isCourse }: { isCourse: boolean }) {
 // Apply once per selected employee. Yearly plans use an atomic server reconciliation;
 // legacy templates retain their existing course/requirement fan-out in the hook.
 // ---------------------------------------------------------------------------
-function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: boolean; onClose: () => void }) {
+export function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: boolean; onClose: () => void }) {
   const fieldId = useId();
   const { user } = useAuth();
   const annual = !!plan.facility_id;
@@ -92,6 +97,8 @@ function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: bo
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [applying, setApplying] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const planItems = useListTrainingPlanItems(open ? plan.id : undefined);
   const [outcome, setOutcome] = useState<{ summary: string; issues: string[] } | null>(null);
   const directory = useListFacilities({ organizationId: plan.organization_id });
   const scope = useTrainingFacilityScope(directory);
@@ -108,15 +115,15 @@ function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: bo
   const ready = scope.isReady && !employeesQuery.isLoading && !employeesQuery.isError && allowedIds.size > 0;
   const handleClose = () => {
     if (applying) return;
-    setSelectedIds([]); setSearch(""); setDueDate(""); setOutcome(null); onClose();
+    setSelectedIds([]); setSearch(""); setDueDate(""); setOutcome(null); setPreview(false); onClose();
   };
   const handleApply = async () => {
     if (!ready || !targets.length || !user || (!annual && !isExplicitCompletionDeadline(dueDate))) return;
-    setApplying(true); setOutcome(null);
-    const results = await Promise.allSettled(targets.map(employeeId => applyPlan({
+    setPreview(false); setApplying(true); setOutcome(null);
+    const results = await boundedSettled(targets, 4, employeeId => applyPlan({
       planId: plan.id, employeeId, facilityId: employeeById.get(employeeId)!.facility_id,
       organizationId: plan.organization_id, assignedBy: user.id, dueDate: annual ? plan.due_date : dueDate,
-    })));
+    }));
     let assigned = 0, updated = 0, canceled = 0, completed = 0, alreadyAssigned = 0, requirements = 0;
     const issues: string[] = [];
     results.forEach((result, index) => {
@@ -150,7 +157,7 @@ function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: bo
         </DialogHeader>
         {annual ? <p className="text-sm">Completion deadline: {formatDateForDisplay(plan.due_date)}</p> : (
           <div className="space-y-1.5"><Label htmlFor={`${fieldId}-deadline`}>Completion deadline *</Label>
-            <Input id={`${fieldId}-deadline`} type="date" value={dueDate} disabled={applying} onChange={e => setDueDate(e.target.value)} required /></div>
+            <Input id={`${fieldId}-deadline`} type="date" value={dueDate} disabled={applying} onChange={e => { setDueDate(e.target.value); setPreview(false); }} required /></div>
         )}
         {outcome && <div role="status" className="rounded-md border p-3 space-y-2">
           <p className="font-medium">{outcome.summary}</p>
@@ -162,22 +169,27 @@ function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; open: bo
           : employeesQuery.isError ? <QueryError what="employees" error={employeesQuery.error} onRetry={() => void employeesQuery.refetch()} /> : <>
             <Input aria-label="Search employees" placeholder="Search employees..." value={search} disabled={applying} onChange={e => setSearch(e.target.value)} />
             <label className="flex items-center gap-2"><Checkbox checked={allSelected} disabled={!ready || !filtered.length || applying}
-              onCheckedChange={checked => setSelectedIds(ids => checked ? [...new Set([...ids, ...filtered.map(e => e.id)])] : ids.filter(id => !filtered.some(e => e.id === id)))} />
+              onCheckedChange={checked => { setPreview(false); setSelectedIds(ids => checked ? [...new Set([...ids, ...filtered.map(e => e.id)])] : ids.filter(id => !filtered.some(e => e.id === id))); }} />
               <span>{annual ? "Select all matching employees in this facility" : "Select all matching employees"}</span></label>
             <div className="overflow-y-auto border rounded-md max-h-[250px]">
               {employeesQuery.isLoading ? <p className="p-4">Loading employees…</p> : filtered.length === 0 ? <p className="p-4">No active employees found.</p> : filtered.map(emp => (
                 <label key={emp.id} className="flex items-center gap-3 px-4 py-3 border-b hover:bg-muted/50">
                   <Checkbox aria-label={`${emp.first_name} ${emp.last_name}`} checked={targets.includes(emp.id)} disabled={applying}
-                    onCheckedChange={checked => setSelectedIds(ids => checked ? [...new Set([...ids, emp.id])] : ids.filter(id => id !== emp.id))} />
+                    onCheckedChange={checked => { setPreview(false); setSelectedIds(ids => checked ? [...new Set([...ids, emp.id])] : ids.filter(id => id !== emp.id)); }} />
                   <span>{emp.first_name} {emp.last_name}</span>
                 </label>
               ))}
             </div>
           </>}
+        {preview && <section className="rounded border p-3 space-y-2" aria-label="Assignment preview"><h3 className="font-semibold">Review assignment changes</h3>
+          <p>{planItems.data?.length ?? 0} current plan items for {targets.length} employees. Completion deadline: {formatDateForDisplay(annual ? plan.due_date : dueDate)}.</p>
+          <p>Existing completed work remains in history. Unfinished courses removed from this plan will be canceled; existing individual or other-plan assignments will be listed as conflicts for your review.</p>
+          <ul className="max-h-36 overflow-y-auto list-disc pl-5">{targets.map(id => <li key={id}>{employeeById.get(id)?.first_name} {employeeById.get(id)?.last_name}</li>)}</ul>
+        </section>}
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={applying}>{outcome ? "Close" : "Cancel"}</Button>
-          <Button onClick={() => void handleApply()} disabled={!ready || !targets.length || applying || (!annual && !isExplicitCompletionDeadline(dueDate))}>
-            {applying ? "Applying..." : `Apply to ${targets.length} Employee${targets.length !== 1 ? "s" : ""}`}
+          <Button onClick={() => { if (preview) void handleApply(); else setPreview(true); }} disabled={!ready || !targets.length || applying || planItems.isLoading || planItems.isError || (!annual && !isExplicitCompletionDeadline(dueDate))}>
+            {applying ? "Applying..." : preview ? `Confirm apply to ${targets.length} Employee${targets.length !== 1 ? "s" : ""}` : `Preview ${targets.length} Employee${targets.length !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -268,7 +280,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
   const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
 
   const { mutate: addItem, isPending: addingItem } = useAddTrainingPlanItem();
-  const { mutateAsync: updateItem } = useUpdateTrainingPlanItem();
+  const { mutateAsync: updateItem, isPending: updatingItem } = useUpdateTrainingPlanItem();
   const { mutate: removeItem, isPending: removingItem } = useRemoveTrainingPlanItem();
 
   const [showAddItem, setShowAddItem] = useState(false);
@@ -336,9 +348,11 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
   return (
     <div className="p-4 bg-muted/20 space-y-4">
       {annual && <p className="text-sm text-muted-foreground">Course and deadline edits take effect when you apply this plan again. Completed training remains in each employee’s history.</p>}
+      {annual && canManage && <TrainingAssignmentRules plan={plan} />}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-foreground">Plan Items</h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canManage && <PlanAuthoringTools plan={plan} items={items ?? []} />}
           {canManage && (
             <Button size="sm" variant="outline" onClick={() => setShowApplyDialog(true)}>
               <UserPlus className="mr-2 h-3.5 w-3.5" /> Apply to Employee(s)
@@ -379,7 +393,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
             const notAssignable = isCourse && !!itemCourse
               && (itemCourse.status !== "published" || !itemCourse.current_version_id);
             return (
-              <div key={item.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card">
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border bg-card">
                 <div className="flex items-center gap-3 min-w-0">
                   <ItemTypeBadge isCourse={isCourse} />
                   <span className="font-medium text-sm truncate">{label}</span>
@@ -395,7 +409,11 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
                   )}
                 </div>
                 {canManage && (
-                  <div className="flex items-center gap-0.5 shrink-0">
+                  <div className="flex flex-wrap items-center justify-end gap-0.5 shrink-0">
+                    <Button size="sm" variant="ghost" disabled={updatingItem} aria-label={`Make ${label} ${item.is_required ? "optional" : "required"}`} onClick={async () => {
+                      try { await updateItem({ id: item.id, trainingPlanId: plan.id, is_required: !item.is_required }); toast({ title: "Requirement updated", description: "Review plan coverage and reapply to enrolled staff." }); }
+                      catch (error) { toast({ title: "Could not change requirement", description: (error as Error).message, variant: "destructive" }); }
+                    }}>{item.is_required ? "Make optional" : "Make required"}</Button>
                     <Button
                       variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
                       onClick={() => moveItem(idx, -1)}
@@ -429,7 +447,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
 
       <div className="pt-2 border-t">
         <h3 className="text-sm font-semibold text-foreground mb-2">Applied To</h3>
-        <PlanProgressSection plan={plan} />
+        {annual ? <YearlyPlanProgress planId={plan.id} canManage={canManage} /> : <PlanProgressSection plan={plan} />}
       </div>
 
       <Dialog open={showAddItem} onOpenChange={(o) => { if (!o) { setShowAddItem(false); setAddItemForm(EMPTY_ADD_ITEM_FORM); } }}>
@@ -662,6 +680,18 @@ export default function TrainingPlans({ facilityId, embedded = false }: { facili
         )}
       </div>
 
+      {canCreatePlan && scope.isReady && !requestedUnavailable && facilities.length > 0 && <FacilityTrainingStarterKits
+        facilities={facilities} selectedFacility={requestedFacility || undefined} onOpenPlan={id => {
+          setSearch(""); setExpandedPlanId(id);
+          requestAnimationFrame(() => {
+            const planButton = document.getElementById(`training-plan-${id}`);
+            planButton?.scrollIntoView({ block: "center", behavior: "smooth" });
+            planButton?.focus({ preventScroll: true });
+          });
+        }} onCreated={id => {
+          setSearch(""); setExpandedPlanId(id); toast({ title: "Facility learning plan created", description: "Review the copied courses, then apply the plan or set a role-based assignment rule." });
+        }} />}
+
       <div className="premium-card">
         <div className="filter-bar">
           {!embedded && <div className="space-y-1">
@@ -727,7 +757,7 @@ export default function TrainingPlans({ facilityId, embedded = false }: { facili
                           )}
                         </td>
                         <td>
-                          <button type="button" aria-expanded={isExpanded} onClick={e => { e.stopPropagation(); toggleExpanded(plan.id); }} className="font-medium text-foreground text-left">{plan.name}</button>
+                          <button id={`training-plan-${plan.id}`} type="button" aria-expanded={isExpanded} onClick={e => { e.stopPropagation(); toggleExpanded(plan.id); }} className="font-medium text-foreground text-left">{plan.name}</button>
                           {plan.facility_id && <p className="text-xs text-muted-foreground">{facilities.find(f => f.id === plan.facility_id)?.name} · {plan.training_year} · due {formatDateForDisplay(plan.due_date)}</p>}
                         </td>
                         <td className="text-muted-foreground max-w-md truncate">
