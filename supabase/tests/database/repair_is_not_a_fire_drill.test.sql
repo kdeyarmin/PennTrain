@@ -67,20 +67,20 @@ insert into public.inspection_items (
 
 insert into public.inspection_events (
   id, organization_id, facility_id, inspection_item_id, performed_date, performed_by, result,
-  alarm_or_detector_operative
+  alarm_or_detector_operative, alarm_sounded
 ) values
   -- A drill that failed.
   ('e2700000-0000-4000-8000-000000000301', 'e2700000-0000-4000-8000-000000000001',
    'e2700000-0000-4000-8000-000000000011', 'e2700000-0000-4000-8000-000000000201',
-   public.pa_today(), 'Riley Admin', 'fail', true),
+   public.pa_today(), 'Riley Admin', 'fail', true, true),
   -- A detector found with a deficiency on its own inspection.
   ('e2700000-0000-4000-8000-000000000302', 'e2700000-0000-4000-8000-000000000001',
    'e2700000-0000-4000-8000-000000000011', 'e2700000-0000-4000-8000-000000000202',
-   public.pa_today(), 'Riley Admin', 'deficiency_noted', null),
+   public.pa_today(), 'Riley Admin', 'deficiency_noted', null, null),
   -- Ordinary equipment with a deficiency.
   ('e2700000-0000-4000-8000-000000000303', 'e2700000-0000-4000-8000-000000000001',
    'e2700000-0000-4000-8000-000000000011', 'e2700000-0000-4000-8000-000000000203',
-   public.pa_today(), 'Riley Admin', 'deficiency_noted', null);
+   public.pa_today(), 'Riley Admin', 'deficiency_noted', null, null);
 
 ------------------------------------------------------------------------------------------------
 -- 1-7. 48 hours for a detector or alarm, wherever it was found inoperative
@@ -112,14 +112,14 @@ select is(
 
 insert into public.inspection_events (
   id, organization_id, facility_id, inspection_item_id, performed_date, performed_by, result,
-  alarm_or_detector_operative
+  alarm_or_detector_operative, alarm_sounded
 ) values
   ('e2700000-0000-4000-8000-000000000304', 'e2700000-0000-4000-8000-000000000001',
    'e2700000-0000-4000-8000-000000000011', 'e2700000-0000-4000-8000-000000000205',
-   public.pa_today(), 'Riley Admin', 'pass', false),
+   public.pa_today(), 'Riley Admin', 'pass', false, true),
   ('e2700000-0000-4000-8000-000000000305', 'e2700000-0000-4000-8000-000000000001',
    'e2700000-0000-4000-8000-000000000011', 'e2700000-0000-4000-8000-000000000205',
-   public.pa_today(), 'Riley Admin', 'pass', true);
+   public.pa_today(), 'Riley Admin', 'pass', true, true);
 
 select is(
   (select target_completion_at from public.work_orders
@@ -128,7 +128,7 @@ select is(
   'a passing drill that recorded the alarm as not operative opens a 48-hour repair'
 );
 select ok(
-  (select problem_description like '%not operative during the drill%' from public.work_orders
+  (select problem_description like '%did not use an operative alarm%' from public.work_orders
    where source_inspection_event_id = 'e2700000-0000-4000-8000-000000000304'),
   'and the work order says why'
 );

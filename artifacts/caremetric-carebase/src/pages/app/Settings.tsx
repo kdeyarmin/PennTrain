@@ -23,8 +23,6 @@ import { useIdentitySecurityPolicy, useSetPrivilegedSessionWindow } from "@/hook
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 const DEFAULT_WARNING_DAYS = 90;
-const DEFAULT_OAPSA_DAYS_RESIDENT = 30;
-const DEFAULT_OAPSA_DAYS_NONRESIDENT = 90;
 const LOGO_BUCKET = "org-branding";
 
 interface SettingsFormData {
@@ -32,8 +30,6 @@ interface SettingsFormData {
   smsNotificationsEnabled: boolean;
   webPushNotificationsEnabled: boolean;
   defaultWarningDays: string;
-  oapsaProvisionalDaysResident: string;
-  oapsaProvisionalDaysNonresident: string;
   idleTimeoutMinutes: string;
   kioskIdleTimeoutMinutes: string;
   hiddenNavigationSections: string[];
@@ -44,8 +40,6 @@ const EMPTY_FORM: SettingsFormData = {
   smsNotificationsEnabled: false,
   webPushNotificationsEnabled: true,
   defaultWarningDays: String(DEFAULT_WARNING_DAYS),
-  oapsaProvisionalDaysResident: String(DEFAULT_OAPSA_DAYS_RESIDENT),
-  oapsaProvisionalDaysNonresident: String(DEFAULT_OAPSA_DAYS_NONRESIDENT),
   idleTimeoutMinutes: "30",
   kioskIdleTimeoutMinutes: "5",
   hiddenNavigationSections: [],
@@ -114,8 +108,6 @@ export default function Settings() {
         smsNotificationsEnabled: settings.sms_notifications_enabled,
         webPushNotificationsEnabled: settings.web_push_notifications_enabled,
         defaultWarningDays: String(parseDefaultWarningDays(settings.default_warning_days)),
-        oapsaProvisionalDaysResident: String(settings.oapsa_provisional_days_resident ?? DEFAULT_OAPSA_DAYS_RESIDENT),
-        oapsaProvisionalDaysNonresident: String(settings.oapsa_provisional_days_nonresident ?? DEFAULT_OAPSA_DAYS_NONRESIDENT),
         idleTimeoutMinutes: String(settings.idle_timeout_minutes ?? 30),
         kioskIdleTimeoutMinutes: String(settings.kiosk_idle_timeout_minutes ?? 5),
         hiddenNavigationSections: settings.hidden_navigation_sections ?? [],
@@ -202,8 +194,6 @@ export default function Settings() {
   const handleSave = () => {
     if (!user?.organizationId) return;
     const parsedDays = parseInt(form.defaultWarningDays, 10);
-    const parsedOapsaResident = parseInt(form.oapsaProvisionalDaysResident, 10);
-    const parsedOapsaNonresident = parseInt(form.oapsaProvisionalDaysNonresident, 10);
     const idleTimeoutMinutes = parseInt(form.idleTimeoutMinutes, 10);
     const kioskIdleTimeoutMinutes = parseInt(form.kioskIdleTimeoutMinutes, 10);
     upsertSettings(
@@ -213,8 +203,6 @@ export default function Settings() {
         sms_notifications_enabled: form.smsNotificationsEnabled,
         web_push_notifications_enabled: form.webPushNotificationsEnabled,
         default_warning_days: { default: Number.isFinite(parsedDays) ? parsedDays : DEFAULT_WARNING_DAYS },
-        oapsa_provisional_days_resident: Number.isFinite(parsedOapsaResident) ? parsedOapsaResident : DEFAULT_OAPSA_DAYS_RESIDENT,
-        oapsa_provisional_days_nonresident: Number.isFinite(parsedOapsaNonresident) ? parsedOapsaNonresident : DEFAULT_OAPSA_DAYS_NONRESIDENT,
         idle_timeout_minutes: Number.isFinite(idleTimeoutMinutes) ? idleTimeoutMinutes : 30,
         kiosk_idle_timeout_minutes: Number.isFinite(kioskIdleTimeoutMinutes) ? kioskIdleTimeoutMinutes : 5,
         hidden_navigation_sections: form.hiddenNavigationSections,
@@ -511,38 +499,10 @@ export default function Settings() {
                 </p>
               </div>
 
-              <div className="mt-5 pt-4 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
-                <div className="space-y-1.5">
-                  <Label htmlFor={`${__fieldIds}-oapsa-provisional-period-pa-resident`} className="text-[13px]">OAPSA Provisional Period — PA Resident</Label>
-                  <div className="flex items-center gap-2">
-                    <Input id={`${__fieldIds}-oapsa-provisional-period-pa-resident`}
-                      type="number" min={1} max={365}
-                      value={form.oapsaProvisionalDaysResident}
-                      onChange={(e) => field("oapsaProvisionalDaysResident", e.target.value)}
-                      disabled={!canManage}
-                      className="h-9 w-24"
-                    />
-                    <span className="text-sm text-muted-foreground">days</span>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor={`${__fieldIds}-oapsa-provisional-period-non-resident`} className="text-[13px]">OAPSA Provisional Period — Non-Resident</Label>
-                  <div className="flex items-center gap-2">
-                    <Input id={`${__fieldIds}-oapsa-provisional-period-non-resident`}
-                      type="number" min={1} max={365}
-                      value={form.oapsaProvisionalDaysNonresident}
-                      onChange={(e) => field("oapsaProvisionalDaysNonresident", e.target.value)}
-                      disabled={!canManage}
-                      className="h-9 w-24"
-                    />
-                    <span className="text-sm text-muted-foreground">days</span>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground sm:col-span-2">
-                  Default countdown for a new hire's provisional-employment period on the Background Checks page, based
-                  on OAPSA (6 Pa Code Sec 15.146) and the parallel PA Code provisions for personal care homes — confirm
-                  with your own regulatory counsel before relying on these defaults.
-                </p>
+              <div className="mt-5 pt-4 border-t border-border/60 space-y-2 max-w-xl">
+                <p className="text-[13px] font-medium">OAPSA provisional employment</p>
+                <p className="text-sm text-muted-foreground">Pennsylvania State Police clearance has a 30-day provisional limit. When FBI clearance is required, its separate limit is 90 days. Both run from the recorded start of provisional employment; requests, residency, supervision and suitability evidence also determine eligibility.</p>
+                <p className="text-xs text-muted-foreground">Record the actual dates and clearance results in Background Checks. These legal clocks are fixed.</p>
               </div>
               {canManage && user?.organizationId && (
                 <div className="mt-5 pt-4 border-t border-border/60 flex items-center justify-between gap-4">

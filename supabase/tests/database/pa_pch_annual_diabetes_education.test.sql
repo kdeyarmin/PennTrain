@@ -851,7 +851,7 @@ select ok(
     -- both carry the full string, post-nominals included, so the regulatory record still names a
     -- credentialed person -- which is what this assertion is actually for.
     select r.status = 'compliant'
-       and r.due_date = r.completion_date + 365
+       and r.due_date = (r.completion_date + interval '1 year')::date + 15
        and r.score = 90.00
        and r.certificate_number is not null
        and r.trainer_credentials is null
@@ -862,7 +862,7 @@ select ok(
     where r.employee_id = 'd1a0e7e5-0000-4000-8000-000000000005'
       and tt.code = 'DIABETES-EDU'
   ),
-  'the annual requirement records the completion, examination score, credential and renewal date'
+  'the annual requirement records completion, score, credential and calendar-year renewal with the RCG 15-day records grace'
 );
 
 -- ---------------------------------------------------------------------------

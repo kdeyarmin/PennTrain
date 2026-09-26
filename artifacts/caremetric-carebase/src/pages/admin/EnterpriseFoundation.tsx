@@ -893,7 +893,7 @@ function ScimConnectionCommand() {
     <Card>
       <CardHeader>
         <CardTitle>SCIM provisioning connection</CardTitle>
-        <CardDescription>A trusted database boundary generates 256 bits of secret entropy, retains only its salted digest, and returns the plaintext once.</CardDescription>
+        <CardDescription>Optional directory provisioning to automate account access. Save the generated credential securely; it is displayed only once.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">

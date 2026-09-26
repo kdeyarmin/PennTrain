@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INCIDENT_TYPE_OPTIONS } from "./incidentTypes";
 import {
   INCIDENT_PATHWAYS,
   getIncidentPathway,
@@ -11,10 +12,7 @@ import {
 } from "./incidentPathways";
 
 /** Legacy `incidents.incident_type` values. A pathway may not invent a new one. */
-const LEGACY_INCIDENT_TYPES = new Set([
-  "death", "elopement", "abuse_allegation", "medication_error", "significant_injury",
-  "assault", "fire", "environmental_emergency", "neglect_allegation", "other",
-]);
+const LEGACY_INCIDENT_TYPES = new Set<string>(INCIDENT_TYPE_OPTIONS);
 
 function answerEverything(pathway: IncidentPathway): Record<string, unknown> {
   const answers: Record<string, unknown> = {};
@@ -32,8 +30,18 @@ function answerEverything(pathway: IncidentPathway): Record<string, unknown> {
 }
 
 describe("pathway catalogue", () => {
-  it("covers the twelve investigation pathways the request names", () => {
-    expect(INCIDENT_PATHWAYS).toHaveLength(12);
+  it("distinguishes actual staff errors, near misses, self-administration and adverse reactions for the recorded medication policy", () => {
+    const medication = getIncidentPathway("medication_event")!;
+    const fields = pathwayFields(medication);
+    expect(fields.find(field => field.key === "event_kind")?.options?.map(option => option.value)).toEqual(["actual_error", "near_miss", "adverse_reaction"]);
+    expect(fields.find(field => field.key === "administration_by")?.options?.map(option => option.value)).toEqual(["staff", "self", "unknown"]);
+    expect(fields.find(field => field.key === "error_category")?.options?.map(option => option.value)).toContain("wrong_route");
+    expect(reportabilityPrompts(medication, { event_kind: "near_miss" }).join(" ")).toContain("recorded facility medication-reporting policy");
+  });
+  it("provides a completion path for every reportable category", () => {
+    for (const type of INCIDENT_TYPE_OPTIONS.filter(type => type !== "other")) {
+      expect(INCIDENT_PATHWAYS.some(pathway => pathway.incidentType === type), type).toBe(true);
+    }
   });
 
   it("has unique keys", () => {
@@ -104,9 +112,9 @@ describe("pathway catalogue", () => {
 describe("reportability posture", () => {
   it("presumes reportability only for kinds the notification trigger already covers", () => {
     const presumed = INCIDENT_PATHWAYS.filter((p) => p.reportability === "presumed_reportable");
-    expect(presumed.map((p) => p.key).sort()).toEqual(
-      ["abuse_allegation", "death", "elopement", "medication_event", "staff_resident_altercation"],
-    );
+    expect(presumed.every(pathway => INCIDENT_TYPE_OPTIONS.some(type => type !== "other" && type === pathway.incidentType))).toBe(true);
+    expect(getIncidentPathway("food_poisoning")?.reportability).toBe("presumed_reportable");
+    expect(getIncidentPathway("suicide_attempt")?.reportability).toBe("presumed_reportable");
   });
 
   it("leaves falls to a determination rather than presuming either answer", () => {

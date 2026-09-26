@@ -26,7 +26,9 @@ vi.mock("@/hooks/useEmployees", () => ({ useGetEmployee: () => harness.query("em
 vi.mock("@/hooks/useTrainingRecords", () => ({ useListTrainingRecords: () => harness.query("training records"), useCreateTrainingRecord: harness.mutation, useUpdateTrainingRecord: harness.mutation }));
 vi.mock("@/hooks/useTrainingTypes", () => ({ useListTrainingTypes: () => harness.query("training types") }));
 vi.mock("@/hooks/usePracticums", () => ({ useListPracticums: (_filters: unknown, options?: { enabled?: boolean }) => harness.query("practicums", options?.enabled) }));
-vi.mock("@/hooks/useTrainingHourBuckets", () => ({ useListTrainingHourBuckets: () => harness.query("training hours"), useListCourseCompletionCredits: () => harness.query("course credits") }));
+vi.mock("@/hooks/useTrainingHourBuckets", () => ({ useListTrainingHourBuckets: () => harness.query("training hours"), useStaffTrainingSummary: () => harness.query("training summary", true, null) }));
+vi.mock("@/hooks/useTrainingWorkspace", () => ({ useTrainingYearPolicy: (id?: string) => harness.query("training-year policy", !!id, null) }));
+vi.mock("@/hooks/useStaffRegulatory", () => ({ useStaffRegulatoryPolicy: (id?: string) => harness.query("staff policy", !!id, null) }));
 vi.mock("@/hooks/useDocuments", () => ({ useListDocuments: () => harness.query("documents"), useDocumentSignedUrl: harness.mutation }));
 vi.mock("@/hooks/useEmployeeCredentials", () => ({ useListEmployeeCredentials: (_filters: unknown, options?: { enabled?: boolean }) => harness.query("credentials", options?.enabled), useEmployeeRequiredItems: (id?: string) => harness.query("duty requirements", !!id) }));
 vi.mock("@/hooks/useEmployeeFacilityAssignments", () => ({ useListEmployeeFacilityAssignments: (_filters: unknown, options?: { enabled?: boolean }) => harness.query("schedule facility assignments", options?.enabled), useAddEmployeeFacilityAssignment: harness.mutation, useRemoveEmployeeFacilityAssignment: harness.mutation }));

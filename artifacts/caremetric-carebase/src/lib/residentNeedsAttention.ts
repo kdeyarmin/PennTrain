@@ -181,6 +181,7 @@ const ASSESSMENT_ITEM_TYPES = new Set([
   "significant_change_reassessment",
   "medical_evaluation",
   "annual_medical_evaluation",
+  "change_medical_evaluation",
   "support_plan_quarterly_review",
 ]);
 
@@ -265,14 +266,17 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
     if (!OPEN_COMPLIANCE_STATUSES.has(item.status)) continue;
     const overdue = isDateOverdue(item.due_date, now);
     const quarterlyReview = item.item_type === "support_plan_quarterly_review";
+    const medicalChange = item.item_type === "change_medical_evaluation";
     cards.push({
       id: `assessment-${item.id}`,
       kind: "assessment_overdue",
       severity: overdue ? "urgent" : "high",
-      title: quarterlyReview
+      title: medicalChange ? "Medical evaluation required after condition change" : quarterlyReview
         ? overdue ? "Quarterly support plan review overdue" : "Quarterly support plan review due soon"
         : overdue ? "Assessment overdue" : "Assessment due soon",
-      why: quarterlyReview
+      why: medicalChange
+        ? "§ 2600.141(b)(2) / § 2800.141(b)(2) requires a medical evaluation when the medical condition changes. The date is an internal follow-up target; neither section specifies a number of days."
+        : quarterlyReview
         ? "55 Pa. Code 2800.227(c) requires each ALF resident's final support plan to be reviewed quarterly."
         : "PA requires a current assessment on the DHS-prescribed form before care decisions rest on it.",
       evidence: `Compliance item ${item.item_type} is ${item.status}.`,

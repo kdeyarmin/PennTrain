@@ -1,0 +1,64 @@
+-- Clinical duty payloads are resident operations under CareBase, not an optional
+-- FHIR feature. Read them only through a scoped, logged entry point.
+create policy clinical_duties_rpc_only on public.resident_regulatory_actions as restrictive for all to authenticated
+ using(action_type not in ('scu_admission','scu_support_plan','scu_continuing_need','scu_plan_review','resident_tb_test','medication_refusal_notice','alf_exception_request'))
+ with check(action_type not in ('scu_admission','scu_support_plan','scu_continuing_need','scu_plan_review','resident_tb_test','medication_refusal_notice','alf_exception_request'));
+-- Preserve the device-safety and clinical domains already installed.
+do $patch$ declare v_check text; begin
+ select pg_get_constraintdef(oid) into strict v_check from pg_constraint where conrelid='app_private.clinical_access_log'::regclass and conname='clinical_access_log_clinical_domain_check';
+ alter table app_private.clinical_access_log drop constraint clinical_access_log_clinical_domain_check;
+ execute 'alter table app_private.clinical_access_log add constraint clinical_access_log_clinical_domain_check check ('||substring(v_check from 8 for length(v_check)-8)||' or clinical_domain=''regulatory_duties'')';
+end $patch$;
+
+create function public.get_resident_regulatory_actions(p_facility_id uuid,p_resident_id uuid default null,p_offset integer default 0)
+returns setof public.resident_regulatory_actions language plpgsql security definer set search_path='' as $$
+declare v public.resident_regulatory_actions%rowtype; v_org uuid; v_seen uuid[]:='{}'; v_clinical boolean;
+begin
+ select organization_id into v_org from public.facilities where id=p_facility_id;
+ if auth.uid() is null or not coalesce(app_private.has_product_module('modules.carebase'),false)
+   or not coalesce(app_private.admission_row_visible(v_org,p_facility_id),false)
+   or not public.current_sms_mfa_satisfied() or not public.current_impersonation_session_live() then
+   raise exception 'Resident obligations are outside this authorized session scope' using errcode='42501'; end if;
+ if p_offset is null or p_offset<0 then raise exception 'Invalid offset' using errcode='22023'; end if;
+ if p_resident_id is not null and not exists(select 1 from public.residents where id=p_resident_id and facility_id=p_facility_id) then
+   raise exception 'Resident is outside this facility' using errcode='42501'; end if;
+ v_clinical:=coalesce(public.can_read_clinical_record(v_org,p_facility_id),false);
+ for v in select * from public.resident_regulatory_actions where facility_id=p_facility_id and (p_resident_id is null or resident_id=p_resident_id)
+   and (v_clinical or action_type not in ('scu_admission','scu_support_plan','scu_continuing_need','scu_plan_review','resident_tb_test','medication_refusal_notice','alf_exception_request'))
+   order by due_at,id limit 1000 offset p_offset loop
+   if v.action_type in ('scu_admission','scu_support_plan','scu_continuing_need','scu_plan_review','resident_tb_test','medication_refusal_notice','alf_exception_request')
+     and not (v.resident_id=any(v_seen)) then
+     perform public.log_clinical_access(v.resident_id,'view_domain','regulatory_duties',null,null);
+     v_seen:=array_append(v_seen,v.resident_id);
+   end if;
+   return next v;
+ end loop;
+end $$;
+revoke all on function public.get_resident_regulatory_actions(uuid,uuid,integer) from public,anon,authenticated,service_role;
+grant execute on function public.get_resident_regulatory_actions(uuid,uuid,integer) to authenticated;
+
+create function public.save_resident_clinical_duty(p_resident_id uuid,p_action_type text,p_details jsonb,p_status text default 'pending',p_action_id uuid default null,
+ p_anchor_at timestamptz default null,p_reason text default null,p_completed_at timestamptz default null,p_evidence text default null,p_recipient_name text default null,p_exception_basis text default null)
+returns void language plpgsql security definer set search_path='' as $$
+declare v public.residents%rowtype; v_action public.resident_regulatory_actions%rowtype;
+begin
+ select * into v from public.residents where id=p_resident_id for update;
+ if not found then raise exception 'Resident not found' using errcode='P0002'; end if;
+ perform app_private.assert_resident_regulatory_manager(v.organization_id,v.facility_id);
+ if not coalesce(public.can_read_clinical_record(v.organization_id,v.facility_id),false) then raise exception 'Clinical duty is outside caller scope' using errcode='42501'; end if;
+ if p_action_type not in ('scu_admission','scu_support_plan','scu_continuing_need','scu_plan_review','resident_tb_test','medication_refusal_notice','alf_exception_request')
+   or jsonb_typeof(p_details) is distinct from 'object' then raise exception 'Choose a clinical duty and structured evidence' using errcode='23514'; end if;
+ if p_action_id is null then
+   if p_action_type not in ('scu_admission','alf_exception_request') then raise exception 'Recurring and imported duties are generated by their actual source event' using errcode='23514'; end if;
+   insert into public.resident_regulatory_actions(organization_id,facility_id,resident_id,action_type,recipient_role,anchor_at,reason,details,status,completed_at,evidence,recipient_name,exception_basis)
+   values(v.organization_id,v.facility_id,v.id,p_action_type,case when p_action_type='alf_exception_request' then 'department' else 'resident' end,
+     p_anchor_at,p_reason,p_details,p_status,p_completed_at,p_evidence,p_recipient_name,p_exception_basis);
+ else
+   select * into v_action from public.resident_regulatory_actions where id=p_action_id for update;
+   if v_action.resident_id is distinct from v.id or v_action.action_type is distinct from p_action_type then raise exception 'Clinical duty is outside this resident record' using errcode='23514'; end if;
+   update public.resident_regulatory_actions set details=p_details,status=p_status,completed_at=p_completed_at,evidence=p_evidence,
+     recipient_name=p_recipient_name,exception_basis=p_exception_basis where id=v_action.id;
+ end if;
+end $$;
+revoke all on function public.save_resident_clinical_duty(uuid,text,jsonb,text,uuid,timestamptz,text,timestamptz,text,text,text) from public,anon,authenticated,service_role;
+grant execute on function public.save_resident_clinical_duty(uuid,text,jsonb,text,uuid,timestamptz,text,timestamptz,text,text,text) to authenticated;

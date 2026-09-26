@@ -1,3 +1,5 @@
+import { useRequestIdentityVerification } from "@/lib/identityReverification";
+import { requirePolicyWriteAssurance } from "@/lib/policyWriteAssurance";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
@@ -38,9 +40,11 @@ export function useGetPolicyDocument(id: string | undefined) {
 }
 
 export function useCreatePolicyDocument() {
+  const requestVerification = useRequestIdentityVerification();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: PolicyDocumentInsert) => {
+      await requirePolicyWriteAssurance(requestVerification);
       const { data, error } = await supabase.from("policy_documents").insert(payload).select().single();
       if (error) throw error;
       return data;
@@ -111,9 +115,11 @@ async function sha256Hex(file: File): Promise<string> {
 }
 
 export function useUploadPolicyDocumentVersion() {
+  const requestVerification = useRequestIdentityVerification();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ file, policyDocumentId, organizationId, versionNumber, createdBy }: UploadPolicyDocumentVersionInput) => {
+      await requirePolicyWriteAssurance(requestVerification);
       // Hashed client-side before upload, over the exact bytes being stored -- this is the
       // "prove exactly what was signed" half of the ESIGN/UETA audit trail; attest-policy
       // stamps this same hash onto policy_attestations.document_version_hash when an employee
@@ -157,9 +163,11 @@ export function useUploadPolicyDocumentVersion() {
 // version whenever the second call failed, and retrying hit the immutability trigger. Course
 // publication already uses the same one-RPC shape.
 export function usePublishPolicyDocumentVersion() {
+  const requestVerification = useRequestIdentityVerification();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, policyDocumentId }: { id: string; policyDocumentId: string }) => {
+      await requirePolicyWriteAssurance(requestVerification);
       const { error } = await supabase.rpc("publish_policy_document_version", {
         p_version_id: id,
         p_policy_document_id: policyDocumentId,

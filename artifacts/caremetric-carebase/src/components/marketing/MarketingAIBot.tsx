@@ -124,7 +124,7 @@ export function MarketingAIBot() {
           </div>
           <div className="min-w-0">
             <div className="truncate font-semibold">CareBase Guide</div>
-            <div className="truncate text-xs text-white/70">Instant answers from our product guide</div>
+            <div className="truncate text-xs text-white/70">Optional automated product guide</div>
           </div>
         </div>
         <div className="flex gap-1">

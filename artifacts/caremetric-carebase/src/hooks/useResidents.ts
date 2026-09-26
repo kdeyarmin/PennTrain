@@ -117,7 +117,10 @@ export function useCreateResident() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["residents"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["residents"] });
+      queryClient.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
+    },
   });
 }
 

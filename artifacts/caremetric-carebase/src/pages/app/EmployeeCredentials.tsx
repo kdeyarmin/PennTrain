@@ -41,7 +41,7 @@ const CREDENTIAL_TYPE_OPTIONS: Array<{ value: EmployeeCredential["credential_typ
   { value: "rn_license", label: "RN License" },
   { value: "lpn_license", label: "LPN License" },
   { value: "nurse_aide_registry", label: "Nurse Aide Registry Status" },
-  { value: "tb_screening", label: "TB Screening" },
+  { value: "tb_screening", label: "TB Screening (facility policy)" },
   { value: "immunization", label: "Immunization" },
   { value: "i9_employment_eligibility", label: "I-9 Employment Eligibility" },
   { value: "other", label: "Other" },

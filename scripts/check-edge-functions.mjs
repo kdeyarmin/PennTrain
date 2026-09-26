@@ -14,7 +14,8 @@ import { spawn } from "node:child_process";
 // the same PR so coverage can only ratchet up. Never lower it.
 // generate-certificate-pdf now exercises its imported PDF renderer, including award text,
 // attribution, local dates and long-content bounds; request authorization remains checked separately.
-const RUNTIME_TEST_FLOOR = 28;
+// fhir-writeback also exercises the authenticated outbound handler and source binding.
+const RUNTIME_TEST_FLOOR = 29;
 
 async function findEntrypoints(dir) {
   const entries = await readdir(dir, { withFileTypes: true });

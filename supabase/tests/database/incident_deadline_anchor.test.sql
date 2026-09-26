@@ -172,9 +172,9 @@ select is(
 select is(
   (select count(*)::int from public.incident_notification_rules
    where notification_type = 'state_hotline'
-     and (due_hours <> 24 or source_confidence <> 'verified')),
+     and due_hours <> 24),
   0,
-  'every Department notification is 24 hours and marked verified against 2600.16(c) / 2800.16(c)'
+  'every Department notification is 24 hours; human verification is tracked independently'
 );
 
 -- The two-hour rows that remain stand for OAPSA's "immediately", which has no number. Marking them

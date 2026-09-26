@@ -745,6 +745,48 @@ test.describe("role-aware release journeys", () => {
     expect(profile).toMatchObject({ role: "employee", organization_id: organizationId });
   });
 
+  test("policy draft survives in-place password and authenticator verification", async ({ page }) => {
+    const account = accounts.get("org_admin")!;
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(account.email);
+    await page.getByLabel("Password").fill(account.password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20_000 }).toBe("/app/today");
+    await verifyOrgAdminBrowserMfa(page);
+    await page.goto("/app/policy-documents");
+    await page.getByRole("button", { name: "New Policy Document" }).click();
+    const draft = page.getByRole("dialog", { name: "New Policy Document" });
+    await draft.getByLabel("Title", { exact: true }).fill("Unsaved policy verification regression");
+    await draft.getByLabel("Description (optional)").fill("Preserve this unsaved description through password and TOTP.");
+    // Force only this operation's freshness response to expire. Authentication,
+    // server lock/unlock, password and TOTP still use the real disposable backend.
+    let requireRenewal = true;
+    await page.route("**/rest/v1/rpc/identity_assurance_is_current", async route => {
+      const args = route.request().postDataJSON() as { p_operation?: string } | null;
+      if (requireRenewal && args?.p_operation === "policy_document_admin") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: "false" });
+      } else await route.continue();
+    });
+    const verifyIdentity = draft.getByRole("button", { name: "Verify identity", exact: true });
+    await expect(verifyIdentity).toBeVisible({ timeout: 25_000 });
+    await expect(draft.getByRole("button", { name: "Create", exact: true })).toBeDisabled();
+    await verifyIdentity.click();
+    const passwordDialog = page.getByRole("dialog", { name: "Verify your identity", exact: true });
+    await passwordDialog.getByLabel("Password", { exact: true }).fill(account.password);
+    await expect(passwordDialog.getByLabel("Password", { exact: true })).toBeFocused();
+    await passwordDialog.getByRole("button", { name: "Unlock session", exact: true }).click();
+    const factorDialog = page.getByRole("dialog", { name: "One more step", exact: true });
+    await factorDialog.getByLabel("6-digit code").fill(totpCode(orgAdminMfaSecret));
+    requireRenewal = false;
+    await factorDialog.getByRole("button", { name: "Verify and continue", exact: true }).click();
+    await expect(factorDialog).toBeHidden({ timeout: 20_000 });
+    await expect(draft).toBeVisible();
+    await expect(draft.getByLabel("Title", { exact: true })).toHaveValue("Unsaved policy verification regression");
+    await expect(draft.getByLabel("Description (optional)")).toHaveValue("Preserve this unsaved description through password and TOTP.");
+    await expect(draft.getByRole("button", { name: "Create", exact: true })).toBeEnabled();
+    expect(new URL(page.url()).pathname).toBe("/app/policy-documents");
+  });
+
   test("org admin guided onboarding opens the combined employee and portal flow", async ({ page }) => {
     const account = accounts.get("org_admin")!;
     await page.goto("/login");

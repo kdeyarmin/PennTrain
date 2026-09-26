@@ -1,3 +1,4 @@
+import { FhirWritebackSettings } from "@/components/facilities/FhirWritebackSettings";
 import { useId, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, DatabaseZap, Link2, RefreshCw, Settings2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -187,7 +188,7 @@ export default function FhirIntegration() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">FHIR Integration</h1>
-          <p className="text-muted-foreground">Monitor read-only FHIR R4 medication ingestion, patient matching, and synchronization health.</p>
+          <p className="text-muted-foreground">Optional FHIR R4 connection for medication ingestion, patient matching and authorized observation write-back. Chapters 2600 and 2800 do not require an EHR connection.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => void workspace.refetch()} disabled={workspace.isFetching}>
@@ -211,14 +212,11 @@ export default function FhirIntegration() {
           here is cheaper than a refusal the operator meets one observation at a time. */}
       <Alert>
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Outbound write-back is not available yet</AlertTitle>
+        <AlertTitle>Outbound write-back requires vendor authorization</AlertTitle>
         <AlertDescription>
-          This boundary is inbound-only. There is no control that enables write-back on a source,
-          and the outbound drain has no credential to authenticate to an EHR with &mdash; the
-          credential bound above is the <em>inbound</em> key the EHR uses to call CareBase. The
-          chart offers &ldquo;Send to EHR&rdquo; only for a resident mapped to a source that is
-          genuinely write-back-enabled, so today it stays hidden rather than promising a delivery
-          nobody can make.
+          Authorize observations separately for each source after confirming your vendor agreement and retry support.
+          Your platform operator configures the corresponding outbound credentials. Clinical disclosure consent
+          is required before a resident's observation can leave CareBase.
         </AlertDescription>
       </Alert>
 
@@ -262,15 +260,7 @@ export default function FhirIntegration() {
                     <p className="text-muted-foreground">Freshness target: {source.freshness_threshold_minutes} minutes</p>
                     {source.last_error_message && <p className="text-destructive">{source.last_error_message}</p>}
                     {!source.credential_id && <p className="text-amber-700">Setup required: bind a commands:write integration credential.</p>}
-                    {/* Say what the boundary actually is. `writeback_enabled` was added by
-                        20260725170000 with `default false` and no writer: `save_fhir_integration_source`
-                        never sets it and `fhir_integration_sources` carries no update policy, so
-                        nothing in the product (or in a tenant's own browser session) can turn it on.
-                        Reporting the column's real value keeps the console honest either way -- if an
-                        operator flips it in SQL, the console says so. */}
-                    <p className="text-muted-foreground">
-                      Outbound write-back: {source.writeback_enabled ? "enabled for this source" : "off (this connection is inbound-only)"}
-                    </p>
+                    <FhirWritebackSettings source={source} canManage={canManage} />
                   </CardContent>
                 </Card>
               );

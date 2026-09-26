@@ -1,4 +1,11 @@
 /** Training evidence readiness, not a facility licensing determination. Dates use PA local days. */
+import type { StaffRegulatoryPolicy, EmployeeRegulatoryProfile } from "@/hooks/useStaffRegulatory";
+export type StaffTrainingSummary = { start: string; end: string; graceThrough: string; basis: string; partialFirstYear: boolean;
+  hireDateMissing?: boolean;
+  documented: boolean; completedHours: number; requiredHours: number; administratorHours: number; alrDementiaHours: number; specialUnitHours: number;
+  previousYearOverdue?: boolean; previousCompletedHours?: number; graceHoursAllocatedToPrevious?: number;
+  previousAlrDementiaOverdue?: boolean; previousSpecialUnitOverdue?: boolean; previousAdministratorOverdue?: boolean;
+  previousPeriod?: {start: string; end: string; graceThrough: string; partialFirstYear: boolean} };
 export type TrainingPolicy = {
   id: string; effective_from: string; year_basis: "fixed" | "anniversary"; year_start: string;
   administrator_year_basis: "fixed" | "anniversary"; administrator_year_start: string; policy_reference: string;
@@ -28,7 +35,9 @@ export type TrainingPlan = { id: string; employee_id: string; title: string; dut
   scheduled_at: string; duration_minutes: number; location: string; requirement_keys: string[];
   completed_event_id: string | null; canceled_at: string | null };
 export type TrainingWorkspace = { policies: TrainingPolicy[]; profiles: TrainingProfile[];
-  events: TrainingEvent[]; shifts: TrainingShift[]; plans: TrainingPlan[]; generated_at: string };
+  events: TrainingEvent[]; shifts: TrainingShift[]; plans: TrainingPlan[]; generated_at: string;
+  staff_policy?: StaffRegulatoryPolicy | null; regulatory_profiles?: (EmployeeRegulatoryProfile & {employee_id: string})[];
+  annual_summaries?: Record<string, StaffTrainingSummary> };
 export const TRAINING_TOPICS = {
   facility_orientation: "Facility-specific first-day fire and emergency instruction (all required procedures)",
   fire: "Qualified annual fire safety", emergency: "Emergency preparedness and crisis response", medical_emergency: "Emergency medical plan", rights: "Resident rights",
@@ -43,7 +52,7 @@ export const TRAINING_TOPICS = {
   chapter_requirements: "Applicable PCH / ALF chapter requirements", mobility: "Mobility needs and associated pressure injury, incontinence, nutrition and hydration care",
   behavioral_management: "Behavioral management", ancillary_orientation: "Ancillary job-specific orientation",
   dhs_initial_orientation: "Department-approved ALF initial orientation",
-  initial_transfer: "Written verification of eligible initial training at another facility within the past year",
+  initial_transfer: "Written verification of initial training at another facility (facility transfer policy applies)",
   dementia_behaviors: "Managing dementia-related behaviors", safe_environment: "Maintaining a safe care environment",
   brain_injury: "Brain injury and its cognitive, physical and behavioral effects", brain_injury_behaviors: "Managing brain-injury-related behaviors",
   rehabilitation: "Individualized rehabilitation and support-plan services", coaching: "Coaching, cueing, problem solving, self-soothing and fading supports",
@@ -51,6 +60,7 @@ export const TRAINING_TOPICS = {
   dhs_direct_care: "Department-approved direct care course and competency test",
   first_aid: "First aid", cpr: "CPR", airway: "Airway obstruction",
   medication_authorization: "Approved medication course and performance test", diabetes: "Approved diabetes program",
+  medication_practicum: "Annual medication administration practicum", medication_trainer: "Medication Train-the-Trainer",
   administrator_initial: "Administrator qualification and required initial training",
 } as const;
 export const TRAINING_ALLOCATIONS = {
@@ -70,6 +80,11 @@ function inYear(year: number, monthDay: string): string {
   // A February 29 anniversary falls on February 28 in a non-leap year.
   const last = new Date(Date.UTC(year, m, 0)).getUTCDate();
   return `${year}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
+function beforeMonths(day: string, months: number): string {
+  const [year, month, date] = dateParts(day);
+  const index = year * 12 + month - 1 - months;
+  return inYear(Math.floor(index / 12), `${String(index % 12 + 1).padStart(2, "0")}-${String(date).padStart(2, "0")}`);
 }
 /** A revision keeps the saved year; a first policy matches the fixed January 1 fields. */
 export function trainingPolicyRevisionDefaults(policy: TrainingPolicy | undefined, today: string) {
@@ -103,10 +118,44 @@ export function fortiethWorkHour(shifts: TrainingShift[], firstWork: string): st
   }
   return null;
 }
+
+/** RCG 64(c) / 65(e)/(h): source caps apply across the whole documented training year. */
+export function eligibleTrainingMinutes(events: readonly TrainingEvent[], key: string, facilityType: string, policy?: StaffRegulatoryPolicy | null): number {
+  const annual = key === "base" || key === "administrator";
+  const limits: Record<string, number> = {
+    medication: annual ? 360 : Infinity,
+    resuscitation: annual ? 240 : Infinity,
+    online: key === "administrator" ? 720 : Infinity,
+    ojt: ["special_initial", "special_annual", "administrator"].includes(key) ? 0
+      : key === "base" && facilityType === "PCH" ? 360 : key === "base" && facilityType === "ALR" && !policy?.alf_ojt_allowed ? 0 : Infinity,
+  };
+  const categories = (event: TrainingEvent) => [
+    ...(event.topics.some(t => ["medication_authorization", "medication_practicum", "medication_trainer"].includes(t)) ? ["medication"] : []),
+    ...(event.topics.some(topic => ["first_aid", "cpr", "airway"].includes(topic)) ? ["resuscitation"] : []),
+    ...(["online", "ojt"].includes(event.delivery) ? [event.delivery] : []),
+  ];
+  // Count unrestricted delivery first so online medication/CPR does not displace otherwise
+  // eligible in-person hours. Ties are stable, independent of the API's row ordering.
+  const eligible = [...events].sort((a, b) =>
+    Number(a.delivery === "online" || a.delivery === "ojt") - Number(b.delivery === "online" || b.delivery === "ojt")
+    || categories(a).length - categories(b).length || a.completed_on.localeCompare(b.completed_on) || a.id.localeCompare(b.id));
+  let total = 0;
+  for (const event of eligible) {
+    if (event.delivery === "online" && event.topics.some(topic => ["first_aid", "cpr", "airway"].includes(topic))) continue;
+    const allocated = Number(event.allocations[key] || 0);
+    if (!Number.isFinite(allocated) || allocated <= 0) continue;
+    const caps = categories(event);
+    const minutes = Math.min(allocated, ...caps.map(category => limits[category]));
+    total += minutes;
+    for (const category of caps) limits[category] -= minutes;
+  }
+  return total;
+}
 export type TrainingCheck = { key: string; label: string; citation: string; status: "met" | "missing" | "review";
   detail: string; due: string | null };
 export function assessTraining(input: { profile?: TrainingProfile; policy?: TrainingPolicy; events: TrainingEvent[];
-  shifts: TrainingShift[]; facilityType: string; today: string; hireDate?: string | null; medications?: boolean; insulin?: boolean }): TrainingCheck[] {
+  shifts: TrainingShift[]; facilityType: string; today: string; hireDate?: string | null; medications?: boolean; insulin?: boolean;
+  staffPolicy?: StaffRegulatoryPolicy | null; regulatoryProfile?: EmployeeRegulatoryProfile; annualSummary?: StaffTrainingSummary }): TrainingCheck[] {
   const { profile: p, policy, today } = input;
   const hireDate = p?.hire_date || input.hireDate;
   const checks: TrainingCheck[] = [];
@@ -123,17 +172,9 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
   // when measuring compliance". The review RPC now refuses to verify it; this covers rows verified before.
   const current = (topic: string) => events.some(e => e.topics.includes(topic) && e.valid_until && e.valid_until >= today
     && !(e.delivery === "online" && ["first_aid", "cpr", "airway"].includes(topic)));
-  // On-the-job minutes a key may count: 6 of the PCH 12 annual hours (2600.65(e)(2)); none of the
-  // special unit hours, which both RCGs say "may not be on the job training" (2600.236, 2800.236(a),
-  // (c)); none of the administrator's 24, which 2600.64(d) / 2800.64(d) limit to approved sources.
-  const ojtCap = (key: string) =>
-    key === "special_initial" || key === "special_annual" || key === "administrator" ? 0
-      : pch && key === "base" ? 360 : Infinity;
   const hours = (key: string, from: string, through: string) => {
     const eligible = events.filter(e => e.completed_on >= from && e.completed_on <= through);
-    const regular = eligible.filter(e => e.delivery !== "ojt").reduce((s, e) => s + (e.allocations[key] || 0), 0);
-    const ojt = eligible.filter(e => e.delivery === "ojt").reduce((s, e) => s + (e.allocations[key] || 0), 0);
-    return (regular + Math.min(ojtCap(key), ojt)) / 60;
+    return eligibleTrainingMinutes(eligible, key, input.facilityType, input.staffPolicy) / 60;
   };
   const conditionalTopic = (key: keyof NonNullable<TrainingProfile["applicability"]>, topic: string, citation: string, from?: string, due: string | null = null) => {
     if (p.applicability?.[key] === false) return;
@@ -163,11 +204,16 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
         "Department-approved initial orientation and current first-aid / CPR certificates are required. Verify completion before direct care and sufficient airway-certified shift coverage.", "Before direct care");
     }
     const topics = ["job_demonstration", "supervised_practice", "dhs_direct_care", "safe_management", "adls", "hygiene", "mental_health", "normal_aging", "assessment", "nutrition", "recreation", "gerontology", "resident_needs", "hazard_prevention", "universal_precautions", "chapter_requirements", "infection", ...(alr ? ["behavioral_management", "person_centered"] : ["dementia"])];
-    const missing = missingTopics(topics);
-    const transfer = has("initial_transfer", addDays(p.first_work_date, -366), p.first_work_date);
-    const legacyHire = pch && (!hireDate || hireDate <= "2006-04-24");
+    const courseOnlyLegacy = Boolean(alr && input.regulatoryProfile?.continuous_service_since
+      && input.regulatoryProfile.continuous_service_since <= "2007-10-31");
+    const missing = missingTopics(courseOnlyLegacy ? topics.filter(topic => topic !== "dhs_direct_care") : topics);
+    const transferMonths = input.staffPolicy ? input.staffPolicy.alf_transfer_months : 12;
+    const transfer = has("initial_transfer", alr && transferMonths === null ? undefined : beforeMonths(p.first_work_date, alr ? transferMonths ?? 12 : 12), p.first_work_date);
+    const legacyHire = Boolean(input.regulatoryProfile?.continuous_service_since && input.regulatoryProfile.continuous_service_since <= "2006-04-24");
+    const licensed = Boolean(input.regulatoryProfile?.licensed_professional_exemption && input.regulatoryProfile.exemption_evidence.trim().length >= 5
+      && input.regulatoryProfile.professional_exemption_valid_until && input.regulatoryProfile.professional_exemption_valid_until >= today);
     add("unsupervised", "Initial direct care and practical evidence", `${chapter}.65(${alr ? "g, k" : "d, h"})`,
-      transfer || legacyHire || (missing.length === 0 && hours("initial", "0001-01-01", today) >= (alr ? 18 : 0)) ? null : false,
+      transfer || legacyHire || licensed || (missing.length === 0 && hours("initial", "0001-01-01", today) >= (alr ? 18 : 0)) ? null : false,
       `Missing topics: ${names(missing)}. ${alr ? "18 initial hours required. " : ""}Verify timing, supervised practice and authorization before unsupervised duties. Prior-facility exemptions need eligible training completed within the past year and written verification; historic PCH hires need applicability review.`, "Before unsupervised duties");
     conditionalTopic("staff_supervision", "staff_supervision", `${chapter}.65(${alr ? "g" : "d"})`);
     conditionalTopic("mobility_needs", "mobility", `${chapter}.65(${alr ? "g" : "d"})`);
@@ -186,8 +232,10 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     const period = trainingPeriod(today, hireDate || p.first_work_date, policy.year_basis, policy.year_start);
     const from = period.start > (hireDate || p.first_work_date) ? period.start : (hireDate || p.first_work_date);
     if (p.direct_care) {
-      const earned = hours("base", from, today), required = alr ? 16 : 12;
-      add("base", "Direct care annual hours", `${chapter}.65(${alr ? "h" : "e"})`, earned >= required, `${earned.toFixed(2)} / ${required} hours; ${from} through ${period.end}.`, period.end);
+      const earned = input.annualSummary?.completedHours ?? hours("base", from, today), required = alr ? 16 : 12;
+      const partial = input.annualSummary?.partialFirstYear ?? Boolean(hireDate && hireDate > period.start);
+      const hireUnknown = input.annualSummary?.hireDateMissing || !hireDate;
+      add("base", "Direct care annual hours", `${chapter}.65(${alr ? "h" : "e"})`, partial || hireUnknown ? null : earned >= required, `${earned.toFixed(2)} / ${required} hours; ${from} through ${period.end}.${hireUnknown ? " Record the actual hire date before evaluating annual applicability." : partial ? " Partial first training year: annual-hour inspection requirement begins with a full year." : ""} Medication training counts up to 6 hours; first aid, CPR and airway training together count up to 4 hours.`, input.annualSummary?.graceThrough ?? addDays(period.end, input.staffPolicy?.annual_grace_days ?? 15));
       const missing = missingTopics(["med_self_admin", "resident_needs", "dementia", "infection", "personal_care", "safe_management"], from);
       add("annual_topics", "Direct care annual topics", `${chapter}.65(${alr ? "i" : "f"})`, missing.length === 0, `Missing: ${names(missing)}.`, period.end);
       conditionalTopic("mental_health_population", "mental_health", `${chapter}.65(${alr ? "i" : "f"})`, from, period.end);
@@ -198,28 +246,40 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
         `Direct care, ancillary, substitutes and regularly scheduled volunteers: missing ${names(missing)}. Fire instruction requires the qualified expert or trained on-site instructor. Confirm audience in the duty profile.`, period.end);
       conditionalTopic("new_population", "new_population", `${chapter}.65(${alr ? "j" : "g"})`, from, period.end);
     }
-    if (alr) add("dementia_annual", "ALF annual dementia instruction", "2800.69", !hireDate || today < inYear(Number(hireDate.slice(0, 4)) + 1, hireDate.slice(5)) ? null : hours("dementia_annual", from, today) >= 2 && has("dementia", from),
-      "2 additional hours annually thereafter; verify first-year applicability and documented training-year policy.", period.end);
-    if (p.direct_care && validUnit) add("special_annual", "Special unit annual hours and topics", `${chapter}.236`, hours("special_annual", from, today) >= (alr ? 8 : 6) && missingTopics(alr ? specialTopics : ["dementia"], from).length === 0,
-      `Additional ${alr ? 8 : 6} hours of structured training for direct-care staff in this unit; on-the-job hours do not count. Required topics: ${names(alr ? specialTopics : ["dementia"])}.`, period.end);
+    if (alr) add("dementia_annual", "ALF annual dementia instruction", "2800.69", !hireDate || today < inYear(Number(hireDate.slice(0, 4)) + 1, hireDate.slice(5)) ? null : (input.annualSummary?.alrDementiaHours ?? hours("dementia_annual", from, today)) >= 2 && has("dementia", from),
+      "2 additional hours annually thereafter; verify first-year applicability and documented training-year policy.", input.annualSummary?.graceThrough ?? addDays(period.end, input.staffPolicy?.annual_grace_days ?? 15));
+    if (p.direct_care && validUnit) add("special_annual", "Special unit annual hours and topics", `${chapter}.236`, (input.annualSummary?.specialUnitHours ?? hours("special_annual", from, today)) >= (alr ? 8 : 6) && missingTopics(alr ? specialTopics : ["dementia"], from).length === 0,
+      `Additional ${alr ? 8 : 6} hours of structured training for direct-care staff in this unit; on-the-job hours do not count. Required topics: ${names(alr ? specialTopics : ["dementia"])}.`, input.annualSummary?.graceThrough ?? addDays(period.end, input.staffPolicy?.annual_grace_days ?? 15));
     if (p.administrator) {
       const admin = trainingPeriod(today, hireDate || p.first_work_date, policy.administrator_year_basis, policy.administrator_year_start);
-      const earned = hours("administrator", admin.start, today);
-      add("administrator", "Administrator annual eligible training", `${chapter}.64`, earned >= 24, `${earned.toFixed(2)} / 24 hours; on-the-job hours do not count. Verify each source is Department-approved or otherwise eligible under ${chapter}.64(d), and annual applicability.`, admin.end);
+      const earned = input.annualSummary?.administratorHours ?? hours("administrator", admin.start, today);
+      add("administrator", "Administrator annual eligible training", `${chapter}.64`, earned >= 24, `${earned.toFixed(2)} / 24 hours; online credit is capped at 12 hours, medication training at 6, and first aid / CPR / airway at 4. On-the-job hours do not count. Verify each source is Department-approved or otherwise eligible under ${chapter}.64(d), and annual applicability.`, admin.end);
     }
   }
   if (p.administrator) add("administrator_initial", "Administrator qualifications and initial pathway", `${chapter}.64`, has("administrator_initial") ? null : false,
     "Review qualifications, initial course, examination, orientation, timing and any eligible exemption. Annual instructor approval does not authorize initial training.");
-  for (const [needed, topic, months, label] of [[input.medications, "medication_authorization", 24, "Medication authorization"], [input.insulin, "diabetes", 12, "Insulin / diabetes instruction"]] as const) {
+  for (const [needed, topic, months, label] of [[input.medications, "medication_authorization", input.staffPolicy?.medication_course_years ? input.staffPolicy.medication_course_years * 12 : null, "Initial medication course"], [input.insulin, "diabetes", 12, "Insulin / diabetes instruction"]] as const) {
     if (needed) {
       const valid = events.some(e => {
-        if (!e.topics.includes(topic) || !e.valid_until || e.valid_until < today) return false;
+        if (!e.topics.includes(topic)) return false;
+        if (months === null) return true;
+        if (!e.valid_until || addDays(e.valid_until, input.staffPolicy?.annual_grace_days ?? 15) < today) return false;
         const anniversary = inYear(Number(e.completed_on.slice(0, 4)) + months / 12, e.completed_on.slice(5));
-        return today < anniversary;
+        return today <= addDays(anniversary, input.staffPolicy?.annual_grace_days ?? 15);
       });
       add(topic, label, `${chapter}.190`, valid, "Approved program, qualified trainer, applicable performance evidence and current validity required. Verify any licensed-professional exception separately.");
     }
   }
+  if (input.medications) add("medication_practicum", "Annual medication practicum", `${chapter}.190 RCG`, events.some(e =>
+    e.topics.includes("medication_practicum") && e.completed_on.slice(0, 4) === today.slice(0, 4)),
+    "The initial medication course remains valid under the RCG; complete the course-defined practicum each year. Retain observed-performance evidence.");
+  if (input.annualSummary?.previousYearOverdue) add("previous_annual", "Previous training year remains deficient", `${chapter}.65 RCG`, false,
+    `${input.annualSummary.previousCompletedHours ?? 0} / ${input.annualSummary.requiredHours} hours recorded for ${input.annualSummary.previousPeriod?.start} through ${input.annualSummary.previousPeriod?.end}. Starting a new year does not clear the prior deficiency.`, input.annualSummary.previousPeriod?.graceThrough ?? null);
+  for (const [needed, key, label, citation] of [
+    [alr && input.annualSummary?.previousAlrDementiaOverdue, "previous_dementia", "Previous annual dementia training remains deficient", `${chapter}.69`],
+    [p.direct_care && validUnit && input.annualSummary?.previousSpecialUnitOverdue, "previous_special", "Previous special-unit training remains deficient", `${chapter}.236`],
+    [p.administrator && input.annualSummary?.previousAdministratorOverdue, "previous_administrator", "Previous administrator training remains deficient", `${chapter}.64`],
+  ] as const) if (needed) add(key, label, citation, false, "The previous full training year remains below its required hours after the documented grace period. Current-year progress does not erase that deficiency.");
   return checks;
 }
 

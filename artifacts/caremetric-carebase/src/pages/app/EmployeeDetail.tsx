@@ -29,11 +29,11 @@ import {
 } from "@/hooks/useTrainingRecords";
 import { useListTrainingTypes, type TrainingType } from "@/hooks/useTrainingTypes";
 import { useListPracticums } from "@/hooks/usePracticums";
-import { useListTrainingHourBuckets, useListCourseCompletionCredits } from "@/hooks/useTrainingHourBuckets";
+import { useListTrainingHourBuckets, useStaffTrainingSummary } from "@/hooks/useTrainingHourBuckets";
 import {
-  bucketHoursInWindow, bucketStanding, hourBucketLabel, trainingTypeCreditsFacility, trainingYearWindow,
+  hourBucketLabel, trainingTypeCreditsFacility,
 } from "@/lib/annualTrainingHours";
-import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { facilityTypeLabel } from "@/lib/facilityTypes";
 import { useListDocuments, useDocumentSignedUrl, type TrainingDocument } from "@/hooks/useDocuments";
 import { useListEmployeeCredentials, useEmployeeRequiredItems } from "@/hooks/useEmployeeCredentials";
@@ -72,6 +72,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+
+const EmployeeRegulatoryProfile = lazy(() => import("@/components/staff/EmployeeRegulatoryProfile").then((module) => ({ default: module.EmployeeRegulatoryProfile })));
 
 function EmptyState({ icon: Icon, text }: { icon: typeof BookOpen; text: string }) {
   return (
@@ -164,7 +166,7 @@ export default function EmployeeDetail() {
   const { data: trainingTypes } = useListTrainingTypes();
   const { data: practicums, isLoading: practicumsLoading, isError: practicumsError, error: practicumsErr, refetch: refetchPracticums } = useListPracticums({ employeeId: id }, { enabled: hasWorkforce });
   const { data: hourBuckets, isLoading: hoursLoading, isError: hoursError, error: hoursErr, refetch: refetchHours } = useListTrainingHourBuckets({ employeeId: id });
-  const { data: courseCredits } = useListCourseCompletionCredits(id);
+  const trainingSummary = useStaffTrainingSummary(id);
   const { data: documents, isLoading: documentsLoading, isError: documentsError, error: documentsErr, refetch: refetchDocuments } = useListDocuments({ employeeId: id });
   const { data: credentials, isLoading: credentialsLoading, isError: credentialsError, error: credentialsErr, refetch: refetchCredentials } = useListEmployeeCredentials({ employeeId: id }, { enabled: canViewCredentials });
   const { data: auditLogs, isLoading: activityLoading, isError: activityError, error: activityErr, refetch: refetchActivity } = useListAuditLogs({ entityId: id, limit: 20 });
@@ -195,35 +197,7 @@ export default function EmployeeDetail() {
   const removeFacilityAssignment = useRemoveEmployeeFacilityAssignment();
   const [addFacilityId, setAddFacilityId] = useState("");
 
-  // The employee's own training year, and the hours earned inside it (BACKLOG.md J28).
-  //
-  // `employee_training_hour_buckets` is keyed on the calendar year and reset every 1 January, but
-  // every requirement it summarises runs on a rolling clock -- a record's due date is
-  // `completion_date + renewal_interval_days`, and the product's own summary of 55 Pa. Code
-  // 2600.65 says hours are tracked "against their assignment date". So the card below leads with
-  // this figure and keeps the stored calendar-year row beside it, explicitly labelled, rather than
-  // showing one number that means two different things depending on the month.
   const today = facilityToday();
-  const trainingYear = useMemo(
-    () => trainingYearWindow(employee?.hire_date, today),
-    [employee?.hire_date, today],
-  );
-  // Null until every input is in, and the card falls back to the stored calendar-year row while it
-  // is. Which types are creditable depends on the FACILITY, and the records and course credits are
-  // the numerator itself, so computing this from whatever has arrived so far does not produce a
-  // partial answer -- it produces a different, wrong one, briefly, in the position the card gives
-  // the most weight. A figure that appears a moment later is better than one that is wrong now.
-  const anniversaryHours = useMemo(() => {
-    if (!trainingYear || !facility || !trainingTypes || !trainingRecords || !courseCredits) return null;
-    return bucketHoursInWindow({
-      window: trainingYear,
-      records: trainingRecords,
-      courseCredits,
-      trainingTypes,
-      facilityType: facility.facility_type,
-      facilityState: facility.state,
-    });
-  }, [trainingYear, trainingRecords, courseCredits, trainingTypes, facility]);
 
   /**
    * The training types a completion may be recorded against for THIS employee.
@@ -573,6 +547,7 @@ export default function EmployeeDetail() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
+          {hasWorkforce && canManage && employee && <Suspense fallback={<p>Loading staff qualifications…</p>}><EmployeeRegulatoryProfile employeeId={employee.id} facilityId={employee.facility_id} /></Suspense>}
           {hasWorkforce && canManage && (
             <Card>
               <CardHeader>
@@ -841,72 +816,25 @@ export default function EmployeeDetail() {
                 <Clock className="h-5 w-5" /> Annual Training Hours
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {hoursLoading ? (
-                <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-              ) : hoursError ? (
-                <QueryError what="training-hour tracking" error={hoursErr} onRetry={() => void refetchHours()} />
-              ) : !hourBuckets?.length ? (
-                <EmptyState icon={Clock} text="No annual training-hour tracking on record for this employee." />
-              ) : (
-                <div className="space-y-3">
-                  {trainingYear ? (
-                    <p className="text-xs text-muted-foreground">
-                      Training year {formatDateForDisplay(trainingYear.start)} – {formatDateForDisplay(addFacilityCalendarDays(trainingYear.end, -1))},
-                      counted from this employee's hire anniversary. The calendar-year figure under each
-                      bucket is the stored annual rollup, which resets on 1 January and is what the
-                      per-calendar-year report shows.
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      No hire date on record, so hours can only be shown for the calendar year. Add a hire
-                      date to see them on this employee's own training year, which is the cycle the
-                      requirements above run on.
-                    </p>
-                  )}
-                  {/* Only the current calendar year's bucket can be restated on the anniversary clock:
-                      recalculate_compliance_core recomputes that row and leaves prior years frozen, so a
-                      2025 row is a closed record rather than a view of anything still moving. */}
-                  {hourBuckets.map(b => {
-                    const currentYear = b.training_year === Number(today.slice(0, 4));
-                    // Only the anniversary figure gates on `anniversaryHours`; the calendar-year
-                    // row below is the server's own and is always safe to show.
-                    const onAnniversaryClock = Boolean(trainingYear && currentYear && anniversaryHours);
-                    const earned = onAnniversaryClock ? anniversaryHours!.get(b.bucket_type) : undefined;
-                    const required = Number(b.required_hours ?? 0);
-                    const anniversaryCompleted = earned?.completedHours ?? 0;
-                    return (
-                      <div key={b.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm">{hourBucketLabel(b.bucket_type)}</p>
-                          {onAnniversaryClock ? (
-                            <>
-                              <p className="text-xs text-muted-foreground">
-                                {anniversaryCompleted} of {required} hours completed this training year
-                              </p>
-                              <p className="text-[11px] text-muted-foreground/70">
-                                Calendar year {b.training_year}: {Number(b.completed_hours ?? 0)} of {required} hours
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              Calendar year {b.training_year}: {Number(b.completed_hours ?? 0)} of {required} hours completed
-                            </p>
-                          )}
-                        </div>
-                        <StatusBadge
-                          status={
-                            onAnniversaryClock
-                              ? bucketStanding(anniversaryCompleted, required, trainingYear!, today)
-                              : b.status
-                          }
-                          type="training"
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+            <CardContent className="space-y-4">
+              {trainingSummary.isLoading ? <p>Loading the facility's training year…</p>
+                : trainingSummary.isError ? <QueryError what="annual training calculation" error={trainingSummary.error} onRetry={() => void trainingSummary.refetch()} />
+                : trainingSummary.data ? <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">Training year {formatDateForDisplay(trainingSummary.data.start)} – {formatDateForDisplay(trainingSummary.data.end)}. This uses the facility's recorded training-year policy and the same capped credits as Train and compliance.</p>
+                  <p className="font-medium">{trainingSummary.data.completedHours} of {trainingSummary.data.requiredHours} annual hours completed</p>
+                  {trainingSummary.data.partialFirstYear && <p className="text-sm">This is a partial first training year; the annual minimum is not yet assessed.</p>}
+                  {trainingSummary.data.hireDateMissing && <p className="text-sm text-destructive">Record the actual hire date to evaluate whether the annual training requirement applies.</p>}
+                  {trainingSummary.data.previousYearOverdue && <p className="text-sm text-destructive">The previous full training year remains overdue. Hours allocated to its grace period are excluded from this year's credit.</p>}
+                  {!trainingSummary.data.documented && <p className="text-sm text-amber-700">The default calendar year is in use. Record the facility's training-year policy in Train.</p>}
+                  <p className="text-xs text-muted-foreground">Completion deadline including selected grace: {formatDateForDisplay(trainingSummary.data.graceThrough)}</p>
+                  {(hourBuckets ?? []).filter((bucket) => bucket.training_year === Number(today.slice(0, 4)) && bucket.bucket_type !== "general_annual").map((bucket) => <p key={bucket.id} className="text-sm">{hourBucketLabel(bucket.bucket_type)}: {bucket.bucket_type === "alr_dementia" ? trainingSummary.data!.alrDementiaHours : trainingSummary.data!.specialUnitHours} of {bucket.required_hours} hours</p>)}
+                </div> : <EmptyState icon={Clock} text="No annual training calculation is available for this employee." />}
+              {hoursLoading ? <Skeleton className="h-10" /> : hoursError
+                ? <QueryError what="historical training-hour tracking" error={hoursErr} onRetry={() => void refetchHours()} />
+                : (hourBuckets ?? []).some((bucket) => bucket.training_year < Number(today.slice(0, 4))) && <details>
+                  <summary className="cursor-pointer text-sm">Historical annual rollups</summary>
+                  {(hourBuckets ?? []).filter((bucket) => bucket.training_year < Number(today.slice(0, 4))).map((bucket) => <div key={bucket.id} className="mt-2 flex justify-between rounded border p-3 text-sm"><span>{bucket.training_year} · {hourBucketLabel(bucket.bucket_type)}: {bucket.completed_hours} of {bucket.required_hours} hours</span><StatusBadge status={bucket.status} type="training" /></div>)}
+                </details>}
             </CardContent>
           </Card>
         </TabsContent>

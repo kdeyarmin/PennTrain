@@ -276,6 +276,7 @@ const ITEM_TYPE_CITATIONS: Record<string, Partial<Record<FacilityType, string>>>
   // Same section as the initial evaluation -- 20260804170000 split the two cycles into separate
   // item types so each could carry its own grace period, not because they are different rules.
   annual_medical_evaluation: { PCH: "2600.141", ALR: "2800.141" },
+  change_medical_evaluation: { PCH: "2600.141", ALR: "2800.141" },
 };
 
 export function findCitation(citation: string): PaRegulatoryCitation | undefined {

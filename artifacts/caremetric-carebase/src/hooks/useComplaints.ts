@@ -11,7 +11,7 @@ export type ComplaintHistory = Tables<"complaint_history">;
 export type ComplaintCorrectiveAction = Tables<"complaint_corrective_actions">;
 
 export interface ComplaintWithRelations extends Complaint {
-  facility: { id: string; name: string } | null;
+  facility: { id: string; name: string; facility_type: string } | null;
   resident: { id: string; first_name: string; last_name: string; room: string | null } | null;
   investigator: { id: string; first_name: string; last_name: string } | null;
   incident: { id: string; incident_type: string; severity: string; status: string } | null;
@@ -30,7 +30,7 @@ export interface ComplaintActionWithWorkItem extends ComplaintCorrectiveAction {
 
 const SELECT = `
   *,
-  facility:facilities(id, name),
+  facility:facilities(id, name, facility_type),
   resident:residents(id, first_name, last_name, room),
   investigator:profiles!complaints_assigned_investigator_profile_id_fkey(id, first_name, last_name),
   incident:incidents(id, incident_type, severity, status)

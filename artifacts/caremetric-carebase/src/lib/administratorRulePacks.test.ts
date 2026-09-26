@@ -2,6 +2,54 @@ import { describe, expect, it } from "vitest";
 import { buildAdministratorRulePack, summarizeAdministratorRulePack, type AdministratorRulePackProfile } from "./administratorRulePacks";
 
 describe("administrator rule packs", () => {
+  it("does not infer ALF orientation or dementia evidence from a course or NHA license", () => {
+    for (const profile of [{ hundred_hour_course_completed_date: "2026-01-01" }, { nha_license_number: "NHA123" }]) {
+      expect(buildAdministratorRulePack("ALR", { profile, today: "2026-07-13" })
+        .find(rule => rule.id === "alr-orientation-and-dementia")?.status).toBe("missing");
+    }
+  });
+  it("checks separately documented ALF orientation and initial then annual dementia hours", () => {
+    const profile = {
+      first_employed_as_administrator_on: "2026-01-01", department_orientation_completed_date: "2025-12-20",
+      department_orientation_document_path: "admin/orientation.pdf", dementia_initial_completed_date: "2026-01-20",
+      dementia_initial_hours: 4, dementia_initial_document_path: "admin/dementia-initial.pdf",
+    };
+    const check = (today: string, patch: AdministratorRulePackProfile = {}) => buildAdministratorRulePack("ALR", { profile: { ...profile, ...patch }, today })
+      .find(rule => rule.id === "alr-orientation-and-dementia")?.status;
+    expect(check("2026-07-13")).toBe("compliant");
+    expect(check("2026-07-13", { dementia_initial_hours: 3 })).toBe("missing");
+    expect(check("2026-07-13", { dementia_initial_completed_date: "2026-02-15" })).toBe("missing");
+    expect(check("2027-07-13")).toBe("missing");
+    expect(check("2027-07-13", { dementia_annual_completed_date: "2027-01-20", dementia_annual_hours: 2, dementia_annual_document_path: "admin/annual.pdf" })).toBe("compliant");
+  });
+  it("credits the approved course for the first employment year only with dated qualification proof", () => {
+    const profile = { qualification_path: "hundred_hour_course", hundred_hour_course_completed_date: "2025-12-01",
+      hundred_hour_course_document_path: "admin/course.pdf", competency_test_passed: true, competency_test_date: "2025-12-02",
+      first_employed_as_administrator_on: "2026-01-01" };
+    const check = (today: string, patch: AdministratorRulePackProfile = {}) => buildAdministratorRulePack("PCH", { profile: { ...profile, ...patch }, today })
+      .find(rule => rule.id === "administrator-continuing-education");
+    expect(check("2026-07-13")).toMatchObject({ status: "compliant", dueDate: "2027-01-01" });
+    expect(check("2027-01-01")?.status).toBe("missing");
+    expect(check("2026-07-13", { first_employed_as_administrator_on: null })?.status).toBe("missing");
+    expect(check("2026-07-13", { hundred_hour_course_document_path: null })?.status).toBe("missing");
+  });
+  it.each([
+    ["2025-12-31", "missing"],
+    ["2026-01-01", "compliant"],
+    ["2026-01-31", "compliant"],
+    ["2026-02-01", "missing"],
+  ])("requires the initial dementia training within the hire-date window: %s", (completedOn, status) => {
+    const profile = {
+      first_employed_as_administrator_on: "2026-01-01",
+      department_orientation_completed_date: "2025-12-20",
+      department_orientation_document_path: "admin/orientation.pdf",
+      dementia_initial_completed_date: completedOn,
+      dementia_initial_hours: 4,
+      dementia_initial_document_path: "admin/dementia-initial.pdf",
+    };
+    expect(buildAdministratorRulePack("ALR", { profile, today: "2026-07-13" })
+      .find(rule => rule.id === "alr-orientation-and-dementia")?.status).toBe(status);
+  });
   it("evaluates PCH and ALR facilities with different rule packs", () => {
     const pch = buildAdministratorRulePack("PCH", {
       today: "2026-07-13",
@@ -179,5 +227,45 @@ describe("administrator rule packs", () => {
       expect(expiring?.status).toBe("due_soon");
       expect(expiring?.dueDate).toBe("2026-08-01");
     });
+  });
+});
+describe("administrator legacy pathways", () => {
+  const qualification = (facility: "PCH" | "ALR", profile: AdministratorRulePackProfile) => buildAdministratorRulePack(facility, { profile, today: "2026-09-26" })[0].status;
+  it("requires dated PCH legacy service, continuity and evidence", () => {
+    const profile = { qualification_path: "legacy_pch", first_employed_as_administrator_on: "2005-10-23", legacy_no_break_over_one_year: true, legacy_training_document_path: "legacy.pdf" };
+    expect(qualification("PCH", profile)).toBe("compliant");
+    expect(qualification("PCH", { ...profile, first_employed_as_administrator_on: "2005-10-24" })).toBe("missing");
+    expect(qualification("PCH", { ...profile, legacy_no_break_over_one_year: false })).toBe("missing");
+    expect(qualification("ALR", profile)).toBe("missing");
+  });
+  it("requires the ALF supplement and its own test after a PCH course", () => {
+    const profile = { qualification_path: "pch_course_supplement", hundred_hour_course_completed_date: "2020-01-01", hundred_hour_course_document_path: "pch.pdf",
+      alf_supplement_completed_date: "2021-01-01", alf_supplement_hours: 15, alf_supplement_test_passed: true, alf_supplement_document_path: "alf.pdf" };
+    expect(qualification("ALR", profile)).toBe("compliant");
+    expect(qualification("ALR", { ...profile, alf_supplement_hours: 14 })).toBe("missing");
+    expect(qualification("ALR", { ...profile, alf_supplement_test_passed: false })).toBe("missing");
+    expect(qualification("ALR", { ...profile, hundred_hour_course_completed_date: "2027-01-01" })).toBe("missing");
+    expect(qualification("ALR", { ...profile, hundred_hour_course_completed_date: "2022-01-01" })).toBe("missing");
+  });
+  it("rejects a future competency test under the NHA pathway", () => {
+    expect(qualification("PCH", { qualification_path: "nha_exemption", nha_license_number: "NHA-1", nha_license_expiration: "2027-01-01",
+      first_employed_as_administrator_on: "2020-01-01", competency_test_passed: true, competency_test_date: "2027-01-01" })).toBe("missing");
+  });
+  it("allocates grace credit before applying the new year's medication cap", () => {
+    const annual = buildAdministratorRulePack("PCH", { profile: { first_employed_as_administrator_on: "2020-01-01" }, today: "2026-09-26",
+      trainingPolicy: { id: "policy", effective_from: "2020-01-01", year_basis: "fixed", year_start: "01-01", administrator_year_basis: "fixed", administrator_year_start: "01-01", policy_reference: "Calendar year" },
+      ceEntries: [ { completed_date: "2025-06-01", hours: 22, source: "Classroom" },
+        { completed_date: "2026-01-01", hours: 2, credit_category: "medication", source: "Classroom" },
+        { completed_date: "2026-02-01", hours: 6, credit_category: "medication", source: "Classroom" } ],
+    }).find(rule => rule.id === "administrator-continuing-education");
+    expect(annual?.earnedHours).toBe(6);
+    expect(annual?.detail).not.toContain("previous full training year");
+  });
+  it("applies the pre-2009 test exemption only with an explicit documented RCG choice", () => {
+    const profile = { qualification_path: "hundred_hour_course", hundred_hour_course_completed_date: "2007-01-01", hundred_hour_course_document_path: "pch.pdf",
+      first_employed_as_administrator_on: "2007-02-01", competency_exemption_basis: "rcg_pre_2009", competency_exemption_evidence: "Employment and course records" };
+    expect(qualification("PCH", profile)).toBe("compliant");
+    expect(qualification("PCH", { ...profile, competency_exemption_evidence: null })).toBe("missing");
+    expect(qualification("PCH", { ...profile, first_employed_as_administrator_on: "2009-01-01" })).toBe("missing");
   });
 });

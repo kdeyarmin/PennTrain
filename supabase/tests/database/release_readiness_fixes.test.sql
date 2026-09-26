@@ -63,6 +63,24 @@ insert into public.employees(
   '4c000000-0000-4000-8000-000000000011', '4c000000-0000-4000-8000-000000000102',
   'RD-A', 'Read', 'Worker', 'readiness-worker@test.local', public.pa_today()-100, 'Direct Care Worker', 'active'
 );
+
+-- These schedule fixtures are adults with verified education, fitness and PSP
+-- evidence. The tests below independently vary permissions and unit qualifications.
+insert into public.employee_regulatory_profiles(employee_id,organization_id,facility_id,birth_date,education,role_category,education_evidence,medical_fitness_confirmed,updated_by)
+select e.id,e.organization_id,e.facility_id,date '1990-01-01','high_school',
+ case when e.job_title in ('Manager','Trainer') then 'other' else 'direct_care' end,
+ 'Synthetic fixture diploma verified',true,
+ (select p.id from public.profiles p where p.organization_id=e.organization_id and p.role='org_admin' order by p.id limit 1)
+from public.employees e where e.id::text like '4c000000%';
+insert into public.employee_background_check_profiles(organization_id,facility_id,employee_id,pa_resident_two_years,suitability_determination,psp_requested_on,suitability_notes)
+select organization_id,facility_id,id,true,'suitable',coalesce(hire_date,public.pa_today()-100),'Synthetic fixture PSP clearance reviewed'
+from public.employees where id::text like '4c000000%';
+update public.employee_credentials set issue_date=public.pa_today()-100,expiration_date=public.pa_today()+365,status='compliant',
+ verified_at=now(),verification_method='Synthetic fixture PSP clearance'
+where employee_id::text like '4c000000%' and credential_type='act34_criminal_history';
+
+
+
 -- The employee insert already stamps a primary assignment through a trigger; this is here so the
 -- fixture stays correct if that ever changes.
 insert into public.employee_facility_assignments(organization_id, employee_id, facility_id, is_primary) values
@@ -366,8 +384,10 @@ select ok(
   pg_get_functiondef((
     select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'create_resident_change_event'
-  )) like '%resident_compliance_rule_packs%',
-  'and create_resident_change_event reads it'
+  )) like '%app_private.create_resident_change_event_core%'
+  and pg_get_functiondef('app_private.create_resident_change_event_core(uuid,text,timestamptz,text,text,text,text,boolean,text,text,text,integer,uuid,timestamptz,text,boolean,boolean,uuid)'::regprocedure)
+    like '%resident_compliance_rule_packs%',
+  'and the public change-event wrapper delegates to the protected core that reads it'
 );
 
 -- J37. The money can be given back.

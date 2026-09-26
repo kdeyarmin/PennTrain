@@ -1,5 +1,6 @@
 import type { FacilityType } from "./facilityTypes";
-import { addFacilityCalendarDays, facilityDaysUntil, formatDateForDisplay } from "./dateUtils";
+import { trainingPeriod, type TrainingPolicy } from "./trainingWorkspace";
+import { addFacilityCalendarDays, addFacilityCalendarYears, facilityDaysUntil, formatDateForDisplay } from "./dateUtils";
 
 export type AdministratorRuleStatus = "compliant" | "due_soon" | "expired" | "missing";
 
@@ -14,18 +15,38 @@ export interface AdministratorRulePackProfile {
   first_employed_as_administrator_on?: string | null;
   regional_office_verification_submitted_date?: string | null;
   regional_office_verification_document_path?: string | null;
+  department_orientation_completed_date?: string | null;
+  department_orientation_document_path?: string | null;
+  dementia_initial_completed_date?: string | null;
+  dementia_initial_hours?: number | null;
+  dementia_initial_document_path?: string | null;
+  dementia_annual_completed_date?: string | null;
+  dementia_annual_hours?: number | null;
+  dementia_annual_document_path?: string | null;
+  legacy_no_break_over_one_year?: boolean;
+  legacy_training_document_path?: string | null;
+  competency_exemption_basis?: string | null;
+  competency_exemption_evidence?: string | null;
+  alf_supplement_completed_date?: string | null;
+  alf_supplement_hours?: number | null;
+  alf_supplement_test_passed?: boolean;
+  alf_supplement_document_path?: string | null;
 }
 
 export interface AdministratorRulePackCeEntry {
   completed_date: string;
   hours: number;
   topic?: string | null;
+  source?: string | null;
+  credit_category?: string | null;
 }
 
 export interface AdministratorRulePackEvidence {
   profile?: AdministratorRulePackProfile | null;
   ceEntries?: AdministratorRulePackCeEntry[];
   today: string;
+  trainingPolicy?: TrainingPolicy;
+  annualGraceDays?: number;
 }
 
 export interface AdministratorRulePackRequirement {
@@ -37,6 +58,7 @@ export interface AdministratorRulePackRequirement {
   dueDate: string | null;
   status: AdministratorRuleStatus;
   detail: string;
+  earnedHours?: number;
 }
 
 const CE_WINDOW_DAYS = 365;
@@ -69,11 +91,31 @@ function statusFromDueDate(dueDate: string | null, today: string, present: boole
   return "compliant";
 }
 
-function rollingCe(ceEntries: AdministratorRulePackCeEntry[], today: string) {
-  const cutoff = addFacilityCalendarDays(today, -CE_WINDOW_DAYS);
-  return ceEntries
-    .filter((entry) => entry.completed_date >= cutoff && entry.completed_date <= today)
-    .reduce((sum, entry) => sum + Number(entry.hours), 0);
+function allocateCe(ceEntries: AdministratorRulePackCeEntry[], today: string, from?: string, options: {
+  excluded?: Map<AdministratorRulePackCeEntry, number>; remaining?: { medication: number; resuscitation: number; online: number }; limit?: number;
+} = {}) {
+  const cutoff = from ?? addFacilityCalendarDays(today, -CE_WINDOW_DAYS);
+  let { medication, resuscitation, online } = options.remaining ?? { medication: 6, resuscitation: 4, online: 12 };
+  const credits = new Map<AdministratorRulePackCeEntry, number>();
+  const total = ceEntries.filter(entry => entry.completed_date >= cutoff && entry.completed_date <= today)
+    .sort((a, b) => Number(/online|webinar/i.test(a.source ?? "")) - Number(/online|webinar/i.test(b.source ?? "")))
+    .reduce((sum, entry) => {
+      const isOnline = /online|webinar/i.test(entry.source ?? "");
+      if (entry.credit_category === "resuscitation" && isOnline) return sum;
+      const hours = Math.max(0, Math.min(Number(entry.hours) - (options.excluded?.get(entry) ?? 0), (options.limit ?? Infinity) - sum,
+        isOnline ? online : Infinity, entry.credit_category === "medication" ? medication : Infinity,
+        entry.credit_category === "resuscitation" ? resuscitation : Infinity));
+      if (isOnline) online -= hours;
+      if (entry.credit_category === "medication") medication -= hours;
+      if (entry.credit_category === "resuscitation") resuscitation -= hours;
+      credits.set(entry, hours);
+      return sum + hours;
+    }, 0);
+  return { total, credits, remaining: { medication, resuscitation, online } };
+}
+
+function rollingCe(ceEntries: AdministratorRulePackCeEntry[], today: string, from?: string) {
+  return allocateCe(ceEntries, today, from).total;
 }
 
 export function buildAdministratorRulePack(facilityType: FacilityType, evidence: AdministratorRulePackEvidence): AdministratorRulePackRequirement[] {
@@ -82,23 +124,34 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   const isAlr = facilityType === "ALR";
   const commonCitation = isAlr ? "55 Pa. Code 2800.64" : "55 Pa. Code 2600.64";
   const requirements: AdministratorRulePackRequirement[] = [];
+  const firstEmployed = profile?.first_employed_as_administrator_on ?? null;
+  const rcgTestExemption = Boolean(!isAlr && firstEmployed && firstEmployed < "2009-01-01"
+    && profile?.competency_exemption_basis === "rcg_pre_2009" && profile.competency_exemption_evidence?.trim());
+  const legacy = Boolean(profile?.qualification_path === "legacy_pch" && !isAlr && firstEmployed && firstEmployed < "2005-10-24"
+    && profile.legacy_no_break_over_one_year && profile.legacy_training_document_path);
+  const supplement = Boolean(profile?.qualification_path === "pch_course_supplement" && isAlr
+    && ((profile.hundred_hour_course_completed_date && profile.hundred_hour_course_document_path
+      && profile.hundred_hour_course_completed_date <= evidence.today
+      && profile.alf_supplement_completed_date && profile.hundred_hour_course_completed_date <= profile.alf_supplement_completed_date)
+      || (profile.legacy_training_document_path && profile.legacy_no_break_over_one_year && firstEmployed && firstEmployed < "2005-10-24"))
+    && profile.alf_supplement_completed_date && profile.alf_supplement_completed_date <= evidence.today
+    && Number(profile.alf_supplement_hours) >= 15 && profile.alf_supplement_test_passed && profile.alf_supplement_document_path);
 
   const qualifiedByCourse = Boolean(
     profile?.qualification_path === "hundred_hour_course"
     && profile.hundred_hour_course_completed_date
     && profile.hundred_hour_course_document_path
-    && profile.competency_test_passed
-    && profile.competency_test_date,
+    && profile.hundred_hour_course_completed_date <= evidence.today
+    && ((profile.competency_test_passed && profile.competency_test_date && profile.competency_test_date <= evidence.today) || rcgTestExemption),
   );
   const nhaLicenseCurrent = Boolean(
     profile?.qualification_path === "nha_exemption"
     && profile.nha_license_number
     && (!profile.nha_license_expiration || profile.nha_license_expiration >= evidence.today),
   );
-  const nhaCutoff = NHA_EXEMPTION_EMPLOYED_BEFORE[isAlr ? "ALR" : "PCH"];
+  const nhaCutoff = rcgTestExemption ? "2009-01-01" : NHA_EXEMPTION_EMPLOYED_BEFORE[isAlr ? "ALR" : "PCH"];
   const nhaSection = isAlr ? "2800.64(g)" : "2600.64(g)";
-  const firstEmployed = profile?.first_employed_as_administrator_on ?? null;
-  const nhaTestRecorded = Boolean(profile?.competency_test_passed && profile?.competency_test_date);
+  const nhaTestRecorded = Boolean(profile?.competency_test_passed && profile?.competency_test_date && profile.competency_test_date <= evidence.today);
   const nhaEmployedBeforeCutoff = Boolean(firstEmployed && firstEmployed < nhaCutoff);
   const qualifiedByNha = nhaLicenseCurrent && (nhaTestRecorded || nhaEmployedBeforeCutoff);
   // The NHA license expiration only governs the NHA-exemption path; a stale
@@ -106,7 +159,11 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   const nhaExpiration = profile?.qualification_path === "nha_exemption" ? profile?.nha_license_expiration ?? null : null;
 
   let qualificationDetail: string;
-  if (qualifiedByCourse) {
+  if (legacy) {
+    qualificationDetail = "Pre-October 24, 2005 PCH administrator service and legacy training evidence are documented, with no break longer than one year.";
+  } else if (supplement) {
+    qualificationDetail = "Prior PCH administrator course and the 15-hour assisted-living supplement, related competency test and evidence are documented (2800 RCG).";
+  } else if (qualifiedByCourse) {
     qualificationDetail = "100-hour course, certificate, and competency test are documented.";
   } else if (!nhaLicenseCurrent) {
     qualificationDetail = "Missing approved-course/test proof or current NHA exemption documentation.";
@@ -127,11 +184,25 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     facilityTypes: [facilityType],
     binderDestination: "Administrator Qualifications / Qualification Path",
     dueDate: nhaExpiration,
-    status: statusFromDueDate(nhaExpiration, evidence.today, qualifiedByCourse || qualifiedByNha),
+    status: statusFromDueDate(nhaExpiration, evidence.today, qualifiedByCourse || qualifiedByNha || legacy || supplement),
     detail: qualificationDetail,
   });
 
   if (isAlr) {
+    const orientation = qualifiedByNha || Boolean(profile?.department_orientation_completed_date
+      && profile.department_orientation_completed_date <= evidence.today && profile.department_orientation_document_path);
+    const initialDementia = Boolean(profile?.dementia_initial_completed_date
+      && profile.dementia_initial_completed_date <= evidence.today && Number(profile.dementia_initial_hours) >= 4
+      && profile.dementia_initial_document_path);
+    const annualDementia = Boolean(profile?.dementia_annual_completed_date
+      && profile.dementia_annual_completed_date <= evidence.today
+      && addFacilityCalendarYears(profile.dementia_annual_completed_date, 1) >= evidence.today
+      && Number(profile.dementia_annual_hours) >= 2 && profile.dementia_annual_document_path);
+    const firstYear = Boolean(firstEmployed && firstEmployed <= evidence.today
+      && evidence.today < addFacilityCalendarYears(firstEmployed, 1));
+    const initialOnTime = Boolean(firstEmployed && profile?.dementia_initial_completed_date
+      && profile.dementia_initial_completed_date >= firstEmployed
+      && profile.dementia_initial_completed_date <= addFacilityCalendarDays(firstEmployed, 30));
     requirements.push({
       id: "alr-orientation-and-dementia",
       label: "ALF orientation and dementia-specific training documentation",
@@ -139,26 +210,42 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
       facilityTypes: ["ALR"],
       binderDestination: "Administrator Qualifications / Orientation and Dementia Training",
       dueDate: null,
-      status: profile?.hundred_hour_course_completed_date || profile?.nha_license_number ? "compliant" : "missing",
-      detail: "Track ALF orientation, approved-course, competency, and dementia-specific administrator documentation together. 2800.69 dementia training (4 hours within 30 days of hire, 2 hours annually) is in addition to the 100-hour course.",
+      status: orientation && initialDementia && initialOnTime && (firstYear || annualDementia) ? "compliant" : "missing",
+      detail: "Record Department orientation separately, and dated evidence of 4 dementia hours within 30 days of initial employment plus 2 hours annually thereafter. A course date or NHA license alone does not establish this evidence. The training is additional to the 100-hour course; retain the basis for any exemption.",
     });
   }
 
-  const ceCutoff = addFacilityCalendarDays(evidence.today, -CE_WINDOW_DAYS);
+  const selectedPeriod = evidence.trainingPolicy ? trainingPeriod(evidence.today, firstEmployed ?? evidence.today,
+    evidence.trainingPolicy.administrator_year_basis, evidence.trainingPolicy.administrator_year_start) : null;
+  const ceCutoff = selectedPeriod?.start ?? addFacilityCalendarDays(evidence.today, -CE_WINDOW_DAYS);
   const ceWindowEntries = ceEntries.filter((entry) => entry.completed_date >= ceCutoff && entry.completed_date <= evidence.today);
-  const ceHours = rollingCe(ceEntries, evidence.today);
+  let ceHours = rollingCe(ceEntries, evidence.today, selectedPeriod?.start);
+  const courseFirstYear = Boolean(qualifiedByCourse && firstEmployed && firstEmployed <= evidence.today
+    && profile?.hundred_hour_course_completed_date && profile.hundred_hour_course_completed_date <= firstEmployed
+    && evidence.today < addFacilityCalendarYears(firstEmployed, 1));
+  const previousPeriod = selectedPeriod && evidence.trainingPolicy ? trainingPeriod(addFacilityCalendarDays(selectedPeriod.start, -1),
+    firstEmployed ?? evidence.today, evidence.trainingPolicy.administrator_year_basis, evidence.trainingPolicy.administrator_year_start) : null;
+  let priorOverdue = false;
+  if (previousPeriod && firstEmployed && firstEmployed <= previousPeriod.start
+    && !(qualifiedByCourse && addFacilityCalendarYears(firstEmployed, 1) > previousPeriod.end)) {
+    const prior = allocateCe(ceEntries, previousPeriod.end, previousPeriod.start);
+    const graceEnd = addFacilityCalendarDays(previousPeriod.end, evidence.annualGraceDays ?? 15);
+    const through = evidence.today < graceEnd ? evidence.today : graceEnd;
+    const repair = allocateCe(ceEntries, through, selectedPeriod!.start, { remaining: prior.remaining, limit: Math.max(0, 24 - prior.total) });
+    ceHours = allocateCe(ceEntries, evidence.today, selectedPeriod!.start, { excluded: repair.credits }).total;
+    priorOverdue = evidence.today > graceEnd && prior.total + repair.total < 24;
+  }
   // The CE requirement lapses on the first day the trailing-365-day total drops
   // below 24 hours, i.e. when enough of the oldest entries age out of the window.
   // Walking entries oldest-first, the due date is the last day the entry whose
   // aging-out drops the remaining total below 24 still counts (its date + 365).
-  let ceDueDate: string | null = null;
-  if (ceHours >= 24) {
+  let ceDueDate: string | null = selectedPeriod ? addFacilityCalendarDays(selectedPeriod.end, evidence.annualGraceDays ?? 15) : null;
+  if (ceHours >= 24 && !selectedPeriod) {
     const sortedByDate = [...ceWindowEntries].sort((a, b) => a.completed_date.localeCompare(b.completed_date));
-    let remaining = ceHours;
     for (const entry of sortedByDate) {
-      remaining -= Number(entry.hours);
-      if (remaining < 24) {
-        ceDueDate = addFacilityCalendarDays(entry.completed_date, CE_WINDOW_DAYS);
+      const candidate = addFacilityCalendarDays(entry.completed_date, CE_WINDOW_DAYS);
+      if (rollingCe(ceWindowEntries, addFacilityCalendarDays(candidate, 1)) < 24) {
+        ceDueDate = candidate;
         break;
       }
     }
@@ -170,11 +257,14 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     citation: commonCitation,
     facilityTypes: [facilityType],
     binderDestination: "Administrator Qualifications / Continuing Education",
-    dueDate: ceDueDate,
-    status: ceHours >= 24
+    dueDate: courseFirstYear ? addFacilityCalendarYears(firstEmployed!, 1) : ceDueDate,
+    earnedHours: ceHours,
+    status: priorOverdue ? "expired" : courseFirstYear ? "compliant" : ceHours >= 24
       ? (ceDueDate && daysBetween(evidence.today, ceDueDate) <= DUE_SOON_DAYS ? "due_soon" : "compliant")
       : "missing",
-    detail: `${ceHours.toFixed(1)} of 24 trailing-12-month CE hours documented.`,
+    detail: priorOverdue ? `The previous full training year (${previousPeriod?.start} through ${previousPeriod?.end}) remains below 24 hours after grace. Current-year progress does not clear it.` : courseFirstYear
+      ? "The documented approved initial course fulfills the annual training requirement for the first year of employment under 64(c)."
+      : `${ceHours.toFixed(1)} of 24 eligible CE hours documented${selectedPeriod ? ` for ${selectedPeriod.start} through ${selectedPeriod.end}, with ${evidence.annualGraceDays ?? 15} grace days` : " in the trailing 12 months"}.`,
   });
 
   requirements.push({
@@ -209,6 +299,8 @@ export interface BestAdministratorRulePackInput {
   profiles: Array<AdministratorRulePackProfile & { id: string }>;
   ceEntries: Array<AdministratorRulePackCeEntry & { administrator_profile_id: string }>;
   today: string;
+  trainingPolicy?: TrainingPolicy;
+  annualGraceDays?: number;
 }
 
 /**
@@ -220,12 +312,13 @@ export interface BestAdministratorRulePackInput {
 export function buildBestAdministratorRulePack(facilityType: FacilityType, input: BestAdministratorRulePackInput) {
   const { profiles, ceEntries, today } = input;
   if (profiles.length === 0) {
-    const requirements = buildAdministratorRulePack(facilityType, { profile: null, ceEntries: [], today });
+    const requirements = buildAdministratorRulePack(facilityType, { profile: null, ceEntries: [], today, trainingPolicy: input.trainingPolicy, annualGraceDays: input.annualGraceDays });
     return { requirements, summary: summarizeAdministratorRulePack(requirements) };
   }
 
   const candidates = profiles.map((profile) => {
     const requirements = buildAdministratorRulePack(facilityType, {
+      trainingPolicy: input.trainingPolicy, annualGraceDays: input.annualGraceDays,
       profile,
       ceEntries: ceEntries.filter((entry) => entry.administrator_profile_id === profile.id),
       today,

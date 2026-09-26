@@ -1,4 +1,5 @@
 // @ts-nocheck -- retained: npm pdf-lib/canvas modules cause widespread type errors
+import { publicGeneratorError } from "../_shared/generatorErrors.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import {
   PDFDocument,
@@ -1165,7 +1166,7 @@ Deno.serve(async (req: Request) => {
     )
     .eq("id", formId)
     .maybeSingle();
-  if (formError) return json(req, { error: formError.message }, 500);
+  if (formError) return json(req, { error: publicGeneratorError("read", formError) }, 500);
   if (!form) return json(req, { error: "Assessment form not found" }, 404);
 
   if (form.status !== "finalized") {
@@ -1213,7 +1214,7 @@ Deno.serve(async (req: Request) => {
       .eq("document_label", documentLabel)
       .maybeSingle();
   if (existingDocumentError)
-    return json(req, { error: existingDocumentError.message }, 500);
+    return json(req, { error: publicGeneratorError("read", existingDocumentError) }, 500);
   if (existingDocument) {
     return json(req,
       {
@@ -1260,7 +1261,7 @@ Deno.serve(async (req: Request) => {
     .select("name, relationship, phone")
     .eq("resident_id", form.resident_id)
     .order("sort_order");
-  if (supportsError) return json(req, { error: supportsError.message }, 500);
+  if (supportsError) return json(req, { error: publicGeneratorError("read", supportsError) }, 500);
 
   // Created before the build, not after: the template cache lives in storage and reaching it needs
   // the service role. A cache hit means this request never touches pa.gov.
@@ -1299,7 +1300,7 @@ Deno.serve(async (req: Request) => {
     adminClient.storage, form.organization_id, form.facility_id,
     `${form.resident_id}-${form.form_type.toLowerCase()}-v${form.version_number}-${form.id}`, pdfBytes,
   );
-  if (uploadError) return json(req, { error: uploadError.message }, 500);
+  if (uploadError) return json(req, { error: publicGeneratorError("save", uploadError) }, 500);
 
   // One resident_documents row per assessment-form version -- the existence check above already
   // guarantees no row with this document_label exists yet, so this is always a fresh insert.
@@ -1333,15 +1334,14 @@ Deno.serve(async (req: Request) => {
         409,
       );
     }
-    console.error("resident assessment pdf: resident_documents insert failed", docError.message);
-    return json(req, { error: "Unable to record the generated document" }, 500);
+    return json(req, { error: publicGeneratorError("save", docError) }, 500);
   }
 
   const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
     .from(DOCUMENTS_BUCKET)
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signedUrlError || !signedUrlData) {
-    return json(req, { error: signedUrlError?.message ?? "failed to create signed url" }, 500);
+    return json(req, { error: publicGeneratorError("link", signedUrlError) }, 500);
   }
 
   return json(req, {

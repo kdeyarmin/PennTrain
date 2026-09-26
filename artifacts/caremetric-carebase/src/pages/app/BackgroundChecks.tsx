@@ -1,10 +1,10 @@
 import { useId, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { facilityDaysUntil } from "@/lib/dateUtils";
+import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useGetOrganizationSettings } from "@/hooks/useOrganizationSettings";
+import { useOapsaDutyStatuses, type OapsaDutyStatus } from "@/hooks/useStaffRegulatory";
 import {
   useListBackgroundCheckProfiles, useUpsertBackgroundCheckProfile, type BackgroundCheckProfile,
 } from "@/hooks/useBackgroundCheckProfiles";
@@ -36,23 +36,17 @@ function suitabilityBadgeClass(determination: string): string {
   }
 }
 
-function provisionalStatus(profile: BackgroundCheckProfile | undefined): { label: string; className: string } | null {
-  if (!profile?.provisional_start_date || !profile.provisional_max_days) return null;
-  // Count whole PA facility calendar days so the badge agrees with server/regulatory windows.
-  const daysElapsed = -(facilityDaysUntil(profile.provisional_start_date) ?? 0);
-  const remaining = profile.provisional_max_days - daysElapsed;
-  if (remaining < 0) {
-    return { label: `Provisional period expired ${Math.abs(remaining)}d ago`, className: "bg-destructive text-destructive-foreground hover:bg-destructive/80" };
-  }
-  if (remaining <= 7) {
-    return { label: `${remaining}d left on provisional period`, className: "bg-warning text-warning-foreground hover:bg-warning/80" };
-  }
-  return { label: `${remaining}d left on provisional period`, className: "bg-info text-info-foreground hover:bg-info/80" };
+function provisionalStatus(status: OapsaDutyStatus | undefined): { label: string; className: string } | null {
+  if (!status) return null;
+  return { label: status.reason, className: status.bar ? "bg-destructive text-destructive-foreground" : status.clearancesOnFile
+    ? "bg-success text-success-foreground" : "bg-warning text-warning-foreground" };
 }
 
 interface ProfileFormData {
   paResidentTwoYears: string;
   provisionalStartDate: string;
+  pspRequestedOn: string;
+  fbiRequestedOn: string;
   nonDisqStatementSigned: boolean;
   supervisionConfirmed: boolean;
   supervisionNotes: string;
@@ -82,7 +76,7 @@ export default function BackgroundChecks() {
     refetch: refetchEmployees,
   } = useListEmployees({ status: "active" });
   const { data: profiles } = useListBackgroundCheckProfiles({ organizationId: user?.organizationId ?? undefined });
-  const { data: orgSettings } = useGetOrganizationSettings(user?.organizationId ?? undefined);
+  const dutyStatuses = useOapsaDutyStatuses((employees ?? []).map(e => e.id));
   const { mutateAsync: upsertProfile, isPending: saving } = useUpsertBackgroundCheckProfile();
 
   const profileByEmployeeId = useMemo(() => new Map((profiles ?? []).map((p) => [p.employee_id, p])), [profiles]);
@@ -102,6 +96,8 @@ export default function BackgroundChecks() {
     setForm({
       paResidentTwoYears: existing?.pa_resident_two_years === true ? "yes" : existing?.pa_resident_two_years === false ? "no" : "unknown",
       provisionalStartDate: existing?.provisional_start_date ?? "",
+      pspRequestedOn: existing?.psp_requested_on ?? "",
+      fbiRequestedOn: existing?.fbi_requested_on ?? "",
       nonDisqStatementSigned: existing?.non_disqualification_statement_signed ?? false,
       supervisionConfirmed: existing?.supervision_attestation_confirmed ?? false,
       supervisionNotes: existing?.supervision_attestation_notes ?? "",
@@ -173,12 +169,11 @@ export default function BackgroundChecks() {
         employee_id: employee.id,
         pa_resident_two_years: paResident,
         provisional_start_date: form.provisionalStartDate || null,
-        // provisional_max_days is NOT sent. The length of an OAPSA provisional window is a
-        // statutory question, and this form was answering it: `paResident === true ? 30 : 90` gave
-        // the 90-day non-resident window to every profile whose residency is merely UNKNOWN, which
-        // is the default state of a profile nobody has completed. `derive_oapsa_provisional_window`
-        // computes it on write now, and unknown residency takes the shorter window until somebody
-        // records which one applies.
+        psp_requested_on: form.pspRequestedOn || null,
+        fbi_requested_on: form.fbiRequestedOn || null,
+        // The server evaluates PSP and FBI requests against their independent 30/90-day clocks.
+        // Unknown residency keeps the FBI requirement pending; legacy window snapshots are not
+        // sent by the browser and do not establish clearance eligibility.
         non_disqualification_statement_signed: form.nonDisqStatementSigned,
         non_disqualification_statement_signed_at: nonDisqSignedAt,
         supervision_attestation_confirmed: form.supervisionConfirmed,
@@ -224,6 +219,7 @@ export default function BackgroundChecks() {
           </div>
         </CardHeader>
         <CardContent>
+          {dutyStatuses.isError && <QueryError what="clearance deadlines" error={dutyStatuses.error} onRetry={() => dutyStatuses.refetch()} />}
           {employeesError ? (
             <QueryError what="the employee roster" error={employeesErrorDetail} onRetry={() => refetchEmployees()} />
           ) : employeesLoading ? (
@@ -232,7 +228,8 @@ export default function BackgroundChecks() {
             <div className="space-y-2">
               {filteredEmployees.map((emp) => {
                 const profile = profileByEmployeeId.get(emp.id);
-                const provisional = provisionalStatus(profile);
+                const dutyStatus = dutyStatuses.data?.[emp.id];
+                const provisional = provisionalStatus(dutyStatus);
                 return (
                   <div key={emp.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                     <div className="min-w-0">
@@ -240,6 +237,8 @@ export default function BackgroundChecks() {
                       <p className="text-xs text-muted-foreground">
                         {profile?.pa_resident_two_years === true ? "PA resident 2+ years" : profile?.pa_resident_two_years === false ? "Not a 2-year PA resident (FBI check required)" : "PA residency not yet recorded"}
                       </p>
+                      {dutyStatus?.pspExpiresOn && <p className="text-xs">PSP due {formatDateForDisplay(dutyStatus.pspExpiresOn)}</p>}
+                      {dutyStatus?.fbiExpiresOn && <p className="text-xs">FBI due {formatDateForDisplay(dutyStatus.fbiExpiresOn)}</p>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                       {provisional && <Badge className={provisional.className}>{provisional.label}</Badge>}
@@ -275,7 +274,7 @@ export default function BackgroundChecks() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  If "No", an Act 73 FBI Fingerprint Clearance requirement is automatically tracked on the Credentials page.
+                  An Act 73 FBI requirement is tracked until two years of PA residency is established.
                 </p>
               </div>
 
@@ -283,11 +282,12 @@ export default function BackgroundChecks() {
                 <Label htmlFor={`${__fieldIds}-provisional-employment-start-date`} className="text-[13px]">Provisional employment start date</Label>
                 <Input id={`${__fieldIds}-provisional-employment-start-date`} type="date" value={form.provisionalStartDate} onChange={(e) => field("provisionalStartDate", e.target.value)} className="h-9" />
                 <p className="text-xs text-muted-foreground">
-                  The window is {orgSettings?.oapsa_provisional_days_resident ?? 30} days (PA resident for the two preceding years) or {orgSettings?.oapsa_provisional_days_nonresident ?? 90} days
-                  (established non-resident awaiting the federal check), based on OAPSA (6 Pa Code Sec 15.146) and the parallel PA Code provisions for personal care homes -- confirm the applicable figure with your own regulatory counsel.
-                  While residency is left unknown the shorter window applies, because the longer one is an entitlement that has to be established.
-                  Once the window ends without the clearances on file, this employee is blocked from scheduling and from duty assignment.
+                  The PSP report has 30 days and the FBI report has 90 days from the first work day. Both requests must be made on or before that day. The Train profile's first work date takes precedence, then this start date, then hire date. Missing request or supervision evidence blocks provisional work. DHS RCG §51.
                 </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm">PSP requested on<Input type="date" value={form.pspRequestedOn} onChange={e => field("pspRequestedOn", e.target.value)} /></label>
+                <label className="text-sm">FBI requested on<Input type="date" value={form.fbiRequestedOn} onChange={e => field("fbiRequestedOn", e.target.value)} /></label>
               </div>
               <label className="flex items-start gap-2 text-sm">
                 <Checkbox checked={form.nonDisqStatementSigned} onCheckedChange={(v) => field("nonDisqStatementSigned", !!v)} className="mt-0.5" />

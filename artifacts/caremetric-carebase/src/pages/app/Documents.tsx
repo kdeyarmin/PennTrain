@@ -21,6 +21,7 @@ import { FileText, Upload, Trash2, Download, Files, UserRound } from "lucide-rea
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { canUploadTrainingDocumentType, canUploadTrainingDocuments } from "@/lib/policyPermissions";
 import { ResidentDocumentDeletionQueue } from "@/components/residents/ResidentDocumentDeletionQueue";
+import { ResidentRecordDestructionLog } from "@/components/residents/ResidentRecordDestructionLog";
 
 // Matches the training_documents_delete RLS policy (org_admin/facility_manager, or
 // platform_admin via is_platform_admin()) — trainer and employee can never delete a
@@ -275,6 +276,7 @@ export default function Documents() {
       </div>
 
       {(user?.role === "org_admin" || user?.role === "platform_admin") && <ResidentDocumentDeletionQueue />}
+      {(user?.role === "org_admin" || user?.role === "platform_admin") && <ResidentRecordDestructionLog />}
 
       {canUpload && <Card>
         <CardHeader>

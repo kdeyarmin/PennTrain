@@ -195,8 +195,8 @@ select recalculate_org_compliance('00000000-0000-0000-0000-0000000000a1');
 
 select results_eq(
   $$ select due_date from public.employee_training_records where employee_id = '00000000-0000-0000-0000-0000000000a6' and training_type_id = '00000000-0000-0000-0000-0000000000a7' $$,
-  $$ select (public.pa_today() - 400 + 365)::date $$,
-  'recalculate_org_compliance sets due_date = completion_date + renewal_interval_days'
+  $$ select ((public.pa_today() - 400) + interval '1 year')::date + 15 $$,
+  'recalculate_org_compliance applies the full calendar-year renewal and 15-day records grace'
 );
 
 select results_eq(

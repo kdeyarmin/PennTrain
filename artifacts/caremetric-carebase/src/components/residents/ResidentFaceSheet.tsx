@@ -31,8 +31,8 @@ export function ResidentFaceSheet({ packet }: { packet: ResidentFaceSheetPacket 
       <div className="mb-4 grid grid-cols-2 gap-3 text-xs">
         <section className="border border-black p-2">
           <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Clinical & Professional Contacts</h3>
-          {packet.contacts.map((contact) => (
-            <p key={contact.label}><span className="font-semibold">{contact.label}:</span> {contact.value}</p>
+          {packet.contacts.map((contact, index) => (
+            <p key={`${contact.label}-${index}`}><span className="font-semibold">{contact.label}:</span> {contact.value}</p>
           ))}
         </section>
         <section className="border border-black p-2">
@@ -46,6 +46,18 @@ export function ResidentFaceSheet({ packet }: { packet: ResidentFaceSheetPacket 
           ))}
         </section>
       </div>
+
+      <section className="mb-4 border border-black p-2 text-xs">
+        <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Clinical Information for Transfer</h3>
+        <p><span className="font-semibold">Medical diagnoses:</span> {packet.clinical.diagnoses.join("; ") || "Not available — verify and attach current record."}</p>
+        <p><span className="font-semibold">Imported allergies (including medications):</span> {packet.clinical.allergies.join("; ") || "Not available — verify allergy status."}</p>
+        <h4 className="mt-2 font-semibold">Active medications — dosage and frequency as recorded</h4>
+        {packet.clinical.medications.length ? packet.clinical.medications.map((medication, index) => (
+          <p key={`${medication.name}-${index}`}><span className="font-semibold">{medication.name}:</span> {medication.directions} · Source updated {medication.sourceUpdated}</p>
+        )) : <p>No current medication record available in this packet.</p>}
+        <h4 className="mt-2 font-semibold">Complete before emergency transfer</h4>
+        <ul className="list-disc pl-4">{packet.clinical.outstanding.map((item) => <li key={item}>{item}</li>)}</ul>
+      </section>
 
       <section className="mb-4 border border-black p-2 text-xs">
         <h3 className="mb-2 border-b border-black pb-1 text-sm font-bold">Residential-Care Profile</h3>

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Tables } from "@/lib/database.types";
+import type { Json, Tables } from "@/lib/database.types";
 
 export type ResidentComplianceItem = Tables<"resident_compliance_items">;
 
@@ -99,11 +99,12 @@ export function useCompleteResidentComplianceItem() {
     // downstream is anchored on it: the checklist's completed date, the care header's
     // lastAssessment, and every successor item the RPC inserts. Omitting it falls back to today,
     // which is what the RPC used to do unconditionally. BACKLOG J5.
-    mutationFn: async ({ item, documentId, completedOn }: { item: Pick<ResidentComplianceItem, "id">; documentId: string; completedOn?: string }) => {
+    mutationFn: async ({ item, documentId, completedOn, reviewAttestation }: { item: Pick<ResidentComplianceItem, "id">; documentId: string; completedOn?: string; reviewAttestation?: Json }) => {
       const { data, error } = await supabase.rpc("complete_resident_compliance_item", {
         p_item_id: item.id,
         p_document_id: documentId,
         p_completed_on: completedOn,
+        p_review_attestation: reviewAttestation,
       });
       if (error) throw error;
       return data;
@@ -111,6 +112,7 @@ export function useCompleteResidentComplianceItem() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["resident_compliance_items", data.resident_id] });
       queryClient.invalidateQueries({ queryKey: ["resident_compliance_items_all"] });
+      queryClient.invalidateQueries({ queryKey: ["resident-change-events"] });
     },
   });
 }

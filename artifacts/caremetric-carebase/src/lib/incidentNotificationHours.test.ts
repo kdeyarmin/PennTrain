@@ -8,6 +8,8 @@ describe("incident notification default hours", () => {
     expect(defaultNotificationHours("state_hotline")).toBe(24);
     expect(defaultNotificationHours("licensing_agency")).toBe(24);
     expect(defaultNotificationHours("written_report")).toBe(48);
+    expect(defaultNotificationHours("written_law_enforcement")).toBe(48);
+    expect(defaultNotificationHours("written_protective_services")).toBe(48);
   });
 
   it("uses the entered hours when they are a positive number", () => {
@@ -18,8 +20,14 @@ describe("incident notification default hours", () => {
   it("falls back to the type's window when the field is cleared or invalid", () => {
     expect(notificationDueHours("protective_services", "")).toBe(2);
     expect(notificationDueHours("protective_services", "  ")).toBe(2);
-    expect(notificationDueHours("protective_services", "0")).toBe(2);
+    expect(notificationDueHours("protective_services", "0")).toBe(0);
     expect(notificationDueHours("protective_services", "-3")).toBe(2);
     expect(notificationDueHours("written_report", "abc")).toBe(48);
+  });
+  it("keeps immediately due family and prescriber duties at zero hours", () => {
+    for (const kind of ["resident", "resident_family", "designated_person", "prescriber", "supervision_plan"] as const) {
+      expect(defaultNotificationHours(kind)).toBe(0);
+      expect(notificationDueHours(kind, "")).toBe(0);
+    }
   });
 });

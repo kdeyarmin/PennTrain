@@ -56,6 +56,20 @@ insert into public.employee_facility_assignments(organization_id, employee_id, f
    '4a000000-0000-4000-8000-000000000011', true)
 on conflict (employee_id, facility_id) do nothing;
 
+-- These scheduling fixtures have actual synthetic qualification and clearance
+-- evidence; calendar/coverage assertions must not rely on missing staff records.
+insert into public.employee_regulatory_profiles(employee_id,organization_id,facility_id,birth_date,education,role_category,education_evidence,medical_fitness_confirmed,updated_by)
+select e.id,e.organization_id,e.facility_id,'1990-01-01','high_school','direct_care','Synthetic fixture diploma verified',true,'4a000000-0000-4000-8000-000000000101'
+from public.employees e where e.organization_id='4a000000-0000-4000-8000-000000000001';
+insert into public.employee_background_check_profiles(organization_id,facility_id,employee_id,pa_resident_two_years,suitability_determination,psp_requested_on,suitability_notes)
+select e.organization_id,e.facility_id,e.id,true,'suitable',e.hire_date,'Synthetic fixture PSP clearance received and reviewed'
+from public.employees e where e.organization_id='4a000000-0000-4000-8000-000000000001'
+on conflict(employee_id) do update set pa_resident_two_years=excluded.pa_resident_two_years,
+ suitability_determination=excluded.suitability_determination,psp_requested_on=excluded.psp_requested_on,suitability_notes=excluded.suitability_notes;
+update public.employee_credentials set issue_date=public.pa_today()-100,status='compliant',expiration_date=public.pa_today()+365,
+ verified_at=now(),verification_method='Synthetic fixture clearance received'
+where organization_id='4a000000-0000-4000-8000-000000000001' and credential_type='act34_criminal_history';
+
 insert into public.schedules(id, organization_id, facility_id, title, period_start, period_end, created_by, status) values
   ('4a000000-0000-4000-8000-000000000321', '4a000000-0000-4000-8000-000000000001',
    '4a000000-0000-4000-8000-000000000011', 'Published week', public.pa_today(), public.pa_today()+14,

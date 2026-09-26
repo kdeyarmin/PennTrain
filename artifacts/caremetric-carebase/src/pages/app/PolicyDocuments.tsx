@@ -1,3 +1,5 @@
+import { usePolicyWriteAssurance } from "@/hooks/usePolicyWriteAssurance";
+import { PolicyWriteAssurance } from "@/components/policies/PolicyWriteAssurance";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -20,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FileSignature, Plus, ChevronRight } from "lucide-react";
 
 function NewPolicyDocumentDialog() {
+  const assurance = usePolicyWriteAssurance();
   const { user } = useAuth();
   const { toast } = useToast();
   const { mutateAsync: createDocument, isPending } = useCreatePolicyDocument();
@@ -59,7 +62,7 @@ function NewPolicyDocumentDialog() {
       }
     }}>
       <DialogTrigger asChild>
-        <Button><Plus className="mr-2 h-4 w-4" /> New Policy Document</Button>
+        <Button disabled={!assurance.canWrite}><Plus className="mr-2 h-4 w-4" /> New Policy Document</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -80,9 +83,10 @@ function NewPolicyDocumentDialog() {
             <Textarea id="policy-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
           </div>
         </div>
+        <PolicyWriteAssurance />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!title.trim() || isPending}>
+          <Button onClick={handleCreate} disabled={!assurance.canWrite || !title.trim() || isPending}>
             {isPending ? "Creating..." : "Create"}
           </Button>
         </DialogFooter>
@@ -120,6 +124,7 @@ export default function PolicyDocuments() {
         {canWrite && <NewPolicyDocumentDialog />}
       </div>
 
+      <PolicyWriteAssurance />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

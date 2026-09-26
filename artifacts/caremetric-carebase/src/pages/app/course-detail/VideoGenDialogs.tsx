@@ -44,7 +44,7 @@ export function VideoGenDialog({
         <DialogHeader><DialogTitle>Generate AI Avatar Video</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-xs text-muted-foreground">
-            Generates a talking-avatar video from a script. If your HeyGen account has an AI Twin, it is sorted first
+            Optional video generation creates a talking-avatar video from a script. If your HeyGen account has an AI Twin, it is sorted first
             and preselected so high-quality course videos can be created with one click.
           </p>
           {replacingVideo && <p className="text-xs text-muted-foreground">The current video stays available until its replacement finishes successfully.</p>}

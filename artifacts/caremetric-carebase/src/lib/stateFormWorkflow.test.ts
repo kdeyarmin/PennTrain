@@ -214,6 +214,7 @@ describe("listUpcomingRenewals", () => {
   it("excludes the initial medical evaluation, which is not a renewal", () => {
     const items = [
       item({ id: "initial-dme", item_type: "medical_evaluation", due_date: "2026-07-22" }),
+      item({ id: "changed-dme", item_type: "change_medical_evaluation", due_date: "2026-07-22" }),
       item({ id: "annual-dme", item_type: "annual_medical_evaluation", due_date: "2026-07-22" }),
     ];
     expect(listUpcomingRenewals(items, TODAY, 60).map((i) => i.id)).toEqual(["annual-dme"]);

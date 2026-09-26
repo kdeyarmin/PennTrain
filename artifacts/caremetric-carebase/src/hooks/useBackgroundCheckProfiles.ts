@@ -42,6 +42,7 @@ export function useUpsertBackgroundCheckProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["background_check_profiles"] });
       queryClient.invalidateQueries({ queryKey: ["employee_credentials"] });
+      queryClient.invalidateQueries({ queryKey: ["oapsa-duty-statuses"] });
     },
   });
 }

@@ -87,6 +87,17 @@ describe("buildResidentNeedsAttention", () => {
 });
 
 describe("assessment and state-form cards", () => {
+  it("surfaces a medical-change evaluation separately with an internal target and its signed-DME gap", () => {
+    const item = { id: "medical-change", item_type: "change_medical_evaluation", status: "missing", due_date: "2026-07-24" };
+    const pending = buildResidentNeedsAttention(clean({ complianceItems: [item] }));
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({ kind: "assessment_overdue", severity: "urgent", title: "Medical evaluation required after condition change" });
+    expect(pending[0].why).toContain("internal follow-up target");
+    const missingDocument = buildResidentNeedsAttention(clean({ complianceItems: [{ ...item, status: "compliant", completed_date: "2026-07-25" }] }));
+    expect(missingDocument.map(card => card.kind)).toContain("missing_state_form");
+    const completed = buildResidentNeedsAttention(clean({ complianceItems: [{ ...item, status: "compliant", completed_date: "2026-07-25" }], documents: [{ compliance_item_id: item.id, is_state_form: true }] }));
+    expect(completed).toEqual([]);
+  });
   it("marks a past-due assessment urgent and a future-dated one high", () => {
     const overdue = buildResidentNeedsAttention(clean({
       complianceItems: [{ id: "c1", item_type: "annual_reassessment", status: "expired", due_date: daysAgo(10).slice(0, 10) }],

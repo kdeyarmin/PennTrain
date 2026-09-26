@@ -1,4 +1,5 @@
 import { facilityToday } from "./dateUtils";
+import { INCIDENT_TYPE_OPTIONS } from "./incidentTypes";
 
 /**
  * Incident follow-through (program plan Phase 6b).
@@ -136,10 +137,7 @@ export const REVIEW_REQUIRED_SEVERITIES = new Set(["major", "critical"]);
  * a manually-added notification and would otherwise refuse to file a critical death or abuse
  * allegation until the reporter hand-entered the very row the database was about to create.
  */
-export const AUTO_NOTIFIED_INCIDENT_TYPES = new Set([
-  "death", "abuse_allegation", "neglect_allegation", "assault", "elopement",
-  "medication_error", "significant_injury", "fire", "environmental_emergency",
-]);
+export const AUTO_NOTIFIED_INCIDENT_TYPES = new Set<string>(INCIDENT_TYPE_OPTIONS.filter(type => type !== "other"));
 
 /** Incident kinds that always warrant a QAPI look regardless of severity. */
 export const QAPI_ALWAYS_CONSIDERED_TYPES = new Set([

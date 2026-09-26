@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { guestRpcId, guestRpcOk } from "@/lib/guestRpcResult";
+import { wetSignatureEvidenceError } from "@/lib/residentAgreementEvidence";
 
 export type ResidentAgreement = Tables<"resident_agreements">;
 export type ResidentAgreementVersion = Tables<"resident_agreement_versions">;
@@ -22,6 +23,7 @@ const invalidate = (client: ReturnType<typeof useQueryClient>, residentId?: stri
   client.invalidateQueries({ queryKey: ["resident-administrative-master", residentId] });
   client.invalidateQueries({ queryKey: ["residents", residentId] });
   client.invalidateQueries({ queryKey: ["admissions"] });
+  client.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
 };
 
 export function useResidentAgreements(residentId?: string) {
@@ -95,6 +97,8 @@ export function useRecordResidentAgreementOutcome() {
       relationship: string;
       legalAuthority?: string;
       authenticationMethod: string;
+      signedAt?: string;
+      signedDocumentId?: string;
       attestation: string;
       reason?: string;
       witnessName?: string;
@@ -102,14 +106,13 @@ export function useRecordResidentAgreementOutcome() {
       copyDeliveredAt?: string;
       copyDeliveryMethod?: string;
     }) => {
-      const { data, error } = await supabase.rpc("record_resident_agreement_outcome", {
+      const parameters = {
         p_version_id: input.versionId,
         p_outcome: input.outcome,
         p_signer_name: input.signerName,
         p_signer_role: input.signerRole,
         p_relationship: input.relationship,
         p_legal_authority: input.legalAuthority ?? "",
-        p_authentication_method: input.authenticationMethod,
         p_attestation: input.attestation,
         p_reason: input.reason ?? "",
         p_witness_name: input.witnessName ?? "",
@@ -117,6 +120,18 @@ export function useRecordResidentAgreementOutcome() {
         p_device_evidence: navigator.userAgent,
         p_copy_delivered_at: input.copyDeliveredAt,
         p_copy_delivery_method: input.copyDeliveryMethod,
+      };
+      if (input.authenticationMethod === "wet_signature_import") {
+        const invalid = wetSignatureEvidenceError(input.signedAt, input.signedDocumentId);
+        if (invalid) throw new Error(invalid);
+        const { data, error } = await supabase.rpc("record_resident_agreement_wet_outcome", {
+          ...parameters, p_signed_at: input.signedAt!, p_signed_document_id: input.signedDocumentId!,
+        });
+        if (error) throw error;
+        return data;
+      }
+      const { data, error } = await supabase.rpc("record_resident_agreement_outcome", {
+        ...parameters, p_authentication_method: input.authenticationMethod,
       });
       if (error) throw error;
       return data;

@@ -1,5 +1,5 @@
 begin;
-select plan(59);
+select plan(60);
 
 select has_table('public', 'medication_integration_sources', 'external medication sources are governed');
 select has_table('public', 'medication_resident_mappings', 'external resident identifiers require explicit mapping');
@@ -195,6 +195,8 @@ select is((select count(*)::integer from public.external_medication_administrati
 select is((select status from app_private.integration_command_receipts where id=(select id from remediation_ids where key='med-command')),
   'applied', 'command receipt records successful application');
 reset role;
+select is((select count(*)::integer from public.resident_regulatory_actions n join public.external_medication_administration_events a on n.details->>'external_event_id'=a.id::text
+ where a.external_event_id='event-1' and n.action_type='medication_refusal_notice' and n.recipient_role='prescriber' and n.due_at=a.occurred_at+interval '24 hours'),1,'the integration command also creates the independent prescriber notification duty');
 select throws_ok($$update public.external_medication_administration_events set source_note='rewritten' where external_event_id='event-1'$$,
   '55000', null, 'external medication administration evidence is append-only');
 update public.medication_integration_sources set last_sync_completed_at=now()-interval '2 hours'
