@@ -1,5 +1,6 @@
 import { useId, lazy, Suspense, useRef, useState } from "react";
 import { useParams, Link } from "wouter";
+import { INCIDENT_NOTIFICATION_TYPE_OPTIONS } from "@/lib/incidentTypes";
 import {
   useGetIncident, useUpdateIncident,
   useListIncidentStaffInvolved, useAddIncidentStaffInvolved, useRemoveIncidentStaffInvolved,
@@ -180,6 +181,7 @@ export default function IncidentDetail() {
   const [completeMethod, setCompleteMethod] = useState("");
   const [completeRecipient, setCompleteRecipient] = useState("");
   const [completeReference, setCompleteReference] = useState("");
+  const [completeNotes, setCompleteNotes] = useState("");
   const [finalReportDate, setFinalReportDate] = useState("");
   const [staffPendingRemove, setStaffPendingRemove] = useState<IncidentStaffInvolved | null>(null);
   const [docPendingDelete, setDocPendingDelete] = useState<IncidentDocument | null>(null);
@@ -574,7 +576,7 @@ export default function IncidentDetail() {
                           variant="ghost" size="icon" className="h-7 w-7"
                           onClick={() => {
                             if (completingId === n.id) { setCompletingId(null); return; }
-                            setCompletingId(n.id); setCompleteMethod(""); setCompleteRecipient(""); setCompleteReference("");
+                            setCompletingId(n.id); setCompleteMethod(""); setCompleteRecipient(""); setCompleteReference(""); setCompleteNotes("");
                           }}
                         >
                           <Check className="h-3.5 w-3.5" />
@@ -589,9 +591,10 @@ export default function IncidentDetail() {
                         <Input placeholder="Recipient (who was notified)" value={completeRecipient} onChange={(e) => setCompleteRecipient(e.target.value)} className="h-8 text-xs" />
                         <Input placeholder="Reference / confirmation #" value={completeReference} onChange={(e) => setCompleteReference(e.target.value)} className="h-8 text-xs" />
                       </div>
+                      <Textarea aria-label="Notification response and follow-up" placeholder={n.notification_type === "prescriber" ? "Prescriber's response and follow-up action (required)" : "Response, instructions, and follow-up / submission evidence"} value={completeNotes} onChange={event => setCompleteNotes(event.target.value)} />
                       <Button
                         size="sm"
-                        disabled={completingNotification}
+                        disabled={completingNotification || (n.notification_type === "prescriber" && (completeNotes.trim().length < 5 || !completeRecipient.trim()))}
                         onClick={() => {
                           completeNotification(
                             {
@@ -599,6 +602,7 @@ export default function IncidentDetail() {
                               notificationMethod: completeMethod.trim() || undefined,
                               recipient: completeRecipient.trim() || undefined,
                               referenceNumber: completeReference.trim() || undefined,
+                              notes: completeNotes.trim() ? [n.notes, completeNotes.trim()].filter(Boolean).join("\n") : undefined,
                             },
                             {
                               onSuccess: () => setCompletingId(null),
@@ -627,11 +631,11 @@ export default function IncidentDetail() {
               >
                 <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["state_hotline", "family_guardian", "law_enforcement", "licensing_agency", "protective_services", "written_report", "other"].map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
+                  {INCIDENT_NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-1.5 shrink-0">
-                <Input type="number" min={1} value={newNotificationHours} onChange={(e) => setNewNotificationHours(e.target.value)} className="h-9 w-20" />
+                <Input type="number" min={0} value={newNotificationHours} onChange={(e) => setNewNotificationHours(e.target.value)} className="h-9 w-20" />
                 <span className="text-xs text-muted-foreground">hrs</span>
               </div>
               <Button

@@ -102,6 +102,39 @@ export function fortiethWorkHour(shifts: TrainingShift[], firstWork: string): st
   }
   return null;
 }
+
+/** RCG 64(c) / 65(e)/(h): source caps apply across the whole documented training year. */
+export function eligibleTrainingMinutes(events: readonly TrainingEvent[], key: string, facilityType: string): number {
+  const annual = key === "base" || key === "administrator";
+  const limits: Record<string, number> = {
+    medication: annual ? 360 : Infinity,
+    resuscitation: annual ? 240 : Infinity,
+    online: key === "administrator" ? 720 : Infinity,
+    ojt: ["special_initial", "special_annual", "administrator"].includes(key) ? 0
+      : key === "base" && facilityType === "PCH" ? 360 : Infinity,
+  };
+  const categories = (event: TrainingEvent) => [
+    ...(event.topics.includes("medication_authorization") ? ["medication"] : []),
+    ...(event.topics.some(topic => ["first_aid", "cpr", "airway"].includes(topic)) ? ["resuscitation"] : []),
+    ...(["online", "ojt"].includes(event.delivery) ? [event.delivery] : []),
+  ];
+  // Count unrestricted delivery first so online medication/CPR does not displace otherwise
+  // eligible in-person hours. Ties are stable, independent of the API's row ordering.
+  const eligible = [...events].sort((a, b) =>
+    Number(a.delivery === "online" || a.delivery === "ojt") - Number(b.delivery === "online" || b.delivery === "ojt")
+    || categories(a).length - categories(b).length || a.completed_on.localeCompare(b.completed_on) || a.id.localeCompare(b.id));
+  let total = 0;
+  for (const event of eligible) {
+    if (event.delivery === "online" && event.topics.some(topic => ["first_aid", "cpr", "airway"].includes(topic))) continue;
+    const allocated = Number(event.allocations[key] || 0);
+    if (!Number.isFinite(allocated) || allocated <= 0) continue;
+    const caps = categories(event);
+    const minutes = Math.min(allocated, ...caps.map(category => limits[category]));
+    total += minutes;
+    for (const category of caps) limits[category] -= minutes;
+  }
+  return total;
+}
 export type TrainingCheck = { key: string; label: string; citation: string; status: "met" | "missing" | "review";
   detail: string; due: string | null };
 export function assessTraining(input: { profile?: TrainingProfile; policy?: TrainingPolicy; events: TrainingEvent[];
@@ -122,17 +155,9 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
   // when measuring compliance". The review RPC now refuses to verify it; this covers rows verified before.
   const current = (topic: string) => events.some(e => e.topics.includes(topic) && e.valid_until && e.valid_until >= today
     && !(e.delivery === "online" && ["first_aid", "cpr", "airway"].includes(topic)));
-  // On-the-job minutes a key may count: 6 of the PCH 12 annual hours (2600.65(e)(2)); none of the
-  // special unit hours, which both RCGs say "may not be on the job training" (2600.236, 2800.236(a),
-  // (c)); none of the administrator's 24, which 2600.64(d) / 2800.64(d) limit to approved sources.
-  const ojtCap = (key: string) =>
-    key === "special_initial" || key === "special_annual" || key === "administrator" ? 0
-      : pch && key === "base" ? 360 : Infinity;
   const hours = (key: string, from: string, through: string) => {
     const eligible = events.filter(e => e.completed_on >= from && e.completed_on <= through);
-    const regular = eligible.filter(e => e.delivery !== "ojt").reduce((s, e) => s + (e.allocations[key] || 0), 0);
-    const ojt = eligible.filter(e => e.delivery === "ojt").reduce((s, e) => s + (e.allocations[key] || 0), 0);
-    return (regular + Math.min(ojtCap(key), ojt)) / 60;
+    return eligibleTrainingMinutes(eligible, key, input.facilityType) / 60;
   };
   const conditionalTopic = (key: keyof NonNullable<TrainingProfile["applicability"]>, topic: string, citation: string, from?: string, due: string | null = null) => {
     if (p.applicability?.[key] === false) return;
@@ -186,7 +211,7 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     const from = period.start > (hireDate || p.first_work_date) ? period.start : (hireDate || p.first_work_date);
     if (p.direct_care) {
       const earned = hours("base", from, today), required = alr ? 16 : 12;
-      add("base", "Direct care annual hours", `${chapter}.65(${alr ? "h" : "e"})`, earned >= required, `${earned.toFixed(2)} / ${required} hours; ${from} through ${period.end}.`, period.end);
+      add("base", "Direct care annual hours", `${chapter}.65(${alr ? "h" : "e"})`, earned >= required, `${earned.toFixed(2)} / ${required} hours; ${from} through ${period.end}. Medication training counts up to 6 hours; first aid, CPR and airway training together count up to 4 hours.`, period.end);
       const missing = missingTopics(["med_self_admin", "resident_needs", "dementia", "infection", "personal_care", "safe_management"], from);
       add("annual_topics", "Direct care annual topics", `${chapter}.65(${alr ? "i" : "f"})`, missing.length === 0, `Missing: ${names(missing)}.`, period.end);
       conditionalTopic("mental_health_population", "mental_health", `${chapter}.65(${alr ? "i" : "f"})`, from, period.end);
@@ -204,7 +229,7 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     if (p.administrator) {
       const admin = trainingPeriod(today, hireDate || p.first_work_date, policy.administrator_year_basis, policy.administrator_year_start);
       const earned = hours("administrator", admin.start, today);
-      add("administrator", "Administrator annual eligible training", `${chapter}.64`, earned >= 24, `${earned.toFixed(2)} / 24 hours; on-the-job hours do not count. Verify each source is Department-approved or otherwise eligible under ${chapter}.64(d), and annual applicability.`, admin.end);
+      add("administrator", "Administrator annual eligible training", `${chapter}.64`, earned >= 24, `${earned.toFixed(2)} / 24 hours; online credit is capped at 12 hours, medication training at 6, and first aid / CPR / airway at 4. On-the-job hours do not count. Verify each source is Department-approved or otherwise eligible under ${chapter}.64(d), and annual applicability.`, admin.end);
     }
   }
   if (p.administrator) add("administrator_initial", "Administrator qualifications and initial pathway", `${chapter}.64`, has("administrator_initial") ? null : false,

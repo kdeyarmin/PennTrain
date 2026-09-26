@@ -867,6 +867,17 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                 </div>
               ))}
             </div>
+            {!!serviceWorkload?.emergencyCoverageRows?.length && <div className="space-y-2">
+              <h4 className="text-sm font-medium">Required first aid, CPR and airway coverage</h4>
+              <p className="text-xs text-muted-foreground">One trained person per 50 PCH residents or 35 ALF residents, throughout the schedule. First aid and CPR / airway may be covered by separate people. {serviceWorkload.emergencyCoverageBasis}</p>
+              <div className="overflow-x-auto rounded-md border bg-background"><table className="w-full text-xs">
+                <thead className="bg-muted/50"><tr><th className="p-2 text-left">Interval (Pennsylvania)</th><th className="p-2 text-left">Resident census</th><th className="p-2 text-left">First aid / required</th><th className="p-2 text-left">CPR + airway / required</th></tr></thead>
+                <tbody>{serviceWorkload.emergencyCoverageRows.map(row => <tr key={row.starts} className={row.first_aid < row.required || row.cpr_airway < row.required ? "border-t bg-red-50/70" : "border-t"}>
+                  <td className="p-2">{new Date(row.starts).toLocaleString("en-US", { timeZone: "America/New_York" })} – {new Date(row.ends).toLocaleString("en-US", { timeZone: "America/New_York" })}</td>
+                  <td className="p-2">{row.census}</td><td className="p-2">{row.first_aid}/{row.required}</td><td className="p-2">{row.cpr_airway}/{row.required}</td>
+                </tr>)}</tbody>
+              </table></div>
+            </div>}
             {serviceWorkloadLoading ? (
               <p className="text-xs text-muted-foreground">Loading service workload…</p>
             ) : (serviceWorkload?.coverageRows.length ?? 0) === 0 ? (

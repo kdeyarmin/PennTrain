@@ -14,6 +14,14 @@ export const INCIDENT_NOTIFICATION_DEFAULT_HOURS = {
   law_enforcement: 2,
   written_report: 48,
   family_guardian: 24,
+  resident: 0,
+  resident_family: 0,
+  designated_person: 0,
+  prescriber: 0,
+  supervision_plan: 0,
+  // The server preset uses the end of the facility business day. A manually added
+  // duty defaults to immediate so it cannot invent a rolling 24-hour extension.
+  department_of_aging: 0,
   other: 24,
 } as const satisfies Record<string, number>;
 
@@ -26,5 +34,5 @@ export function defaultNotificationHours(notificationType: IncidentNotificationT
 /** Hours from the input, or the type's default when it is blank or not a positive number. */
 export function notificationDueHours(notificationType: IncidentNotificationType, enteredHours: string): number {
   const hours = Number(enteredHours);
-  return enteredHours.trim() !== "" && Number.isFinite(hours) && hours > 0 ? hours : defaultNotificationHours(notificationType);
+  return enteredHours.trim() !== "" && Number.isFinite(hours) && hours >= 0 ? hours : defaultNotificationHours(notificationType);
 }

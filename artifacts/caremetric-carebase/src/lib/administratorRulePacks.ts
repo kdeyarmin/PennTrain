@@ -1,5 +1,5 @@
 import type { FacilityType } from "./facilityTypes";
-import { addFacilityCalendarDays, facilityDaysUntil, formatDateForDisplay } from "./dateUtils";
+import { addFacilityCalendarDays, addFacilityCalendarYears, facilityDaysUntil, formatDateForDisplay } from "./dateUtils";
 
 export type AdministratorRuleStatus = "compliant" | "due_soon" | "expired" | "missing";
 
@@ -14,6 +14,14 @@ export interface AdministratorRulePackProfile {
   first_employed_as_administrator_on?: string | null;
   regional_office_verification_submitted_date?: string | null;
   regional_office_verification_document_path?: string | null;
+  department_orientation_completed_date?: string | null;
+  department_orientation_document_path?: string | null;
+  dementia_initial_completed_date?: string | null;
+  dementia_initial_hours?: number | null;
+  dementia_initial_document_path?: string | null;
+  dementia_annual_completed_date?: string | null;
+  dementia_annual_hours?: number | null;
+  dementia_annual_document_path?: string | null;
 }
 
 export interface AdministratorRulePackCeEntry {
@@ -132,6 +140,19 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   });
 
   if (isAlr) {
+    const orientation = Boolean(profile?.department_orientation_completed_date
+      && profile.department_orientation_completed_date <= evidence.today && profile.department_orientation_document_path);
+    const initialDementia = Boolean(profile?.dementia_initial_completed_date
+      && profile.dementia_initial_completed_date <= evidence.today && Number(profile.dementia_initial_hours) >= 4
+      && profile.dementia_initial_document_path);
+    const annualDementia = Boolean(profile?.dementia_annual_completed_date
+      && profile.dementia_annual_completed_date <= evidence.today
+      && addFacilityCalendarYears(profile.dementia_annual_completed_date, 1) >= evidence.today
+      && Number(profile.dementia_annual_hours) >= 2 && profile.dementia_annual_document_path);
+    const firstYear = Boolean(firstEmployed && firstEmployed <= evidence.today
+      && evidence.today < addFacilityCalendarYears(firstEmployed, 1));
+    const initialOnTime = Boolean(firstEmployed && profile?.dementia_initial_completed_date
+      && profile.dementia_initial_completed_date <= addFacilityCalendarDays(firstEmployed, 30));
     requirements.push({
       id: "alr-orientation-and-dementia",
       label: "ALF orientation and dementia-specific training documentation",
@@ -139,14 +160,17 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
       facilityTypes: ["ALR"],
       binderDestination: "Administrator Qualifications / Orientation and Dementia Training",
       dueDate: null,
-      status: profile?.hundred_hour_course_completed_date || profile?.nha_license_number ? "compliant" : "missing",
-      detail: "Track ALF orientation, approved-course, competency, and dementia-specific administrator documentation together. 2800.69 dementia training (4 hours within 30 days of hire, 2 hours annually) is in addition to the 100-hour course.",
+      status: orientation && initialDementia && initialOnTime && (firstYear || annualDementia) ? "compliant" : "missing",
+      detail: "Record Department orientation separately, and dated evidence of 4 dementia hours within 30 days of initial employment plus 2 hours annually thereafter. A course date or NHA license alone does not establish this evidence. The training is additional to the 100-hour course; retain the basis for any exemption.",
     });
   }
 
   const ceCutoff = addFacilityCalendarDays(evidence.today, -CE_WINDOW_DAYS);
   const ceWindowEntries = ceEntries.filter((entry) => entry.completed_date >= ceCutoff && entry.completed_date <= evidence.today);
   const ceHours = rollingCe(ceEntries, evidence.today);
+  const courseFirstYear = Boolean(qualifiedByCourse && firstEmployed && firstEmployed <= evidence.today
+    && profile?.hundred_hour_course_completed_date && profile.hundred_hour_course_completed_date <= firstEmployed
+    && evidence.today < addFacilityCalendarYears(firstEmployed, 1));
   // The CE requirement lapses on the first day the trailing-365-day total drops
   // below 24 hours, i.e. when enough of the oldest entries age out of the window.
   // Walking entries oldest-first, the due date is the last day the entry whose
@@ -170,11 +194,13 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     citation: commonCitation,
     facilityTypes: [facilityType],
     binderDestination: "Administrator Qualifications / Continuing Education",
-    dueDate: ceDueDate,
-    status: ceHours >= 24
+    dueDate: courseFirstYear ? addFacilityCalendarYears(firstEmployed!, 1) : ceDueDate,
+    status: courseFirstYear ? "compliant" : ceHours >= 24
       ? (ceDueDate && daysBetween(evidence.today, ceDueDate) <= DUE_SOON_DAYS ? "due_soon" : "compliant")
       : "missing",
-    detail: `${ceHours.toFixed(1)} of 24 trailing-12-month CE hours documented.`,
+    detail: courseFirstYear
+      ? "The documented approved initial course fulfills the annual training requirement for the first year of employment under 64(c)."
+      : `${ceHours.toFixed(1)} of 24 trailing-12-month CE hours documented.`,
   });
 
   requirements.push({

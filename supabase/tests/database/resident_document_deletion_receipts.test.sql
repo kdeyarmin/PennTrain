@@ -25,9 +25,11 @@ select ('d7000000-0000-4000-8000-00000000002' || i)::uuid,
   case when i = 3 then 'facility_manager' else 'org_admin' end, true
 from generate_series(1,3) i
 on conflict(id) do update set organization_id = excluded.organization_id, role = excluded.role, is_active = true;
-insert into public.residents(id, organization_id, facility_id, first_name, last_name, status, admission_date) values
-  ('d7000000-0000-4000-8000-000000000031', 'd7000000-0000-4000-8000-000000000001', 'd7000000-0000-4000-8000-000000000011', 'Rowan', 'A', 'active', current_date - 30),
-  ('d7000000-0000-4000-8000-000000000032', 'd7000000-0000-4000-8000-000000000002', 'd7000000-0000-4000-8000-000000000012', 'Rowan', 'B', 'active', current_date - 30);
+-- These fixtures are past the statutory retention period; active-resident deletion
+-- is tested separately in resident_record_retention.test.sql.
+insert into public.residents(id, organization_id, facility_id, first_name, last_name, status, admission_date, discharge_date, date_of_birth) values
+  ('d7000000-0000-4000-8000-000000000031', 'd7000000-0000-4000-8000-000000000001', 'd7000000-0000-4000-8000-000000000011', 'Rowan', 'A', 'discharged', public.pa_today() - 1500, public.pa_today() - 1100, '1940-01-01'),
+  ('d7000000-0000-4000-8000-000000000032', 'd7000000-0000-4000-8000-000000000002', 'd7000000-0000-4000-8000-000000000012', 'Rowan', 'B', 'discharged', public.pa_today() - 1500, public.pa_today() - 1100, '1940-01-01');
 insert into public.resident_documents(id, organization_id, facility_id, resident_id, storage_path, file_name, file_type)
 select ('d7000000-0000-4000-8000-00000000004' || i)::uuid,
   'd7000000-0000-4000-8000-000000000001', 'd7000000-0000-4000-8000-000000000011', 'd7000000-0000-4000-8000-000000000031',
@@ -210,9 +212,11 @@ select throws_ok($$delete from public.residents where id='d7000000-0000-4000-800
 select pg_temp.act_as('d7000000-0000-4000-8000-000000000022');
 delete from storage.objects where bucket_id='resident-documents' and name like '%/cascade.pdf';
 select is(public.confirm_resident_document_deletion('d7000000-0000-4000-8000-000000000044'),true,'physical cleanup completes before resident rollback');
-select is((public.rollback_data_import_job('d7000000-0000-4000-8000-000000000063')->>'reverted')::integer,1,
-  'completed receipts permit the normal resident import rollback to finish');
+select is((public.rollback_data_import_job('d7000000-0000-4000-8000-000000000063')->>'blocked')::integer,1,
+  'import rollback does not delete a discharged historical record');
 reset role;
+select lives_ok($$delete from public.residents where id='d7000000-0000-4000-8000-000000000032'$$,
+  'the privileged historical-record purge succeeds after retention and Storage cleanup');
 select ok((select pending_resident_id is null and completed_at is not null from app_private.resident_document_deletions
   where document_id='d7000000-0000-4000-8000-000000000044'),'completed receipts detach their retention FK from the removed resident');
 

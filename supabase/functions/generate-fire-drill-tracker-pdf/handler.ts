@@ -95,6 +95,20 @@ export interface FireDrillRow {
   alarm_or_detector_operative: boolean | null;
   result: string;
   problems_encountered: string | null;
+  evacuation_limit_seconds?: number | null;
+  evacuation_time_exceeded?: boolean;
+  alarm_sounded?: boolean | null;
+  blocked_exit_route?: string | null;
+  evacuation_exception?: string | null;
+}
+
+export function drillMonthVerdict(drills: FireDrillRow[]): string {
+  const exceeded = drills.filter((drill) => drill.evacuation_time_exceeded).length;
+  if (exceeded) return `Evacuation-time violation recorded in ${exceeded} drill${exceeded === 1 ? "" : "s"}; later successful drills do not erase it`;
+  const passing = drills.filter((drill) => drill.result === "pass").length;
+  return passing ? `Met — ${passing} passing drill${passing === 1 ? "" : "s"} logged this month`
+    : drills.length ? `NOT met — ${drills.length} drill${drills.length === 1 ? "" : "s"} logged, none passing`
+    : "NOT met — no drill logged this month";
 }
 
 // Column widths sum to PAGE_WIDTH - 2*MARGIN (792 - 72 = 720pt). Exit Route and Problems
@@ -335,11 +349,7 @@ export async function buildFireDrillTrackerPdf(input: {
   w.field("Sleeping-Hours Drills", String(input.drills.filter((d) => d.is_sleeping_hours_drill && d.result === "pass").length));
   w.field(
     "Monthly Requirement",
-    passing > 0
-      ? `Met — ${passing} passing drill${passing === 1 ? "" : "s"} logged this month`
-      : input.drills.length > 0
-        ? `NOT met — ${input.drills.length} drill${input.drills.length === 1 ? "" : "s"} logged, none passing`
-        : "NOT met — no drill logged this month",
+    drillMonthVerdict(input.drills),
   );
   w.field("Regulatory Citation", fireDrillCitation(input.facilityType));
   w.y -= 6;
@@ -360,13 +370,16 @@ export async function buildFireDrillTrackerPdf(input: {
         formatTime(d.drill_time),
         `${d.shift ? humanize(d.shift) : "—"}${d.is_sleeping_hours_drill ? " (sleep)" : ""}`,
         formatDuration(d.evacuation_duration_seconds),
-        d.exit_route_used ?? "—",
+        [d.exit_route_used ?? "—", d.blocked_exit_route ? `Blocked: ${d.blocked_exit_route}` : ""].filter(Boolean).join("; "),
         d.residents_present_count == null ? "—" : String(d.residents_present_count),
         d.residents_evacuated_count == null ? "—" : String(d.residents_evacuated_count),
         d.staff_participating_count == null ? "—" : String(d.staff_participating_count),
         d.alarm_or_detector_operative == null ? "—" : (d.alarm_or_detector_operative ? "Yes" : "No"),
         humanize(d.result),
-        d.problems_encountered || "None noted",
+        [d.problems_encountered || "None noted",
+          d.evacuation_time_exceeded ? `Exceeded ${d.evacuation_limit_seconds}s standard; later success does not erase finding.` : "",
+          d.alarm_sounded == null ? "" : `Alarm sounded: ${d.alarm_sounded ? "Yes" : "No"}`,
+          d.evacuation_exception ? `Participation: ${d.evacuation_exception}` : ""].filter(Boolean).join("; "),
       ]);
     }
     if (input.drills.length > MAX_ROWS) {
@@ -497,7 +510,8 @@ export function createGenerateFireDrillTrackerPdfHandler({
       .select(
         "performed_date, drill_time, shift, is_sleeping_hours_drill, evacuation_duration_seconds, " +
           "exit_route_used, residents_present_count, residents_evacuated_count, staff_participating_count, " +
-          "alarm_or_detector_operative, result, problems_encountered, inspection_items!inner(item_type)",
+          "alarm_or_detector_operative, result, problems_encountered, evacuation_limit_seconds, evacuation_time_exceeded, " +
+          "alarm_sounded, blocked_exit_route, evacuation_exception, inspection_items!inner(item_type)",
       )
       .eq("facility_id", facilityId)
       .eq("inspection_items.item_type", "fire_drill_program")

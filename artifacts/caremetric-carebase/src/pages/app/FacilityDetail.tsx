@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { lazy, Suspense, useId, useMemo, useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,7 @@ import { FacilityLicensingWorkspace } from "@/components/facilities/FacilityLice
 import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { absoluteAppUrl } from "@/lib/appUrl";
+const RegulatoryActions = lazy(() => import("@/components/residents/RegulatoryActions").then((module) => ({ default: module.RegulatoryActions })));
 
 interface FacilityFormData {
   name: string;
@@ -414,7 +415,9 @@ export default function FacilityDetail() {
         facilityName={facility.name}
         clinicalEnabled={facility.clinical_enabled}
         canManage={["platform_admin", "org_admin"].includes(user?.role ?? "")}
-      /></>}
+      />
+      {["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading regulatory deadlines…</p>}><RegulatoryActions organizationId={facility.organization_id} facilityId={facility.id} facilityType={facility.facility_type} /></Suspense>}
+      </>}
 
       {/* Public safety-report poster QR — opaque token, never show facility UUID */}
       {hasCompliance && ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "") && (

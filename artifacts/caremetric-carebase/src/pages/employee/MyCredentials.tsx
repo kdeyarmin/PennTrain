@@ -19,7 +19,7 @@ const CREDENTIAL_TYPE_LABELS: Record<string, string> = {
   rn_license: "RN License",
   lpn_license: "LPN License",
   nurse_aide_registry: "Nurse Aide Registry Status",
-  tb_screening: "TB Screening",
+  tb_screening: "TB Screening (facility policy)",
   immunization: "Immunization",
   i9_employment_eligibility: "I-9 Employment Eligibility",
   other: "Other",

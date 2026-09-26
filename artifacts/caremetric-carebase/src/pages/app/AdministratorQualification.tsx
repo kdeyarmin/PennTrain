@@ -129,6 +129,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
     [facilityTypePreview, profile, ceEntries],
   );
   const administratorRuleSummary = useMemo(() => summarizeAdministratorRulePack(administratorRulePack), [administratorRulePack]);
+  const ceRequirement = administratorRulePack.find((requirement) => requirement.id === "administrator-continuing-education");
 
   // Blur-saves overlap: typing a date and clicking a checkbox fires two upserts before the first
   // refetch lands, and each used to resend the render-time `profile` snapshot -- so the second
@@ -155,6 +156,14 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
         regional_office_verification_submitted_date: profile?.regional_office_verification_submitted_date ?? null,
         regional_office_verification_document_path: profile?.regional_office_verification_document_path ?? null,
         regional_office_verification_notes: profile?.regional_office_verification_notes ?? null,
+        department_orientation_completed_date: profile?.department_orientation_completed_date ?? null,
+        department_orientation_document_path: profile?.department_orientation_document_path ?? null,
+        dementia_initial_completed_date: profile?.dementia_initial_completed_date ?? null,
+        dementia_initial_hours: profile?.dementia_initial_hours ?? null,
+        dementia_initial_document_path: profile?.dementia_initial_document_path ?? null,
+        dementia_annual_completed_date: profile?.dementia_annual_completed_date ?? null,
+        dementia_annual_hours: profile?.dementia_annual_hours ?? null,
+        dementia_annual_document_path: profile?.dementia_annual_document_path ?? null,
       };
       const payload = { ...base, ...patch };
       lastSentRef.current = payload;
@@ -264,6 +273,11 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           {profile?.qualification_path === "hundred_hour_course" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
               <div className="space-y-1.5">
+                <Label htmlFor={`${__fieldIds}-course-first-employed`}>First employed as administrator</Label>
+                <Input id={`${__fieldIds}-course-first-employed`} type="date" defaultValue={profile.first_employed_as_administrator_on ?? ""} onBlur={(e) => save({ first_employed_as_administrator_on: e.target.value || null })} />
+                <p className="text-xs text-muted-foreground">Establishes the first-year annual training credit for the approved initial course.</p>
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor={`${__fieldIds}-training-course-completed-date`} className="text-[13px]">Training Course Completed Date</Label>
                 <Input id={`${__fieldIds}-training-course-completed-date`} type="date" defaultValue={profile.hundred_hour_course_completed_date ?? ""} onBlur={(e) => save({ hundred_hour_course_completed_date: e.target.value || null })} className="h-9" />
               </div>
@@ -326,6 +340,24 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
       </Card>
 
       <Card>
+        <CardHeader><CardTitle>Department orientation and ALF dementia training</CardTitle><CardDescription>Retain separate certificates and completion dates. ALF dementia instruction requires 4 hours within 30 days of hire and 2 hours annually thereafter.</CardDescription></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${__fieldIds}-department-orientation`}>Department orientation completed</Label>
+            <Input id={`${__fieldIds}-department-orientation`} type="date" defaultValue={profile?.department_orientation_completed_date ?? ""} onBlur={(e) => save({ department_orientation_completed_date: e.target.value || null })} />
+          </div>
+          <DocumentUploadRow label="Department orientation certificate" path={profile?.department_orientation_document_path ?? null} organizationId={organizationId} profileId={profileId} onUploaded={(path) => save({ department_orientation_document_path: path }, { rethrow: true })} />
+          {(["initial", "annual"] as const).map(cycle => <div key={cycle} className="space-y-3 border-t pt-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-dementia-${cycle}-date`}>{cycle === "initial" ? "Initial" : "Latest annual"} dementia training completed</Label><Input id={`${__fieldIds}-dementia-${cycle}-date`} type="date" defaultValue={profile?.[`dementia_${cycle}_completed_date`] ?? ""} onBlur={(e) => save({ [`dementia_${cycle}_completed_date`]: e.target.value || null })} /></div>
+              <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-dementia-${cycle}-hours`}>Documented dementia hours</Label><Input id={`${__fieldIds}-dementia-${cycle}-hours`} type="number" min="0" step="0.25" defaultValue={profile?.[`dementia_${cycle}_hours`] ?? ""} onBlur={(e) => save({ [`dementia_${cycle}_hours`]: e.target.value ? Number(e.target.value) : null })} /></div>
+            </div>
+            <DocumentUploadRow label={`${cycle === "initial" ? "Initial" : "Annual"} dementia training evidence`} path={profile?.[`dementia_${cycle}_document_path`] ?? null} organizationId={organizationId} profileId={profileId} onUploaded={(path) => save({ [`dementia_${cycle}_document_path`]: path }, { rethrow: true })} />
+          </div>)}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" /> Regional Office Verification</CardTitle>
           <CardDescription>Written notice of administrator qualifications submitted to the DHS regional office.</CardDescription>
@@ -358,7 +390,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
             <Badge className={
               ceEntriesQuery.isLoading || ceEntriesQuery.isPending || ceEntriesQuery.isError
                 ? "bg-muted text-muted-foreground hover:bg-muted"
-                : rollingTotal >= ROLLING_WINDOW_HOURS_REQUIRED
+                : ceRequirement?.status === "compliant"
                   ? "bg-success text-success-foreground hover:bg-success/80"
                   : "bg-warning text-warning-foreground hover:bg-warning/80"
             }>
@@ -367,7 +399,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
                 : `${rollingTotal.toFixed(1)} / ${ROLLING_WINDOW_HOURS_REQUIRED} hrs (trailing 12 months)`}
             </Badge>
           </div>
-          <CardDescription>Rolling 24-hour annual CE requirement, with source and documentation captured per entry.</CardDescription>
+          <CardDescription>{ceRequirement?.detail ?? "Annual CE requirement, with source and documentation captured per entry."}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">

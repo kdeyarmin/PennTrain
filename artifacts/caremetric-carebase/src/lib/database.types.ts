@@ -93,6 +93,14 @@ export type Database = {
           competency_test_date: string | null
           competency_test_passed: boolean
           created_at: string
+          dementia_annual_completed_date: string | null
+          dementia_annual_document_path: string | null
+          dementia_annual_hours: number | null
+          dementia_initial_completed_date: string | null
+          dementia_initial_document_path: string | null
+          dementia_initial_hours: number | null
+          department_orientation_completed_date: string | null
+          department_orientation_document_path: string | null
           first_employed_as_administrator_on: string | null
           hundred_hour_course_completed_date: string | null
           hundred_hour_course_document_path: string | null
@@ -113,6 +121,14 @@ export type Database = {
           competency_test_date?: string | null
           competency_test_passed?: boolean
           created_at?: string
+          dementia_annual_completed_date?: string | null
+          dementia_annual_document_path?: string | null
+          dementia_annual_hours?: number | null
+          dementia_initial_completed_date?: string | null
+          dementia_initial_document_path?: string | null
+          dementia_initial_hours?: number | null
+          department_orientation_completed_date?: string | null
+          department_orientation_document_path?: string | null
           first_employed_as_administrator_on?: string | null
           hundred_hour_course_completed_date?: string | null
           hundred_hour_course_document_path?: string | null
@@ -133,6 +149,14 @@ export type Database = {
           competency_test_date?: string | null
           competency_test_passed?: boolean
           created_at?: string
+          dementia_annual_completed_date?: string | null
+          dementia_annual_document_path?: string | null
+          dementia_annual_hours?: number | null
+          dementia_initial_completed_date?: string | null
+          dementia_initial_document_path?: string | null
+          dementia_initial_hours?: number | null
+          department_orientation_completed_date?: string | null
+          department_orientation_document_path?: string | null
           first_employed_as_administrator_on?: string | null
           hundred_hour_course_completed_date?: string | null
           hundred_hour_course_document_path?: string | null
@@ -14688,7 +14712,9 @@ export type Database = {
         Row: {
           citation: string
           created_at: string
+          deadline_basis: string
           due_hours: number
+          facility_types: string[]
           id: string
           incident_type: string
           is_active: boolean
@@ -14700,7 +14726,9 @@ export type Database = {
         Insert: {
           citation: string
           created_at?: string
+          deadline_basis?: string
           due_hours: number
+          facility_types?: string[]
           id?: string
           incident_type: string
           is_active?: boolean
@@ -14712,7 +14740,9 @@ export type Database = {
         Update: {
           citation?: string
           created_at?: string
+          deadline_basis?: string
           due_hours?: number
+          facility_types?: string[]
           id?: string
           incident_type?: string
           is_active?: boolean
@@ -15150,12 +15180,19 @@ export type Database = {
       inspection_events: {
         Row: {
           alarm_or_detector_operative: boolean | null
+          alarm_sounded: boolean | null
+          blocked_exit_route: string | null
           created_at: string
           deficiency_notes: string | null
           drill_time: string | null
           evacuation_duration_seconds: number | null
+          evacuation_exception: string | null
+          evacuation_limit_seconds: number | null
+          evacuation_time_exceeded: boolean
           exit_route_used: string | null
           facility_id: string
+          fire_safety_expert_name: string | null
+          fire_safety_expert_qualification: string | null
           follow_up_required: boolean
           id: string
           inspection_item_id: string
@@ -15166,21 +15203,31 @@ export type Database = {
           performed_by_profile_id: string | null
           performed_date: string
           problems_encountered: string | null
+          regulatory_evidence_version: number
           residents_evacuated_count: number | null
           residents_present_count: number | null
           result: string
           shift: string | null
           staff_participating_count: number | null
+          submitted_to_agency_at: string | null
+          tested_alarm_item_ids: string[]
           updated_at: string
         }
         Insert: {
           alarm_or_detector_operative?: boolean | null
+          alarm_sounded?: boolean | null
+          blocked_exit_route?: string | null
           created_at?: string
           deficiency_notes?: string | null
           drill_time?: string | null
           evacuation_duration_seconds?: number | null
+          evacuation_exception?: string | null
+          evacuation_limit_seconds?: number | null
+          evacuation_time_exceeded?: boolean
           exit_route_used?: string | null
           facility_id: string
+          fire_safety_expert_name?: string | null
+          fire_safety_expert_qualification?: string | null
           follow_up_required?: boolean
           id?: string
           inspection_item_id: string
@@ -15191,21 +15238,31 @@ export type Database = {
           performed_by_profile_id?: string | null
           performed_date: string
           problems_encountered?: string | null
+          regulatory_evidence_version?: number
           residents_evacuated_count?: number | null
           residents_present_count?: number | null
           result: string
           shift?: string | null
           staff_participating_count?: number | null
+          submitted_to_agency_at?: string | null
+          tested_alarm_item_ids?: string[]
           updated_at?: string
         }
         Update: {
           alarm_or_detector_operative?: boolean | null
+          alarm_sounded?: boolean | null
+          blocked_exit_route?: string | null
           created_at?: string
           deficiency_notes?: string | null
           drill_time?: string | null
           evacuation_duration_seconds?: number | null
+          evacuation_exception?: string | null
+          evacuation_limit_seconds?: number | null
+          evacuation_time_exceeded?: boolean
           exit_route_used?: string | null
           facility_id?: string
+          fire_safety_expert_name?: string | null
+          fire_safety_expert_qualification?: string | null
           follow_up_required?: boolean
           id?: string
           inspection_item_id?: string
@@ -15216,11 +15273,14 @@ export type Database = {
           performed_by_profile_id?: string | null
           performed_date?: string
           problems_encountered?: string | null
+          regulatory_evidence_version?: number
           residents_evacuated_count?: number | null
           residents_present_count?: number | null
           result?: string
           shift?: string | null
           staff_participating_count?: number | null
+          submitted_to_agency_at?: string | null
+          tested_alarm_item_ids?: string[]
           updated_at?: string
         }
         Relationships: [
@@ -15259,7 +15319,10 @@ export type Database = {
           citation_topic_id: string | null
           created_at: string
           derived_from_inspection_item_id: string | null
+          evacuation_limit_seconds: number | null
+          evacuation_standard_date: string | null
           facility_id: string
+          fire_safe_area: string | null
           id: string
           inspection_interval_days: number
           install_date: string | null
@@ -15277,6 +15340,9 @@ export type Database = {
           qr_token: string
           serial_number: string | null
           service_contract_expires_on: string | null
+          sleeping_hours_basis: string | null
+          sleeping_hours_end: string
+          sleeping_hours_start: string
           status: string
           updated_at: string
           warranty_expires_on: string | null
@@ -15285,7 +15351,10 @@ export type Database = {
           citation_topic_id?: string | null
           created_at?: string
           derived_from_inspection_item_id?: string | null
+          evacuation_limit_seconds?: number | null
+          evacuation_standard_date?: string | null
           facility_id: string
+          fire_safe_area?: string | null
           id?: string
           inspection_interval_days: number
           install_date?: string | null
@@ -15303,6 +15372,9 @@ export type Database = {
           qr_token?: string
           serial_number?: string | null
           service_contract_expires_on?: string | null
+          sleeping_hours_basis?: string | null
+          sleeping_hours_end?: string
+          sleeping_hours_start?: string
           status?: string
           updated_at?: string
           warranty_expires_on?: string | null
@@ -15311,7 +15383,10 @@ export type Database = {
           citation_topic_id?: string | null
           created_at?: string
           derived_from_inspection_item_id?: string | null
+          evacuation_limit_seconds?: number | null
+          evacuation_standard_date?: string | null
           facility_id?: string
+          fire_safe_area?: string | null
           id?: string
           inspection_interval_days?: number
           install_date?: string | null
@@ -15329,6 +15404,9 @@ export type Database = {
           qr_token?: string
           serial_number?: string | null
           service_contract_expires_on?: string | null
+          sleeping_hours_basis?: string | null
+          sleeping_hours_end?: string
+          sleeping_hours_start?: string
           status?: string
           updated_at?: string
           warranty_expires_on?: string | null
@@ -25149,6 +25227,8 @@ export type Database = {
           immediate_observations: string
           incident_decision: string
           incident_id: string | null
+          medical_condition_changed: boolean
+          medical_evaluation_item_id: string | null
           monitoring_duration_hours: number | null
           monitoring_ends_at: string | null
           monitoring_frequency: string | null
@@ -25192,6 +25272,8 @@ export type Database = {
           immediate_observations: string
           incident_decision?: string
           incident_id?: string | null
+          medical_condition_changed?: boolean
+          medical_evaluation_item_id?: string | null
           monitoring_duration_hours?: number | null
           monitoring_ends_at?: string | null
           monitoring_frequency?: string | null
@@ -25235,6 +25317,8 @@ export type Database = {
           immediate_observations?: string
           incident_decision?: string
           incident_id?: string | null
+          medical_condition_changed?: boolean
+          medical_evaluation_item_id?: string | null
           monitoring_duration_hours?: number | null
           monitoring_ends_at?: string | null
           monitoring_frequency?: string | null
@@ -25300,6 +25384,13 @@ export type Database = {
             columns: ["incident_id"]
             isOneToOne: false
             referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_change_events_medical_evaluation_item_id_fkey"
+            columns: ["medical_evaluation_item_id"]
+            isOneToOne: false
+            referencedRelation: "resident_compliance_items"
             referencedColumns: ["id"]
           },
           {
@@ -25485,6 +25576,7 @@ export type Database = {
           created_at: string
           due_date: string | null
           facility_id: string
+          final_plan_review: Json | null
           grace_period_days: number
           id: string
           item_type: string
@@ -25504,6 +25596,7 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           facility_id: string
+          final_plan_review?: Json | null
           grace_period_days?: number
           id?: string
           item_type: string
@@ -25523,6 +25616,7 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           facility_id?: string
+          final_plan_review?: Json | null
           grace_period_days?: number
           id?: string
           item_type?: string
@@ -28516,6 +28610,108 @@ export type Database = {
             columns: ["supersedes_rate_agreement_id"]
             isOneToOne: false
             referencedRelation: "resident_rate_agreements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_regulatory_actions: {
+        Row: {
+          action_type: string
+          anchor_at: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          destination: string | null
+          details: Json
+          due_at: string
+          evidence: string | null
+          exception_basis: string | null
+          facility_id: string
+          id: string
+          organization_id: string
+          reason: string
+          recipient_name: string | null
+          recipient_role: string
+          resident_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          anchor_at: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          destination?: string | null
+          details?: Json
+          due_at?: string
+          evidence?: string | null
+          exception_basis?: string | null
+          facility_id: string
+          id?: string
+          organization_id: string
+          reason: string
+          recipient_name?: string | null
+          recipient_role?: string
+          resident_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          anchor_at?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          destination?: string | null
+          details?: Json
+          due_at?: string
+          evidence?: string | null
+          exception_basis?: string | null
+          facility_id?: string
+          id?: string
+          organization_id?: string
+          reason?: string
+          recipient_name?: string | null
+          recipient_role?: string
+          resident_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_regulatory_actions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_actions_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_actions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_actions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_regulatory_actions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
             referencedColumns: ["id"]
           },
         ]
@@ -37874,7 +38070,11 @@ export type Database = {
         Returns: string
       }
       complete_move_in_admission: {
-        Args: { p_reason: string; p_workspace_id: string }
+        Args: {
+          p_admission_date: string
+          p_reason: string
+          p_workspace_id: string
+        }
         Returns: string
       }
       complete_notification_delivery_attempt: {
@@ -37894,6 +38094,7 @@ export type Database = {
           p_completed_on?: string
           p_document_id: string
           p_item_id: string
+          p_review_attestation?: Json
         }
         Returns: {
           citation_topic_id: string | null
@@ -37901,6 +38102,7 @@ export type Database = {
           created_at: string
           due_date: string | null
           facility_id: string
+          final_plan_review: Json | null
           grace_period_days: number
           id: string
           item_type: string
@@ -38367,6 +38569,7 @@ export type Database = {
           p_immediate_action_taken: string
           p_immediate_observations: string
           p_incident_decision: string
+          p_medical_condition_changed?: boolean
           p_monitoring_duration_hours: number
           p_monitoring_frequency: string
           p_monitoring_instructions: string
@@ -40855,6 +41058,22 @@ export type Database = {
           title: string
         }[]
       }
+      list_resident_record_destructions: {
+        Args: { p_resident_id?: string }
+        Returns: {
+          admission_date: string
+          completed_at: string
+          date_of_birth: string
+          discharge_date: string
+          id: string
+          record_id: string
+          record_number: string
+          record_table: string
+          requested_at: string
+          resident_id: string
+          resident_name: string
+        }[]
+      }
       list_shift_swap_candidates: {
         Args: { p_requester_assignment_id: string }
         Returns: {
@@ -40965,6 +41184,7 @@ export type Database = {
           created_at: string
           due_date: string | null
           facility_id: string
+          final_plan_review: Json | null
           grace_period_days: number
           id: string
           item_type: string
@@ -43724,6 +43944,10 @@ export type Database = {
         }
         Returns: string
       }
+      schedule_emergency_coverage: {
+        Args: { p_schedule_id: string }
+        Returns: Json
+      }
       schedule_resident_appointment: {
         Args: {
           p_appointment_type: string
@@ -44123,6 +44347,10 @@ export type Database = {
       }
       spawn_due_policy_campaign_cycles: {
         Args: { p_now?: string }
+        Returns: number
+      }
+      staff_emergency_qualification_mask: {
+        Args: { p_employee_id: string; p_end: string; p_start: string }
         Returns: number
       }
       stage_hris_import_row: {

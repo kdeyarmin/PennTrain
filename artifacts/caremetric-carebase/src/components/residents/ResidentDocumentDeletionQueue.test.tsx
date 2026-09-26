@@ -17,6 +17,9 @@ vi.mock("@/hooks/useResidentDocuments", () => ({
   useListPendingResidentDocumentDeletions: h.query,
   useRetryResidentDocumentDeletion: () => ({ mutateAsync: h.retry, isPending: h.pending }),
 }));
+vi.mock("@/hooks/useResidentRecordDestructions", () => ({
+  useResidentRecordDestructions: () => ({ data: [], isError: false, isLoading: false }),
+}));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "profile-a", role: h.role } }) }));
 vi.mock("@/hooks/useFacilities", () => ({ useListFacilities: () => ({ data: [] }) }));

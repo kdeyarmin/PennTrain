@@ -25,6 +25,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday } from "@/lib/dateUtils";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { INSPECTION_RULES, maximumInspectionInterval } from "@/lib/inspectionRules";
 
 const PAGE_SIZE = 15;
 
@@ -42,6 +43,9 @@ const ITEM_TYPE_OPTIONS: Array<{ value: InspectionItem["item_type"]; label: stri
   { value: "evacuation_time_letter", label: "Fire-Safety-Expert Evacuation Time Letter", kind: "procedural" },
   { value: "emergency_supply_check", label: "Emergency 3-Day Supply Check", kind: "procedural" },
   { value: "other_procedural", label: "Other Procedural Requirement", kind: "procedural" },
+  ...Object.entries(INSPECTION_RULES)
+    .filter(([value]) => !["fire_drill_program", "fire_extinguisher", "fire_alarm_system", "smoke_detector", "emergency_prep_plan_review", "evacuation_time_letter"].includes(value))
+    .map(([value, rule]) => ({ value, label: rule.label, kind: rule.kind })),
 ];
 
 // Derived schedules are not in ITEM_TYPE_OPTIONS because nobody creates one by hand: the database
@@ -68,12 +72,20 @@ interface ItemFormData {
   installDate: string;
   inspectionIntervalDays: string;
   notes: string;
+  evacuationLimit: string;
+  evacuationStandardDate: string;
+  fireSafeArea: string;
+  sleepingStart: string;
+  sleepingEnd: string;
+  sleepingBasis: string;
 }
 
 const EMPTY_FORM: ItemFormData = {
   facilityId: "", itemType: "fire_extinguisher", label: "", locationDetail: "",
   manufacturer: "", modelNumber: "", serialNumber: "", installDate: "",
   inspectionIntervalDays: "30", notes: "",
+  evacuationLimit: "", evacuationStandardDate: "", fireSafeArea: "",
+  sleepingStart: "23:00", sleepingEnd: "07:00", sleepingBasis: "",
 };
 
 // Everything but a fire drill defaults to an annual cadence when an administrator switches the type
@@ -81,6 +93,7 @@ const EMPTY_FORM: ItemFormData = {
 // cosmetic since 20260905160000 -- 55 Pa. Code 2600.132 states a calendar-month rule, and the
 // database computes it as one -- but the column is NOT NULL, so the row still carries a number.
 const DEFAULT_INTERVAL_DAYS: Partial<Record<InspectionItem["item_type"], number>> = {
+  ...Object.fromEntries(Object.entries(INSPECTION_RULES).filter(([, rule]) => rule.days).map(([key, rule]) => [key, rule.days])),
   fire_drill_program: 30,
   emergency_prep_plan_review: 365,
   evacuation_time_letter: 365,
@@ -222,6 +235,11 @@ export default function InspectionItems() {
       modelNumber: item.model_number ?? "", serialNumber: item.serial_number ?? "",
       installDate: item.install_date ?? "", inspectionIntervalDays: String(item.inspection_interval_days),
       notes: item.notes ?? "",
+      evacuationLimit: item.evacuation_limit_seconds == null ? "" : String(item.evacuation_limit_seconds),
+      evacuationStandardDate: item.evacuation_standard_date ?? "",
+      fireSafeArea: item.fire_safe_area ?? "",
+      sleepingStart: item.sleeping_hours_start.slice(0, 5), sleepingEnd: item.sleeping_hours_end.slice(0, 5),
+      sleepingBasis: item.sleeping_hours_basis ?? "",
     });
     setShowForm(true);
   };
@@ -236,6 +254,23 @@ export default function InspectionItems() {
     const facility = facilityById.get(form.facilityId);
     if (!facility) return;
     const kind = ITEM_TYPE_OPTIONS.find((o) => o.value === form.itemType)?.kind ?? "equipment";
+    if (!Number.isInteger(Number(form.inspectionIntervalDays)) || Number(form.inspectionIntervalDays) < 1) {
+      toast({ title: "Enter an inspection interval of at least one whole day", variant: "destructive" });
+      return;
+    }
+    const maximumDays = maximumInspectionInterval(form.itemType);
+    if (maximumDays && Number(form.inspectionIntervalDays) > maximumDays) {
+      toast({ title: `This item allows at most ${maximumDays} days`, description: "A shorter facility schedule is allowed. The monthly or quarterly calendar limit is also enforced.", variant: "destructive" });
+      return;
+    }
+    if (["fire_drill_program", "fire_safety_expert_inspection"].includes(form.itemType) && (
+      (form.evacuationLimit && (!Number.isInteger(Number(form.evacuationLimit)) || Number(form.evacuationLimit) <= 0 || !form.evacuationStandardDate)) ||
+      form.sleepingStart === form.sleepingEnd ||
+      ((form.sleepingStart !== "23:00" || form.sleepingEnd !== "07:00") && !form.sleepingBasis.trim())
+    )) {
+      toast({ title: "Complete the fire drill standard", description: "An expert time needs its written date. A different sleeping-hours window needs the evidence supporting it.", variant: "destructive" });
+      return;
+    }
 
     const payload = {
       organization_id: facility.organization_id,
@@ -250,6 +285,11 @@ export default function InspectionItems() {
       install_date: form.installDate || null,
       inspection_interval_days: Number(form.inspectionIntervalDays) || 30,
       notes: form.notes || null,
+      evacuation_limit_seconds: form.evacuationLimit ? Number(form.evacuationLimit) : null,
+      evacuation_standard_date: form.evacuationStandardDate || null,
+      fire_safe_area: form.fireSafeArea || null,
+      sleeping_hours_start: form.sleepingStart, sleeping_hours_end: form.sleepingEnd,
+      sleeping_hours_basis: form.sleepingBasis || null,
     };
 
     if (editing) {
@@ -278,7 +318,7 @@ export default function InspectionItems() {
   // them. A derived sleeping-hours schedule takes no events at all: the drill is logged on the
   // program with the sleeping-hours box ticked, and the database refuses anything else.
   const bulkEligible = selectedItems.filter(
-    (i) => i.item_type !== "fire_drill_program" && !i.derived_from_inspection_item_id,
+    (i) => !INSPECTION_RULES[i.item_type] && !i.derived_from_inspection_item_id,
   );
 
   const handleBulkLog = async () => {
@@ -311,7 +351,7 @@ export default function InspectionItems() {
     setBulkNotes("");
     toast({
       title: "Bulk inspection logged",
-      description: `${ok} succeeded${failed ? `, ${failed} failed` : ""}${selectedItems.length > bulkEligible.length ? " (fire drills skipped — open each item)" : ""}.`,
+      description: `${ok} succeeded${failed ? `, ${failed} failed` : ""}${selectedItems.length > bulkEligible.length ? " (items requiring evidence skipped — open each item)" : ""}.`,
       variant: failed ? "destructive" : "default",
     });
   };
@@ -498,6 +538,19 @@ export default function InspectionItems() {
                 </SelectContent>
               </Select>
             </div>
+            {INSPECTION_RULES[form.itemType] && <p className="col-span-full text-sm text-muted-foreground">{INSPECTION_RULES[form.itemType].guidance}</p>}
+            {["fire_drill_program", "fire_safety_expert_inspection"].includes(form.itemType) && (
+              <fieldset className="col-span-full grid grid-cols-2 gap-3 border rounded-md p-3">
+                <legend className="text-sm font-medium">Evacuation standard and sleeping hours</legend>
+                <div><Label htmlFor={`${__fieldIds}-evacuation-limit`}>Expert maximum (seconds)</Label><Input id={`${__fieldIds}-evacuation-limit`} type="number" min={1} value={form.evacuationLimit} onChange={(e) => field("evacuationLimit", e.target.value)} /></div>
+                <div><Label htmlFor={`${__fieldIds}-standard-date`}>Written standard date</Label><Input id={`${__fieldIds}-standard-date`} type="date" value={form.evacuationStandardDate} onChange={(e) => field("evacuationStandardDate", e.target.value)} /></div>
+                <p className="col-span-full text-xs text-muted-foreground">Without a designated time, DHS accepts evacuation within 150 seconds. Keep any designated fire-safe areas and the expert's current written standard with the annual record.</p>
+                <div className="col-span-full"><Label htmlFor={`${__fieldIds}-safe-area`}>Designated fire-safe areas / meeting place</Label><Textarea id={`${__fieldIds}-safe-area`} value={form.fireSafeArea} onChange={(e) => field("fireSafeArea", e.target.value)} /></div>
+                <div><Label htmlFor={`${__fieldIds}-sleep-start`}>Sleeping hours start</Label><Input id={`${__fieldIds}-sleep-start`} type="time" value={form.sleepingStart} onChange={(e) => field("sleepingStart", e.target.value)} /></div>
+                <div><Label htmlFor={`${__fieldIds}-sleep-end`}>Sleeping hours end</Label><Input id={`${__fieldIds}-sleep-end`} type="time" value={form.sleepingEnd} onChange={(e) => field("sleepingEnd", e.target.value)} /></div>
+                <div className="col-span-full"><Label htmlFor={`${__fieldIds}-sleep-basis`}>Evidence for a different sleeping-hours window</Label><Textarea id={`${__fieldIds}-sleep-basis`} value={form.sleepingBasis} onChange={(e) => field("sleepingBasis", e.target.value)} placeholder="Required outside 11 PM–7 AM: document normal sleeping hours for more than half of residents." /></div>
+              </fieldset>
+            )}
             <div className="col-span-full space-y-1.5">
               <Label htmlFor={`${__fieldIds}-label`} className="text-[13px]">Label *</Label>
               <Input id={`${__fieldIds}-label`} value={form.label} onChange={(e) => field("label", e.target.value)} placeholder="e.g. Extinguisher — 2nd Floor Hallway" className="h-9" />
@@ -508,7 +561,8 @@ export default function InspectionItems() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-inspection-interval-days`} className="text-[13px]">Inspection Interval (days) *</Label>
-              <Input id={`${__fieldIds}-inspection-interval-days`} type="number" min={1} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" disabled={form.itemType === "fire_drill_program"} />
+              <Input id={`${__fieldIds}-inspection-interval-days`} type="number" min={1} max={maximumInspectionInterval(form.itemType)} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" disabled={form.itemType === "fire_drill_program"} />
+              {maximumInspectionInterval(form.itemType) && <p className="text-xs text-muted-foreground">Maximum {maximumInspectionInterval(form.itemType)} days; choose fewer for a stricter facility schedule. Monthly and quarterly calendar limits also apply.</p>}
               {form.itemType === "fire_drill_program" && (
                 <p className="text-xs text-muted-foreground">
                   Fire drills run on the calendar, not on an interval: one in every month, plus one

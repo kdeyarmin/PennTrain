@@ -21,8 +21,9 @@ import {
   fieldsIn, isFieldVisible, validateSectionAnswers, visibleFieldsIn,
   type TemplateAnswers, type TemplateField, type TemplateSection, type TemplateValidationIssue,
 } from "./assessmentTemplates";
+import { INCIDENT_TYPE_OPTIONS } from "./incidentTypes";
 
-export type IncidentPathwayKey =
+export type IncidentPathwayKey = (typeof INCIDENT_TYPE_OPTIONS)[number]
   | "fall"
   | "medication_event"
   | "elopement"
@@ -429,6 +430,22 @@ export const INCIDENT_PATHWAYS: IncidentPathway[] = [
     ]),
   },
 ];
+
+// Every reporting category needs an investigation path: otherwise the closure gate can never
+// be satisfied for a condition such as food poisoning or a utility termination notice.
+for (const incidentType of INCIDENT_TYPE_OPTIONS) {
+  if (incidentType === "other" || INCIDENT_PATHWAYS.some(pathway => pathway.incidentType === incidentType)) continue;
+  const label = incidentType.replace(/_/g, " ").replace(/^./, letter => letter.toUpperCase());
+  INCIDENT_PATHWAYS.push({
+    key: incidentType, label, incidentType, reportability: "presumed_reportable", version: 1,
+    purpose: `Document the ${label.toLowerCase()}, the affected residents and the protective response.`,
+    sections: basicSections([
+      { key: "event_detail", label: "What occurred and how it was discovered", type: "long_text", required: true },
+      { key: "affected_residents", label: "Residents affected or potentially at risk", type: "long_text", required: true },
+      { key: "evidence_reviewed", label: "Evidence and witnesses reviewed", type: "long_text", required: true },
+    ]),
+  });
+}
 
 export function getIncidentPathway(key: string): IncidentPathway | undefined {
   return INCIDENT_PATHWAYS.find((pathway) => pathway.key === key);

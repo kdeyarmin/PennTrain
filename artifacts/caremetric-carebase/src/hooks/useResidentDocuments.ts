@@ -145,6 +145,7 @@ export function useDeleteResidentDocument() {
     onSettled: (_data, _error, doc) => {
       queryClient.invalidateQueries({ queryKey: ["resident_documents", doc.resident_id] });
       queryClient.invalidateQueries({ queryKey: ["resident_document_deletions"] });
+      queryClient.invalidateQueries({ queryKey: ["resident_record_destructions"] });
     },
   });
 }
@@ -192,6 +193,7 @@ export function useRetryResidentDocumentDeletion() {
     mutationFn: (doc: PendingResidentDocumentDeletion) => finishResidentDocumentDeletion(doc),
     onSettled: (_data, _error, doc) => {
       queryClient.invalidateQueries({ queryKey: ["resident_document_deletions"] });
+      queryClient.invalidateQueries({ queryKey: ["resident_record_destructions"] });
     },
   });
 }

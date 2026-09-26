@@ -49,6 +49,8 @@ export interface ScheduleServiceWorkload {
   appointmentTransportationDemand: number;
   coverageGapCount: number;
   coverageRows: CoverageRow[];
+  emergencyCoverageRows?: Array<{ starts: string; ends: string; census: number; required: number; first_aid: number; cpr_airway: number }>;
+  emergencyCoverageBasis?: string;
 }
 
 export function usePreviewShiftAssignmentCandidates(params: {

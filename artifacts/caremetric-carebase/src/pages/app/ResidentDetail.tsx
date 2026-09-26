@@ -7,6 +7,8 @@ import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import { useListResidentInformalSupports } from "@/hooks/useResidentInformalSupports";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useResidentFhirClinical } from "@/hooks/useFhirIntegration";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { EntityHistoryDrawer } from "@/components/EntityHistoryDrawer";
@@ -105,6 +107,9 @@ export default function ResidentDetail() {
   const appointmentPreparationQuery = useResidentAppointmentPreparation(appointmentIds);
 
   const [censusDialogOpen, setCensusDialogOpen] = useState(false);
+  const [faceSheetResidentId, setFaceSheetResidentId] = useState<string | null>(null);
+  const faceSheetOpen = !!id && faceSheetResidentId === id;
+  const faceSheetClinical = useResidentFhirClinical(faceSheetOpen ? id : undefined, "Prepare resident face sheet for transfer or appointment");
 
   const facility = facilities?.find((f) => f.id === resident?.facility_id);
   // instantiate_resident_compliance_items() only seeds rule-pack rows for PCH/ALR (Phase 5) --
@@ -157,6 +162,8 @@ export default function ResidentDetail() {
     complianceItems: items ?? [],
     documents: documents ?? [],
     administrative: administrativeMaster,
+    clinical: faceSheetOpen && !faceSheetClinical.isError ? faceSheetClinical.data : undefined,
+    clinicalUnavailable: faceSheetOpen && faceSheetClinical.isError,
   });
   // The move-in packet stays the single source for admission blockers -- Needs Attention consumes
   // its blocker count rather than re-deriving one that could disagree with the packet on screen.
@@ -270,7 +277,7 @@ export default function ResidentDetail() {
                   <Link href={`/app/residents/${id}/chart`}><HeartPulse className="mr-2 h-3.5 w-3.5" /> Clinical chart</Link>
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => window.print()} disabled={informalSupportsLoading || itemsLoading || documentsLoading}>
+              <Button variant="outline" size="sm" onClick={() => setFaceSheetResidentId(id ?? null)} disabled={informalSupportsLoading || itemsLoading || documentsLoading}>
                 <Printer className="mr-2 h-3.5 w-3.5" /> Print Face Sheet
               </Button>
               {/* Was a two-option Select writing residents.status directly. That bypassed the census
@@ -374,6 +381,20 @@ export default function ResidentDetail() {
         </Suspense>
       )}
 
+      <Dialog open={faceSheetOpen} onOpenChange={(open) => { if (!open) setFaceSheetResidentId(null); }}>
+        <DialogContent className="print:hidden" overlayClassName="print:hidden">
+          <DialogHeader>
+            <DialogTitle>Prepare face sheet</DialogTitle>
+            <DialogDescription>Review available clinical information and attach missing emergency-transfer records before sending.</DialogDescription>
+          </DialogHeader>
+          {faceSheetClinical.isLoading ? <p>Loading diagnoses, allergies and medication instructions…</p> : <>
+            {faceSheetClinical.isError && <QueryError what="clinical information for this face sheet" error={faceSheetClinical.error} onRetry={() => void faceSheetClinical.refetch()} />}
+            <p className="text-sm">{faceSheetPacket.clinical.diagnoses.length} diagnoses · {faceSheetPacket.clinical.allergies.length} imported allergies · {faceSheetPacket.clinical.medications.length} active medications</p>
+            <ul className="list-disc space-y-2 pl-5 text-sm">{faceSheetPacket.clinical.outstanding.map((item) => <li key={item}>{item}</li>)}</ul>
+          </>}
+          <DialogFooter><Button onClick={() => window.print()} disabled={faceSheetClinical.isLoading || faceSheetClinical.isFetching}>Print face sheet{faceSheetClinical.isError ? " with missing-data notice" : ""}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ResidentFaceSheet packet={faceSheetPacket} />
     </div>
   );

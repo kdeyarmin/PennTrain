@@ -17,7 +17,7 @@ export type MoveInGuestGrant = Tables<"move_in_guest_grants">;
 export type MoveInTaskHistory = Tables<"move_in_task_history">;
 
 export interface AdmissionProspectWithRelations extends AdmissionProspect {
-  facility: { id: string; name: string } | null;
+  facility: { id: string; name: string; facility_type?: string } | null;
   referral_source: { id: string; name: string; source_type: string } | null;
   resident: { id: string; status: string } | null;
 }
@@ -43,7 +43,7 @@ export interface MoveInWorkspaceWithRelations extends MoveInWorkspace {
     room: string | null;
     status: string;
   } | null;
-  facility: { id: string; name: string } | null;
+  facility: { id: string; name: string; facility_type?: string } | null;
   template: { id: string; name: string; version: number } | null;
   tasks: MoveInTask[];
 }
@@ -85,7 +85,7 @@ export function useListAdmissionProspects(filters: {
         .from("admission_prospects")
         .select(`
           *,
-          facility:facilities(id, name),
+          facility:facilities(id, name, facility_type),
           referral_source:referral_sources(id, name, source_type),
           resident:residents(id, status)
         `)
@@ -380,7 +380,7 @@ export function useListMoveInWorkspaces(filters: {
         .select(`
           *,
           resident:residents(id, first_name, last_name, room, status),
-          facility:facilities(id, name),
+          facility:facilities(id, name, facility_type),
           template:move_in_templates(id, name, version),
           tasks:move_in_tasks(*)
         `)
@@ -404,7 +404,7 @@ export function useGetMoveInWorkspace(id?: string) {
         .select(`
           *,
           resident:residents(id, first_name, last_name, room, status),
-          facility:facilities(id, name),
+          facility:facilities(id, name, facility_type),
           template:move_in_templates(id, name, version),
           tasks:move_in_tasks(
             *,
@@ -548,10 +548,11 @@ export function useRevokeMoveInGuestGrant() {
 export function useCompleteMoveInAdmission() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ workspaceId, reason }: { workspaceId: string; reason: string }) => {
+    mutationFn: async ({ workspaceId, reason, admissionDate }: { workspaceId: string; reason: string; admissionDate: string }) => {
       const { data, error } = await supabase.rpc("complete_move_in_admission" as never, {
         p_workspace_id: workspaceId,
         p_reason: reason,
+        p_admission_date: admissionDate,
       } as never);
       if (error) throw error;
       return data as string;

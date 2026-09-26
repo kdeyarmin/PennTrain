@@ -19,7 +19,6 @@ import {
   useListResidentDocuments, useResidentDocumentSignedUrl, useGenerateStateFormPrefill,
 } from "@/hooks/useResidentDocuments";
 import { CompleteWithStateFormDialog } from "./CompleteWithStateFormDialog";
-import { useCompleteResidentComplianceItem } from "@/hooks/useResidentComplianceItems";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 
 interface StateFormWorkflowStepperProps {
@@ -50,10 +49,10 @@ export function StateFormWorkflowStepper({ item, resident, facilityType, canMana
   const startAssessmentForm = useStartResidentAssessmentForm();
   const generatePdf = useGenerateResidentAssessmentFormPdf();
   const generatePrefill = useGenerateStateFormPrefill();
-  const completeItem = useCompleteResidentComplianceItem();
   const getSignedUrl = useResidentDocumentSignedUrl();
 
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
+  const [existingDocumentId, setExistingDocumentId] = useState<string>();
 
   // Never derive from unloaded data: treating a still-loading forms/documents list as empty
   // would briefly render "Start prep" for an item whose draft or finalized form already exists,
@@ -76,7 +75,7 @@ export function StateFormWorkflowStepper({ item, resident, facilityType, canMana
   };
 
   const anyPending = startAssessmentForm.isPending || generatePdf.isPending || generatePrefill.isPending
-    || completeItem.isPending || getSignedUrl.isPending;
+    || getSignedUrl.isPending;
 
   const runAction = (action: WorkflowAction) => {
     switch (action.key) {
@@ -126,16 +125,12 @@ export function StateFormWorkflowStepper({ item, resident, facilityType, canMana
         openDocumentUrl(action.url!);
         break;
       case "upload_signed_form":
+        setExistingDocumentId(undefined);
         setShowCompleteDialog(true);
         break;
       case "mark_compliant":
-        completeItem.mutate(
-          { item, documentId: action.documentId! },
-          {
-            onSuccess: () => toast({ title: "Marked compliant" }),
-            onError: (e: Error) => toast({ title: "Failed to mark compliant", description: e.message, variant: "destructive" }),
-          },
-        );
+        setExistingDocumentId(action.documentId);
+        setShowCompleteDialog(true);
         break;
     }
   };
@@ -189,6 +184,7 @@ export function StateFormWorkflowStepper({ item, resident, facilityType, canMana
         item={showCompleteDialog ? item : null}
         resident={resident}
         facilityType={facilityType}
+        existingDocumentId={existingDocumentId}
         onClose={() => setShowCompleteDialog(false)}
       />
     </div>

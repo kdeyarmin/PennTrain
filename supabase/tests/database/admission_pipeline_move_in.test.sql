@@ -287,7 +287,7 @@ select is(
 select lives_ok(
   $$select public.complete_move_in_admission(
     (select id from admission_ids where key = 'workspace'),
-    'Admission checklist complete and bed ready'
+    'Admission checklist complete and bed ready', public.pa_today()
   )$$,
   'one-click admission atomically completes the workspace'
 );

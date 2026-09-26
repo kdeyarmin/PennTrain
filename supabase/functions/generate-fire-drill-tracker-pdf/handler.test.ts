@@ -1,6 +1,10 @@
 import { assert, assertEquals } from "jsr:@std/assert@1.0.14";
 import { PDFDocument, StandardFonts } from "npm:pdf-lib@1.17.1";
-import { buildFireDrillTrackerPdf, createGenerateFireDrillTrackerPdfHandler, PdfWriter, wrapTextToLines } from "./handler.ts";
+import { buildFireDrillTrackerPdf, createGenerateFireDrillTrackerPdfHandler, drillMonthVerdict, PdfWriter, wrapTextToLines } from "./handler.ts";
+
+Deno.test("a later passing drill does not erase the month's evacuation-time violation", () => {
+  assert(drillMonthVerdict([{ result: "deficiency_noted", evacuation_time_exceeded: true }, { result: "pass" }] as Parameters<typeof drillMonthVerdict>[0]).startsWith("Evacuation-time violation"));
+});
 
 const ENV: Record<string, string> = {
   SUPABASE_URL: "https://project.test",

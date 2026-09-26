@@ -84,10 +84,10 @@ select is(
 -- 9-13. Monthly drills roll the program forward; they do not touch the six-month clock.
 ------------------------------------------------------------------------------------------------
 insert into public.inspection_events (
-  inspection_item_id, performed_date, performed_by, result, shift, is_sleeping_hours_drill
+  inspection_item_id, performed_date, performed_by, result, shift, is_sleeping_hours_drill, drill_time, alarm_sounded, alarm_or_detector_operative
 ) values (
   'a5000000-0000-4000-8000-000000000101', date_trunc('month', public.pa_today())::date,
-  'Morgan Aide', 'pass', 'day', false
+  'Morgan Aide', 'pass', 'day', false, '10:00', true, true
 );
 
 select is(
@@ -125,10 +125,10 @@ select is(
 -- 14-16. Ticking "sleeping hours" is what moves it, and it moves at once.
 ------------------------------------------------------------------------------------------------
 insert into public.inspection_events (
-  inspection_item_id, performed_date, performed_by, result, shift, is_sleeping_hours_drill
+  inspection_item_id, performed_date, performed_by, result, shift, is_sleeping_hours_drill, drill_time, alarm_sounded, alarm_or_detector_operative
 ) values (
   'a5000000-0000-4000-8000-000000000101', public.pa_today() - 1,
-  'Morgan Aide', 'pass', 'overnight', true
+  'Morgan Aide', 'pass', 'overnight', true, '02:00', true, true
 );
 
 select is(

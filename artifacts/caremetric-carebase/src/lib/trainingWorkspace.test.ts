@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessTraining, currentTrainingPolicy, fortiethWorkHour, trainingPeriod, trainingPolicyRevisionDefaults, trainingCsv, type TrainingProfile, type TrainingPolicy, type TrainingEvent } from "./trainingWorkspace";
+import { assessTraining, currentTrainingPolicy, eligibleTrainingMinutes, fortiethWorkHour, trainingPeriod, trainingPolicyRevisionDefaults, trainingCsv, type TrainingProfile, type TrainingPolicy, type TrainingEvent } from "./trainingWorkspace";
 
 const profile: TrainingProfile = { employee_id: "a", direct_care: true, administrator: false, specialty_unit: "none", duties: "Personal care", first_work_date: "2026-01-01" };
 const policy: TrainingPolicy = { id: "p", effective_from: "2026-01-01", year_basis: "fixed", year_start: "01-01", administrator_year_basis: "fixed", administrator_year_start: "07-01", policy_reference: "Approved policy" };
@@ -56,7 +56,7 @@ describe("standalone training evidence", () => {
     expect(unit("alr_dementia", [{ ...alfInitial, delivery: "ojt" }], "ALR").find(c => c.key === "special_initial")?.status).toBe("missing");
   });
   it("gives the administrator's 24 hours no on-the-job credit, since 64(d) names the eligible sources", () => {
-    const admin = { ...event, completed_on: "2026-08-01", minutes: 1440, allocations: { administrator: 1440 } };
+    const admin = { ...event, delivery: "classroom", completed_on: "2026-08-01", minutes: 1440, allocations: { administrator: 1440 } };
     const check = (events: TrainingEvent[], facilityType: string) =>
       assessTraining({ profile: { ...profile, administrator: true }, policy, events, facilityType, shifts: [], hireDate: profile.first_work_date, today: "2026-09-24" }).find(c => c.key === "administrator");
     for (const facilityType of ["PCH", "ALR"]) {
@@ -64,6 +64,33 @@ describe("standalone training evidence", () => {
       expect(check([{ ...admin, delivery: "ojt" }], facilityType)).toMatchObject({ status: "missing", citation: `${facilityType === "PCH" ? "2600" : "2800"}.64` });
       expect(check([{ ...admin, delivery: "ojt" }], facilityType)?.detail).toContain("0.00 / 24");
     }
+  });
+  it("caps medication and combined resuscitation credit across events in each annual bucket", () => {
+    const evidence = [
+      { ...event, id: "m1", topics: ["medication_authorization"], delivery: "classroom", allocations: { base: 240, administrator: 240 } },
+      { ...event, id: "m2", topics: ["medication_authorization"], delivery: "classroom", allocations: { base: 240, administrator: 240 } },
+      { ...event, id: "c1", topics: ["cpr", "airway"], delivery: "hybrid", allocations: { base: 180, administrator: 180 } },
+      { ...event, id: "c2", topics: ["first_aid"], delivery: "external", allocations: { base: 180, administrator: 180 } },
+    ];
+    for (const facilityType of ["PCH", "ALR"]) {
+      expect(eligibleTrainingMinutes(evidence, "base", facilityType)).toBe(600);
+      expect(eligibleTrainingMinutes(evidence, "administrator", facilityType)).toBe(600);
+      expect(eligibleTrainingMinutes([...evidence].reverse(), "base", facilityType)).toBe(600);
+    }
+    expect(assess(evidence).find(c => c.key === "base")?.detail).toContain("10.00 / 12");
+  });
+  it("caps administrator online hours at twelve without displacing in-person medication credit", () => {
+    const evidence = [
+      { ...event, id: "online-med", topics: ["medication_authorization"], allocations: { administrator: 360 } },
+      { ...event, id: "online-other", allocations: { administrator: 1080 } },
+      { ...event, id: "class-med", topics: ["medication_authorization"], delivery: "classroom", allocations: { administrator: 360 } },
+      { ...event, id: "class-other", delivery: "classroom", allocations: { administrator: 360 } },
+    ];
+    expect(eligibleTrainingMinutes(evidence, "administrator", "ALR")).toBe(1440);
+    expect(eligibleTrainingMinutes([evidence[1]], "administrator", "PCH")).toBe(720);
+  });
+  it("does not give historical online-only CPR evidence annual-hour credit", () => {
+    expect(eligibleTrainingMinutes([{ ...event, topics: ["cpr"] }], "base", "PCH")).toBe(0);
   });
   it("does not reuse base hours for additional ALR dementia credit", () => {
     expect(assess([{ ...event, minutes: 1200, allocations: { base: 1200 }, topics: ["dementia"] }], "ALR").find(c => c.key === "dementia_annual")?.status).toBe("review");

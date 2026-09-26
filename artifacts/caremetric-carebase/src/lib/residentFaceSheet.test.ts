@@ -288,3 +288,52 @@ describe("buildResidentFaceSheetPacket", () => {
     expect(packet.lifecycle[0]).toMatchObject({ event: "Hospital Leave", reason: "Hospital evaluation" });
   });
 });
+
+describe("face sheet clinical transfer information", () => {
+  const build = (clinical?: any, clinicalUnavailable = false) => buildResidentFaceSheetPacket({
+    resident: baseResident, facility: baseFacility, supports: [], complianceItems: [], documents: [], clinical, clinicalUnavailable,
+  });
+
+  it("includes diagnoses, non-food allergies and active medication dosage/frequency", () => {
+    const packet = build({
+      conditions: [{ resident_id: "r1", code_display: "Hypertension", clinical_status: "active", verification_status: "confirmed" }],
+      allergies: [{ resident_id: "r1", substance_display: "Penicillin", clinical_status: "active", criticality: "high" }],
+      medications: [{ resident_id: "r1", medication_display: "Example medicine", request_status: "active", dosage_text: "5 mg orally twice daily", source_updated_at: "2026-09-25T01:00:00Z" }],
+    });
+    expect(packet.clinical.diagnoses).toEqual(["Hypertension (Active)"]);
+    expect(packet.clinical.allergies).toEqual(["Penicillin · high criticality"]);
+    expect(packet.clinical.medications).toEqual([{ name: "Example medicine", directions: "5 mg orally twice daily", sourceUpdated: "9/24/2026" }]);
+  });
+
+  it("does not present stopped, resolved, erroneous or another resident's records as current care", () => {
+    const packet = build({
+      conditions: [
+        { resident_id: "r1", code_display: "Resolved", clinical_status: "resolved" },
+        { resident_id: "r1", code_display: "Error", verification_status: "entered-in-error" },
+        { resident_id: "r2", code_display: "Other resident", clinical_status: "active" },
+      ],
+      allergies: [{ resident_id: "r1", substance_display: "Refuted", verification_status: "refuted" }],
+      medications: [
+        { resident_id: "r1", medication_display: "Stopped", request_status: "stopped" },
+        { resident_id: "r2", medication_display: "Other resident", request_status: "active" },
+      ],
+    });
+    expect(packet.clinical.diagnoses).toEqual([]);
+    expect(packet.clinical.allergies).toEqual([]);
+    expect(packet.clinical.medications).toEqual([]);
+  });
+
+  it("distinguishes missing clinical information from a negative clinical finding", () => {
+    const packet = build(undefined, true);
+    expect(packet.clinical.outstanding.join(" ")).toContain("could not be loaded");
+    expect(packet.clinical.outstanding.join(" ")).toContain("does not confirm no known allergies");
+    expect(packet.clinical.outstanding.join(" ")).toContain("Social Security number is not stored");
+    expect(packet.sourceNote).toContain("2600.143(b)");
+  });
+
+  it("flags absent medication directions for completion before transfer", () => {
+    const packet = build({ conditions: [], allergies: [], medications: [{ resident_id: "r1", medication_display: "Example", request_status: "active", dosage_text: " ", source_updated_at: "2026-09-24T12:00:00Z" }] });
+    expect(packet.clinical.medications[0].directions).toContain("Dosage and frequency not recorded");
+    expect(packet.clinical.outstanding).toContain("One or more medications lack recorded dosage and frequency.");
+  });
+});

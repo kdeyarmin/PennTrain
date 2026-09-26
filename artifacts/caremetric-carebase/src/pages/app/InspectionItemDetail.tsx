@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
-import { useGetInspectionItem, useUpdateInspectionItem } from "@/hooks/useInspectionItems";
+import { useGetInspectionItem, useUpdateInspectionItem, useListInspectionItems } from "@/hooks/useInspectionItems";
 import { useListInspectionEvents, useCreateInspectionEvent } from "@/hooks/useInspectionEvents";
 import { useListCorrectiveActions, type CorrectiveAction } from "@/hooks/useCorrectiveActions";
 import type { InspectionEvent } from "@/hooks/useInspectionEvents";
@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn, humanize } from "@/lib/utils";
 import { facilityToday } from "@/lib/dateUtils";
 import { evacuationSeconds, fireDrillRecordErrors, type FireDrillRecordErrors } from "@/lib/fireDrillRecord";
+import { INSPECTION_RULES, evacuationFinding, isSleepingHours } from "@/lib/inspectionRules";
 
 const SHIFT_OPTIONS = ["day", "evening", "overnight"] as const;
 
@@ -161,7 +162,15 @@ export default function InspectionItemDetail() {
   const [residentsPresent, setResidentsPresent] = useState("");
   const [residentsEvacuated, setResidentsEvacuated] = useState("");
   const [staffParticipating, setStaffParticipating] = useState("");
-  const [alarmOperative, setAlarmOperative] = useState("yes");
+  const [alarmOperative, setAlarmOperative] = useState("");
+  const [alarmSounded, setAlarmSounded] = useState("");
+  const [blockedRoute, setBlockedRoute] = useState("");
+  const [evacuationException, setEvacuationException] = useState("");
+  const [expertName, setExpertName] = useState("");
+  const [expertQualification, setExpertQualification] = useState("");
+  const [submittedDate, setSubmittedDate] = useState("");
+  const [evidenceNotes, setEvidenceNotes] = useState("");
+  const [testedAlarmIds, setTestedAlarmIds] = useState<string[]>([]);
   const [problemsEncountered, setProblemsEncountered] = useState("");
   const [shift, setShift] = useState<(typeof SHIFT_OPTIONS)[number]>("day");
   const [isSleepingHoursDrill, setIsSleepingHoursDrill] = useState(false);
@@ -170,7 +179,18 @@ export default function InspectionItemDetail() {
   const [showValidation, setShowValidation] = useState(false);
 
   const facilityName = facilities?.find((f) => f.id === item?.facility_id)?.name;
-  const isFireDrill = item?.item_type === "fire_drill_program";
+  const isFireDrill = item?.item_type === "fire_drill_program" || item?.item_type === "fire_safety_expert_inspection";
+  const { data: equipmentItems, isError: equipmentError } = useListInspectionItems(
+    { facilityId: item?.facility_id, itemKind: "equipment", isActive: true },
+    { enabled: isFireDrill && !!item?.facility_id },
+  );
+  const alarmItems = equipmentItems?.filter((candidate) => ["smoke_detector", "fire_alarm_system"].includes(candidate.item_type)) ?? [];
+  const needsExpert = ["fire_extinguisher", "fire_safety_expert_inspection", "wood_coal_stove_approval", "evacuation_time_letter"].includes(item?.item_type ?? "");
+  const isPlanReview = item?.item_type === "emergency_prep_plan_review";
+  const needsEvidence = !!INSPECTION_RULES[item?.item_type ?? ""] && !isFireDrill;
+  const finding = isFireDrill ? evacuationFinding({ seconds: evacuationSeconds(durationMinutes, durationSeconds), limit: item?.evacuation_limit_seconds ?? 150,
+    present: residentsPresent ? Number(residentsPresent) : null, evacuated: residentsEvacuated ? Number(residentsEvacuated) : null,
+    exception: evacuationException, alarmSounded: alarmSounded ? alarmSounded === "yes" : null, alarmOperative: alarmOperative ? alarmOperative === "yes" : null }) : null;
   // The sleeping-hours schedule the database derives from a fire drill program. It has no events of
   // its own -- it reads the program's, filtered to the drills marked as sleeping-hours -- so there
   // is nothing to log here and the database refuses an event against it outright.
@@ -188,10 +208,15 @@ export default function InspectionItemDetail() {
     ? fireDrillRecordErrors({
       drillTime, durationMinutes, durationSeconds, exitRouteUsed, residentsPresent,
       residentsEvacuated, staffParticipating, problemsEncountered,
-    })
+    }, result !== "pass")
     : {};
   const fieldErrors = {
     performedBy: !performedBy.trim() ? "Required" : undefined,
+    alarm: isFireDrill && (!alarmOperative || !alarmSounded) ? "Record whether the alarm sounded and was operative" : undefined,
+    sleeping: isFireDrill && isSleepingHoursDrill && !isSleepingHours(drillTime, item?.sleeping_hours_start, item?.sleeping_hours_end) ? "Drill time is outside the documented sleeping-hours window" : undefined,
+    expert: needsExpert && (!expertName.trim() || !expertQualification.trim()) ? "Record the fire safety expert and qualification" : undefined,
+    submission: isPlanReview && result === "pass" && !submittedDate ? "Record the submission date to the local emergency management agency" : undefined,
+    evidence: needsEvidence && result === "pass" && !evidenceNotes.trim() ? "Record the supporting evidence" : undefined,
     ...drillErrors,
   };
 
@@ -199,7 +224,10 @@ export default function InspectionItemDetail() {
     setPerformedBy(""); setDeficiencyNotes(""); setResult("pass");
     setDrillTime(""); setDurationMinutes(""); setDurationSeconds(""); setExitRouteUsed("");
     setResidentsPresent(""); setResidentsEvacuated(""); setStaffParticipating("");
-    setAlarmOperative("yes"); setProblemsEncountered(""); setShift("day"); setIsSleepingHoursDrill(false);
+    setAlarmOperative(""); setAlarmSounded(""); setBlockedRoute(""); setEvacuationException("");
+    setExpertName(""); setExpertQualification(""); setSubmittedDate(""); setEvidenceNotes("");
+    setTestedAlarmIds([]);
+    setProblemsEncountered(""); setShift("day"); setIsSleepingHoursDrill(false);
     setShowValidation(false);
   };
 
@@ -214,8 +242,13 @@ export default function InspectionItemDetail() {
     createEvent(
       {
         inspection_item_id: item.id, performed_date: performedDate, performed_by: performedBy.trim(),
-        result, deficiency_notes: result !== "pass" ? (deficiencyNotes || null) : null,
-        follow_up_required: result !== "pass",
+        result: finding && result === "pass" ? "deficiency_noted" : result,
+        deficiency_notes: [deficiencyNotes, finding].filter(Boolean).join("\n") || null,
+        follow_up_required: result !== "pass" || !!finding,
+        notes: evidenceNotes.trim() || null,
+        fire_safety_expert_name: expertName.trim() || null,
+        fire_safety_expert_qualification: expertQualification.trim() || null,
+        submitted_to_agency_at: submittedDate || null,
         organization_id: item.organization_id, facility_id: item.facility_id,
         ...(isFireDrill ? {
           drill_time: drillTime || null,
@@ -225,6 +258,10 @@ export default function InspectionItemDetail() {
           residents_evacuated_count: residentsEvacuated.trim() ? Number(residentsEvacuated) : null,
           staff_participating_count: staffParticipating.trim() ? Number(staffParticipating) : null,
           alarm_or_detector_operative: alarmOperative === "yes",
+          alarm_sounded: alarmSounded === "yes",
+          blocked_exit_route: blockedRoute.trim() || null,
+          evacuation_exception: evacuationException.trim() || null,
+          tested_alarm_item_ids: testedAlarmIds,
           problems_encountered: problemsEncountered.trim() || null,
           shift,
           is_sleeping_hours_drill: isSleepingHoursDrill,
@@ -285,7 +322,7 @@ export default function InspectionItemDetail() {
           <div>
             <h1 className="text-2xl font-bold">{item.label}</h1>
             <p className="text-muted-foreground">{facilityName} · {item.item_type.replace(/_/g, " ")}</p>
-            <div className="mt-2"><StatusBadge status={item.status} type="training" /></div>
+            <div className="mt-2">{isFireDrill && <span className="text-xs mr-2">Schedule status</span>}<StatusBadge status={item.status} type="training" /></div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -303,6 +340,10 @@ export default function InspectionItemDetail() {
           )}
         </div>
       </div>
+
+      {isFireDrill && events?.some((event) => event.evacuation_time_exceeded) && <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
+        <strong>Evacuation-time findings remain in the record.</strong> {events.filter((event) => event.evacuation_time_exceeded).map((event) => event.performed_date).join(", ")}. A later successful drill advances the schedule but does not erase a breach of the maximum evacuation time (§132(d)). Review the corrective action with each affected drill below.
+      </div>}
 
       {derivedFromId && (
         <div className="print:hidden flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
@@ -413,6 +454,12 @@ export default function InspectionItemDetail() {
                         </p>
                       )}
                       {e.deficiency_notes && <p className="text-xs text-muted-foreground mt-1">{e.deficiency_notes}</p>}
+                      {e.evacuation_time_exceeded && <p className="text-xs text-destructive font-semibold">Evacuation time exceeded the {e.evacuation_limit_seconds}-second standard. This finding remains part of this drill's record.</p>}
+                      {e.alarm_sounded != null && <p className="text-xs">Alarm sounded: {e.alarm_sounded ? "Yes" : "No"}{e.blocked_exit_route ? ` · Simulated blocked route: ${e.blocked_exit_route}` : ""}</p>}
+                      {e.evacuation_exception && <p className="text-xs">Participation exception: {e.evacuation_exception}</p>}
+                      {e.fire_safety_expert_name && <p className="text-xs">Expert: {e.fire_safety_expert_name} · {e.fire_safety_expert_qualification}</p>}
+                      {e.submitted_to_agency_at && <p className="text-xs">Submitted to local emergency management: {e.submitted_to_agency_at}</p>}
+                      {e.notes && <p className="text-xs text-muted-foreground">Evidence: {e.notes}</p>}
                     </div>
                     <ResultBadge result={e.result} />
                   </div>
@@ -495,6 +542,7 @@ export default function InspectionItemDetail() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Log Inspection</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+            {INSPECTION_RULES[item.item_type] && <p className="col-span-full text-sm text-muted-foreground">{INSPECTION_RULES[item.item_type].guidance}</p>}
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-date`} className="text-[13px]">Date *</Label>
               <Input id={`${__fieldIds}-date`} type="date" value={performedDate} onChange={(e) => setPerformedDate(e.target.value)} className="h-9" />
@@ -522,6 +570,13 @@ export default function InspectionItemDetail() {
                 <Textarea id={`${__fieldIds}-deficiency-notes`} value={deficiencyNotes} onChange={(e) => setDeficiencyNotes(e.target.value)} placeholder="What was found" />
               </div>
             )}
+            {finding && <p className="col-span-full text-sm text-destructive">{finding} This record will be saved with a deficiency.</p>}
+            {needsExpert && <>
+              <div><Label htmlFor={`${__fieldIds}-expert-name`}>Fire safety expert *</Label><Input id={`${__fieldIds}-expert-name`} value={expertName} onChange={(e) => setExpertName(e.target.value)} /></div>
+              <div><Label htmlFor={`${__fieldIds}-expert-qualification`}>Expert qualification *</Label><Input id={`${__fieldIds}-expert-qualification`} value={expertQualification} onChange={(e) => setExpertQualification(e.target.value)} />{showValidation && <FieldError message={fieldErrors.expert} />}</div>
+            </>}
+            {isPlanReview && <div className="col-span-full"><Label htmlFor={`${__fieldIds}-submitted-date`}>Submitted to local emergency management agency *</Label><Input id={`${__fieldIds}-submitted-date`} type="date" value={submittedDate} onChange={(e) => setSubmittedDate(e.target.value)} />{showValidation && <FieldError message={fieldErrors.submission} />}</div>}
+            {!isFireDrill && <div className="col-span-full"><Label htmlFor={`${__fieldIds}-evidence-notes`}>Evidence / document reference {needsEvidence ? "*" : ""}</Label><Textarea id={`${__fieldIds}-evidence-notes`} value={evidenceNotes} onChange={(e) => setEvidenceNotes(e.target.value)} placeholder="Record the findings, relevant dates, document location and actions taken." />{showValidation && <FieldError message={fieldErrors.evidence} />}</div>}
 
             {isFireDrill && (
               <>
@@ -547,6 +602,7 @@ export default function InspectionItemDetail() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${__fieldIds}-evacuation-duration-min`} className="text-[13px]">Evacuation Duration (min)</Label>
+                  {result !== "pass" && <p className="text-xs text-muted-foreground">If evacuation was stopped, record any measured elapsed time and explain the incomplete drill in Problems Encountered.</p>}
                   <Input id={`${__fieldIds}-evacuation-duration-min`}
                     type="number" min={0} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)}
                     className={cn("h-9", showValidation && errorFieldClass(fieldErrors.evacuationDuration))}
@@ -568,6 +624,7 @@ export default function InspectionItemDetail() {
                   />
                   {showValidation && <FieldError message={fieldErrors.exitRouteUsed} />}
                 </div>
+                <div className="col-span-full"><Label htmlFor={`${__fieldIds}-blocked-route`}>Route blocked by the simulated fire</Label><Input id={`${__fieldIds}-blocked-route`} value={blockedRoute} onChange={(e) => setBlockedRoute(e.target.value)} placeholder="List the blocked route; exit routes above should list every route actually used." /></div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${__fieldIds}-residents-present`} className="text-[13px]">Residents Present</Label>
                   <Input id={`${__fieldIds}-residents-present`}
@@ -595,21 +652,29 @@ export default function InspectionItemDetail() {
                 <div className="space-y-1.5">
                   <Label htmlFor={`${__fieldIds}-alarm-detector-operative`} className="text-[13px]">Alarm/Detector Operative</Label>
                   <Select value={alarmOperative} onValueChange={setAlarmOperative}>
-                    <SelectTrigger id={`${__fieldIds}-alarm-detector-operative`} className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${__fieldIds}-alarm-detector-operative`} className="h-9"><SelectValue placeholder="Select observed result" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="yes">Yes</SelectItem>
                       <SelectItem value="no">No</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                <div><Label htmlFor={`${__fieldIds}-alarm-sounded`}>Alarm / detector set off *</Label><Select value={alarmSounded} onValueChange={setAlarmSounded}><SelectTrigger id={`${__fieldIds}-alarm-sounded`}><SelectValue placeholder="Select observed result" /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select>{showValidation && <FieldError message={fieldErrors.alarm} />}</div>
+                <fieldset className="col-span-full space-y-2"><legend className="text-sm font-medium">Detector / alarm items actually tested during this drill</legend>
+                  <p className="text-xs text-muted-foreground">Select each item tested. An operative, sounded alarm records its monthly test from this drill; an unsuccessful evacuation still preserves that test.</p>
+                  {equipmentError && <p className="text-xs text-destructive">Equipment could not be loaded. Save the drill and record the equipment test separately.</p>}
+                  {alarmItems.map((candidate) => <label key={candidate.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={testedAlarmIds.includes(candidate.id)} onChange={(e) => setTestedAlarmIds((ids) => e.target.checked ? [...ids, candidate.id] : ids.filter((id) => id !== candidate.id))} />{candidate.label}</label>)}
+                </fieldset>
+                <div className="col-span-full"><Label htmlFor={`${__fieldIds}-evacuation-exception`}>Reason any resident did not evacuate</Label><Textarea id={`${__fieldIds}-evacuation-exception`} value={evacuationException} onChange={(e) => setEvacuationException(e.target.value)} placeholder="Record corrective action; identify any documented hospice exception permitted by §2800.29. A refusal alone is not an exception." /></div>
                 <div className="col-span-2 flex items-center gap-2">
                   <input
                     type="checkbox" id="sleeping-hours" checked={isSleepingHoursDrill}
                     onChange={(e) => setIsSleepingHoursDrill(e.target.checked)} className="h-4 w-4"
                   />
                   <Label htmlFor="sleeping-hours" className="text-[13px] cursor-pointer">
-                    This is the sleeping-hours drill (required every 6 months)
+                    Sleeping-hours drill ({item.sleeping_hours_start.slice(0, 5)}–{item.sleeping_hours_end.slice(0, 5)}; every 6 months)
                   </Label>
+                  {showValidation && <FieldError message={fieldErrors.sleeping} />}
                 </div>
                 <div className="col-span-2 space-y-1.5">
                   <Label htmlFor={`${__fieldIds}-problems-encountered`} className="text-[13px]">Problems Encountered</Label>
