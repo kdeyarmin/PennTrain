@@ -1,14 +1,12 @@
 // @ts-nocheck
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
-import { PDFDocument, PDFFont, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
-import QRCode from "npm:qrcode@1.5.4";
+import { buildCertificatePdf } from "./certificatePdf.ts";
 import {
   CRON_SECRET_HEADER,
   requireCronRequest,
 } from "../_shared/cronAuth.ts";
 import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
-import { toWinAnsi } from "../_shared/pdfText.ts";
 import { errorMessage } from "../_shared/errorMessage.ts";
 
 /**
@@ -37,249 +35,6 @@ function certificateCorsHeaders(req: Request) {
 
 const CERTIFICATES_BUCKET = "certificates";
 const SIGNED_URL_TTL_SECONDS = 60 * 10;
-
-// Landscape Letter -- the traditional certificate orientation.
-const PAGE_WIDTH = 792;
-const PAGE_HEIGHT = 612;
-const MARGIN = 60;
-
-// Every facility this app serves is in Pennsylvania (America/New_York) -- dates must render in
-// that zone explicitly rather than the Deno runtime's default (UTC on Supabase), or an evening
-// course completion prints an Issued date one day after the training record's pa_today()-stamped
-// completion_date.
-const PA_TIME_ZONE = "America/New_York";
-
-function truncate(str: string, maxWidth: number, font: PDFFont, size: number) {
-  // Every rendered string passes through here, so this is the one WinAnsi boundary:
-  // Helvetica throws inside widthOfTextAtSize on any non-CP1252 character (real employee
-  // names hit this), which failed the render job before any drawText ran.
-  const encodable = toWinAnsi(str);
-  let s = encodable;
-  while (s.length > 1 && font.widthOfTextAtSize(s, size) > maxWidth) {
-    s = s.slice(0, -1);
-  }
-  return s === encodable ? s : s.slice(0, -1) + "…";
-}
-
-/**
- * One "Label: value" line, or nothing at all when the course does not record that fact. A
- * certificate for a course with no examination and no named provider therefore prints exactly as
- * it did before these fields existed, rather than a column of dashes.
- */
-type DetailLine = { label: string; value: string };
-
-/**
- * QR image for the public verification URL, or null.
- *
- * Deliberately best-effort: a certificate that renders without a QR is still a valid certificate
- * with the verification URL printed on it, and PDF generation for every course in the product runs
- * through this function. A QR encoder problem must not be able to stop a learner getting their
- * certificate.
- */
-async function verificationQrPng(url: string): Promise<Uint8Array | null> {
-  try {
-    const dataUrl: string = await QRCode.toDataURL(url, {
-      width: 240,
-      margin: 1,
-      errorCorrectionLevel: "M",
-    });
-    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-  } catch (error) {
-    console.error("Certificate QR encoding failed; falling back to the printed URL", {
-      message: errorMessage(error),
-    });
-    return null;
-  }
-}
-
-async function buildCertificatePdf(input: {
-  employeeName: string;
-  courseTitle: string;
-  organizationName: string;
-  facilityName: string | null;
-  issuedAt: string;
-  expiresAt: string | null;
-  slug: string;
-  credentialNumber: string;
-  courseCode: string | null;
-  courseVersion: string | null;
-  regulatoryReference: string | null;
-  trainingProvider: string | null;
-  providerCredential: string | null;
-  finalExamScore: number | null;
-  statement: string | null;
-}): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const italic = await doc.embedFont(StandardFonts.HelveticaOblique);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-
-  const maxTextWidth = PAGE_WIDTH - (MARGIN + 20) * 2;
-
-  const center = (
-    str: string,
-    y: number,
-    size: number,
-    f: PDFFont,
-    color: [number, number, number] = [0.1, 0.1, 0.1],
-  ) => {
-    const shown = truncate(str, maxTextWidth, f, size);
-    const width = f.widthOfTextAtSize(shown, size);
-    page.drawText(shown, {
-      x: (PAGE_WIDTH - width) / 2,
-      y,
-      size,
-      font: f,
-      color: rgb(color[0], color[1], color[2]),
-    });
-  };
-
-  // Decorative border -- keeps this looking like a certificate rather than a text dump.
-  page.drawRectangle({
-    x: MARGIN - 24,
-    y: MARGIN - 24,
-    width: PAGE_WIDTH - (MARGIN - 24) * 2,
-    height: PAGE_HEIGHT - (MARGIN - 24) * 2,
-    borderColor: rgb(0.16, 0.22, 0.44),
-    borderWidth: 2,
-  });
-
-  const dateFmt = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: PA_TIME_ZONE,
-    });
-
-  let y = PAGE_HEIGHT - MARGIN - 20;
-  center("CERTIFICATE OF COMPLETION", y, 26, bold, [0.16, 0.22, 0.44]);
-  y -= 46;
-  center("This certifies that", y, 12, italic, [0.4, 0.4, 0.4]);
-  y -= 32;
-  center(input.employeeName, y, 22, bold);
-  y -= 30;
-  center("has successfully completed the course", y, 12, italic, [
-    0.4,
-    0.4,
-    0.4,
-  ]);
-  y -= 28;
-  center(input.courseTitle, y, 16, bold);
-  y -= 30;
-
-  // The regulatory statement, when the course supplies one. Deliberately never "DHS APPROVED":
-  // this certificate states what the training was designed to address, not that a department
-  // approved it.
-  if (input.statement) {
-    center(input.statement, y, 10, italic, [0.3, 0.3, 0.3]);
-    y -= 22;
-  }
-
-  const issuedLine = `Issued: ${dateFmt(input.issuedAt)}`;
-  const expiresLine = input.expiresAt
-    ? `   |   Renewal due: ${dateFmt(input.expiresAt)}`
-    : "";
-  center(issuedLine + expiresLine, y, 11, font, [0.25, 0.25, 0.25]);
-  y -= 20;
-
-  if (input.organizationName) {
-    const issuedBy = input.facilityName
-      ? `${input.organizationName} -- ${input.facilityName}`
-      : input.organizationName;
-    center(`Issued by ${issuedBy}`, y, 11, font, [
-      0.25,
-      0.25,
-      0.25,
-    ]);
-    y -= 20;
-  }
-
-  const details: DetailLine[] = [];
-  if (input.courseCode) details.push({ label: "Course code", value: input.courseCode });
-  if (input.courseVersion) details.push({ label: "Course version", value: input.courseVersion });
-  if (input.regulatoryReference) {
-    details.push({ label: "Regulatory reference", value: input.regulatoryReference });
-  }
-  if (input.finalExamScore !== null) {
-    details.push({ label: "Final examination score", value: `${input.finalExamScore}%` });
-  }
-  if (input.trainingProvider) {
-    details.push({
-      label: "Training provider",
-      value: input.providerCredential
-        ? `${input.trainingProvider}, ${input.providerCredential}`
-        : input.trainingProvider,
-    });
-  }
-
-  if (details.length > 0) {
-    y -= 6;
-    // Two columns, so a long list does not push the credential number off the page.
-    const columnWidth = (PAGE_WIDTH - MARGIN * 2) / 2;
-    const rows = Math.ceil(details.length / 2);
-    for (let row = 0; row < rows; row += 1) {
-      for (let column = 0; column < 2; column += 1) {
-        const detail = details[row * 2 + column];
-        if (!detail) continue;
-        const text = truncate(`${detail.label}: ${detail.value}`, columnWidth - 20, font, 9);
-        page.drawText(text, {
-          x: MARGIN + column * columnWidth + 10,
-          y,
-          size: 9,
-          font,
-          color: rgb(0.3, 0.3, 0.3),
-        });
-      }
-      y -= 14;
-    }
-  }
-
-  y -= 10;
-  center(`Credential number: ${input.credentialNumber}`, y, 9, font, [
-    0.5,
-    0.5,
-    0.5,
-  ]);
-  y -= 16;
-  const verifyBase = verificationBase();
-  const verifyUrl = `${verifyBase}/verify/${input.slug}`;
-  center(`Verify at ${verifyUrl.replace(/^https?:\/\//, "")}`, y, 9, font, [
-    0.5,
-    0.5,
-    0.5,
-  ]);
-
-  // The URL stays printed whether or not the QR renders: a surveyor with a phone scans, a surveyor
-  // with a keyboard types, and neither depends on the other.
-  const qrPng = await verificationQrPng(verifyUrl);
-  if (qrPng) {
-    const qrImage = await doc.embedPng(qrPng);
-    const qrSize = 72;
-    page.drawImage(qrImage, {
-      x: PAGE_WIDTH - MARGIN - qrSize,
-      y: MARGIN - 8,
-      width: qrSize,
-      height: qrSize,
-    });
-    const caption = "Scan to verify";
-    page.drawText(caption, {
-      x: PAGE_WIDTH - MARGIN - qrSize
-        + (qrSize - font.widthOfTextAtSize(caption, 7)) / 2,
-      y: MARGIN - 18,
-      size: 7,
-      font,
-      color: rgb(0.5, 0.5, 0.5),
-    });
-  }
-
-  return await doc.save();
-}
 
 type CertificatePdfClaim = {
   job_id: string;
@@ -526,7 +281,7 @@ async function processClaimedJob(
       providerCredential: detail.providerCredential,
       finalExamScore: detail.finalExamScore,
       statement: detail.statement,
-    });
+    }, verificationBase());
     const path = `${cert.organization_id}/${cert.id}.pdf`;
 
     // A deterministic path and upsert make a reclaimed stale run safe. The run token below

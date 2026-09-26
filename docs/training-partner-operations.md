@@ -18,6 +18,12 @@ Use **Reports** for exact employee transcripts, required progress, overdue work,
 
 Issued course credits appear automatically in the evidence view. Outside/classroom evidence still requires review. A verified manual entry linked to the same assignment replaces its automatic projection so the hour is not counted twice. Practical instruction, facility orientation, qualified fire instruction and broader eligibility must be evidenced separately.
 
+Newly generated certificates use the CareMetric Healthcare Advisors logo lockup,
+a navy-and-gold landscape layout, and signature-style lettering for Dr. Kevin
+Deyarmin with ND, MSW, CHPCA, NCG beneath it. Course provider attribution remains
+separate. The template preserves award details and the verification QR/URL;
+existing saved PDFs retain their original design and are not automatically replaced.
+
 ## Certificate correction process
 
 Learner name, course title, code and version are captured at issuance. Renaming a live course, editing a staff profile or retrying PDF generation must not rewrite the award's identity. A routine staff-profile edit is not an approved correction to an already issued award. Legacy learner names are frozen from the current employee record when the migration runs; historical names cannot be reconstructed from mutable profiles. Existing PDFs are retained, and any historical discrepancy requires the correction process below.
