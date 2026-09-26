@@ -83,7 +83,7 @@ select is(
    join public.incidents i on i.id = n.incident_id
    where i.idempotency_key = 'incident-death-key-1' and n.notification_type = 'state_hotline'),
   1,
-  'the two-hour state hotline notification is still created automatically'
+  'the state hotline notification is still created automatically'
 );
 
 -- The hole the insert guard closes: a client cannot declare its own death not reportable.

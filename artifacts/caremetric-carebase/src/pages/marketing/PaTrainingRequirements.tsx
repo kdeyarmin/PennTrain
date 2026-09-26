@@ -16,7 +16,7 @@ const SUMMARY_ROWS = [
   {
     setting: "Assisted Living Facility",
     requirement:
-      "16 hrs per direct care worker · +4 dementia hrs within 30 days of hire, 2 hrs yearly after (do not count toward the 16) · 8 hrs on a special care unit",
+      "16 hrs per direct care worker · every staff member and volunteer: +4 dementia hrs within 30 days of hire, 2 hrs yearly after (not counted in the 16) · special care unit staff: 8 hrs within 30 days of hire, then 8 yearly",
     citation: "§2800.65 / .69 / .236",
   },
   {
@@ -69,8 +69,9 @@ const ADD_ONS = [
     body: (
       <>
         4 hours of dementia-specific training within 30 days of hire, then 2
-        hours every year after. These hours do <strong>not</strong> count toward
-        the 16-hour annual total.
+        hours every year after — for administrative, direct care, ancillary,
+        and substitute staff and volunteers alike. These hours do{" "}
+        <strong>not</strong> count toward the 16-hour annual total.
       </>
     ),
   },
@@ -82,7 +83,7 @@ const ADD_ONS = [
   {
     label: "§2800.236 — ALF special care units",
     body:
-      "8 annual hours for staff on a dementia special care unit, and separately 8 hours for an INRBI special care unit. Unit assignment required.",
+      "8 hours within 30 days of hire and 8 annual hours for direct care staff on a dementia special care unit, and separately the same for an INRBI special care unit — both on top of the 16. Unit assignment required.",
   },
   {
     label: "Administrators",
@@ -113,7 +114,7 @@ const CLINICAL_PATHS = [
 ] as const;
 
 const LIMITS = [
-  "Unlicensed medication administration — requires the DHS-approved program and testing; insulin and epinephrine carry additional requirements.",
+  "Unlicensed medication administration — requires the DHS-approved course and competency test within the past 2 years, which covers oral, topical, and drop medications and epinephrine injections for allergies; insulin injections also need a DHS-approved diabetes education program within the past 12 months.",
   "CPR / first aid, qualified fire-safety training, and facility-plan exercises — require certified trainers or facilitators with retained external documentation.",
   "Administrator continuing education — approved-provider rules apply; a completion certificate is not, by itself, accepted administrator CE.",
   "A certificate of course completion is never, by itself, a claim of Department, CMS, or professional-board approval.",

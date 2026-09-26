@@ -231,8 +231,9 @@ export interface BucketHours {
 /**
  * Hours a PCH general-annual bucket may draw from on-the-job training.
  *
- * 55 Pa. Code § 2600.65(f)-(g): of the 12 annual hours, no more than 6 may be on the job. No other
- * bucket admits any, which is what `recalculate_compliance_core`'s
+ * 55 Pa. Code § 2600.65(e)(2): on-the-job training "may count for 6 out of the 12 training hours
+ * required annually". Chapter 2800 has no counterpart to (e)(2), and no other bucket admits any,
+ * which is what `recalculate_compliance_core`'s
  * `case when bucket_type = 'general_annual' and facility_type = 'PCH' then 6 else 0 end` encodes.
  */
 export const PCH_GENERAL_ANNUAL_OJT_CAP = 6;

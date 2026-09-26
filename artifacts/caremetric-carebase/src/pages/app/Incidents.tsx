@@ -25,6 +25,7 @@ import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
 import { AUTO_NOTIFIED_INCIDENT_TYPES } from "@/lib/incidentStages";
+import { defaultNotificationHours, notificationDueHours } from "@/lib/incidentNotificationHours";
 
 const PAGE_SIZE = 15;
 
@@ -35,6 +36,9 @@ const INCIDENT_TYPE_OPTIONS = [
 
 const NOTIFICATION_TYPE_OPTIONS = [
   "state_hotline", "family_guardian", "law_enforcement", "licensing_agency",
+  // The OAPSA oral report to the area agency on aging (6 Pa. Code 15.151(a)(1)). The presets create
+  // one for abuse allegations and assaults.
+  "protective_services",
   // The 48-hour written report that follows the department call. The presets create one for every
   // reportable type (BACKLOG.md I10 residual / J74); offered here so a report filed for an event
   // the presets did not cover can be dated at the same time it is reported.
@@ -296,7 +300,7 @@ export default function Incidents() {
         staffInvolved: staffRows.filter((r) => r.employeeId).map((r) => ({ employee_id: r.employeeId, involvement_type: r.involvementType, statement: null })),
         notifications: notificationRows.map((r) => ({
           notification_type: r.notificationType,
-          due_at: new Date(Date.now() + Number(r.dueInHours || 24) * 3600_000).toISOString(),
+          due_at: new Date(Date.now() + notificationDueHours(r.notificationType, r.dueInHours) * 3600_000).toISOString(),
         })),
       },
       {
@@ -579,16 +583,22 @@ export default function Incidents() {
                 <div>
                   <p className="text-sm font-medium leading-none text-[13px]" >Additional Notifications</p>
                   <p className="text-xs text-muted-foreground">
-                    The state-hotline/law-enforcement notification this incident type requires is added automatically on save. Add any others here (e.g. family/guardian).
+                    The notifications this incident type requires -- the Department report, the written report, and protective services or police where they apply -- are added automatically on save. Add any others here (e.g. family/guardian).
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setNotificationRows((r) => [...r, { notificationType: "family_guardian", dueInHours: "24" }])}>
+                <Button variant="outline" size="sm" onClick={() => setNotificationRows((r) => [...r, { notificationType: "family_guardian", dueInHours: String(defaultNotificationHours("family_guardian")) }])}>
                   <Plus className="mr-1 h-3.5 w-3.5" /> Add
                 </Button>
               </div>
               {notificationRows.map((row, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <Select value={row.notificationType} onValueChange={(v) => setNotificationRows((rs) => rs.map((r, i) => i === idx ? { ...r, notificationType: v as NotificationRow["notificationType"] } : r))}>
+                  <Select
+                    value={row.notificationType}
+                    onValueChange={(v) => {
+                      const notificationType = v as NotificationRow["notificationType"];
+                      setNotificationRows((rs) => rs.map((r, i) => i === idx ? { ...r, notificationType, dueInHours: String(defaultNotificationHours(notificationType)) } : r));
+                    }}
+                  >
                     <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}

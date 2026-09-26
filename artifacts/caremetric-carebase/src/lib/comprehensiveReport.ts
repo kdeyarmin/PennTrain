@@ -266,7 +266,7 @@ export function buildComprehensiveReport(inputs: ComprehensiveReportInputs): Com
       id: "training",
       title: "Training Readiness",
       description: "Near-term renewal workload and the trainers/med-admin staff who keep the program running.",
-      reference: "55 Pa. Code §2600.65 / §2600.77",
+      reference: "55 Pa. Code §2600.65, §2600.190 / §2800.65, §2800.190",
       scope: orgWideScope,
       available: true,
       metrics: [
@@ -278,7 +278,7 @@ export function buildComprehensiveReport(inputs: ComprehensiveReportInputs): Com
       ],
     });
   } else {
-    sections.push(unavailable("training", "Training Readiness", "Near-term renewal workload and trainer coverage.", "55 Pa. Code §2600.65 / §2600.77"));
+    sections.push(unavailable("training", "Training Readiness", "Near-term renewal workload and trainer coverage.", "55 Pa. Code §2600.65, §2600.190 / §2800.65, §2800.190"));
   }
 
   // --- Workforce & Retention ------------------------------------------------------------------
@@ -456,7 +456,7 @@ export function buildComprehensiveReport(inputs: ComprehensiveReportInputs): Com
         id: "residents",
         title: "Residents & Census",
         description: "Census and resident-record readiness (assessments, agreements, and required documentation).",
-        reference: "55 Pa. Code §2600.224 / §2800.225",
+        reference: "55 Pa. Code §2600.224–§2600.227 / §2800.22, §2800.224–§2800.227",
         scope: facilityScope,
         available: true,
         metrics: [
@@ -470,7 +470,7 @@ export function buildComprehensiveReport(inputs: ComprehensiveReportInputs): Com
         ],
       });
     } else {
-      sections.push(unavailable("residents", "Residents & Census", "Census and resident-record readiness.", "55 Pa. Code §2600.224 / §2800.225"));
+      sections.push(unavailable("residents", "Residents & Census", "Census and resident-record readiness.", "55 Pa. Code §2600.224–§2600.227 / §2800.22, §2800.224–§2800.227"));
     }
   }
 

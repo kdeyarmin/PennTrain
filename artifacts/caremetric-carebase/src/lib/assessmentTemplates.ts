@@ -43,6 +43,14 @@ export type TemplateKey =
 
 export type TemplateKind = "state_form_backed" | "internal_review";
 
+/**
+ * Section numbers in paRegulatoryCitations, by facility type. Chapters 2600 and 2800 number the same
+ * obligation differently -- the PCH preadmission screening is 2600.224, but 2800.224 is the ALF's
+ * initial assessment and its "can meet needs" certification sits in 2800.22(b) -- so one section
+ * number cannot serve both.
+ */
+export type TemplateCitation = Partial<Record<"PCH" | "ALR", string>>;
+
 export type TemplateFieldType =
   | "single_select"
   | "multi_select"
@@ -90,8 +98,8 @@ export interface TemplateField {
   when?: TemplateFieldCondition;
   /** Inline PA guidance shown next to the field. */
   guidance?: string;
-  /** Section number in paRegulatoryCitations, when one governs this field. */
-  citation?: string;
+  /** Governing section, when one governs this field. */
+  citation?: TemplateCitation;
   /** Care attribute this answer can be compared against (Phase 3). */
   comparesTo?: ComparableCareAttribute;
   min?: number;
@@ -124,7 +132,7 @@ export interface AssessmentTemplate {
   version: number;
   effectiveFrom: string;
   /** Section governing this instrument, when one does. */
-  citation?: string;
+  citation?: TemplateCitation;
   /** Copy shown when a DHS-prescribed form, not this record, is what satisfies the requirement. */
   stateFormNotice?: string;
   signature: TemplateSignatureRules;
@@ -207,7 +215,7 @@ const STATE_FORM_TEMPLATES: AssessmentTemplate[] = [
     facilityTypes: PCH_AND_ALF,
     version: 1,
     effectiveFrom: "2026-07-25",
-    citation: "2600.225",
+    citation: { PCH: "2600.225", ALR: "2800.224" },
     stateFormNotice: STATE_FORM_NOTICE,
     signature: {
       assessorSignatureRequired: true,
@@ -225,7 +233,7 @@ const STATE_FORM_TEMPLATES: AssessmentTemplate[] = [
     facilityTypes: PCH_AND_ALF,
     version: 1,
     effectiveFrom: "2026-07-25",
-    citation: "2600.225",
+    citation: { PCH: "2600.225", ALR: "2800.225" },
     stateFormNotice: STATE_FORM_NOTICE,
     signature: {
       assessorSignatureRequired: true,
@@ -242,7 +250,7 @@ const STATE_FORM_TEMPLATES: AssessmentTemplate[] = [
     facilityTypes: PCH_AND_ALF,
     version: 1,
     effectiveFrom: "2026-07-25",
-    citation: "2600.225",
+    citation: { PCH: "2600.225", ALR: "2800.225" },
     stateFormNotice: STATE_FORM_NOTICE,
     signature: {
       assessorSignatureRequired: true,
@@ -259,7 +267,7 @@ const STATE_FORM_TEMPLATES: AssessmentTemplate[] = [
     facilityTypes: PCH_AND_ALF,
     version: 1,
     effectiveFrom: "2026-07-25",
-    citation: "2600.227",
+    citation: { PCH: "2600.227", ALR: "2800.227" },
     stateFormNotice: STATE_FORM_NOTICE,
     signature: {
       assessorSignatureRequired: true,
@@ -279,7 +287,7 @@ const INTERNAL_REVIEW_TEMPLATES: AssessmentTemplate[] = [
     facilityTypes: PCH_AND_ALF,
     version: 1,
     effectiveFrom: "2026-07-25",
-    citation: "2600.224",
+    citation: { PCH: "2600.224", ALR: "2800.22" },
     stateFormNotice:
       "The DHS Preadmission Screening form is what satisfies the requirement. This review records "
       + "the facility's own admission decision alongside it.",
@@ -345,7 +353,7 @@ const INTERNAL_REVIEW_TEMPLATES: AssessmentTemplate[] = [
             type: "single_select",
             options: YES_NO_UNKNOWN,
             required: true,
-            citation: "2600.224",
+            citation: { PCH: "2600.224", ALR: "2800.22" },
           },
           {
             key: "unmet_needs_detail",
@@ -733,8 +741,17 @@ export function internalReviewTemplates(facilityType: string | null | undefined)
   return templatesForFacility(facilityType).filter((template) => template.kind === "internal_review");
 }
 
-export function templateCitation(template: AssessmentTemplate): PaRegulatoryCitation | undefined {
-  return template.citation ? findCitation(template.citation) : undefined;
+/**
+ * The governing section for this facility type. Undefined for a facility type the template does not
+ * name, rather than falling back to the other chapter's section -- a wrong citation is worse than none.
+ */
+export function templateCitation(
+  template: AssessmentTemplate,
+  facilityType: string | null | undefined,
+): PaRegulatoryCitation | undefined {
+  if (facilityType !== "PCH" && facilityType !== "ALR") return undefined;
+  const section = template.citation?.[facilityType];
+  return section ? findCitation(section) : undefined;
 }
 
 /** Every field in a template, flattened, in section order. */

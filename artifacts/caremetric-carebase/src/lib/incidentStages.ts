@@ -282,10 +282,11 @@ export function buildIncidentStages(input: IncidentStageInput): IncidentStage[] 
     {
       key: "notifications",
       label: "Required notifications",
-      why: "Notification deadlines run from the event, not from when the investigation gets going.",
+      why: "Notification deadlines run from when the facility learned of the event, not from when the investigation gets going.",
       status: notificationResult.status,
       outstanding: notificationResult.outstanding,
-      // Deliberately no prerequisites. A two-hour hotline deadline must never render as "waiting on
+      // Deliberately no prerequisites. An "immediately" protective-services report or a 24-hour
+      // Department report must never render as "waiting on
       // earlier work" because nobody has typed up the immediate response yet. The one real
       // dependency -- that an undetermined event has no notification list yet -- is handled inside
       // notificationStage, which reports `waiting` for exactly that case and no other.

@@ -1,5 +1,5 @@
 import type { FacilityType } from "./facilityTypes";
-import { addFacilityCalendarDays, facilityDaysUntil } from "./dateUtils";
+import { addFacilityCalendarDays, facilityDaysUntil, formatDateForDisplay } from "./dateUtils";
 
 export type AdministratorRuleStatus = "compliant" | "due_soon" | "expired" | "missing";
 
@@ -11,6 +11,7 @@ export interface AdministratorRulePackProfile {
   competency_test_date?: string | null;
   nha_license_number?: string | null;
   nha_license_expiration?: string | null;
+  first_employed_as_administrator_on?: string | null;
   regional_office_verification_submitted_date?: string | null;
   regional_office_verification_document_path?: string | null;
 }
@@ -41,6 +42,18 @@ export interface AdministratorRulePackRequirement {
 const CE_WINDOW_DAYS = 365;
 const DUE_SOON_DAYS = 30;
 
+/**
+ * A licensed nursing home administrator employed as an administrator before this date is exempt
+ * from the chapter's training requirements; one hired later must pass the Department's
+ * competency-based test (2600.64(g) / 2800.64(g)). 2800.64(g) exempts "prior to" January 18, 2011
+ * and tests "after" it, naming neither side for the day itself, so a hire on the date is treated
+ * as owing the test.
+ */
+export const NHA_EXEMPTION_EMPLOYED_BEFORE: Record<"PCH" | "ALR", string> = {
+  PCH: "2006-10-24",
+  ALR: "2011-01-18",
+};
+
 /** Facility-calendar days from `startIso` to `endIso` (both `YYYY-MM-DD`). */
 function daysBetween(startIso: string, endIso: string): number {
   // Anchor `now` at noon UTC on the start day so facilityToday matches the date-only input.
@@ -67,7 +80,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   const profile = evidence.profile ?? null;
   const ceEntries = evidence.ceEntries ?? [];
   const isAlr = facilityType === "ALR";
-  const commonCitation = isAlr ? "55 Pa. Code 2800.64" : "55 Pa. Code Ch. 2600 administrator requirements";
+  const commonCitation = isAlr ? "55 Pa. Code 2800.64" : "55 Pa. Code 2600.64";
   const requirements: AdministratorRulePackRequirement[] = [];
 
   const qualifiedByCourse = Boolean(
@@ -77,14 +90,35 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     && profile.competency_test_passed
     && profile.competency_test_date,
   );
-  const qualifiedByNha = Boolean(
+  const nhaLicenseCurrent = Boolean(
     profile?.qualification_path === "nha_exemption"
     && profile.nha_license_number
     && (!profile.nha_license_expiration || profile.nha_license_expiration >= evidence.today),
   );
+  const nhaCutoff = NHA_EXEMPTION_EMPLOYED_BEFORE[isAlr ? "ALR" : "PCH"];
+  const nhaSection = isAlr ? "2800.64(g)" : "2600.64(g)";
+  const firstEmployed = profile?.first_employed_as_administrator_on ?? null;
+  const nhaTestRecorded = Boolean(profile?.competency_test_passed && profile?.competency_test_date);
+  const nhaEmployedBeforeCutoff = Boolean(firstEmployed && firstEmployed < nhaCutoff);
+  const qualifiedByNha = nhaLicenseCurrent && (nhaTestRecorded || nhaEmployedBeforeCutoff);
   // The NHA license expiration only governs the NHA-exemption path; a stale
   // expiration date left on a course-qualified profile must not mark it expired.
   const nhaExpiration = profile?.qualification_path === "nha_exemption" ? profile?.nha_license_expiration ?? null : null;
+
+  let qualificationDetail: string;
+  if (qualifiedByCourse) {
+    qualificationDetail = "100-hour course, certificate, and competency test are documented.";
+  } else if (!nhaLicenseCurrent) {
+    qualificationDetail = "Missing approved-course/test proof or current NHA exemption documentation.";
+  } else if (nhaTestRecorded) {
+    qualificationDetail = "NHA exemption and the Department competency test are documented.";
+  } else if (nhaEmployedBeforeCutoff) {
+    qualificationDetail = `NHA license is current and this administrator was first employed as an administrator on ${formatDateForDisplay(firstEmployed)}, before ${formatDateForDisplay(nhaCutoff)}, so ${nhaSection} exempts them from the chapter's training requirements while the license stays current.`;
+  } else if (firstEmployed) {
+    qualificationDetail = `This NHA was first employed as an administrator on ${formatDateForDisplay(firstEmployed)}. ${nhaSection} exempts only an NHA employed as administrator before ${formatDateForDisplay(nhaCutoff)}; record the passed Department competency-based test and its date.`;
+  } else {
+    qualificationDetail = `Record when this NHA was first employed as an administrator, or the passed Department competency-based test and its date. ${nhaSection} exempts only an NHA employed as administrator before ${formatDateForDisplay(nhaCutoff)}; one hired later must pass the test.`;
+  }
 
   requirements.push({
     id: isAlr ? "alr-approved-course-test" : "pch-administrator-qualification",
@@ -94,23 +128,19 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     binderDestination: "Administrator Qualifications / Qualification Path",
     dueDate: nhaExpiration,
     status: statusFromDueDate(nhaExpiration, evidence.today, qualifiedByCourse || qualifiedByNha),
-    detail: qualifiedByCourse
-      ? "100-hour course, certificate, and competency test are documented."
-      : qualifiedByNha
-        ? "NHA exemption documentation is documented."
-        : "Missing approved-course/test proof or current NHA exemption documentation.",
+    detail: qualificationDetail,
   });
 
   if (isAlr) {
     requirements.push({
       id: "alr-orientation-and-dementia",
       label: "ALF orientation and dementia-specific training documentation",
-      citation: "55 Pa. Code 2800.64; Chapter 2800 dementia-care training references",
+      citation: "55 Pa. Code 2800.64(a); 2800.69",
       facilityTypes: ["ALR"],
       binderDestination: "Administrator Qualifications / Orientation and Dementia Training",
       dueDate: null,
       status: profile?.hundred_hour_course_completed_date || profile?.nha_license_number ? "compliant" : "missing",
-      detail: "Track ALF orientation, approved-course, competency, and dementia-specific administrator documentation together.",
+      detail: "Track ALF orientation, approved-course, competency, and dementia-specific administrator documentation together. 2800.69 dementia training (4 hours within 30 days of hire, 2 hours annually) is in addition to the 100-hour course.",
     });
   }
 
@@ -150,12 +180,14 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
   requirements.push({
     id: "administrator-coverage",
     label: "Acting/designee/on-call coverage documentation",
-    citation: commonCitation,
+    citation: isAlr ? "55 Pa. Code 2800.56; 2800.64(e)" : "55 Pa. Code 2600.56; 2600.64(e)",
     facilityTypes: [facilityType],
     binderDestination: "Administrator Qualifications / Designee Coverage",
     dueDate: null,
     status: profile?.regional_office_verification_submitted_date || profile?.regional_office_verification_document_path ? "compliant" : "missing",
-    detail: "Keep regional-office notice plus acting/designee/on-call coverage proof ready for survey.",
+    detail: isAlr
+      ? "Keep the written verification sent to the Department's assisted living licensing office, plus proof the administrator averages 36 hours a week on site (30 during normal business hours) and the written designee and on-call assignments for absences."
+      : "Keep the written verification sent to the regional office, plus proof the administrator averages 20 hours a week on site in each calendar month.",
   });
 
   return requirements;

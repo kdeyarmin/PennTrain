@@ -8,6 +8,7 @@ import {
 } from "../_shared/dhsStateFormFill.ts";
 import { toWinAnsi } from "../_shared/pdfText.ts";
 import { uploadGeneratedResidentDocument, discardConflictingGeneratedDocument } from "../_shared/generatedResidentDocument.ts";
+import { hasStateFormPrefill, type StateFormPrefillItemType } from "../_shared/stateFormPrefill.ts";
 
 // Prefills the official PA DHS PDF for the two upload-only compliance item types (preadmission
 // screening, medical evaluation/DME) with the resident's demographics and stores it as a
@@ -99,7 +100,7 @@ const MEDICAL_EVALUATION_TEMPLATES: Record<string, DhsPrefillTemplate> = {
   },
 };
 
-const DHS_PREFILL_TEMPLATES: Record<string, Record<string, DhsPrefillTemplate>> = {
+const DHS_PREFILL_TEMPLATES: Record<StateFormPrefillItemType, Record<string, DhsPrefillTemplate>> = {
   preadmission_screening: {
     PCH: {
       url: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Preadmission-Screening.pdf",
@@ -225,7 +226,7 @@ Deno.serve(async (req: Request) => {
   if (itemError) return json(req, { error: itemError.message }, 500);
   if (!item) return json(req, { error: "Compliance item not found" }, 404);
 
-  const templatesForType = DHS_PREFILL_TEMPLATES[item.item_type];
+  const templatesForType = hasStateFormPrefill(item.item_type) ? DHS_PREFILL_TEMPLATES[item.item_type] : undefined;
   if (!templatesForType) {
     return json(req,
       { error: "Prefill is only available for preadmission screening and medical evaluation items" },

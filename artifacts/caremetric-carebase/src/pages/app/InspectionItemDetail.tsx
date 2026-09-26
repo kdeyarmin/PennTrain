@@ -26,6 +26,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn, humanize } from "@/lib/utils";
 import { facilityToday } from "@/lib/dateUtils";
+import { evacuationSeconds, fireDrillRecordErrors, type FireDrillRecordErrors } from "@/lib/fireDrillRecord";
 
 const SHIFT_OPTIONS = ["day", "evening", "overnight"] as const;
 
@@ -183,14 +184,15 @@ export default function InspectionItemDetail() {
   // Recomputed from current field values on every render (cheap -- a handful of string checks)
   // rather than tracked as its own state, so an error can never go stale relative to what's
   // actually typed in the field it describes.
+  const drillErrors: FireDrillRecordErrors = isFireDrill
+    ? fireDrillRecordErrors({
+      drillTime, durationMinutes, durationSeconds, exitRouteUsed, residentsPresent,
+      residentsEvacuated, staffParticipating, problemsEncountered,
+    })
+    : {};
   const fieldErrors = {
     performedBy: !performedBy.trim() ? "Required" : undefined,
-    drillTime: isFireDrill && !drillTime ? "Required" : undefined,
-    exitRouteUsed: isFireDrill && !exitRouteUsed.trim() ? "Required" : undefined,
-    residentsPresent: isFireDrill && !residentsPresent.trim() ? "Required" : undefined,
-    residentsEvacuated: isFireDrill && !residentsEvacuated.trim() ? "Required" : undefined,
-    staffParticipating: isFireDrill && !staffParticipating.trim() ? "Required" : undefined,
-    problemsEncountered: isFireDrill && !problemsEncountered.trim() ? "Required" : undefined,
+    ...drillErrors,
   };
 
   const resetEventForm = () => {
@@ -208,9 +210,7 @@ export default function InspectionItemDetail() {
       toast({ title: "Please fill in the highlighted fields", variant: "destructive" });
       return;
     }
-    const totalSeconds = durationMinutes.trim() || durationSeconds.trim()
-      ? (Number(durationMinutes || 0) * 60) + Number(durationSeconds || 0)
-      : null;
+    const totalSeconds = evacuationSeconds(durationMinutes, durationSeconds);
     createEvent(
       {
         inspection_item_id: item.id, performed_date: performedDate, performed_by: performedBy.trim(),
@@ -547,11 +547,18 @@ export default function InspectionItemDetail() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${__fieldIds}-evacuation-duration-min`} className="text-[13px]">Evacuation Duration (min)</Label>
-                  <Input id={`${__fieldIds}-evacuation-duration-min`} type="number" min={0} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} className="h-9" />
+                  <Input id={`${__fieldIds}-evacuation-duration-min`}
+                    type="number" min={0} value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)}
+                    className={cn("h-9", showValidation && errorFieldClass(fieldErrors.evacuationDuration))}
+                  />
+                  {showValidation && <FieldError message={fieldErrors.evacuationDuration} />}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${__fieldIds}-duration-sec`} className="text-[13px]">Duration (sec)</Label>
-                  <Input id={`${__fieldIds}-duration-sec`} type="number" min={0} max={59} value={durationSeconds} onChange={(e) => setDurationSeconds(e.target.value)} className="h-9" />
+                  <Input id={`${__fieldIds}-duration-sec`}
+                    type="number" min={0} max={59} value={durationSeconds} onChange={(e) => setDurationSeconds(e.target.value)}
+                    className={cn("h-9", showValidation && errorFieldClass(fieldErrors.evacuationDuration))}
+                  />
                 </div>
                 <div className="col-span-2 space-y-1.5">
                   <Label htmlFor={`${__fieldIds}-exit-route-used`} className="text-[13px]">Exit Route Used</Label>

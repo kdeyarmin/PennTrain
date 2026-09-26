@@ -150,6 +150,16 @@ describe("assessment and state-form cards", () => {
     }));
     expect(cards.map((card) => card.kind)).toContain("assessment_overdue");
   });
+
+  it("names an overdue ALF quarterly support plan review as that, citing 2800.227(c)", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      complianceItems: [{ id: "q1", item_type: "support_plan_quarterly_review", status: "expired", due_date: "2026-01-01" }],
+    }));
+    const card = cards.find((entry) => entry.id === "assessment-q1")!;
+    expect(card.title).toBe("Quarterly support plan review overdue");
+    expect(card.severity).toBe("urgent");
+    expect(card.why).toContain("2800.227(c)");
+  });
 });
 
 describe("support-plan cards", () => {

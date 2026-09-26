@@ -8,7 +8,7 @@
 -- Run with: supabase test db (requires the local Supabase Docker stack).
 
 begin;
-select plan(12);
+select plan(13);
 
 insert into public.organizations(id, name, slug) values
   ('8c000000-0000-4000-8000-000000000001', 'Incident Org', 'incident-anchor-org');
@@ -149,14 +149,15 @@ select ok(
 );
 
 -- Anchored at reported_at (20 minutes ago), not occurred_at (30) -- the difference matters most
--- when someone finds the resident hours after the event.
-select ok(
+-- when someone finds the resident hours after the event. 20260925110100: the window is the 24
+-- hours of 2600.16(c) / 2800.16(c) for a death too; two hours was the nursing-facility rule.
+select is(
   (select due_at from public.incident_notifications
    where incident_id = '8c000000-0000-4000-8000-000000000102'
-     and notification_type = 'state_hotline')
-    > (select occurred_at from public.incidents where id = '8c000000-0000-4000-8000-000000000102')
-      + interval '2 hours',
-  'and it runs from when the facility knew, not from when the event occurred'
+     and notification_type = 'state_hotline'),
+  (select reported_at + interval '24 hours'
+   from public.incidents where id = '8c000000-0000-4000-8000-000000000102'),
+  'and it runs 24 hours from when the facility knew, not from when the event occurred'
 );
 
 -- ---------------------------------------------------------------------------------------
@@ -168,13 +169,21 @@ select is(
   'no reporting window exists without a citation -- the column refuses it'
 );
 
--- The two-hour rows are the open regulatory question. Marking them is how the next person knows
--- the value has not been checked, rather than reconstructing it from a commit message.
+select is(
+  (select count(*)::int from public.incident_notification_rules
+   where notification_type = 'state_hotline'
+     and (due_hours <> 24 or source_confidence <> 'verified')),
+  0,
+  'every Department notification is 24 hours and marked verified against 2600.16(c) / 2800.16(c)'
+);
+
+-- The two-hour rows that remain stand for OAPSA's "immediately", which has no number. Marking them
+-- is how the next person knows the value is a product ceiling, not the regulation's.
 select is(
   (select count(*)::int from public.incident_notification_rules
    where due_hours = 2 and source_confidence = 'verified'),
   0,
-  'the two-hour windows are still marked unverified, because the regulation has not been read yet'
+  'the two-hour windows are still marked unverified, because "immediately" is not a number of hours'
 );
 
 select ok(
