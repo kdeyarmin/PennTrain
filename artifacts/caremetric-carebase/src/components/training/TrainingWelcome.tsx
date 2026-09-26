@@ -18,9 +18,9 @@ export function TrainingWelcome() {
     queryFn: async () => { const { data, error } = await supabase.storage.from("org-branding").createSignedUrl(path!, 3600); if (error) throw error; return data.signedUrl; }, staleTime: 30 * 60 * 1000 });
   if (!query.data) return null;
   const { facility_name, welcome } = query.data;
-  return <Card className="border-primary/20 bg-primary/5"><CardContent className="flex items-start gap-4 pt-5">
-    {logo.data && <img src={logo.data} alt={`${query.data.organization_name} logo`} className="max-h-16 max-w-36 object-contain" />}
-    <div className="space-y-2"><h2 className="text-lg font-semibold">Welcome to learning at {facility_name}</h2>
+  return <Card className="border-primary/20 bg-primary/5"><CardContent className="flex flex-col items-start gap-4 pt-5 sm:flex-row">
+    {logo.data && <img src={logo.data} alt={`${query.data.organization_name} logo`} className="max-h-16 max-w-36 shrink-0 object-contain" />}
+    <div className="min-w-0 w-full flex-1 space-y-2" style={{ overflowWrap: "anywhere" }}><h2 className="text-lg font-semibold">Welcome to learning at {facility_name}</h2>
       <p className="text-sm whitespace-pre-wrap">{welcome.welcome_message || "Start with your required learning below. Your deadlines appear beside each course. Explore the Course Library whenever you want to learn more."}</p>
       <p className="text-sm">Training questions? {welcome.contact_name || "Contact your facility administrator"}{welcome.contact_email && <> · <a className="underline" href={`mailto:${welcome.contact_email}`}>{welcome.contact_email}</a></>}</p>
       <p className="text-sm"><Link className="underline" href="/me/certificates">Find certificates and submit outside training</Link></p>

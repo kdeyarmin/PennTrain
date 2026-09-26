@@ -42,7 +42,13 @@ select is(pg_temp.branding_logo(pg_temp.branding_id(1)::text||'/'||suffix),null:
 from unnest(array['%2e%2e/other/logo.png','.%2e/other/logo.png','folder'||chr(92)||'..'||chr(92)||'..'||chr(92)||'other/logo.png',
   '../other/logo.png','./logo.png','folder//logo.png','logo.png?token=spoof','logo.png#fragment','logo.png'||chr(10),'logo image.png','logo.png/']) suffix;
 select is(pg_temp.branding_logo(pg_temp.branding_id(1)::text||'/brand-assets/logo_v2.png'),pg_temp.branding_id(1)::text||'/brand-assets/logo_v2.png','canonical nested organization logo remains available');
+-- Use the trusted fixture-write path: the subscription guard reverts direct updates.
+select set_config('app.privileged_write','on',true);
 update public.organizations set subscription_status='suspended' where id=pg_temp.branding_id(1);
+select set_config('app.privileged_write','',true);
+select is((select subscription_status from public.organizations where id=pg_temp.branding_id(1)),'suspended'::text,'branding fixture is actually suspended');
+set local role service_role;
 select is(public.get_training_invitation_branding(pg_temp.branding_id(1),pg_temp.branding_id(11)),null::jsonb,'suspended customer returns no branding');
+reset role;
 select * from finish();
 rollback;

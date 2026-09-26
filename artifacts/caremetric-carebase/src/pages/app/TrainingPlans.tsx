@@ -689,7 +689,7 @@ export default function TrainingPlans({ facilityId, embedded = false }: { facili
             planButton?.focus({ preventScroll: true });
           });
         }} onCreated={id => {
-          setExpandedPlanId(id); toast({ title: "Facility learning plan created", description: "Review the copied courses, then apply the plan or set a role-based assignment rule." });
+          setSearch(""); setExpandedPlanId(id); toast({ title: "Facility learning plan created", description: "Review the copied courses, then apply the plan or set a role-based assignment rule." });
         }} />}
 
       <div className="premium-card">

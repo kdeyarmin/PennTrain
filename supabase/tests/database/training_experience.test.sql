@@ -98,9 +98,9 @@ select throws_ok($$select public.training_experience('records',pg_temp.id(11),pg
 select throws_ok($$select public.training_experience('save_welcome',pg_temp.id(11),pg_temp.id(201),'{}')$$,'42501',null,'learner cannot edit facility welcome');
 select lives_ok($$insert into public.training_documents(id,organization_id,facility_id,employee_id,document_type,file_name,storage_bucket,storage_path,file_type)
 values(pg_temp.id(910),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','fresh.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/fresh.pdf','application/pdf')$$,'learner can register their actual upload without trusting a client uploader field');
-update public.training_documents set storage_path=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/private-staff.pdf' where id=pg_temp.id(910);
+select throws_ok($$update public.training_documents set storage_path=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/private-staff.pdf' where id=pg_temp.id(910)$$,'42501',null,'document path mutation is denied at the table privilege boundary');
 select is((select storage_path from public.training_documents where id=pg_temp.id(910)),pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/fresh.pdf','learner cannot bypass registration guard by repointing an unsealed document');
-update public.training_documents set storage_bucket='course-documents' where id=pg_temp.id(910);
+select throws_ok($$update public.training_documents set storage_bucket='course-documents' where id=pg_temp.id(910)$$,'42501',null,'document bucket mutation is denied at the table privilege boundary');
 select is((select storage_bucket from public.training_documents where id=pg_temp.id(910)),'external-uploads','learner cannot change document bucket after registration');
 update storage.objects set owner_id=pg_temp.id(103)::text where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/legacy-forged.pdf';
 select is((select owner_id from storage.objects where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/legacy-forged.pdf'),pg_temp.id(104)::text,'learner cannot acquire actual ownership through forged readable legacy metadata');
