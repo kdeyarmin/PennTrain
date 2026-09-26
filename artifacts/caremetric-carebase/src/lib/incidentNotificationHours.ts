@@ -13,6 +13,8 @@ export const INCIDENT_NOTIFICATION_DEFAULT_HOURS = {
   protective_services: 2,
   law_enforcement: 2,
   written_report: 48,
+  written_law_enforcement: 48,
+  written_protective_services: 48,
   family_guardian: 24,
   resident: 0,
   resident_family: 0,

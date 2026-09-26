@@ -8,6 +8,8 @@ describe("incident notification default hours", () => {
     expect(defaultNotificationHours("state_hotline")).toBe(24);
     expect(defaultNotificationHours("licensing_agency")).toBe(24);
     expect(defaultNotificationHours("written_report")).toBe(48);
+    expect(defaultNotificationHours("written_law_enforcement")).toBe(48);
+    expect(defaultNotificationHours("written_protective_services")).toBe(48);
   });
 
   it("uses the entered hours when they are a positive number", () => {

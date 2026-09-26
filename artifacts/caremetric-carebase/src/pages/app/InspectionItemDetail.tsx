@@ -660,10 +660,14 @@ export default function InspectionItemDetail() {
                   </Select>
                 </div>
                 <div><Label htmlFor={`${__fieldIds}-alarm-sounded`}>Alarm / detector set off *</Label><Select value={alarmSounded} onValueChange={setAlarmSounded}><SelectTrigger id={`${__fieldIds}-alarm-sounded`}><SelectValue placeholder="Select observed result" /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select>{showValidation && <FieldError message={fieldErrors.alarm} />}</div>
-                <fieldset className="col-span-full space-y-2"><legend className="text-sm font-medium">Detector / alarm items actually tested during this drill</legend>
-                  <p className="text-xs text-muted-foreground">Select each item tested. An operative, sounded alarm records its monthly test from this drill; an unsuccessful evacuation still preserves that test.</p>
+                <fieldset className="col-span-full space-y-2"><legend className="text-sm font-medium">Detector / alarm tested during this drill</legend>
+                  <p className="text-xs text-muted-foreground">Select the one device whose activation and operation are recorded above. Log additional devices separately on their inspection pages so each keeps its own result. An unsuccessful evacuation still preserves this device's test.</p>
                   {equipmentError && <p className="text-xs text-destructive">Equipment could not be loaded. Save the drill and record the equipment test separately.</p>}
-                  {alarmItems.map((candidate) => <label key={candidate.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={testedAlarmIds.includes(candidate.id)} onChange={(e) => setTestedAlarmIds((ids) => e.target.checked ? [...ids, candidate.id] : ids.filter((id) => id !== candidate.id))} />{candidate.label}</label>)}
+                  <Label htmlFor={`${__fieldIds}-tested-alarm`}>Device to record</Label>
+                  <Select value={testedAlarmIds[0] ?? "none"} onValueChange={(value) => setTestedAlarmIds(value === "none" ? [] : [value])}>
+                    <SelectTrigger id={`${__fieldIds}-tested-alarm`}><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="none">No device test to record</SelectItem>{alarmItems.map((candidate) => <SelectItem key={candidate.id} value={candidate.id}>{candidate.label}</SelectItem>)}</SelectContent>
+                  </Select>
                 </fieldset>
                 <div className="col-span-full"><Label htmlFor={`${__fieldIds}-evacuation-exception`}>Reason any resident did not evacuate</Label><Textarea id={`${__fieldIds}-evacuation-exception`} value={evacuationException} onChange={(e) => setEvacuationException(e.target.value)} placeholder="Record corrective action; identify any documented hospice exception permitted by §2800.29. A refusal alone is not an exception." /></div>
                 <div className="col-span-2 flex items-center gap-2">

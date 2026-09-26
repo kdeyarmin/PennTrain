@@ -59,6 +59,9 @@ begin
     new.evacuation_time_exceeded := true;
   end if;
   new.tested_alarm_item_ids := array(select distinct alarm_id from unnest(new.tested_alarm_item_ids) alarm_id order by alarm_id);
+  if cardinality(new.tested_alarm_item_ids) > 1 then
+    raise exception 'A drill can credit one alarm or detector; record separate test results for additional devices' using errcode='23514';
+  end if;
   if tg_op = 'UPDATE' and (cardinality(old.tested_alarm_item_ids) > 0 or cardinality(new.tested_alarm_item_ids) > 0)
     and (new.tested_alarm_item_ids is distinct from old.tested_alarm_item_ids
       or new.alarm_sounded is distinct from old.alarm_sounded
@@ -76,10 +79,13 @@ begin
         raise exception 'A tested alarm must be an active detector or fire alarm at this facility' using errcode = '23514';
       end if;
     end loop;
-    -- On update preserve the standard actually used; a later edit to the program cannot
-    -- rewrite the historical finding. Incomplete older records are retained as recorded.
-    new.evacuation_limit_seconds := case when tg_op = 'UPDATE' then old.evacuation_limit_seconds
-      else coalesce(v_item.evacuation_limit_seconds, 150) end;
+    -- Preserve a recorded standard and untouched legacy evidence. A legacy failure
+    -- promoted to pass must first acquire a standard, so NULL cannot bypass validation.
+    -- A program standard dated after the drill cannot authorize a longer historical time.
+    new.evacuation_limit_seconds := case when tg_op = 'UPDATE'
+      and (old.evacuation_limit_seconds is not null or new.regulatory_evidence_version=0) then old.evacuation_limit_seconds
+      else coalesce(case when v_item.evacuation_standard_date <= new.performed_date
+        then v_item.evacuation_limit_seconds end, 150) end;
     new.evacuation_time_exceeded := case when tg_op = 'UPDATE' and old.evacuation_time_exceeded then true
       else coalesce(new.evacuation_duration_seconds > new.evacuation_limit_seconds, false) end;
     if new.is_sleeping_hours_drill then

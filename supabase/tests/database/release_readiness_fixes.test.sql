@@ -366,8 +366,10 @@ select ok(
   pg_get_functiondef((
     select p.oid from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'create_resident_change_event'
-  )) like '%resident_compliance_rule_packs%',
-  'and create_resident_change_event reads it'
+  )) like '%app_private.create_resident_change_event_core%'
+  and pg_get_functiondef('app_private.create_resident_change_event_core(uuid,text,timestamptz,text,text,text,text,boolean,text,text,text,integer,uuid,timestamptz,text,boolean,boolean,uuid)'::regprocedure)
+    like '%resident_compliance_rule_packs%',
+  'and the public change-event wrapper delegates to the protected core that reads it'
 );
 
 -- J37. The money can be given back.

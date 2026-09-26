@@ -1,6 +1,6 @@
 import { useId, lazy, Suspense, useRef, useState } from "react";
 import { useParams, Link } from "wouter";
-import { INCIDENT_NOTIFICATION_TYPE_OPTIONS } from "@/lib/incidentTypes";
+import { INCIDENT_NOTIFICATION_TYPE_OPTIONS, incidentNotificationLabel } from "@/lib/incidentTypes";
 import {
   useGetIncident, useUpdateIncident,
   useListIncidentStaffInvolved, useAddIncidentStaffInvolved, useRemoveIncidentStaffInvolved,
@@ -553,7 +553,7 @@ export default function IncidentDetail() {
                 <div key={n.id} className="rounded-lg border text-sm">
                   <div className="flex items-center justify-between p-2">
                     <div>
-                      <span className="font-medium">{humanize(n.notification_type)}</span>
+                      <span className="font-medium">{incidentNotificationLabel(n.notification_type)}</span>
                       <span className="text-xs text-muted-foreground ml-2">
                         {n.completed_at
                           ? `Completed ${new Date(n.completed_at).toLocaleString()}${n.notification_method ? ` via ${n.notification_method}` : ""}${n.recipient ? ` — notified: ${n.recipient}` : ""}${n.reference_number ? ` — ref# ${n.reference_number}` : ""}`
@@ -631,7 +631,7 @@ export default function IncidentDetail() {
               >
                 <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {INCIDENT_NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
+                  {INCIDENT_NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{incidentNotificationLabel(t)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-1.5 shrink-0">

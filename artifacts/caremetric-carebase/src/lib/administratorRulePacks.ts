@@ -152,6 +152,7 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     const firstYear = Boolean(firstEmployed && firstEmployed <= evidence.today
       && evidence.today < addFacilityCalendarYears(firstEmployed, 1));
     const initialOnTime = Boolean(firstEmployed && profile?.dementia_initial_completed_date
+      && profile.dementia_initial_completed_date >= firstEmployed
       && profile.dementia_initial_completed_date <= addFacilityCalendarDays(firstEmployed, 30));
     requirements.push({
       id: "alr-orientation-and-dementia",

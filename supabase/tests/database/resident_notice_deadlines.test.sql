@@ -1,5 +1,5 @@
 begin;
-select plan(13);
+select plan(21);
 insert into public.organizations(id,name,slug) values('e1800000-0000-4000-8000-000000000001','Notice Org','notice-org-reg18');
 insert into public.facilities(id,organization_id,name,facility_type) values
  ('e1800000-0000-4000-8000-000000000011','e1800000-0000-4000-8000-000000000001','Notice ALF','ALR'),
@@ -19,6 +19,18 @@ select throws_ok($$update public.resident_regulatory_actions set status='complet
 select throws_ok($$update public.resident_regulatory_actions set status='completed',completed_at='2026-03-01 10:00-05',evidence='Written notice copy' where id='e1800000-0000-4000-8000-000000000203'$$,'23514',null,'ALF completion requires all notice content');
 select lives_ok($$update public.resident_regulatory_actions set status='completed',completed_at='2026-03-01 10:00-05',evidence='Written notice, certified mail receipt filed',destination='Receiving residence',details='{"language":"English","ombudsman_contacts":"State and local names, postal addresses and phones attached","rights_and_appeal":"Rights and review measures explained in notice","aging_in_place_attempts":"Provider supports and plan revisions attempted; records attached"}' where id='e1800000-0000-4000-8000-000000000203'$$,'ALF delivery can be documented with the mandatory content');
 select throws_ok($$update public.resident_regulatory_actions set anchor_at='2026-05-01 10:00-04' where id='e1800000-0000-4000-8000-000000000203'$$,'23514',null,'a completed delivery cannot have its deadline silently rewritten');
+select throws_ok($$update public.resident_regulatory_actions set evidence='Replacement notice copy' where id='e1800000-0000-4000-8000-000000000203'$$,'23514',null,'completed evidence cannot be substituted');
+select throws_ok($$update public.resident_regulatory_actions set destination='Different receiving residence' where id='e1800000-0000-4000-8000-000000000203'$$,'23514',null,'completed notice destination cannot be rewritten');
+select throws_ok($$update public.resident_regulatory_actions set reason='Different reason for discharge' where id='e1800000-0000-4000-8000-000000000203'$$,'23514',null,'completed notice reason cannot be rewritten');
+select throws_ok($$update public.resident_regulatory_actions set recipient_name='Different recipient' where id='e1800000-0000-4000-8000-000000000203'$$,'23514',null,'completed notice recipient identity cannot be rewritten');
+select throws_ok($$update public.resident_regulatory_actions set details=jsonb_set(details,'{language}','"Spanish"') where id='e1800000-0000-4000-8000-000000000203'$$,'23514',null,'completed notice contents cannot be rewritten');
+select throws_ok($$update public.resident_regulatory_actions set exception_basis='Different exception basis' where id='e1800000-0000-4000-8000-000000000203'$$,'23514',null,'completed exception evidence cannot be appended in place');
+select lives_ok($$insert into public.resident_regulatory_actions(id,organization_id,facility_id,resident_id,action_type,recipient_role,recipient_name,anchor_at,status,reason,destination,details,completed_at,evidence)
+ select 'e1800000-0000-4000-8000-000000000205',organization_id,facility_id,resident_id,action_type,recipient_role,recipient_name,anchor_at,status,
+ 'Correction: destination name was transcribed incorrectly','Correct receiving residence',details || jsonb_build_object('corrects_action_id',id),completed_at,
+ 'Original written notice and correction explanation retained together'
+ from public.resident_regulatory_actions where id='e1800000-0000-4000-8000-000000000203'$$,'a correction can be appended with its own evidence and original record reference');
+select is((select destination from public.resident_regulatory_actions where id='e1800000-0000-4000-8000-000000000203'),'Receiving residence','appending a correction preserves the original completed evidence');
 insert into public.resident_regulatory_actions(id,organization_id,facility_id,action_type,recipient_role,anchor_at,reason) values
  ('e1800000-0000-4000-8000-000000000204','e1800000-0000-4000-8000-000000000001','e1800000-0000-4000-8000-000000000011','closure_department_notice','department','2026-06-01 10:00-04','Voluntary facility closure');
 select is((select due_at from public.resident_regulatory_actions where id='e1800000-0000-4000-8000-000000000204'),'2026-04-02 10:00-04'::timestamptz,'DHS closure notice has its own 60-day deadline');

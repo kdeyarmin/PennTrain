@@ -15,5 +15,11 @@ export function incidentTypesForFacility(facilityType: string | undefined) {
 export const INCIDENT_NOTIFICATION_TYPE_OPTIONS = [
   "state_hotline", "family_guardian", "resident", "resident_family", "designated_person",
   "law_enforcement", "licensing_agency", "protective_services", "department_of_aging",
-  "prescriber", "supervision_plan", "written_report", "other",
+  "prescriber", "supervision_plan", "written_report", "written_law_enforcement", "written_protective_services", "other",
 ] as const;
+
+export function incidentNotificationLabel(type: string): string {
+  if (type === "written_law_enforcement") return "Written report to law enforcement";
+  if (type === "written_protective_services") return "Written report to protective services";
+  return type.replace(/_/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
+}

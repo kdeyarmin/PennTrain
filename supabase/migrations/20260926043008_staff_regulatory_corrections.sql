@@ -117,7 +117,7 @@ returns jsonb language sql stable set search_path='' as $$
       (a.shift_date+a.end_time+case when a.end_time<=a.start_time then interval '1 day' else interval '0 day' end)
         at time zone 'America/New_York' as ends
     from public.shift_assignments a
-    join scope s on s.facility_id=a.facility_id where a.status in ('scheduled','confirmed')
+    join scope s on s.id=a.schedule_id and s.facility_id=a.facility_id where a.status in ('scheduled','confirmed')
       and a.shift_date between s.period_start-1 and s.period_end
   ), boundaries as (
     select starts as moment from scope union select ends from scope

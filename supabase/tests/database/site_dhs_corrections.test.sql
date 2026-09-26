@@ -1,5 +1,5 @@
 begin;
-select plan(24);
+select plan(29);
 
 insert into public.organizations (id,name,slug) values
  ('e3900000-0000-4000-8000-000000000001','Site Rules','site-rules-reg39');
@@ -55,6 +55,23 @@ insert into public.inspection_events(id,inspection_item_id,performed_date,perfor
 select is((select result from public.inspection_events where id='e3900000-0000-4000-8000-000000000207'),'deficiency_noted','an unrecorded alarm activation cannot certify a passing drill');
 select is((select regulatory_evidence_version::integer from public.inspection_events where id='e3900000-0000-4000-8000-000000000207'),1,'new records always receive the current validation version');
 select ok((select qual like '%evacuation_time_exceeded%' from pg_policies where schemaname='public' and tablename='inspection_events' and policyname='inspection_events_delete'),'direct deletion cannot remove an observed time breach');
+
+-- Reproduce a record created before these columns/validation existed.
+alter table public.inspection_events disable trigger validate_regulatory_evidence;
+insert into public.inspection_events(id,inspection_item_id,performed_date,performed_by,result,evacuation_duration_seconds,alarm_sounded,alarm_or_detector_operative)
+ values('e3900000-0000-4000-8000-000000000208','e3900000-0000-4000-8000-000000000101',public.pa_today(),'Legacy inspector','fail',200,true,true);
+alter table public.inspection_events enable trigger validate_regulatory_evidence;
+update public.inspection_events set result='pass' where id='e3900000-0000-4000-8000-000000000208';
+select is((select evacuation_limit_seconds from public.inspection_events where id='e3900000-0000-4000-8000-000000000208'),150,'a legacy failure gains the applicable fallback standard before validation');
+select is((select result from public.inspection_events where id='e3900000-0000-4000-8000-000000000208'),'deficiency_noted','a 200-second legacy failure cannot become a pass through a NULL standard');
+select ok((select evacuation_time_exceeded from public.inspection_events where id='e3900000-0000-4000-8000-000000000208'),'legacy correction retains the observed time breach');
+
+insert into public.inspection_items(id,organization_id,facility_id,item_kind,item_type,label,inspection_interval_days)
+ values('e3900000-0000-4000-8000-000000000107','e3900000-0000-4000-8000-000000000001','e3900000-0000-4000-8000-000000000011','equipment','smoke_detector','Second Hall Alarm',30);
+select throws_ok($$insert into public.inspection_events(inspection_item_id,performed_date,performed_by,result,alarm_sounded,alarm_or_detector_operative,tested_alarm_item_ids)
+ values('e3900000-0000-4000-8000-000000000101',public.pa_today(),'Inspector','pass',true,true,array['e3900000-0000-4000-8000-000000000102','e3900000-0000-4000-8000-000000000107']::uuid[])$$,
+ '23514','A drill can credit one alarm or detector; record separate test results for additional devices','aggregate drill results cannot credit multiple devices');
+select is((select count(*)::integer from public.inspection_events where inspection_item_id='e3900000-0000-4000-8000-000000000107'),0,'rejected aggregate test does not advance another device');
 
 select * from finish();
 rollback;

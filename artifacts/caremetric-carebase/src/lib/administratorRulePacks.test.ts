@@ -33,6 +33,23 @@ describe("administrator rule packs", () => {
     expect(check("2026-07-13", { first_employed_as_administrator_on: null })?.status).toBe("missing");
     expect(check("2026-07-13", { hundred_hour_course_document_path: null })?.status).toBe("missing");
   });
+  it.each([
+    ["2025-12-31", "missing"],
+    ["2026-01-01", "compliant"],
+    ["2026-01-31", "compliant"],
+    ["2026-02-01", "missing"],
+  ])("requires the initial dementia training within the hire-date window: %s", (completedOn, status) => {
+    const profile = {
+      first_employed_as_administrator_on: "2026-01-01",
+      department_orientation_completed_date: "2025-12-20",
+      department_orientation_document_path: "admin/orientation.pdf",
+      dementia_initial_completed_date: completedOn,
+      dementia_initial_hours: 4,
+      dementia_initial_document_path: "admin/dementia-initial.pdf",
+    };
+    expect(buildAdministratorRulePack("ALR", { profile, today: "2026-07-13" })
+      .find(rule => rule.id === "alr-orientation-and-dementia")?.status).toBe(status);
+  });
   it("evaluates PCH and ALR facilities with different rule packs", () => {
     const pch = buildAdministratorRulePack("PCH", {
       today: "2026-07-13",

@@ -61,10 +61,12 @@ begin
     or new.resident_id is distinct from old.resident_id) then
     raise exception 'A regulatory action cannot change its resident or facility' using errcode='23514';
   end if;
-  if tg_op='UPDATE' and old.status='completed' and (new.anchor_at is distinct from old.anchor_at
-    or new.action_type is distinct from old.action_type or new.recipient_role is distinct from old.recipient_role
-    or new.completed_at is distinct from old.completed_at or new.status is distinct from old.status) then
-    raise exception 'Completed delivery anchors are immutable; append a correction record with supporting evidence' using errcode='23514';
+  if tg_op='UPDATE' and old.status='completed' then
+    if (to_jsonb(new) - 'updated_at') is distinct from (to_jsonb(old) - 'updated_at') then
+      raise exception 'Completed regulatory records are immutable; append a correction record with supporting evidence' using errcode='23514';
+    end if;
+    -- Do not rederive a completed deadline if the rule implementation changes later.
+    return new;
   end if;
   if (new.action_type in ('closure_department_notice','closure_license_return') and new.recipient_role<>'department')
     or (new.action_type in ('discharge_notice','closure_resident_notice') and new.recipient_role not in ('resident','designated_person','referral_agent'))

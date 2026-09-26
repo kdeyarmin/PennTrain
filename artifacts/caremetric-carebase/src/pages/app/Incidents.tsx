@@ -26,7 +26,7 @@ import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
 import { AUTO_NOTIFIED_INCIDENT_TYPES } from "@/lib/incidentStages";
 import { defaultNotificationHours, notificationDueHours } from "@/lib/incidentNotificationHours";
-import { INCIDENT_TYPE_OPTIONS, incidentTypesForFacility, INCIDENT_NOTIFICATION_TYPE_OPTIONS as NOTIFICATION_TYPE_OPTIONS } from "@/lib/incidentTypes";
+import { INCIDENT_TYPE_OPTIONS, incidentTypesForFacility, incidentNotificationLabel, INCIDENT_NOTIFICATION_TYPE_OPTIONS as NOTIFICATION_TYPE_OPTIONS } from "@/lib/incidentTypes";
 
 const PAGE_SIZE = 15;
 
@@ -586,7 +586,7 @@ export default function Incidents() {
                   >
                     <SelectTrigger className="h-9 flex-1" aria-label="Notification type"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{humanize(t)}</SelectItem>)}
+                      {NOTIFICATION_TYPE_OPTIONS.map((t) => <SelectItem key={t} value={t}>{incidentNotificationLabel(t)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <div className="flex items-center gap-1.5 shrink-0">
