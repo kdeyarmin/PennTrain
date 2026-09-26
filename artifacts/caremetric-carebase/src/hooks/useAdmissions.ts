@@ -605,6 +605,13 @@ export function useTransitionResidentCensus() {
       // previous state until something else happens to refetch it.
       queryClient.invalidateQueries({ queryKey: ["resident-care-header", variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
+      // Queue eligibility and resident summaries depend on the current census status.
+      queryClient.invalidateQueries({ queryKey: ["resident-360", variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-timeline", variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["resident-care-delivery"] });
+      queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
     },
   });
 }

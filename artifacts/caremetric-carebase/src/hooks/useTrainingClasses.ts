@@ -27,14 +27,23 @@ export function useListTrainingClasses(filters: ListTrainingClassesFilters = {})
   return useQuery({
     queryKey: ["training_classes", filters],
     queryFn: async () => {
-      let query = supabase.from("training_classes").select("*").order("class_date", { ascending: false });
-      if (filters.crossFacilityOnly) query = query.is("facility_id", null);
-      else if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.trainerProfileId) query = query.eq("trainer_profile_id", filters.trainerProfileId);
-      if (filters.enrollableOnly) query = query.in("status", ["scheduled", "in_progress"]);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // The list and calendar export need the whole scoped history, including older classes.
+      const pageSize = 1000;
+      const rows: TrainingClass[] = [];
+      for (let from = 0; ;) {
+        let query = supabase.from("training_classes").select("*")
+          .order("class_date", { ascending: false }).order("id", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (filters.crossFacilityOnly) query = query.is("facility_id", null);
+        else if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.trainerProfileId) query = query.eq("trainer_profile_id", filters.trainerProfileId);
+        if (filters.enrollableOnly) query = query.in("status", ["scheduled", "in_progress"]);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data?.length) return rows;
+        from += data.length;
+      }
     },
   });
 }
@@ -502,13 +511,22 @@ export function useTrainingSessionRegistrations(classId: string | undefined) {
     queryKey: ["training_session_registrations", classId ?? null],
     enabled: !!classId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("training_session_registrations")
-        .select("id,employee_id,registration_status,waitlist_position,attendance_recorded_at,training_record_id")
-        .eq("class_id", classId!)
-        .order("waitlist_position", { ascending: true, nullsFirst: true });
-      if (error) throw error;
-      return (data ?? []) as TrainingSessionRegistration[];
+      // Capacity bounds registered seats, but the waitlist can extend beyond one API page.
+      const pageSize = 1000;
+      const rows: TrainingSessionRegistration[] = [];
+      for (let from = 0; ;) {
+        const { data, error } = await supabase
+          .from("training_session_registrations")
+          .select("id,employee_id,registration_status,waitlist_position,attendance_recorded_at,training_record_id")
+          .eq("class_id", classId!)
+          .order("waitlist_position", { ascending: true, nullsFirst: true })
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data?.length) return rows;
+        from += data.length;
+      }
     },
   });
 }
@@ -529,17 +547,28 @@ export function useTrainingSessionRegistrations(classId: string | undefined) {
  */
 export function useTrainingAttendanceEvidence(registrationIds: readonly string[]) {
   // Sorted so re-ordering the same registrations does not produce a new queryKey.
-  const stableIds = [...registrationIds].filter(Boolean).sort();
+  const stableIds = [...new Set(registrationIds.filter(Boolean))].sort();
   return useQuery({
     queryKey: ["training_attendance_evidence", stableIds],
     enabled: stableIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("training_attendance_evidence")
-        .select("registration_id,attendance_status,check_in_at,check_out_at,seat_minutes")
-        .in("registration_id", stableIds);
-      if (error) throw error;
-      return data ?? [];
+      const rows: Array<Pick<Tables<"training_attendance_evidence">, "registration_id" | "attendance_status" | "check_in_at" | "check_out_at" | "seat_minutes">> = [];
+      // Bound the URL as rosters grow, and advance by the returned count so a lower
+      // server row cap still yields complete evidence for the approval preview.
+      for (let offset = 0; offset < stableIds.length; offset += 100) {
+        for (let from = 0; ;) {
+          const { data, error } = await supabase
+            .from("training_attendance_evidence")
+            .select("registration_id,attendance_status,check_in_at,check_out_at,seat_minutes")
+            .in("registration_id", stableIds.slice(offset, offset + 100))
+            .order("id", { ascending: true }).range(from, from + 999);
+          if (error) throw error;
+          rows.push(...(data ?? []));
+          if (!data?.length) break;
+          from += data.length;
+        }
+      }
+      return rows;
     },
   });
 }

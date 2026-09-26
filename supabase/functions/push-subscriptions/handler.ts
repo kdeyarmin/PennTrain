@@ -16,6 +16,7 @@ const CORS_OPTIONS = {
 };
 
 interface SubscriptionBody {
+  action?: string;
   subscription?: {
     endpoint?: string;
     expirationTime?: number | null;
@@ -81,6 +82,17 @@ export function createPushSubscriptionsHandler({
       error instanceof RequestBodyError ? error.status : 400);
   }
   const admin = createClient(supabaseUrl, serviceKey);
+  if (req.method === "POST" && body.action === "status") {
+    if (!validRemovalEndpoint(body.endpoint)) return json(req, { error: "A valid HTTPS endpoint is required" }, 400);
+    const { data, error } = await admin.from("push_subscriptions")
+      .select("expiration_time")
+      .eq("profile_id", user.id).eq("organization_id", profile.organization_id)
+      .eq("endpoint_hash", await sha256(body.endpoint)).is("disabled_at", null).maybeSingle();
+    if (error) return json(req, { error: "Failed to read push subscription status" }, 500);
+    const active = !!data && (!data.expiration_time || new Date(data.expiration_time).getTime() > Date.now());
+    return json(req, { active });
+  }
+  if (body.action !== undefined) return json(req, { error: "Unknown subscription action" }, 400);
   if (req.method === "DELETE") {
     if (!validRemovalEndpoint(body.endpoint)) return json(req, { error: "A valid HTTPS endpoint is required" }, 400);
     const { error } = await admin.from("push_subscriptions")

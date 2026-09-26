@@ -10,7 +10,11 @@ function memoryStorage() {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.stubGlobal("sessionStorage", memoryStorage());
+  for (const key of ["evidence", "move-in"]) clearStoredPublicAccessToken(key);
+  vi.unstubAllGlobals();
+});
 
 describe("consumePublicAccessToken", () => {
   it("moves a path credential into tab-scoped storage and scrubs browser history", () => {
@@ -45,6 +49,37 @@ describe("consumePublicAccessToken", () => {
     expect(consumePublicAccessToken(undefined, "move-in", "/move-in-access"))
       .toBe("stored-token");
   });
+
+  it("scrubs and retains a supplied grant in memory when storage is blocked", () => {
+    const blocked = () => { throw new Error("storage disabled"); };
+    const replaceState = vi.fn();
+    vi.stubGlobal("sessionStorage", { getItem: blocked, setItem: blocked, removeItem: blocked });
+    vi.stubGlobal("window", { location: { href: "https://app.test/evidence-access/token-a" }, history: { replaceState } });
+    expect(consumePublicAccessToken("token-a", "evidence", "/evidence-access")).toBe("token-a");
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/evidence-access");
+    expect(consumePublicAccessToken(undefined, "evidence", "/evidence-access")).toBe("token-a");
+    expect(consumePublicAccessToken(undefined, "move-in", "/move-in-access")).toBe("");
+    clearStoredPublicAccessToken("evidence");
+    expect(consumePublicAccessToken(undefined, "evidence", "/evidence-access")).toBe("");
+  });
+
+  it("does not restore an older grant after a quota-limited write", () => {
+    const storage = memoryStorage();
+    storage.setItem("evidence", "old-token");
+    vi.stubGlobal("sessionStorage", { ...storage, setItem: () => { throw new Error("quota exceeded"); } });
+    vi.stubGlobal("window", { location: { href: "https://app.test/evidence-access/new-token" }, history: { replaceState: vi.fn() } });
+    expect(consumePublicAccessToken("new-token", "evidence", "/evidence-access")).toBe("new-token");
+    expect(consumePublicAccessToken(undefined, "evidence", "/evidence-access")).toBe("new-token");
+    vi.stubGlobal("sessionStorage", storage);
+    expect(consumePublicAccessToken("replacement-token", "evidence", "/evidence-access")).toBe("replacement-token");
+    expect(storage.getItem("evidence")).toBe("replacement-token");
+    expect(consumePublicAccessToken(undefined, "evidence", "/evidence-access")).toBe("replacement-token");
+  });
+
+  it("shows the missing-link state rather than throwing when reading storage is denied", () => {
+    vi.stubGlobal("sessionStorage", { getItem: () => { throw new Error("storage disabled"); } });
+    expect(consumePublicAccessToken(undefined, "evidence", "/evidence-access")).toBe("");
+  });
 });
 
 describe("clearStoredPublicAccessToken", () => {
@@ -77,6 +112,15 @@ describe("clearStoredPublicAccessToken", () => {
       },
     });
     expect(() => clearStoredPublicAccessToken("evidence")).not.toThrow();
+  });
+
+  it("does not replay a rejected persisted grant when removal is denied", () => {
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => "revoked-token",
+      removeItem: () => { throw new Error("storage disabled"); },
+    });
+    clearStoredPublicAccessToken("evidence");
+    expect(consumePublicAccessToken(undefined, "evidence", "/evidence-access")).toBe("");
   });
 });
 

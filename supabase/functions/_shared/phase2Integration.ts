@@ -431,7 +431,9 @@ export async function phase2PinnedWebhookRequest(
     }
     if (!responseHead) throw new Error("Malformed webhook HTTP response");
     const { status, bodyStart, length } = responseHead;
-    if (length !== null && total < maxResponseBytes && total - bodyStart < length) {
+    // Hitting the memory cap is not proof of completion. An acknowledgement with a declared
+    // body must be complete even when the response buffer filled exactly to its boundary.
+    if (length !== null && total - bodyStart < length) {
       throw new Error("Incomplete webhook HTTP response");
     }
     const responseBody = new TextDecoder().decode(bytes.subarray(bodyStart, Math.min(total, bodyStart + Math.min(length ?? Infinity, 64 * 1024))));

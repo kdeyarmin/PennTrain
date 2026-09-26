@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import {
@@ -76,6 +76,8 @@ export default function MyAttestations() {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [knowledgeCheckPassed, setKnowledgeCheckPassed] = useState(false);
   const reviewRequest = useRef(0);
+  // Route/account boundaries unmount this page; pending global feedback must expire too.
+  useEffect(() => () => { reviewRequest.current++; }, []);
 
   const closeReview = () => {
     reviewRequest.current++;
@@ -145,10 +147,13 @@ export default function MyAttestations() {
     const request = reviewRequest.current;
     try {
       await attestPolicy(reviewing.id);
+      if (request !== reviewRequest.current) return;
       toast({ title: "Attestation recorded", description: `You've confirmed you read and understood "${titleFor(reviewing)}".` });
-      if (request === reviewRequest.current) closeReview();
+      closeReview();
     } catch (e) {
-      toast({ variant: "destructive", title: "Couldn't record attestation", description: e instanceof Error ? e.message : String(e) });
+      if (request === reviewRequest.current) {
+        toast({ variant: "destructive", title: "Couldn't record attestation", description: e instanceof Error ? e.message : String(e) });
+      }
     }
   };
 

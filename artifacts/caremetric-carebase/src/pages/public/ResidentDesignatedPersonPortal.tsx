@@ -18,6 +18,7 @@ import {
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
+import { clearStoredPublicAccessToken, readPublicAccessToken, storePublicAccessToken } from "@/lib/publicAccessToken";
 
 const SESSION_TOKEN_KEY = "carebase-resident-portal-token";
 /** Real grants issue 64-char hex tokens; anything shorter never hits the RPC. */
@@ -30,15 +31,15 @@ function loadAccessToken() {
     // Persist only tokens that could be real. Storing garbage leaves a blank page on later
     // visits to /resident-portal because the query stays disabled below the length gate.
     if (queryToken.length >= MIN_PORTAL_TOKEN_LENGTH) {
-      sessionStorage.setItem(SESSION_TOKEN_KEY, queryToken);
+      storePublicAccessToken(SESSION_TOKEN_KEY, queryToken);
     } else {
-      sessionStorage.removeItem(SESSION_TOKEN_KEY);
+      clearStoredPublicAccessToken(SESSION_TOKEN_KEY);
     }
     url.searchParams.delete("access");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     return queryToken;
   }
-  return sessionStorage.getItem(SESSION_TOKEN_KEY) ?? "";
+  return readPublicAccessToken(SESSION_TOKEN_KEY);
 }
 
 function money(value: number) {
@@ -89,10 +90,9 @@ export default function ResidentDesignatedPersonPortal() {
       ? "change request"
       : "cannot-attend response";
   const downloadDocument = useMutation({
-    mutationFn: async (sharedDocumentId: string) => {
-      const result = await getResidentPortalDocumentDownload(token, sharedDocumentId);
-      window.location.assign(result.url);
-    },
+    // Navigation belongs to the clicked page's observer callback below. A pending request
+    // may settle after a different access link replaces this page; it must not open the old file.
+    mutationFn: (sharedDocumentId: string) => getResidentPortalDocumentDownload(token, sharedDocumentId),
   });
 
   const data = snapshot.data;
@@ -133,7 +133,7 @@ export default function ResidentDesignatedPersonPortal() {
 
           <TabsContent value="finance"><Card><CardHeader><CardTitle>Latest statement summary</CardTitle><CardDescription>Contact the facility for statement documents or transaction detail.</CardDescription></CardHeader><CardContent>{data.finance ? <div className="grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Statement</p><p className="font-medium">{data.finance.statementNumber}</p></div><div><p className="text-xs text-muted-foreground">Due date</p><p>{formatDateForDisplay(data.finance.dueDate)}</p></div><div><p className="text-xs text-muted-foreground">Balance due</p><p className="font-medium">{money(data.finance.balanceDue)}</p></div><div><p className="text-xs text-muted-foreground">Delinquent</p><p>{money(data.finance.delinquentAmount)}</p></div></div> : <p className="text-sm text-muted-foreground">No statement summary is available.</p>}</CardContent></Card></TabsContent>
 
-          <TabsContent value="documents" className="space-y-3"><Alert><FileText className="h-4 w-4" /><AlertTitle>Secure shared documents</AlertTitle><AlertDescription>Each download is reauthorized, logged, and delivered through a five-minute signed link. Do not save documents to a shared device.</AlertDescription></Alert>{data.clinicalDisclosureAllowed === false ? <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">Clinical documents are not available for this grant while disclosure consent is limited. Contact the facility if you need another path.</CardContent></Card> : data.documents?.length ? data.documents.map((document) => <Card key={document.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{document.displayLabel}</p><p className="text-sm text-muted-foreground">{document.fileName} · Shared {new Date(document.sharedAt).toLocaleDateString()}</p></div><Button size="sm" variant="outline" disabled={downloadDocument.isPending} onClick={() => downloadDocument.mutate(document.id)}>{downloadDocument.isPending && downloadDocument.variables === document.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Download</Button></CardContent></Card>) : <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No documents have been shared with this grant.</CardContent></Card>}{downloadDocument.isError && <p className="text-sm text-destructive">{downloadDocument.error.message}</p>}</TabsContent>
+          <TabsContent value="documents" className="space-y-3"><Alert><FileText className="h-4 w-4" /><AlertTitle>Secure shared documents</AlertTitle><AlertDescription>Each download is reauthorized, logged, and delivered through a five-minute signed link. Do not save documents to a shared device.</AlertDescription></Alert>{data.clinicalDisclosureAllowed === false ? <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">Clinical documents are not available for this grant while disclosure consent is limited. Contact the facility if you need another path.</CardContent></Card> : data.documents?.length ? data.documents.map((document) => <Card key={document.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{document.displayLabel}</p><p className="text-sm text-muted-foreground">{document.fileName} · Shared {new Date(document.sharedAt).toLocaleDateString()}</p></div><Button size="sm" variant="outline" disabled={downloadDocument.isPending} onClick={() => downloadDocument.mutate(document.id, { onSuccess: (result) => window.location.assign(result.url) })}>{downloadDocument.isPending && downloadDocument.variables === document.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Download</Button></CardContent></Card>) : <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No documents have been shared with this grant.</CardContent></Card>}{downloadDocument.isError && <p className="text-sm text-destructive">{downloadDocument.error.message}</p>}</TabsContent>
 
           <TabsContent value="messages"><Card><CardHeader><CardTitle>Messages</CardTitle><CardDescription>Routine messages only. The facility receives a notification.</CardDescription></CardHeader><CardContent className="space-y-3">{data.messages?.map((item) => <div key={item.id} className={`rounded-md p-3 text-sm ${item.direction === "designated_person_to_facility" ? "ml-8 bg-primary/10" : "mr-8 bg-muted"}`}><p className="mb-1 text-xs font-medium text-muted-foreground">{item.direction === "designated_person_to_facility" ? "You" : "Facility"} · {new Date(item.createdAt).toLocaleString()}</p><p className="whitespace-pre-wrap">{item.body}</p></div>)}<div className="space-y-2 border-t pt-4"><Label htmlFor="portal-message">New routine message</Label><Textarea id="portal-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={5000} />{sendMessage.isError && <p className="text-sm text-destructive">{sendMessage.error.message}</p>}<Button disabled={sendMessage.isPending || !message.trim()} onClick={() => sendMessage.mutate()}>{sendMessage.isPending ? "Sending…" : "Send message"}</Button></div></CardContent></Card></TabsContent>
 

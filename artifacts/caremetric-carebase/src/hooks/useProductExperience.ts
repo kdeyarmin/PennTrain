@@ -4,6 +4,7 @@ import { useViewingOrg } from "@/lib/viewingOrg";
 import { useAuth } from "@/lib/auth";
 import type { Tables } from "@/lib/database.types";
 import { navigationFavoritePaths } from "@/lib/navigationPreferences";
+import { organizationExportIsInFlight } from "@/lib/organizationExport";
 
 export type NavigationPreference = Tables<"navigation_preferences">;
 export type Announcement = Tables<"org_announcements">;
@@ -243,7 +244,7 @@ export function useOrganizationExports(organizationId: string | null | undefined
       return data;
     },
     enabled: !!organizationId,
-    refetchInterval: (state) => state.state.data?.some((job) => ["pending", "processing"].includes(job.status)) ? 5_000 : false,
+    refetchInterval: (state) => state.state.data?.some(organizationExportIsInFlight) ? 5_000 : false,
   });
   const request = useMutation({
     mutationFn: async () => {

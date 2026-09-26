@@ -72,9 +72,10 @@ function invalidateServiceTasks(queryClient: ReturnType<typeof useQueryClient>) 
   queryClient.invalidateQueries({ queryKey: ["resident-service-exceptions"] });
 }
 
-export function useResidentServiceTaskQueue(filters: ServiceTaskQueueFilters) {
+export function useResidentServiceTaskQueue(filters: ServiceTaskQueueFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["resident-service-tasks", filters],
+    enabled: (options.enabled ?? true) && !!filters.from && !!filters.through,
     queryFn: () => serviceRows<ResidentServiceTaskQueueRow>((from, through) =>
       supabase.rpc("get_resident_service_task_queue" as never, {
         p_from: filters.from,
@@ -346,6 +347,10 @@ export function useUpsertServiceExceptionRule() {
       actionTarget: string;
       isActive: boolean;
     }) => {
+      if (!Number.isSafeInteger(thresholdCount) || thresholdCount < 1 || thresholdCount > 100
+        || !Number.isSafeInteger(lookbackDays) || lookbackDays < 1 || lookbackDays > 90) {
+        throw new Error("Occurrences must be a whole number from 1 to 100 and lookback days from 1 to 90.");
+      }
       const { data, error } = await supabase.rpc("upsert_service_exception_rule" as never, {
         p_facility_id: facilityId,
         p_exception_status: exceptionStatus,

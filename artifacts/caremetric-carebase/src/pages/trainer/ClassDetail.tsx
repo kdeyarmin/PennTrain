@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { checkinTokenRevokeReasonIssue } from "@/lib/classCheckinTokens";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useRoute, useLocation, Link } from "wouter";
@@ -23,7 +23,7 @@ import {
   useRevokeClassCheckinTokens,
   useGenerateClassNoticePdf,
 } from "@/hooks/useTrainingClasses";
-import { useListEmployees } from "@/hooks/useEmployees";
+import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
 import { useGetDocument, useDocumentSignedUrl } from "@/hooks/useDocuments";
@@ -87,6 +87,7 @@ import { SessionRosterCard } from "@/components/training/SessionRosterCard";
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { storageSafeFileName } from "@/lib/storagePaths";
+import { boundedSettled } from "@/lib/boundedSettled";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
 // delete their own draft class, so do it with a direct call.
@@ -298,6 +299,7 @@ export default function ClassDetail() {
     refetch: refetchAttendees,
   } = useListClassAttendees(classId);
   const { data: allEmployees, isLoading: allEmployeesLoading, isError: allEmployeesError, error: allEmployeesErr, refetch: refetchAllEmployees } = useListEmployees({ status: "active" });
+  const attendeeEmployees = useListEmployeesByIds((attendees ?? []).map(attendee => attendee.employee_id));
   const { data: facilities } = useListFacilities();
   const { data: trainingTypes } = useListTrainingTypes();
 
@@ -318,8 +320,12 @@ export default function ClassDetail() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [selectedEmps, setSelectedEmps] = useState<string[]>([]);
   const [addingAttendees, setAddingAttendees] = useState(false);
+  const addingAttendeesRef = useRef(false);
   const [uploadingRoster, setUploadingRoster] = useState(false);
   const [bulkAttendanceUpdating, setBulkAttendanceUpdating] = useState(false);
+  const [sessionRosterBusy, setSessionRosterBusy] = useState(false);
+  const legacyRosterBusy = addingAttendees || bulkAttendanceUpdating || updateAttendee.isPending || completeClass.isPending || uploadingRoster;
+  const rosterBusy = legacyRosterBusy || sessionRosterBusy;
 
   const facilitiesById = useMemo(
     () => new Map((facilities ?? []).map((f) => [f.id, f])),
@@ -330,8 +336,8 @@ export default function ClassDetail() {
     [trainingTypes]
   );
   const employeesById = useMemo(
-    () => new Map((allEmployees ?? []).map((e) => [e.id, e])),
-    [allEmployees]
+    () => new Map([...(allEmployees ?? []), ...(attendeeEmployees.data ?? [])].map((e) => [e.id, e])),
+    [allEmployees, attendeeEmployees.data]
   );
 
   const allAttendees = attendees ?? [];
@@ -457,22 +463,32 @@ export default function ClassDetail() {
   }
 
   async function handleAddAttendees() {
-    if (!classId || selectedEmps.length === 0) return;
+    if (!classId || selectedEmps.length === 0 || rosterBusy || addingAttendeesRef.current) return;
+    if (allEmployeesLoading || allEmployeesError || attendeesLoading || attendeesError) return;
+    const availableIds = new Set(availableEmployees.map(employee => employee.id));
+    const targets = selectedEmps.filter(employeeId => availableIds.has(employeeId));
+    if (targets.length !== selectedEmps.length) {
+      setSelectedEmps(targets);
+      toast({ title: "The roster changed", description: "Review the remaining active employees before adding them.", variant: "destructive" });
+      return;
+    }
+    addingAttendeesRef.current = true;
     setAddingAttendees(true);
     try {
-      await Promise.all(
-        selectedEmps.map((employeeId) =>
-          addAttendee.mutateAsync({ class_id: classId, employee_id: employeeId })
-        )
+      const results = await boundedSettled(targets, 4, employeeId =>
+        addAttendee.mutateAsync({ class_id: classId, employee_id: employeeId }),
       );
+      const failedIds = targets.filter((_, index) => results[index].status === "rejected");
+      const added = targets.length - failedIds.length;
+      setSelectedEmps(failedIds);
       toast({
-        title: `Added ${selectedEmps.length} attendee${selectedEmps.length > 1 ? "s" : ""}`,
+        title: failedIds.length ? "Some attendees could not be added" : `Added ${added} attendee${added !== 1 ? "s" : ""}`,
+        description: failedIds.length ? `${added} added; ${failedIds.length} failed. Failed employees remain selected for retry.` : undefined,
+        variant: failedIds.length ? "destructive" : "success",
       });
-      setSelectedEmps([]);
-      setShowAddAttendees(false);
-    } catch {
-      toast({ title: "Failed to add attendees", variant: "destructive" });
+      if (!failedIds.length) { setShowAddAttendees(false); setEmpSearch(""); }
     } finally {
+      addingAttendeesRef.current = false;
       setAddingAttendees(false);
     }
   }
@@ -489,7 +505,7 @@ export default function ClassDetail() {
   }
 
   async function handleComplete() {
-    if (!classId) return;
+    if (!classId || rosterBusy || attendeesLoading || attendeesError) return;
     const recordsToCreate = allAttendees.filter((a) => a.attended && !a.training_record_id).length;
     try {
       await completeClass.mutateAsync(classId);
@@ -899,6 +915,33 @@ export default function ClassDetail() {
       {isOpen && <QrCheckinCard classId={classId} />}
       {isOpen && <MeetingNoticeCard classId={classId} />}
 
+      {/* Session registrations are separate from walk-in attendees. Keep their entry point
+          available before the first attendee exists, including empty scheduled classes. */}
+      <SessionRosterCard
+        disabled={legacyRosterBusy}
+        onBusyChange={setSessionRosterBusy}
+        classId={classId}
+        classStatus={cls.status}
+        capacity={cls.capacity}
+        classDate={cls.class_date}
+        startsAt={cls.starts_at}
+        endsAt={cls.ends_at}
+        durationHours={cls.duration_hours}
+        employees={(allEmployees ?? []).map(employee => ({ id: employee.id, name: `${employee.first_name} ${employee.last_name}` }))}
+        employeesLoading={allEmployeesLoading}
+        employeesError={allEmployeesError}
+        employeeName={employeeId => {
+          const employee = employeesById.get(employeeId);
+          return employee ? `${employee.first_name} ${employee.last_name}` : employeeId.slice(0, 8);
+        }}
+      />
+      {isDraft && (
+        <p className="text-sm text-muted-foreground">
+          Session enrollment stays closed while this class is a draft. Use Open for enrollment
+          above when the session should accept registrations and waitlist approvals.
+        </p>
+      )}
+
       {allAttendees.length > 0 && (
         <Card>
           <CardHeader>
@@ -911,7 +954,7 @@ export default function ClassDetail() {
                   variant="outline"
                   size="sm"
                   onClick={handleMarkCheckedInPresent}
-                  disabled={bulkAttendanceUpdating}
+                  disabled={rosterBusy}
                 >
                   Mark checked-in staff present
                 </Button>
@@ -937,37 +980,6 @@ export default function ClassDetail() {
                 <p className="text-xl font-semibold">{attendanceSummary.recordsPending}</p>
               </div>
             </div>
-
-            {/* The session-registration track, which is a different model from the attendee list
-                above: capacity, a waitlist, signed attendance evidence, and an approval that
-                writes training records. Walk-in attendance (draft) and enrollment (scheduled)
-                are separate; Open for enrollment bridges them so SessionRosterCard is not a
-                permanently disabled panel on a newly created class. */}
-            <SessionRosterCard
-              classId={classId}
-              classStatus={cls?.status}
-              capacity={cls?.capacity}
-              classDate={cls?.class_date}
-              startsAt={cls?.starts_at}
-              endsAt={cls?.ends_at}
-              durationHours={cls?.duration_hours}
-              employees={(allEmployees ?? []).map((employee) => ({
-                id: employee.id,
-                name: `${employee.first_name} ${employee.last_name}`,
-              }))}
-              employeesLoading={allEmployeesLoading}
-              employeesError={allEmployeesError}
-              employeeName={(employeeId) => {
-                const employee = employeesById.get(employeeId);
-                return employee ? `${employee.first_name} ${employee.last_name}` : employeeId.slice(0, 8);
-              }}
-            />
-            {isDraft && (
-              <p className="text-sm text-muted-foreground">
-                Session enrollment stays closed while this class is a draft. Use Open for enrollment
-                above when the session should accept registrations and waitlist approvals.
-              </p>
-            )}
 
             {(attendanceSummary.checkedInNotMarkedPresent > 0 || attendanceSummary.presentWithoutCheckin > 0 || attendanceSummary.checkedInWithoutCheckout > 0) ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1005,6 +1017,7 @@ export default function ClassDetail() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAddAttendees(true)}
+                  disabled={rosterBusy}
                 >
                   <UserPlus className="h-4 w-4 mr-1" />
                   Add Attendees
@@ -1014,6 +1027,9 @@ export default function ClassDetail() {
           </div>
         </CardHeader>
         <CardContent>
+          {attendeeEmployees.isError && allAttendees.length > 0 && (
+            <QueryError what="attendee names" error={attendeeEmployees.error} onRetry={() => void attendeeEmployees.refetch()} className="mb-3" />
+          )}
           {/* A failed roster fetch must not read as an empty roster -- a trainer
               could otherwise complete the class thinking nobody attended. */}
           {attendeesError ? (
@@ -1033,6 +1049,7 @@ export default function ClassDetail() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAddAttendees(true)}
+                  disabled={rosterBusy}
                 >
                   <UserPlus className="h-4 w-4 mr-1" />
                   Add Attendees
@@ -1052,7 +1069,7 @@ export default function ClassDetail() {
                           <Checkbox
                             checked={allAttendeesChecked ? true : someAttendeesChecked ? "indeterminate" : false}
                             onCheckedChange={(checked) => handleToggleAllAttended(!!checked)}
-                            disabled={bulkAttendanceUpdating || !!writeBlock}
+                            disabled={rosterBusy || !!writeBlock}
                             aria-label="Select all attendees"
                           />
                           Attended
@@ -1072,7 +1089,7 @@ export default function ClassDetail() {
                     return (
                       <tr key={a.id} className="border-t hover:bg-muted/30">
                         <td className="p-3 font-medium">
-                          {emp ? `${emp.first_name} ${emp.last_name}` : "Unknown employee"}
+                          {emp ? `${emp.first_name} ${emp.last_name}` : attendeeEmployees.isLoading ? "Loading employee…" : `Employee #${a.employee_id}`}
                         </td>
                         <td className="p-3 text-muted-foreground">
                           {empFacilityName ?? "—"}
@@ -1083,7 +1100,7 @@ export default function ClassDetail() {
                               <Checkbox
                                 checked={a.attended}
                                 onCheckedChange={(checked) => handleToggleAttended(a.id, !!checked)}
-                                disabled={!!writeBlock}
+                                disabled={rosterBusy || !!writeBlock}
                               />
                               <span className="text-xs text-muted-foreground">
                                 {a.attended ? "Present" : "Absent"}
@@ -1141,9 +1158,9 @@ export default function ClassDetail() {
               accept=".pdf,.jpg,.jpeg,.png"
               className="hidden"
               onChange={handleRosterUpload}
-              disabled={uploadingRoster}
+              disabled={rosterBusy}
             />
-            <Button variant="outline" asChild disabled={uploadingRoster}>
+            <Button variant="outline" asChild disabled={rosterBusy}>
               <span>
                 <Upload className="h-4 w-4 mr-2" />
                 {uploadingRoster ? "Uploading..." : "Upload Roster"}
@@ -1152,7 +1169,7 @@ export default function ClassDetail() {
           </label>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button>
+              <Button disabled={rosterBusy || attendeesLoading || attendeesError}>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Complete Class
               </Button>
@@ -1168,7 +1185,7 @@ export default function ClassDetail() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleComplete} disabled={completeClass.isPending}>
+                <AlertDialogAction onClick={handleComplete} disabled={rosterBusy || attendeesLoading || attendeesError}>
                   Complete &amp; Create Records
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -1179,7 +1196,7 @@ export default function ClassDetail() {
 
       {cls.roster_document_id && <RosterDocumentCard documentId={cls.roster_document_id} />}
 
-      <Dialog open={showAddAttendees} onOpenChange={(open) => { setShowAddAttendees(open); if (!open) { setSelectedEmps([]); setEmpSearch(""); } }}>
+      <Dialog open={showAddAttendees} onOpenChange={(open) => { if (addingAttendeesRef.current) return; setShowAddAttendees(open); if (!open) { setSelectedEmps([]); setEmpSearch(""); } }}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Add Attendees</DialogTitle>
@@ -1192,6 +1209,7 @@ export default function ClassDetail() {
             <Input
               placeholder="Search employees..."
               value={empSearch}
+              disabled={addingAttendees}
               onChange={(e) => setEmpSearch(e.target.value)}
               className="pl-9"
             />
@@ -1214,6 +1232,7 @@ export default function ClassDetail() {
                     checked={allFilteredEmpsSelected ? true : someFilteredEmpsSelected ? "indeterminate" : false}
                     onCheckedChange={toggleSelectAllFilteredEmployees}
                     aria-label="Select all visible employees"
+                    disabled={addingAttendees}
                   />
                   <span className="text-xs font-medium text-muted-foreground">
                     Select all visible ({filteredEmployees.length})
@@ -1227,6 +1246,7 @@ export default function ClassDetail() {
                     <Checkbox
                       checked={selectedEmps.includes(emp.id)}
                       onCheckedChange={() => toggleEmp(emp.id)}
+                      disabled={addingAttendees}
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
@@ -1244,6 +1264,7 @@ export default function ClassDetail() {
           <DialogFooter>
             <Button
               variant="outline"
+              disabled={addingAttendees}
               onClick={() => {
                 setShowAddAttendees(false);
                 setSelectedEmps([]);
@@ -1253,7 +1274,7 @@ export default function ClassDetail() {
             </Button>
             <Button
               onClick={handleAddAttendees}
-              disabled={selectedEmps.length === 0 || addingAttendees}
+              disabled={selectedEmps.length === 0 || rosterBusy || allEmployeesLoading || allEmployeesError || attendeesLoading || attendeesError}
             >
               {addingAttendees
                 ? "Adding..."

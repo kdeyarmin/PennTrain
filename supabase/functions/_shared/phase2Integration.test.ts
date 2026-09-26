@@ -282,3 +282,47 @@ Deno.test("claimed deliveries are interleaved across tenants", () => {
   ];
   assertEquals(phase2RoundRobinByTenant(rows).map((row) => row.id), [1, 4, 2, 5, 3]);
 });
+
+function cappedResponseFixture(raw: string) {
+  const bytes = new TextEncoder().encode(raw);
+  let offset = 0;
+  let closed = false;
+  return {
+    closed: () => closed,
+    connector: async () => ({
+      write: async (bytes: Uint8Array) => bytes.length,
+      read: async (buffer: Uint8Array) => {
+        if (offset === bytes.length) throw new Error("A complete framed response must not read again");
+        const count = Math.min(buffer.length, bytes.length - offset);
+        buffer.set(bytes.subarray(offset, offset + count)); offset += count; return count;
+      },
+      close: () => { closed = true; },
+    }),
+  };
+}
+
+const RESPONSE_CAP = 96 * 1024;
+const responseHeader = (length: number) => `HTTP/1.1 200 OK\r\nContent-Length: ${length}\r\n\r\n`;
+// The decimal length's digit count is stable at this boundary.
+const boundaryBodyLength = RESPONSE_CAP - responseHeader(RESPONSE_CAP).length;
+for (const declaredLength of [1_000_000, boundaryBodyLength + 1]) {
+  Deno.test(`pinned webhook refuses incomplete Content-Length ${declaredLength} at its response cap`, async () => {
+    const head = responseHeader(declaredLength);
+    const fixture = cappedResponseFixture(head + "x".repeat(RESPONSE_CAP - head.length));
+    let rejected = false;
+    try { await phase2PinnedWebhookRequest("https://hooks.example.test/events", {}, ["8.8.8.8"], fixture.connector); }
+    catch (error) { rejected = error instanceof Error && error.message === "Incomplete webhook HTTP response"; }
+    assertEquals(rejected, true);
+    assertEquals(fixture.closed(), true);
+  });
+}
+
+Deno.test("pinned webhook accepts a complete response exactly at its wire cap and bounds the diagnostic body", async () => {
+  const raw = responseHeader(boundaryBodyLength) + "x".repeat(boundaryBodyLength);
+  assertEquals(raw.length, RESPONSE_CAP);
+  const fixture = cappedResponseFixture(raw);
+  const response = await phase2PinnedWebhookRequest("https://hooks.example.test/events", {}, ["8.8.8.8"], fixture.connector);
+  assertEquals(response.ok, true);
+  assertEquals((await response.text()).length, 64 * 1024);
+  assertEquals(fixture.closed(), true);
+});

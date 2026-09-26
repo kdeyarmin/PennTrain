@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -127,6 +127,7 @@ export default function DataImportCenter() {
   const [strategy, setStrategy] = useState<DuplicateStrategy>("create");
   const [switchingStrategy, setSwitchingStrategy] = useState(false);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof runImport.mutateAsync>> | null>(null);
+  const uploadRevision = useRef(0);
   const [confirmAction, setConfirmAction] = useState<
     { type: "finalize" | "rollback" | "skip" | "cancel"; jobId: string; domain: string; summary: string } | null
   >(null);
@@ -144,6 +145,7 @@ export default function DataImportCenter() {
   const readyToRun = Boolean(file) && parsedUpload !== null && parsedUpload.headers.length > 0 && mappingReady;
 
   const resetUpload = () => {
+    uploadRevision.current++;
     setFile(null);
     setParsedUpload(null);
     setColumnMapping(null);
@@ -151,6 +153,7 @@ export default function DataImportCenter() {
   };
 
   const loadFile = async (nextFile: File | null, domain: ImportDomain) => {
+    const revision = ++uploadRevision.current;
     setFile(nextFile);
     setPreview(null);
     setParsedUpload(null);
@@ -160,9 +163,10 @@ export default function DataImportCenter() {
     try {
       text = await nextFile.text();
     } catch {
-      toast({ title: "Could not read file", description: "This file could not be opened as text.", variant: "destructive" });
+      if (revision === uploadRevision.current) toast({ title: "Could not read file", description: "This file could not be opened as text.", variant: "destructive" });
       return;
     }
+    if (revision !== uploadRevision.current) return;
     const parsed = parseCsv(text);
     if (parsed.headers.length === 0) {
       toast({ title: "CSV appears to be empty", description: "No header row was found in this file.", variant: "destructive" });
@@ -177,6 +181,7 @@ export default function DataImportCenter() {
   // A mapping edit after a dry run changes what would actually be submitted, so the stale
   // preview (and its job_id, which "Apply" would otherwise resume) must not survive it.
   const updateColumnMapping = (next: ColumnMapping) => {
+    uploadRevision.current++;
     setColumnMapping(next);
     setPreview(null);
   };
@@ -187,10 +192,12 @@ export default function DataImportCenter() {
       toast({ title: "Domain is template-only", description: "No active processor for this domain.", variant: "destructive" });
       return null;
     }
-    const csv = needsMapping && columnMapping
-      ? applyColumnMapping(uploadDomain, parsedUpload.rows, columnMapping)
-      : await file.text();
+    const revision = uploadRevision.current;
     try {
+      const csv = needsMapping && columnMapping
+        ? applyColumnMapping(uploadDomain, parsedUpload.rows, columnMapping)
+        : await file.text();
+      if (revision !== uploadRevision.current) return null;
       const result = await runImport.mutateAsync({
         domain: uploadDomain,
         csv,
@@ -199,11 +206,13 @@ export default function DataImportCenter() {
         mode,
         jobId: mode === "apply" ? preview?.job_id : undefined,
       });
-      if (mode === "validate") setPreview(result);
-      else setPreview(null);
+      if (revision === uploadRevision.current) {
+        if (mode === "validate") setPreview(result);
+        else setPreview(null);
+      }
       toast({
         title: mode === "validate" ? "Dry run complete" : "Import applied",
-        description: `${result.succeeded} succeeded · ${result.failed} failed`,
+        description: `${file.name}: ${result.succeeded} succeeded · ${result.failed} failed`,
       });
       return result;
     } catch (error) {
@@ -246,6 +255,7 @@ export default function DataImportCenter() {
   const switchStrategy = async () => {
     if (!preview || !strategyDiverged) return;
     const staleJobId = preview.job_id;
+    const revision = uploadRevision.current;
     setSwitchingStrategy(true);
     try {
       // The old receipt is CLOSED first, and is closed by cancelling rather than by re-scoring it.
@@ -267,6 +277,7 @@ export default function DataImportCenter() {
         jobId: staleJobId,
         reason: `Dry run replaced by one under ${strategyLabel(strategy)}`,
       });
+      if (revision !== uploadRevision.current) return;
       setPreview(null);
       const fresh = await execute("validate", strategy);
       if (fresh) {
@@ -293,6 +304,8 @@ export default function DataImportCenter() {
 
   const runConfirmedAction = async () => {
     if (!confirmAction) return;
+    const action = confirmAction;
+    const revision = uploadRevision.current;
     try {
       let description = confirmAction.summary;
       if (confirmAction.type === "finalize") await finalize.mutateAsync({ jobId: confirmAction.jobId, domain: confirmAction.domain });
@@ -302,10 +315,10 @@ export default function DataImportCenter() {
       } else {
         const result = await skipRows.mutateAsync({ jobId: confirmAction.jobId });
         description = `${result.skippedRows} row${result.skippedRows === 1 ? "" : "s"} skipped · ${result.errorRows} still failing.`;
-        if (preview?.job_id === confirmAction.jobId) await execute("validate");
+        if (revision === uploadRevision.current && preview?.job_id === confirmAction.jobId) await execute("validate");
       }
       toast({ title: CONFIRM_TITLES[confirmAction.type], description });
-      setConfirmAction(null);
+      setConfirmAction(current => current === action ? null : current);
     } catch (error) {
       toast({
         title: CONFIRM_FAILURE_TITLES[confirmAction.type],

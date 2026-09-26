@@ -330,19 +330,29 @@ export function useActivateNotificationTemplate() {
 export function useSetNotificationSpendPolicy() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
+    mutationFn: async (input: {
       organizationId: string;
       monthlyBudgetUsd: number | null;
       emailEstimateUsd: number;
       smsEstimateUsd: number;
       warningPercent: number;
-    }) => callNotificationRpc<void>("set_notification_spend_policy", {
-      p_organization_id: input.organizationId,
-      p_monthly_budget_usd: input.monthlyBudgetUsd,
-      p_email_estimate_usd: input.emailEstimateUsd,
-      p_sms_estimate_usd: input.smsEstimateUsd,
-      p_warning_percent: input.warningPercent,
-    }),
+    }) => {
+      const validAmount = (value: number) => Number.isFinite(value)
+        && Number.isSafeInteger(Math.round(value * 1_000_000)) && value >= 0;
+      // JSON serializes non-finite numbers as null, which means "remove budget" to this RPC.
+      if ((input.monthlyBudgetUsd !== null && (!validAmount(input.monthlyBudgetUsd) || input.monthlyBudgetUsd <= 0))
+        || !validAmount(input.emailEstimateUsd) || !validAmount(input.smsEstimateUsd)
+        || !Number.isInteger(input.warningPercent) || input.warningPercent < 1 || input.warningPercent > 99) {
+        throw new Error("Enter a positive monthly budget (or leave it blank), non-negative finite cost estimates, and a whole warning percentage from 1 to 99.");
+      }
+      return callNotificationRpc<void>("set_notification_spend_policy", {
+        p_organization_id: input.organizationId,
+        p_monthly_budget_usd: input.monthlyBudgetUsd,
+        p_email_estimate_usd: input.emailEstimateUsd,
+        p_sms_estimate_usd: input.smsEstimateUsd,
+        p_warning_percent: input.warningPercent,
+      });
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification_delivery_operations"] }),
   });
 }
@@ -350,17 +360,23 @@ export function useSetNotificationSpendPolicy() {
 export function useSetNotificationChannelPolicy() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
+    mutationFn: async (input: {
       organizationId: string;
       fallbackEnabled: boolean;
       fallbackDelayMinutes: number;
       maxFallbackDepth: number;
-    }) => callNotificationRpc<void>("set_notification_channel_policy", {
-      p_organization_id: input.organizationId,
-      p_fallback_enabled: input.fallbackEnabled,
-      p_fallback_delay_minutes: input.fallbackDelayMinutes,
-      p_max_fallback_depth: input.maxFallbackDepth,
-    }),
+    }) => {
+      if (!Number.isInteger(input.fallbackDelayMinutes) || input.fallbackDelayMinutes < 0 || input.fallbackDelayMinutes > 1440
+        || !Number.isInteger(input.maxFallbackDepth) || input.maxFallbackDepth < 0 || input.maxFallbackDepth > 2) {
+        throw new Error("Enter a whole fallback delay from 0 to 1440 minutes and a maximum fallback depth from 0 to 2.");
+      }
+      return callNotificationRpc<void>("set_notification_channel_policy", {
+        p_organization_id: input.organizationId,
+        p_fallback_enabled: input.fallbackEnabled,
+        p_fallback_delay_minutes: input.fallbackDelayMinutes,
+        p_max_fallback_depth: input.maxFallbackDepth,
+      });
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification_delivery_operations"] }),
   });
 }

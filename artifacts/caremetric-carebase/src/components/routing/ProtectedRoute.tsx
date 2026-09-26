@@ -11,6 +11,7 @@ import { usePlatformStatus } from "@/hooks/usePlatformSettings";
 import { shouldBlockForMaintenance } from "@/lib/maintenanceMode";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { facilityTypeLabel, hasAnyFacilityType } from "@/lib/facilityTypes";
+import { PublicAccessRoute } from "./PublicAccessRoute";
 export type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
 export function FullPageLoading({ label = "Loading CareMetric" }: { label?: string }) {
@@ -37,7 +38,7 @@ export function MaintenanceGatedRoute({ component: Component }: { component: Com
   if (shouldBlockForMaintenance(platformStatus?.maintenanceMode, undefined)) {
     return <MaintenanceGate showSignOut={false} />;
   }
-  return <Component />;
+  return <PublicAccessRoute component={Component} />;
 }
 
 // The end of the facility-type gate, for the case where there is nowhere left to send someone.

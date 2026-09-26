@@ -253,7 +253,11 @@ export default function NotificationDeliveries() {
     const results = await bulkRetry(ids);
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     const failedCount = results.length - succeeded;
-    setSelectedIds(new Set());
+    setSelectedIds(current => {
+      const remaining = new Set(current);
+      results.forEach((result, index) => { if (result.status === "fulfilled") remaining.delete(ids[index]); });
+      return remaining;
+    });
     if (failedCount === 0) {
       toast({ title: `${succeeded} deliver${succeeded === 1 ? "y" : "ies"} queued for retry`, variant: "success" });
     } else if (succeeded === 0) {

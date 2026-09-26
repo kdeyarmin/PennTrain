@@ -21,7 +21,7 @@ import {
 } from "@/hooks/useTrainingPlans";
 import { useListCourses } from "@/hooks/useCourses";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
-import { useListEmployees } from "@/hooks/useEmployees";
+import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { useListCourseAssignments, type CourseAssignment } from "@/hooks/useCourseAssignments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -203,9 +203,10 @@ export function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; o
 // the plan that created it -- previously nothing surfaced that link, so an
 // admin had no way to see who's on a plan or how far along they are.
 // ---------------------------------------------------------------------------
-function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
+export function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
   const { data: assignments, isLoading, isError, error, refetch } = useListCourseAssignments({ trainingPlanId: plan.id });
-  const { data: employees } = useListEmployees({ status: "active" });
+  const employeeQuery = useListEmployeesByIds((assignments ?? []).map(assignment => assignment.employee_id));
+  const employees = employeeQuery.data;
   const { data: courses } = useListCourses();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -239,6 +240,7 @@ function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
 
   return (
     <div className="space-y-2">
+      {employeeQuery.isError && <QueryError what="plan participant names" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />}
       {[...byEmployee.entries()].map(([employeeId, rows]) => {
         const employee = employeeById.get(employeeId);
         const completed = rows.filter((r) => r.status === "completed").length;

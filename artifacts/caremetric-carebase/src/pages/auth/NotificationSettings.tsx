@@ -1,4 +1,4 @@
-import { useId, useEffect, useState } from "react";
+import { useId, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useMyProfile, useUpdateProfile } from "@/hooks/useProfiles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,8 @@ export default function NotificationSettings() {
   const { mutate: updateProfile, isPending: saving } = useUpdateProfile();
   const [pushActive, setPushActive] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const pushRequest = useRef(0);
+  const pushOperation = useRef<AbortController | null>(null);
   const pushPermission = getPushPermissionState();
 
   const [form, setForm] = useState<ContactFormData>({
@@ -58,34 +60,53 @@ export default function NotificationSettings() {
   }, [profile, hydratedProfileId]);
 
   useEffect(() => {
-    void hasActiveWebPushSubscription().then(setPushActive).catch(() => setPushActive(false));
-  }, []);
+    const request = ++pushRequest.current;
+    pushOperation.current?.abort();
+    const operation = new AbortController();
+    pushOperation.current = operation;
+    setPushActive(false);
+    setPushBusy(false);
+    void hasActiveWebPushSubscription(operation.signal).then(active => {
+      if (request === pushRequest.current) setPushActive(active);
+    }).catch(() => { if (request === pushRequest.current) setPushActive(false); });
+    return () => { pushRequest.current++; pushOperation.current?.abort(); };
+  }, [user?.id]);
 
   const handleEnablePush = async () => {
+    const request = ++pushRequest.current;
+    pushOperation.current?.abort();
+    const operation = new AbortController();
+    pushOperation.current = operation;
     setPushBusy(true);
     try {
-      await enableWebPush();
+      await enableWebPush(operation.signal);
+      if (request !== pushRequest.current) return;
       setPushActive(true);
       setForm((current) => ({ ...current, preferredNotificationChannel: "web_push" }));
       toast({ title: "Browser notifications enabled", description: "Save changes to make web push your preferred channel." });
     } catch (e) {
-      toast({ title: "Could not enable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      if (request === pushRequest.current) toast({ title: "Could not enable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
-      setPushBusy(false);
+      if (request === pushRequest.current) setPushBusy(false);
     }
   };
 
   const handleDisablePush = async () => {
+    const request = ++pushRequest.current;
+    pushOperation.current?.abort();
+    const operation = new AbortController();
+    pushOperation.current = operation;
     setPushBusy(true);
     try {
-      await disableWebPush();
+      await disableWebPush(operation.signal);
+      if (request !== pushRequest.current) return;
       setPushActive(false);
       setForm((current) => ({ ...current, preferredNotificationChannel: current.preferredNotificationChannel === "web_push" ? "email" : current.preferredNotificationChannel }));
       toast({ title: "Browser notifications disabled", description: "Choose email or SMS and save your preferences." });
     } catch (e) {
-      toast({ title: "Could not disable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      if (request === pushRequest.current) toast({ title: "Could not disable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
-      setPushBusy(false);
+      if (request === pushRequest.current) setPushBusy(false);
     }
   };
 

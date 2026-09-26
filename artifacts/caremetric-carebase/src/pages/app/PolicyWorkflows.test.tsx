@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   state: [] as unknown[], cursor: 0, canWrite: true, requiresCheck: false, role: "org_admin",
   employeeError: false, missingEmployee: false, versionError: false, refetchEmployee: vi.fn(), refetchVersions: vi.fn(),
   assign: vi.fn(), attest: vi.fn(), signedUrl: vi.fn(), toast: vi.fn(), close: vi.fn(), questionScope: vi.fn(),
+  cleanups: [] as Array<() => void>, unmounted: false, updatesAfterUnmount: 0,
 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -14,6 +15,7 @@ vi.mock("react", async original => ({
     const index = h.cursor++;
     if (!(index in h.state)) h.state[index] = typeof initial === "function" ? initial() : initial;
     return [h.state[index], (next: unknown) => {
+      if (h.unmounted) h.updatesAfterUnmount++;
       h.state[index] = typeof next === "function" ? next(h.state[index]) : next;
     }];
   },
@@ -21,6 +23,13 @@ vi.mock("react", async original => ({
     const index = h.cursor++;
     if (!(index in h.state)) h.state[index] = { current: initial };
     return h.state[index];
+  },
+  useEffect: (effect: () => void | (() => void)) => {
+    const index = h.cursor++;
+    if (index in h.state) return;
+    h.state[index] = true;
+    const cleanup = effect();
+    if (typeof cleanup === "function") h.cleanups.push(cleanup);
   },
 }));
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
@@ -69,6 +78,7 @@ function myAttestations() { h.cursor = 0; return nodes(MyAttestations()); }
 function click(node: Node) { return (node.props.onClick as () => Promise<void> | void)(); }
 function review(index: number) { return click(myAttestations().filter(node => node.props.children === "Review & Attest")[index]); }
 function closeReview() { click(myAttestations().find(node => node.props.children === "Cancel")!); }
+function unmountReview() { h.unmounted = true; for (const cleanup of h.cleanups) cleanup(); }
 function signButton() { return myAttestations().find(node => node.props.children === "I Have Read and Understood")!; }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -79,6 +89,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   h.state = []; h.cursor = 0; h.canWrite = true; h.requiresCheck = false; h.role = "org_admin"; h.employeeError = false; h.missingEmployee = false; h.versionError = false;
+  h.cleanups = []; h.unmounted = false; h.updatesAfterUnmount = 0;
   vi.clearAllMocks();
   h.assign.mockReset().mockResolvedValue({});
   h.attest.mockReset().mockResolvedValue({});
@@ -147,12 +158,47 @@ describe("personal policy review identity and failures", () => {
     expect(signButton().props.disabled).toBe(false);
   });
 
-  it("keeps a newly opened policy review when an earlier attestation finishes", async () => {
+  it.each(["success", "failure"])("keeps a newer review and suppresses outdated attestation %s feedback", async outcome => {
     const submit = deferred<object>(); h.attest.mockReturnValueOnce(submit.promise);
     await review(0); const attesting = click(signButton()); closeReview(); await review(1);
-    submit.resolve({}); await attesting;
+    if (outcome === "success") submit.resolve({});
+    else submit.reject(new Error("Old attestation failed"));
+    await attesting;
     expect(myAttestations().find(node => node.props.onOpenChange)!.props.open).toBe(true);
     expect(myAttestations().find(node => node.type === "iframe")!.props.src).toContain("version-b");
+    expect(h.toast).not.toHaveBeenCalled();
+    await click(signButton());
+    expect(h.attest).toHaveBeenLastCalledWith("b");
+    expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Attestation recorded", description: expect.stringContaining('"Policy b"') }));
+    expect(myAttestations().find(node => node.props.onOpenChange)!.props.open).toBe(false);
+  });
+
+  it("retains the current review and reports a retryable attestation failure", async () => {
+    h.attest.mockRejectedValueOnce(new Error("Please retry"));
+    await review(0);
+    await click(signButton());
+    expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't record attestation", description: "Please retry" }));
+    expect(myAttestations().find(node => node.props.onOpenChange)!.props.open).toBe(true);
+    expect(myAttestations().find(node => node.type === "iframe")!.props.src).toContain("version-a");
+  });
+
+  it.each(["success", "failure"])("discards attestation %s feedback after the page unmounts", async outcome => {
+    const submit = deferred<object>(); h.attest.mockReturnValueOnce(submit.promise);
+    await review(0); const pending = click(signButton()); unmountReview();
+    if (outcome === "success") submit.resolve({});
+    else submit.reject(new Error("Previous account's attestation failed"));
+    await pending;
+    expect(h.attest).toHaveBeenCalledExactlyOnceWith("a");
+    expect(h.toast).not.toHaveBeenCalled();
+    expect(h.updatesAfterUnmount).toBe(0);
+  });
+
+  it("discards signed-document failure feedback and loading updates after unmount", async () => {
+    const url = deferred<string>(); h.signedUrl.mockReturnValueOnce(url.promise);
+    const pending = review(0); unmountReview();
+    url.reject(new Error("Previous document unavailable")); await pending;
+    expect(h.toast).not.toHaveBeenCalled();
+    expect(h.updatesAfterUnmount).toBe(0);
   });
 
   it("does not unlock another policy after an earlier knowledge check passes", async () => {
