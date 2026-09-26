@@ -6,7 +6,7 @@ Public registration is a commercial subscription/trial path. Complimentary Train
 
 1. Enter the organization, first facility, license type, and administrator name/email. This administrator manages the organization; use a facility-manager role for someone who must be limited to particular facilities.
 2. Submit once. The result distinguishes facility creation from invitation delivery. Retry a failed invitation from the saved result. Refreshing the tab preserves that receipt; after closing the browser, find the facility in the partner overview instead of creating another organization.
-3. Use **Complimentary partner facilities** to follow first sign-in, authenticator enrollment, facility details, staff entry, and plans. Open the invitation history for delivery failures. Never share an administrator password or bypass MFA to finish setup.
+3. Use **Complimentary partner facilities** to follow first sign-in, account security setup, facility details, staff entry, and plans. Open the invitation history for delivery failures. Never share an administrator password or bypass MFA to finish setup.
 4. The administrator follows the saved dashboard checklist: facility information, training-year policy, staff, invitations, learning plans, then assignment preview/confirmation.
 5. Before publishing a plan, resolve existing-assignment conflicts explicitly. Reapply after changing courses, required/optional choices or the deadline. Existing completions and another assignment's ownership/deadline remain intact.
 
