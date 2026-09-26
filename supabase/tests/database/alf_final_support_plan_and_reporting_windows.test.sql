@@ -409,14 +409,14 @@ select is(
 select ok(
   (select bool_and(citation like '55 Pa. Code 2600.16(d) / 2800.16(d)%')
    from public.incident_notification_rules
-   where notification_type = 'written_report' and incident_type not in ('abuse_allegation', 'assault', 'sexual_abuse', 'serious_bodily_injury', 'suspicious_death')),
+   where notification_type = 'written_report' and incident_type not in ('abuse_allegation', 'assault')),
   'a written report outside OAPSA cites the final-report section and says 48 hours is an internal target'
 );
 
 select ok(
   (select bool_and(citation like '%internal target%')
    from public.incident_notification_rules
-   where notification_type = 'written_report' and incident_type not in ('abuse_allegation', 'assault', 'sexual_abuse', 'serious_bodily_injury', 'suspicious_death')),
+   where notification_type = 'written_report' and incident_type not in ('abuse_allegation', 'assault')),
   'with the target named as the product''s, not the regulation''s'
 );
 

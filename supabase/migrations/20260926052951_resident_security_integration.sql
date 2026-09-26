@@ -72,8 +72,14 @@ from public.incident_notification_rules r cross join(values
   ('written_law_enforcement','law enforcement'),('written_protective_services','protective services')) n(kind,recipient)
 where r.notification_type='written_report' and r.incident_type in ('sexual_abuse','serious_bodily_injury','suspicious_death')
 on conflict(incident_type,notification_type) do nothing;
-delete from public.incident_notification_rules where notification_type='written_report'
-and incident_type in ('sexual_abuse','serious_bodily_injury','suspicious_death');
+-- The two OAPSA deliveries do not replace the Department's final report under
+-- 2600.16(d) / 2800.16(d). Preserve that third, independently completed duty.
+update public.incident_notification_rules
+set citation='55 Pa. Code 2600.16(d) / 2800.16(d) (48-hour internal target)',
+  source_confidence='unverified',
+  note='Submit the final report on the Department-prescribed form to the Department immediately following the conclusion of the investigation. The 48-hour reminder is an internal preparation target, not a statutory deadline. This does not satisfy the separate OAPSA written reports to law enforcement and protective services.'
+where notification_type='written_report'
+  and incident_type in ('sexual_abuse','serious_bodily_injury','suspicious_death');
 
 -- Completed deliveries remain historical evidence. Pending written deliveries use
 -- the corresponding recorded oral-report time as soon as that evidence exists.

@@ -43,11 +43,12 @@ select ok((select due_at between now() and clock_timestamp() from public.inciden
 insert into public.incidents(id,organization_id,facility_id,incident_type,occurred_at,reported_at,narrative) values
 ('aa260000-0000-4000-8000-000000000106','aa260000-0000-4000-8000-000000000001','aa260000-0000-4000-8000-000000000011','sexual_abuse',now()-interval '1 day',now()-interval '4 hours','Severe OAPSA allegation with two written recipients');
 select is((select count(*)::integer from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000106' and notification_type in ('written_law_enforcement','written_protective_services')),2,'OAPSA creates separate written deliveries for each agency');
+select is((select count(*)::integer from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000106' and notification_type in ('written_report','written_law_enforcement','written_protective_services')),3,'severe incidents retain the separate Department final report in addition to both OAPSA deliveries');
 -- Emulate an incident filed before the recipient split, including completed generic
 -- evidence. The same idempotent producer used by the forward migration repairs it.
 delete from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000106' and notification_type in ('written_law_enforcement','written_protective_services');
-insert into public.incident_notifications(organization_id,facility_id,incident_id,notification_type,due_at,status,completed_at,notes)
-values('aa260000-0000-4000-8000-000000000001','aa260000-0000-4000-8000-000000000011','aa260000-0000-4000-8000-000000000106','written_report',now(),'completed',now(),'Prior generic report receipt retained');
+update public.incident_notifications set status='completed',completed_at=now(),notes='Prior generic report receipt retained'
+where incident_id='aa260000-0000-4000-8000-000000000106' and notification_type='written_report';
 select app_private.create_incident_notification_presets('aa260000-0000-4000-8000-000000000106');
 select is((select count(*)::integer from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000106' and notification_type in ('written_law_enforcement','written_protective_services') and status='pending'),2,'a generic completed report cannot satisfy either missing named recipient duty');
 select is((select status from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000106' and notification_type='written_report'),'completed','prior generic delivery history remains intact');
@@ -60,5 +61,10 @@ values('aa260000-0000-4000-8000-000000000001','aa260000-0000-4000-8000-000000000
 select is((select due_at from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000106' and notification_type='written_law_enforcement'),now()+interval '46 hours','a later duplicate oral call cannot extend the first oral report deadline');
 update public.incident_notifications set status='completed',completed_at=now(),recipient='Local police',notes='Written report delivered with receipt' where incident_id='aa260000-0000-4000-8000-000000000106' and notification_type='written_law_enforcement';
 select is((select status from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000106' and notification_type='written_protective_services'),'pending','completing one written recipient does not complete the other');
+insert into public.incidents(id,organization_id,facility_id,incident_type,occurred_at,reported_at,narrative) values
+('aa260000-0000-4000-8000-000000000107','aa260000-0000-4000-8000-000000000001','aa260000-0000-4000-8000-000000000011','serious_bodily_injury',now(),now(),'Separate Department and OAPSA written reports');
+update public.incident_notifications set status='completed',completed_at=now(),notes='Recorded delivery to the named OAPSA agency'
+where incident_id='aa260000-0000-4000-8000-000000000107' and notification_type in ('written_law_enforcement','written_protective_services');
+select is((select status from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000107' and notification_type='written_report'),'pending','completing both OAPSA written reports leaves the Department final report outstanding');
 select * from finish();
 rollback;

@@ -53,5 +53,6 @@ values(pg_temp.id(1),pg_temp.id(11),'equipment','smoke_detector','Out-of-range c
 '23514',null,'private schema isolation preserves interval enforcement');
 reset role;
 select is((select count(*)::integer from public.incident_notification_rules where incident_type in ('sexual_abuse','serious_bodily_injury','suspicious_death') and notification_type in ('written_law_enforcement','written_protective_services') and citation='6 Pa. Code 15.152(a)(3)' and due_hours=48),6,'each severe OAPSA category retains two separate statutory written-report duties');
+select is((select count(*)::integer from public.incident_notification_rules where incident_type in ('sexual_abuse','serious_bodily_injury','suspicious_death') and notification_type='written_report' and citation='55 Pa. Code 2600.16(d) / 2800.16(d) (48-hour internal target)' and note like '%immediately following the conclusion of the investigation%'),3,'all three severe categories retain the Department final-report duty and label its internal reminder honestly');
 select * from finish();
 rollback;
