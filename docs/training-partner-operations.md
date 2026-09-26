@@ -20,7 +20,7 @@ Within a facility learning plan, use **Role and department assignment rules** to
 
 ### Welcome and optional learning
 
-In **Facility Settings**, save a learner welcome message and training contact. The learner homepage uses the facility name and existing organization logo. The dashboard's **Facility setup guide** links to staff, plans, assignments and reports and updates from the facility's saved records.
+In **Facility Settings**, save a learner welcome message and training contact. The learner homepage and new staff invitations use the facility name, existing organization logo and saved training contact. Invitation logos use a private link lasting one hour, matching the activation link; a missing logo does not prevent activation. The dashboard's **Facility setup guide** links to staff, plans, assignments and reports and updates from the facility's saved records.
 
 Learners can save courses for later and select interests in the Course Library. Owner-curated collections make additional courses easier to find. Suggestions and saved courses remain optional until an administrator explicitly assigns them. Language and continuing-education labels depend on recorded course evidence; they are not inferred from course titles.
 

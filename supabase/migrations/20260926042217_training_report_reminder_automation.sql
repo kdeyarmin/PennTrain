@@ -80,8 +80,7 @@ begin
   return v_org;
 end;
 $$;
-revoke all on function app_private.assert_training_automation_access(uuid,boolean) from public,anon;
-grant execute on function app_private.assert_training_automation_access(uuid,boolean) to authenticated;
+revoke all on function app_private.assert_training_automation_access(uuid,boolean) from public,anon,authenticated;
 
 create function app_private.training_report_next_date(p_frequency text,p_day integer,p_from date)
 returns date language plpgsql immutable set search_path='' as $$
@@ -318,7 +317,18 @@ create function public.get_training_report_analytics(p_facility_id uuid,p_filter
 returns jsonb language plpgsql stable security invoker set search_path='' as $$
 declare v_org uuid; v_report jsonb; v_result jsonb;
 begin
-  v_org:=app_private.assert_training_automation_access(p_facility_id);
+  -- Keep this function under caller RLS. Invokers intentionally have no USAGE
+  -- on app_private, so check the same scope using the public auth predicates.
+  if auth.uid() is null or not public.current_session_unlocked()
+    or not coalesce(public.current_role() in ('platform_admin','org_admin','facility_manager','trainer','auditor'),false) then
+    raise exception 'Training reporting access required' using errcode='42501'; end if;
+  perform public.assert_identity_assurance('compliance_profile_admin');
+  select organization_id into v_org from public.facilities where id=p_facility_id and is_active;
+  if v_org is null or not coalesce(public.is_platform_admin() or
+      (v_org=public.current_org_id() and public.is_assigned_to_facility(p_facility_id)),false)
+    or not exists(select 1 from public.organizations where id=v_org and subscription_status not in ('suspended','canceled'))
+    or not exists(select 1 from public.get_effective_entitlements(v_org) e where e.feature_key='modules.train' and e.is_entitled) then
+    raise exception 'Facility is outside your training access' using errcode='42501'; end if;
   if p_stalled_days is null or p_stalled_days not between 7 and 90 then raise exception 'Choose 7 to 90 days without progress' using errcode='22023'; end if;
   -- The existing report owns filter validation, RLS, effective required status, and its
   -- complete-snapshot export bound. Analytics cannot silently use only the first page.

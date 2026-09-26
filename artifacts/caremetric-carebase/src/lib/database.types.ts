@@ -34004,12 +34004,12 @@ export type Database = {
           approved_snapshot?: string | null
           automatic_enabled?: boolean
           department?: string | null
-          facility_id?: string
+          facility_id: string
           is_enabled?: boolean
           job_title?: string | null
-          organization_id?: string
+          organization_id: string
           revision?: number
-          training_plan_id?: string
+          training_plan_id: string
           updated_at?: string
           updated_by?: string | null
         }
@@ -34026,7 +34026,36 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "training_plan_assignment_rules_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_assignment_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_assignment_rules_training_plan_id_fkey"
+            columns: ["training_plan_id"]
+            isOneToOne: true
+            referencedRelation: "training_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_plan_assignment_rules_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       training_plan_enrollments: {
         Row: {
@@ -34456,10 +34485,10 @@ export type Database = {
         Insert: {
           copied_plan_id?: string | null
           copied_revision?: number | null
-          facility_id?: string
+          facility_id: string
           id?: string
-          kit_id?: string
-          organization_id?: string
+          kit_id: string
+          organization_id: string
           selected_at?: string
           selected_by?: string | null
         }
@@ -34473,7 +34502,43 @@ export type Database = {
           selected_at?: string
           selected_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "training_starter_kit_selections_copied_plan_id_fkey"
+            columns: ["copied_plan_id"]
+            isOneToOne: false
+            referencedRelation: "training_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_starter_kit_selections_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_starter_kit_selections_kit_id_fkey"
+            columns: ["kit_id"]
+            isOneToOne: false
+            referencedRelation: "training_starter_kits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_starter_kit_selections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_starter_kit_selections_selected_by_fkey"
+            columns: ["selected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       training_starter_kits: {
         Row: {
@@ -34491,7 +34556,7 @@ export type Database = {
           id?: string
           is_published?: boolean
           items?: Json
-          name?: string
+          name: string
           revision?: number
           updated_at?: string
           updated_by?: string | null
@@ -34506,7 +34571,15 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "training_starter_kits_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       training_types: {
         Row: {
@@ -36275,7 +36348,6 @@ export type Database = {
           },
         ]
       }
-
     }
     Views: {
       alert_list_rows: {
@@ -40425,6 +40497,10 @@ export type Database = {
         }
         Returns: Json
       }
+      get_training_invitation_branding: {
+        Args: { p_facility_id?: string; p_organization_id: string }
+        Returns: Json
+      }
       get_training_matrix_page: {
         Args: {
           p_due_within_days?: number
@@ -44051,11 +44127,11 @@ export type Database = {
       }
       save_training_assignment_rule: {
         Args: {
-          p_department: string | null
+          p_department: string
           p_is_enabled: boolean
-          p_job_title: string | null
+          p_job_title: string
           p_plan_id: string
-          p_revision?: number | null
+          p_revision?: number
         }
         Returns: Json
       }
@@ -44114,11 +44190,11 @@ export type Database = {
       }
       save_training_starter_kit: {
         Args: {
-          p_description: string
+          p_description?: string
           p_id?: string
-          p_is_published: boolean
-          p_items: Json
-          p_name: string
+          p_is_published?: boolean
+          p_items?: Json
+          p_name?: string
           p_revision?: number
         }
         Returns: Json
@@ -45670,7 +45746,6 @@ export type Database = {
         Returns: undefined
       }
       write_is_through_a_trusted_path: { Args: never; Returns: boolean }
-
     }
     Enums: {
       [_ in never]: never
@@ -45806,4 +45881,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

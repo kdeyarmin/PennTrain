@@ -14,12 +14,17 @@ begin
 end;
 $$;
 
-insert into public.organizations(id, name, slug, subscription_status) values
-  (pg_temp.id(1), 'Yearly plan tenant', 'discovery-test', 'active'),
-  (pg_temp.id(2), 'Other yearly tenant', 'discovery-other', 'active');
+-- Match complimentary Train provisioning: no live paid/trial CareBase fallback.
+insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
+select v.id,v.name,v.slug,'trial',now()-interval '1 day',p.id from (values
+  (pg_temp.id(1),'Yearly plan tenant','discovery-test'),
+  (pg_temp.id(2),'Other yearly tenant','discovery-other')
+) v(id,name,slug) cross join public.packages p where p.name='CareMetric Train';
 insert into app_private.module_access_terms(organization_id, module_key, source, reason) values
   (pg_temp.id(1), 'modules.train', 'complimentary', 'Disposable yearly training plan test'),
   (pg_temp.id(2), 'modules.train', 'complimentary', 'Disposable yearly training plan test');
+select is(public.has_effective_entitlement(pg_temp.id(1),'modules.train'),true,'fixture has complimentary Training access');
+select is(public.has_effective_entitlement(pg_temp.id(1),'modules.carebase'),false,'fixture has no CareBase access that could survive Train revocation');
 insert into public.facilities(id, organization_id, name, facility_type) values
   (pg_temp.id(11), pg_temp.id(1), 'Assigned facility', 'PCH'),
   (pg_temp.id(12), pg_temp.id(1), 'Unassigned facility', 'PCH'),

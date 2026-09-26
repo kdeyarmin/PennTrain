@@ -189,6 +189,8 @@ insert into public.course_progress(assignment_id,percent_complete,started_at,upd
 on conflict(assignment_id) do update set percent_complete=20,started_at=excluded.started_at,updated_at=excluded.updated_at;
 select set_config('app.privileged_write','off',true);
 select pg_temp.act(102);
+select ok(not (select prosecdef from pg_proc where oid='public.get_training_report_analytics(uuid,jsonb,integer)'::regprocedure),'analytics retains caller RLS rather than bypassing employee and enrollment policies');
+select lives_ok($$select public.get_training_report_analytics(pg_temp.id(11))$$,'Training-only manager loads analytics without private-schema access');
 select is((public.get_training_report_analytics(pg_temp.id(11))->>'matching_enrollments')::integer,4,'analytics sees all four facility assignments');
 select is((public.get_training_report_analytics(pg_temp.id(11),'{}',14)->>'stalled_total')::integer,1,'started learning with stale progress appears for follow-up');
 select is((public.get_training_report_analytics(pg_temp.id(11),'{}',30)->>'stalled_total')::integer,0,'longer inactivity window excludes recent progress');

@@ -10,10 +10,16 @@ begin
   perform set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.id(n),'role','authenticated','aal',assurance,'iat',extract(epoch from now())::bigint)::text,true);
   set local role authenticated;
 end $$;
-insert into public.organizations(id,name,slug,subscription_status) values
-  (pg_temp.id(1),'Starter kit tenant','starter-kit-test','active'),(pg_temp.id(2),'Other kit tenant','starter-kit-other','active');
+-- Match complimentary Train provisioning: no live paid/trial CareBase fallback.
+insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
+select v.id,v.name,v.slug,'trial',now()-interval '1 day',p.id from (values
+  (pg_temp.id(1),'Starter kit tenant','starter-kit-test'),
+  (pg_temp.id(2),'Other kit tenant','starter-kit-other')
+) v(id,name,slug) cross join public.packages p where p.name='CareMetric Train';
 insert into app_private.module_access_terms(organization_id,module_key,source,reason) values
   (pg_temp.id(1),'modules.train','complimentary','Disposable starter kit test'),(pg_temp.id(2),'modules.train','complimentary','Disposable starter kit test');
+select is(public.has_effective_entitlement(pg_temp.id(1),'modules.train'),true,'fixture has complimentary Training access');
+select is(public.has_effective_entitlement(pg_temp.id(1),'modules.carebase'),false,'fixture has no CareBase access that could survive Train revocation');
 insert into public.facilities(id,organization_id,name,facility_type) values
   (pg_temp.id(11),pg_temp.id(1),'Assigned facility','PCH'),(pg_temp.id(12),pg_temp.id(1),'Other facility','PCH'),(pg_temp.id(13),pg_temp.id(2),'Other tenant','PCH');
 insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)

@@ -70,9 +70,19 @@ function makeHandler(opts: {
   brandingName?: string;
   facilityName?: string;
   trainingEnabled?: boolean;
+  invitationBranding?: { logo_path?: string; contact_name?: string; contact_email?: string };
+  logoFails?: boolean;
+  logoThrows?: boolean;
+  existingProfiles?: { id: string; email: string; organization_id: string | null }[];
+  existingIdentity?: { id: string; email: string; invited_at?: string | null; email_confirmed_at?: string | null; confirmed_at?: string | null };
+  profileLookupError?: boolean;
+  identityLookupError?: boolean;
+  metadataRefreshError?: boolean;
+  metadataRefreshThrows?: boolean;
 } = {}) {
   const rpcCalls: RpcCall[] = [];
-  const observations = { invites: 0, deletes: 0, authLookups: 0, assuranceChecks: 0, employeeFilters: [] as [string,unknown][], inviteOptions: {} as Record<string, unknown>, brandingFilters: [] as [string, unknown][] };
+  const observations = { invites: 0, deletes: 0, authLookups: 0, assuranceChecks: 0, employeeFilters: [] as [string,unknown][], inviteOptions: {} as Record<string, unknown>, brandingFilters: [] as [string, unknown][], brandingArgs: undefined as Record<string, unknown> | undefined, signedLogos: [] as [string, string, number][] };
+  const resend = { filters: [] as [string, unknown][], identityIds: [] as string[], updates: [] as { id: string; attributes: Record<string, unknown> }[], events: [] as string[] };
   const demoOrgIds = new Set(opts.demoOrgIds ?? []);
   const callerRole = opts.callerRole ?? "org_admin";
   const callerOrgId = opts.callerOrgId === undefined ? ORG_ID : opts.callerOrgId;
@@ -117,14 +127,32 @@ function makeHandler(opts: {
   };
 
   const adminClient = {
+    storage: { from: (bucket: string) => ({ createSignedUrl: async (path: string, seconds: number) => {
+      observations.signedLogos.push([bucket, path, seconds]);
+      if (opts.logoThrows) throw new Error("Storage unavailable");
+      return opts.logoFails ? { data: null, error: { message: "Logo unavailable" } }
+        : { data: { signedUrl: `${ENV.SUPABASE_URL}/storage/v1/object/sign/${bucket}/${path}?token=display-token` }, error: null };
+    } }) },
     auth: {
       admin: {
-        inviteUserByEmail: async (_email: string, options: Record<string, unknown>) => { observations.invites++; observations.inviteOptions = options; if(opts.inviteThrows)throw new Error("provider timeout"); return { data: { user: { id: INVITED_ID, email: EMAIL } }, error: opts.inviteError ?? null }; },
+        inviteUserByEmail: async (_email: string, options: Record<string, unknown>) => { resend.events.push("send"); observations.invites++; observations.inviteOptions = options; if(opts.inviteThrows)throw new Error("provider timeout"); return { data: { user: { id: INVITED_ID, email: EMAIL } }, error: opts.inviteError ?? null }; },
         deleteUser: async () => { observations.deletes++; return { data: null, error: null }; },
+        getUserById: async (id: string) => { resend.identityIds.push(id); return { data: { user: opts.existingIdentity ?? { id: INVITED_ID, email: EMAIL, invited_at: "2026-01-01T00:00:00Z", email_confirmed_at: null } }, error: opts.identityLookupError ? new Error("Lookup failed") : null }; },
+        updateUserById: async (id: string, attributes: Record<string, unknown>) => {
+          resend.events.push("refresh"); resend.updates.push({ id, attributes });
+          if (opts.metadataRefreshThrows) throw new Error("Metadata update interrupted");
+          return { data: null, error: opts.metadataRefreshError ? new Error("Metadata update failed") : null };
+        },
       },
     },
-    from: () => chainable({ data: null, error: null }),
+    from: (table: string) => {
+      if (table !== "profiles") return chainable({ data: null, error: null });
+      const query = chainable({ data: opts.existingProfiles ?? [], error: opts.profileLookupError ? new Error("Lookup failed") : null });
+      for (const method of ["ilike", "limit"]) query[method] = (column: string, value?: unknown) => { resend.filters.push([method, value === undefined ? column : [column, value]]); return query; };
+      return query;
+    },
     rpc: async (name: string, args: Record<string, unknown>) => {
+      if (name === "get_training_invitation_branding") { observations.brandingArgs = args; return { data: opts.invitationBranding ?? null, error: null }; }
       rpcCalls.push({ name, args });
       if (name === "record_user_invitation_sent") return { data: "invitation-1", error: null };
       return { data: { id: INVITED_ID, is_active: true }, error: null };
@@ -137,7 +165,7 @@ function makeHandler(opts: {
     return callCount === 1 ? callerClient : adminClient;
   };
   return { handler: createInviteUserHandler({ createClient, getEnv,
-    ...(opts.delegatedAuthority ? { resolveDelegatedAuthority: async () => opts.delegatedAuthority! } : {}) }), rpcCalls, observations };
+    ...(opts.delegatedAuthority ? { resolveDelegatedAuthority: async () => opts.delegatedAuthority! } : {}) }), rpcCalls, observations, resend };
 }
 
 Deno.test("invite-user reactivates the profile when provisioning a non-employee invite", async () => {
@@ -172,6 +200,109 @@ Deno.test("invite-user uses organization welcome and a generic fallback for cust
   assertEquals(response.status, 200);
   assertEquals(observations.inviteOptions.data, { first_name: "Rae", last_name: "Nolan", invitation_workspace_name: "Care Group", invitation_audience: "workspace" });
 });
+
+Deno.test("learner invitation signs only the authorized organization logo and uses saved facility contact", async () => {
+  const facilityId = "77777777-7777-4777-8777-777777777777";
+  const { handler, observations } = makeHandler({ invitationBranding: { logo_path: `${ORG_ID}/logo.png`, contact_name: "Education Team", contact_email: "training@example.test" },
+    employeeMatches: [{ id: EMPLOYEE_ID, profile_id: null, email: EMAIL, facility_id: facilityId }] });
+  const response = await handler(makeRequest({ email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "employee", organization_id: ORG_ID, employee_id: EMPLOYEE_ID,
+    invitation_logo_url: "https://untrusted.test/logo.png", invitation_contact_email: "spoof@example.test" }));
+  assertEquals(response.status, 200);
+  assertEquals(observations.brandingArgs, { p_organization_id: ORG_ID, p_facility_id: facilityId });
+  assertEquals(observations.signedLogos, [["org-branding", `${ORG_ID}/logo.png`, 3600]]);
+  assertEquals(observations.inviteOptions.data, { first_name: "Rae", last_name: "Nolan", invitation_audience: "learner",
+    invitation_logo_url: `${ENV.SUPABASE_URL}/storage/v1/object/sign/org-branding/${ORG_ID}/logo.png?token=display-token`,
+    invitation_contact_name: "Education Team", invitation_contact_email: "training@example.test" });
+});
+
+Deno.test("a cross-organization logo reference is never signed", async () => {
+  const { handler, observations } = makeHandler({ invitationBranding: { logo_path: `${DEMO_ORG_ID}/logo.png` } });
+  const response = await handler(makeRequest({ email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "org_admin", organization_id: ORG_ID }));
+  assertEquals(response.status, 200); assertEquals(observations.signedLogos, []);
+  assertEquals((observations.inviteOptions.data as Record<string, unknown>).invitation_logo_url, undefined);
+});
+
+Deno.test("an unavailable logo leaves the saved contact and activation invitation usable", async () => {
+  const { handler, observations } = makeHandler({ invitationBranding: { logo_path: `${ORG_ID}/logo.png`, contact_name: "Training coordinator" }, logoFails: true });
+  const response = await handler(makeRequest({ email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "org_admin", organization_id: ORG_ID }));
+  assertEquals(response.status, 200);
+  assertEquals(observations.inviteOptions.data, { first_name: "Rae", last_name: "Nolan", invitation_audience: "administrator", invitation_contact_name: "Training coordinator" });
+});
+
+for (const suffix of ["%2e%2e/other/logo.png", ".%2e/other/logo.png", "folder\\..\\..\\other/logo.png", "../other/logo.png", "./logo.png", "folder//logo.png", "logo.png?token=spoof", "logo.png#fragment", "logo.png\n", "logo image.png", "logo.png/"]) {
+  Deno.test(`invitation refuses noncanonical logo object key ${JSON.stringify(suffix)}`, async () => {
+    const { handler, observations } = makeHandler({ invitationBranding: { logo_path: `${ORG_ID}/${suffix}` } });
+    const response = await handler(makeRequest({ email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "org_admin", organization_id: ORG_ID }));
+    assertEquals(response.status, 200); assertEquals(observations.signedLogos, []);
+    assertEquals((observations.inviteOptions.data as Record<string, unknown>).invitation_logo_url, undefined);
+  });
+}
+
+Deno.test("a thrown optional storage failure still sends the invitation with its contact", async () => {
+  const { handler, observations } = makeHandler({ logoThrows: true, invitationBranding: { logo_path: `${ORG_ID}/logo.png`, contact_name: "Education Team" } });
+  assertEquals((await handler(makeRequest({ email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "org_admin", organization_id: ORG_ID }))).status, 200);
+  assertEquals((observations.inviteOptions.data as Record<string, unknown>).invitation_contact_name, "Education Team");
+  assertEquals(observations.invites, 1);
+});
+
+const returningProfile = { id: INVITED_ID, email: EMAIL, organization_id: ORG_ID };
+const returningBody = { email: EMAIL, first_name: "Rae", last_name: "Nolan", role: "org_admin", organization_id: ORG_ID };
+Deno.test("resend refreshes only current invitation presentation before dispatch", async () => {
+  const { handler, observations, resend } = makeHandler({ existingProfiles: [returningProfile], brandingName: "Current facility group",
+    invitationBranding: { logo_path: `${ORG_ID}/brand-assets/logo_v2.png`, contact_name: "Current coordinator", contact_email: "current@example.test" } });
+  assertEquals((await handler(makeRequest(returningBody))).status, 200);
+  assertEquals(resend.filters, [["ilike", ["email", EMAIL]], ["limit", 2]]);
+  assertEquals(resend.identityIds, [INVITED_ID]);
+  assertEquals(resend.updates, [{ id: INVITED_ID, attributes: { user_metadata: {
+    invitation_workspace_name: "Current facility group", invitation_logo_url: `${ENV.SUPABASE_URL}/storage/v1/object/sign/org-branding/${ORG_ID}/brand-assets/logo_v2.png?token=display-token`,
+    invitation_contact_name: "Current coordinator", invitation_contact_email: "current@example.test", invitation_audience: "administrator",
+  } } }]);
+  assertEquals(resend.events, ["refresh", "send"]); assertEquals(observations.invites, 1);
+});
+
+Deno.test("resend explicitly clears stale optional branding when current branding is unavailable", async () => {
+  const { handler, resend } = makeHandler({ existingProfiles: [returningProfile], logoFails: true, invitationBranding: { logo_path: `${ORG_ID}/logo.png` } });
+  assertEquals((await handler(makeRequest(returningBody))).status, 200);
+  assertEquals(resend.updates[0].attributes, { user_metadata: { invitation_workspace_name: null, invitation_logo_url: null,
+    invitation_contact_name: null, invitation_contact_email: null, invitation_audience: "administrator" } });
+});
+
+Deno.test("resend lookup treats email wildcard characters literally and verifies normalized Auth email", async () => {
+  const email = "first_%last@example.test";
+  const { handler, resend } = makeHandler({ existingProfiles: [{ ...returningProfile, email: email.toUpperCase() }],
+    existingIdentity: { id: INVITED_ID, email, invited_at: "2026-01-01T00:00:00Z" } });
+  assertEquals((await handler(makeRequest({ ...returningBody, email }))).status, 200);
+  assertEquals(resend.filters, [["ilike", ["email", "first\\_\\%last@example.test"]], ["limit", 2]]);
+});
+
+for (const existingProfiles of [[{ ...returningProfile, organization_id: DEMO_ORG_ID }], [returningProfile, { ...returningProfile, id: CALLER_ID }]]) {
+  Deno.test(`resend refuses ${existingProfiles.length > 1 ? "ambiguous" : "another organization's"} existing identity before Auth access`, async () => {
+    const { handler, observations, resend } = makeHandler({ existingProfiles });
+    assertEquals((await handler(makeRequest(returningBody))).status, 409);
+    assertEquals(resend.identityIds, []); assertEquals(resend.updates, []); assertEquals(observations.invites, 0);
+  });
+}
+
+for (const identity of [
+  { id: INVITED_ID, email: EMAIL, invited_at: "2026-01-01T00:00:00Z", email_confirmed_at: "2026-01-02T00:00:00Z" },
+  { id: INVITED_ID, email: EMAIL, invited_at: null },
+  { id: INVITED_ID, email: "someone-else@example.test", invited_at: "2026-01-01T00:00:00Z" },
+  { id: CALLER_ID, email: EMAIL, invited_at: "2026-01-01T00:00:00Z" },
+]) {
+  Deno.test(`resend never changes a confirmed, noninvited, or mismatched Auth identity ${JSON.stringify(identity)}`, async () => {
+    const { handler, observations, resend } = makeHandler({ existingProfiles: [returningProfile], existingIdentity: identity });
+    const response = await handler(makeRequest(returningBody));
+    assertEquals(response.status >= 400, true); assertEquals(resend.updates, []); assertEquals(observations.invites, 0);
+  });
+}
+
+for (const failure of ["profileLookupError", "identityLookupError", "metadataRefreshError", "metadataRefreshThrows"] as const) {
+  Deno.test(`resend uncertainty ${failure} cannot send stale details or delete an existing account`, async () => {
+    const { handler, observations } = makeHandler({ existingProfiles: [returningProfile], [failure]: true });
+    assertEquals((await handler(makeRequest(returningBody))).status, 500);
+    assertEquals(observations.invites, 0); assertEquals(observations.deletes, 0);
+  });
+}
 
 Deno.test("invite-user reactivates on the employee path too, whose RPC cannot carry it", async () => {
   const { handler, rpcCalls } = makeHandler({
@@ -295,6 +426,25 @@ Deno.test("delegated authority revoked before sending cannot dispatch email", as
   assertEquals((await handler(internalRequest(delegatedBody))).status,403);
   assertEquals(observations.invites,0);
 });
+
+Deno.test("delegated resend revalidates the exact authority before metadata refresh and again before dispatch", async () => {
+  let checks = 0;
+  const { handler, observations, resend } = makeHandler({ callerRole: "platform_admin", callerOrgId: null,
+    existingProfiles: [returningProfile], delegatedAuthority: delegatedAuthority({ revalidate: async () => { checks++; } }) });
+  assertEquals((await handler(internalRequest(delegatedBody))).status, 200);
+  assertEquals(checks, 3); assertEquals(resend.events, ["refresh", "send"]); assertEquals(observations.assuranceChecks, 0);
+});
+
+for (const revokedCheck of [2, 3]) {
+  Deno.test(`delegated resend authority revoked at check ${revokedCheck} never sends`, async () => {
+    let checks = 0;
+    const { handler, observations, resend } = makeHandler({ callerRole: "platform_admin", callerOrgId: null,
+      existingProfiles: [returningProfile], delegatedAuthority: delegatedAuthority({ revalidate: async () => { if (++checks === revokedCheck) throw new Error("Revoked"); } }) });
+    assertEquals((await handler(internalRequest(delegatedBody))).status, 403);
+    assertEquals(resend.updates.length, revokedCheck === 2 ? 0 : 1); assertEquals(observations.invites, 0);
+    assertEquals(observations.deletes, 0);
+  });
+}
 
 Deno.test("delegated invite still refuses a demoted native actor", async () => {
   const {handler,observations}=makeHandler({delegatedAuthority:delegatedAuthority()});

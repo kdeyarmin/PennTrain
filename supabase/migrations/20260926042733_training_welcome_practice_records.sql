@@ -268,8 +268,11 @@ begin
     if tg_op='DELETE' then raise exception 'Submitted training files cannot be removed' using errcode='55000'; end if;
     -- Storage may update access bookkeeping after reads. File versions, paths,
     -- owners and metadata identify the original proof and cannot be rewritten.
-    if (to_jsonb(new)-array['last_accessed_at','updated_at']) is distinct from
-      (to_jsonb(old)-array['last_accessed_at','updated_at']) then
+    -- path_tokens is a stored generated column derived from name. PostgreSQL
+    -- computes NEW generated values after BEFORE triggers, so comparing it here
+    -- would reject harmless bookkeeping updates. The source name stays sealed.
+    if (to_jsonb(new)-array['last_accessed_at','updated_at','path_tokens']) is distinct from
+      (to_jsonb(old)-array['last_accessed_at','updated_at','path_tokens']) then
       raise exception 'Submitted training files cannot be replaced or renamed' using errcode='55000'; end if;
   end if;
   if tg_op='DELETE' then return old; end if;

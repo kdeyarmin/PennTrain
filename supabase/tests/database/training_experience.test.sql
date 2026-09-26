@@ -1,5 +1,8 @@
 begin;
 select no_plan();
+-- Disposable metadata fixtures have no backend bytes. Exercise our DELETE
+-- guard after the same Storage API opt-in used by real object removal.
+select set_config('storage.allow_delete_query','true',true);
 
 create function pg_temp.id(n integer) returns uuid language sql immutable as $$
   select ('ee260000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid;
@@ -14,12 +17,17 @@ begin
 end;
 $$;
 
-insert into public.organizations(id, name, slug, subscription_status) values
-  (pg_temp.id(1), 'Yearly plan tenant', 'experience-test', 'active'),
-  (pg_temp.id(2), 'Other yearly tenant', 'experience-other', 'active');
+-- Match complimentary Train provisioning: no live paid/trial CareBase fallback.
+insert into public.organizations(id,name,slug,subscription_status,trial_ends_at,package_id)
+select v.id,v.name,v.slug,'trial',now()-interval '1 day',p.id from (values
+  (pg_temp.id(1),'Yearly plan tenant','experience-test'),
+  (pg_temp.id(2),'Other yearly tenant','experience-other')
+) v(id,name,slug) cross join public.packages p where p.name='CareMetric Train';
 insert into app_private.module_access_terms(organization_id, module_key, source, reason) values
   (pg_temp.id(1), 'modules.train', 'complimentary', 'Disposable yearly training plan test'),
   (pg_temp.id(2), 'modules.train', 'complimentary', 'Disposable yearly training plan test');
+select is(public.has_effective_entitlement(pg_temp.id(1),'modules.train'),true,'fixture has complimentary Training access');
+select is(public.has_effective_entitlement(pg_temp.id(1),'modules.carebase'),false,'fixture has no CareBase access that could survive Train revocation');
 insert into public.facilities(id, organization_id, name, facility_type) values
   (pg_temp.id(11), pg_temp.id(1), 'Assigned facility', 'PCH'),
   (pg_temp.id(12), pg_temp.id(1), 'Unassigned facility', 'PCH'),
@@ -90,6 +98,14 @@ select throws_ok($$select public.training_experience('records',pg_temp.id(11),pg
 select throws_ok($$select public.training_experience('save_welcome',pg_temp.id(11),pg_temp.id(201),'{}')$$,'42501',null,'learner cannot edit facility welcome');
 select lives_ok($$insert into public.training_documents(id,organization_id,facility_id,employee_id,document_type,file_name,storage_bucket,storage_path,file_type)
 values(pg_temp.id(910),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','fresh.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/fresh.pdf','application/pdf')$$,'learner can register their actual upload without trusting a client uploader field');
+update public.training_documents set storage_path=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/private-staff.pdf' where id=pg_temp.id(910);
+select is((select storage_path from public.training_documents where id=pg_temp.id(910)),pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/fresh.pdf','learner cannot bypass registration guard by repointing an unsealed document');
+update public.training_documents set storage_bucket='course-documents' where id=pg_temp.id(910);
+select is((select storage_bucket from public.training_documents where id=pg_temp.id(910)),'external-uploads','learner cannot change document bucket after registration');
+update storage.objects set owner_id=pg_temp.id(103)::text where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/legacy-forged.pdf';
+select is((select owner_id from storage.objects where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/legacy-forged.pdf'),pg_temp.id(104)::text,'learner cannot acquire actual ownership through forged readable legacy metadata');
+update storage.objects set owner_id=pg_temp.id(104)::text where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/fresh.pdf';
+select is((select owner_id from storage.objects where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/fresh.pdf'),pg_temp.id(103)::text,'learner cannot transfer actual ownership of an unsealed own upload');
 select throws_ok($$insert into public.training_documents(organization_id,facility_id,employee_id,document_type,file_name,storage_bucket,storage_path,file_type,uploaded_by_profile_id)
 values(pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),'external_certificate','private-staff.pdf','external-uploads',pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/private-staff.pdf','application/pdf',pg_temp.id(103))$$,'42501',null,'forging metadata cannot claim another staff member storage object');
 select is((select count(*)::int from storage.objects where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/private-staff.pdf'),0,'failed metadata forgery does not grant private file reads');
@@ -119,6 +135,9 @@ reset role;
 select set_config('request.jwt.claims','{}',true);
 select throws_ok($$update public.training_documents set file_name='replacement.pdf' where id=pg_temp.id(901)$$,'55000',null,'submitted document metadata is retained');
 select throws_ok($$update storage.objects set version='replacement' where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf'$$,'55000',null,'trusted storage writes cannot replace submitted bytes');
+select throws_ok($$update storage.objects set name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/renamed.pdf' where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf'$$,'55000',null,'ignoring derived path tokens does not permit renaming submitted proof');
+select throws_ok($$update storage.objects set owner_id=pg_temp.id(104)::text where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf'$$,'55000',null,'trusted storage writes cannot replace submitted ownership');
+select throws_ok($$update storage.objects set metadata='{"mimetype":"text/plain"}'::jsonb where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf'$$,'55000',null,'trusted storage writes cannot rewrite submitted file metadata');
 select throws_ok($$delete from storage.objects where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf'$$,'55000',null,'trusted storage writes cannot delete submitted evidence');
 select lives_ok($$update storage.objects set last_accessed_at=now() where bucket_id='external-uploads' and name=pg_temp.id(1)::text||'/'||pg_temp.id(11)::text||'/proof.pdf'$$,'storage access bookkeeping remains available');
 select set_config('app.privileged_write','on',true);
