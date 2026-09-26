@@ -56,6 +56,7 @@ export interface MoveInTaskWithOwner extends MoveInTask {
 function invalidateAdmissions(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["admissions"] });
   queryClient.invalidateQueries({ queryKey: ["residents"] });
+  queryClient.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
   queryClient.invalidateQueries({ queryKey: ["closed-loop-compliance"] });
 }

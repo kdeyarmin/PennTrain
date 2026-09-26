@@ -52,4 +52,3 @@ select jsonb_build_object('intervals',coalesce((select jsonb_agg(to_jsonb(c) ord
  'basis','Current active census and assessed mobility needs; SCU residents count with mobility needs. Only active staff with documented age, education, fitness and current clearance eligibility count toward care hours/adult coverage. Confirm resident presence, awake availability and actual attendance. Unknown mobility leaves the care-hour denominator incomplete. Waking hours follow the recorded facility policy.');
 $$;
 revoke all on function public.schedule_staff_care_coverage(uuid) from public,anon,authenticated;
-

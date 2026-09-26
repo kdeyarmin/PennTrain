@@ -122,7 +122,7 @@ begin
           or (new.details->>'medical_evaluated_on')::date<(new.anchor_at at time zone 'America/New_York')::date-60
           or (new.details->>'medical_evaluated_on')::date>(new.anchor_at at time zone 'America/New_York')::date then
           raise exception 'Unit admission requires screening within the prior 72 hours, qualified collaboration, agreement, alternatives review and a medical evaluation within 60 days' using errcode='23514'; end if;
-      elsif new.completed_at<new.anchor_at-case when new.action_type='scu_support_plan' then interval '72 hours' else interval '0 hours' end then
+      elsif new.completed_at<new.anchor_at-(case when new.action_type='scu_support_plan' then interval '72 hours' else interval '0 hours' end) then
         raise exception 'The clinical evidence predates this duty window' using errcode='23514';
       end if;
     end if;

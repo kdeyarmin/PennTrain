@@ -77,5 +77,17 @@ insert into public.employee_facility_assignments(organization_id,facility_id,emp
 values('a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','a2380000-0000-4000-8000-000000000025');
 select ok(public.evaluate_schedule_eligibility('a2380000-0000-4000-8000-000000000025','a2380000-0000-4000-8000-000000000011',now()+interval '1 day',now()+interval '1 day 8 hours')->'hardBlocks' @> '["staff_qualification_evidence_missing"]'::jsonb,
  'qualification rules follow the assigned PCH even when the employee primary site is NH');
+insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title)
+values('a2380000-0000-4000-8000-000000000026','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','Unknown','Hire date','Direct care');
+select is((public.staff_training_period('a2380000-0000-4000-8000-000000000026')->>'hireDateMissing')::boolean,true,'unknown employment date is reported explicitly');
+select is((public.staff_training_period('a2380000-0000-4000-8000-000000000026')->>'partialFirstYear')::boolean,false,'missing date is not evidence of a partial first year');
+insert into public.employee_credentials(id,organization_id,facility_id,employee_id,credential_type,issue_date,expiration_date)
+values('a2380000-0000-4000-8000-000000000046','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','a2380000-0000-4000-8000-000000000026','tb_screening',public.pa_today()-30,public.pa_today()+365);
+select is((select status from public.employee_credentials where id='a2380000-0000-4000-8000-000000000046'),'not_applicable','optional TB evidence is preserved without creating a chapter requirement');
+insert into public.staff_regulatory_policies(facility_id,organization_id,staff_tb_required,policy_reference,updated_by)
+values('a2380000-0000-4000-8000-000000000011','a2380000-0000-4000-8000-000000000001',true,'Employer TB policy adopted with prior dated evidence','a2380000-0000-4000-8000-000000000101');
+select is((select status from public.employee_credentials where id='a2380000-0000-4000-8000-000000000046'),'compliant','enabling the employer TB policy immediately reuses existing valid evidence');
+update public.staff_regulatory_policies set staff_tb_required=false where facility_id='a2380000-0000-4000-8000-000000000011';
+select is((select issue_date from public.employee_credentials where id='a2380000-0000-4000-8000-000000000046'),public.pa_today()-30,'turning optional TB tracking off preserves its actual issue date');
 select * from finish();
 rollback;

@@ -823,6 +823,7 @@ export default function EmployeeDetail() {
                   <p className="text-xs text-muted-foreground">Training year {formatDateForDisplay(trainingSummary.data.start)} – {formatDateForDisplay(trainingSummary.data.end)}. This uses the facility's recorded training-year policy and the same capped credits as Train and compliance.</p>
                   <p className="font-medium">{trainingSummary.data.completedHours} of {trainingSummary.data.requiredHours} annual hours completed</p>
                   {trainingSummary.data.partialFirstYear && <p className="text-sm">This is a partial first training year; the annual minimum is not yet assessed.</p>}
+                  {trainingSummary.data.hireDateMissing && <p className="text-sm text-destructive">Record the actual hire date to evaluate whether the annual training requirement applies.</p>}
                   {trainingSummary.data.previousYearOverdue && <p className="text-sm text-destructive">The previous full training year remains overdue. Hours allocated to its grace period are excluded from this year's credit.</p>}
                   {!trainingSummary.data.documented && <p className="text-sm text-amber-700">The default calendar year is in use. Record the facility's training-year policy in Train.</p>}
                   <p className="text-xs text-muted-foreground">Completion deadline including selected grace: {formatDateForDisplay(trainingSummary.data.graceThrough)}</p>

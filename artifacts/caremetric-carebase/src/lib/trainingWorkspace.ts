@@ -1,6 +1,7 @@
 /** Training evidence readiness, not a facility licensing determination. Dates use PA local days. */
 import type { StaffRegulatoryPolicy, EmployeeRegulatoryProfile } from "@/hooks/useStaffRegulatory";
 export type StaffTrainingSummary = { start: string; end: string; graceThrough: string; basis: string; partialFirstYear: boolean;
+  hireDateMissing?: boolean;
   documented: boolean; completedHours: number; requiredHours: number; administratorHours: number; alrDementiaHours: number; specialUnitHours: number;
   previousYearOverdue?: boolean; previousCompletedHours?: number; graceHoursAllocatedToPrevious?: number;
   previousAlrDementiaOverdue?: boolean; previousSpecialUnitOverdue?: boolean; previousAdministratorOverdue?: boolean;
@@ -232,7 +233,8 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     if (p.direct_care) {
       const earned = input.annualSummary?.completedHours ?? hours("base", from, today), required = alr ? 16 : 12;
       const partial = input.annualSummary?.partialFirstYear ?? Boolean(hireDate && hireDate > period.start);
-      add("base", "Direct care annual hours", `${chapter}.65(${alr ? "h" : "e"})`, partial ? null : earned >= required, `${earned.toFixed(2)} / ${required} hours; ${from} through ${period.end}.${partial ? " Partial first training year: annual-hour inspection requirement begins with a full year." : ""} Medication training counts up to 6 hours; first aid, CPR and airway training together count up to 4 hours.`, input.annualSummary?.graceThrough ?? addDays(period.end, input.staffPolicy?.annual_grace_days ?? 15));
+      const hireUnknown = input.annualSummary?.hireDateMissing || !hireDate;
+      add("base", "Direct care annual hours", `${chapter}.65(${alr ? "h" : "e"})`, partial || hireUnknown ? null : earned >= required, `${earned.toFixed(2)} / ${required} hours; ${from} through ${period.end}.${hireUnknown ? " Record the actual hire date before evaluating annual applicability." : partial ? " Partial first training year: annual-hour inspection requirement begins with a full year." : ""} Medication training counts up to 6 hours; first aid, CPR and airway training together count up to 4 hours.`, input.annualSummary?.graceThrough ?? addDays(period.end, input.staffPolicy?.annual_grace_days ?? 15));
       const missing = missingTopics(["med_self_admin", "resident_needs", "dementia", "infection", "personal_care", "safe_management"], from);
       add("annual_topics", "Direct care annual topics", `${chapter}.65(${alr ? "i" : "f"})`, missing.length === 0, `Missing: ${names(missing)}.`, period.end);
       conditionalTopic("mental_health_population", "mental_health", `${chapter}.65(${alr ? "i" : "f"})`, from, period.end);

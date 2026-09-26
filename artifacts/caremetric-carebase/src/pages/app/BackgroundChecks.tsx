@@ -171,12 +171,9 @@ export default function BackgroundChecks() {
         provisional_start_date: form.provisionalStartDate || null,
         psp_requested_on: form.pspRequestedOn || null,
         fbi_requested_on: form.fbiRequestedOn || null,
-        // provisional_max_days is NOT sent. The length of an OAPSA provisional window is a
-        // statutory question, and this form was answering it: `paResident === true ? 30 : 90` gave
-        // the 90-day non-resident window to every profile whose residency is merely UNKNOWN, which
-        // is the default state of a profile nobody has completed. `derive_oapsa_provisional_window`
-        // computes it on write now, and unknown residency takes the shorter window until somebody
-        // records which one applies.
+        // The server evaluates PSP and FBI requests against their independent 30/90-day clocks.
+        // Unknown residency keeps the FBI requirement pending; legacy window snapshots are not
+        // sent by the browser and do not establish clearance eligibility.
         non_disqualification_statement_signed: form.nonDisqStatementSigned,
         non_disqualification_statement_signed_at: nonDisqSignedAt,
         supervision_attestation_confirmed: form.supervisionConfirmed,
