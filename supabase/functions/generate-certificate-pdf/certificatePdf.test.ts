@@ -95,6 +95,32 @@ Deno.test("branded certificate preserves award facts, provider attribution and P
   );
 });
 
+Deno.test("issued PDF embeds the exact owner-supplied Healthcare Advisors logo", async () => {
+  const pdf = await PDFDocument.load(
+    await buildCertificatePdf(certificate, "https://training.example.com"),
+  );
+  const logos = pdf.context.enumerateIndirectObjects()
+    .map(([, object]) => object)
+    .filter((object): object is PDFRawStream =>
+      object instanceof PDFRawStream &&
+      object.dict.get(PDFName.of("Filter"))?.toString() === "/DCTDecode"
+    );
+  assertEquals(logos.length, 1);
+  assertEquals(logos[0].dict.get(PDFName.of("Width"))?.toString(), "1157");
+  assertEquals(logos[0].dict.get(PDFName.of("Height"))?.toString(), "931");
+  const hash = new Uint8Array(
+    await crypto.subtle.digest(
+      "SHA-256",
+      new Uint8Array(logos[0].getContents()),
+    ),
+  );
+  assertEquals(
+    Array.from(hash, (byte) => byte.toString(16).padStart(2, "0")).join(""),
+    "16f5e43ffd9b62e2adbf371d202ce3781385e3483d77e5bf236f43f151d3375f",
+    "The PDF must retain the uploaded logo bytes, not the app product icon or a recreated wordmark",
+  );
+});
+
 Deno.test("course without an exam, provider or renewal does not invent those facts", async () => {
   const pdf = await PDFDocument.load(
     await buildCertificatePdf({

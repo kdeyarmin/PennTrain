@@ -1,9 +1,14 @@
 # Certificate artwork
 
-`../certificateArtwork.ts` embeds the existing CareMetric mark from
-`artifacts/caremetric-carebase/public/logo-mark.png` and vector lettering for
-`Dr. Kevin Deyarmin`. Keeping these as imported data means certificate generation
-needs no external font/image service or edge filesystem access.
+`caremetric-healthcare-advisors.jpg` is the exact logo supplied by the owner on
+September 26, 2026, including the CareMetric Healthcare Advisors wordmark. Its
+SHA-256 is `16f5e43ffd9b62e2adbf371d202ce3781385e3483d77e5bf236f43f151d3375f`.
+`../certificateArtwork.ts` embeds these original JPEG bytes as base64 and vector
+lettering for `Dr. Kevin Deyarmin`. The renderer preserves the image proportions;
+it does not substitute the application icon or reconstruct the wordmark.
+Imported data keeps certificate generation independent of external image/font
+services and edge filesystem access. The renderer test verifies the actual PDF
+contains the original uploaded JPEG bytes.
 
 The signature-style lettering uses **Allura Regular**, Copyright 2010 The Allura
 Project Authors, licensed under the SIL Open Font License 1.1 (see `Allura-OFL.txt`).

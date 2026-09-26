@@ -3,7 +3,7 @@ import QRCode from "npm:qrcode@1.5.4";
 import { toWinAnsi } from "../_shared/pdfText.ts";
 import { errorMessage } from "../_shared/errorMessage.ts";
 import {
-  CAREMETRIC_MARK_PNG,
+  CAREMETRIC_LOGO_JPEG,
   SIGNATURE_PATH,
   SIGNATURE_UNITS_PER_EM,
   SIGNATURE_WIDTH,
@@ -145,6 +145,7 @@ export async function buildCertificatePdf(
       minSize?: number;
       maxLines?: number;
       width?: number;
+      centerX?: number;
       lineHeight?: number;
       color?: ReturnType<typeof rgb>;
     } = {},
@@ -159,7 +160,8 @@ export async function buildCertificatePdf(
     );
     layout.lines.forEach((line, index) =>
       page.drawText(line, {
-        x: (WIDTH - f.widthOfTextAtSize(line, layout.size)) / 2,
+        x: (options.centerX ?? WIDTH / 2) -
+          f.widthOfTextAtSize(line, layout.size) / 2,
         y: y - index * (options.lineHeight ?? layout.size * 1.2),
         size: layout.size,
         font: f,
@@ -198,28 +200,18 @@ export async function buildCertificatePdf(
     line(x, x + 42, 31, GOLD, 2);
   }
 
-  const logo = await doc.embedPng(bytesFromBase64(CAREMETRIC_MARK_PNG));
-  const brandWidth = 58 + bold.widthOfTextAtSize("CareMetric", 23);
-  const brandX = (WIDTH - brandWidth) / 2;
-  page.drawImage(logo, { x: brandX, y: 511, width: 46, height: 46 });
-  page.drawText("CareMetric", {
-    x: brandX + 58,
-    y: 535,
-    size: 23,
-    font: bold,
-    color: BLUE,
-  });
-  page.drawText("Healthcare Advisors", {
-    x: brandX + 59,
-    y: 517,
-    size: 11,
-    font,
+  // The complete owner-supplied logo includes its wordmark. Embed its original
+  // JPEG bytes and preserve the proportions instead of reconstructing the brand.
+  const logo = await doc.embedJpg(bytesFromBase64(CAREMETRIC_LOGO_JPEG));
+  const logoSize = logo.scaleToFit(148, 116);
+  page.drawImage(logo, { x: 88, y: 451, ...logoSize });
+
+  center("CERTIFICATE", 509, 33, serif, { centerX: 508, width: 420 });
+  center("O F   C O M P L E T I O N", 485, 10, font, {
+    centerX: 508,
     color: GRAY,
   });
-
-  center("CERTIFICATE", 468, 33, serif);
-  center("O F   C O M P L E T I O N", 446, 10, font, { color: GRAY });
-  line(337, 455, 431);
+  line(449, 567, 466);
   center("This certificate is presented to", 409, 10.5, italic, {
     color: GRAY,
   });

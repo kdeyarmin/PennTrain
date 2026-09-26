@@ -42,7 +42,8 @@ Use **Reports** for exact employee transcripts, required progress, overdue work,
 
 Issued course credits appear automatically in the evidence view. Outside/classroom evidence still requires review. A verified manual entry linked to the same assignment replaces its automatic projection so the hour is not counted twice. Practical instruction, facility orientation, qualified fire instruction and broader eligibility must be evidenced separately.
 
-Newly generated certificates use the CareMetric Healthcare Advisors logo lockup,
+Newly generated certificates use the complete CareMetric Healthcare Advisors logo
+supplied by the owner on September 26, 2026 (including its original wordmark),
 a navy-and-gold landscape layout, and signature-style lettering for Dr. Kevin
 Deyarmin with ND, MSW, CHPCA, NCG beneath it. Course provider attribution remains
 separate. The template preserves award details and the verification QR/URL;
