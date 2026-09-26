@@ -19,7 +19,7 @@ export function TrainingRecords({ facilityId, organizationId, employeeId, employ
   const query = useTrainingRecords(facilityId, canManage ? undefined : employeeId);
   const save = useSaveTrainingExperience();
   const upload = useUploadDocument();
-  const documents = useListDocuments({ facilityId, employeeId: canManage ? undefined : employeeId, documentTypes: ["external_certificate", "transcript"] }, !!facilityId && (canManage || !!employeeId));
+  const documents = useListDocuments({ facilityId, employeeId: canManage ? undefined : employeeId, documentTypes: ["external_certificate", "transcript"] }, !!facilityId);
   const signedUrl = useDocumentSignedUrl();
   const { toast } = useToast();
   const [templateId, setTemplateId] = useState("");

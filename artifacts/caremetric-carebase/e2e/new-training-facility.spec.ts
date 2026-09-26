@@ -93,7 +93,7 @@ test.describe("new training facility administrator", () => {
   test.skip(!hasLiveSupabaseEnv(), "local Supabase test credentials required");
 
   test("first login, authenticator enrollment, student invitation, course enrollment and reporting stay in training", async ({ page, browser, request }, testInfo) => {
-    test.setTimeout(240_000);
+    test.setTimeout(360_000);
     const url = process.env.SUPABASE_URL!;
     // Both data setup and the app must be disposable/local. Never run this journey against a customer tenant.
     expect(new URL(url).hostname).toMatch(/^(localhost|127\.0\.0\.1)$/);
@@ -214,6 +214,32 @@ test.describe("new training facility administrator", () => {
       await page.getByRole("tab", { name: "Dashboard", exact: true }).click();
     });
 
+    await test.step("administrator personalizes the welcome and records an observed skill", async () => {
+      await page.getByRole("tab", { name: "Facility Settings", exact: true }).click();
+      await page.getByLabel("Welcome message", { exact: true }).fill("Welcome, Cedar team. Your required courses appear below.");
+      await page.getByLabel("Training contact name", { exact: true }).fill("Cedar Training Coordinator");
+      await page.getByLabel("Training contact email", { exact: true }).fill("training-coordinator@example.test");
+      await page.getByRole("button", { name: "Save learner welcome", exact: true }).click();
+      await expect(page.getByText("Learner welcome saved", { exact: true })).toBeVisible();
+      await page.getByRole("tab", { name: "Skills & Outside Training", exact: true }).click();
+      await page.getByText("Manage practical skills checklists", { exact: true }).click();
+      await page.getByLabel("Checklist title", { exact: true }).fill("Cedar hand hygiene demonstration");
+      await page.getByLabel("Evaluator instructions", { exact: true }).fill("Observe the employee demonstrating both steps.");
+      await page.getByLabel("Observable steps, one per line", { exact: true }).fill("Cleans hands\nUses clean equipment");
+      await page.getByRole("button", { name: "Create checklist", exact: true }).click();
+      await expect(page.getByText("Cedar hand hygiene demonstration · 2 steps", { exact: true })).toBeVisible();
+      await page.getByLabel("Staff member", { exact: true }).selectOption(studentId);
+      await page.getByLabel("Practical skills checklist", { exact: true }).selectOption({ label: "Cedar hand hygiene demonstration" });
+      await page.getByLabel("Observation date", { exact: true }).fill(facilityToday());
+      await page.getByLabel("Cleans hands", { exact: true }).selectOption("demonstrated");
+      await page.getByLabel("Uses clean equipment", { exact: true }).selectOption("needs_practice");
+      await page.getByLabel("Observation notes and next steps", { exact: true }).fill("Hand hygiene was demonstrated. Repeat the equipment demonstration with a supervisor.");
+      await page.getByRole("checkbox", { name: "I personally observed these steps and am authorized by my facility to assess this skill.", exact: true }).check();
+      await page.getByRole("button", { name: "Save signed observation", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Cedar hand hygiene demonstration · Needs practice", exact: true })).toBeVisible();
+      await page.getByRole("tab", { name: "Dashboard", exact: true }).click();
+    });
+
     await test.step("invited learner activates, explores electives, completes required learning and recovers on another device", async () => {
       const invitation = await readAuthEmail(request, studentEmail, "invite");
       const learnerContext = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL), viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -223,6 +249,9 @@ test.describe("new training facility administrator", () => {
         await setPasswordFromEmail(learnerPage, invitation.url, password);
         await signInAs(learnerPage, studentEmail, password, "/me/courses");
         await expect(learnerPage.getByRole("heading", { name: "My Learning", exact: true })).toBeVisible();
+        await expect(learnerPage.getByRole("heading", { name: `Welcome to learning at ${fixture.facility.name}`, exact: true })).toBeVisible();
+        await expect(learnerPage.getByText("Welcome, Cedar team. Your required courses appear below.", { exact: true })).toBeVisible();
+        await expect(learnerPage.getByRole("link", { name: "training-coordinator@example.test", exact: true })).toHaveAttribute("href", "mailto:training-coordinator@example.test");
         await expect(learnerPage.getByRole("region", { name: "Personalized workflow guidance" })).toHaveCount(0);
         await expect(learnerPage.getByText("Your next required course", { exact: true })).toBeInViewport();
         await expect(learnerPage.getByText(/Due .*2027/).first()).toBeVisible();
@@ -247,6 +276,32 @@ test.describe("new training facility administrator", () => {
         await learnerPage.getByRole("button", { name: "Skip", exact: true }).click();
         await expect(learnerPage.getByRole("heading", { name: "My Certificates", exact: true })).toBeVisible();
         await expect(learnerPage.getByText(fixture.courseTitle, { exact: true })).toBeVisible();
+        await expectNoHorizontalOverflow(learnerPage);
+        await learnerPage.getByText("Outside training and practical skills", { exact: true }).click();
+        await expect(learnerPage.getByRole("heading", { name: "Cedar hand hygiene demonstration · Needs practice", exact: true })).toBeVisible();
+        await expect(learnerPage.getByText("Uses clean equipment: Needs practice", { exact: true })).toBeVisible();
+        await learnerPage.getByLabel("Course or training title", { exact: true }).fill("Community first-aid workshop");
+        await learnerPage.getByLabel("Training provider", { exact: true }).fill("Community Education Center");
+        await learnerPage.getByLabel("Completion date", { exact: true }).fill(facilityToday());
+        await learnerPage.getByLabel("Training duration in minutes", { exact: true }).fill("90");
+        const outsideCertificate = await PDFDocument.create();
+        outsideCertificate.addPage().drawText("Disposable test evidence: Community first-aid workshop. Everly Newlearner.");
+        const outsideCertificateBytes = Buffer.from(await outsideCertificate.save());
+        await learnerPage.getByLabel("Upload certificate or transcript", { exact: false }).setInputFiles({ name: "outside-first-aid.pdf", mimeType: "application/pdf", buffer: outsideCertificateBytes });
+        await learnerPage.getByRole("button", { name: "Submit for review", exact: true }).click();
+        await expect(learnerPage.getByRole("heading", { name: "Community first-aid workshop · Awaiting review", exact: true })).toBeVisible();
+        const { data: submittedEvidence, error: submittedEvidenceError } = await service.from("training_documents")
+          .select("storage_bucket,storage_path").eq("organization_id", fixture.organizationId).eq("employee_id", studentId).eq("file_name", "outside-first-aid.pdf").single();
+        if (submittedEvidenceError) throw submittedEvidenceError;
+        const evidenceBucket = service.storage.from(submittedEvidence.storage_bucket);
+        const { data: originalEvidence, error: originalEvidenceError } = await evidenceBucket.download(submittedEvidence.storage_path);
+        if (originalEvidenceError) throw originalEvidenceError;
+        expect(Buffer.from(await originalEvidence.arrayBuffer())).toEqual(outsideCertificateBytes);
+        const { error: replacementError } = await evidenceBucket.upload(submittedEvidence.storage_path, Buffer.from("Attempted replacement of submitted evidence"), { upsert: true, contentType: "application/pdf" });
+        expect(replacementError, "submitted outside-training evidence must reject a real Storage overwrite, including a service-client attempt").toBeTruthy();
+        const { data: preservedEvidence, error: preservedEvidenceError } = await evidenceBucket.download(submittedEvidence.storage_path);
+        if (preservedEvidenceError) throw preservedEvidenceError;
+        expect(Buffer.from(await preservedEvidence.arrayBuffer()), "the original certificate bytes must survive a rejected Storage overwrite").toEqual(outsideCertificateBytes);
         await expectNoHorizontalOverflow(learnerPage);
         await learnerPage.goto("/me/courses?view=library");
         await expect(learnerPage.getByRole("heading", { name: "Course Library", exact: true })).toBeVisible();
@@ -281,6 +336,53 @@ test.describe("new training facility administrator", () => {
         await signInAs(recoveryPage, studentEmail, `${password}R`, "/me/courses");
         await expect(recoveryPage.getByText("1 / 1 required courses completed", { exact: true })).toBeVisible();
       } finally { await secondDevice.close(); }
+    });
+
+    await test.step("administrator reviews outside evidence and configures report follow-up", async () => {
+      await page.getByRole("tab", { name: "Skills & Outside Training", exact: true }).click();
+      const submittedRecord = page.getByRole("heading", { name: "Community first-aid workshop · Awaiting review", exact: true }).locator("..");
+      await expect(submittedRecord.getByRole("button", { name: "View submitted evidence", exact: true })).toBeEnabled();
+      await submittedRecord.getByLabel("Review decision", { exact: true }).selectOption("verified");
+      await submittedRecord.getByLabel("Review basis or requested correction", { exact: true }).fill("Reviewed the uploaded certificate and verified the learner, course and duration.");
+      await submittedRecord.getByRole("button", { name: "Record decision", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Community first-aid workshop · Verified", exact: true })).toBeVisible();
+      await page.getByRole("tab", { name: "Reports", exact: true }).click();
+      const report = page.getByRole("region", { name: "Enrollment, completion & certificates", exact: true });
+      await expect(report.getByText("1 completed / 2 non-canceled enrollments", { exact: false })).toBeVisible();
+      await report.getByText("Reminders & scheduled training reports", { exact: true }).click();
+      const automation = report.locator("details").filter({ has: page.locator("summary").filter({ hasText: /^Reminders & scheduled training reports$/ }) });
+      await automation.getByLabel("Repeat learner reminders every (days)", { exact: true }).fill("3");
+      await automation.getByLabel("Weekly summary day", { exact: true }).selectOption("2");
+      await automation.getByLabel("Flag for follow-up after overdue (days)", { exact: true }).fill("10");
+      await automation.getByRole("button", { name: "Save reminder settings", exact: true }).click();
+      await expect(page.getByText("Training reminders updated", { exact: true })).toBeVisible();
+      await expect(automation.getByLabel("Repeat learner reminders every (days)", { exact: true })).toHaveValue("3");
+      await expect(automation.getByLabel("Weekly summary day", { exact: true })).toHaveValue("2");
+      await report.getByRole("combobox", { name: "Enrollment status", exact: true }).selectOption("completed");
+      const scheduleForm = automation.locator("form").filter({ has: page.getByRole("heading", { name: "Schedule the current report", exact: true }) });
+      await scheduleForm.getByLabel("Report name", { exact: true }).fill("Monthly completion register");
+      await scheduleForm.getByLabel("Frequency", { exact: true }).selectOption("monthly");
+      await scheduleForm.getByLabel("Delivery day", { exact: true }).fill("15");
+      await scheduleForm.getByRole("checkbox").first().check();
+      await scheduleForm.getByRole("button", { name: "Save report schedule", exact: true }).click();
+      const schedule = automation.getByText("Monthly completion register · Active", { exact: true }).locator("..");
+      await expect(schedule).toBeVisible();
+      await expect(schedule.getByText(/Day 15 each month/)).toBeVisible();
+      await schedule.getByRole("button", { name: "Pause", exact: true }).click();
+      await expect(automation.getByText("Monthly completion register · Paused", { exact: true })).toBeVisible();
+      await automation.getByRole("button", { name: "Resume", exact: true }).click();
+      await expect(automation.getByText("Monthly completion register · Active", { exact: true })).toBeVisible();
+      await report.getByRole("combobox", { name: "Enrollment status", exact: true }).selectOption("all");
+      await automation.getByRole("button", { name: "Open saved report", exact: true }).click();
+      await expect(report.getByRole("combobox", { name: "Enrollment status", exact: true })).toHaveValue("completed");
+      await report.getByText("Department comparisons, completion trends & stalled learning", { exact: true }).click();
+      await expect(report.getByRole("heading", { name: "Department comparison", exact: true })).toBeVisible();
+      const departmentRow = report.getByRole("row").filter({ hasText: "Not specified" });
+      await expect(departmentRow).toContainText("1 / 1");
+      await expect(report.getByText("No started courses match this inactivity window.", { exact: true })).toBeVisible();
+      await report.getByText("Department comparisons, completion trends & stalled learning", { exact: true }).click();
+      await report.getByText("Reminders & scheduled training reports", { exact: true }).click();
+      await report.getByRole("combobox", { name: "Enrollment status", exact: true }).selectOption("all");
     });
 
     await test.step("administrator sees the learner completion, certificate and full export", async () => {

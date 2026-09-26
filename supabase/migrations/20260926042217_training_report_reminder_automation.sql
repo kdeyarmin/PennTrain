@@ -73,7 +73,7 @@ begin
   perform public.assert_identity_assurance('compliance_profile_admin');
   select organization_id into v_org from public.facilities where id=p_facility and is_active;
   if v_org is null or not coalesce(app_private.can_read_train_scope(v_org,p_facility),false)
-    or not exists(select 1 from public.organizations where id=v_org and subscription_status<>'suspended')
+    or not exists(select 1 from public.organizations where id=v_org and subscription_status not in ('suspended','canceled'))
     or not exists(select 1 from public.get_effective_entitlements(v_org) e where e.feature_key='modules.train' and e.is_entitled)
     or (p_manage and not app_private.training_manager_has_scope(auth.uid(),p_facility)) then
     raise exception 'Facility is outside your training access' using errcode='42501'; end if;
@@ -88,7 +88,7 @@ returns date language plpgsql immutable set search_path='' as $$
 declare v_date date;
 begin
   if p_from is null or p_frequency is null or p_frequency not in ('weekly','monthly') or p_day is null
-    or p_day<1 or p_day>case when p_frequency='weekly' then 7 else 28 end then
+    or p_day<1 or p_day>(case when p_frequency='weekly' then 7 else 28 end) then
     raise exception 'Choose a weekly weekday or a monthly day from 1 to 28' using errcode='22023'; end if;
   if p_frequency='weekly' then return p_from+((p_day-extract(isodow from p_from)::integer+7)%7); end if;
   v_date:=date_trunc('month',p_from)::date+p_day-1;
@@ -273,7 +273,7 @@ begin
   left join app_private.training_reminder_policies policy on policy.facility_id=a.facility_id
   where coalesce(policy.learner_enabled,true) and (a.is_required or public.training_assignment_is_required(a.id))
     and a.status in ('assigned','in_progress','overdue') and a.due_date<=v_today+coalesce(policy.lead_days,7)
-    and e.status='active' and p.is_active and fac.is_active and o.subscription_status<>'suspended'
+    and e.status='active' and p.is_active and fac.is_active and o.subscription_status not in ('suspended','canceled')
     and exists(select 1 from public.get_effective_entitlements(a.organization_id) ent where ent.feature_key='modules.train' and ent.is_entitled)
     and not exists(select 1 from public.notifications n where n.profile_id=e.profile_id and n.notification_type='course_assignment_due_soon'
       and n.link='/me/courses/'||a.id and n.created_at>p_now-make_interval(days=>coalesce(policy.repeat_days,7)));
@@ -281,7 +281,7 @@ begin
     coalesce(policy.escalation_days,14) as escalation_days,coalesce(policy.recipient_ids,'{}'::uuid[]) as recipients
     from public.facilities fac join public.organizations o on o.id=fac.organization_id
     left join app_private.training_reminder_policies policy on policy.facility_id=fac.id
-    where fac.is_active and o.subscription_status<>'suspended'
+    where fac.is_active and o.subscription_status not in ('suspended','canceled')
     and exists(select 1 from public.get_effective_entitlements(fac.organization_id) ent where ent.feature_key='modules.train' and ent.is_entitled) loop
     select count(*),count(*) filter(where a.due_date<=v_today-f.escalation_days) into v_overdue,v_escalated
       from public.course_assignments a join public.employees e on e.id=a.employee_id and e.facility_id=a.facility_id
@@ -360,8 +360,13 @@ begin
       join public.facilities f on f.id=a.facility_id
       left join app_private.training_reminder_policies policy on policy.facility_id=a.facility_id
       where n.link='/me/courses/'||a.id and e.profile_id=d.profile_id and a.organization_id=d.organization_id and e.status='active'
-        and p.is_active and p.organization_id=d.organization_id and f.is_active and o.subscription_status<>'suspended' and coalesce(policy.learner_enabled,true)
+        and p.is_active and p.organization_id=d.organization_id and f.is_active and o.subscription_status not in ('suspended','canceled') and coalesce(policy.learner_enabled,true)
         and (a.is_required or public.training_assignment_is_required(a.id)) and a.status in ('assigned','in_progress','overdue')
+        and a.due_date<=public.pa_today()+coalesce(policy.lead_days,7)
+        -- A rescheduled assignment must not deliver the old deadline, even when
+        -- the new deadline is still inside the configured reminder window.
+        and right(n.body,length(' is due '||to_char(a.due_date,'Mon DD, YYYY')||'. Open My Learning to start or continue.'))
+          =' is due '||to_char(a.due_date,'Mon DD, YYYY')||'. Open My Learning to start or continue.'
         and exists(select 1 from public.get_effective_entitlements(a.organization_id) ent where ent.feature_key='modules.train' and ent.is_entitled));
   end if;
   if n.notification_type not in ('training_overdue_summary','training_escalation_summary','report_subscription_ready') or n.notification_type is null then return true; end if;
@@ -376,7 +381,14 @@ begin
       and d.profile_id=any(s.recipient_ids) and app_private.training_manager_has_scope(s.created_by,s.facility_id));
   end if;
   return not exists(select 1 from app_private.training_reminder_policies p where p.facility_id=v_facility
-    and (not p.digest_enabled or (cardinality(p.recipient_ids)>0 and not d.profile_id=any(p.recipient_ids))));
+    and (not p.digest_enabled or (cardinality(p.recipient_ids)>0 and not d.profile_id=any(p.recipient_ids))))
+    and exists(select 1 from public.course_assignments a
+      join public.employees e on e.id=a.employee_id and e.facility_id=a.facility_id
+      left join app_private.training_reminder_policies policy on policy.facility_id=a.facility_id
+      where a.facility_id=v_facility and a.organization_id=d.organization_id and e.status='active'
+        and (a.is_required or public.training_assignment_is_required(a.id)) and a.status in ('assigned','in_progress','overdue')
+        and a.due_date<public.pa_today()
+        and (n.notification_type='training_overdue_summary' or a.due_date<=public.pa_today()-coalesce(policy.escalation_days,14)));
 end;
 $$;
 revoke all on function app_private.training_delivery_scope_is_current(uuid) from public,anon,authenticated;
@@ -385,6 +397,6 @@ declare v_definition text; v_needle text:='if v_delivery.id is null or v_deliver
 begin
   select pg_get_functiondef('public.begin_notification_delivery_attempt(uuid,text,text)'::regprocedure) into v_definition;
   if position(v_needle in v_definition)=0 then raise exception 'Notification attempt guard changed; review Training scope integration'; end if;
-  execute replace(v_definition,v_needle,v_needle || E'\n  if not app_private.training_delivery_scope_is_current(p_delivery_id) then\n    update public.notification_deliveries set status=''skipped'', skip_reason=''Training facility access or subscription changed'', finalized_at=now() where id=p_delivery_id;\n    return;\n  end if;');
+  execute replace(v_definition,v_needle,v_needle || E'\n  if not app_private.training_delivery_scope_is_current(p_delivery_id) then\n    update public.notification_deliveries set status=''skipped'', skip_reason=''Training access, assignment, or reminder settings changed'', finalized_at=now() where id=p_delivery_id;\n    return;\n  end if;');
 end;
 $guard$;

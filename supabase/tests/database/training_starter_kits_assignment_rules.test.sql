@@ -116,6 +116,13 @@ select is((select count(*)::int from public.course_assignments where employee_id
 select is((select due_date::text from public.course_assignments where employee_id=pg_temp.id(206)),'2031-03-01','automatic rule uses only explicitly approved date');
 update public.employees set job_title='CAREGIVER' where id=pg_temp.id(206);
 select is((select count(*)::int from public.course_assignments where employee_id=pg_temp.id(206)),1,'automatic recheck is idempotent');
+insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,department,status)
+values(pg_temp.id(210),pg_temp.id(1),pg_temp.id(11),'Existing','Individual','Trainee','Care','active');
+insert into public.course_assignments(organization_id,facility_id,employee_id,course_id,course_version_id,assigned_by,due_date)
+values(pg_temp.id(1),pg_temp.id(11),pg_temp.id(210),pg_temp.id(302),pg_temp.id(402),pg_temp.id(102),'2031-05-05');
+update public.employees set job_title='Caregiver' where id=pg_temp.id(210);
+select is((select count(*)::int from public.training_plan_enrollments where training_plan_id=pg_temp.value('plan') and employee_id=pg_temp.id(210)),0,'automatic conflicts remain pending for manager review instead of silently enrolling a partial plan');
+select is((select due_date::text from public.course_assignments where employee_id=pg_temp.id(210)),'2031-05-05','automatic conflict never overwrites individual deadline');
 insert into public.training_plan_items(training_plan_id,course_id,is_required) values(pg_temp.value('plan'),pg_temp.id(303),true);
 insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,department,status)
 values(pg_temp.id(207),pg_temp.id(1),pg_temp.id(11),'Changed','Curriculum','Caregiver','Care','active');

@@ -108,17 +108,62 @@ select is((select count(*)::integer from public.notifications where notification
 update public.notifications set created_at=now()-interval '4 days' where notification_type='course_assignment_due_soon' and link='/me/courses/'||pg_temp.id(801);
 select lives_ok($$select public.queue_course_assignment_due_reminders()$$,'configured three-day repeat runs');
 select is((select count(*)::integer from public.notifications where notification_type='course_assignment_due_soon' and link='/me/courses/'||pg_temp.id(801)),2,'configured repeat differs from old fixed seven-day behavior');
-select set_config('app.privileged_write','on',true);
+select pg_temp.act(102);
 update public.course_assignments set due_date=public.pa_today()+3,is_required=true where id=pg_temp.id(804);
-select set_config('app.privileged_write','off',true);
+reset role;
+select set_config('request.jwt.claims','{}',true);
 select lives_ok($$select public.queue_course_assignment_due_reminders()$$,'course outside the configured lead window is evaluated');
 select is((select count(*)::integer from public.notifications where notification_type='course_assignment_due_soon' and link='/me/courses/'||pg_temp.id(804)),0,'two-day lead excludes course due in three days');
 update app_private.training_reminder_policies set lead_days=4 where facility_id=pg_temp.id(11);
 select lives_ok($$select public.queue_course_assignment_due_reminders()$$,'expanded lead window is consumed by existing job');
 select is((select count(*)::integer from public.notifications where notification_type='course_assignment_due_soon' and link='/me/courses/'||pg_temp.id(804)),1,'four-day lead includes course due in three days');
-select set_config('app.privileged_write','on',true);
+select pg_temp.act(102);
 update public.course_assignments set is_required=false where id=pg_temp.id(804);
+reset role;
+select set_config('request.jwt.claims','{}',true);
+
+-- Delivery-time facts can differ from the work that originally entered the queue.
+insert into automation_results(name,id)
+select 'learner-delivery',d.id from public.notification_deliveries d join public.notifications n on n.id=d.notification_id
+where n.notification_type='course_assignment_due_soon' and n.link='/me/courses/'||pg_temp.id(801) order by n.created_at desc limit 1;
+insert into automation_results(name,id)
+select 'overdue-delivery',d.id from public.notification_deliveries d join public.notifications n on n.id=d.notification_id
+where n.notification_type='training_overdue_summary' and n.profile_id=pg_temp.id(102) limit 1;
+insert into automation_results(name,id)
+select 'escalated-delivery',d.id from public.notification_deliveries d join public.notifications n on n.id=d.notification_id
+where n.notification_type='training_escalation_summary' and n.profile_id=pg_temp.id(102) limit 1;
+select ok(app_private.training_delivery_scope_is_current((select id from automation_results where name='learner-delivery')),'unchanged required deadline remains deliverable');
+select set_config('app.privileged_write','on',true);
+update public.course_assignments set due_date=public.pa_today()+90 where id=pg_temp.id(801);
 select set_config('app.privileged_write','off',true);
+select ok(not app_private.training_delivery_scope_is_current((select id from automation_results where name='learner-delivery')),'extending a deadline beyond the lead window suppresses its queued learner reminder');
+select ok(not app_private.training_delivery_scope_is_current((select id from automation_results where name='overdue-delivery')),'resolving all overdue work suppresses the queued summary');
+update public.notification_deliveries set status='processing' where id=(select id from automation_results where name='learner-delivery');
+select is((select count(*)::integer from public.begin_notification_delivery_attempt((select id from automation_results where name='learner-delivery'),'sendgrid',repeat('b',64))),0,'provider attempt refuses the reminder after its deadline is extended');
+select is((select status from public.notification_deliveries where id=(select id from automation_results where name='learner-delivery')),'skipped','extended deadline produces a skipped delivery receipt');
+select set_config('app.privileged_write','on',true);
+update public.course_assignments set due_date=public.pa_today()-19 where id=pg_temp.id(801);
+select set_config('app.privileged_write','off',true);
+select ok(not app_private.training_delivery_scope_is_current((select id from automation_results where name='learner-delivery')),'changing a deadline within the reminder window suppresses the old date in the queued body');
+select ok(app_private.training_delivery_scope_is_current((select id from automation_results where name='escalated-delivery')),'current threshold still permits an unresolved escalated summary');
+select set_config('app.privileged_write','on',true);
+update public.course_assignments set due_date=public.pa_today()-5 where id=pg_temp.id(801);
+select set_config('app.privileged_write','off',true);
+select ok(app_private.training_delivery_scope_is_current((select id from automation_results where name='overdue-delivery')),'remaining overdue work still permits the regular summary');
+select ok(not app_private.training_delivery_scope_is_current((select id from automation_results where name='escalated-delivery')),'moving overdue work below the escalation threshold suppresses its old escalation');
+update public.notification_deliveries set status='processing' where id=(select id from automation_results where name='escalated-delivery');
+select is((select count(*)::integer from public.begin_notification_delivery_attempt((select id from automation_results where name='escalated-delivery'),'sendgrid',repeat('c',64))),0,'provider attempt refuses a resolved escalation');
+select pg_temp.act(102);
+update public.course_assignments set is_required=false where id=pg_temp.id(801);
+reset role;
+select set_config('request.jwt.claims','{}',true);
+select ok(not app_private.training_delivery_scope_is_current((select id from automation_results where name='overdue-delivery')),'optional work cannot sustain an already queued required-training summary');
+update public.notification_deliveries set status='processing' where id=(select id from automation_results where name='overdue-delivery');
+select is((select count(*)::integer from public.begin_notification_delivery_attempt((select id from automation_results where name='overdue-delivery'),'sendgrid',repeat('d',64))),0,'provider attempt refuses a resolved required-training summary');
+select pg_temp.act(102);
+update public.course_assignments set is_required=true,due_date=public.pa_today()-20 where id=pg_temp.id(801);
+reset role;
+select set_config('request.jwt.claims','{}',true);
 
 -- Fixed UTC clock proves the scheduler uses the PA calendar day, not UTC midnight.
 delete from app_private.training_report_schedule_runs where schedule_id=(select id from automation_results where name='weekly');
@@ -132,7 +177,7 @@ delete from public.facility_assignments where profile_id=pg_temp.id(102) and fac
 select ok(not app_private.training_delivery_scope_is_current((select d.id from public.notification_deliveries d join public.notifications n on n.id=d.notification_id where n.notification_type='report_subscription_ready' and n.profile_id=pg_temp.id(102) limit 1)),'queued report loses permission after manager facility removal');
 update public.notification_deliveries set status='processing' where id=(select d.id from public.notification_deliveries d join public.notifications n on n.id=d.notification_id where n.notification_type='report_subscription_ready' and n.profile_id=pg_temp.id(102) limit 1);
 select is((select count(*)::integer from public.begin_notification_delivery_attempt((select d.id from public.notification_deliveries d join public.notifications n on n.id=d.notification_id where n.notification_type='report_subscription_ready' and n.profile_id=pg_temp.id(102) and d.status='processing' limit 1),'sendgrid',repeat('a',64))),0,'actual attempt command refuses revoked facility access before any send');
-select ok(exists(select 1 from public.notification_deliveries d join public.notifications n on n.id=d.notification_id where n.notification_type='report_subscription_ready' and n.profile_id=pg_temp.id(102) and d.status='skipped' and d.skip_reason='Training facility access or subscription changed'),'suppressed delivery has visible skip receipt');
+select ok(exists(select 1 from public.notification_deliveries d join public.notifications n on n.id=d.notification_id where n.notification_type='report_subscription_ready' and n.profile_id=pg_temp.id(102) and d.status='skipped' and d.skip_reason='Training access, assignment, or reminder settings changed'),'suppressed delivery has visible skip receipt');
 insert into public.facility_assignments(profile_id,facility_id) values(pg_temp.id(102),pg_temp.id(11));
 
 -- Analytics must use the entire authorized filtered report, not the visible page.

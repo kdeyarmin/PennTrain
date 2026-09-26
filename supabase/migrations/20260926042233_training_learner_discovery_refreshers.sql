@@ -141,7 +141,10 @@ begin
     else delete from app_private.training_saved_courses where profile_id=auth.uid() and course_id=v_id; end if;
     return jsonb_build_object('saved',coalesce((p_payload->>'saved')::boolean,false));
   elsif p_action='save_interests' then
-    if jsonb_typeof(p_payload->'interests')<>'array' or jsonb_array_length(p_payload->'interests')>20
+    if jsonb_typeof(p_payload->'interests') is distinct from 'array' then
+      raise exception 'Choose up to 20 interests' using errcode='22023'; end if;
+    if jsonb_array_length(p_payload->'interests')>20
+      or exists(select 1 from jsonb_array_elements(p_payload->'interests') x where jsonb_typeof(x)<>'string')
       or exists(select 1 from jsonb_array_elements_text(p_payload->'interests') x where length(x)>100 or length(btrim(x))=0) then
       raise exception 'Choose up to 20 interests' using errcode='22023'; end if;
     insert into app_private.training_learning_interests(profile_id,interests)
@@ -159,15 +162,21 @@ begin
         'metadata',coalesce((select jsonb_agg(to_jsonb(m)) from app_private.training_course_discovery_metadata m),'[]'));
     elsif p_action='save_collection' then
       v_id:=coalesce((p_payload->>'id')::uuid,gen_random_uuid());
+      if jsonb_typeof(p_payload->'course_ids') is distinct from 'array'
+        or jsonb_typeof(coalesce(p_payload->'interests','[]')) is distinct from 'array'
+        or jsonb_typeof(coalesce(p_payload->'job_titles','[]')) is distinct from 'array' then
+        raise exception 'Collection courses and audience tags must be lists' using errcode='22023'; end if;
       v_ids:=array(select distinct x::uuid from jsonb_array_elements_text(p_payload->'course_ids') x);
       if cardinality(v_ids)>100 or (coalesce((p_payload->>'published')::boolean,false) and cardinality(v_ids)=0)
         or exists(select 1 from unnest(v_ids) x where not exists(select 1 from public.courses c
           join public.course_versions cv on cv.id=c.current_version_id where c.id=x and c.organization_id is null
           and c.status='published' and cv.status='published' and (not cv.ai_generated or cv.ai_reviewed_at is not null))) then
         raise exception 'Choose available system courses; published collections need at least one course' using errcode='22023'; end if;
-      if exists(select 1 from jsonb_array_elements_text(coalesce(p_payload->'interests','[]')) x where length(x)>100)
-        or exists(select 1 from jsonb_array_elements_text(coalesce(p_payload->'job_titles','[]')) x where length(x)>100) then
-        raise exception 'Audience tags are too long' using errcode='22023'; end if;
+      if exists(select 1 from jsonb_array_elements(coalesce(p_payload->'interests','[]')) x where jsonb_typeof(x)<>'string')
+        or exists(select 1 from jsonb_array_elements(coalesce(p_payload->'job_titles','[]')) x where jsonb_typeof(x)<>'string')
+        or exists(select 1 from jsonb_array_elements_text(coalesce(p_payload->'interests','[]')) x where length(x)>100 or length(btrim(x))=0)
+        or exists(select 1 from jsonb_array_elements_text(coalesce(p_payload->'job_titles','[]')) x where length(x)>100 or length(btrim(x))=0) then
+        raise exception 'Audience tags must contain 1 to 100 characters' using errcode='22023'; end if;
       insert into app_private.training_elective_collections(id,title,description,interests,job_titles,published)
         values(v_id,btrim(p_payload->>'title'),coalesce(p_payload->>'description',''),
           array(select btrim(x) from jsonb_array_elements_text(coalesce(p_payload->'interests','[]')) x),
@@ -189,7 +198,12 @@ begin
       if nullif(p_payload->>'course_id','') is not null and not exists(select 1 from public.courses c
         where c.id=(p_payload->>'course_id')::uuid and c.organization_id is null and c.status='published') then
         raise exception 'Linked course must be an available system course' using errcode='22023'; end if;
-      if exists(select 1 from jsonb_array_elements_text(p_payload->'choices') x where length(btrim(x))=0 or length(x)>1000) then
+      if jsonb_typeof(p_payload->'choices') is distinct from 'array' then
+        raise exception 'Enter 2 to 4 answer choices' using errcode='22023'; end if;
+      if jsonb_array_length(p_payload->'choices') not between 2 and 4 then
+        raise exception 'Enter 2 to 4 answer choices' using errcode='22023'; end if;
+      if exists(select 1 from jsonb_array_elements(p_payload->'choices') x where jsonb_typeof(x)<>'string')
+        or exists(select 1 from jsonb_array_elements_text(p_payload->'choices') x where length(btrim(x))=0 or length(x)>1000) then
         raise exception 'Each answer needs text' using errcode='22023'; end if;
       insert into app_private.training_refresher_lessons(id,course_id,title,body,question,choices,correct_choice,explanation,minutes,published)
         values(v_id,nullif(p_payload->>'course_id','')::uuid,btrim(p_payload->>'title'),btrim(p_payload->>'body'),btrim(p_payload->>'question'),

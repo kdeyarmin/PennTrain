@@ -3,6 +3,18 @@ import { Button } from "@/components/ui/button";
 import { QueryError } from "@/components/QueryState";
 import { recommendedCollections, type ElectiveCollection } from "@/hooks/useTrainingDiscovery";
 
+export function SavedCoursesFilter({ savedCourseIds, availableCourseIds, selected, onChange }: {
+  savedCourseIds: string[] | undefined; availableCourseIds: string[]; selected: boolean; onChange: (selected: boolean) => void;
+}) {
+  const available = new Set(availableCourseIds);
+  const saved = new Set(savedCourseIds ?? []);
+  const availableCount = [...saved].filter(id => available.has(id)).length;
+  const unavailableCount = saved.size - availableCount;
+  return <div className="space-y-1"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selected} disabled={!savedCourseIds} onChange={e => onChange(e.target.checked)} />Saved for later ({availableCount} available)</label>
+    {unavailableCount > 0 && <p className="text-xs text-muted-foreground">{unavailableCount} saved {unavailableCount === 1 ? "course is" : "courses are"} currently unavailable. Your bookmarks are kept if they become available again.</p>}
+  </div>;
+}
+
 export function ElectiveDiscovery({ collections, interests, jobTitle, activeCollection, onCollection, onInterests, pending, error }: {
   collections: ElectiveCollection[]; interests: string[]; jobTitle: string | null; activeCollection: string;
   onCollection: (id: string) => void; onInterests: (interests: string[]) => void; pending: boolean; error?: Error | null;

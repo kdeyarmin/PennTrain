@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ state: [] as unknown[], index: 0, save: vi.fn(), upload: vi.fn(), toast: vi.fn(), signed: vi.fn(), open: vi.fn(), export: vi.fn(),
   data: { templates: [{ id: "checklist", title: "Hand hygiene", instructions: "Observe a complete demonstration.", items: ["Cleans hands", "Uses clean equipment"], archived: false }], observations: [] as unknown[], external: [] as unknown[] },
   documents: [{ id: "proof", file_name: "Outside course.pdf", document_type: "external_certificate" }],
-  pending: false, error: false, refetch: vi.fn(), records: vi.fn(),
+  pending: false, error: false, refetch: vi.fn(), records: vi.fn(), listDocuments: vi.fn(),
 }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useState: (initial: unknown) => {
   const index = h.index++;
@@ -15,7 +15,7 @@ vi.mock("@/hooks/useTrainingExperience", () => ({
   useTrainingRecords: (...args: unknown[]) => { h.records(...args); return { data: h.data, isLoading: false, isError: h.error, refetch: h.refetch }; },
   useSaveTrainingExperience: () => ({ mutateAsync: h.save, isPending: h.pending }),
 }));
-vi.mock("@/hooks/useDocuments", () => ({ useListDocuments: () => ({ data: h.documents }), useUploadDocument: () => ({ mutateAsync: h.upload, isPending: false }), useDocumentSignedUrl: () => ({ mutateAsync: h.signed, isPending: false }) }));
+vi.mock("@/hooks/useDocuments", () => ({ useListDocuments: (...args: unknown[]) => { h.listDocuments(...args); return { data: args[1] ? h.documents : undefined }; }, useUploadDocument: () => ({ mutateAsync: h.upload, isPending: false }), useDocumentSignedUrl: () => ({ mutateAsync: h.signed, isPending: false }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/lib/openDocumentUrl", () => ({ openDocumentUrl: h.open }));
 vi.mock("@/lib/csv", () => ({ downloadCsv: h.export }));
@@ -50,7 +50,7 @@ async function submit(node: Node, values: Record<string, string>) {
 const outsideFields = { title: "Outside first-aid course", provider: "Community educator", completed_on: "2026-09-01", minutes: "90" };
 beforeEach(() => {
   h.state = []; h.index = 0; h.pending = false; h.error = false; h.data.observations = []; h.data.external = [];
-  h.save.mockReset().mockResolvedValue({ id: "record" }); h.upload.mockReset().mockResolvedValue({ id: "uploaded-proof" }); h.toast.mockReset(); h.records.mockReset(); h.refetch.mockReset(); h.signed.mockReset(); h.open.mockReset(); h.export.mockReset();
+  h.save.mockReset().mockResolvedValue({ id: "record" }); h.upload.mockReset().mockResolvedValue({ id: "uploaded-proof" }); h.toast.mockReset(); h.records.mockReset(); h.listDocuments.mockReset(); h.refetch.mockReset(); h.signed.mockReset(); h.open.mockReset(); h.export.mockReset();
   vi.stubGlobal("FormData", class { constructor(private form: { values: Record<string, string> }) {} get(key: string) { return this.form.values[key] ?? null; } has(key: string) { return key in this.form.values; } });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -107,6 +107,18 @@ describe("outside training submissions", () => {
 });
 
 describe("practical observation and review", () => {
+  it("lets authorized read-only facility viewers open evidence without showing review actions", async () => {
+    h.data.external = [{ id: "outside-a", employee_id: "employee-a", employee_name: "Casey Learner", title: "CPR", provider: "Outside provider", completed_on: "2026-09-01", minutes: 60, status: "pending", evidence_document_id: "proof", review_note: null }];
+    h.signed.mockResolvedValue("https://example.test/signed-proof");
+    const tree = TrainingRecords({ facilityId: "facility-a", organizationId: "org-a", canManage: false });
+    expect(h.listDocuments).toHaveBeenCalledWith({ facilityId: "facility-a", employeeId: undefined, documentTypes: ["external_certificate", "transcript"] }, true);
+    const evidence = nodes(tree).find(node => text(node) === "View submitted evidence" && node.props.onClick)!;
+    expect(evidence.props.disabled).toBe(false);
+    await (evidence.props.onClick as () => Promise<void>)();
+    expect(h.signed).toHaveBeenCalledWith(h.documents[0]);
+    expect(h.open).toHaveBeenCalledWith("https://example.test/signed-proof");
+    expect(nodes(tree).some(node => node.type === "form")).toBe(false);
+  });
   it("records each observed result and evaluator attestation for the selected staff member", async () => {
     let tree = render(true);
     change(field(tree, "Staff member"), "employee-a");

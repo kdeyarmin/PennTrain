@@ -293,7 +293,7 @@ grant execute on function public.approve_training_assignment_automation(uuid,tex
 create function app_private.apply_approved_training_staff_rules()
 returns trigger language plpgsql security invoker set search_path='' as $$
 declare v_rule public.training_plan_assignment_rules; v_current public.training_plan_assignment_rules;
-  v_plan public.training_plans; v_courses jsonb; v_snapshot text;
+  v_plan public.training_plans; v_courses jsonb; v_snapshot text; v_application jsonb;
 begin
   if auth.uid() is null or not public.current_session_unlocked() or new.status<>'active' then return new; end if;
   for v_rule in select * from public.training_plan_assignment_rules r where r.facility_id=new.facility_id and r.organization_id=new.organization_id
@@ -309,6 +309,14 @@ begin
         or (v_current.job_title is not null and lower(btrim(new.job_title)) is distinct from lower(v_current.job_title))
         or (v_current.department is not null and lower(btrim(new.department)) is distinct from lower(v_current.department)) then continue; end if;
       if exists(select 1 from public.training_plan_enrollments where training_plan_id=v_rule.training_plan_id and employee_id=new.id) then continue; end if;
+      if exists(select 1 from public.course_assignments a join public.training_plan_items i on i.course_id=a.course_id
+        where i.training_plan_id=v_rule.training_plan_id and a.employee_id=new.id and a.status in ('assigned','in_progress','overdue','paused')
+          and a.training_plan_id is distinct from v_rule.training_plan_id) then
+        -- A manager must review an existing individual/other-plan assignment.
+        -- Keep the whole match pending rather than silently enrolling a partial
+        -- bundle whose conflicts were never presented to the administrator.
+        continue;
+      end if;
       -- Recheck only this plan's approved curriculum. Building the full roster
       -- preview on every imported employee would turn bulk onboarding quadratic.
       select coalesce(jsonb_agg(jsonb_build_object('id',i.id,'course_id',c.id,'title',c.title,'is_required',i.is_required,'version_id',c.current_version_id,
@@ -317,7 +325,9 @@ begin
       v_snapshot:=md5(jsonb_build_array(v_current.job_title,v_current.department,v_current.is_enabled,v_plan.due_date,v_plan.training_year,v_courses)::text);
       if v_snapshot=v_current.approved_snapshot and jsonb_array_length(v_courses)>0
         and not exists(select 1 from jsonb_array_elements(v_courses) c where c->>'available' is distinct from 'true') then
-        perform public.apply_yearly_training_plan(v_rule.training_plan_id,new.id);
+        v_application:=public.apply_yearly_training_plan(v_rule.training_plan_id,new.id);
+        if jsonb_array_length(v_application->'conflicts')>0 then
+          raise exception 'An existing assignment requires manager review' using errcode='40001'; end if;
         -- A publisher can advance a global course without editing this plan.
         -- If that race occurs during application, roll back this employee's
         -- application instead of assigning a version the manager never approved.

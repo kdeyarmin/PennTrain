@@ -27,7 +27,7 @@ import { isClosedCourseAssignmentStatus } from "@/lib/courseLearningTools";
 import { useDownloadCourseForOffline, useOfflineCourseLibrary, useRemoveOfflineCourse, useWipeOfflineCourses } from "@/hooks/useOfflineLearning";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TrainingWelcome } from "@/components/training/TrainingWelcome";
-import { ElectiveDiscovery } from "@/components/training-discovery/ElectiveDiscovery";
+import { ElectiveDiscovery, SavedCoursesFilter } from "@/components/training-discovery/ElectiveDiscovery";
 import { OptionalRefreshers } from "@/components/training-discovery/OptionalRefreshers";
 import { librarySchema, useSaveTrainingDiscovery, useTrainingDiscovery } from "@/hooks/useTrainingDiscovery";
 
@@ -293,7 +293,7 @@ export default function MyCourses() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={savedOnly} disabled={!discovery.data} onChange={e => setSavedOnly(e.target.checked)} />Saved for later ({discovery.data?.saved.length ?? 0})</label>
+          <SavedCoursesFilter savedCourseIds={discovery.data?.saved} availableCourseIds={availableCourses.map(course => course.id)} selected={savedOnly} onChange={setSavedOnly} />
           <div className="grid sm:grid-cols-2 gap-3"><label>Find a course<Input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} placeholder="Title or description" /></label><label>Category<select className="w-full rounded border p-2" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{[...new Set(availableCourses.flatMap(c => c.category ? [c.category] : []))].sort().map(value => <option key={value}>{value}</option>)}</select></label></div>
           {coursesError ? (
             <QueryError what="available training" error={coursesErrorDetail} onRetry={() => refetchCourses()} />

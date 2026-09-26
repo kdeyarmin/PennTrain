@@ -12,6 +12,30 @@ Public registration is a commercial subscription/trial path. Complimentary Train
 
 ## Daily oversight
 
+### Starter kits and assignment rules
+
+The owner can maintain **Training starter kits** in Organizations using published global courses, then offer a kit during complimentary setup or from the partner-facility list. The facility administrator reviews the offered courses and explicitly enters the training year and deadline before creating an editable facility plan. Updating a global kit does not rewrite a facility's adopted plan.
+
+Within a facility learning plan, use **Role and department assignment rules** to match job titles and departments, preview employees and existing assignments, and select the people to enroll. Preview is the default. Optional automatic assignment requires approval of the exact plan, course versions, deadline and matching rule. It applies on authorized administrator staff changes; changed plans, expired dates and background imports return to administrator review. Existing completions, individual deadlines and enrolled plans are preserved.
+
+### Welcome and optional learning
+
+In **Facility Settings**, save a learner welcome message and training contact. The learner homepage uses the facility name and existing organization logo. The dashboard's **Facility setup guide** links to staff, plans, assignments and reports and updates from the facility's saved records.
+
+Learners can save courses for later and select interests in the Course Library. Owner-curated collections make additional courses easier to find. Suggestions and saved courses remain optional until an administrator explicitly assigns them. Language and continuing-education labels depend on recorded course evidence; they are not inferred from course titles.
+
+The owner authors and publishes short optional refreshers in Organizations. Two original practice drafts are supplied for review; unpublished drafts do not appear to learners. A facility administrator can enable refreshers and choose the interval before a topic is offered again. Learners receive an explanation after answering, and administrators can review/export response history. Refresher practice does not award course credit, certificates or required-course completion.
+
+### Reminders, reports and additional records
+
+Open **Reports → Reminders & scheduled training reports** to adjust advance notices, repeat intervals, the weekly administrator digest and the overdue escalation threshold. Choose authorized administrator recipients. Save the current report filters for a weekly or monthly notification; the notification opens a current, authenticated report with those saved filters. It is a link to a live report, not a stored historical snapshot or an emailed staff roster. Pause a schedule when it is no longer needed. Department comparisons, monthly completion counts and stalled learning use the selected report filters.
+
+Learners submit outside certificates or transcripts in **My Certificates → Outside training and practical skills**. An administrator reviews these in **Skills & Outside Training**, opens the proof, and records a decision with a reason. The submitter cannot approve their own evidence, including through the advanced evidence screen. Submitted files and record details are retained; corrections require a new upload/submission, and reviewed records can be voided with a reason. Verification records outside learning and does not automatically satisfy an assigned course or grant regulatory/CE credit.
+
+Facility administrators can also create practical-skills checklists in **Skills & Outside Training**. A separate evaluator records each observed step, the actual date, notes and a personal-observation attestation. Any unobserved or unsuccessful step makes the overall result **Needs practice**. Learners can see their signed records. Retiring a checklist preserves prior step and evaluator snapshots; corrections retain the original observation. Staff filters, CSV exports and print views cover these additional records.
+
+After a course, learners may optionally rate its usefulness or flag confusing, outdated or technically problematic content. Course administrators can review this feedback from the course detail page.
+
 The dashboard includes every active staff member. Required completion excludes elective activity; account, deadline and plan-attention counts can overlap. Select a count to see the matching employees. An annual assignment exemption records an intentional reason for no required courses and does not waive qualification/compliance requirements.
 
 Use **Reports** for exact employee transcripts, required progress, overdue work, optional learning and completion registers. Choose the date basis and period before exporting. CSV and print include every matching enrollment up to 10,000; narrow a larger result. **Certificates** retains original PDFs and supports individual retrieval, selected downloads and print packets of up to 100 certificates.
@@ -39,6 +63,7 @@ Learner name, course title, code and version are captured at issuance. Renaming 
 Automated local-mailbox tests do not establish production delivery or usability with real people. Before broad enrollment, run one authorized partner pilot:
 
 - Check the deployed Train origin and actual invitation/recovery redirects; consume an invitation from the real email provider.
+- Deploy the updated Send Email hook when that delivery path is enabled. If hosted SMTP uses Supabase's built-in invitation template instead, apply `supabase/templates/invite.html` to that hosted template during rollout; the checked-in local configuration does not update hosted email settings automatically.
 - Have an administrator set up MFA, facility details, a mixed staff import and a learning plan without coaching through internal data concepts.
 - Exercise expired/resend links, an existing-account invitation, missing-email/classroom handling and recovery on another device.
 - Have learners identify deadlines, finish an assigned course, start an elective and retrieve a certificate on desktop and a physical phone.

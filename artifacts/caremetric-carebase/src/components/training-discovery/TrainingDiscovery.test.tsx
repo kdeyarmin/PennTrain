@@ -14,7 +14,7 @@ vi.mock("@/hooks/useTrainingDiscovery", async original => ({ ...await original<t
   useTrainingDiscovery: () => ({ data: h.feed }), useSaveTrainingDiscovery: () => ({ mutate: h.mutate, isPending: false }) }));
 import { recommendedCollections, refresherFeedSchema } from "@/hooks/useTrainingDiscovery";
 import { OptionalRefreshers } from "./OptionalRefreshers";
-import { ElectiveDiscovery } from "./ElectiveDiscovery";
+import { ElectiveDiscovery, SavedCoursesFilter } from "./ElectiveDiscovery";
 
 type Element = ReactElement<Record<string, unknown>>;
 function nodes(node: ReactNode): Element[] {
@@ -69,5 +69,16 @@ describe("elective discovery", () => {
   });
   it("rejects malformed server data rather than silently hiding practice errors", () => {
     expect(() => refresherFeedSchema.parse({ enabled: true, lessons: "bad", history: [] })).toThrow("unexpected response");
+  });
+  it("counts available bookmarks and explains unavailable courses without deleting saved IDs", () => {
+    const saved = ["ready-course", "archived-course", "unreviewed-course"];
+    const onChange = vi.fn();
+    const tree = SavedCoursesFilter({ savedCourseIds: saved, availableCourseIds: ["ready-course", "unsaved-course"], selected: false, onChange });
+    expect(content(tree)).toContain("Saved for later (1 available)");
+    expect(content(tree)).toContain("2 saved courses are currently unavailable");
+    const checkbox = nodes(tree).find(node => node.type === "input")!;
+    (checkbox.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    expect(onChange).toHaveBeenCalledWith(true);
+    expect(saved).toEqual(["ready-course", "archived-course", "unreviewed-course"]);
   });
 });

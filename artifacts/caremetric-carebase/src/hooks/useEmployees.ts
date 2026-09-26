@@ -215,6 +215,13 @@ export function useCreateEmployee() {
       queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
+      // Approved Training rules may create assignments in the same staff write.
+      // Refresh learning/report surfaces when the administrator returns to them.
+      queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["training_plans"] });
+      queryClient.invalidateQueries({ queryKey: ["training-enrollment-report"] });
+      queryClient.invalidateQueries({ queryKey: ["training-workspace"] });
+      queryClient.invalidateQueries({ queryKey: ["training-experience"] });
     },
   });
 }
@@ -241,6 +248,11 @@ export function useUpdateEmployee() {
       queryClient.invalidateQueries({ queryKey: TRAINING_MATRIX_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ["shift_assignments"] });
       queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
+      queryClient.invalidateQueries({ queryKey: ["course_assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["training_plans"] });
+      queryClient.invalidateQueries({ queryKey: ["training-enrollment-report"] });
+      queryClient.invalidateQueries({ queryKey: ["training-workspace"] });
+      queryClient.invalidateQueries({ queryKey: ["training-experience"] });
     },
   });
 }

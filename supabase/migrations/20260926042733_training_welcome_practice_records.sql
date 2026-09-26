@@ -30,7 +30,7 @@ create table app_private.training_practice_observations (
   result text not null check(result in ('demonstrated','needs_practice')),
   created_by uuid not null references public.profiles(id), created_at timestamptz not null default now(),
   voided_by uuid references public.profiles(id), voided_at timestamptz, void_reason text,
-  check((voided_by is null)=(voided_at is null)), check(voided_at is null or length(btrim(void_reason)) between 10 and 2000)
+  check((voided_by is null)=(voided_at is null)), check(voided_at is null or coalesce(length(btrim(void_reason)) between 10 and 2000,false))
 );
 create index training_practice_observation_scope_idx on app_private.training_practice_observations(facility_id,employee_id,created_at);
 create index training_practice_observation_org_idx on app_private.training_practice_observations(organization_id);
@@ -73,6 +73,7 @@ begin
   if not v_reader and not (v_self and v_employee.facility_id=v_facility) then
     raise exception 'Training facility access required' using errcode='42501'; end if;
 
+  if v_reader then perform public.assert_identity_assurance('compliance_profile_admin'); end if;
   if p_action='welcome' then
     return jsonb_build_object('facility_id',v_facility,'facility_name',(select name from public.facilities where id=v_facility),
       'organization_id',v_org,'organization_name',(select name from public.organizations where id=v_org),
@@ -98,6 +99,14 @@ begin
         order by e.created_at desc,e.id limit 500 offset v_offset)e),'[]'));
   end if;
 
+  -- Re-read under the same staff lock used by lifecycle updates. A concurrent
+  -- move or termination must finish before the mutation's scope is accepted.
+  if p_action in ('submit_external','observe') then
+    select * into v_employee from public.employees where id=v_employee.id for no key update;
+    if v_employee.id is null or v_employee.organization_id<>v_org or v_employee.facility_id<>v_facility or v_employee.status<>'active' then
+      raise exception 'Active student in this facility required' using errcode='42501'; end if;
+    v_self := coalesce(v_employee.profile_id=auth.uid() and v_employee.organization_id=public.current_org_id(),false);
+  end if;
   if p_action='submit_external' then
     if not v_self then raise exception 'Submit evidence for your own active student account' using errcode='42501'; end if;
     select * into v_doc from public.training_documents where id=(p_data->>'document_id')::uuid and employee_id=v_employee.id
@@ -161,6 +170,8 @@ begin
     values(v_org,v_facility,v_employee.id,v_template.id,v_template.title,concat_ws(' ',v_employee.first_name,v_employee.last_name),
       (select concat_ws(' ',first_name,last_name) from public.profiles where id=auth.uid()),v_items,(p_data->>'observed_on')::date,btrim(p_data->>'notes'),v_result,auth.uid()) returning id into v_id;
   elsif p_action='void_observation' then
+    if coalesce(length(btrim(p_data->>'reason')),0) not between 10 and 2000 then
+      raise exception 'Record a correction reason of 10 to 2000 characters' using errcode='22023'; end if;
     update app_private.training_practice_observations set voided_by=auth.uid(),voided_at=now(),void_reason=btrim(p_data->>'reason')
     where id=(p_data->>'id')::uuid and facility_id=v_facility and voided_at is null returning id into v_id;
     if v_id is null then raise exception 'Current observation unavailable' using errcode='42501'; end if;
