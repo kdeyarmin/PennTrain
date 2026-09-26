@@ -488,11 +488,26 @@ jobs:
         run: pnpm --filter @workspace/caremetric-carebase exec playwright install --with-deps chromium webkit
 
       - name: Training invitation, recovery, and certificate journeys
+        id: training-journeys
         run: pnpm --filter @workspace/caremetric-carebase exec playwright test e2e/new-training-facility.spec.ts --project=chromium --project=mobile-safari --max-failures=1
+
+      - name: Preserve onboarding failure evidence before the next browser suite
+        if: ${{ failure() && steps.training-journeys.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: training-onboarding-failures-${{ github.sha }}
+          path: |
+            artifacts/caremetric-carebase/test-results
+            artifacts/caremetric-carebase/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Role, public, guest, and accessibility browser journeys
         # The full onboarding path runs first for fast feedback; the complementary
         # filter preserves the complete matrix without repeating those journeys.
+        # Collect independent failures in the same disposable run. A failed
+        # onboarding step still fails this job; its evidence is preserved above.
+        if: ${{ !cancelled() && (steps.training-journeys.outcome == 'success' || steps.training-journeys.outcome == 'failure') }}
         run: pnpm --filter @workspace/caremetric-carebase run test:e2e --grep-invert "new training facility administrator"
 
       - name: Upload Training discovery and assignment previews

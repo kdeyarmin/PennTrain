@@ -292,7 +292,12 @@ test.describe("new training facility administrator", () => {
         await learnerPage.getByLabel("Upload certificate or transcript", { exact: false }).setInputFiles({ name: "outside-first-aid.pdf", mimeType: "application/pdf", buffer: outsideCertificateBytes });
         await learnerPage.getByRole("button", { name: "Submit for review", exact: true }).click();
         await expect(learnerPage.getByRole("heading", { name: "Community first-aid workshop · Awaiting review", exact: true })).toBeVisible();
-        const { data: submittedEvidence, error: submittedEvidenceError } = await service.from("training_documents")
+        // Document metadata is available through the learner's RLS-scoped access;
+        // the service role deliberately has no direct table SELECT privilege.
+        const evidenceReader = createClient(url, process.env.VITE_SUPABASE_ANON_KEY!, { auth: { autoRefreshToken: false, persistSession: false } });
+        const { error: evidenceSignInError } = await evidenceReader.auth.signInWithPassword({ email: studentEmail, password });
+        if (evidenceSignInError) throw evidenceSignInError;
+        const { data: submittedEvidence, error: submittedEvidenceError } = await evidenceReader.from("training_documents")
           .select("storage_bucket,storage_path").eq("organization_id", fixture.organizationId).eq("employee_id", studentId).eq("file_name", "outside-first-aid.pdf").single();
         if (submittedEvidenceError) throw submittedEvidenceError;
         const evidenceBucket = service.storage.from(submittedEvidence.storage_bucket);
