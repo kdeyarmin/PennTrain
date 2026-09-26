@@ -34,16 +34,16 @@ grant execute on function public.staff_training_period(uuid,date,boolean) to aut
 
 create function public.staff_eligible_training_minutes(p_employee_id uuid,p_bucket text,p_from date,p_through date)
 returns numeric language plpgsql stable set search_path='' as $$
-declare v record; f text; allow_ojt boolean; total numeric:=0; credited numeric; med numeric:=360; rescue numeric:=240;
+declare v record; facility_kind text; allow_ojt boolean; total numeric:=0; credited numeric; med numeric:=360; rescue numeric:=240;
  online numeric:=case when p_bucket='administrator' then 720 else 1000000 end; ojt numeric;
 begin
- select f.facility_type,coalesce(p.alf_ojt_allowed,false) into f,allow_ojt from public.employees e
- join public.facilities f on f.id=e.facility_id left join public.staff_regulatory_policies p on p.facility_id=e.facility_id where e.id=p_employee_id;
- if f is null then return 0; end if;
- ojt:=case when p_bucket='general_annual' and f='PCH' then 360 when p_bucket='general_annual' and f='ALR' and allow_ojt then 1000000 else 0 end;
+ select fac.facility_type,coalesce(p.alf_ojt_allowed,false) into facility_kind,allow_ojt from public.employees e
+ join public.facilities fac on fac.id=e.facility_id left join public.staff_regulatory_policies p on p.facility_id=e.facility_id where e.id=p_employee_id;
+ if facility_kind is null then return 0; end if;
+ ojt:=case when p_bucket='general_annual' and facility_kind='PCH' then 360 when p_bucket='general_annual' and facility_kind='ALR' and allow_ojt then 1000000 else 0 end;
  for v in
   with sources as (
-   select 'event:'||e.id id,e.completed_on day,e.delivery,
+   select 'event:'||e.id id,e.completed_on as completed_day,e.delivery,
     case when p_bucket='general_annual' then greatest(0,e.minutes-coalesce((e.allocations->>'special_initial')::numeric,0)
       -coalesce((e.allocations->>'special_annual')::numeric,0)-coalesce((e.allocations->>'dementia_initial')::numeric,0)-coalesce((e.allocations->>'dementia_annual')::numeric,0))
       else coalesce((e.allocations->>case p_bucket when 'administrator' then 'administrator' when 'alr_dementia' then 'dementia_annual' else 'special_annual' end)::numeric,0) end minutes,
@@ -75,7 +75,7 @@ begin
       or (p_bucket='general_annual' and (tt.code in ('ORIENT','MED-INIT','MED-RENEW','TRAINER-CERT','DIABETES-EDU','FIRE-SAFETY','ABUSE-REPORT','RESIDENT-RIGHTS','INFECTION') or tt.code~'(CPR|FIRST.?AID|AIRWAY)')))
     and not exists(select 1 from public.training_evidence_events te where te.course_assignment_id=cc.course_assignment_id and te.status='verified')
    group by cc.course_assignment_id,cc.topic_code
-  ) select * from sources order by (delivery in ('online','ojt')), (medication::integer+resuscitation::integer),day,id
+  ) select * from sources order by (delivery in ('online','ojt')), (medication::integer+resuscitation::integer),completed_day,id
  loop
   if v.delivery='online' and v.resuscitation then continue; end if;
   credited:=least(v.minutes,case when v.medication then med else 1000000 end,case when v.resuscitation then rescue else 1000000 end,

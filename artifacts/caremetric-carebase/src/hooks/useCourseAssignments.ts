@@ -238,8 +238,8 @@ export function invalidateCompletedCourseEvidence(queryClient: QueryClient) {
   // with the matrix the same completion had just refreshed (BACKLOG J74, P3 tail).
   queryClient.invalidateQueries({ queryKey: ["org_dashboard_summary"] });
   // record_course_completion_credits (trigger on course_assignments) writes the per-course
-  // credit rows the employee page lists under the annual-hours bucket.
-  queryClient.invalidateQueries({ queryKey: ["course_completion_credits"] });
+  // credit rows included by the shared staff training summary.
+  queryClient.invalidateQueries({ queryKey: ["staff-training-summary"] });
 }
 
 /** A bounded, uncached read: React Query's online queries can pause indefinitely when offline. */

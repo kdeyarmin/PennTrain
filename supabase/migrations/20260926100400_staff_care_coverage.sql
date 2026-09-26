@@ -37,7 +37,7 @@ with scope as (
    (a.shift_date+a.end_time+case when a.end_time<=a.start_time then interval '1 day' else interval '0 day' end) at time zone 'America/New_York' ends
  from public.shift_assignments a join scope s on s.id=a.schedule_id and s.facility_id=a.facility_id join public.employees e on e.id=a.employee_id
  left join public.employee_regulatory_profiles p on p.employee_id=e.id where a.status in ('scheduled','confirmed')
-), days as (select d::date day,s.* from scope s cross join lateral generate_series(s.period_start::timestamp,s.period_end::timestamp,interval '1 day')d),
+), days as (select d::date as day,s.* from scope s cross join lateral generate_series(s.period_start::timestamp,s.period_end::timestamp,interval '1 day')d),
  boundaries as (
  select day::timestamp at time zone 'America/New_York' moment from days
  union select (period_end+1)::timestamp at time zone 'America/New_York' from scope
@@ -60,7 +60,7 @@ with scope as (
    and i.ends<=(s.period_end+1)::timestamp at time zone 'America/New_York'
  group by i.starts,i.ends,s.census,s.mobility,s.unknown_mobility,s.facility_type,s.waking_start,s.waking_end
 ), daily as (
- select (starts at time zone 'America/New_York')::date day,max(census+mobility) required_hours,max(unknown_mobility) unknown_mobility,
+ select (starts at time zone 'America/New_York')::date as day,max(census+mobility) required_hours,max(unknown_mobility) unknown_mobility,
    round(sum(extract(epoch from ends-starts)/3600*awake_staff),2) available_hours,
    round(sum(case when waking then extract(epoch from ends-starts)/3600*awake_staff else 0 end),2) waking_hours
  from coverage group by (starts at time zone 'America/New_York')::date
