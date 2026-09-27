@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const h = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), invalidate: vi.fn(), requests: [] as Array<{ filters: unknown[]; orders: unknown[]; range: number[] }>, failSecond: false, cap: 1000 }));
+const h = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn(), invalidate: vi.fn(), requests: [] as Array<{ filters: unknown[]; orders: unknown[]; range: number[]; signal?: AbortSignal }>, failSecond: false, cap: 1000 }));
 vi.mock("@/lib/supabase", () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: (options: unknown) => options, useMutation: (options: unknown) => options, useQueryClient: () => ({ invalidateQueries: h.invalidate }) }));
 import { useListQuizAttempts, useSetQuizCorrectAnswer } from "./useQuizzes";
@@ -7,12 +7,13 @@ import { useListQuizAttempts, useSetQuizCorrectAnswer } from "./useQuizzes";
 beforeEach(() => {
   h.requests = []; h.failSecond = false; h.cap = 1000; vi.clearAllMocks();
   h.from.mockImplementation(() => {
-    const request = { filters: [] as unknown[], orders: [] as unknown[], range: [] as number[] };
+    const request = { filters: [] as unknown[], orders: [] as unknown[], range: [] as number[], signal: undefined as AbortSignal | undefined };
     h.requests.push(request);
     const query = { select: () => query,
       eq: (key: string, value: string) => { request.filters.push([key, value]); return query; },
       order: (key: string) => { request.orders.push(key); return query; },
       range: (from: number, to: number) => { request.range = [from, to]; return query; },
+      abortSignal: (signal: AbortSignal) => { request.signal = signal; return query; },
       then: (resolve: (value: unknown) => unknown) => Promise.resolve(request.range[0] === 0
         ? { data: Array.from({ length: h.cap }, (_, index) => ({ id: `attempt-${index}`, passed: false })), error: null }
         : { data: request.range[0] === h.cap ? [{ id: "old-passing-attempt", passed: true }] : [], error: h.failSecond ? new Error("History unavailable") : null }).then(resolve),
@@ -41,7 +42,8 @@ describe("atomic author answer selection", () => {
     releases[1](); await pending; expect(settled).toBe(true);
   });
 });
-const fetchAttempts = () => (useListQuizAttempts({ assignmentId: "assignment", employeeId: "employee", quizId: "quiz" }) as unknown as { queryFn: () => Promise<Array<{ id: string; passed: boolean }>> }).queryFn();
+const signal = new AbortController().signal;
+const fetchAttempts = () => (useListQuizAttempts({ assignmentId: "assignment", employeeId: "employee", quizId: "quiz" }) as unknown as { queryFn: (context: { signal: AbortSignal }) => Promise<Array<{ id: string; passed: boolean }>> }).queryFn({ signal });
 describe("complete quiz attempt history", () => {
   it("keeps older passing attempts beyond the API cap and scopes every page to the same learner, assignment, and quiz", async () => {
     const attempts = await fetchAttempts();
@@ -51,6 +53,7 @@ describe("complete quiz attempt history", () => {
     for (const request of h.requests) {
       expect(request.filters).toEqual([["assignment_id", "assignment"], ["employee_id", "employee"], ["quiz_id", "quiz"]]);
       expect(request.orders).toEqual(["started_at", "id"]);
+      expect(request.signal).toBe(signal);
     }
   });
   it("rejects a failed later page instead of presenting incomplete attempt counts", async () => {
@@ -67,5 +70,20 @@ describe("complete quiz attempt history", () => {
   it("surfaces a later failure after a lower-cap first page instead of hiding it", async () => {
     h.cap = 2; h.failSecond = true;
     await expect(fetchAttempts()).rejects.toThrow("History unavailable");
+  });
+  it.each([
+    { assignmentId: "assignment", employeeId: undefined },
+    { assignmentId: undefined, employeeId: "employee" },
+  ])("cannot issue an incomplete learner history query for %j", async filters => {
+    const query = useListQuizAttempts(filters) as unknown as { enabled: boolean; queryFn: (context: { signal: AbortSignal }) => Promise<unknown> };
+    expect(query.enabled).toBe(false);
+    expect(await query.queryFn({ signal })).toEqual([]);
+    expect(h.from).not.toHaveBeenCalled();
+  });
+  it("does not fetch known IDs while the caller is still verifying assignment ownership", async () => {
+    const query = useListQuizAttempts({ assignmentId: "assignment", employeeId: "employee" }, { enabled: false }) as unknown as { enabled: boolean; queryFn: (context: { signal: AbortSignal }) => Promise<unknown> };
+    expect(query.enabled).toBe(false);
+    expect(await query.queryFn({ signal })).toEqual([]);
+    expect(h.from).not.toHaveBeenCalled();
   });
 });

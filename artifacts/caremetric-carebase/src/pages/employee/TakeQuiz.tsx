@@ -57,6 +57,8 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
   const { data: quiz, isLoading: quizLoading, isError: quizError } = useGetQuiz(quizId);
   const { data: questions, isLoading: questionsLoading, isError: questionsError } = useListQuizQuestions(quizId);
   const { data: choices, isLoading: choicesLoading, isError: choicesError } = useQuizAnswerChoices(quizId);
+  const attemptsReady = !!employee && !!assignment && assignment.id === assignmentId && assignment.employee_id === employee.id
+    && !employeeLoading && !employeeQuery.isError && !assignmentLoading && !assignmentError;
   const {
     data: attempts,
     isLoading: attemptsLoading,
@@ -67,13 +69,13 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
     assignmentId,
     employeeId: employee?.id,
     quizId,
-  });
+  }, { enabled: attemptsReady });
 
-  // The hook scopes to this quiz; keep the local identity check for cached data too.
+  // Guard cached rows before adopting an attempt or requesting its saved answers.
   // The list is already ordered started_at desc, so filtering preserves order.
   const attemptsForQuiz = useMemo(
-    () => (attempts ?? []).filter((a) => a.quiz_id === quizId),
-    [attempts, quizId],
+    () => attemptsReady ? (attempts ?? []).filter((a) => a.assignment_id === assignmentId && a.employee_id === employee?.id && a.quiz_id === quizId) : [],
+    [attempts, attemptsReady, assignmentId, employee?.id, quizId],
   );
   const inProgressAttempt = attemptsForQuiz.find((a) => a.submitted_at === null);
   const gradedAttempts = attemptsForQuiz.filter((a) => a.submitted_at !== null);
@@ -97,7 +99,7 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
   // The attempt currently being worked on in THIS session: either an
   // in-progress attempt resumed from the server, or one just started here.
   const [newAttemptId, setNewAttemptId] = useState<string | null>(null);
-  const activeAttemptId = newAttemptId ?? inProgressAttempt?.id ?? null;
+  const activeAttemptId = attemptsReady ? newAttemptId ?? inProgressAttempt?.id ?? null : null;
 
   const activeAttemptQuery = useGetQuizAttempt(activeAttemptId ?? undefined);
   const { data: activeAttempt } = activeAttemptQuery;

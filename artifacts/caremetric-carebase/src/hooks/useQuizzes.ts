@@ -572,8 +572,8 @@ export function useGradeQuizAttempt() {
 }
 
 export interface ListQuizAttemptsFilters {
-  assignmentId?: string;
-  employeeId?: string;
+  assignmentId: string | undefined;
+  employeeId: string | undefined;
   quizId?: string;
 }
 
@@ -593,10 +593,16 @@ export function useSetQuizCorrectAnswer() {
   });
 }
 
-export function useListQuizAttempts(filters: ListQuizAttemptsFilters = {}) {
+// Personal learning history: broader staff/reporting access uses separate readers.
+// RLS permits managers to inspect peers, so it cannot stand in for these identities.
+export function useListQuizAttempts(filters: ListQuizAttemptsFilters, options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled !== false && !!filters.assignmentId && !!filters.employeeId;
   return useQuery({
     queryKey: ["quiz_attempts", filters],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      // refetch() bypasses React Query's enabled gate; never turn missing identity into
+      // an unfiltered request even when a caller explicitly asks to retry.
+      if (!enabled) return [] as QuizAttempt[];
       // Unlimited retries and courses with several quizzes can exceed the API row cap.
       // Every attempt counts toward the allowance, and an older pass still unlocks its lesson.
       const pageSize = 1000;
@@ -604,9 +610,8 @@ export function useListQuizAttempts(filters: ListQuizAttemptsFilters = {}) {
       for (let from = 0; ; ) {
         let query = supabase.from("quiz_attempts").select("*")
           .order("started_at", { ascending: false }).order("id", { ascending: false })
-          .range(from, from + pageSize - 1);
-        if (filters.assignmentId) query = query.eq("assignment_id", filters.assignmentId);
-        if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
+          .range(from, from + pageSize - 1).abortSignal(signal)
+          .eq("assignment_id", filters.assignmentId!).eq("employee_id", filters.employeeId!);
         if (filters.quizId) query = query.eq("quiz_id", filters.quizId);
         const { data, error } = await query;
         if (error) throw error;
@@ -616,6 +621,7 @@ export function useListQuizAttempts(filters: ListQuizAttemptsFilters = {}) {
       }
       return rows;
     },
+    enabled,
   });
 }
 
