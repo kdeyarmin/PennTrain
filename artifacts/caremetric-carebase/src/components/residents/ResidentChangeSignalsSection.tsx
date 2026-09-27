@@ -9,7 +9,8 @@ import { useListIncidents } from "@/hooks/useIncidents";
 import { useListResidentChangeEvents } from "@/hooks/useResidentChangeEvents";
 import { useResidentServiceExceptions, useResidentUnscheduledServices } from "@/hooks/useFloorMode";
 import {
-  detectResidentChangeSignals, summarizeChangeSignals, WEIGHT_LONG_WINDOW_DAYS, type ChangeSignal,
+  detectResidentChangeSignals, FALL_WINDOW_DAYS, MEAL_WINDOW_DAYS, summarizeChangeSignals,
+  WEIGHT_LONG_WINDOW_DAYS, type ChangeSignal,
 } from "@/lib/residentChangeDetection";
 import { addFacilityCalendarDays, facilityDateOf, facilityDayBounds, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 
@@ -20,17 +21,27 @@ import { addFacilityCalendarDays, facilityDateOf, facilityDayBounds, facilityTod
  */
 function useDetectionSupplements(residentId: string) {
   const meals = useQuery({
-    queryKey: ["detection-meals", residentId],
+    queryKey: ["detection-meals", residentId, MEAL_WINDOW_DAYS],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("resident_meal_records")
-        .select("intake_percent, served_at")
-        .eq("resident_id", residentId)
-        .gte("served_at", facilityDayBounds(addFacilityCalendarDays(facilityToday(), -14)).from)
-        .order("served_at", { ascending: false })
-        .limit(60);
-      if (error) throw error;
-      return data as { intake_percent: number | null; served_at: string }[];
+      // Six meal periods over the old 14-day fetch are already more than 60 rows, and a
+      // second note for the same meal is allowed. Keep every row in the 7-day rule.
+      const since = facilityDayBounds(addFacilityCalendarDays(facilityToday(), -MEAL_WINDOW_DAYS)).from;
+      const rows: { intake_percent: number | null; served_at: string }[] = [];
+      for (let from = 0; ;) {
+        const { data, error } = await supabase
+          .from("resident_meal_records")
+          .select("intake_percent, served_at")
+          .eq("resident_id", residentId)
+          .gte("served_at", since)
+          .order("served_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + 499);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < 500) break;
+        from += data.length;
+      }
+      return rows;
     },
   });
 
@@ -62,16 +73,27 @@ function useDetectionSupplements(residentId: string) {
   });
 
   const hospital = useQuery({
-    queryKey: ["detection-hospital", residentId],
+    queryKey: ["detection-hospital", residentId, FALL_WINDOW_DAYS],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("hospital_transfer_episodes")
-        .select("transfer_time, destination, status")
-        .eq("resident_id", residentId)
-        .order("transfer_time", { ascending: false })
-        .limit(10);
-      if (error) throw error;
-      return data as { transfer_time: string; destination: string | null; status: string }[];
+      // The signal is every non-canceled transfer in the fall window. The newest 10 of all
+      // time let canceled rows, or an 11th real transfer, hide a visit the title still counts.
+      const since = facilityDayBounds(addFacilityCalendarDays(facilityToday(), -FALL_WINDOW_DAYS)).from;
+      const rows: { transfer_time: string; destination: string | null; status: string }[] = [];
+      for (let from = 0; ;) {
+        const { data, error } = await supabase
+          .from("hospital_transfer_episodes")
+          .select("transfer_time, destination, status")
+          .eq("resident_id", residentId)
+          .gte("transfer_time", since)
+          .order("transfer_time", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + 499);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < 500) break;
+        from += data.length;
+      }
+      return rows;
     },
   });
 
