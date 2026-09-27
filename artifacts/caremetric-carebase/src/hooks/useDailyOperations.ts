@@ -279,6 +279,7 @@ export function useRequestShiftSwap() {
       return data as string;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-shift-swap-requests"] });
       queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
       queryClient.invalidateQueries({ queryKey: ["shift-swap-candidates"] });
       queryClient.invalidateQueries({ queryKey: ["workforce-self-service-queues"] });

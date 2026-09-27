@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { markExplicitPasswordSignIn } from "@/lib/auth";
+import { signInWithPassword } from "@/lib/auth";
 import { absolutePostLoginRedirect, postLoginPathFromSearch } from "@/lib/loginRedirect";
 import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
@@ -27,8 +27,7 @@ export default function Login() {
 
   const loginMutation = useMutation({
     mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      markExplicitPasswordSignIn();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await signInWithPassword({ email, password });
       if (error) throw error;
       return data;
     },

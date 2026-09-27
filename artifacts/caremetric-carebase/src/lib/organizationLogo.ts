@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { hasDefinitivePostgresWriteRejection } from "./postgresWriteOutcome";
 
 const BUCKET = "org-branding";
 const EXTENSIONS: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/svg+xml": "svg" };
@@ -30,6 +31,9 @@ export async function replaceOrganizationLogo({ file, organizationId, previousPa
       .eq("organization_id", organizationId).maybeSingle();
     if (error) throw new Error(`${message(saveError)}. Could not confirm which logo is saved; the uploaded file was retained. Refresh settings before trying again.`);
     if (data?.branding_logo_path !== path) {
+      // An old/empty read can finish before an in-flight write commits. Only an explicit
+      // statement rejection proves the staged object cannot become the live logo later.
+      if (!hasDefinitivePostgresWriteRejection(saveError)) throw new Error(`${message(saveError)}. Could not confirm which logo is saved; the uploaded file was retained. Refresh settings before trying again.`);
       const { error: cleanupError } = await supabase.storage.from(BUCKET).remove([path]);
       if (cleanupError) throw new Error(`${message(saveError)}. Uploaded-file cleanup also failed: ${cleanupError.message}`);
       throw saveError;

@@ -1,4 +1,4 @@
-import { useId, useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
@@ -50,6 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { BillingCheckoutRecovery } from "./BillingCheckoutRecovery";
+import { QueryError } from "@/components/QueryState";
 
 function enabledModuleNames(features: Json | null): string[] {
   if (!features || typeof features !== "object" || Array.isArray(features)) return [];
@@ -99,6 +100,11 @@ export function BillingPlanSelector() {
   const organizationId = isPlatformAdmin
     ? selectedOrganizationId
     : user?.organizationId ?? "";
+  const billingRequest = useRef(0);
+  useEffect(() => {
+    billingRequest.current++;
+    return () => { billingRequest.current++; };
+  }, [user?.id, organizationId]);
 
   const independentEntitlements = useQuery({
     queryKey: ["product-module-entitlements", organizationId], enabled: !!organizationId,
@@ -136,7 +142,7 @@ export function BillingPlanSelector() {
   const hasManagedSubscription = !!currentSubscription;
   const hasCustomerPortal = !!billingAccountQuery.data?.account?.stripe_customer_id;
   const usage = usageQuery.data;
-  const catalogError = packagesQuery.error ?? pricesQuery.error ?? organizationQuery.error ?? billingAccountQuery.error;
+  const catalogError = packagesQuery.error ?? pricesQuery.error ?? organizationQuery.error ?? billingAccountQuery.error ?? independentEntitlements.error;
   const catalogErrorLabel = packagesQuery.error
     ? "Plan catalog could not be loaded"
     : pricesQuery.error
@@ -145,8 +151,10 @@ export function BillingPlanSelector() {
     ? "Organization details could not be loaded"
     : billingAccountQuery.error
     ? "Billing account could not be loaded"
+    : independentEntitlements.error
+    ? "Module access could not be loaded"
     : null;
-  const isCatalogLoading = packagesQuery.isLoading || pricesQuery.isLoading || organizationQuery.isLoading || billingAccountQuery.isLoading;
+  const isCatalogLoading = packagesQuery.isLoading || pricesQuery.isLoading || organizationQuery.isLoading || billingAccountQuery.isLoading || independentEntitlements.isLoading;
   const busy = session.isPending;
 
   // Catalog is flat-first when every active primary price for the selected
@@ -205,7 +213,8 @@ export function BillingPlanSelector() {
   }, [toast, queryClient, organizationId]);
 
   const openPortal = async () => {
-    if (!organizationId) return;
+    if (!organizationId || busy) return;
+    const request = ++billingRequest.current;
     try {
       const result = await session.mutateAsync({
         organizationId,
@@ -213,8 +222,9 @@ export function BillingPlanSelector() {
         returnUrl: absoluteAppUrl(isPlatformAdmin ? "/admin/enterprise" : "/app/billing"),
         idempotencyKey: crypto.randomUUID(),
       });
-      window.location.assign(result.data.url);
+      if (request === billingRequest.current) window.location.assign(result.data.url);
     } catch (error) {
+      if (request !== billingRequest.current) return;
       const copy = billingSessionFailureCopy(error, "Billing portal could not be opened");
       toast({
         title: copy.title,
@@ -225,7 +235,7 @@ export function BillingPlanSelector() {
   };
 
   const startCheckout = async (pkg: Package, price: PackageBillingPrice) => {
-    if (!organizationId) return;
+    if (!organizationId || catalogError || isCatalogLoading || busy) return;
     const flat = isFlatBillingPrice(price);
     if (!flat && !usage) {
       toast({
@@ -246,6 +256,7 @@ export function BillingPlanSelector() {
       });
       return;
     }
+    const request = ++billingRequest.current;
     try {
       const returnPath = isPlatformAdmin ? "/admin/enterprise" : "/app/billing";
       const result = await session.mutateAsync({
@@ -257,8 +268,9 @@ export function BillingPlanSelector() {
         cancelUrl: absoluteAppUrl(`${returnPath}?billing=cancelled`),
         idempotencyKey: crypto.randomUUID(),
       });
-      window.location.assign(result.data.url);
+      if (request === billingRequest.current) window.location.assign(result.data.url);
     } catch (error) {
+      if (request !== billingRequest.current) return;
       const copy = billingSessionFailureCopy(error, "Secure checkout could not be opened");
       toast({
         title: copy.title,
@@ -294,7 +306,7 @@ export function BillingPlanSelector() {
           {isPlatformAdmin ? (
             <div className="max-w-xl space-y-1.5">
               <Label htmlFor={`${__fieldIds}-organization`}>Organization</Label>
-              <Select value={selectedOrganizationId} onValueChange={setSelectedOrganizationId}>
+              <Select value={selectedOrganizationId} onValueChange={setSelectedOrganizationId} disabled={busy || organizationsQuery.isLoading || organizationsQuery.isError}>
                 <SelectTrigger id={`${__fieldIds}-organization`}><SelectValue placeholder="Select an organization" /></SelectTrigger>
                 <SelectContent>
                   {(organizationsQuery.data ?? []).map((organization) => (
@@ -302,6 +314,7 @@ export function BillingPlanSelector() {
                   ))}
                 </SelectContent>
               </Select>
+              {organizationsQuery.isError && <QueryError what="organizations" error={organizationsQuery.error} onRetry={() => void organizationsQuery.refetch()} />}
             </div>
           ) : null}
 
@@ -340,8 +353,8 @@ export function BillingPlanSelector() {
                 </Tabs>
               </div>
 
-              {billingNotices.independent ? <Alert><AlertTitle>Independent module access</AlertTitle><AlertDescription>{independentModules.map(id => PRODUCT_MODULES.find(m => m.id === id)?.name).join(", ")} access follows your complimentary or contract terms. Ending a paid subscription does not cancel an active independent grant.</AlertDescription></Alert> : null}
-              {trialPresentation.kind === "trialing" ? (
+              {!catalogError && !isCatalogLoading && billingNotices.independent ? <Alert><AlertTitle>Independent module access</AlertTitle><AlertDescription>{independentModules.map(id => PRODUCT_MODULES.find(m => m.id === id)?.name).join(", ")} access follows your complimentary or contract terms. Ending a paid subscription does not cancel an active independent grant.</AlertDescription></Alert> : null}
+              {!catalogError && !isCatalogLoading && trialPresentation.kind === "trialing" ? (
                 <Alert>
                   <CalendarClock className="h-4 w-4" />
                   <AlertTitle>
@@ -353,7 +366,7 @@ export function BillingPlanSelector() {
                   </AlertDescription>
                 </Alert>
               ) : null}
-              {billingNotices.trialEnded && trialPresentation.kind === "ended" ? (
+              {!catalogError && !isCatalogLoading && billingNotices.trialEnded && trialPresentation.kind === "ended" ? (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Trial ended — choose a plan to continue</AlertTitle>
@@ -372,7 +385,7 @@ export function BillingPlanSelector() {
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>{catalogErrorLabel}</AlertTitle>
-                  <AlertDescription>{catalogError.message}</AlertDescription>
+                  <AlertDescription>{catalogError.message}<Button className="ml-3" size="sm" variant="outline" onClick={() => void Promise.all([packagesQuery.refetch(), pricesQuery.refetch(), organizationQuery.refetch(), billingAccountQuery.refetch(), independentEntitlements.refetch()])}>Retry billing details</Button></AlertDescription>
                 </Alert>
               ) : catalogIsFlat ? (
                 <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
@@ -402,7 +415,7 @@ export function BillingPlanSelector() {
               ) : (
                 <Alert variant="destructive">
                   <AlertTitle>Usage could not be measured</AlertTitle>
-                  <AlertDescription>{usageQuery.error?.message ?? "Refresh and try again."}</AlertDescription>
+                  <AlertDescription>{usageQuery.error?.message ?? "Refresh and try again."}<Button className="ml-3" size="sm" variant="outline" onClick={() => void usageQuery.refetch()}>Retry usage measurement</Button></AlertDescription>
                 </Alert>
               )}
               {currentSubscription && ["unmapped", "out_of_range", "failed"].includes(currentSubscription.quantity_sync_status) ? (

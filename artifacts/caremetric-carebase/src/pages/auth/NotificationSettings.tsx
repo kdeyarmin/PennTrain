@@ -29,6 +29,9 @@ export default function NotificationSettings() {
   const { mutate: updateProfile, isPending: saving } = useUpdateProfile();
   const [pushActive, setPushActive] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [pushChecking, setPushChecking] = useState(true);
+  const [pushStatusError, setPushStatusError] = useState<Error | null>(null);
+  const [pushCheckRevision, setPushCheckRevision] = useState(0);
   const pushRequest = useRef(0);
   const pushOperation = useRef<AbortController | null>(null);
   const pushPermission = getPushPermissionState();
@@ -66,13 +69,18 @@ export default function NotificationSettings() {
     pushOperation.current = operation;
     setPushActive(false);
     setPushBusy(false);
+    setPushChecking(true);
+    setPushStatusError(null);
     void hasActiveWebPushSubscription(operation.signal).then(active => {
       if (request === pushRequest.current) setPushActive(active);
-    }).catch(() => { if (request === pushRequest.current) setPushActive(false); });
+    }).catch((error: unknown) => {
+      if (request === pushRequest.current) setPushStatusError(error instanceof Error ? error : new Error("Browser notification status could not be checked."));
+    }).finally(() => { if (request === pushRequest.current) setPushChecking(false); });
     return () => { pushRequest.current++; pushOperation.current?.abort(); };
-  }, [user?.id]);
+  }, [user?.id, pushCheckRevision]);
 
   const handleEnablePush = async () => {
+    if (pushBusy || pushChecking || pushStatusError) return;
     const request = ++pushRequest.current;
     pushOperation.current?.abort();
     const operation = new AbortController();
@@ -92,6 +100,7 @@ export default function NotificationSettings() {
   };
 
   const handleDisablePush = async () => {
+    if (pushBusy || pushChecking || pushStatusError) return;
     const request = ++pushRequest.current;
     pushOperation.current?.abort();
     const operation = new AbortController();
@@ -315,19 +324,20 @@ export default function NotificationSettings() {
                     Compliance-critical expiry alerts can still use your organization's approved email and SMS paths.
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Status: {pushPermission === "unsupported" ? "not supported by this browser" : pushActive ? "enabled on this browser" : pushPermission === "denied" ? "blocked in browser settings" : "not enabled"}.
+                    Status: {pushPermission === "unsupported" ? "not supported by this browser" : pushChecking ? "checking this browser" : pushStatusError ? "could not be confirmed" : pushActive ? "enabled on this browser" : pushPermission === "denied" ? "blocked in browser settings" : "not enabled"}.
                   </p>
                 </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={pushBusy || pushPermission === "unsupported" || (!pushActive && pushPermission === "denied")}
+                  disabled={pushBusy || pushChecking || !!pushStatusError || pushPermission === "unsupported" || (!pushActive && pushPermission === "denied")}
                   onClick={() => void (pushActive ? handleDisablePush() : handleEnablePush())}
                 >
                   {pushBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {pushActive ? "Disable" : "Enable"}
                 </Button>
+                {pushStatusError && <QueryError what="browser notification status" error={pushStatusError} onRetry={() => setPushCheckRevision(revision => revision + 1)} />}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`${__fieldIds}-preferred-notification-channel`} className="text-[13px]">Preferred notification channel</Label>

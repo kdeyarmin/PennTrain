@@ -38,7 +38,7 @@ export function useListCertificates(
       // another. That is the same silent gap this loop exists to close.
       const pageSize = 1000;
       const rows: Certificate[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ; ) {
         let query = supabase
           .from("certificates")
           .select("*")
@@ -51,7 +51,9 @@ export function useListCertificates(
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        // A deployment can cap responses below our requested range size.
+        from += data.length;
       }
       return rows;
     },

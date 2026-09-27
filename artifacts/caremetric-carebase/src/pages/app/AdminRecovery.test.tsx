@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   state: [] as unknown[], refs: [] as Array<{ current: unknown }>, effects: [] as Array<() => unknown>, deps: [] as Array<unknown[] | undefined>,
   cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
   org: "org-a", settings: {} as Record<string, unknown>, settingsError: false,
+  exportsLoading: false, exportsError: false, requestExport: vi.fn(), retryExport: vi.fn(),
   save: vi.fn(), toast: vi.fn(), run: vi.fn(), cancel: vi.fn(), skip: vi.fn(),
 }));
 vi.mock("react", async original => ({
@@ -27,7 +28,7 @@ vi.mock("@/hooks/useOrganizationSettings", () => ({
 }));
 vi.mock("@/hooks/useNotifications", () => ({ useListNotificationDeliveries: () => ({ data: [] }) }));
 vi.mock("@/hooks/useTrainingRecords", () => ({ useRecalculateOrgCompliance: () => ({}) }));
-vi.mock("@/hooks/useProductExperience", () => ({ useOrganizationExports: () => ({ request: {}, download: {} }), useRestoreDemoBaseline: () => ({}), useSandboxActions: () => ({ ensure: {}, reset: {} }) }));
+vi.mock("@/hooks/useProductExperience", () => ({ useOrganizationExports: () => ({ isLoading: h.exportsLoading, isError: h.exportsError, error: new Error("History unavailable"), refetch: h.retryExport, request: { mutate: h.requestExport }, download: {} }), useRestoreDemoBaseline: () => ({}), useSandboxActions: () => ({ ensure: {}, reset: {} }) }));
 vi.mock("@/hooks/useFacilities", () => ({ useListFacilities: () => ({ data: [] }) }));
 vi.mock("@/hooks/useOrganizations", () => ({ useGetOrganization: () => ({}), useUpdateOrganization: () => ({}) }));
 vi.mock("@/hooks/useNotificationReach", () => ({ useNotificationReach: () => ({ data: [] }) }));
@@ -68,7 +69,7 @@ function fakeFile(name: string, read: () => Promise<string>) { const file = new 
 const preview = (id: string) => ({ job_id: id, totalRows: 1, succeeded: 1, failed: 0, results: [], pinnedDuplicateStrategy: "create" });
 const freshSettings = (org = "org-a") => ({ organization_id: org, email_notifications_enabled: true, sms_notifications_enabled: false, web_push_notifications_enabled: true, default_warning_days: { default: 90 }, idle_timeout_minutes: 30, kiosk_idle_timeout_minutes: 5, hidden_navigation_sections: [], branding_logo_path: null });
 beforeEach(() => {
-  h.state = []; h.refs = []; h.deps = []; h.org = "org-a"; h.settings = freshSettings(); h.settingsError = false;
+  h.state = []; h.refs = []; h.deps = []; h.org = "org-a"; h.settings = freshSettings(); h.settingsError = false; h.exportsLoading = false; h.exportsError = false;
   vi.clearAllMocks(); h.run.mockReset().mockResolvedValue(preview("current")); h.cancel.mockReset().mockResolvedValue({});
 });
 
@@ -147,5 +148,18 @@ describe("import source identity", () => {
     expect(importTree().some(node => node.props.open === true)).toBe(true);
     click(importTree().find(node => node.props.children === "Skip those rows")!);
     expect(h.skip).toHaveBeenLastCalledWith({ jobId: "receipt-b" });
+  });
+});
+
+
+describe("organization export read recovery", () => {
+  it.each(["loading", "error"])("does not queue a duplicate export while history is %s", state => {
+    h.exportsLoading = state === "loading"; h.exportsError = state === "error";
+    const button = settingsTree().find(node => Array.isArray(node.props.children) && node.props.children.includes("Request complete export"))!;
+    expect(button.props.disabled).toBe(true); click(button); expect(h.requestExport).not.toHaveBeenCalled();
+    if (state === "error") {
+      (settingsTree().find(node => node.props.what === "organization export history")!.props.onRetry as () => void)();
+      expect(h.retryExport).toHaveBeenCalledOnce();
+    }
   });
 });

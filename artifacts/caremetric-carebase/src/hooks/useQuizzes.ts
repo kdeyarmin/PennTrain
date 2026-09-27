@@ -585,7 +585,7 @@ export function useListQuizAttempts(filters: ListQuizAttemptsFilters = {}) {
       // Every attempt counts toward the allowance, and an older pass still unlocks its lesson.
       const pageSize = 1000;
       const rows: QuizAttempt[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ; ) {
         let query = supabase.from("quiz_attempts").select("*")
           .order("started_at", { ascending: false }).order("id", { ascending: false })
           .range(from, from + pageSize - 1);
@@ -595,7 +595,8 @@ export function useListQuizAttempts(filters: ListQuizAttemptsFilters = {}) {
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

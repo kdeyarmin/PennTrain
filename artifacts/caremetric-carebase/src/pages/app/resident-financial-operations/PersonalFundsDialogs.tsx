@@ -8,7 +8,8 @@ import {
   type FinancialWorkspace,
 } from "@/hooks/useResidentFinancialOperations";
 import { currentFundBalance, fundSettlementBlocker, latestLedgerInstant } from "@/lib/personalFundsStatement";
-import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { isCareCalendarDate } from "@/lib/careFormDates";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -606,25 +607,37 @@ export function ReconcileDialog({
   open,
   onClose,
   residentId,
-  balance,
+  transactions,
 }: {
   open: boolean;
   onClose: () => void;
   residentId: string;
-  balance: number;
+  transactions: FinancialWorkspace["fundTransactions"];
 }) {
   const mutation = useReconcileResidentPersonalFunds();
   const report = useReport(onClose);
   const emptyForm = () => ({
     end: today(),
-    counted: String(balance),
+    counted: String(currentFundBalance(transactions, 0)),
     notes: "",
   });
   const [form, setForm] = useState(emptyForm);
   useEffect(() => {
     if (open) setForm(emptyForm());
-  }, [open, balance]);
-  const variance = asNumber(form.counted) - balance;
+  }, [open, residentId]);
+  const validPeriod = isCareCalendarDate(form.end);
+  // Match reconcile_resident_personal_funds: the newest ledger entry on or before the selected
+  // Pennsylvania day, including its posted-at/id tie-breaks, or zero before any ledger entries.
+  const balance = validPeriod ? currentFundBalance(transactions.filter(entry =>
+    facilityToday(new Date(entry.transaction_at)) <= form.end,
+  ), 0) : null;
+  const countedBalance = Number(form.counted);
+  const validCount = /^(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/.test(form.counted.trim())
+    && Number.isFinite(countedBalance) && countedBalance >= 0;
+  const variance = validCount && balance !== null
+    ? Math.round((countedBalance - balance) * 100) / 100 : null;
+  const canSubmit = !mutation.isPending && variance !== null
+    && (variance === 0 || form.notes.trim().length >= 5);
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent>
@@ -632,13 +645,14 @@ export function ReconcileDialog({
           <DialogTitle>Reconcile resident personal funds</DialogTitle>
           <DialogDescription>
             Compare the physical or external statement balance to the immutable
-            ledger balance of {money(balance)}.
+            ledger balance{balance === null ? " after choosing a valid period end" : ` of ${money(balance)} as of ${form.end}`}.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Period end">
             <Input
               type="date"
+              disabled={mutation.isPending}
               value={form.end}
               onChange={(e) => setForm({ ...form, end: e.target.value })}
             />
@@ -646,6 +660,7 @@ export function ReconcileDialog({
           <Field label="Counted balance">
             <Input
               type="number"
+              disabled={mutation.isPending}
               min="0"
               step="0.01"
               value={form.counted}
@@ -653,16 +668,17 @@ export function ReconcileDialog({
             />
           </Field>
           <Field
-            label={`Notes${variance !== 0 ? " (required for variance)" : ""}`}
+            label={`Notes${variance !== null && variance !== 0 ? " (required for variance)" : ""}`}
             span
           >
             <Textarea
+              disabled={mutation.isPending}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
           </Field>
           <p className="sm:col-span-2 text-sm">
-            Calculated variance: <strong>{money(variance)}</strong>
+            Calculated variance: <strong>{variance === null ? "Enter a valid date and nonnegative balance with up to two decimal places." : money(variance)}</strong>
           </p>
         </div>
         <DialogFooter>
@@ -670,22 +686,19 @@ export function ReconcileDialog({
             Cancel
           </Button>
           <Button
-            disabled={
-              mutation.isPending ||
-              asNumber(form.counted) < 0 ||
-              (variance !== 0 && form.notes.trim().length < 5)
-            }
-            onClick={() =>
+            disabled={!canSubmit}
+            onClick={() => {
+              if (!canSubmit) return;
               mutation.mutate(
                 {
                   residentId,
                   periodEnd: form.end,
-                  countedBalance: asNumber(form.counted),
+                  countedBalance,
                   notes: form.notes,
                 },
                 report,
-              )
-            }
+              );
+            }}
           >
             Record reconciliation
           </Button>

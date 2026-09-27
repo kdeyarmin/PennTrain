@@ -726,7 +726,11 @@ export default function Settings() {
                   has already deleted; the click ended in a storage error. An expired archive now
                   says so and offers no download.
                 */}
-                <Button disabled={exports.request.isPending || exports.data?.some(organizationExportIsInFlight)} onClick={() => exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) })}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
+                <Button disabled={exports.isLoading || exports.isError || exports.request.isPending || exports.data?.some(organizationExportIsInFlight)} onClick={() => {
+                  if (exports.isLoading || exports.isError || exports.request.isPending || exports.data?.some(organizationExportIsInFlight)) return;
+                  exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) });
+                }}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
+                {exports.isLoading ? <QueryLoading what="export history" /> : exports.isError ? <QueryError what="organization export history" error={exports.error} onRetry={() => void exports.refetch()} /> : <p className="text-xs text-muted-foreground">{exports.data?.length ? "Showing up to 10 most recent export requests." : "No organization exports have been requested."}</p>}
                 {exports.data?.some(organizationExportIsInFlight) && (
                   <p className="text-xs text-muted-foreground">An export is already in progress or waiting to be retried; a new one can be requested once it settles.</p>
                 )}

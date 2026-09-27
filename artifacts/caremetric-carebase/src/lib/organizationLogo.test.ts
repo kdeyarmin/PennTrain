@@ -22,7 +22,7 @@ describe("organization logo publication", () => {
     expect(h.save.mock.invocationCallOrder[0]).toBeLessThan(h.remove.mock.invocationCallOrder[0]);
   });
   it("cleans only the staged image after a confirmed failed pointer save", async () => {
-    const failure = new Error("Save refused"); h.save.mockRejectedValue(failure);
+    const failure = Object.assign(new Error("Save refused"), { code: "42501" }); h.save.mockRejectedValue(failure);
     await expect(replaceOrganizationLogo(input())).rejects.toBe(failure);
     expect(h.remove).toHaveBeenCalledExactlyOnceWith([h.upload.mock.calls[0][0]]);
     expect(h.read.mock.invocationCallOrder[0]).toBeLessThan(h.remove.mock.invocationCallOrder[0]);
@@ -36,6 +36,11 @@ describe("organization logo publication", () => {
   });
   it("retains both files when the saved pointer cannot be confirmed", async () => {
     h.save.mockRejectedValue(new Error("Response lost")); h.read.mockResolvedValue({ data: null, error: { message: "Offline" } });
+    await expect(replaceOrganizationLogo(input())).rejects.toThrow("uploaded file was retained");
+    expect(h.remove).not.toHaveBeenCalled();
+  });
+  it.each([null, { branding_logo_path: "org/logo.png" }])("retains staging after an ambiguous failure even when readback has not observed the write: %j", async data => {
+    h.save.mockRejectedValue(new Error("Response lost")); h.read.mockResolvedValue({ data, error: null });
     await expect(replaceOrganizationLogo(input())).rejects.toThrow("uploaded file was retained");
     expect(h.remove).not.toHaveBeenCalled();
   });

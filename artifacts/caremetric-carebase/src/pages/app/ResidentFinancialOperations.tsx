@@ -454,7 +454,7 @@ export default function ResidentFinancialOperations() {
             open={dialog === "reconcile"}
             onClose={() => setDialog(null)}
             residentId={residentId}
-            balance={fundBalance}
+            transactions={data!.fundTransactions}
           />
           <FundSettlementDialog
             open={dialog === "fund-settlement"}

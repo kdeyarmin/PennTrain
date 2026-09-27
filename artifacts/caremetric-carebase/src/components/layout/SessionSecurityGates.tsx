@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { KeyRound, Loader2, LockKeyhole, LogOut, ShieldCheck } from "lucide-react";
-import { markExplicitPasswordSignIn, markIdleUnlockSignIn, useAuth, useSignOut } from "@/lib/auth";
+import { signInWithPassword, markIdleUnlockSignIn, useAuth, useSignOut } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useGetOrganizationSettings } from "@/hooks/useOrganizationSettings";
 import { Button } from "@/components/ui/button";
@@ -145,15 +145,10 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
     if (!user || !password) return;
     setUnlocking(true);
     try {
-      // Two markers, two different jobs. markExplicitPasswordSignIn proves this is a real login
-      // for this account (it clears a stale recovery marker); markIdleUnlockSignIn tells the auth
-      // listener NOT to clear the react-query cache for this one SIGNED_IN. Without the second,
-      // the banner's "without losing the current page" was false twice over: the cache clear put
-      // both gates back into their loading spinners, which unmounts the route and takes unsaved
-      // form state with it.
+      // Preserve this account's draft through the password step; the shared helper only
+      // retires recovery state after the exact password response succeeds.
       markIdleUnlockSignIn();
-      markExplicitPasswordSignIn();
-      const { error } = await supabase.auth.signInWithPassword({ email: user.email, password });
+      const { error } = await signInWithPassword({ email: user.email, password });
       if (error) throw error;
 
       // A password creates a new Auth session. Native AAL and app SMS attestations belong to

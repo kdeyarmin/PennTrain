@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
+import { useSupportReplyDraft } from "@/hooks/useSupportReplyDraft";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,8 +62,7 @@ export default function SupportTicketDetail() {
   const base = location.startsWith("/me") ? "/me" : "/app";
   const { user } = useAuth();
   const { toast } = useToast();
-  const [reply, setReply] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const { reply, setReply, file, setFile, onSubmitted } = useSupportReplyDraft(id);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: ticket, isLoading, isError, error, refetch } = useGetSupportTicket(id);
@@ -72,14 +72,11 @@ export default function SupportTicketDetail() {
   const { mutate: reopenTicket, isPending: reopening } = useReopenSupportTicket();
 
   const handleSend = () => {
-    if (!id || !user || !ticket || !reply.trim()) return;
+    if (!id || !user || !ticket || ticket.id !== id || !reply.trim() || sending || messagesError) return;
     sendMessage(
       { ticketId: id, organizationId: ticket.organization_id, senderId: user.id, body: reply.trim(), file: file ?? undefined },
       {
-        onSuccess: () => {
-          setReply("");
-          setFile(null);
-        },
+        onSuccess: onSubmitted(),
         onError: (e: Error) => toast({ title: "Failed to send reply", description: e.message, variant: "destructive" }),
       }
     );
@@ -196,7 +193,7 @@ export default function SupportTicketDetail() {
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ""; }}
                 />
               </div>
               <div className="flex justify-between items-center">

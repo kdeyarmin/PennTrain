@@ -225,6 +225,16 @@ test.describe("authenticated role journeys", () => {
           const editDialog = page.getByRole("dialog", { name: "Edit Employee", exact: true });
           await editDialog.getByLabel("First Name", { exact: false }).fill("Unsaved Alpha Draft");
 
+          // Auth re-announces the current session when the browser tab becomes visible.
+          // Wait for its profile refresh so this checks the completed event, not the old frame.
+          await Promise.all([
+            page.waitForResponse(response => response.url().includes("/rest/v1/profiles?")
+              && response.request().method() === "GET" && response.status() === 200),
+            page.evaluate(() => window.dispatchEvent(new Event("visibilitychange"))),
+          ]);
+          await expect(editDialog).toBeVisible();
+          await expect(editDialog.getByLabel("First Name", { exact: false })).toHaveValue("Unsaved Alpha Draft");
+
           // Exercise client-side route reuse, which a full page.goto reload would conceal.
           await page.evaluate(path => window.history.pushState(null, "", path), `/app/employees/${second.id}`);
           await expect(page.getByRole("heading", { level: 1, name: "RouteBeta Staff", exact: true })).toBeVisible();
