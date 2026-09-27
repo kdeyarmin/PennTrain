@@ -41,6 +41,16 @@ describe("medication safety analytics", () => {
       pathway_key: "medication_event",
       pathway_answers: { error_category: "wrong_dose" },
     })).toBe("wrong_dose");
+    expect(classifyMedicationIncident({
+      incident_type: "medication_error",
+      pathway_key: "medication_event",
+      pathway_answers: { error_category: "wrong_dose", event_kind: "near_miss" },
+    })).toBe("near_miss");
+    expect(classifyMedicationIncident({
+      incident_type: "medication_error",
+      pathway_key: "medication_event",
+      pathway_answers: { error_category: "wrong_dose", event_kind: "adverse_reaction" },
+    })).toBe("adverse_reaction");
     expect(summary.byType.wrong_dose).toBe(1);
     expect(summary.byType.omission).toBe(1);
     expect(summary.byType.other).toBe(0);

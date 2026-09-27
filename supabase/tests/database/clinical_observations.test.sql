@@ -166,12 +166,11 @@ select ok(
 
 -- Incomplete and impossible readings ----------------------------------------------------
 select pg_temp.act_as('a1000000-0000-4000-8000-000000000102');
-select is(
-  (select o.abnormal_flag from public.clinical_observations o
-    where o.id = public.record_clinical_observation(
-      'a1000000-0000-4000-8000-000000000301', 'blood_pressure', now(), 85, 100, null, 'mm[Hg]')),
-  'critical_low',
-  'systolic hypotension stays critical when diastolic is only moderately high'
+select throws_ok(
+  $$select public.record_clinical_observation(
+      'a1000000-0000-4000-8000-000000000301', 'blood_pressure', now(), 85, 100, null, 'mm[Hg]')$$,
+  '22023', null,
+  'a diastolic reading at or above the systolic is refused'
 );
 select is(
   (select o.abnormal_flag from public.clinical_observations o

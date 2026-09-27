@@ -110,9 +110,11 @@ export function classifyMedicationIncident(incident: Pick<MedicationIncidentLike
     || eventKind === "near_miss"
     || eventKind === "adverse_reaction";
   if (!isMedication) return null;
-  if (category) return category;
+  // A near miss or adverse reaction can still name the dose that was almost given.
+  // That category must not turn the event into an actual wrong-dose error.
   if (eventKind === "near_miss") return "near_miss";
   if (eventKind === "adverse_reaction") return "adverse_reaction";
+  if (category) return category;
   return fromType ?? "other";
 }
 

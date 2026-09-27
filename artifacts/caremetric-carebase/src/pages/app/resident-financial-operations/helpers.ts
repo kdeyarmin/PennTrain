@@ -34,8 +34,11 @@ export function parseAncillaryRates(
     const splitAt = item.indexOf(":");
     if (splitAt <= 0) return null;
     const name = item.slice(0, splitAt).trim();
-    const amount = asNumber(item.slice(splitAt + 1));
-    if (!name || amount === null || amount < 0) return null;
+    const amountText = item.slice(splitAt + 1).trim();
+    // A blank after the colon is a missing amount, not the $0 used for an empty rate field.
+    if (!name || !amountText) return null;
+    const amount = asNumber(amountText);
+    if (amount === null || amount < 0) return null;
     rows.push({ name, amount });
   }
   return rows;

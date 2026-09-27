@@ -29,6 +29,10 @@ describe("parseAncillaryRates", () => {
     expect(parseAncillaryRates("Laundry:10abc")).toBeNull();
     expect(parseAncillaryRates("Laundry:abc")).toBeNull();
     expect(parseAncillaryRates("Laundry")).toBeNull();
+    expect(parseAncillaryRates("Laundry:")).toBeNull();
+    expect(parseAncillaryRates("Laundry:   ")).toBeNull();
+    expect(parseAncillaryRates("Laundry:-2")).toBeNull();
+    expect(parseAncillaryRates("Escort:25, Laundry:")).toBeNull();
   });
 });
 
