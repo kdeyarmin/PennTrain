@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(27);
 
 -- Structure + hardened grants -----------------------------------------------------------
 select has_table('public', 'clinical_observations', 'native clinical observations table exists');
@@ -172,17 +172,25 @@ select throws_ok(
   '22023', null,
   'a diastolic reading at or above the systolic is refused'
 );
-select is(
-  (select o.abnormal_flag from public.clinical_observations o
-    where o.id = public.record_clinical_observation(
+-- The row written by the RPC is not visible to the statement that calls it, so the
+-- flag is read back on the next statement, the same way the earlier charting cases do.
+select lives_ok(
+  $$insert into obs_ids(key, id) values
+    ('low_bp', public.record_clinical_observation(
       'a1000000-0000-4000-8000-000000000301', 'blood_pressure', now(), 70, 40, null, 'mm[Hg]')),
+    ('normal_bp', public.record_clinical_observation(
+      'a1000000-0000-4000-8000-000000000301', 'blood_pressure', now(), 120, 80, null, 'mm[Hg]')),
+    ('normal_temp', public.record_clinical_observation(
+      'a1000000-0000-4000-8000-000000000301', 'temperature', now(), 36.8, null, null, 'Cel'))$$,
+  'reachable vital readings are stored'
+);
+select is(
+  (select abnormal_flag from public.clinical_observations where id = (select id from obs_ids where key = 'low_bp')),
   'critical_low',
   'severe hypotension is critical_low, not an ordinary low'
 );
 select is(
-  (select o.abnormal_flag from public.clinical_observations o
-    where o.id = public.record_clinical_observation(
-      'a1000000-0000-4000-8000-000000000301', 'blood_pressure', now(), 120, 80, null, 'mm[Hg]')),
+  (select abnormal_flag from public.clinical_observations where id = (select id from obs_ids where key = 'normal_bp')),
   'normal',
   'a complete 120/80 blood pressure stays normal'
 );
@@ -205,9 +213,7 @@ select throws_ok(
   'a Fahrenheit temperature is refused instead of being flagged as a critical fever'
 );
 select is(
-  (select o.abnormal_flag from public.clinical_observations o
-    where o.id = public.record_clinical_observation(
-      'a1000000-0000-4000-8000-000000000301', 'temperature', now(), 36.8, null, null, 'Cel')),
+  (select abnormal_flag from public.clinical_observations where id = (select id from obs_ids where key = 'normal_temp')),
   'normal',
   'a Celsius temperature in range is normal'
 );
