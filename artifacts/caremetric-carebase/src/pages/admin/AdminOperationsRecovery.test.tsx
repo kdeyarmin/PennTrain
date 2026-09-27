@@ -45,7 +45,7 @@ vi.mock("@/hooks/useEmployees", () => ({ useListEmployees: () => ({ data: [{ id:
 vi.mock("@/components/residents/ResidentDocumentDeletionQueue", () => ({ ResidentDocumentDeletionQueue: "queue" }));
 vi.mock("@/components/residents/ResidentRecordDestructionLog", () => ({ ResidentRecordDestructionLog: "log" }));
 vi.mock("@/hooks/useDocuments", () => ({
-  usePaginatedDocuments: () => ({ data: { rows: ["a", "b", "c"].map(id => ({ id, file_name: id, document_type: "certificate", created_at: "2026-01-01" })), count: 3 } }),
+  usePaginatedDocuments: () => ({ data: { rows: ["a", "b", "c"].map(id => ({ id, file_name: id, document_type: "certificate", created_at: "2026-01-01" })), count: 3 }, isSuccess: true, isError: false, isLoading: false, isFetching: false, isPlaceholderData: false }),
   useUploadDocument: () => ({ mutateAsync: h.uploadDocument }), useDocumentSignedUrl: () => ({}), useDeleteDocument: () => ({ mutateAsync: h.deleteDocument }),
 }));
 vi.mock("@/hooks/useReleaseFlagAdmin", () => ({
@@ -129,6 +129,8 @@ describe("document administration", () => {
     const slow = deferred<void>(); h.deleteDocument.mockReturnValueOnce(slow.promise).mockRejectedValueOnce(new Error("Locked"));
     (checkbox("a").props.onCheckedChange as () => void)(); (checkbox("b").props.onCheckedChange as () => void)();
     const operation = click(render(Documents).find(node => node.props.children === "Delete Selected")!);
+    expect(h.deleteDocument).toHaveBeenCalledTimes(2);
+    expect(h.deleteDocument.mock.calls.map(([document]) => document.id)).toEqual(["a", "b"]);
     (checkbox("c").props.onCheckedChange as () => void)(); slow.resolve(); await operation;
     expect(checkbox("a").props.checked).toBe(false); expect(checkbox("b").props.checked).toBe(true); expect(checkbox("c").props.checked).toBe(true);
   });

@@ -36,8 +36,8 @@ insert into public.work_orders(id,organization_id,facility_id,work_order_number,
 values(pg_temp.id(203),pg_temp.id(1),pg_temp.id(11),'WO-DELETION','Broken fixture','none','routine','open');
 insert into public.incidents(id,organization_id,facility_id,incident_type,occurred_at,narrative)
 values(pg_temp.id(204),pg_temp.id(1),pg_temp.id(11),'significant_injury',now(),'Document deletion fixture');
-insert into public.dhs_violations(id,organization_id,facility_id,inspection_date,description)
-values(pg_temp.id(205),pg_temp.id(1),pg_temp.id(11),public.pa_today(),'Document deletion fixture');
+insert into public.dhs_violations(id,organization_id,facility_id,inspection_date,poc_due_date,description)
+values(pg_temp.id(205),pg_temp.id(1),pg_temp.id(11),public.pa_today(),public.pa_today()+30,'Document deletion fixture');
 insert into public.compliance_requirements(id,organization_id,facility_id,category,title)
 values(pg_temp.id(206),pg_temp.id(1),pg_temp.id(11),'other','Document deletion fixture');
 insert into public.compliance_requirement_instances(id,organization_id,facility_id,requirement_id,due_date,evidence_count)
