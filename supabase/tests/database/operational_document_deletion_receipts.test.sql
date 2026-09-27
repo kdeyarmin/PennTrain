@@ -40,6 +40,8 @@ insert into public.dhs_violations(id,organization_id,facility_id,inspection_date
 values(pg_temp.id(205),pg_temp.id(1),pg_temp.id(11),public.pa_today(),public.pa_today()+30,'Document deletion fixture');
 insert into public.compliance_requirements(id,organization_id,facility_id,category,title)
 values(pg_temp.id(206),pg_temp.id(1),pg_temp.id(11),'other','Document deletion fixture');
+insert into public.compliance_requirements(id,organization_id,category,title,is_template)
+values(pg_temp.id(208),pg_temp.id(1),'other','Module-scoped template',true);
 insert into public.compliance_requirement_instances(id,organization_id,facility_id,requirement_id,due_date,evidence_count)
 values(pg_temp.id(207),pg_temp.id(1),pg_temp.id(11),pg_temp.id(206),public.pa_today(),1);
 
@@ -58,7 +60,8 @@ values(pg_temp.id(304),pg_temp.id(1),pg_temp.id(11),pg_temp.id(204),'incident.pd
 insert into public.violation_documents(id,organization_id,facility_id,violation_id,file_name,storage_path,file_type)
 values(pg_temp.id(305),pg_temp.id(1),pg_temp.id(11),pg_temp.id(205),'violation.pdf',pg_temp.path(305),'application/pdf');
 insert into public.compliance_requirement_documents(id,organization_id,facility_id,requirement_id,instance_id,file_name,storage_path,file_type)
-values(pg_temp.id(306),pg_temp.id(1),pg_temp.id(11),pg_temp.id(206),pg_temp.id(207),'compliance.pdf',pg_temp.path(306),'application/pdf');
+values(pg_temp.id(306),pg_temp.id(1),pg_temp.id(11),pg_temp.id(206),pg_temp.id(207),'compliance.pdf',pg_temp.path(306),'application/pdf'),
+  (pg_temp.id(314),pg_temp.id(1),pg_temp.id(11),pg_temp.id(206),null,'module-gated.pdf',pg_temp.path(314),'application/pdf');
 insert into storage.objects(bucket_id,name)
 select storage_bucket,storage_path from public.training_documents where organization_id=pg_temp.id(1) group by storage_bucket,storage_path
 union all select storage_bucket,storage_path from public.maintenance_documents where organization_id=pg_temp.id(1)
@@ -78,6 +81,8 @@ end;
 $$;
 
 select ok(not has_table_privilege('authenticated','app_private.document_deletions','SELECT'),'receipt storage is private');
+select is((select module_key from app_private.product_module_storage_buckets where bucket_id='compliance-evidence'),'modules.compliance','compliance evidence is classified so entitled cleanup can return its receipt');
+select is((select module_key from app_private.product_module_storage_buckets where bucket_id='learning-packages'),'modules.train','learning packages are classified as Train instead of silently denied');
 select ok(not has_schema_privilege('authenticated','app_private','USAGE'),'authenticated callers retain no private schema name access');
 select is((select count(*)::integer from pg_policy where polname='document_deletion_bucket_access' and not polpermissive
   and polcmd='d' and polroles=array[(select oid from pg_roles where rolname='authenticated')]),5,
@@ -138,14 +143,35 @@ reset role;
 insert into public.organization_entitlement_grants(id,organization_id,feature_key,decision,reason)
 values(pg_temp.id(401),pg_temp.id(1),'modules.train','deny','Deletion regression'),
   (pg_temp.id(402),pg_temp.id(1),'modules.carebase','deny','Deletion regression'),
-  (pg_temp.id(404),pg_temp.id(1),'modules.workforce','deny','Deletion regression');
+  (pg_temp.id(404),pg_temp.id(1),'modules.workforce','deny','Deletion regression'),
+  (pg_temp.id(405),pg_temp.id(1),'modules.compliance','deny','Deletion regression');
 select pg_temp.act_as(101);
 select throws_ok($$select * from public.begin_document_deletion('training',pg_temp.id(307))$$,'P0002',null,'begin honors revoked training access through bound table policies');
 select throws_ok($$select * from public.begin_document_deletion('credential',pg_temp.id(313))$$,'P0002',null,'credential begin enforces its bucket module even though credential metadata is unclassified');
+select throws_ok($$select * from public.begin_document_deletion('training',pg_temp.id(310))$$,'P0002',null,'classified learning package deletion still requires its module');
+select throws_ok($$select * from public.begin_document_deletion('compliance',pg_temp.id(314))$$,'42501',null,'compliance begin rejects the revoked module before mutation');
+select throws_ok($$select public.remove_compliance_evidence(pg_temp.id(314))$$,'42501',null,'direct legacy RPC cannot bypass revoked Compliance and CareBase access');
+select throws_ok($$select public.add_compliance_note(pg_temp.id(206),pg_temp.id(207),'Denied note')$$,'42501',null,'shared manager guard also blocks other Compliance commands after revocation');
+select throws_ok($$select public.set_compliance_requirement_active(pg_temp.id(208),false)$$,'42501',null,'revoked access cannot archive an organization-wide Compliance template');
+select is((select count(*)::integer from public.list_pending_document_deletions('compliance')),0,'revoked compliance module also hides existing cleanup receipts');
 select is((select count(*)::integer from public.list_pending_document_deletions('training')),0,'definer list honors revoked training module');
 select throws_ok($$select public.confirm_document_deletion('training',pg_temp.id(301))$$,'42501',null,'definer confirmation honors revoked training module');
 reset role;
-delete from public.organization_entitlement_grants where id in(pg_temp.id(401),pg_temp.id(402),pg_temp.id(404));
+select is((select count(*)::integer from public.compliance_requirement_documents where id=pg_temp.id(314)),1,'rejected compliance deletion rolls back its metadata write');
+select is((select count(*)::integer from app_private.document_deletions where document_id=pg_temp.id(314)),0,'rejected compliance deletion commits no cleanup receipt');
+select is((select count(*)::integer from public.compliance_requirement_events where requirement_id=pg_temp.id(206) and event_type='evidence_removed'),1,'rejected compliance deletion rolls back the additional removal audit event');
+select is((select count(*)::integer from public.compliance_requirement_events where requirement_id=pg_temp.id(206) and event_type='note_added'),0,'denied note command writes no audit event');
+select is((select is_active from public.compliance_requirements where id=pg_temp.id(208)),true,'denied template command preserves its active state');
+-- Trusted internal service calls use the private guards under a definer owner;
+-- no direct helper/API grant is added for service_role or authenticated.
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+select lives_ok($$select app_private.assert_compliance_manager(pg_temp.id(1),pg_temp.id(11))$$,'existing internal service manager exemption remains intact');
+select lives_ok($$select app_private.assert_compliance_org_admin(pg_temp.id(1))$$,'existing internal service template exemption remains intact');
+select pg_temp.act_as(105);
+select lives_ok($$select public.add_compliance_note(pg_temp.id(206),pg_temp.id(207),'Platform review')$$,'platform manager retains its existing cross-tenant exemption');
+select lives_ok($$select public.set_compliance_requirement_active(pg_temp.id(208),true)$$,'platform template administration retains its existing exemption');
+reset role;
+delete from public.organization_entitlement_grants where id in(pg_temp.id(401),pg_temp.id(402),pg_temp.id(404),pg_temp.id(405));
 insert into app_private.sms_mfa_accounts(profile_id) values(pg_temp.id(101));
 select pg_temp.act_as(101);
 select is((select count(*)::integer from public.list_pending_document_deletions()),0,'required SMS verification gates receipt reads');
@@ -184,6 +210,21 @@ with removed as(delete from storage.objects where name=pg_temp.path(307) returni
 select is(count(*)::integer,1,'last reference removal permits physical cleanup') from removed;
 select is(public.confirm_document_deletion('training',pg_temp.id(307)),true,'first shared receipt can now finish');
 select is(public.confirm_document_deletion('training',pg_temp.id(308)),true,'second shared receipt independently confirms absence');
+select is((select count(*)::integer from public.begin_document_deletion('training',pg_temp.id(310))),1,'entitled org admin can delete a learning-package document');
+with removed as(delete from storage.objects where bucket_id='learning-packages' and name=pg_temp.path(310) returning 1)
+select is(count(*)::integer,1,'learning-package cleanup retains its existing tenant-path permission') from removed;
+select is(public.confirm_document_deletion('training',pg_temp.id(310)),true,'learning-package receipt completes after the real object row is removed');
+with removed as(delete from storage.objects where bucket_id='compliance-evidence' and name=pg_temp.path(306) returning 1)
+select is(count(*)::integer,1,'restored compliance entitlement permits pending evidence cleanup') from removed;
+select is(public.confirm_document_deletion('compliance',pg_temp.id(306)),true,'compliance receipt completes after Storage cleanup');
+select is(public.remove_compliance_evidence(pg_temp.id(314)),true,'direct legacy RPC remains available to an entitled manager');
+select is((select count(*)::integer from public.list_pending_document_deletions('compliance')),1,'direct legacy RPC preserves its durable receipt');
+with removed as(delete from storage.objects where bucket_id='compliance-evidence' and name=pg_temp.path(314) returning 1)
+select is(count(*)::integer,1,'legacy RPC cleanup uses the same authorized Storage path') from removed;
+select is(public.confirm_document_deletion('compliance',pg_temp.id(314)),true,'legacy RPC receipt completes normally');
+select is((select count(*)::integer from public.compliance_requirement_events where requirement_id=pg_temp.id(206) and event_type='evidence_removed'),2,'successful legacy removal retains one audit event per document');
+select lives_ok($$select public.add_compliance_note(pg_temp.id(206),pg_temp.id(207),'Restored access')$$,'restored Compliance access permits ordinary workflow notes');
+select is((public.set_compliance_requirement_active(pg_temp.id(208),false)).is_active,false,'restored Compliance access permits organization-wide template administration');
 
 reset role;
 select ok((select storage_path is null and file_name is null and length(storage_path_sha256)=64 from app_private.document_deletions where document_id=pg_temp.id(301)),'completed receipts redact names and retain only a path hash reservation');

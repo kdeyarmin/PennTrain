@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { createClient } from "@supabase/supabase-js";
+import { zipSync } from "fflate";
 
 test("real local operational Storage preserves referenced evidence and recovers durable cleanup", {
   skip: process.env.CAREMETRIC_LOCAL_OPERATIONAL_DOCUMENT_TESTS !== "true",
@@ -34,11 +35,12 @@ test("real local operational Storage preserves referenced evidence and recovers 
   };
   const organization = randomUUID(), facility = randomUUID(), employee = randomUUID(), credential = randomUUID();
   const trainingType = randomUUID(), trainingRecord = randomUUID();
+  const complianceRequirement = randomUUID(), complianceInstance = randomUUID();
   const uploads = [];
   let actor;
   const bytes = new TextEncoder().encode("%PDF-1.7\nSynthetic operational deletion evidence\n%%EOF");
-  const upload = async (bucket) => {
-    const path = `${organization}/${facility}/${randomUUID()}.pdf`;
+  const upload = async (bucket, parent = null) => {
+    const path = `${organization}/${facility}/${parent ? `${parent}/` : ""}${randomUUID()}.pdf`;
     uploads.push({ bucket, path });
     const result = await caller.storage.from(bucket).upload(path, bytes, { contentType: "application/pdf" });
     assert.equal(result.error, null, `Synthetic ${bucket} upload`);
@@ -80,6 +82,10 @@ test("real local operational Storage preserves referenced evidence and recovers 
         values('${credential}','${organization}','${facility}','${employee}','other','missing');
       insert into public.training_types(id,organization_id,code,name,category)
         values('${trainingType}','${organization}','local-deletion','Synthetic document training','other');
+      insert into public.compliance_requirements(id,organization_id,facility_id,category,title)
+        values('${complianceRequirement}','${organization}','${facility}','other','Synthetic Storage compliance requirement');
+      insert into public.compliance_requirement_instances(id,organization_id,facility_id,requirement_id,due_date)
+        values('${complianceInstance}','${organization}','${facility}','${complianceRequirement}',public.pa_today());
       commit;`);
     const email = `operational-document-${randomUUID()}@fixture.test`, password = randomUUID() + "Aa1!";
     const created = await native.auth.admin.createUser({ email, password, email_confirm: true });
@@ -145,6 +151,43 @@ test("real local operational Storage preserves referenced evidence and recovers 
       assert.equal(await confirm(recovered, "credential", id), true);
     });
 
+    await t.test("compliance evidence uploads, attaches and recovers cleanup without duplicating counts or audit events", async () => {
+      const bucket = "compliance-evidence", path = await upload(bucket, complianceInstance);
+      const document = await rpc(caller, "attach_compliance_evidence", {
+        p_instance_id: complianceInstance, p_storage_path: path, p_file_name: "compliance.pdf",
+        p_file_type: "application/pdf", p_file_size: bytes.length, p_document_label: "Synthetic compliance evidence",
+      });
+      assert.equal(document.instance_id, complianceInstance);
+      assert.equal(document.storage_bucket, bucket);
+      assert.equal(document.storage_path, path);
+      assert.equal(sql(`select evidence_count from public.compliance_requirement_instances where id='${complianceInstance}'`), "1");
+      assert.equal(sql(`select count(*) from public.compliance_requirement_events where instance_id='${complianceInstance}'
+        and event_type='evidence_added' and actor_profile_id='${actor}' and metadata->>'document_id'='${document.id}'`), "1");
+      await assertBytes(caller, bucket, path);
+      const premature = await caller.storage.from(bucket).remove([path]);
+      assert.ok(premature.error || premature.data?.length === 0, "Registered compliance evidence cannot be removed storage-first");
+      await assertBytes(caller, bucket, path);
+
+      const expected = [{ document_kind: "compliance", document_id: document.id, storage_bucket: bucket, storage_path: path }];
+      assert.deepEqual(await begin(caller, "compliance", document.id), expected);
+      assert.equal(sql(`select count(*) from public.compliance_requirement_documents where id='${document.id}'`), "0");
+      assert.equal(sql(`select evidence_count from public.compliance_requirement_instances where id='${complianceInstance}'`), "0");
+      const pending = await rpc(recovered, "list_pending_document_deletions", { p_document_kind: "compliance", p_facility_id: facility });
+      assert.equal(pending.length, 1);
+      assert.deepEqual(pending.map(({ document_kind, document_id, storage_bucket, storage_path }) =>
+        ({ document_kind, document_id, storage_bucket, storage_path })), expected);
+      const repeated = await recovered.rpc("begin_document_deletion", { p_document_kind: "compliance", p_document_id: document.id });
+      assert.equal(repeated.error?.code, "P0002", "An already-removed record must be retried through its pending receipt");
+      assert.equal(sql(`select count(*) from public.compliance_requirement_events where instance_id='${complianceInstance}'
+        and event_type='evidence_removed' and actor_profile_id='${actor}' and metadata->>'storage_path'='${path}'`), "1");
+      await assertBytes(recovered, bucket, path);
+      assert.equal(await confirm(recovered, "compliance", document.id), false);
+      await remove(recovered, bucket, path);
+      assert.equal(await confirm(recovered, "compliance", document.id), true);
+      assert.equal(await confirm(recovered, "compliance", document.id), true);
+      assert.equal(sql(`select evidence_count from public.compliance_requirement_instances where id='${complianceInstance}'`), "0");
+    });
+
     await t.test("shared bytes remain pending after zero-row removal and are retryable after the last reference", async () => {
       const bucket = "external-uploads", path = await upload(bucket);
       const first = await trainingDocument(path), second = await trainingDocument(path);
@@ -159,6 +202,74 @@ test("real local operational Storage preserves referenced evidence and recovers 
       assert.equal(await confirm(recovered, "training", first), true);
       assert.equal(await confirm(recovered, "training", second), true);
     });
+    await t.test("Train-only org-admin package Storage respects tenant and module scope through cleanup recovery", async () => {
+      const bucket = "learning-packages", path = `${organization}/${facility}/${randomUUID()}.zip`;
+      const foreignPath = `${randomUUID()}/${facility}/${randomUUID()}.zip`;
+      const forbiddenPath = `${randomUUID()}/${facility}/${randomUUID()}.zip`;
+      const disabledPath = `${organization}/${facility}/${randomUUID()}.zip`;
+      const trainGrant = randomUUID(), id = randomUUID();
+      const packageBytes = zipSync({ "index.html": new TextEncoder().encode("<html><body>Synthetic learning package</body></html>") });
+      const assertPackageBytes = async (client, objectPath) => {
+        const result = await client.storage.from(bucket).download(objectPath);
+        assert.equal(result.error, null, "Authorized package bytes remain readable");
+        assert.deepEqual(new Uint8Array(await result.data.arrayBuffer()), packageBytes);
+      };
+      // Track every attempted path so an unexpected authorization success still tears down safely.
+      uploads.push(...[path, foreignPath, forbiddenPath, disabledPath].map((objectPath) => ({ bucket, path: objectPath })));
+      sql(`begin;
+        update public.organization_entitlement_grants set decision='deny',entitlement_value=null
+          where organization_id='${organization}' and feature_key='modules.carebase';
+        insert into public.organization_entitlement_grants(id,organization_id,feature_key,decision,entitlement_value,reason)
+          values('${trainGrant}','${organization}','modules.train','grant','true'::jsonb,'Isolated Train-only Storage integration fixture');
+        commit;`);
+      try {
+        assert.equal(sql(`select public.has_effective_entitlement('${organization}','modules.carebase',1,now())`), "f");
+        assert.equal(sql(`select public.has_effective_entitlement('${organization}','modules.train',1,now())`), "t");
+        const uploaded = await caller.storage.from(bucket).upload(path, packageBytes, { contentType: "application/zip" });
+        assert.equal(uploaded.error, null, "Real authenticated Train-only org-admin can upload an owned package");
+        await assertPackageBytes(caller, path);
+
+        assert.equal((await native.storage.from(bucket).upload(foreignPath, packageBytes, { contentType: "application/zip" })).error, null);
+        assert.notEqual((await caller.storage.from(bucket).download(foreignPath)).error, null, "Train does not grant another tenant's package read");
+        assert.notEqual((await caller.storage.from(bucket).upload(forbiddenPath, packageBytes, { contentType: "application/zip" })).error, null,
+          "Train does not grant another tenant's package upload");
+        const foreignRemoval = await caller.storage.from(bucket).remove([foreignPath]);
+        assert.ok(foreignRemoval.error || foreignRemoval.data?.length === 0, "Train does not grant another tenant's package deletion");
+        await assertPackageBytes(native, foreignPath);
+
+        const registered = await caller.from("training_documents").insert({
+          id, organization_id: organization, facility_id: facility, employee_id: employee,
+          storage_bucket: bucket, storage_path: path, file_name: "package.zip", file_type: "application/zip", document_type: "other",
+        }).select("id").single();
+        assert.equal(registered.error, null, "Train-only package evidence metadata is authorized");
+        const premature = await caller.storage.from(bucket).remove([path]);
+        assert.ok(premature.error || premature.data?.length === 0, "Registered package evidence prevents storage-first removal");
+        await assertPackageBytes(caller, path);
+        assert.deepEqual(await begin(caller, "training", id), [{ document_kind: "training", document_id: id, storage_bucket: bucket, storage_path: path }]);
+        assert.equal(sql(`select count(*) from public.training_documents where id='${id}'`), "0");
+        await assertPackageBytes(recovered, path);
+        assert.equal(await confirm(recovered, "training", id), false);
+
+        sql(`update public.organization_entitlement_grants set decision='deny',entitlement_value=null where id='${trainGrant}'`);
+        assert.equal(sql(`select public.has_effective_entitlement('${organization}','modules.train',1,now())`), "f");
+        assert.notEqual((await recovered.storage.from(bucket).download(path)).error, null, "An existing receipt cannot bypass revoked Train access");
+        assert.notEqual((await caller.storage.from(bucket).upload(disabledPath, packageBytes, { contentType: "application/zip" })).error, null,
+          "Revoked Train access blocks new package uploads");
+        const disabledRemoval = await recovered.storage.from(bucket).remove([path]);
+        assert.ok(disabledRemoval.error || disabledRemoval.data?.length === 0, "An existing receipt cannot bypass revoked Train deletion access");
+        await assertPackageBytes(native, path);
+
+        sql(`update public.organization_entitlement_grants set decision='grant',entitlement_value='true'::jsonb where id='${trainGrant}'`);
+        await remove(recovered, bucket, path);
+        assert.equal(await confirm(recovered, "training", id), true, "Restored Train access can finish the same pending package cleanup");
+      } finally {
+        sql(`begin;
+          update public.organization_entitlement_grants set decision='grant',entitlement_value='true'::jsonb
+            where organization_id='${organization}' and feature_key='modules.carebase';
+          delete from public.organization_entitlement_grants where id='${trainGrant}';
+          commit;`);
+      }
+    });
     assert.deepEqual(await rpc(caller, "list_pending_document_deletions", { p_facility_id: facility }), []);
   } finally {
     // Always remove this fixture's remaining references first, then use the Storage API
@@ -167,6 +278,7 @@ test("real local operational Storage preserves referenced evidence and recovers 
       update public.employee_training_records set external_certificate_document_id=null where organization_id='${organization}';
       delete from public.training_documents where organization_id='${organization}';
       delete from public.employee_credential_documents where organization_id='${organization}';
+      delete from public.compliance_requirement_documents where organization_id='${organization}';
       commit;`);
     for (const { bucket, path } of uploads) {
       const result = await native.storage.from(bucket).remove([path]);
