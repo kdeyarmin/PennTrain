@@ -17,20 +17,30 @@ export type ResidentDmeItem = Tables<"resident_dme_items">;
 export type ResidentDmeHistoryRow = Tables<"resident_dme_history">;
 
 const DME_KEY = ["resident-care-delivery", "dme"] as const;
+const DME_PAGE = 500;
 
 export function useResidentDmeItems(facilityId: string | undefined) {
   return useQuery({
     queryKey: [...DME_KEY, "items", facilityId ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("resident_dme_items")
-        .select("*")
-        .eq("facility_id", facilityId!)
-        // Retired equipment is history; the register is for what is still in the building.
-        .not("status", "in", "(returned,disposed)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      // The register is every item still in the building. An unpaged select stops at
+      // PostgREST max-rows and the rest of the equipment disappears with no error.
+      const rows: ResidentDmeItem[] = [];
+      for (let from = 0; ;) {
+        const { data, error } = await supabase
+          .from("resident_dme_items")
+          .select("*")
+          .eq("facility_id", facilityId!)
+          .not("status", "in", "(returned,disposed)")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + DME_PAGE - 1);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < DME_PAGE) break;
+        from += data.length;
+      }
+      return rows;
     },
     enabled: !!facilityId,
   });
@@ -39,24 +49,32 @@ export function useResidentDmeItems(facilityId: string | undefined) {
 /**
  * The most recent `inspected` event per item in this facility.
  *
- * One query for the whole list rather than one per row: the overdue calculation needs the last
- * inspection for every item on screen, and the register is a list, not a detail page.
+ * One read for the whole list rather than one per row. Pages past max-rows: the overdue
+ * label needs every item's latest inspection, and a short page would call the rest never inspected.
  */
 export function useResidentDmeLastInspections(facilityId: string | undefined) {
   return useQuery({
     queryKey: [...DME_KEY, "last-inspections", facilityId ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("resident_dme_history")
-        .select("dme_item_id, occurred_at")
-        .eq("facility_id", facilityId!)
-        .eq("event_type", "inspected")
-        .order("occurred_at", { ascending: false });
-      if (error) throw error;
+      // Newest-first, then the first row per item is its latest inspection. Stopping at
+      // max-rows drops every item whose last inspection is older than that page, and the
+      // register then says "Never inspected" for equipment that has a history row.
       const latest = new Map<string, string>();
-      for (const row of data ?? []) {
-        // Rows arrive newest first, so the first sighting of an item is its latest inspection.
-        if (!latest.has(row.dme_item_id)) latest.set(row.dme_item_id, row.occurred_at);
+      for (let from = 0; ;) {
+        const { data, error } = await supabase
+          .from("resident_dme_history")
+          .select("dme_item_id, occurred_at")
+          .eq("facility_id", facilityId!)
+          .eq("event_type", "inspected")
+          .order("occurred_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + DME_PAGE - 1);
+        if (error) throw error;
+        for (const row of data ?? []) {
+          if (!latest.has(row.dme_item_id)) latest.set(row.dme_item_id, row.occurred_at);
+        }
+        if (!data || data.length < DME_PAGE) break;
+        from += data.length;
       }
       return latest;
     },
