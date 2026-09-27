@@ -254,17 +254,23 @@ test.describe("authenticated role journeys", () => {
             await page.getByLabel("Training Course Provider", { exact: true }).press("Tab");
           });
           await saveField("hundred_hour_course_completed_date", "2026-09-01", async () => {
-            await page.getByLabel("Training Course Completed Date", { exact: true }).fill("2026-09-01");
-            await page.getByLabel("Training Course Completed Date", { exact: true }).press("Tab");
+            const completedDate = page.getByLabel("Training Course Completed Date", { exact: true });
+            await completedDate.fill("2026-09-01");
+            // Tab can move between a native date input's segments without firing onBlur.
+            await completedDate.blur();
+            await expect(completedDate).not.toBeFocused();
           });
           const saved = await admin.from("administrator_profiles").select("hundred_hour_course_provider,hundred_hour_course_completed_date")
             .eq("profile_id", account.id).single();
           expect(saved.error).toBeNull();
           expect(saved.data).toEqual({ hundred_hour_course_provider: "Journey provider", hundred_hour_course_completed_date: "2026-09-01" });
-          await saveField("competency_test_passed", true, () => page.getByRole("checkbox", { name: "Competency test passed", exact: true }).check());
-          await expect(page.getByRole("checkbox", { name: "Competency test passed", exact: true })).toBeChecked();
-          await saveField("competency_test_passed", false, () => page.getByRole("checkbox", { name: "Competency test passed", exact: true }).uncheck());
-          await expect(page.getByRole("checkbox", { name: "Competency test passed", exact: true })).not.toBeChecked();
+          const competencyPassed = page.getByRole("checkbox", { name: "Competency test passed", exact: true });
+          await expect(competencyPassed).not.toBeChecked();
+          // The controlled state changes after the save response, not during the click.
+          await saveField("competency_test_passed", true, () => competencyPassed.click());
+          await expect(competencyPassed).toBeChecked();
+          await saveField("competency_test_passed", false, () => competencyPassed.click());
+          await expect(competencyPassed).not.toBeChecked();
           await saveField("hundred_hour_course_provider", null, async () => {
             await page.getByLabel("Training Course Provider", { exact: true }).fill("");
             await page.getByLabel("Training Course Provider", { exact: true }).press("Tab");

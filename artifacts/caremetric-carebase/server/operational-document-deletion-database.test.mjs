@@ -27,7 +27,8 @@ test("real local operational Storage preserves referenced evidence and recovers 
         return await fetch(input, { ...init, redirect: "error" });
       } finally {
         const elapsed = Math.round(performance.now() - started);
-        if (elapsed >= 1_000) {
+        const cleanupRpc = /^\/rest\/v1\/rpc\/(begin_document_deletion|list_pending_document_deletions|confirm_document_deletion)$/.test(target.pathname);
+        if (elapsed >= 1_000 || cleanupRpc) {
           // Record only the API family/RPC, never headers, query strings or object paths.
           const resource = target.pathname.split("/").slice(1, target.pathname.startsWith("/rest/v1/rpc/") ? 5 : 4).join("/");
           t.diagnostic(`${init?.method ?? (input instanceof Request ? input.method : "GET")} ${resource}: ${elapsed} ms`);
