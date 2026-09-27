@@ -8,7 +8,7 @@ import {
   type FinancialWorkspace,
 } from "@/hooks/useResidentFinancialOperations";
 import { currentFundBalance, fundSettlementBlocker, latestLedgerInstant } from "@/lib/personalFundsStatement";
-import { facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { facilityDateTimeLocalToUtcIso, facilityToday, formatDateForDisplay, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { isCareCalendarDate } from "@/lib/careFormDates";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { asNumber, money, today, useReport } from "./helpers";
+import { asNumber, money, nonNegativeAmounts, today, useReport } from "./helpers";
 import { Choice, Field } from "./primitives";
 
 export function PayeeDialog({
@@ -82,7 +82,10 @@ export function PayeeDialog({
         notes: profile?.notes ?? "",
       });
   }, [open, profile]);
-  const submit = () =>
+  const submit = () => {
+    const thresholdText = form.threshold.trim();
+    const resourceAlertThreshold = thresholdText ? asNumber(thresholdText) : null;
+    if (thresholdText && (resourceAlertThreshold === null || resourceAlertThreshold < 0)) return;
     mutation.mutate(
       {
         residentId,
@@ -92,9 +95,7 @@ export function PayeeDialog({
           benefitSource: form.benefitSource,
           benefitAmount: form.benefitAmount || null,
           personalNeedsAllowance: form.pna || null,
-          resourceAlertThreshold: form.threshold.trim()
-            ? asNumber(form.threshold)
-            : null,
+          resourceAlertThreshold,
           collectiveAccountName: form.bankName,
           collectiveAccountLast4: form.bankLast4,
           interestBearing: form.interestBearing === "true",
@@ -110,6 +111,7 @@ export function PayeeDialog({
       },
       report,
     );
+  };
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
@@ -285,7 +287,7 @@ export function PayeeDialog({
           <Button
             disabled={
               mutation.isPending ||
-              asNumber(form.threshold) < 0 ||
+              !nonNegativeAmounts([form.threshold]) ||
               (!!form.bankLast4 && form.bankLast4.length !== 4)
             }
             onClick={submit}
@@ -371,20 +373,23 @@ export function FundOpenDialog({
           <Button
             disabled={
               mutation.isPending ||
+              !nonNegativeAmounts([form.balance]) ||
               (!form.acknowledged && form.note.trim().length < 5)
             }
-            onClick={() =>
+            onClick={() => {
+              const beginningBalance = asNumber(form.balance);
+              if (beginningBalance === null || beginningBalance < 0) return;
               mutation.mutate(
                 {
                   residentId,
                   openedOn: form.opened,
-                  beginningBalance: asNumber(form.balance),
+                  beginningBalance,
                   residentAcknowledged: form.acknowledged,
                   acknowledgementNote: form.note,
                 },
                 report,
-              )
-            }
+              );
+            }}
           >
             Open account
           </Button>
@@ -437,14 +442,16 @@ export function FundEntryDialog({
             : form.direction,
     });
   const submit = () => {
+    const amount = asNumber(form.amount);
     if (!form.at || Number.isNaN(new Date(form.at).getTime())) return;
+    if (amount === null || amount <= 0) return;
     mutation.mutate(
       {
         residentId,
         entry: {
           transactionKind: form.kind,
           direction: form.direction,
-          amount: asNumber(form.amount),
+          amount,
           purpose: form.purpose,
           transactionAt: facilityDateTimeLocalToUtcIso(form.at),
           staffEmployeeId: form.staff === "none" ? null : form.staff,
@@ -564,7 +571,11 @@ export function FundEntryDialog({
                     { value: "none", label: "Select prior funds transaction" },
                     ...data.fundTransactions.map((item) => ({
                       value: item.id,
-                      label: `${new Date(item.transaction_at).toLocaleDateString()} · ${item.purpose} · ${money(item.amount)}`,
+                      label: `${formatDateForDisplay(item.transaction_at, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                        timeZone: "America/New_York",
+                      })} · ${item.purpose} · ${money(item.amount)}`,
                     })),
                   ]}
                 />
@@ -585,7 +596,8 @@ export function FundEntryDialog({
           <Button
             disabled={
               mutation.isPending ||
-              asNumber(form.amount) <= 0 ||
+              !nonNegativeAmounts([form.amount]) ||
+              asNumber(form.amount) === 0 ||
               !form.at ||
               Number.isNaN(new Date(form.at).getTime()) ||
               form.purpose.trim().length < 3 ||

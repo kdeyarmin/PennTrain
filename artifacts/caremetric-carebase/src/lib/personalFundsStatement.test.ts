@@ -189,6 +189,14 @@ describe("fundSettlementBlocker", () => {
         .toContain("most recent ledger entry");
     });
 
+    it("names that entry in Pennsylvania time, not the browser zone", () => {
+      expect(fundSettlementBlocker({
+        ...valid,
+        latestLedgerAt: "2026-09-26T01:00:00Z",
+        transactionAt: "2026-09-25T12:00:00Z",
+      })).toContain("Sep 25, 2026, 9:00 PM");
+    });
+
     it("leaves the plain day-ahead ceiling in place for an empty ledger", () => {
       expect(fundSettlementBlocker({ ...valid, latestLedgerAt: null, transactionAt: "2026-05-03T12:00:00Z" }))
         .toContain("more than a day ahead");

@@ -24,7 +24,7 @@ import {
   buildInspectionReadinessActions, inspectionReadinessVerdict, trainingReadinessVerdict,
   type ReadinessActionChecklistItem, type ReadinessLevel,
 } from "@/lib/inspectionReadiness";
-import { useListBinderExports } from "@/hooks/useComplianceBinder";
+import { useFacilityHasCoveringBinder } from "@/hooks/useComplianceBinder";
 import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
 import { buildRemediationPlanDraft, remediationPlanToText } from "@/lib/remediationPlan";
 import { useToast } from "@/hooks/use-toast";
@@ -84,7 +84,7 @@ export default function InspectionReadiness() {
     error: breakdownErrorDetail,
     refetch: refetchBreakdown,
   } = useFacilityReadinessBreakdown(activeFacilityId || undefined);
-  const { data: binderExports } = useListBinderExports({ organizationId: user?.organizationId ?? undefined });
+  const { data: hasCoveringBinder } = useFacilityHasCoveringBinder(activeFacilityId || undefined);
   const { data: evidenceCollections } = useListEvidenceCollections({ organizationId: user?.organizationId ?? undefined });
   // The readiness RPC returns the citation reference but not whether anyone ever verified it.
   // Joined here rather than widening the RPC's return signature: the topics list is already a
@@ -444,10 +444,7 @@ export default function InspectionReadiness() {
       <SurveyPrepChecklist
         facilityId={activeFacilityId}
         readinessScore={overall}
-        hasBinder={(binderExports ?? []).some((job) =>
-          job.status === "succeeded"
-          && (!activeFacilityId || (job.facility_ids ?? []).length === 0 || job.facility_ids.includes(activeFacilityId)),
-        )}
+        hasBinder={hasCoveringBinder === true}
         hasEvidenceCollection={(evidenceCollections ?? []).some((collection) =>
           collection.status === "published"
           && (!activeFacilityId || collection.facility_id === activeFacilityId),

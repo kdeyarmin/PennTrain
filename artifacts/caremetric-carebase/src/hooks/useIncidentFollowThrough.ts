@@ -11,6 +11,8 @@ export interface IncidentFollowThroughPayload {
   corrective_actions: CorrectiveActionLike[];
   assessment_review_finalized: boolean;
   support_plan_revised_after_incident: boolean;
+  support_plan_reviewed_no_change: boolean;
+  support_plan_review_rationale: string | null;
 }
 
 export function useIncidentFollowThrough(incidentId: string | undefined) {
@@ -106,6 +108,16 @@ export function useSetIncidentQapiConsideration(incidentId: string | undefined) 
       p_consideration: input.consideration,
       p_qapi_project_id: input.qapiProjectId ?? null,
       p_note: input.note ?? null,
+    }),
+  );
+}
+
+export function useRecordIncidentSupportPlanReview(incidentId: string | undefined) {
+  return useIncidentWrite<{ rationale: string }>(
+    incidentId,
+    (input) => callRpc("record_incident_support_plan_review", {
+      p_incident_id: incidentId,
+      p_rationale: input.rationale,
     }),
   );
 }

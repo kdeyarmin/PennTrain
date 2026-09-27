@@ -216,6 +216,7 @@ export default function ResidentDetail() {
     documented_assistance_level: row.documented_assistance_level,
     service_name: row.service_name,
     at: row.performed_at ?? row.scheduled_start,
+    status: row.status,
   }));
   const needsAttentionCards = careHeader.data
     ? buildResidentNeedsAttention({

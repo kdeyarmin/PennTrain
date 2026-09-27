@@ -50,7 +50,11 @@ export function PersonalFunds({ data }: { data: FinancialWorkspace }) {
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {new Date(item.transaction_at).toLocaleString()} · Balance{" "}
+                  {formatDateForDisplay(item.transaction_at, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                    timeZone: "America/New_York",
+                  })} · Balance{" "}
                   {money(item.balance_after)}
                 </p>
                 <p className="text-xs">

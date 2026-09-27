@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { asNumber, human, money, monthStart, today, useReport } from "./helpers";
+import { asNumber, human, money, monthStart, nonNegativeAmounts, parseAncillaryRates, today, useReport } from "./helpers";
 import { Choice, Field } from "./primitives";
 
 export function RateDialog({
@@ -56,26 +56,36 @@ export function RateDialog({
   useEffect(() => {
     if (open) setForm(emptyForm());
   }, [open]);
-  const submit = () =>
+  const ancillary = parseAncillaryRates(form.ancillary);
+  const ratesValid = nonNegativeAmounts([form.base, form.care, form.room, form.deposit, form.community])
+    && ancillary !== null;
+  const submit = () => {
+    const baseMonthlyCharge = asNumber(form.base);
+    const levelOfCareCharge = asNumber(form.care);
+    const roomRate = asNumber(form.room);
+    const depositAmount = asNumber(form.deposit);
+    const communityFee = asNumber(form.community);
+    const ancillaryServices = parseAncillaryRates(form.ancillary);
+    if (
+      baseMonthlyCharge === null || baseMonthlyCharge < 0
+      || levelOfCareCharge === null || levelOfCareCharge < 0
+      || roomRate === null || roomRate < 0
+      || depositAmount === null || depositAmount < 0
+      || communityFee === null || communityFee < 0
+      || ancillaryServices === null
+    ) return;
     mutation.mutate(
       {
         residentId,
         terms: {
           effectiveFrom: form.effective,
           effectiveThrough: form.through || null,
-          baseMonthlyCharge: asNumber(form.base),
-          levelOfCareCharge: asNumber(form.care),
-          roomRate: asNumber(form.room),
-          depositAmount: asNumber(form.deposit),
-          communityFee: asNumber(form.community),
-          ancillaryServices: form.ancillary
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean)
-            .map((item) => {
-              const [name, amount] = item.split(":");
-              return { name: name.trim(), amount: asNumber(amount) };
-            }),
+          baseMonthlyCharge,
+          levelOfCareCharge,
+          roomRate,
+          depositAmount,
+          communityFee,
+          ancillaryServices,
           prorationMethod: form.proration,
           leaveOfAbsenceTerms: form.leave,
           dischargeRefundTerms: form.refund,
@@ -87,6 +97,7 @@ export function RateDialog({
       },
       report,
     );
+  };
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -229,6 +240,7 @@ export function RateDialog({
             disabled={
               mutation.isPending ||
               !form.effective ||
+              !ratesValid ||
               (data.rates.length > 0 && form.amendment.trim().length < 5)
             }
             onClick={submit}
@@ -289,7 +301,9 @@ export function EntryDialog({
             ? "adjustment"
             : form.category,
     });
-  const submit = () =>
+  const submit = () => {
+    const amount = asNumber(form.amount);
+    if (amount === null || amount <= 0) return;
     mutation.mutate(
       {
         residentId,
@@ -297,7 +311,7 @@ export function EntryDialog({
           transactionKind: form.kind,
           entrySide: form.side,
           category: form.category,
-          amount: asNumber(form.amount),
+          amount,
           effectiveOn: form.effective,
           servicePeriodStart: form.start || null,
           servicePeriodEnd: form.end || null,
@@ -311,6 +325,7 @@ export function EntryDialog({
       },
       report,
     );
+  };
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -450,7 +465,8 @@ export function EntryDialog({
           <Button
             disabled={
               mutation.isPending ||
-              asNumber(form.amount) <= 0 ||
+              !nonNegativeAmounts([form.amount]) ||
+              asNumber(form.amount) === 0 ||
               form.memo.trim().length < 3 ||
               (form.kind === "adjustment" &&
                 (form.target === "none" || form.reason.trim().length < 5))

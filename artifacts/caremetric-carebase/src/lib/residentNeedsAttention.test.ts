@@ -260,6 +260,18 @@ describe("fall clustering", () => {
     expect(cards.find((card) => card.kind === "fall_cluster")?.title).toBe("3 falls in 30 days");
   });
 
+  it("counts filed falls stored as significant injuries", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      incidents: [
+        { id: "i1", incident_type: "significant_injury", pathway_key: "fall", status: "closed", occurred_at: daysAgo(1) },
+        { id: "i2", incident_type: "significant_injury", pathway_key: "fall", status: "closed", occurred_at: daysAgo(8) },
+        { id: "i3", incident_type: "significant_injury", pathway_key: "fall", status: "closed", occurred_at: daysAgo(14) },
+        { id: "i4", incident_type: "significant_injury", pathway_key: "injury", status: "closed", occurred_at: daysAgo(2) },
+      ],
+    }));
+    expect(cards.find((card) => card.kind === "fall_cluster")?.title).toBe("3 falls in 30 days");
+  });
+
   it("counts falls from incidents and condition changes together", () => {
     // Two falls recorded as condition changes plus one as an incident is still three falls.
     const cards = buildResidentNeedsAttention(clean({
@@ -569,6 +581,46 @@ describe("hospital, agreements, contacts, and service delivery", () => {
     }));
     expect(buildResidentNeedsAttention(clean({ serviceExceptions: rows })).map((c) => c.kind))
       .toContain("service_exceptions");
+  });
+
+  it("counts a late as-planned delivery even when a refusal is also in the window", () => {
+    // Late care keeps completed_as_planned on the response and completed_late on the status.
+    // A refusal used to be the only typed row, and the residual card then ignored the snapshot
+    // that was the only place those late services were counted.
+    const late = Array.from({ length: SERVICE_EXCEPTION_THRESHOLD }, (_, i) => ({
+      completion_response: "completed_as_planned",
+      status: "completed_late",
+      documented_assistance_level: null,
+      service_name: `Bath ${i + 1}`,
+      at: daysAgo(i + 1),
+    }));
+    const kinds = buildResidentNeedsAttention(clean({
+      serviceExceptions: [
+        ...late,
+        {
+          completion_response: "resident_refused",
+          status: "resident_refused",
+          documented_assistance_level: null,
+          service_name: "Meal",
+          at: daysAgo(1),
+        },
+      ],
+      serviceExceptionsLast7Days: 0,
+    })).map((card) => card.kind);
+    expect(kinds).toContain("service_exceptions");
+    expect(kinds).not.toContain("repeated_refusals");
+  });
+
+  it("does not treat an on-time planned completion as a service exception", () => {
+    const rows = Array.from({ length: SERVICE_EXCEPTION_THRESHOLD }, (_, i) => ({
+      completion_response: "completed_as_planned",
+      status: "completed",
+      documented_assistance_level: null,
+      service_name: `Bath ${i + 1}`,
+      at: daysAgo(i + 1),
+    }));
+    expect(buildResidentNeedsAttention(clean({ serviceExceptions: rows })).map((c) => c.kind))
+      .not.toContain("service_exceptions");
   });
 
   it("passes care-level review flags through with their own message as evidence", () => {

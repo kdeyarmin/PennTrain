@@ -36,6 +36,7 @@ import {
   OBSERVATION_CONFIG,
   OBSERVATION_ORDER,
   abnormalBadge,
+  formatObservationUnit,
   hasObservationFormValue,
   observationTitle,
   observationValue,
@@ -649,17 +650,22 @@ export default function ResidentClinicalChart() {
             )}
             <div className="space-y-2">
               <Label htmlFor="obs-value">{observationType === "blood_pressure" ? "Systolic" : "Value"}</Label>
-              <Input id="obs-value" inputMode="decimal" value={valueNumeric} onChange={(event) => setValueNumeric(event.target.value)} placeholder={isCustom ? "Optional if using text" : ""} />
+              <Input id="obs-value" inputMode="decimal" value={valueNumeric} onChange={(event) => setValueNumeric(event.target.value)} placeholder={isCustom ? "Optional if using text" : observationType === "temperature" ? "36.8" : ""} />
             </div>
             {config.secondaryLabel ? (
               <div className="space-y-2">
                 <Label htmlFor="obs-secondary">{config.secondaryLabel}</Label>
                 <Input id="obs-secondary" inputMode="decimal" value={valueSecondary} onChange={(event) => setValueSecondary(event.target.value)} />
               </div>
-            ) : (
+            ) : isCustom ? (
               <div className="space-y-2">
                 <Label htmlFor="obs-unit">Unit</Label>
                 <Input id="obs-unit" value={unit} onChange={(event) => setUnit(event.target.value)} />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <span className="text-sm font-medium">Unit</span>
+                <p className="flex h-9 items-center text-sm text-muted-foreground">{formatObservationUnit(unit) || "—"}</p>
               </div>
             )}
             {isCustom && (
@@ -667,6 +673,12 @@ export default function ResidentClinicalChart() {
                 <Label htmlFor="obs-text">Text value</Label>
                 <Input id="obs-text" value={valueText} onChange={(event) => setValueText(event.target.value)} placeholder="Optional narrative value" />
               </div>
+            )}
+            {observationType === "temperature" && (
+              <p className="text-sm text-muted-foreground sm:col-span-2">Use Celsius. 98.6°F is 37.0°C.</p>
+            )}
+            {observationType === "blood_pressure" && (
+              <p className="text-sm text-muted-foreground sm:col-span-2">Enter both systolic and diastolic. A systolic under 90 is flagged critical.</p>
             )}
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="obs-observed-at">Observed at</Label>

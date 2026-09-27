@@ -193,6 +193,16 @@ describe("documented assistance exceeding the plan", () => {
     }));
     expect(conflicts.map((conflict) => conflict.kind)).toContain("documented_assistance_exceeds_plan");
   });
+
+  it("counts a late completion, which is a status rather than a completion response", () => {
+    const conflicts = detectResidentCareConflicts(clean({
+      activePlan: supervisionPlan,
+      serviceExceptions: Array.from({ length: DOCUMENTED_ASSISTANCE_THRESHOLD }, (_, index) => ({
+        status: "completed_late", service_name: "Toileting", at: daysAgo(index + 1),
+      })),
+    }));
+    expect(conflicts.map((conflict) => conflict.kind)).toContain("documented_assistance_exceeds_plan");
+  });
 });
 
 describe("fall risk without intervention", () => {

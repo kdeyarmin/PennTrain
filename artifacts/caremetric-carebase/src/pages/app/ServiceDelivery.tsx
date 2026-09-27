@@ -306,7 +306,9 @@ export default function ServiceDelivery() {
   }), [queue.data, search]);
   const scheduled = filteredTasks.filter(task => task.status === "scheduled").length;
   const completed = filteredTasks.filter(task => ["completed", "completed_late", "completed_by_other"].includes(task.status)).length;
-  const exceptions = filteredTasks.filter(task => ["resident_refused", "resident_unavailable", "not_completed"].includes(task.status)).length;
+  // Late care was delivered, so it stays in Completed. It is also an exception:
+  // the follow-up writer accepts completed_late, and the amber tile was omitting it.
+  const exceptions = filteredTasks.filter(task => isServiceException(task.status)).length;
 
   const closeOutcome = () => {
     outcomeGeneration.current += 1;

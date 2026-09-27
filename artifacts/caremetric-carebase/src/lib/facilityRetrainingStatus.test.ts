@@ -53,6 +53,28 @@ describe("buildFacilityRetrainingStatus", () => {
     expect(status.candidates).toHaveLength(0);
   });
 
+  it("counts a completed practicum once when the missing shell is still there", () => {
+    const shell = {
+      ...practicum("e1", "missing", null),
+      id: "shell",
+      completion_date: null,
+      created_at: "2026-01-01T00:00:00Z",
+    };
+    const completed = {
+      ...practicum("e1", "compliant", "2026-06-01"),
+      id: "done",
+      completion_date: "2026-05-15",
+      created_at: "2026-05-15T00:00:00Z",
+    };
+    for (const rows of [[shell, completed], [completed, shell]]) {
+      const [status] = buildFacilityRetrainingStatus([facility], [employee("e1")], rows);
+      expect(status.compliantCount).toBe(1);
+      expect(status.missingCount).toBe(0);
+      expect(status.overallStatus).toBe("compliant");
+      expect(status.candidates).toHaveLength(0);
+    }
+  });
+
   it("does not treat non-med-admin or inactive staff as missing practicums", () => {
     const [status] = buildFacilityRetrainingStatus(
       [facility],

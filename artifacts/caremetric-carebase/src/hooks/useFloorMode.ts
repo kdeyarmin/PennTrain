@@ -1,8 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Json, Tables } from "@/lib/database.types";
+import { addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
+import { DOCUMENTED_ASSISTANCE_WINDOW_DAYS } from "@/lib/residentCareConflicts";
+import {
+  ASSISTANCE_WINDOW_DAYS, REFUSAL_WINDOW_DAYS, SUPERVISION_WINDOW_DAYS, UNSCHEDULED_WINDOW_DAYS,
+} from "@/lib/residentChangeDetection";
 
 export type UnscheduledService = Tables<"resident_unscheduled_services">;
+
+/** Longest window any caller counts. A shorter fetch would drop the oldest rows those rules need. */
+const SERVICE_EXCEPTION_WINDOW_DAYS = Math.max(
+  ASSISTANCE_WINDOW_DAYS,
+  REFUSAL_WINDOW_DAYS,
+  DOCUMENTED_ASSISTANCE_WINDOW_DAYS,
+);
+const UNSCHEDULED_SERVICE_WINDOW_DAYS = Math.max(UNSCHEDULED_WINDOW_DAYS, SUPERVISION_WINDOW_DAYS);
+const PAGE = 500;
 
 function invalidateFloor(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
@@ -67,19 +81,32 @@ export function useRecordUnscheduledService() {
   });
 }
 
-export function useResidentUnscheduledServices(residentId: string | undefined, limit = 25) {
+export function useResidentUnscheduledServices(residentId: string | undefined) {
   return useQuery({
-    queryKey: ["unscheduled-services", residentId, limit],
+    queryKey: ["unscheduled-services", residentId, UNSCHEDULED_SERVICE_WINDOW_DAYS],
     enabled: !!residentId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("resident_unscheduled_services")
-        .select("*")
-        .eq("resident_id", residentId!)
-        .order("occurred_at", { ascending: false })
-        .limit(limit);
-      if (error) throw error;
-      return data as UnscheduledService[];
+      // Supervision is a subset of these rows. The newest 50 could be toileting and
+      // transfers, and the extra supervision in the same two weeks never reached the count.
+      const since = facilityDayBounds(
+        addFacilityCalendarDays(facilityToday(), -UNSCHEDULED_SERVICE_WINDOW_DAYS),
+      ).from;
+      const rows: UnscheduledService[] = [];
+      for (let from = 0; ;) {
+        const { data, error } = await supabase
+          .from("resident_unscheduled_services")
+          .select("*")
+          .eq("resident_id", residentId!)
+          .gte("occurred_at", since)
+          .order("occurred_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+        from += data.length;
+      }
+      return rows;
     },
   });
 }
@@ -108,28 +135,26 @@ export function useResidentServiceUtilization(residentId: string | undefined, da
 }
 
 /**
- * Documented exceptions for one resident, newest first. Feeds the conflict detector's
- * `documented_assistance_exceeds_plan` rule, which was wired to an empty array until structured
- * exception documentation existed.
+ * Exception documentation inside the detection window, not the newest hundred of all time.
  *
- * Filters server-side on the partial index added with the exception columns: routine completions are
- * excluded, so a resident with a year of clean documentation does not download it all.
+ * Needs attention, change signals, and care conflicts all count these rows over 14 days.
+ * A hard limit of 100 kept the newest notes and dropped the rest, so a week of refusals
+ * could hide the extra-assistance notes that were supposed to raise their own card.
+ *
+ * A delivery that was otherwise as planned is still an exception when it was late: the
+ * writer keeps `completed_as_planned` on the response and puts `completed_late` on the
+ * status. Filtering those responses out dropped every late service, and one refusal in
+ * the same window then hid them from the residual count.
  */
-export function useResidentServiceExceptions(residentId: string | undefined, limit = 100) {
+export function useResidentServiceExceptions(residentId: string | undefined) {
   return useQuery({
-    queryKey: ["resident-service-exceptions", residentId, limit],
+    queryKey: ["resident-service-exceptions", residentId, SERVICE_EXCEPTION_WINDOW_DAYS],
     enabled: !!residentId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("resident_service_task_instances")
-        .select("id, service_name, status, completion_response, documented_assistance_level, performed_at, scheduled_start")
-        .eq("resident_id", residentId!)
-        .not("completion_response", "is", null)
-        .neq("completion_response", "completed_as_planned")
-        .order("performed_at", { ascending: false, nullsFirst: false })
-        .limit(limit);
-      if (error) throw error;
-      return data as {
+      const since = facilityDayBounds(
+        addFacilityCalendarDays(facilityToday(), -SERVICE_EXCEPTION_WINDOW_DAYS),
+      ).from;
+      const rows: {
         id: string;
         service_name: string;
         status: string;
@@ -137,7 +162,23 @@ export function useResidentServiceExceptions(residentId: string | undefined, lim
         documented_assistance_level: string | null;
         performed_at: string | null;
         scheduled_start: string;
-      }[];
+      }[] = [];
+      for (let from = 0; ;) {
+        const { data, error } = await supabase
+          .from("resident_service_task_instances")
+          .select("id, service_name, status, completion_response, documented_assistance_level, performed_at, scheduled_start")
+          .eq("resident_id", residentId!)
+          .or("and(completion_response.not.is.null,completion_response.neq.completed_as_planned),status.eq.completed_late")
+          .gte("performed_at", since)
+          .order("performed_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
+        from += data.length;
+      }
+      return rows;
     },
   });
 }

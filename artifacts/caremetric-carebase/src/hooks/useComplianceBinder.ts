@@ -73,6 +73,57 @@ export function useListBinderExports(filters: { organizationId?: string } = {}) 
   });
 }
 
+const BINDER_PAGE = 200;
+
+/**
+ * Succeeded exports whose facility list is exactly this facility.
+ *
+ * The organization-wide newest-10 list cannot answer this. Ten newer jobs for
+ * other facilities, or a multi-facility packet, used to make Survey Day and
+ * the pin list say this facility had no binder.
+ */
+export function useSingleFacilitySucceededBinders(facilityId: string | undefined) {
+  return useQuery({
+    queryKey: ["binder_export_jobs", "single-facility", facilityId],
+    enabled: !!facilityId,
+    queryFn: async () => {
+      const rows: BinderExportJob[] = [];
+      for (let from = 0; ;) {
+        const { data, error } = await supabase
+          .from("binder_export_jobs")
+          .select("*")
+          .eq("status", "succeeded")
+          // Braced literal: a string[] becomes "uuid" in the query string and matches nothing.
+          .eq("facility_ids", `{${facilityId}}` as unknown as string[])
+          .order("completed_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + BINDER_PAGE - 1);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < BINDER_PAGE) break;
+        from += data.length;
+      }
+      return rows;
+    },
+  });
+}
+
+/** True when any succeeded export covers this facility, including a shared packet. */
+export function useFacilityHasCoveringBinder(facilityId: string | undefined) {
+  return useQuery({
+    queryKey: ["binder_export_jobs", "covering", facilityId ?? "any"],
+    queryFn: async () => {
+      let query = supabase.from("binder_export_jobs").select("id").eq("status", "succeeded").limit(1);
+      if (facilityId) {
+        query = query.or(`facility_ids.eq.{},facility_ids.cs.{${facilityId}}`);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []).length > 0;
+    },
+  });
+}
+
 export interface BinderAppendixSection {
   key: string;
   title: string;

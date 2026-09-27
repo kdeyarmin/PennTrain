@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMedicationSafetySummary, classifyMedicationEvent } from "./medicationSafetyAnalytics";
+import { buildMedicationSafetySummary, classifyMedicationEvent, classifyMedicationIncident } from "./medicationSafetyAnalytics";
 
 describe("medication safety analytics", () => {
   it("classifies medication event types", () => {
@@ -9,6 +9,53 @@ describe("medication safety analytics", () => {
     // The canonical incidents.incident_type value must classify as a
     // medication event (generic subtype), not fall out of the summary.
     expect(classifyMedicationEvent("medication_error")).toBe("other");
+  });
+
+  it("reads the medication subtype from the pathway answers, not the stored incident type", () => {
+    const summary = buildMedicationSafetySummary({
+      today: "2026-07-13",
+      incidents: [
+        {
+          id: "dose",
+          incident_type: "medication_error",
+          pathway_key: "medication_event",
+          pathway_answers: { error_category: "wrong_dose", event_kind: "actual_error" },
+          status: "reported",
+          occurred_at: "2026-07-10",
+          final_report_submitted_at: null,
+        },
+        {
+          id: "omitted",
+          incident_type: "medication_error",
+          pathway_key: "medication_event",
+          pathway_answers: { error_category: "omitted", event_kind: "actual_error" },
+          status: "reported",
+          occurred_at: "2026-07-10",
+          final_report_submitted_at: null,
+        },
+      ],
+      correctiveActions: [],
+    });
+    expect(classifyMedicationIncident({
+      incident_type: "medication_error",
+      pathway_key: "medication_event",
+      pathway_answers: { error_category: "wrong_dose" },
+    })).toBe("wrong_dose");
+    expect(classifyMedicationIncident({
+      incident_type: "medication_error",
+      pathway_key: "medication_event",
+      pathway_answers: { error_category: "wrong_dose", event_kind: "near_miss" },
+    })).toBe("near_miss");
+    expect(classifyMedicationIncident({
+      incident_type: "medication_error",
+      pathway_key: "medication_event",
+      pathway_answers: { error_category: "wrong_dose", event_kind: "adverse_reaction" },
+    })).toBe("adverse_reaction");
+    expect(summary.byType.wrong_dose).toBe(1);
+    expect(summary.byType.omission).toBe(1);
+    expect(summary.byType.other).toBe(0);
+    expect(summary.events.find((event) => event.incidentId === "dose")?.retrainingRecommended).toBe(true);
+    expect(summary.events.find((event) => event.incidentId === "omitted")?.retrainingRecommended).toBe(false);
   });
 
   it("counts canonical medication_error incidents in the summary", () => {
