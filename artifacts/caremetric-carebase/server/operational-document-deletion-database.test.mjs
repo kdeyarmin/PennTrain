@@ -19,10 +19,20 @@ test("real local operational Storage preserves referenced evidence and recovers 
   assert.ok(anonKey, "Local tests require the exported anonymous key");
   const options = {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { fetch: (input, init) => {
+    global: { fetch: async (input, init) => {
       const target = new URL(input instanceof Request ? input.url : input);
       assert.equal(target.origin, url.origin, "Synthetic fixture cannot contact external services");
-      return fetch(input, { ...init, redirect: "error" });
+      const started = performance.now();
+      try {
+        return await fetch(input, { ...init, redirect: "error" });
+      } finally {
+        const elapsed = Math.round(performance.now() - started);
+        if (elapsed >= 1_000) {
+          // Record only the API family/RPC, never headers, query strings or object paths.
+          const resource = target.pathname.split("/").slice(1, target.pathname.startsWith("/rest/v1/rpc/") ? 5 : 4).join("/");
+          t.diagnostic(`${init?.method ?? (input instanceof Request ? input.method : "GET")} ${resource}: ${elapsed} ms`);
+        }
+      }
     } },
   };
   const native = createClient(url.origin, serviceKey, options);
