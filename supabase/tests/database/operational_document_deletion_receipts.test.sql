@@ -51,7 +51,8 @@ from unnest(array[301,307,308,309,310,311]) i;
 insert into public.maintenance_documents(id,organization_id,facility_id,work_order_id,document_type,file_name,storage_path,file_type)
 values(pg_temp.id(302),pg_temp.id(1),pg_temp.id(11),pg_temp.id(203),'after_photo','maintenance.pdf',pg_temp.path(302),'application/pdf');
 insert into public.employee_credential_documents(id,organization_id,facility_id,employee_id,credential_id,file_name,storage_path,file_type)
-values(pg_temp.id(303),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),pg_temp.id(202),'credential.pdf',pg_temp.path(303),'application/pdf');
+values(pg_temp.id(303),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),pg_temp.id(202),'credential.pdf',pg_temp.path(303),'application/pdf'),
+  (pg_temp.id(313),pg_temp.id(1),pg_temp.id(11),pg_temp.id(201),pg_temp.id(202),'module-gated.pdf',pg_temp.path(313),'application/pdf');
 insert into public.incident_documents(id,organization_id,facility_id,incident_id,file_name,storage_path,file_type)
 values(pg_temp.id(304),pg_temp.id(1),pg_temp.id(11),pg_temp.id(204),'incident.pdf',pg_temp.path(304),'application/pdf');
 insert into public.violation_documents(id,organization_id,facility_id,violation_id,file_name,storage_path,file_type)
@@ -77,21 +78,31 @@ end;
 $$;
 
 select ok(not has_table_privilege('authenticated','app_private.document_deletions','SELECT'),'receipt storage is private');
+select ok(not has_schema_privilege('authenticated','app_private','USAGE'),'authenticated callers retain no private schema name access');
+select is((select count(*)::integer from pg_policy where polname='document_deletion_bucket_access' and not polpermissive
+  and polcmd='d' and polroles=array[(select oid from pg_roles where rolname='authenticated')]),5,
+  'all five direct DELETE branches have restrictive authenticated-only bucket policies');
 select ok(not has_function_privilege('anon','public.begin_document_deletion(text,uuid)','EXECUTE'),'anonymous users cannot start deletion');
 select ok(not has_function_privilege('anon','public.list_pending_document_deletions(text,uuid)','EXECUTE'),'anonymous users cannot list receipts');
 select ok(not has_function_privilege('anon','public.confirm_document_deletion(text,uuid)','EXECUTE'),'anonymous users cannot confirm');
 select ok(not (select prosecdef from pg_proc where oid='public.begin_document_deletion(text,uuid)'::regprocedure),'ordinary table DELETE keeps invoker RLS');
 select pg_temp.act_as(101);
+select throws_ok($$select app_private.has_product_module_for_bucket('external-uploads')$$,'42501',null,
+  'the caller cannot resolve the private helper directly, while subsequent real DELETE calls use its bound policy');
 with removed as(delete from storage.objects where bucket_id='external-uploads' and name=pg_temp.path(301) returning 1)
 select is(count(*)::integer,0,'old storage-first clients cannot remove a registered document') from removed;
 select throws_ok($$select * from public.begin_document_deletion('training',pg_temp.id(311))$$,'23503',null,'retention FK rejects deletion before bytes can be touched');
 select is((select count(*)::integer from public.list_pending_document_deletions()),0,'rejected metadata delete leaves no receipt');
 select is((select count(*)::integer from storage.objects where name=pg_temp.path(311)),1,'retained document bytes remain present');
 select throws_ok($$select * from public.begin_document_deletion('training',pg_temp.id(309))$$,'P0002',null,'course bucket remains platform-delete only');
+with removed as(delete from public.training_documents where id=pg_temp.id(309) returning 1)
+select is(count(*)::integer,0,'direct metadata DELETE cannot bypass the course bucket restriction') from removed;
 select throws_ok($$select * from public.begin_document_deletion('unknown',pg_temp.id(301))$$,'22023',null,'unsupported document kind cannot select an arbitrary table');
 
 select pg_temp.act_as(103);
 select throws_ok($$select * from public.begin_document_deletion('training',pg_temp.id(310))$$,'P0002',null,'learning package deletion does not broaden to facility managers');
+with removed as(delete from public.training_documents where id=pg_temp.id(310) returning 1)
+select is(count(*)::integer,0,'direct metadata DELETE cannot bypass the learning-package manager restriction') from removed;
 select throws_ok($$select * from public.begin_document_deletion('credential',pg_temp.id(303))$$,'P0002',null,'credential deletion remains org-admin only');
 select throws_ok($$select * from public.begin_document_deletion('incident',pg_temp.id(304))$$,'P0002',null,'incident deletion remains org-admin only');
 select throws_ok($$select * from public.begin_document_deletion('violation',pg_temp.id(305))$$,'P0002',null,'violation deletion remains org-admin only');
@@ -126,12 +137,15 @@ select is((select count(*)::integer from public.list_pending_document_deletions(
 reset role;
 insert into public.organization_entitlement_grants(id,organization_id,feature_key,decision,reason)
 values(pg_temp.id(401),pg_temp.id(1),'modules.train','deny','Deletion regression'),
-  (pg_temp.id(402),pg_temp.id(1),'modules.carebase','deny','Deletion regression');
+  (pg_temp.id(402),pg_temp.id(1),'modules.carebase','deny','Deletion regression'),
+  (pg_temp.id(404),pg_temp.id(1),'modules.workforce','deny','Deletion regression');
 select pg_temp.act_as(101);
+select throws_ok($$select * from public.begin_document_deletion('training',pg_temp.id(307))$$,'P0002',null,'begin honors revoked training access through bound table policies');
+select throws_ok($$select * from public.begin_document_deletion('credential',pg_temp.id(313))$$,'P0002',null,'credential begin enforces its bucket module even though credential metadata is unclassified');
 select is((select count(*)::integer from public.list_pending_document_deletions('training')),0,'definer list honors revoked training module');
 select throws_ok($$select public.confirm_document_deletion('training',pg_temp.id(301))$$,'42501',null,'definer confirmation honors revoked training module');
 reset role;
-delete from public.organization_entitlement_grants where id in(pg_temp.id(401),pg_temp.id(402));
+delete from public.organization_entitlement_grants where id in(pg_temp.id(401),pg_temp.id(402),pg_temp.id(404));
 insert into app_private.sms_mfa_accounts(profile_id) values(pg_temp.id(101));
 select pg_temp.act_as(101);
 select is((select count(*)::integer from public.list_pending_document_deletions()),0,'required SMS verification gates receipt reads');
