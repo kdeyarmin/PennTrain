@@ -49,7 +49,7 @@ vi.mock("@/hooks/useDocuments", () => ({
   useUploadDocument: () => ({ mutateAsync: h.uploadDocument }), useDocumentSignedUrl: () => ({}), useDeleteDocument: () => ({ mutateAsync: h.deleteDocument }),
 }));
 vi.mock("@/hooks/useReleaseFlagAdmin", () => ({
-  useReleaseCohorts: () => ({ data: [{ id: "cohort", name: "Pilot", is_active: true }] }),
+  useReleaseCohorts: () => ({ data: [{ id: "cohort", name: "Pilot", is_active: true }, { id: "cohort-b", name: "Second cohort", is_active: true }] }),
   useOrganizationCohortMemberships: () => ({ data: ["a", "b"].map(id => ({ id, organization_id: `org-${id}`, cohort_id: "cohort", feature_key: "feature" })) }),
   useAssignOrganizationCohort: () => ({ mutate: h.assignCohort }), useUnassignOrganizationCohort: () => ({ mutate: h.removeCohort }),
 }));
@@ -148,6 +148,64 @@ describe("document administration", () => {
   });
 });
 describe("release cohort actions", () => {
+  const Page = ReleaseCohortMembershipCard;
+  const pickCohort = (value: string) => (render(Page).find(node => node.props.onValueChange)!.props.onValueChange as (value: string) => void)(value);
+  const assignButton = () => render(Page).find(node => node.props.children === "Add to cohort")!;
+  const reasonValue = () => render(Page).find(node => node.props.id === "cohort-reason")!.props.value;
+  const prepareAssignment = () => {
+    change(Page, "cohort-org", "org-a"); pickCohort("cohort");
+    change(Page, "cohort-feature", "feature"); change(Page, "cohort-reason", "Approved for evaluation");
+    click(assignButton());
+    return h.assignCohort.mock.calls.at(-1)![1];
+  };
+  it("clears only the submitted reason after success and requires a new reason for another assignment", () => {
+    const pending = prepareAssignment();
+    expect(h.assignCohort.mock.calls[0][0]).toMatchObject({ organizationId: "org-a", reason: "Approved for evaluation" });
+    pending.onSuccess();
+    expect(reasonValue()).toBe("");
+    expect(assignButton().props.disabled).toBe(true);
+    click(assignButton()); expect(h.assignCohort).toHaveBeenCalledTimes(1);
+    change(Page, "cohort-reason", "New rollout approval"); click(assignButton());
+    expect(h.assignCohort.mock.calls[1][0]).toMatchObject({ organizationId: "org-a", cohortId: "cohort", featureKey: "feature", reason: "New rollout approval" });
+  });
+  it("preserves a newer reason when the preceding assignment succeeds", () => {
+    const pending = prepareAssignment();
+    change(Page, "cohort-reason", "Reason for the next assignment"); pending.onSuccess();
+    expect(reasonValue()).toBe("Reason for the next assignment");
+    click(assignButton());
+    expect(h.assignCohort.mock.calls[1][0].reason).toBe("Reason for the next assignment");
+  });
+  it.each([
+    ["organization", "cohort-org", "org-b"],
+    ["cohort", "cohort-pick", "cohort-b"],
+    ["feature", "cohort-feature", "feature-b"],
+    ["expiration", "cohort-expiry", "2027-01-01"],
+  ])("preserves the replacement %s draft after an earlier assignment succeeds", (_name, id, value) => {
+    const pending = prepareAssignment();
+    if (id === "cohort-pick") pickCohort(value); else change(Page, id, value);
+    pending.onSuccess();
+    expect(reasonValue()).toBe("Approved for evaluation");
+    if (id === "cohort-pick") expect(render(Page).find(node => node.props.onValueChange)!.props.value).toBe(value);
+    else expect(render(Page).find(node => node.props.id === id)!.props.value).toBe(value);
+  });
+  it.each(["organization", "reason"])("does not revive an old completion after the %s is changed and restored", field => {
+    const pending = prepareAssignment();
+    const id = field === "organization" ? "cohort-org" : "cohort-reason";
+    const original = field === "organization" ? "org-a" : "Approved for evaluation";
+    change(Page, id, "Replacement draft"); change(Page, id, original);
+    pending.onSuccess();
+    expect(reasonValue()).toBe("Approved for evaluation");
+  });
+  it.each([false, true])("preserves the reason on failure and supports retry (edited: %s)", edited => {
+    const pending = prepareAssignment();
+    if (edited) change(Page, "cohort-reason", "Revised assignment reason");
+    pending.onError(new Error("Assignment denied"));
+    const expected = edited ? "Revised assignment reason" : "Approved for evaluation";
+    expect(reasonValue()).toBe(expected);
+    expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Assignment blocked" }));
+    click(assignButton()); expect(h.assignCohort.mock.calls[1][0].reason).toBe(expected);
+    h.assignCohort.mock.calls[1][1].onSuccess(); expect(reasonValue()).toBe("");
+  });
   it("reports unsupported dates instead of throwing outside the assignment handler", () => {
     const Page = ReleaseCohortMembershipCard;
     change(Page, "cohort-org", "org-a"); change(Page, "cohort-feature", "feature"); change(Page, "cohort-reason", "Approved for evaluation"); change(Page, "cohort-expiry", "10000-01-01");

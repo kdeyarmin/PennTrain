@@ -1,5 +1,5 @@
 begin;
-select plan(39);
+select plan(41);
 
 create function pg_temp.id(n integer) returns uuid language sql immutable as $$
   select ('e9271740-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid;
@@ -178,14 +178,22 @@ select is((select count(*)::integer from public.enterprise_access_grants),2,
 reset role;
 update public.enterprise_regions set status='active' where id=(
   select region_id from public.enterprise_scope_memberships where id=pg_temp.id(303));
-select set_config('request.jwt.claims','{"role":"service_role"}',true);
+-- The column guard intentionally ignores a subjectless service-role JWT.
+-- Use the real AAL2 platform fixture, then verify setup before testing denial.
+select pg_temp.act_as(pg_temp.id(101));
 update public.organizations set subscription_status='suspended' where id=pg_temp.id(1);
+reset role;
+select is((select subscription_status from public.organizations where id=pg_temp.id(1)),'suspended',
+  'the authorized setup persists the suspended caller subscription');
 select pg_temp.act_as(pg_temp.id(105));
 select is((select count(*)::integer from public.enterprise_access_grants),0,
   'a suspended caller cannot read grants through the module gate or foreign-region delegation');
 reset role;
-select set_config('request.jwt.claims','{"role":"service_role"}',true);
+select pg_temp.act_as(pg_temp.id(101));
 update public.organizations set subscription_status='active' where id=pg_temp.id(1);
+reset role;
+select is((select subscription_status from public.organizations where id=pg_temp.id(1)),'active',
+  'the authorized restoration persists the active caller subscription');
 select set_config('app.privileged_write','on',true);
 update public.profiles set is_active=false where id=pg_temp.id(105);
 select set_config('app.privileged_write','',true);
