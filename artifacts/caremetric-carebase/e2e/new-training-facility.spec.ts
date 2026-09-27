@@ -210,7 +210,7 @@ test.describe("new training facility administrator", () => {
       await expect(reportRow).toContainText(fixture.facility.name);
       await expect(reportRow).toContainText("0%");
       await expect(reportRow).toContainText("Not issued");
-      await expect(report.getByText("0 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
+      await expect(report.getByText("0 completed / 1 non-canceled enrollment", { exact: false })).toBeVisible();
       await page.getByRole("tab", { name: "Dashboard", exact: true }).click();
     });
 
@@ -447,7 +447,7 @@ test.describe("new training facility administrator", () => {
       const reportRow = report.getByRole("row").filter({ hasText: fixture.courseTitle });
       await expect(reportRow).toContainText("100%");
       await expect(reportRow.getByRole("button", { name: "Open certificate", exact: true })).toBeVisible();
-      await expect(report.getByText("1 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
+      await expect(report.getByText("1 completed / 1 non-canceled enrollment", { exact: false })).toBeVisible();
       const csvDownload = page.waitForEvent("download");
       await report.getByRole("button", { name: "Export all matching enrollments (CSV)", exact: true }).click();
       const csv = await csvDownload;
