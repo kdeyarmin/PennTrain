@@ -583,6 +583,46 @@ describe("hospital, agreements, contacts, and service delivery", () => {
       .toContain("service_exceptions");
   });
 
+  it("counts a late as-planned delivery even when a refusal is also in the window", () => {
+    // Late care keeps completed_as_planned on the response and completed_late on the status.
+    // A refusal used to be the only typed row, and the residual card then ignored the snapshot
+    // that was the only place those late services were counted.
+    const late = Array.from({ length: SERVICE_EXCEPTION_THRESHOLD }, (_, i) => ({
+      completion_response: "completed_as_planned",
+      status: "completed_late",
+      documented_assistance_level: null,
+      service_name: `Bath ${i + 1}`,
+      at: daysAgo(i + 1),
+    }));
+    const kinds = buildResidentNeedsAttention(clean({
+      serviceExceptions: [
+        ...late,
+        {
+          completion_response: "resident_refused",
+          status: "resident_refused",
+          documented_assistance_level: null,
+          service_name: "Meal",
+          at: daysAgo(1),
+        },
+      ],
+      serviceExceptionsLast7Days: 0,
+    })).map((card) => card.kind);
+    expect(kinds).toContain("service_exceptions");
+    expect(kinds).not.toContain("repeated_refusals");
+  });
+
+  it("does not treat an on-time planned completion as a service exception", () => {
+    const rows = Array.from({ length: SERVICE_EXCEPTION_THRESHOLD }, (_, i) => ({
+      completion_response: "completed_as_planned",
+      status: "completed",
+      documented_assistance_level: null,
+      service_name: `Bath ${i + 1}`,
+      at: daysAgo(i + 1),
+    }));
+    expect(buildResidentNeedsAttention(clean({ serviceExceptions: rows })).map((c) => c.kind))
+      .not.toContain("service_exceptions");
+  });
+
   it("passes care-level review flags through with their own message as evidence", () => {
     const cards = buildResidentNeedsAttention(clean({
       careLevelFlags: [{ kind: "stale_assessment", message: "Assessment is 400 days old." }],

@@ -140,6 +140,11 @@ export function useResidentServiceUtilization(residentId: string | undefined, da
  * Needs attention, change signals, and care conflicts all count these rows over 14 days.
  * A hard limit of 100 kept the newest notes and dropped the rest, so a week of refusals
  * could hide the extra-assistance notes that were supposed to raise their own card.
+ *
+ * A delivery that was otherwise as planned is still an exception when it was late: the
+ * writer keeps `completed_as_planned` on the response and puts `completed_late` on the
+ * status. Filtering those responses out dropped every late service, and one refusal in
+ * the same window then hid them from the residual count.
  */
 export function useResidentServiceExceptions(residentId: string | undefined) {
   return useQuery({
@@ -163,8 +168,7 @@ export function useResidentServiceExceptions(residentId: string | undefined) {
           .from("resident_service_task_instances")
           .select("id, service_name, status, completion_response, documented_assistance_level, performed_at, scheduled_start")
           .eq("resident_id", residentId!)
-          .not("completion_response", "is", null)
-          .neq("completion_response", "completed_as_planned")
+          .or("and(completion_response.not.is.null,completion_response.neq.completed_as_planned),status.eq.completed_late")
           .gte("performed_at", since)
           .order("performed_at", { ascending: false })
           .order("id", { ascending: false })

@@ -170,6 +170,15 @@ const TYPED_ASSISTANCE_OR_REFUSAL = new Set([
   "resident_refused",
 ]);
 
+/** Residual exceptions: missed, unavailable, partial, or late — not the typed cards above. */
+function countsAsOtherServiceException(entry: DetectionServiceException): boolean {
+  const response = entry.completion_response ?? "";
+  if (TYPED_ASSISTANCE_OR_REFUSAL.has(response)) return false;
+  // Planned care is not an exception unless the task was late. Lateness is a status.
+  if (response === "completed_as_planned" && entry.status !== "completed_late") return false;
+  return true;
+}
+
 // The assessment-family item types, plus BOTH medical-evaluation cycles, which were missing, so an overdue or missing DME (55 Pa. Code
 // 2600.141 / 2800.141) raised no Needs Attention card at all: the one obligation whose absence a
 // surveyor reads as "care decisions rest on nothing" was the one the card could not see.
@@ -633,7 +642,7 @@ export function buildResidentNeedsAttention(input: NeedsAttentionInput): NeedsAt
   // count so refusals are not double-flagged.
   const otherExceptionCount = typedExceptions.length > 0
     ? typedExceptions.filter((entry) =>
-      !TYPED_ASSISTANCE_OR_REFUSAL.has(entry.completion_response ?? "")
+      countsAsOtherServiceException(entry)
       && withinWindow(entry.at, now, SERVICE_EXCEPTION_WINDOW_DAYS)).length
     : input.serviceExceptionsLast7Days;
   if (otherExceptionCount >= SERVICE_EXCEPTION_THRESHOLD) {
