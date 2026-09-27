@@ -46,6 +46,13 @@ const DRAFT_STORE = "service-drafts";
 const OBSERVATION_DRAFT_STORE = "observation-drafts";
 
 export interface OfflineFloorIdentity { organizationId: string; profileId: string; role: string }
+export interface OfflineFloorFacilityScope {
+  facilityIds: readonly string[];
+  /** False once the authenticated identity or confirmed scope has been replaced. */
+  isCurrent: () => boolean;
+  /** Native observation drafts predate facility IDs; unknown access preserves the record. */
+  canReadResident?: (residentId: string, timeoutMs?: number) => Promise<boolean | null>;
+}
 export interface OfflineFloorDeviceMetadata extends OfflineFloorIdentity {
   deviceId?: string;
   publicMarker: string;
@@ -398,18 +405,53 @@ async function readDraftsIndependently<T>(
  */
 export async function readAllServiceDraftsWithFailures(
   identity: OfflineFloorIdentity,
+  scope?: OfflineFloorFacilityScope,
 ): Promise<{ drafts: OfflineFloorDraft[]; unreadableIds: string[] }> {
   const entries = await listServiceDraftEntries();
-  return readDraftsIndependently(
+  const result = await readDraftsIndependently(
     entries.map((entry) => entry.draftId),
     (draftId) => readServiceDraft(draftId, identity),
     "offline-service-drafts",
   );
+  return { ...result, drafts: await reconcileDraftFacilities(result.drafts, DRAFT_STORE, scope) };
 }
 
 /** The drafts alone, for the sync paths, which can only act on records they can read. */
-export async function readAllServiceDrafts(identity: OfflineFloorIdentity): Promise<OfflineFloorDraft[]> {
-  return (await readAllServiceDraftsWithFailures(identity)).drafts;
+export async function readAllServiceDrafts(identity: OfflineFloorIdentity, scope?: OfflineFloorFacilityScope): Promise<OfflineFloorDraft[]> {
+  return (await readAllServiceDraftsWithFailures(identity, scope)).drafts;
+}
+
+/** Revalidate persisted drafts on first resolved scope too, including after an app restart. */
+async function reconcileDraftFacilities<T extends { draftId: string; facilityId: string }>(
+  drafts: T[], store: string, scope?: OfflineFloorFacilityScope,
+): Promise<T[]> {
+  if (!scope) return drafts; // offline/unknown scope must preserve unsubmitted care documentation
+  const allowed = new Set(scope.facilityIds);
+  return removeExcludedDrafts(drafts, drafts.filter(draft => !allowed.has(draft.facilityId)), store, scope);
+}
+
+async function removeExcludedDrafts<T extends { draftId: string }>(
+  drafts: T[], excluded: T[], store: string, scope: OfflineFloorFacilityScope,
+): Promise<T[]> {
+  const assertCurrent = () => {
+    if (!scope.isCurrent()) throw new DOMException("Offline draft authorization changed", "AbortError");
+  };
+  assertCurrent();
+  if (excluded.length) {
+    const db = await openDatabase();
+    // No await between this final generation check and queuing the deletions. A delayed read of
+    // [A] must not delete B after scope has expanded to [A,B] or another account took over.
+    assertCurrent();
+    const transaction = db.transaction(store, "readwrite");
+    for (const draft of excluded) transaction.objectStore(store).delete(draft.draftId);
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = transaction.onabort = () => reject(transaction.error ?? new Error("Offline draft scope reconciliation failed"));
+    });
+  }
+  assertCurrent();
+  const excludedIds = new Set(excluded.map(draft => draft.draftId));
+  return drafts.filter(draft => !excludedIds.has(draft.draftId));
 }
 
 export async function updateServiceDraft(
@@ -611,17 +653,30 @@ export async function readObservationDraft(
 /** Same per-record isolation as readAllServiceDrafts -- see the comment there. */
 export async function readAllObservationDraftsWithFailures(
   identity: OfflineFloorIdentity,
+  scope?: OfflineFloorFacilityScope,
 ): Promise<{ drafts: OfflineObservationDraft[]; unreadableIds: string[] }> {
   const entries = await listObservationDraftEntries();
-  return readDraftsIndependently(
+  const result = await readDraftsIndependently(
     entries.map((entry) => entry.draftId),
     (draftId) => readObservationDraft(draftId, identity),
     "offline-observation-drafts",
   );
+  if (!scope?.canReadResident || result.drafts.length === 0) return result;
+  if (!scope.isCurrent()) throw new DOMException("Offline draft authorization changed", "AbortError");
+  const access = new Map<string, boolean | null>();
+  // One bounded wait for the entire review, not a fresh timeout for every retained resident.
+  const authorizationDeadline = Date.now() + 5_000;
+  for (const residentId of new Set(result.drafts.map(draft => draft.residentId))) {
+    const remainingMs = Math.max(0, authorizationDeadline - Date.now());
+    access.set(residentId, remainingMs > 0 ? await scope.canReadResident(residentId, remainingMs) : null);
+    if (!scope.isCurrent()) throw new DOMException("Offline draft authorization changed", "AbortError");
+  }
+  return { ...result, drafts: await removeExcludedDrafts(result.drafts,
+    result.drafts.filter(draft => access.get(draft.residentId) === false), OBSERVATION_DRAFT_STORE, scope) };
 }
 
-export async function readAllObservationDrafts(identity: OfflineFloorIdentity): Promise<OfflineObservationDraft[]> {
-  return (await readAllObservationDraftsWithFailures(identity)).drafts;
+export async function readAllObservationDrafts(identity: OfflineFloorIdentity, scope?: OfflineFloorFacilityScope): Promise<OfflineObservationDraft[]> {
+  return (await readAllObservationDraftsWithFailures(identity, scope)).drafts;
 }
 
 export async function updateObservationDraft(

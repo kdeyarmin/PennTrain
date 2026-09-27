@@ -17,6 +17,7 @@ vi.mock("react", async original => ({
     return [h.state[i], (value: unknown) => { h.state[i] = typeof value === "function" ? value(h.state[i]) : value; }];
   },
   useRef: (initial: unknown) => { const i = h.refCursor++; return h.refs[i] ?? (h.refs[i] = { current: initial }); },
+  useMemo: (factory: () => unknown) => factory(),
   useEffect: (effect: () => void | (() => void)) => { h.effects.push(effect); },
 }));
 vi.mock("@tanstack/react-query", () => ({
@@ -54,7 +55,7 @@ describe("AuthProvider session lifecycle", () => {
   const original = { access_token: "session-a", user: { id: "account-a" } };
   function render() {
     h.cursor = 0; h.refCursor = 0; h.effects = [];
-    return AuthProvider({ children: null }) as ReactElement<{ value: { user: { id: string } | null; isLoading: boolean; isAuthenticated: boolean } }>;
+    return AuthProvider({ children: null }) as ReactElement<{ value: { user: { id: string } | null; isLoading: boolean; isAuthenticated: boolean; offlineFacilityScope?: import("./offlineServiceDraftCache").OfflineFloorFacilityScope } }>;
   }
   async function mount() { render(); cleanup = h.effects[0](); await Promise.resolve(); }
   beforeEach(async () => {
@@ -188,7 +189,7 @@ describe("AuthProvider session lifecycle", () => {
     h.scope = ["home"]; compareScope();
     expect(h.clear).toHaveBeenCalledOnce();
     const { wipeOfflineServiceDrafts } = await import("./offlineServiceDraftCache");
-    expect(wipeOfflineServiceDrafts).toHaveBeenCalledOnce();
+    expect(wipeOfflineServiceDrafts).not.toHaveBeenCalled(); // scope-only changes reconcile per draft
   });
   it.each([null, undefined])("preserves drafts and the prior baseline through temporarily unavailable scope %j", async unavailable => {
     await mount(); h.scope = ["home", "second"]; compareScope();
@@ -198,7 +199,7 @@ describe("AuthProvider session lifecycle", () => {
     expect(wipeOfflineServiceDrafts).not.toHaveBeenCalled();
     h.scope = unavailable; compareScope();
     h.scope = ["home"]; compareScope(); expect(h.clear).toHaveBeenCalledOnce();
-    expect(wipeOfflineServiceDrafts).toHaveBeenCalledOnce();
+    expect(wipeOfflineServiceDrafts).not.toHaveBeenCalled();
   });
   it("preserves offline care documentation when access is added without revoking any facility", async () => {
     await mount(); h.scope = ["home"]; compareScope();
@@ -206,6 +207,30 @@ describe("AuthProvider session lifecycle", () => {
     expect(h.clear).toHaveBeenCalledOnce();
     const { wipeOfflineServiceDrafts } = await import("./offlineServiceDraftCache");
     expect(wipeOfflineServiceDrafts).not.toHaveBeenCalled();
+  });
+  it("exposes initial confirmed scope and rejects stale read generations after scope or account changes", async () => {
+    await mount(); expect(compareScope().props.value.offlineFacilityScope).toBeUndefined();
+    h.scope = ["home"]; const initial = compareScope().props.value.offlineFacilityScope!;
+    expect(initial.facilityIds).toEqual(["home"]); expect(initial.isCurrent()).toBe(true);
+    h.scope = undefined; const retained = compareScope().props.value.offlineFacilityScope!;
+    expect(retained.facilityIds).toEqual(["home"]); expect(initial.isCurrent()).toBe(true);
+    h.scope = ["home", "second"]; const expanded = compareScope().props.value.offlineFacilityScope!;
+    expect(initial.isCurrent()).toBe(false); expect(expanded.isCurrent()).toBe(true);
+    h.scope = undefined; h.listener!("SIGNED_IN", { access_token: "other", user: { id: "other-user" } });
+    expect(expanded.isCurrent()).toBe(false); // before React renders the new account
+    expect(compareScope().props.value.offlineFacilityScope).toBeUndefined(); expect(expanded.isCurrent()).toBe(false);
+    h.listener!("SIGNED_IN", original); h.scope = ["home", "second"];
+    expect(compareScope().props.value.offlineFacilityScope!.isCurrent()).toBe(true);
+    expect(expanded.isCurrent()).toBe(false); // returning to the old identity cannot revive its read
+  });
+  it("invalidates captured draft scope immediately on sign-out while preserving ordinary session events", async () => {
+    await mount(); h.scope = ["home"];
+    const scope = compareScope().props.value.offlineFacilityScope!;
+    h.listener!("SIGNED_IN", original); expect(scope.isCurrent()).toBe(true);
+    h.listener!("TOKEN_REFRESHED", { ...original, access_token: "refreshed" }); expect(scope.isCurrent()).toBe(true);
+    markIdleUnlockSignIn();
+    h.listener!("SIGNED_IN", { ...original, access_token: "idle-unlock" }); expect(scope.isCurrent()).toBe(true);
+    h.listener!("SIGNED_OUT", null); expect(scope.isCurrent()).toBe(false);
   });
   it("preserves initial resolution and unchanged scope for managers without an employee row", async () => {
     h.role = "facility_manager"; h.primary = null;

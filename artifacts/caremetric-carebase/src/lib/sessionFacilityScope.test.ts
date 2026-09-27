@@ -1,15 +1,23 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 const h = vi.hoisted(() => ({
   rpc: vi.fn(), from: vi.fn(), employee: { id: "employee", facility_id: "home", status: "active" } as object | null,
   employeeError: null as unknown, pages: [] as { data: { facility_id: string }[] | null; error: unknown }[],
   filters: [] as unknown[][], selections: [] as unknown[][], ranges: [] as unknown[][],
+  signals: [] as AbortSignal[],
 }));
-vi.mock("./supabase", () => ({ supabase: { rpc: h.rpc, from: h.from } }));
-import { hasAssignedFacilityScope, loadSessionFacilityScope, loadSessionPrimaryFacility } from "./sessionFacilityScope";
+vi.mock("./supabase", () => ({ supabase: {
+  rpc: (...args: unknown[]) => {
+    const request = h.rpc(...args);
+    request.abortSignal = (signal: AbortSignal) => { h.signals.push(signal); return request; };
+    return request;
+  },
+  from: h.from,
+} }));
+import { canReadOfflineObservationResident, hasAssignedFacilityScope, loadSessionFacilityScope, loadSessionPrimaryFacility } from "./sessionFacilityScope";
 const employee = { id: "profile", organization_id: "org", role: "employee" };
 beforeEach(() => {
-  vi.clearAllMocks(); h.filters = []; h.selections = []; h.ranges = [];
+  vi.clearAllMocks(); h.filters = []; h.selections = []; h.ranges = []; h.signals = [];
   h.employee = { id: "employee", facility_id: "home", status: "active" }; h.employeeError = null;
   h.pages = [{ data: [{ facility_id: "second" }, { facility_id: "home" }], error: null }];
   h.rpc.mockReset().mockResolvedValue({ data: true, error: null });
@@ -24,7 +32,56 @@ beforeEach(() => {
     return query;
   });
 });
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 describe("authoritative session facility scope", () => {
+  it("preserves local observations without network requests when the browser is offline", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    await expect(canReadOfflineObservationResident("resident")).resolves.toBeNull();
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+  it("bounds a stalled authorization read and cannot start a late clinical request after the deadline", async () => {
+    vi.useFakeTimers();
+    let finish!: (value: unknown) => void;
+    h.rpc.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const result = canReadOfflineObservationResident("resident");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await expect(result).resolves.toBeNull();
+    expect(h.signals[0].aborted).toBe(true);
+    finish({ data: true, error: null }); await Promise.resolve(); await Promise.resolve();
+    expect(h.rpc).toHaveBeenCalledOnce();
+  });
+  it("uses the remaining batch time and skips requests when that time is exhausted", async () => {
+    vi.useFakeTimers();
+    h.rpc.mockImplementationOnce(() => new Promise(() => {}));
+    const result = canReadOfflineObservationResident("resident", 750);
+    await vi.advanceTimersByTimeAsync(750);
+    await expect(result).resolves.toBeNull();
+    expect(h.signals[0].aborted).toBe(true);
+    await expect(canReadOfflineObservationResident("next-resident", 0)).resolves.toBeNull();
+    expect(h.rpc).toHaveBeenCalledOnce();
+  });
+  it("authorizes retained observations through the current resident access contract with an honest audit reason", async () => {
+    await expect(canReadOfflineObservationResident("resident")).resolves.toBe(true);
+    expect(h.rpc).toHaveBeenCalledWith("log_clinical_access", expect.objectContaining({ p_resident_id: "resident", p_access_kind: "view_domain", p_clinical_domain: "observations" }));
+  });
+  it("treats only the exact unlocked resident-scope denial as confirmed observation revocation", async () => {
+    h.rpc.mockResolvedValueOnce({ data: true, error: null }).mockResolvedValueOnce({ data: null, error: { code: "42501", message: "Clinical access is outside caller scope" } });
+    await expect(canReadOfflineObservationResident("resident")).resolves.toBe(false);
+  });
+  it.each([
+    { code: "42501", message: "SMS verification is required", hint: "mfa_required" },
+    { code: "P0002", message: "Resident not found" },
+    { message: "Network unavailable" },
+  ])("preserves legacy readings for an unknown access result %j", async error => {
+    h.rpc.mockResolvedValueOnce({ data: true, error: null }).mockResolvedValueOnce({ data: null, error });
+    await expect(canReadOfflineObservationResident("resident")).resolves.toBeNull();
+  });
+  it("does not classify a denial during a lock transition as revoked resident access", async () => {
+    h.rpc.mockResolvedValueOnce({ data: true, error: null })
+      .mockResolvedValueOnce({ data: null, error: { code: "42501", message: "Clinical access is outside caller scope" } })
+      .mockResolvedValueOnce({ data: false, error: null });
+    await expect(canReadOfflineObservationResident("resident")).resolves.toBeNull();
+  });
   it("unions and sorts the active employee's primary and secondary facilities with tenant/employee filters", async () => {
     await expect(loadSessionFacilityScope(employee)).resolves.toEqual(["home", "second"]);
     expect(h.filters).toEqual(expect.arrayContaining([

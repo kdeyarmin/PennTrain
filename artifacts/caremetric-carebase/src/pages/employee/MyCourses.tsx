@@ -203,7 +203,7 @@ export default function MyCourses() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2 flex-wrap" aria-label="Learning lists">{["required", "optional", "history"].map(value => <Button key={value} variant={learningTab === value ? "default" : "outline"} onClick={() => { setLearningTab(value); setStatusFilter("all"); }}>{value === "history" ? "Completed / history" : value === "required" ? "Required" : "Optional"}</Button>)}</div>
+          <div className="flex gap-2 flex-wrap" role="group" aria-label="Learning lists">{["required", "optional", "history"].map(value => <Button key={value} aria-pressed={learningTab === value} variant={learningTab === value ? "default" : "outline"} onClick={() => { setLearningTab(value); setStatusFilter("all"); }}>{value === "history" ? "Completed / history" : value === "required" ? "Required" : "Optional"}</Button>)}</div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-44" aria-label="Status">
               <SelectValue placeholder="Status" />
@@ -255,16 +255,16 @@ export default function MyCourses() {
                 return (
                   <Fragment key={a.id}>
                   {(index === 0 || a.training_plan_id !== sorted[index - 1].training_plan_id) && <h3 className="text-sm font-semibold pt-2">{a.training_plan_id ? planNames.data?.find(p => p.id === a.training_plan_id)?.name || "Learning plan" : "Individual courses"}</h3>}
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg border">
-                    <div className="min-w-0">
-                      <p className="font-medium">{course?.title ?? "Training item"}</p>
+                  <div className="flex flex-col gap-3 p-3 rounded-lg border sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium break-words">{course?.title ?? "Training item"}</p>
                       <p className="text-xs text-muted-foreground">{a.is_required === false ? (a.assignment_origin === "self_enrolled" ? "You chose this course" : "Optional learning") : "Required by your facility"}{a.training_plan_id ? ` · ${planNames.data?.find(p => p.id === a.training_plan_id)?.name || "Learning plan"}` : ""}</p>
                       <p className="text-xs text-muted-foreground">
                         {a.due_date ? `Due ${formatDateForDisplay(a.due_date)}` : "No due date"}
                         {dueDistance && <span className={dueTone}> · {dueDistance}</span>}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                       <StatusBadge status={a.status} />
                       {user?.role === "employee" && !isClosedCourseAssignmentStatus(a.status) && <Button size="sm" variant="outline" disabled={downloadOffline.isPending || offlineLibrary.data?.some((item) => item.assignmentId === a.id)} onClick={() => downloadOffline.mutate({ assignmentId: a.id, title: course?.title ?? "Training item" }, { onSuccess: () => toast({ title: "Course encrypted for offline use" }), onError: (error) => toast({ title: "Course could not be downloaded", description: error.message, variant: "destructive" }) })}>{downloadOffline.isPending && downloadOffline.variables?.assignmentId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}<span className="sr-only">Download for offline use</span></Button>}
                       <Button asChild size="sm">

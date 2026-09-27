@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
@@ -13,9 +13,9 @@ import {
   STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT,
   useStopImpersonation,
 } from "@/hooks/useImpersonation";
-import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
+import { wipeOfflineServiceDrafts, type OfflineFloorFacilityScope } from "@/lib/offlineServiceDraftCache";
 import { signedInIdentityChanged, type SessionIdentity } from "@/lib/sessionIdentity";
-import { hasAssignedFacilityScope, loadSessionFacilityScope, loadSessionPrimaryFacility } from "@/lib/sessionFacilityScope";
+import { canReadOfflineObservationResident, hasAssignedFacilityScope, loadSessionFacilityScope, loadSessionPrimaryFacility } from "@/lib/sessionFacilityScope";
 import { readRecoveryGrant, recoveryGrantMatchesSession } from "@/lib/recoveryGrant";
 import {
   isOfflineServiceDraftIdentityPending, shouldWipeOfflineServiceDraftData,
@@ -44,6 +44,8 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   hasRole: (...roles: Role[]) => boolean;
+  /** Confirmed employee scope for retained offline care reads; absent when not yet known. */
+  offlineFacilityScope?: OfflineFloorFacilityScope;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -230,6 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Separate from the offline-draft snapshot above: that one answers "may this identity hold
   // drafts" and carries no facility, this one answers "is the cache populated for someone else".
   const lastCacheIdentityRef = useRef<SessionIdentity | null>(null);
+  const offlineScopeIdentityRef = useRef({ key: "", generation: 0 });
 
   useEffect(() => {
     let active = true;
@@ -264,6 +267,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!active) return;
       observedAuthEvent = true;
+      if (event === "SIGNED_OUT" || nextSession?.user.id !== lastSessionRef.current?.user.id) {
+        // Cancel captured draft access before React renders the replacement account. A generation
+        // also keeps an A -> B -> A transition from reactivating A's earlier asynchronous read.
+        offlineScopeIdentityRef.current = { key: "", generation: offlineScopeIdentityRef.current.generation + 1 };
+      }
       // Auth re-announces SIGNED_IN when a tab becomes visible, even when its session is
       // unchanged. Clearing then unmounts the security gates and discards the page's drafts.
       // Compare the token as well as the account: a new password session must still clear.
@@ -322,6 +330,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       active = false;
+      offlineScopeIdentityRef.current = { key: "", generation: offlineScopeIdentityRef.current.generation + 1 };
       passwordSignInListeners.delete(confirmPasswordSession);
       subscription.subscription.unsubscribe();
     };
@@ -391,6 +400,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     : null;
 
+  const previousScopeIdentity = lastCacheIdentityRef.current;
+  const lastKnownFacilities = previousScopeIdentity?.profileId === user?.id
+    && previousScopeIdentity?.organizationId === user?.organizationId
+    && previousScopeIdentity?.role === user?.role
+    ? previousScopeIdentity?.authorizedFacilityIds : undefined;
+  const offlineFacilityIds = user?.role === "employee"
+    ? authorizedFacilityIds ?? lastKnownFacilities : undefined;
+  const offlineScopeIdentity = JSON.stringify([user?.id, user?.organizationId, user?.role, offlineFacilityIds]);
+  if (offlineScopeIdentityRef.current.key !== offlineScopeIdentity) {
+    offlineScopeIdentityRef.current = { key: offlineScopeIdentity, generation: offlineScopeIdentityRef.current.generation + 1 };
+  }
+  const offlineScopeGeneration = offlineScopeIdentityRef.current.generation;
+  const offlineFacilityScope = useMemo<OfflineFloorFacilityScope | undefined>(() => offlineFacilityIds === undefined ? undefined : ({
+    facilityIds: offlineFacilityIds,
+    isCurrent: () => offlineScopeIdentityRef.current.generation === offlineScopeGeneration,
+    canReadResident: canReadOfflineObservationResident,
+  }), [offlineScopeIdentity, offlineScopeGeneration]);
+
   // Offline service-documentation drafts (BACKLOG.md E5) are bound to one signed-in employee
   // identity. Logout is handled immediately in the SIGNED_IN/SIGNED_OUT effect above; this covers
   // the other half -- a profile/org/role change, or deactivation, observed while the session itself
@@ -449,17 +476,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       && currentCacheIdentity.authorizedFacilityIds === undefined) {
       currentCacheIdentity.authorizedFacilityIds = previousIdentity.authorizedFacilityIds;
     }
-    // Encrypted offline drafts are bound to profile/org, not to the latest assignment set.
-    // A removed secondary site must therefore retire those retained drafts as a primary transfer
-    // already does. Grants alone do not revoke access to any existing draft and must not erase it.
-    const employeeScopeRevoked = previousIdentity?.role === "employee"
-      && currentCacheIdentity?.role === "employee"
-      && previousIdentity.profileId === currentCacheIdentity.profileId
-      && previousIdentity.organizationId === currentCacheIdentity.organizationId
-      && previousIdentity.authorizedFacilityIds !== undefined
-      && currentCacheIdentity.authorizedFacilityIds !== undefined
-      && previousIdentity.authorizedFacilityIds.some(id => !currentCacheIdentity.authorizedFacilityIds!.includes(id));
-    if (wipeForIdentity || employeeScopeRevoked) void wipeOfflineServiceDrafts();
+    // Scope-only revocation is reconciled per draft at read/sync time, including after a reload;
+    // it must preserve allowed care documentation. Real identity changes still retire the store.
+    if (wipeForIdentity) void wipeOfflineServiceDrafts();
     lastCacheIdentityRef.current = currentCacheIdentity;
     lastOfflineServiceDraftIdentityRef.current = current
       ? {
@@ -540,7 +559,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, isAuthenticated, hasRole: (...roles) => hasRole(user, ...roles) }}
+      value={{ user, isLoading, isAuthenticated, offlineFacilityScope, hasRole: (...roles) => hasRole(user, ...roles) }}
     >
       {children}
     </AuthContext.Provider>

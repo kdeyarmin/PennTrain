@@ -323,9 +323,13 @@ test.describe("new training facility administrator", () => {
         await learnerPage.goto("/me/courses");
         await expect(learnerPage.getByText("1 / 1 required courses completed", { exact: true })).toBeVisible();
         await learnerPage.getByRole("button", { name: "Optional", exact: true }).click();
+        await expect(learnerPage.getByRole("button", { name: "Optional", exact: true })).toHaveAttribute("aria-pressed", "true");
+        await expect(learnerPage.getByRole("button", { name: "Required", exact: true })).toHaveAttribute("aria-pressed", "false");
+        await expect(learnerPage.getByRole("heading", { name: "Your optional learning (1)", exact: true })).toBeVisible();
         await expect(learnerPage.getByText(fixture.electiveTitle, { exact: true })).toBeVisible();
         await expect(learnerPage.getByText("You chose this course", { exact: true })).toBeVisible();
-        await learnerPage.screenshot({ path: "test-results/training-learner-mobile.png", fullPage: true });
+        await expectNoHorizontalOverflow(learnerPage);
+        await learnerPage.screenshot({ path: "test-results/training-learner-mobile.png", fullPage: true, animations: "disabled" });
       } finally { await learnerContext.close(); }
       const secondDevice = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
       secondDevice.setDefaultTimeout(15_000);

@@ -70,19 +70,24 @@ export function useUnsyncedObservationDraftEntries() {
   const { user } = useAuth();
   return useQuery({
     queryKey: [...QUERY_KEY, "entries", user?.id],
+    networkMode: "always", // IndexedDB reads must not pause while offline.
     enabled: Boolean(user?.id && user.role === "employee" && draftsSupported()),
     queryFn: (): Promise<ObservationDraftListEntry[]> => listObservationDraftEntries(),
   });
 }
 
 export function useUnsyncedObservationDrafts() {
-  const { user } = useAuth();
+  const { user, offlineFacilityScope } = useAuth();
+  const queryClient = useQueryClient();
   return useQuery({
-    queryKey: [...QUERY_KEY, "full", user?.id],
+    queryKey: [...QUERY_KEY, "full", user?.id, user?.organizationId, offlineFacilityScope?.facilityIds ?? null],
+    networkMode: "always",
     enabled: Boolean(user?.id && user.organizationId && user.role === "employee" && draftsSupported()),
     queryFn: async (): Promise<OfflineObservationDraft[]> => {
       if (!user?.id || !user.organizationId) return [];
-      return readAllObservationDrafts(floorIdentity(user.id, user.organizationId));
+      const result = await readAllObservationDrafts(floorIdentity(user.id, user.organizationId), offlineFacilityScope);
+      if (offlineFacilityScope) void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "entries"] });
+      return result;
     },
   });
 }
@@ -188,13 +193,13 @@ async function syncDraft(
 }
 
 export function useSyncOfflineObservationDraft() {
-  const { user } = useAuth();
+  const { user, offlineFacilityScope } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (draftId: string): Promise<OfflineObservationSyncResult> => {
       if (!user?.id || !user.organizationId) throw new Error("Sign in to sync offline readings.");
       const identity = floorIdentity(user.id, user.organizationId);
-      const drafts = await readAllObservationDrafts(identity);
+      const drafts = await readAllObservationDrafts(identity, offlineFacilityScope);
       const draft = drafts.find((entry) => entry.draftId === draftId);
       if (!draft) throw new Error("This reading is no longer on this device.");
       try {
@@ -236,13 +241,13 @@ export interface ObservationSyncAllResult {
 
 /** Syncs every unresolved (draft/syncing/error) reading, sequentially. Stops early on wipe_required. */
 export function useSyncAllOfflineObservationDrafts() {
-  const { user } = useAuth();
+  const { user, offlineFacilityScope } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (): Promise<ObservationSyncAllResult> => {
       if (!user?.id || !user.organizationId) throw new Error("Sign in to sync offline readings.");
       const identity = floorIdentity(user.id, user.organizationId);
-      const drafts = (await readAllObservationDrafts(identity))
+      const drafts = (await readAllObservationDrafts(identity, offlineFacilityScope))
         .filter((draft) => (UNRESOLVED_OBSERVATION_DRAFT_STATES as string[]).includes(draft.syncState));
       const result: ObservationSyncAllResult = {
         attempted: 0, applied: 0, needsReview: 0, wipeRequired: false, failed: 0, criticalReadings: [],

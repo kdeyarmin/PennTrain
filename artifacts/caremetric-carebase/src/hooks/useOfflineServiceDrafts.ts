@@ -186,6 +186,7 @@ export function useUnsyncedServiceDraftEntries() {
   const { user } = useAuth();
   return useQuery({
     queryKey: [...QUERY_KEY, "entries", user?.id],
+    networkMode: "always", // IndexedDB reads must not pause while offline.
     enabled: Boolean(user?.id && user.role === "employee" && draftsSupported()),
     queryFn: (): Promise<DraftListEntry[]> => listServiceDraftEntries(),
   });
@@ -193,15 +194,19 @@ export function useUnsyncedServiceDraftEntries() {
 
 /** Full, decrypted drafts -- used by the panel's per-item review list where content is actually shown. */
 export function useUnsyncedServiceDrafts() {
-  const { user } = useAuth();
+  const { user, offlineFacilityScope } = useAuth();
+  const queryClient = useQueryClient();
   return useQuery({
-    queryKey: [...QUERY_KEY, "full", user?.id],
+    queryKey: [...QUERY_KEY, "full", user?.id, user?.organizationId, offlineFacilityScope?.facilityIds ?? null],
+    networkMode: "always",
     enabled: Boolean(user?.id && user.organizationId && user.role === "employee" && draftsSupported()),
     // Returns the unreadable ids too, so the panel can show a record it cannot decrypt instead of
     // counting it in the header and omitting it from the list -- see readDraftsIndependently.
     queryFn: async (): Promise<{ drafts: OfflineFloorDraft[]; unreadableIds: string[] }> => {
       if (!user?.id || !user.organizationId) return { drafts: [], unreadableIds: [] };
-      return readAllServiceDraftsWithFailures(floorIdentity(user.id, user.organizationId));
+      const result = await readAllServiceDraftsWithFailures(floorIdentity(user.id, user.organizationId), offlineFacilityScope);
+      if (offlineFacilityScope) void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "entries"] });
+      return result;
     },
   });
 }
@@ -451,13 +456,13 @@ export function useSaveOfflineChangeObservationDraft() {
 }
 
 export function useSyncOfflineServiceDraft() {
-  const { user } = useAuth();
+  const { user, offlineFacilityScope } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (draftId: string): Promise<OfflineDraftSyncOutcome> => {
       if (!user?.id || !user.organizationId) throw new Error("Sign in to sync offline drafts.");
       const identity = floorIdentity(user.id, user.organizationId);
-      const drafts = await readAllServiceDrafts(identity);
+      const drafts = await readAllServiceDrafts(identity, offlineFacilityScope);
       const draft = drafts.find((entry) => entry.draftId === draftId);
       if (!draft) throw new Error("This draft is no longer on this device.");
       try {
@@ -494,13 +499,13 @@ export interface SyncAllResult {
 
 /** Syncs every unresolved (draft/syncing/error) draft, sequentially. Stops early on wipe_required. */
 export function useSyncAllOfflineServiceDrafts() {
-  const { user } = useAuth();
+  const { user, offlineFacilityScope } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (): Promise<SyncAllResult> => {
       if (!user?.id || !user.organizationId) throw new Error("Sign in to sync offline drafts.");
       const identity = floorIdentity(user.id, user.organizationId);
-      const drafts = (await readAllServiceDrafts(identity))
+      const drafts = (await readAllServiceDrafts(identity, offlineFacilityScope))
         .filter((draft) => (UNRESOLVED_DRAFT_STATES as string[]).includes(draft.syncState));
       const result: SyncAllResult = { attempted: 0, applied: 0, needsReview: 0, wipeRequired: false, failed: 0 };
       const applied: OfflineFloorDraft[] = [];

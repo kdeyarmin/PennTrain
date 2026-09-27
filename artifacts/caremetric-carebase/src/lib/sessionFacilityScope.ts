@@ -21,10 +21,44 @@ async function allFacilityIds(page: (from: number, to: number) => PromiseLike<{
   }
 }
 
-async function sessionUnlocked() {
-  const { data, error } = await supabase.rpc("current_session_unlocked");
+async function sessionUnlocked(signal?: AbortSignal) {
+  const request = supabase.rpc("current_session_unlocked");
+  const { data, error } = await (signal ? request.abortSignal(signal) : request);
   if (error) throw error;
   return data === true;
+}
+
+/** Legacy observation drafts have no facility ID; authorize the resident's current location. */
+export async function canReadOfflineObservationResident(residentId: string, timeoutMs = 5_000): Promise<boolean | null> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return null;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return null;
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<null>(resolve => {
+    timeout = setTimeout(() => { controller.abort(); resolve(null); }, Math.min(timeoutMs, 5_000));
+  });
+  try {
+    return await Promise.race([deadline, (async () => {
+      if (!await sessionUnlocked(controller.signal)) return null;
+      controller.signal.throwIfAborted();
+      const { error } = await supabase.rpc("log_clinical_access", {
+        p_resident_id: residentId,
+        p_access_kind: "view_domain",
+        p_clinical_domain: "observations",
+        p_minimum_necessary_reason: "Review retained offline clinical observation draft",
+      }).abortSignal(controller.signal);
+      controller.signal.throwIfAborted();
+      if (!await sessionUnlocked(controller.signal)) return null;
+      controller.signal.throwIfAborted();
+      if (!error) return true;
+      // 42501 alone also means SMS/MFA, lock or another temporary policy failure.
+      return error.code === "42501" && error.message === "Clinical access is outside caller scope" ? false : null;
+    })()]);
+  } catch {
+    return null; // unknown/offline preserves care documentation
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /** Retain the cached primary facility when a temporary security gate makes RLS return no row. */
