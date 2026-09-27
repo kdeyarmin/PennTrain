@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
+import { useListEmployeesByIds } from "@/hooks/useEmployees";
 import { errorText } from "@/lib/errorText";
 import {
   HRIS_DECISIONS, useHrisImportRows, useSetHrisImportRowDecision, type HrisImportRow,
@@ -25,15 +26,29 @@ const MIN_REASON = 5;
  * whether an incoming person is a new employee or an existing one stayed undecided, and the apply
  * step had nothing to apply.
  *
- * Only rows the server will accept a decision for are offered one. It refuses anything whose
- * `validation_status` is not `valid`, so showing an invalid row with a decision control would be
- * offering an action that can only fail -- the same mistake as the funnel dropdown that listed a
- * stage the RPC rejects.
+ * Valid rows may create or link employees; rows that failed validation may only be skipped or
+ * rejected. Link targets remain limited to this row's server-supplied candidates.
  */
-export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
+interface Props { importRunId: string; disabled?: boolean; onPendingChange?: (pending: boolean) => void }
+export function HrisRowDecisions(props: Props) {
+  return <RunRowDecisions key={props.importRunId} {...props} />;
+}
+
+function RunRowDecisions({ importRunId, disabled = false, onPendingChange }: Props) {
   const { toast } = useToast();
   const rows = useHrisImportRows(importRunId);
   const decide = useSetHrisImportRowDecision(importRunId);
+  const candidateIds = [...new Set((rows.data ?? []).flatMap(row => row.candidate_employee_ids ?? []))];
+  const employees = useListEmployeesByIds(candidateIds);
+  const employeeById = new Map((employees.data ?? []).map(employee => [employee.id, employee]));
+  const candidateLabel = (id: string) => {
+    const employee = employeeById.get(id);
+    return employee ? `${employee.first_name} ${employee.last_name}${employee.employee_number ? ` · ${employee.employee_number}` : ""}${employee.email ? ` · ${employee.email}` : ""}` : `Unknown or unavailable employee (${id.slice(0, 8)}…)`;
+  };
+  const submitting = useRef(false), mounted = useRef(true);
+  const [pending, setPending] = useState(false);
+  const busy = disabled || pending || decide.isPending;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [decision, setDecision] = useState<string>("create");
@@ -41,6 +56,7 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
   const [reason, setReason] = useState("");
 
   const start = (row: HrisImportRow) => {
+    if (busy || submitting.current) return;
     setOpenRow(row.id);
     setDecision(row.validation_status === "valid" ? "create" : "skip");
     setEmployeeId(row.candidate_employee_ids?.[0] ?? "");
@@ -48,7 +64,26 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
   };
 
   const reasonTooShort = reason.trim().length < MIN_REASON;
-  const linkNeedsCandidate = decision === "link" && !employeeId;
+  useEffect(() => {
+    if (rows.data?.find(row => row.id === openRow)?.merge_decision) setOpenRow(null);
+  }, [rows.data, openRow]);
+  const submit = async (row: HrisImportRow) => {
+    const allowed = HRIS_DECISIONS.some(option => option.value === decision)
+      && (row.validation_status === "valid" || decision === "skip" || decision === "reject")
+      && (!(row.candidate_employee_ids?.length) || (!employees.isLoading && !employees.isError))
+      && (decision !== "link" || (row.candidate_employee_ids?.includes(employeeId) && employeeById.has(employeeId)));
+    if (busy || submitting.current || reasonTooShort || !allowed || row.merge_decision || rows.isError || rows.isFetching) return;
+    submitting.current = true; setPending(true); onPendingChange?.(true);
+    try {
+      await decide.mutateAsync({ importRowId: row.id, decision, employeeId: decision === "link" ? employeeId : null, reason: reason.trim() });
+      if (mounted.current) { setOpenRow(null); toast({ title: "Decision recorded" }); }
+    } catch (error) {
+      if (mounted.current) toast({ title: "Decision refused", description: errorText(error), variant: "destructive" });
+    } finally {
+      submitting.current = false;
+      if (mounted.current) { setPending(false); onPendingChange?.(false); }
+    }
+  };
 
   if (rows.isLoading) return <Skeleton className="h-24" />;
   if (rows.isError) {
@@ -56,7 +91,7 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
   }
   const data = rows.data ?? [];
   if (data.length === 0) {
-    return <p className="text-sm text-muted-foreground">This run has no staged rows yet. Validate it first.</p>;
+    return <p className="text-sm text-muted-foreground">This run has no staged rows yet. Its configured adapter must stage the extract before validation and row decisions are available.</p>;
   }
 
   // A row that failed validation is decidable too, and only by being dropped: skip and reject
@@ -67,6 +102,8 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
 
   return (
     <div className="space-y-2">
+      {candidateIds.length > 0 && employees.isError && <QueryError what="duplicate candidate details" error={employees.error} onRetry={() => void employees.refetch()} />}
+      {candidateIds.length > 0 && employees.isLoading && <p role="status" className="text-sm">Loading duplicate candidate details…</p>}
       <p className="text-sm">
         {data.length} staged row{data.length === 1 ? "" : "s"}
         {undecided > 0 && <> · <span className="font-medium">{undecided} awaiting a decision</span></>}
@@ -89,7 +126,7 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
                 {row.merge_decision && <Badge variant="outline">{row.merge_decision}</Badge>}
                 {row.apply_status && <Badge variant="outline">{row.apply_status}</Badge>}
                 {decidable && openRow !== row.id && (
-                  <Button size="sm" variant="outline" onClick={() => start(row)}>Decide</Button>
+                  <Button size="sm" variant="outline" disabled={busy || rows.isFetching} onClick={() => start(row)}>Decide</Button>
                 )}
               </div>
             </div>
@@ -97,16 +134,17 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
             {row.error_detail && <p className="text-xs text-destructive">{row.error_detail}</p>}
             {row.decision_reason && <p className="text-xs text-muted-foreground">{row.decision_reason}</p>}
             {candidates.length > 0 && !row.merge_decision && (
-              <p className="text-xs text-muted-foreground">
-                {candidates.length} duplicate candidate{candidates.length === 1 ? "" : "s"} found.
-              </p>
+              <div className="text-xs text-muted-foreground">
+                <p>{candidates.length} duplicate candidate{candidates.length === 1 ? "" : "s"} found.</p>
+                {!employees.isLoading && !employees.isError && <ul>{candidates.map(id => <li key={id}>{candidateLabel(id)}</li>)}</ul>}
+              </div>
             )}
 
-            {openRow === row.id && (
-              <div className="space-y-2 rounded bg-muted/40 p-2">
+            {openRow === row.id && decidable && (
+              <fieldset disabled={busy} className="space-y-2 rounded bg-muted/40 p-2">
                 <div className="space-y-1">
                   <Label htmlFor={`decision-${row.id}`}>Decision</Label>
-                  <Select value={decision} onValueChange={setDecision}>
+                  <Select value={decision} onValueChange={setDecision} disabled={busy}>
                     <SelectTrigger id={`decision-${row.id}`} className="sm:w-72"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {HRIS_DECISIONS.map((option) => (
@@ -118,7 +156,7 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
                           // option can only fail. A row that failed validation may only be dropped:
                           // the server refuses `create` and `link` for it.
                           disabled={
-                            (option.value === "link" && candidates.length === 0)
+                          (option.value === "link" && (candidates.length === 0 || employees.isLoading || employees.isError))
                             || (invalidRow && option.value !== "skip" && option.value !== "reject")
                           }
                         >
@@ -134,12 +172,15 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
                 {decision === "link" && (
                   <div className="space-y-1">
                     <Label htmlFor={`candidate-${row.id}`}>Existing employee</Label>
-                    <Select value={employeeId} onValueChange={setEmployeeId}>
+                    <Select value={employeeId} onValueChange={setEmployeeId} disabled={busy}>
                       <SelectTrigger id={`candidate-${row.id}`} className="sm:w-72"><SelectValue placeholder="Pick a candidate" /></SelectTrigger>
                       <SelectContent>
-                        {candidates.map((candidate) => (
-                          <SelectItem key={candidate} value={candidate}>{candidate.slice(0, 8)}…</SelectItem>
-                        ))}
+                        {candidates.map(candidate => {
+                          const employee = employeeById.get(candidate);
+                          return <SelectItem key={candidate} value={candidate} disabled={!employee || employees.isLoading || employees.isError}>
+                            {candidateLabel(candidate)}
+                          </SelectItem>;
+                        })}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
@@ -164,22 +205,14 @@ export function HrisRowDecisions({ importRunId }: { importRunId: string }) {
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    disabled={decide.isPending || reasonTooShort || linkNeedsCandidate}
-                    onClick={() => decide.mutate(
-                      { importRowId: row.id, decision, employeeId: employeeId || null, reason: reason.trim() },
-                      {
-                        onSuccess: () => { setOpenRow(null); toast({ title: "Decision recorded" }); },
-                        onError: (error) => toast({
-                          title: "Decision refused", description: errorText(error), variant: "destructive",
-                        }),
-                      },
-                    )}
+                    disabled={busy || rows.isFetching || reasonTooShort || (candidates.length > 0 && (employees.isLoading || employees.isError)) || (decision === "link" && (!candidates.includes(employeeId) || !employeeById.has(employeeId))) || (invalidRow && decision !== "skip" && decision !== "reject")}
+                    onClick={() => void submit(row)}
                   >
-                    {decide.isPending ? "Recording…" : "Record decision"}
+                    {busy ? "Recording…" : "Record decision"}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setOpenRow(null)}>Cancel</Button>
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => { if (!submitting.current) setOpenRow(null); }}>Cancel</Button>
                 </div>
-              </div>
+              </fieldset>
             )}
           </div>
         );

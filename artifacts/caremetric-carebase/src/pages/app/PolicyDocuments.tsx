@@ -1,6 +1,6 @@
 import { usePolicyWriteAssurance } from "@/hooks/usePolicyWriteAssurance";
 import { PolicyWriteAssurance } from "@/components/policies/PolicyWriteAssurance";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import {
@@ -30,11 +30,25 @@ function NewPolicyDocumentDialog() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
+  const editor = useRef(0);
+  const identity = JSON.stringify([user?.id, user?.organizationId, user?.role]);
+  const scope = useRef(identity);
 
   const reset = () => { setTitle(""); setDescription(""); setCategory(""); };
+  const changeOpen = (next: boolean) => {
+    editor.current += 1;
+    setOpen(next);
+    if (!next) reset();
+  };
+  if (scope.current !== identity) {
+    scope.current = identity;
+    changeOpen(false);
+  }
+  useEffect(() => () => { editor.current += 1; }, []);
 
   const handleCreate = async () => {
-    if (!title.trim() || !user?.organizationId) return;
+    if (!assurance.canWrite || isPending || !title.trim() || !user?.organizationId) return;
+    const submittedEditor = editor.current;
     const payload: PolicyDocumentInsert = {
       organization_id: user.organizationId,
       title: title.trim(),
@@ -44,23 +58,17 @@ function NewPolicyDocumentDialog() {
     };
     try {
       await createDocument(payload);
+      if (editor.current !== submittedEditor) return;
       toast({ title: "Policy document created", description: "Upload a version to get started." });
-      reset();
-      setOpen(false);
+      changeOpen(false);
     } catch (e) {
+      if (editor.current !== submittedEditor) return;
       toast({ variant: "destructive", title: "Couldn't create policy document", description: e instanceof Error ? e.message : String(e) });
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => {
-      setOpen(next);
-      if (!next) {
-        setTitle("");
-        setCategory("");
-        setDescription("");
-      }
-    }}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
         <Button disabled={!assurance.canWrite}><Plus className="mr-2 h-4 w-4" /> New Policy Document</Button>
       </DialogTrigger>
@@ -69,7 +77,7 @@ function NewPolicyDocumentDialog() {
           <DialogTitle>New Policy Document</DialogTitle>
           <DialogDescription>Create a policy or procedure record. Upload and publish a version next, then run an attestation campaign against it.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <fieldset disabled={isPending} className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="policy-title">Title</Label>
             <Input id="policy-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Resident Rights Policy" />
@@ -82,10 +90,10 @@ function NewPolicyDocumentDialog() {
             <Label htmlFor="policy-description">Description (optional)</Label>
             <Textarea id="policy-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
           </div>
-        </div>
+        </fieldset>
         <PolicyWriteAssurance />
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => changeOpen(false)}>Cancel</Button>
           <Button onClick={handleCreate} disabled={!assurance.canWrite || !title.trim() || isPending}>
             {isPending ? "Creating..." : "Create"}
           </Button>

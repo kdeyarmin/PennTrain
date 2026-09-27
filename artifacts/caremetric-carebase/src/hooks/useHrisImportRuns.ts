@@ -33,7 +33,9 @@ export function useHrisSourceSystems(organizationId: string | null) {
   return useQuery({
     queryKey: [...HRIS_KEY, "sources", organizationId],
     enabled: !!organizationId,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      const rows: HrisSourceSystem[] = [];
+      for (;;) {
       const { data, error } = await supabase
         .from("hris_source_systems")
         .select("*")
@@ -41,9 +43,12 @@ export function useHrisSourceSystems(organizationId: string | null) {
         // create_hris_import_run refuses any other status with P0002, so offering them would be
         // offering a button that cannot work.
         .in("status", ["pilot", "active"])
-        .order("display_name");
+        .order("display_name").order("id")
+        .range(rows.length, rows.length + 999).abortSignal(signal);
       if (error) throw error;
-      return data ?? [];
+      if (!data?.length) return rows;
+      rows.push(...data);
+      }
     },
   });
 }
@@ -89,7 +94,8 @@ export function useCreateHrisSourceSystem() {
       if (error) throw new Error(error.message);
       return data.id as string;
     },
-    onSuccess: async () => {
+    onSettled: async () => {
+      // A registration may have committed even if its response was interrupted.
       await queryClient.invalidateQueries({ queryKey: HRIS_KEY });
     },
   });
@@ -141,15 +147,19 @@ export function useHrisImportRuns(organizationId: string | null) {
   return useQuery({
     queryKey: [...HRIS_KEY, "runs", organizationId],
     enabled: !!organizationId,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      const rows: HrisImportRun[] = [];
+      for (;;) {
       const { data, error } = await supabase
         .from("hris_import_runs")
         .select("*")
         .eq("organization_id", organizationId!)
-        .order("created_at", { ascending: false })
-        .limit(20);
+        .order("created_at", { ascending: false }).order("id")
+        .range(rows.length, rows.length + 999).abortSignal(signal);
       if (error) throw error;
-      return data ?? [];
+      if (!data?.length) return rows;
+      rows.push(...data);
+      }
     },
   });
 }
@@ -212,14 +222,19 @@ export function useHrisImportRows(importRunId: string | undefined) {
   return useQuery({
     queryKey: ["hris-import-rows", importRunId ?? null],
     enabled: !!importRunId,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      const rows: HrisImportRow[] = [];
+      for (;;) {
       const { data, error } = await supabase
         .from("hris_import_rows")
         .select("id,row_number,external_person_id,validation_status,match_status,candidate_employee_ids,merge_decision,decision_reason,apply_status,error_detail")
         .eq("import_run_id", importRunId!)
-        .order("row_number");
+        .order("row_number").order("id")
+        .range(rows.length, rows.length + 999).abortSignal(signal);
       if (error) throw error;
-      return (data ?? []) as HrisImportRow[];
+      if (!data?.length) return rows;
+      rows.push(...data as HrisImportRow[]);
+      }
     },
   });
 }
@@ -251,9 +266,12 @@ export function useSetHrisImportRowDecision(importRunId: string | undefined) {
       if (error) throw new Error(error.message);
       return true;
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["hris-import-rows", importRunId ?? null] });
-      void queryClient.invalidateQueries({ queryKey: HRIS_KEY });
+    onSettled: async () => {
+      // An uncertain response may still have committed the audited decision.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["hris-import-rows", importRunId ?? null] }),
+        queryClient.invalidateQueries({ queryKey: HRIS_KEY }),
+      ]);
     },
   });
 }

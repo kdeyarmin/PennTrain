@@ -80,13 +80,22 @@ const ADMIN_COLUMNS =
 export function useAdminRegulatoryUpdates() {
   return useQuery({
     queryKey: ["admin-regulatory-updates"],
-    queryFn: async (): Promise<AdminRegulatoryUpdate[]> => {
-      const { data, error } = await client
-        .from("regulatory_updates")
-        .select(ADMIN_COLUMNS)
-        .order("created_at", { ascending: false });
-      if (error) throw new Error(error.message);
-      return (data ?? []) as AdminRegulatoryUpdate[];
+    queryFn: async ({ signal }): Promise<AdminRegulatoryUpdate[]> => {
+      const rows: AdminRegulatoryUpdate[] = [];
+      for (let offset = 0; ; ) {
+        const { data, error } = await client
+          .from("regulatory_updates")
+          .select(ADMIN_COLUMNS)
+          .order("created_at", { ascending: false })
+          .order("id")
+          .range(offset, offset + 999)
+          .abortSignal(signal);
+        if (error) throw new Error(error.message);
+        const batch = (data ?? []) as AdminRegulatoryUpdate[];
+        if (!batch.length) return rows;
+        rows.push(...batch);
+        offset += batch.length;
+      }
     },
     staleTime: 30_000,
   });

@@ -65,6 +65,9 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   const [password, setPassword] = useState("");
   const [unlocking, setUnlocking] = useState(false);
   const [lockEventId, setLockEventId] = useState<string | null>(null);
+  const lockRequest = useRef<Promise<string> | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   // The second half of an unlock, when the account carries a verified factor: the password bought
   // a NEW Auth session and a new session starts at AAL1, so re-verifying happens here rather than
   // by handing the user to /account/security -- which would unmount the route this overlay
@@ -88,17 +91,38 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
     ? settings.data?.kiosk_idle_timeout_minutes ?? 5
     : settings.data?.idle_timeout_minutes ?? 30;
 
+  const confirmLock = useCallback((reason: "idle_timeout" | "kiosk_timeout" | "manual") => {
+    if (lockEventId) return Promise.resolve(lockEventId);
+    if (lockRequest.current) return lockRequest.current;
+    // Keep the receipt tied to the session being locked. Creating a password session before
+    // this resolves can leave the overlay with no id to unlock, or lock the replacement session.
+    // The server command is idempotent per session, so retrying a lost receipt is safe.
+    const request = Promise.resolve(supabase.rpc("record_idle_session_lock", {
+      p_route_path: location,
+      p_lock_reason: reason,
+    })).then(({ data, error }) => {
+      if (error) throw error;
+      if (typeof data !== "string" || !data) throw new Error("The session lock could not be confirmed. Try unlocking again.");
+      if (mounted.current) setLockEventId(data);
+      return data;
+    }).catch((error: unknown) => {
+      lockRequest.current = null;
+      throw error;
+    });
+    lockRequest.current = request;
+    return request;
+  }, [location, lockEventId]);
+
   const lock = useCallback((reason: "idle_timeout" | "kiosk_timeout" | "manual" = isKiosk ? "kiosk_timeout" : "idle_timeout") => {
     if (locked || !user) return;
     setVerificationOverlayActive(true);
     setLocked(true);
     setPassword("");
     setManualVerification(reason === "manual");
-    void supabase.rpc("record_idle_session_lock", {
-      p_route_path: location,
-      p_lock_reason: reason,
-    }).then(({ data }) => { if (typeof data === "string") setLockEventId(data); });
-  }, [isKiosk, location, locked, user, setVerificationOverlayActive]);
+    void confirmLock(reason).catch(() => {
+      if (mounted.current) toast({ title: "Session lock could not be confirmed", description: "Your page remains locked. Unlocking will retry the connection, or you can sign out.", variant: "destructive" });
+    });
+  }, [isKiosk, locked, user, setVerificationOverlayActive, confirmLock, toast]);
 
   useEffect(() => {
     if (sessionReverificationRequired && !locked) lock("manual");
@@ -120,8 +144,8 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   // server-side lock first (record_idle_session_unlock is what makes current_session_unlocked()
   // true again, and every RLS-scoped read under this overlay depends on it), then let the MFA gate
   // above re-read the policy against the session we have just finished raising back to AAL2.
-  const finishUnlock = async () => {
-    await finishIdleSessionUnlock(lockEventId);
+  const finishUnlock = async (confirmedLockId = lockEventId) => {
+    await finishIdleSessionUnlock(confirmedLockId);
     // This one is no longer swept by the SIGNED_IN cache clear (see markIdleUnlockSignIn), so it
     // has to be refreshed explicitly -- a remount reading the stale lock id back out of the cache
     // would re-lock a session that is now demonstrably unlocked.
@@ -132,6 +156,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
     setLocked(false);
     setVerificationOverlayActive(false);
     setLockEventId(null);
+    lockRequest.current = null;
     setPassword("");
     setStepUpFactors(null);
     setStepUpFactorId(null);
@@ -142,18 +167,22 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
 
   const unlock = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!user || !password) return;
+    if (unlocking || !user || !password) return;
     setUnlocking(true);
     try {
+      const confirmedLockId = await confirmLock(manualVerification ? "manual" : isKiosk ? "kiosk_timeout" : "idle_timeout");
+      if (!mounted.current) return;
       // Preserve this account's draft through the password step; the shared helper only
       // retires recovery state after the exact password response succeeds.
       markIdleUnlockSignIn();
       const { error } = await signInWithPassword({ email: user.email, password });
+      if (!mounted.current) return;
       if (error) throw error;
 
       // A password creates a new Auth session. Native AAL and app SMS attestations belong to
       // the previous session, so neither may be carried through this lock overlay.
       const security = await loadMfaSecurityState();
+      if (!mounted.current) return;
       if (security.status.hasVerifiedFactor && !mfaStatusIsVerified(security.status)) {
         const verified = usableMfaFactors(security.factors, security.status)
           .map((factor) => ({ id: factor.id, factorType: factor.factor_type, friendlyName: mfaFactorLabel(factor) }));
@@ -165,11 +194,11 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
         setPassword("");
         return;
       }
-      await finishUnlock();
+      await finishUnlock(confirmedLockId);
     } catch (error) {
-      toast({ title: "Could not unlock session", description: describeMfaError(error), variant: "destructive" });
+      if (mounted.current) toast({ title: "Could not unlock session", description: describeMfaError(error), variant: "destructive" });
     } finally {
-      setUnlocking(false);
+      if (mounted.current) setUnlocking(false);
     }
   };
 
@@ -179,7 +208,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   const isPhoneStepUp = selectedStepUpFactor?.factorType === "phone" || selectedStepUpFactor?.factorType === "sms";
 
   const sendStepUpCode = async () => {
-    if (!stepUpFactorId) return;
+    if (unlocking || !stepUpFactorId) return;
     setUnlocking(true);
     try {
       if (selectedStepUpFactor?.factorType === "sms") {
@@ -200,7 +229,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
 
   const verifyStepUp = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!stepUpFactorId || !/^\d{6}$/.test(stepUpCode.trim())) return;
+    if (unlocking || !stepUpFactorId || !/^\d{6}$/.test(stepUpCode.trim())) return;
     setUnlocking(true);
     try {
       if (isPhoneStepUp) {
@@ -285,6 +314,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
                     <Label htmlFor="unlock-factor">Verification method</Label>
                     <select
                       id="unlock-factor"
+                      disabled={unlocking}
                       className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                       value={stepUpFactorId ?? ""}
                       onChange={(event) => { setStepUpFactorId(event.target.value); setStepUpChallengeId(null); setStepUpCode(""); }}
@@ -304,7 +334,7 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
                 )}
                 <div className="space-y-1.5">
                   <Label htmlFor="unlock-code">6-digit code</Label>
-                  <Input id="unlock-code" autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={stepUpCode} onChange={(event) => setStepUpCode(event.target.value.replace(/\D/g, ""))} />
+                  <Input id="unlock-code" disabled={unlocking} autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={stepUpCode} onChange={(event) => setStepUpCode(event.target.value.replace(/\D/g, ""))} />
                 </div>
                 <Button className="w-full" type="submit" disabled={unlocking || !/^\d{6}$/.test(stepUpCode.trim()) || (isPhoneStepUp && !stepUpChallengeId)}>
                   <ShieldCheck className="mr-2 h-4 w-4" />{unlocking ? "Verifying…" : "Verify and continue"}

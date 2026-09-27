@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BellRing,
@@ -101,6 +101,8 @@ function RequirementDialog({
   const __fieldIds = useId();
   const { toast } = useToast();
   const update = useUpdateResidentServiceRequirement();
+  const submitting = useRef(false);
+  const close = () => { if (!submitting.current && !update.isPending) onClose(); };
   const [frequency, setFrequency] = useState(requirement?.frequency ?? "daily");
   const [frequencyDetail, setFrequencyDetail] = useState(requirement?.frequency_detail ?? "");
   const [start, setStart] = useState(requirement?.time_window_start?.slice(0, 5) ?? "09:00");
@@ -114,7 +116,8 @@ function RequirementDialog({
   const canSave = !!requirement && !!instructions.trim() && !!role.trim() && !!start && !!end && end > start && !invalidExpiry;
 
   const save = () => {
-    if (!requirement || !canSave) return;
+    if (!requirement || !canSave || submitting.current || update.isPending) return;
+    submitting.current = true;
     update.mutate({
       requirementId: requirement.id,
       frequency,
@@ -133,11 +136,12 @@ function RequirementDialog({
         onClose();
       },
       onError: (error: Error) => toast({ title: "Couldn't update requirement", description: error.message, variant: "destructive" }),
+      onSettled: () => { submitting.current = false; },
     });
   };
 
   return (
-    <Dialog open={!!requirement} onOpenChange={open => !open && onClose()}>
+    <Dialog open={!!requirement} onOpenChange={open => !open && close()}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Configure {requirement?.service_name}</DialogTitle>
@@ -145,7 +149,7 @@ function RequirementDialog({
             Changes supersede only future task instances. Completed and exception records remain tied to plan v{requirement?.source_plan_version}.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <fieldset disabled={update.isPending} className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor={`${__fieldIds}-frequency`}>Frequency</Label>
             <Select value={frequency} onValueChange={setFrequency}>
@@ -190,9 +194,9 @@ function RequirementDialog({
               </SelectContent>
             </Select>
           </div>
-        </div>
+        </fieldset>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={update.isPending} onClick={close}>Cancel</Button>
           <Button onClick={save} disabled={update.isPending || !canSave}>
             {update.isPending ? "Saving..." : "Save and regenerate future tasks"}
           </Button>
@@ -263,6 +267,9 @@ export default function ServiceDelivery() {
   const [supervisorNotified, setSupervisorNotified] = useState(false);
   const [secondEmployeeId, setSecondEmployeeId] = useState("");
   const outcomeGeneration = useRef(0);
+  const followUpGeneration = useRef(0);
+  useEffect(() => () => { followUpGeneration.current += 1; }, []);
+  const closeFollowUp = () => { followUpGeneration.current += 1; setFollowUpTask(null); };
   const bounds = isCareCalendarDate(date) ? dayBounds(date) : null;
 
   const queue = useResidentServiceTaskQueue({
@@ -402,7 +409,7 @@ export default function ServiceDelivery() {
                       {/* Self-reported at documentation time -- context, not a substitute for a
                           tracked item, so it does not suppress the button. */}
                       {task.supervisor_notified && <Badge variant="secondary">Told supervisor</Badge>}
-                      <Button variant="outline" onClick={() => setFollowUpTask(task)}>
+                      <Button variant="outline" onClick={() => { followUpGeneration.current += 1; setFollowUpTask(task); }}>
                         <BellRing className="mr-2 h-4 w-4" /> Supervisor follow-up
                       </Button>
                     </>
@@ -446,9 +453,9 @@ export default function ServiceDelivery() {
 
       <Card>
         <CardContent className="grid gap-2 pt-6 sm:grid-cols-2 xl:grid-cols-4">
-          <Input type="date" value={date} onChange={event => { closeOutcome(); setDate(event.target.value); }} aria-label="Service date" aria-invalid={!bounds} />
+          <Input type="date" value={date} onChange={event => { closeOutcome(); closeFollowUp(); setDate(event.target.value); }} aria-label="Service date" aria-invalid={!bounds} />
           {!isEmployee && (
-            <Select value={facilityId} onValueChange={value => { closeOutcome(); setSelectedRequirement(null); setFollowUpTask(null); setChangeReviewAlert(null); setFacilityId(value); }}>
+            <Select value={facilityId} onValueChange={value => { closeOutcome(); setSelectedRequirement(null); closeFollowUp(); setChangeReviewAlert(null); setFacilityId(value); }}>
               <SelectTrigger aria-label="Facility"><SelectValue placeholder="All facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All facilities</SelectItem>
@@ -604,25 +611,30 @@ export default function ServiceDelivery() {
         says. A two-staff transfer silently becoming a one-person task is the shape of that.
       */}
       <RequirementDialog key={selectedRequirement?.id ?? "none"} requirement={selectedRequirement} onClose={() => setSelectedRequirement(null)} />
-      <ServiceExceptionFollowUpDialog
+      <ServiceExceptionFollowUpDialog key={followUpTask?.id ?? "none"}
         open={!!followUpTask}
         taskName={followUpTask?.service_name ?? "service"}
         residentName={followUpTask?.resident_name ?? "the resident"}
         existingNote={followUpTask?.note ?? null}
         pending={followUpExceptionRpc.isPending}
-        onOpenChange={open => !open && setFollowUpTask(null)}
+        onOpenChange={open => !open && closeFollowUp()}
         onConfirm={async reason => {
-          if (!followUpTask) return;
+          if (!followUpTask) return false;
+          const generation = followUpGeneration.current;
           try {
             await followUpExceptionRpc.mutateAsync({ taskId: followUpTask.id, reason });
+            if (generation !== followUpGeneration.current) return false;
             toast({ title: "Supervisor follow-up raised", description: "It is in the shared work queue." });
-            setFollowUpTask(null);
+            closeFollowUp();
+            return true;
           } catch (error) {
+            if (generation !== followUpGeneration.current) return false;
             toast({
               title: "Couldn't raise the follow-up",
               description: error instanceof Error ? error.message : String(error),
               variant: "destructive",
             });
+            return false;
           }
         }}
       />

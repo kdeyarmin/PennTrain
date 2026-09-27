@@ -308,32 +308,30 @@ export interface WorkforceSelfServiceQueues {
   shiftSwaps: Record<string, any>[];
 }
 
-export function useWorkforceSelfServiceQueues(facilityId?: string) {
+export function useWorkforceSelfServiceQueues(facilityId?: string, options: { organizationId?: string; enabled?: boolean } = {}) {
   return useQuery({
-    queryKey: ["workforce-self-service-queues", facilityId ?? "all"],
-    queryFn: async (): Promise<WorkforceSelfServiceQueues> => {
-      let timeOffQuery = asRpc().from("workforce_time_off_requests")
-        .select("*, employees(first_name,last_name), facilities(name)")
-        .eq("status", "pending")
-        .order("starts_at");
-      let claimQuery = asRpc().from("open_shift_claims")
-        .select("*, employees(first_name,last_name), open_shift_opportunities!inner(*, facilities(name), facility_units(name))")
-        .in("claim_status", ["pending_approval", "waitlisted"])
-        .order("requested_at");
-      let swapQuery = asRpc().from("shift_swap_requests")
-        .select("*, facilities(name), requester:employees!shift_swap_requests_requester_employee_id_fkey(first_name,last_name), target:employees!shift_swap_requests_target_employee_id_fkey(first_name,last_name), requester_assignment:shift_assignments!shift_swap_requests_requester_assignment_id_fkey(shift_date,start_time,end_time), target_assignment:shift_assignments!shift_swap_requests_target_assignment_id_fkey(shift_date,start_time,end_time)")
-        .eq("status", "pending")
-        .order("requested_at");
-      if (facilityId) {
-        timeOffQuery = timeOffQuery.eq("facility_id", facilityId);
-        claimQuery = claimQuery.eq("open_shift_opportunities.facility_id", facilityId);
-        swapQuery = swapQuery.eq("facility_id", facilityId);
-      }
-      const [timeOff, claims, swaps] = await Promise.all([timeOffQuery, claimQuery, swapQuery]);
-      if (timeOff.error) throw timeOff.error;
-      if (claims.error) throw claims.error;
-      if (swaps.error) throw swaps.error;
-      return { timeOff: timeOff.data ?? [], openShiftClaims: claims.data ?? [], shiftSwaps: swaps.data ?? [] };
+    queryKey: ["workforce-self-service-queues", facilityId ?? "all", options.organizationId ?? "all-organizations"],
+    enabled: options.enabled ?? true,
+    queryFn: async ({ signal }): Promise<WorkforceSelfServiceQueues> => {
+      const read = async (table: string, select: string, order: string, isClaim = false) => {
+        const rows: Record<string, any>[] = [];
+        for (;;) {
+          let query = asRpc().from(table).select(select).order(order).order("id").range(rows.length, rows.length + 999).abortSignal(signal);
+          query = isClaim ? query.in("claim_status", ["pending_approval", "waitlisted"]) : query.eq("status", "pending");
+          if (facilityId) query = query.eq(isClaim ? "open_shift_opportunities.facility_id" : "facility_id", facilityId);
+          if (options.organizationId) query = query.eq("organization_id", options.organizationId);
+          const { data, error } = await query;
+          if (error) throw error;
+          if (!data?.length) return rows;
+          rows.push(...data);
+        }
+      };
+      const [timeOff, openShiftClaims, shiftSwaps] = await Promise.all([
+        read("workforce_time_off_requests", "*, employees(first_name,last_name), facilities(name)", "starts_at"),
+        read("open_shift_claims", "*, employees(first_name,last_name), open_shift_opportunities!inner(*, facilities(name), facility_units(name))", "requested_at", true),
+        read("shift_swap_requests", "*, facilities(name), requester:employees!shift_swap_requests_requester_employee_id_fkey(first_name,last_name), target:employees!shift_swap_requests_target_employee_id_fkey(first_name,last_name), requester_assignment:shift_assignments!shift_swap_requests_requester_assignment_id_fkey(shift_date,start_time,end_time), target_assignment:shift_assignments!shift_swap_requests_target_assignment_id_fkey(shift_date,start_time,end_time)", "requested_at"),
+      ]);
+      return { timeOff, openShiftClaims, shiftSwaps };
     },
     staleTime: 15_000,
   });

@@ -335,11 +335,15 @@ select pg_temp.sms_actor('da000000-0000-4000-8000-000000000011','da000000-0000-4
 set local role authenticated;
 select lives_ok($$select public.record_idle_session_unlock((select (value->>'id')::uuid from sms_test_state where key='lock'))$$,
  'new session SMS proof permits completing the existing idle lock');
+select lives_ok($$select public.record_idle_session_unlock((select (value->>'id')::uuid from sms_test_state where key='lock'))$$,
+ 'verified SMS session can recover a lost unlock acknowledgement');
 reset role;
 select pg_temp.sms_actor('da000000-0000-4000-8000-000000000011','da000000-0000-4000-8000-000000000101');
 set local role authenticated;
 select is(public.get_my_mfa_status()->>'verified','false','closing the old lock never resurrects its old SMS proof');
 select is(public.identity_assurance_is_current('identity_admin'),false,'the old JWT stays denied after another session unlocks');
+select throws_ok($$select public.record_idle_session_unlock((select (value->>'id')::uuid from sms_test_state where key='lock'))$$,
+ '42501',null,'completed unlock replay still requires current SMS proof');
 reset role;
 
 

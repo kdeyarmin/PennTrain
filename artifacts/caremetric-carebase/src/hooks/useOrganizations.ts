@@ -7,14 +7,20 @@ export type Organization = Tables<"organizations">;
 export type OrganizationInsert = TablesInsert<"organizations">;
 export type OrganizationUpdate = TablesUpdate<"organizations">;
 
-export function useListOrganizations() {
+export function useListOrganizations(enabled = true) {
   return useQuery({
     queryKey: ["organizations"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("organizations").select("*").order("name");
-      if (error) throw error;
-      return data;
+    queryFn: async ({ signal }) => {
+      const organizations: Tables<"organizations">[] = [];
+      for (let from = 0; ; ) {
+        const { data, error } = await supabase.from("organizations").select("*")
+          .order("name").order("id").range(from, from + 999).abortSignal(signal);
+        if (error) throw error;
+        if (!data?.length) return organizations;
+        organizations.push(...data); from += data.length;
+      }
     },
+    enabled,
   });
 }
 

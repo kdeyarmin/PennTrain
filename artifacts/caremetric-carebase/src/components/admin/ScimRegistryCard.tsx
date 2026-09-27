@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { QueryError } from "@/components/QueryState";
 import { KeyRound, Link2, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,7 @@ import {
  * moment it matters rather than in documentation nobody reads at 2am.
  */
 export function ScimRegistryCard() {
+  const { user } = useAuth();
   const { toast } = useToast();
   const registry = useScimConnectionRegistry();
   const ssoConnections = useSsoConnections();
@@ -41,8 +44,29 @@ export function ScimRegistryCard() {
   const [providerSubject, setProviderSubject] = useState("");
   const [profileId, setProfileId] = useState("");
   const [linkMethod, setLinkMethod] = useState<string>("admin_verified");
+  const [copied, setCopied] = useState(false);
+  const secretReview = useRef(0);
+  const linkDraft = useRef(0);
+  const scope = JSON.stringify([user?.id, user?.organizationId, user?.role]);
+  const previousScope = useRef(scope);
+  if (previousScope.current !== scope) {
+    previousScope.current = scope; secretReview.current += 1; linkDraft.current += 1;
+    setRotated(null); setCopied(false); setLinking(false); setSsoConnectionId(""); setProviderSubject(""); setProfileId("");
+  }
+  useEffect(() => () => { secretReview.current += 1; linkDraft.current += 1; }, []);
 
-  const canLink = ssoConnectionId && providerSubject.trim() && profileId.trim();
+  const canLink = ssoConnections.isSuccess && !ssoConnections.isFetching
+    && ssoConnections.data.some(connection => connection.id === ssoConnectionId) && providerSubject.trim() && profileId.trim();
+  const copySecret = async () => {
+    if (!rotated) return;
+    const request = secretReview.current;
+    try {
+      await navigator.clipboard.writeText(rotated.secret);
+      if (request === secretReview.current) setCopied(true);
+    } catch {
+      if (request === secretReview.current) toast({ title: "Could not copy the credential", description: "Select and copy the displayed value manually.", variant: "destructive" });
+    }
+  };
 
   return (
     <Card>
@@ -63,10 +87,11 @@ export function ScimRegistryCard() {
               <p className="text-xs">Connection key <code className="font-mono">{rotated.connectionKey}</code></p>
               <code className="block break-all rounded bg-muted p-2 font-mono text-xs">{rotated.secret}</code>
               <p className="text-xs">
-                Give it to the directory before the old one stops being accepted, or provisioning
-                stops. The registry keeps only a hint, so this is the only time it can be read.
+                The old credential is already invalid. Update the directory with this value to resume provisioning.
+                The registry keeps only a hint, so this is the only time it can be read.
               </p>
-              <Button size="sm" variant="outline" onClick={() => setRotated(null)}>I have saved it</Button>
+              <Button size="sm" variant="outline" onClick={() => void copySecret()}>{copied ? "Copied" : "Copy credential"}</Button>
+              <Button size="sm" variant="outline" onClick={() => { secretReview.current += 1; setRotated(null); setCopied(false); }}>I have saved it</Button>
             </AlertDescription>
           </Alert>
         )}
@@ -74,7 +99,7 @@ export function ScimRegistryCard() {
         <div className="space-y-2">
           {registry.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
           {registry.isError && (
-            <p className="text-sm text-destructive">Could not load: {errorText(registry.error)}</p>
+            <QueryError what="SCIM connections" error={registry.error} onRetry={() => void registry.refetch()} />
           )}
           {registry.data?.length === 0 && (
             <p className="text-sm text-muted-foreground">No SCIM connections have been created.</p>
@@ -96,14 +121,15 @@ export function ScimRegistryCard() {
               <div className="flex shrink-0 items-center gap-2">
                 <Badge variant={connection.status === "active" ? "secondary" : "outline"}>{connection.status}</Badge>
                 <Button
-                  size="sm" variant="outline" disabled={rotate.isPending}
-                  onClick={() => rotate.mutate({ connectionId: connection.connection_id }, {
+                  size="sm" variant="outline" disabled={rotate.isPending || !!rotated || registry.isError || registry.isFetching}
+                  onClick={() => { const request = ++secretReview.current; rotate.mutate({ connectionId: connection.connection_id }, {
                     onSuccess: (secret) => {
-                      setRotated(secret);
-                      void navigator.clipboard?.writeText(secret.secret).catch(() => undefined);
+                      if (request !== secretReview.current) return;
+                      setRotated(secret); setCopied(false);
                     },
-                    onError: (error) => toast({ title: "Rotation blocked", description: errorText(error), variant: "destructive" }),
-                  })}
+                    onError: (error) => { if (request === secretReview.current) toast({ title: "Rotation unavailable", description: errorText(error), variant: "destructive" }); },
+                  }); }}
+                  title="Rotation invalidates the previous credential immediately."
                 >
                   <RefreshCw className="mr-1 h-3.5 w-3.5" />Rotate credential
                 </Button>
@@ -114,7 +140,7 @@ export function ScimRegistryCard() {
 
         <div className="space-y-2 border-t pt-3">
           {!linking && (
-            <Button size="sm" variant="outline" onClick={() => setLinking(true)}>
+            <Button size="sm" variant="outline" onClick={() => { linkDraft.current += 1; setLinking(true); }}>
               <Link2 className="mr-1 h-3.5 w-3.5" />Link an SSO identity by hand
             </Button>
           )}
@@ -127,7 +153,7 @@ export function ScimRegistryCard() {
               </p>
               <div className="space-y-1.5">
                 <Label htmlFor="sso-connection">SSO connection</Label>
-                <Select value={ssoConnectionId} onValueChange={setSsoConnectionId}>
+                <Select value={ssoConnectionId} onValueChange={value => { linkDraft.current += 1; setSsoConnectionId(value); }} disabled={!ssoConnections.isSuccess || ssoConnections.isFetching}>
                   <SelectTrigger id="sso-connection" className="sm:w-80"><SelectValue placeholder="Pick a connection" /></SelectTrigger>
                   <SelectContent>
                     {(ssoConnections.data ?? []).map((connection) => (
@@ -137,18 +163,19 @@ export function ScimRegistryCard() {
                     ))}
                   </SelectContent>
                 </Select>
+                {ssoConnections.isError && <QueryError what="SSO connections" error={ssoConnections.error} onRetry={() => void ssoConnections.refetch()} />}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="provider-subject">Provider subject</Label>
-                <Input id="provider-subject" value={providerSubject} onChange={(e) => setProviderSubject(e.target.value)} placeholder="The sub claim the provider sends" />
+                <Input id="provider-subject" value={providerSubject} onChange={(e) => { linkDraft.current += 1; setProviderSubject(e.target.value); }} placeholder="The sub claim the provider sends" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="link-profile">Profile</Label>
-                <Input id="link-profile" value={profileId} onChange={(e) => setProfileId(e.target.value)} placeholder="Profile UUID" />
+                <Input id="link-profile" value={profileId} onChange={(e) => { linkDraft.current += 1; setProfileId(e.target.value); }} placeholder="Profile UUID" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="link-method">How it was established</Label>
-                <Select value={linkMethod} onValueChange={setLinkMethod}>
+                <Select value={linkMethod} onValueChange={value => { linkDraft.current += 1; setLinkMethod(value); }}>
                   <SelectTrigger id="link-method" className="sm:w-80"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {SSO_LINK_METHODS.map((method) => (
@@ -160,22 +187,23 @@ export function ScimRegistryCard() {
               <div className="flex gap-2">
                 <Button
                   size="sm" disabled={link.isPending || !canLink}
-                  onClick={() => link.mutate({
+                  onClick={() => { if (!canLink || link.isPending) return; const request = linkDraft.current; link.mutate({
                     ssoConnectionId,
                     providerSubject: providerSubject.trim(),
                     profileId: profileId.trim(),
                     linkMethod,
                   }, {
                     onSuccess: () => {
+                      if (request !== linkDraft.current) return;
                       setLinking(false); setProviderSubject(""); setProfileId("");
                       toast({ title: "Identity linked", description: "That subject now resolves to the profile." });
                     },
-                    onError: (error) => toast({ title: "Link refused", description: errorText(error), variant: "destructive" }),
-                  })}
+                    onError: (error) => { if (request === linkDraft.current) toast({ title: "Link refused", description: errorText(error), variant: "destructive" }); },
+                  }); }}
                 >
                   {link.isPending ? "Linking…" : "Link identity"}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setLinking(false)}>Cancel</Button>
+                <Button size="sm" variant="ghost" onClick={() => { linkDraft.current += 1; setLinking(false); }}>Cancel</Button>
               </div>
             </div>
           )}

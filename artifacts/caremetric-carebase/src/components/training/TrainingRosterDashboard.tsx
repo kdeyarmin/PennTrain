@@ -79,7 +79,7 @@ export default function TrainingRosterDashboard({ facilityId, organizationId, on
           <td className="p-2 border-b"><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => onEmployee(row.employee_id)}>Progress / transcript</Button>
             <Button asChild size="sm" variant="outline"><Link href={`/app/employees/${row.employee_id}?source=train&facilityId=${facilityId}`}>Staff details</Link></Button>
             {canInvite && row.email && !["activated", "accepted", "linked"].includes(row.account_status) && <Button size="sm" disabled={busy} onClick={() => void send(row)}>{row.account_status === "revoked" ? "Send new invitation" : row.invitation_id ? "Resend invitation" : "Invite learner"}</Button>}
-            {["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role || "") && (row.required_total === 0 || row.exemption_reason) && <TrainingAssignmentExemption row={row} />}
+            {["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role || "") && (row.required_total === 0 || row.exemption_reason) && <TrainingAssignmentExemption row={row} trainingYear={year ? Number(year) : undefined} />}
           </div></td>
         </tr>)}
       </tbody></table></div>

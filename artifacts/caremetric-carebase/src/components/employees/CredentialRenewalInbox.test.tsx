@@ -2,8 +2,9 @@ import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
-  state: [] as unknown[], cursor: 0, effects: [] as Array<() => void>,
-  total: 51, fetching: false, query: vi.fn(),
+  state: [] as unknown[], cursor: 0, effects: [] as Array<() => void | (() => void)>,
+  refs: [] as Array<{ current: unknown }>, refCursor: 0,
+  total: 51, fetching: false, query: vi.fn(), review: vi.fn(), toast: vi.fn(),
 }));
 vi.mock("react", async (original) => ({
   ...await original<typeof import("react")>(),
@@ -15,17 +16,18 @@ vi.mock("react", async (original) => ({
     }];
   },
   useMemo: (value: () => unknown) => value(),
-  useEffect: (effect: () => void) => { h.effects.push(effect); },
+  useEffect: (effect: () => void | (() => void)) => { h.effects.push(effect); },
+  useRef: (initial: unknown) => { const i = h.refCursor++; return h.refs[i] ?? (h.refs[i] = { current: initial }); },
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "reviewer" } }) }));
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/hooks/useEmployees", () => ({ useListEmployeesByIds: () => ({ data: [] }) }));
 vi.mock("@/hooks/useCredentialRenewals", () => ({
   extractedFieldString: () => "",
   renewalSlaLabel: () => ({ label: "Waiting", level: "warn" }),
   useCredentialRenewalSubmissions: h.query,
   useCredentialRenewalQueueSummary: () => ({ data: null }),
-  useReviewCredentialRenewal: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useReviewCredentialRenewal: () => ({ isPending: false, mutateAsync: h.review }),
 }));
 
 import { CredentialRenewalInbox } from "./CredentialRenewalInbox";
@@ -45,11 +47,12 @@ function text(node: ReactNode): string {
 }
 function render() {
   h.cursor = 0;
+  h.refCursor = 0;
   h.effects = [];
   return CredentialRenewalInbox({});
 }
 function button(tree: ReactNode, label: string) {
-  const found = nodes(tree).find((node) => text(node.props.children as ReactNode) === label
+  const found = nodes(tree).find((node) => text(node.props.children as ReactNode).trim() === label
     && typeof node.props.onClick === "function");
   expect(found, `${label} button`).toBeDefined();
   return found!;
@@ -61,6 +64,7 @@ function click(tree: ReactNode, label: string) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks(); h.refs = []; h.refCursor = 0;
   h.state = []; h.cursor = 0; h.effects = []; h.total = 51; h.fetching = false;
   h.query.mockReset();
   h.query.mockImplementation(({ page, pageSize }: { page: number; pageSize: number }) => ({
@@ -75,6 +79,46 @@ beforeEach(() => {
     },
     isLoading: false, isFetching: h.fetching, isError: false, refetch: vi.fn(),
   }));
+});
+
+function field(id: string) { return nodes(render()).find(n => n.props.id === id)!; }
+function change(id: string, value: string) { (field(id).props.onChange as (event: unknown) => void)({ target: { value } }); }
+function prepareReview() {
+  click(render(), "Approve"); change("renewal-issuer", "State authority"); change("renewal-expiration", "2028-10-01");
+  change("renewal-reason", "Verified against submitted evidence");
+}
+function deferred() { let resolve!: () => void, reject!: (error: Error) => void; const promise = new Promise<void>((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; }
+
+describe("credential decision recovery", () => {
+  it("locks the approval draft and dialog until settlement and submits only one decision", async () => {
+    const pending = deferred(); h.review.mockReturnValue(pending.promise); prepareReview();
+    const submit = button(render(), "Approve renewal").props.onClick as () => void; submit(); submit();
+    expect(h.review).toHaveBeenCalledTimes(1);
+    let tree = render();
+    expect(nodes(tree).some(n => n.type === "fieldset" && n.props.disabled && nodes(n).some(child => child.props.id === "renewal-reason"))).toBe(true);
+    expect(button(tree, "Cancel").props.disabled).toBe(true);
+    (nodes(tree).find(n => typeof n.props.onOpenChange === "function")!.props.onOpenChange as (value: boolean) => void)(false);
+    expect(nodes(render()).find(n => typeof n.props.onOpenChange === "function")!.props.open).toBe(true);
+    pending.resolve(); await vi.waitFor(() => expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Renewal approved" })));
+    tree = render(); expect(nodes(tree).find(n => typeof n.props.onOpenChange === "function")!.props.open).toBe(false);
+  });
+  it("retains all confirmed fields and the reason after a blocked review for retry", async () => {
+    const pending = deferred(); h.review.mockReturnValue(pending.promise); prepareReview();
+    (button(render(), "Approve renewal").props.onClick as () => void)(); pending.reject(new Error("Server review unavailable"));
+    await vi.waitFor(() => expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Review blocked" })));
+    expect(field("renewal-issuer").props.value).toBe("State authority"); expect(field("renewal-expiration").props.value).toBe("2028-10-01");
+    expect(field("renewal-reason").props.value).toBe("Verified against submitted evidence");
+    expect(button(render(), "Approve renewal").props.disabled).toBe(false);
+  });
+  it.each(["success", "failure"])("does not publish late %s feedback after leaving the review", async outcome => {
+    const pending = deferred(); h.review.mockReturnValue(pending.promise); prepareReview();
+    const submit = button(render(), "Approve renewal").props.onClick as () => void;
+    const cleanups = h.effects.map(effect => effect()).filter((value): value is () => void => typeof value === "function");
+    submit(); cleanups.forEach(cleanup => cleanup());
+    if (outcome === "success") pending.resolve(); else pending.reject(new Error("Old reviewer response"));
+    await pending.promise.catch(() => undefined); await Promise.resolve(); await Promise.resolve();
+    expect(h.toast).not.toHaveBeenCalled();
+  });
 });
 
 describe("credential renewal inbox pagination", () => {

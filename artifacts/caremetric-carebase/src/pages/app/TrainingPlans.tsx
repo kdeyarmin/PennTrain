@@ -354,7 +354,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-foreground">Plan Items</h3>
         <div className="flex flex-wrap items-center gap-2">
-          {canManage && <PlanAuthoringTools plan={plan} items={items ?? []} />}
+          {canManage && <PlanAuthoringTools plan={plan} items={items ?? []} itemsReady={!isLoading && !isError} />}
           {canManage && (
             <Button size="sm" variant="outline" onClick={() => setShowApplyDialog(true)}>
               <UserPlus className="mr-2 h-3.5 w-3.5" /> Apply to Employee(s)

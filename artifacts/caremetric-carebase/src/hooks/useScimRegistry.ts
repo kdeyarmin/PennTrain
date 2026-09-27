@@ -33,10 +33,15 @@ export interface ScimConnectionRow {
 export function useScimConnectionRegistry() {
   return useQuery({
     queryKey: ["scim-registry"],
-    queryFn: async () => {
-      const { data, error } = await rpcClient.rpc("get_scim_connection_registry");
-      if (error) throw new Error(error.message);
-      return (data ?? []) as ScimConnectionRow[];
+    queryFn: async ({ signal }) => {
+      const rows: ScimConnectionRow[] = [];
+      for (let from = 0; ; ) {
+        const { data, error } = await supabase.rpc("get_scim_connection_registry")
+          .order("display_name").order("connection_id").range(from, from + 999).abortSignal(signal);
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data); from += data.length;
+      }
     },
   });
 }
@@ -56,10 +61,10 @@ export function useRotateScimCredential() {
       if (error) throw new Error(error.message);
       const row = (Array.isArray(data) ? data[0] : data) as
         { connection_key?: string; credential_secret?: string } | null;
-      if (!row?.credential_secret) throw new Error("The rotation returned no secret. Nothing was changed.");
-      return { connectionKey: row.connection_key ?? "", secret: row.credential_secret };
+      if (!row?.credential_secret || !row.connection_key) throw new Error("The rotation response was incomplete. The credential may have changed. Refresh the registry and rotate again if you did not receive the new secret.");
+      return { connectionKey: row.connection_key, secret: row.credential_secret };
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["scim-registry"] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["scim-registry"] }),
   });
 }
 
@@ -103,13 +108,17 @@ export interface SsoConnectionRow {
 export function useSsoConnections() {
   return useQuery({
     queryKey: ["sso-connections"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("organization_sso_connections")
-        .select("id, display_name, provider, status")
-        .order("display_name");
-      if (error) throw error;
-      return (data ?? []) as SsoConnectionRow[];
+    queryFn: async ({ signal }) => {
+      const rows: SsoConnectionRow[] = [];
+      for (let from = 0; ; ) {
+        const { data, error } = await supabase
+          .from("organization_sso_connections")
+          .select("id, display_name, provider, status")
+          .order("display_name").order("id").range(from, from + 999).abortSignal(signal);
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data); from += data.length;
+      }
     },
   });
 }

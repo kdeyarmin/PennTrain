@@ -201,7 +201,7 @@ export function ResidentCareHeaderPanel({
       </div>
 
       {canManage && (
-        <EditResidentCareProfileDialog
+        <EditResidentCareProfileDialog key={residentId}
           open={editing}
           onOpenChange={setEditing}
           residentId={residentId}

@@ -1,6 +1,6 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { AlertTriangle, Award, CalendarCheck, FileScan, RefreshCw, UserCheck, UsersRound } from "lucide-react";
-import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
+import { careDateTimeInstant } from "@/lib/careFormDates";
 import { useToast } from "@/hooks/use-toast";
 import {
   useQualifiedWorkforce,
@@ -8,7 +8,7 @@ import {
 } from "@/hooks/useQualifiedWorkforce";
 import type { EnterpriseJson, EnterpriseRecord } from "@/hooks/useEnterpriseFoundation";
 import { useCreateHrisImportRun, useHrisImportRuns, useHrisSourceSystems } from "@/hooks/useHrisImportRuns";
-import { HrisRowDecisions } from "@/components/admin/HrisRowDecisions";
+import { HrisImportActions } from "@/components/admin/HrisImportActions";
 import { HrisSourceSystems } from "@/components/admin/HrisSourceSystems";
 import { importRunIssues, importRunStatusLabel, suggestedRequestId } from "@/lib/hrisImportRuns";
 import { useAuth } from "@/lib/auth";
@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { QueryError } from "@/components/QueryState";
 import { CredentialRenewalInbox } from "@/components/employees/CredentialRenewalInbox";
+import { QualificationLifecycleCommand } from "@/components/admin/QualificationLifecycleCommand";
 
 
 function labelFor(value: string) {
@@ -51,39 +52,6 @@ function MetricPanel({ title, description, values }: { title: string; descriptio
   );
 }
 
-function CommandCard({
-  title,
-  description,
-  rpc,
-  args,
-  disabled,
-  buttonLabel,
-}: {
-  title: string;
-  description: string;
-  rpc: string;
-  args: Record<string, unknown>;
-  disabled: boolean;
-  buttonLabel: string;
-}) {
-  const { toast } = useToast();
-  const command = useQualifiedWorkforceCommand();
-  const submit = async () => {
-    try {
-      await command.mutateAsync({ rpc, args });
-      toast({ title: `${title} completed` });
-    } catch (error) {
-      toast({ title: `${title} blocked`, description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
-    }
-  };
-  return (
-    <Card>
-      <CardHeader><CardTitle className="text-base">{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader>
-      <CardContent><Button onClick={() => void submit()} disabled={disabled || command.isPending}>{buttonLabel}</Button></CardContent>
-    </Card>
-  );
-}
-
 /**
  * Starting a run is the step that did not exist (BACKLOG.md G10).
  *
@@ -101,6 +69,10 @@ function StartImportRunCard(
   const { toast } = useToast();
   const [sourceSystemId, setSourceSystemId] = useState("");
   const [requestId, setRequestId] = useState("");
+  const submitting = useRef(false), mounted = useRef(true);
+  const [pending, setPending] = useState(false);
+  const busy = pending || create.isPending;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const rows = sources.data ?? [];
   const selected = rows.find((row) => row.id === sourceSystemId);
@@ -119,6 +91,7 @@ function StartImportRunCard(
         <div className="space-y-2">
           <Label htmlFor="phase3-source">Source system</Label>
           <Select
+            disabled={busy || sources.isLoading || sources.isError}
             value={sourceSystemId}
             onValueChange={(value) => {
               setSourceSystemId(value);
@@ -155,23 +128,29 @@ function StartImportRunCard(
         </div>
         <div className="space-y-2">
           <Label htmlFor="phase3-request">Request ID</Label>
-          <Input id="phase3-request" value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Identifies this extract" />
+          <Input id="phase3-request" disabled={busy} value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Identifies this extract" />
         </div>
         <div className="md:col-span-2 space-y-2">
           {issues.map((issue) => <p key={issue} className="text-xs text-muted-foreground">{issue}</p>)}
           <Button
-            disabled={issues.length > 0 || create.isPending}
+            disabled={issues.length > 0 || busy || !selected || sources.isLoading || sources.isError}
             onClick={async () => {
+              if (submitting.current || busy || issues.length > 0 || !selected || sources.isLoading || sources.isError) return;
+              submitting.current = true; setPending(true);
               try {
                 const runId = await create.mutateAsync({ sourceSystemId, requestId: requestId.trim() });
+                if (!mounted.current) return;
                 onStarted(runId);
                 toast({ title: "Import run started", description: "Its ID is filled in below." });
               } catch (error) {
-                toast({
+                if (mounted.current) toast({
                   title: "Import run blocked",
                   description: error instanceof Error ? error.message : "Unknown error",
                   variant: "destructive",
                 });
+              } finally {
+                submitting.current = false;
+                if (mounted.current) setPending(false);
               }
             }}
           >
@@ -184,7 +163,6 @@ function StartImportRunCard(
 }
 
 function HrisCommands() {
-  const [runId, setRunId] = useState("");
   const { user } = useAuth();
   // This page is platform_admin only, and a platform admin's profile deliberately carries no
   // organization_id -- they do not belong to a customer. Passing `user.organizationId` therefore
@@ -194,13 +172,13 @@ function HrisCommands() {
   // tenant they are acting for everywhere else; it is the answer here too.
   const { viewingOrgId } = useViewingOrg();
   const sourceOrgId = viewingOrgId ?? user?.organizationId ?? null;
+  return <HrisWorkspace key={sourceOrgId ?? "no-org"} sourceOrgId={sourceOrgId} />;
+}
+
+function HrisWorkspace({ sourceOrgId }: { sourceOrgId: string | null }) {
+  const [runId, setRunId] = useState("");
   const runs = useHrisImportRuns(sourceOrgId);
-  // The selected run has to be dropped when the tenant changes, not just the list. Validate and
-  // Resume are authorized for a platform admin in every organization, so a run id left over from
-  // the previous selection stayed live under the new tenant's heading and would have applied that
-  // other tenant's import. Clearing it in an effect rather than on the picker's change handler
-  // because "Viewing as" lives in the header, outside this component.
-  useEffect(() => { setRunId(""); }, [sourceOrgId]);
+  const selectedRun = runs.data?.find(run => run.id === runId);
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       {/* Before "Start an import run", because a run cannot exist without a source and nothing in
@@ -226,37 +204,16 @@ function HrisCommands() {
             </SelectContent>
           </Select>
         ) : (
-          <Input id="phase3-run" value={runId} onChange={(e) => setRunId(e.target.value)} placeholder="No runs yet — start one above" />
+          <p className="text-sm text-muted-foreground">No runs yet — start one above.</p>
         )}
       </div>
-      <CommandCard title="Validate import" description="Re-runs deterministic validation and surfaces duplicate candidates for a human decision." rpc="validate_hris_import_run" args={{ p_import_run_id: runId }} disabled={!runId} buttonLabel="Validate staged rows" />
-      {/* Between the two commands, because that is where it belongs: Validate says it "surfaces
-          duplicate candidates for a human decision", and until now there was nowhere to make one,
-          so Apply ran with nothing decided. */}
-      {runId && (
-        <div className="rounded-lg border p-3">
-          <p className="mb-2 text-sm font-medium">Merge decisions</p>
-          <HrisRowDecisions importRunId={runId} />
-        </div>
-      )}
-      <CommandCard title="Resume import" description="Applies the next idempotent batch. Re-running never credits the same source row twice." rpc="apply_hris_import_batch" args={{ p_import_run_id: runId, p_batch_size: 100 }} disabled={!runId} buttonLabel="Apply next batch" />
+      {selectedRun && <HrisImportActions run={selectedRun} disabled={runs.isError || runs.isFetching} />}
     </div>
   );
 }
 
 function QualificationCommand() {
-  const __fieldIds = useId();
-  const [qualificationId, setQualificationId] = useState("");
-  const [state, setState] = useState("suspended");
-  const [reason, setReason] = useState("");
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2"><Label htmlFor="phase3-qualification">Qualification ID</Label><Input id="phase3-qualification" value={qualificationId} onChange={(e) => setQualificationId(e.target.value)} /></div>
-      <div className="space-y-2"><Label htmlFor={`${__fieldIds}-resulting-state`}>Resulting state</Label><Select value={state} onValueChange={setState}><SelectTrigger id={`${__fieldIds}-resulting-state`}><SelectValue /></SelectTrigger><SelectContent>{["active", "suspended", "revoked"].map((value) => <SelectItem key={value} value={value}>{labelFor(value)}</SelectItem>)}</SelectContent></Select></div>
-      <div className="space-y-2"><Label htmlFor="phase3-qualification-reason">Reason</Label><Textarea id="phase3-qualification-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Documentation-backed reason" /></div>
-      <CommandCard title="Qualification lifecycle" description="Records an append-only lifecycle event. Revocation is terminal." rpc="set_employee_qualification_state" args={{ p_qualification_id: qualificationId, p_state: state, p_reason: reason }} disabled={!qualificationId || reason.trim().length < 5} buttonLabel="Record state change" />
-    </div>
-  );
+  return <QualificationLifecycleCommand />;
 }
 
 /**
@@ -271,7 +228,9 @@ function QualificationCommand() {
  */
 function EligibilityCommand() {
   const { user } = useAuth();
-  const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const { viewingOrgId } = useViewingOrg();
+  const organizationId = (user?.role === "platform_admin" ? viewingOrgId : null) ?? user?.organizationId ?? undefined;
+  const facilities = useListFacilities({ organizationId });
   const assignableFacilities = useAssignableFacilities(facilities.data ?? undefined);
   const [employeeId, setEmployeeId] = useState("");
   const [facilityId, setFacilityId] = useState("");
@@ -281,25 +240,53 @@ function EligibilityCommand() {
   const { toast } = useToast();
   const command = useQualifiedWorkforceCommand();
   const [result, setResult] = useState<EnterpriseJson | null>(null);
+  const [pending, setPending] = useState(false);
+  const revision = useRef(0);
+  const inFlight = useRef<symbol | null>(null);
+  const identity = JSON.stringify([user?.id, user?.role, user?.facilityId, organizationId]);
+  const previousIdentity = useRef(identity);
+  const changeRequest = (update: () => void) => { revision.current += 1; setResult(null); update(); };
+  if (previousIdentity.current !== identity) {
+    previousIdentity.current = identity;
+    changeRequest(() => { setEmployeeId(""); setFacilityId(""); });
+    inFlight.current = null; setPending(false);
+  }
+  useEffect(() => () => { revision.current += 1; inFlight.current = null; }, []);
+  const startInstant = careDateTimeInstant(startsAt);
+  const endInstant = careDateTimeInstant(endsAt);
+  const dateIssue = (startsAt && !startInstant) || (endsAt && !endInstant)
+    ? "Enter valid Pennsylvania dates and times. Nonexistent daylight-saving times cannot be evaluated."
+    : startInstant && endInstant && new Date(endInstant) <= new Date(startInstant)
+      ? "The end must be after the start." : null;
+  const facilitiesReady = facilities.isSuccess && !facilities.isFetching && !facilities.isPlaceholderData;
+  const selectedFacility = assignableFacilities.some(facility => facility.id === facilityId && (!organizationId || facility.organization_id === organizationId));
+  const canEvaluate = !!employeeId && !!startInstant && !!endInstant && !dateIssue && facilitiesReady && selectedFacility;
   const submit = async () => {
+    if (!canEvaluate || pending || command.isPending || inFlight.current) return;
+    const attempt = Symbol("eligibility-request");
+    const submittedRevision = revision.current;
+    inFlight.current = attempt; setPending(true); setResult(null);
     try {
       const data = await command.mutateAsync({
         rpc: "evaluate_schedule_eligibility",
         args: {
           p_employee_id: employeeId,
           p_facility_id: facilityId,
-          p_starts_at: facilityDateTimeLocalToUtcIso(startsAt),
-          p_ends_at: facilityDateTimeLocalToUtcIso(endsAt),
+          p_starts_at: startInstant,
+          p_ends_at: endInstant,
           p_required_qualification_keys: qualificationKeys.split(",").map((v) => v.trim()).filter(Boolean),
           p_required_credential_types: [],
           p_required_training_type_ids: [],
           p_exclude_assignment_ids: [],
         },
       });
-      setResult(data as EnterpriseJson);
+      if (revision.current === submittedRevision && inFlight.current === attempt) setResult(data as EnterpriseJson);
     } catch (error) {
+      if (revision.current !== submittedRevision || inFlight.current !== attempt) return;
       setResult(null);
       toast({ title: "Eligibility evaluation blocked", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    } finally {
+      if (inFlight.current === attempt) { inFlight.current = null; setPending(false); }
     }
   };
   return (
@@ -308,19 +295,21 @@ function EligibilityCommand() {
       <CardContent className="grid gap-4 md:grid-cols-2">
         <EmployeeSearchSelect
           value={employeeId}
-          onValueChange={setEmployeeId}
-          organizationId={user?.organizationId ?? undefined}
+          onValueChange={value => changeRequest(() => setEmployeeId(value))}
+          organizationId={organizationId}
           facilityId={facilityId || undefined}
           label="Employee"
           placeholder="Search staff by name"
           className="space-y-2"
         />
-        <div className="space-y-2"><Label htmlFor="phase3-facility">Facility</Label><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger id="phase3-facility"><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{assignableFacilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
-        <div className="space-y-2"><Label htmlFor="phase3-start">Starts at</Label><Input id="phase3-start" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></div>
-        <div className="space-y-2"><Label htmlFor="phase3-end">Ends at</Label><Input id="phase3-end" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></div>
-        <div className="space-y-2 md:col-span-2"><Label htmlFor="phase3-required">Required qualification keys</Label><Input id="phase3-required" value={qualificationKeys} onChange={(e) => setQualificationKeys(e.target.value)} placeholder="medication.administration, cpr" /></div>
-        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!employeeId || !facilityId || !startsAt || !endsAt || command.isPending}>Evaluate eligibility</Button></div>
-        {result !== null ? <div className="md:col-span-2"><EligibilityResultView result={result} /></div> : null}
+        <div className="space-y-2"><Label htmlFor="phase3-facility">Facility</Label><Select value={facilityId} disabled={!facilitiesReady} onValueChange={value => changeRequest(() => { setFacilityId(value); setEmployeeId(""); })}><SelectTrigger id="phase3-facility"><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{assignableFacilities.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
+        {facilities.isError && <div className="md:col-span-2"><QueryError what="eligibility facilities" error={facilities.error} onRetry={() => void facilities.refetch()} /></div>}
+        <div className="space-y-2"><Label htmlFor="phase3-start">Starts at</Label><Input id="phase3-start" type="datetime-local" value={startsAt} onChange={(e) => changeRequest(() => setStartsAt(e.target.value))} /></div>
+        <div className="space-y-2"><Label htmlFor="phase3-end">Ends at</Label><Input id="phase3-end" type="datetime-local" value={endsAt} onChange={(e) => changeRequest(() => setEndsAt(e.target.value))} /></div>
+        <div className="space-y-2 md:col-span-2"><Label htmlFor="phase3-required">Required qualification keys</Label><Input id="phase3-required" value={qualificationKeys} onChange={(e) => changeRequest(() => setQualificationKeys(e.target.value))} placeholder="medication.administration, cpr" /></div>
+        {dateIssue && <p role="alert" className="text-sm text-destructive md:col-span-2">{dateIssue}</p>}
+        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!canEvaluate || pending || command.isPending}>Evaluate eligibility</Button></div>
+        {result !== null && facilitiesReady && selectedFacility ? <div className="md:col-span-2"><EligibilityResultView result={result} /></div> : null}
       </CardContent>
     </Card>
   );
@@ -386,50 +375,81 @@ function personName(value: unknown) {
 }
 
 function WorkforceSelfServiceQueue() {
-  const __fieldIds = useId();
   const { user } = useAuth();
-  const facilities = useListFacilities({ organizationId: user?.organizationId ?? undefined });
+  const { viewingOrgId } = useViewingOrg();
+  const organizationId = viewingOrgId ?? user?.organizationId ?? undefined;
+  return <ScopedWorkforceQueue key={organizationId ?? "all-organizations"} organizationId={organizationId} />;
+}
+
+function ScopedWorkforceQueue({ organizationId }: { organizationId?: string }) {
+  const __fieldIds = useId();
+  const facilities = useListFacilities({ organizationId });
   const [facilityId, setFacilityId] = useState("all");
-  const queues = useWorkforceSelfServiceQueues(facilityId === "all" ? undefined : facilityId);
+  const scopeReady = !facilities.isLoading && !facilities.isError && (facilityId === "all" || !!facilities.data?.some(facility => facility.id === facilityId));
+  const queues = useWorkforceSelfServiceQueues(facilityId === "all" ? undefined : facilityId, { organizationId, enabled: scopeReady });
   const decideTimeOff = useDecideTimeOffRequest();
   const decideClaim = useDecideOpenShiftClaim();
   const decideSwap = useDecideShiftSwap();
   const { toast } = useToast();
   const [decision, setDecision] = useState<QueueDecision | null>(null);
   const [reason, setReason] = useState("");
+  const submitting = useRef(false), mounted = useRef(true);
+  const [requestPending, setRequestPending] = useState(false);
+  const pending = requestPending || decideTimeOff.isPending || decideClaim.isPending || decideSwap.isPending;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const decisionIssue = () => {
+    if (!scopeReady || queues.isError || queues.isLoading || queues.isFetching) return "Refresh the queue successfully before recording this decision.";
+    if (!decision) return "Choose a current request.";
+    const collection = decision.kind === "time_off" ? queues.data?.timeOff : decision.kind === "claim" ? queues.data?.openShiftClaims : queues.data?.shiftSwaps;
+    const row = collection?.find(item => String(item.id) === decision.id);
+    if (!row) return "This request is no longer in the pending queue. Cancel and choose a current request.";
+    if (decision.kind === "swap" && decision.approve && swapHasExpired(row.expires_at)) return "This swap has expired. Cancel and reject it to clear the queue.";
+    return null;
+  };
 
   const submitDecision = async () => {
-    if (!decision || reason.trim().length < 5) return;
+    if (!decision || reason.trim().length < 5 || submitting.current || pending) return;
+    const issue = decisionIssue();
+    if (issue) { toast({ title: "Decision blocked", description: issue, variant: "destructive" }); return; }
+    submitting.current = true; setRequestPending(true);
     try {
       if (decision.kind === "time_off") await decideTimeOff.mutateAsync({ requestId: decision.id, status: decision.approve ? "approved" : "denied", reason: reason.trim() });
       if (decision.kind === "claim") await decideClaim.mutateAsync({ claimId: decision.id, approve: decision.approve, reason: reason.trim() });
       if (decision.kind === "swap") await decideSwap.mutateAsync({ requestId: decision.id, approve: decision.approve, reason: reason.trim() });
+      if (!mounted.current) return;
       setDecision(null);
       setReason("");
       toast({ title: "Decision recorded", description: "The employee queue and schedule were refreshed." });
     } catch (error) {
-      toast({ title: "Decision blocked", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      // A failed response may follow a committed decision. Keep every decision control
+      // locked until the authoritative pending queue has been read again.
+      let refreshed = false;
+      try { refreshed = !(await queues.refetch({ throwOnError: true })).isError; } catch { /* The query error exposes its retry control. */ }
+      if (mounted.current) toast({ title: "Decision could not be confirmed", description: `${error instanceof Error ? error.message : String(error)} ${refreshed ? "Review the refreshed queue before retrying." : "Refresh the queue successfully before retrying."}`, variant: "destructive" });
+    } finally {
+      submitting.current = false;
+      if (mounted.current) setRequestPending(false);
     }
   };
 
-  const openDecision = (next: QueueDecision) => { setDecision(next); setReason(""); };
-  const pending = decideTimeOff.isPending || decideClaim.isPending || decideSwap.isPending;
+  const openDecision = (next: QueueDecision) => { if (!submitting.current && !pending && scopeReady && !queues.isError && !queues.isFetching) { setDecision(next); setReason(""); } };
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader><CardTitle>Employee self-service decisions</CardTitle><CardDescription>Approve or deny time off, open-shift claims, and shift swaps with an auditable reason. Eligibility is rechecked before schedule-changing approvals.</CardDescription></CardHeader>
-        <CardContent className="max-w-sm space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All assigned facilities</SelectItem>{(facilities.data ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></CardContent>
+        <CardHeader><CardTitle>Employee self-service decisions</CardTitle><CardDescription>Approve or deny time off, open-shift claims, and shift swaps with an auditable reason. Eligibility is rechecked before schedule-changing approvals. {organizationId ? "Showing the selected organization's requests." : "Showing requests across all organizations."}</CardDescription></CardHeader>
+        <CardContent className="max-w-sm space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={facilityId} disabled={pending || facilities.isLoading || facilities.isError} onValueChange={value => { if (!submitting.current) { setFacilityId(value); setDecision(null); setReason(""); } }}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All assigned facilities</SelectItem>{(facilities.data ?? []).map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></CardContent>
       </Card>
-      {queues.isError ? <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Queue unavailable</AlertTitle><AlertDescription>{queues.error instanceof Error ? queues.error.message : "Could not load the queue."}</AlertDescription></Alert> : null}
-      {queues.isLoading ? <div className="flex justify-center p-8"><RefreshCw className="h-5 w-5 animate-spin" /></div> : queues.isError ? null : (
+      {facilities.isError ? <QueryError what="queue facilities" error={facilities.error} onRetry={() => void facilities.refetch()} /> : !scopeReady ? <p>Select an available facility after its list finishes loading.</p> : null}
+      {queues.isError ? <QueryError what="employee request queue" error={queues.error} onRetry={() => void queues.refetch()} /> : null}
+      {!scopeReady ? null : queues.isLoading ? <div className="flex justify-center p-8"><RefreshCw className="h-5 w-5 animate-spin" /></div> : queues.isError ? null : (
         <div className="grid gap-4 xl:grid-cols-3">
-          <Card><CardHeader><CardTitle className="text-base">Time off ({queues.data?.timeOff.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.timeOff ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No pending requests.</p> : (queues.data?.timeOff ?? []).map((request) => <div key={String(request.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(request.employees)}</p><p>{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.reason ?? "No reason provided")}</p><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: true, title: "Approve time off" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: false, title: "Deny time off" })}>Deny</Button></div></div>)}</CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-base">Open-shift claims ({queues.data?.openShiftClaims.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.openShiftClaims ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No claims awaiting review.</p> : (queues.data?.openShiftClaims ?? []).map((claim) => { const offer = claim.open_shift_opportunities as Record<string, unknown> | null; return <div key={String(claim.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(claim.employees)}</p><p>{offer?.shift_date ? new Date(`${String(offer.shift_date)}T12:00:00`).toLocaleDateString() : "Open shift"} · {String(offer?.start_time ?? "")}–{String(offer?.end_time ?? "")}</p><Badge variant="outline">{String(claim.claim_status).replace(/_/g, " ")}</Badge><div className="flex gap-2"><Button size="sm" onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: true, title: "Approve open-shift claim" })}>Approve</Button><Button size="sm" variant="outline" onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: false, title: "Reject open-shift claim" })}>Reject</Button></div></div>; })}</CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-base">Shift swaps ({queues.data?.shiftSwaps.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.shiftSwaps ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No swaps awaiting review.</p> : (queues.data?.shiftSwaps ?? []).map((swap) => { const expired = swapHasExpired(swap.expires_at); return <div key={String(swap.id)} className="space-y-2 rounded-lg border p-3 text-sm"><div className="flex flex-wrap items-start justify-between gap-2"><p className="font-medium">{personName(swap.requester)} ↔ {personName(swap.target)}</p>{expired ? <Badge variant="destructive">Expired</Badge> : null}</div><p className="text-muted-foreground">{String(swap.reason)}</p>{expired ? <p className="text-xs text-muted-foreground">The request window closed {new Date(String(swap.expires_at)).toLocaleString()}. It can no longer be approved — reject it to clear the queue.</p> : swap.expires_at ? <p className="text-xs text-muted-foreground">Expires {new Date(String(swap.expires_at)).toLocaleString()}</p> : null}<div className="flex gap-2">{expired ? null : <Button size="sm" onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: true, title: "Approve shift swap" })}>Approve</Button>}<Button size="sm" variant={expired ? "destructive" : "outline"} onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: false, title: expired ? "Reject expired shift swap" : "Reject shift swap" })}>Reject</Button></div></div>; })}</CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-base">Time off ({queues.data?.timeOff.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.timeOff ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No pending requests.</p> : (queues.data?.timeOff ?? []).map((request) => <div key={String(request.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(request.employees)}</p><p>{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.reason ?? "No reason provided")}</p><div className="flex gap-2"><Button size="sm" disabled={pending || queues.isFetching} onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: true, title: "Approve time off" })}>Approve</Button><Button size="sm" variant="outline" disabled={pending || queues.isFetching} onClick={() => openDecision({ kind: "time_off", id: String(request.id), approve: false, title: "Deny time off" })}>Deny</Button></div></div>)}</CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-base">Open-shift claims ({queues.data?.openShiftClaims.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.openShiftClaims ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No claims awaiting review.</p> : (queues.data?.openShiftClaims ?? []).map((claim) => { const offer = claim.open_shift_opportunities as Record<string, unknown> | null; return <div key={String(claim.id)} className="space-y-2 rounded-lg border p-3 text-sm"><p className="font-medium">{personName(claim.employees)}</p><p>{offer?.shift_date ? new Date(`${String(offer.shift_date)}T12:00:00`).toLocaleDateString() : "Open shift"} · {String(offer?.start_time ?? "")}–{String(offer?.end_time ?? "")}</p><Badge variant="outline">{String(claim.claim_status).replace(/_/g, " ")}</Badge><div className="flex gap-2"><Button size="sm" disabled={pending || queues.isFetching} onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: true, title: "Approve open-shift claim" })}>Approve</Button><Button size="sm" variant="outline" disabled={pending || queues.isFetching} onClick={() => openDecision({ kind: "claim", id: String(claim.id), approve: false, title: "Reject open-shift claim" })}>Reject</Button></div></div>; })}</CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-base">Shift swaps ({queues.data?.shiftSwaps.length ?? 0})</CardTitle></CardHeader><CardContent className="space-y-3">{(queues.data?.shiftSwaps ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No swaps awaiting review.</p> : (queues.data?.shiftSwaps ?? []).map((swap) => { const expired = swapHasExpired(swap.expires_at); return <div key={String(swap.id)} className="space-y-2 rounded-lg border p-3 text-sm"><div className="flex flex-wrap items-start justify-between gap-2"><p className="font-medium">{personName(swap.requester)} ↔ {personName(swap.target)}</p>{expired ? <Badge variant="destructive">Expired</Badge> : null}</div><p className="text-muted-foreground">{String(swap.reason)}</p>{expired ? <p className="text-xs text-muted-foreground">The request window closed {new Date(String(swap.expires_at)).toLocaleString()}. It can no longer be approved — reject it to clear the queue.</p> : swap.expires_at ? <p className="text-xs text-muted-foreground">Expires {new Date(String(swap.expires_at)).toLocaleString()}</p> : null}<div className="flex gap-2">{expired ? null : <Button size="sm" disabled={pending || queues.isFetching} onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: true, title: "Approve shift swap" })}>Approve</Button>}<Button size="sm" variant={expired ? "destructive" : "outline"} disabled={pending || queues.isFetching} onClick={() => openDecision({ kind: "swap", id: String(swap.id), approve: false, title: expired ? "Reject expired shift swap" : "Reject shift swap" })}>Reject</Button></div></div>; })}</CardContent></Card>
         </div>
       )}
-      <Dialog open={Boolean(decision)} onOpenChange={(open) => !open && setDecision(null)}><DialogContent><DialogHeader><DialogTitle>{decision?.title}</DialogTitle><DialogDescription>Record the documentation-backed operational reason. Approvals that change assignments run a fresh eligibility check.</DialogDescription></DialogHeader><div className="space-y-2 py-2"><Label htmlFor="queue-decision-reason">Decision reason</Label><Textarea id="queue-decision-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} /></div><DialogFooter><Button variant="outline" onClick={() => setDecision(null)}>Cancel</Button><Button variant={decision?.approve ? "default" : "destructive"} onClick={() => void submitDecision()} disabled={reason.trim().length < 5 || pending}>Record decision</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={Boolean(decision)} onOpenChange={(open) => { if (!open && !submitting.current && !pending) setDecision(null); }}><DialogContent><DialogHeader><DialogTitle>{decision?.title}</DialogTitle><DialogDescription>Record the documentation-backed operational reason. Approvals that change assignments run a fresh eligibility check.</DialogDescription></DialogHeader><div className="space-y-2 py-2"><Label htmlFor="queue-decision-reason">Decision reason</Label><Textarea id="queue-decision-reason" disabled={pending} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} />{decision && decisionIssue() && <p role="alert" className="text-sm">{decisionIssue()}</p>}</div><DialogFooter><Button variant="outline" disabled={pending} onClick={() => { if (!submitting.current) setDecision(null); }}>Cancel</Button><Button variant={decision?.approve ? "default" : "destructive"} onClick={() => void submitDecision()} disabled={reason.trim().length < 5 || pending || !!decisionIssue()}>Record decision</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }

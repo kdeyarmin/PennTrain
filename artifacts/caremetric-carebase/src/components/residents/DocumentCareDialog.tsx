@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CloudOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -85,6 +85,9 @@ export function DocumentCareDialog({
   };
 }) {
   const { toast } = useToast();
+  const submitting = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const record = useRecordServiceTaskResponse();
   const saveOfflineDraft = useSaveOfflineServiceDraft();
   const [response, setResponse] = useState<string | null>(null);
@@ -116,7 +119,7 @@ export function DocumentCareDialog({
   const followUps = response ? followUpFieldsFor(response) : [];
   const issues = response ? validateFollowUp(response, answers) : [];
 
-  const submit = async (chosen: string) => {
+  const performSubmit = async (chosen: string) => {
     const followUpIssues = validateFollowUp(chosen, answers);
     if (followUpIssues.length > 0) {
       setResponse(chosen);
@@ -140,6 +143,7 @@ export function DocumentCareDialog({
         response: chosen as CompletionResponse,
         exceptionDetails: answers,
       });
+      if (!mounted.current) return;
       toast({
         title: "Saved on this device",
         description: "Will sync when you're back online. This isn't in the official record yet.",
@@ -155,6 +159,7 @@ export function DocumentCareDialog({
       try {
         await saveDraftLocally();
       } catch (error) {
+        if (!mounted.current) return;
         toast({
           title: "Could not save this offline",
           description: error instanceof Error ? error.message : String(error),
@@ -169,9 +174,11 @@ export function DocumentCareDialog({
         response: chosen,
         exceptionDetails: answers as Json,
       });
+      if (!mounted.current) return;
       toast({ title: "Recorded", description: COMPLETION_RESPONSE_LABELS[chosen as CompletionResponse] ?? chosen });
       onOpenChange(false);
     } catch (error) {
+      if (!mounted.current) return;
       // Codex review finding: navigator.onLine can still read `true` with a LAN link but no working
       // route to Supabase (bad DNS, a captive portal, a route/service outage), so the branch above
       // alone misses that case and the mutation above fails having never reached the server. Fall
@@ -182,6 +189,7 @@ export function DocumentCareDialog({
         try {
           await saveDraftLocally();
         } catch (draftError) {
+          if (!mounted.current) return;
           toast({
             title: "Could not save this offline",
             description: draftError instanceof Error ? draftError.message : String(draftError),
@@ -198,8 +206,16 @@ export function DocumentCareDialog({
     }
   };
 
+  const busy = record.isPending || saveOfflineDraft.isPending;
+  const close = (next: boolean) => { if (!submitting.current && !busy) onOpenChange(next); };
+  const submit = async (chosen: string) => {
+    if (submitting.current || busy || !open) return;
+    submitting.current = true;
+    try { await performSubmit(chosen); } finally { submitting.current = false; }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -215,6 +231,7 @@ export function DocumentCareDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <fieldset disabled={busy} className="contents">
         {task.instructions && (
           <p className="rounded-md border bg-muted/40 p-2 text-sm">{task.instructions}</p>
         )}
@@ -272,12 +289,13 @@ export function DocumentCareDialog({
 
         {response && (
           <DialogFooter>
-            <Button variant="outline" className="h-12" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button variant="outline" className="h-12" disabled={busy} onClick={() => close(false)}>Cancel</Button>
             <Button className="h-12" onClick={() => void submit(response)} disabled={record.isPending || saveOfflineDraft.isPending}>
               {record.isPending || saveOfflineDraft.isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         )}
+        </fieldset>
       </DialogContent>
     </Dialog>
   );

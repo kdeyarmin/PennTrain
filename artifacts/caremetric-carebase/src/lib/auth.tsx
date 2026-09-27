@@ -185,6 +185,10 @@ function resolveIsRecoverySession(session: Session | null, isPasswordRecoveryEve
 const passwordSignInListeners = new Set<(session: Session) => void>();
 export async function signInWithPassword(credentials: Parameters<typeof supabase.auth.signInWithPassword>[0]) {
   const unlockMarker = idleUnlockSignInExpiresAt;
+  const attempt = Symbol("password-attempt");
+  // The short window only arms the next request. Once started, preserve that attempt through
+  // slow connections until its response settles; a newer password request replaces it.
+  pendingIdleUnlockAttempt = Date.now() < unlockMarker ? attempt : null;
   try {
     const result = await supabase.auth.signInWithPassword(credentials);
     if (!result.error && result.data.session) {
@@ -192,6 +196,7 @@ export async function signInWithPassword(credentials: Parameters<typeof supabase
     }
     return result;
   } finally {
+    if (pendingIdleUnlockAttempt === attempt) pendingIdleUnlockAttempt = null;
     if (idleUnlockSignInExpiresAt === unlockMarker) idleUnlockSignInExpiresAt = 0;
   }
 }
@@ -205,6 +210,7 @@ export async function signInWithPassword(credentials: Parameters<typeof supabase
 // current page". Nothing about that clear was needed: the account is the same account, which is
 // why the handler additionally checks the user id below rather than trusting this flag alone.
 let idleUnlockSignInExpiresAt = 0;
+let pendingIdleUnlockAttempt: symbol | null = null;
 export function markIdleUnlockSignIn() {
   idleUnlockSignInExpiresAt = Date.now() + 15_000;
 }
@@ -283,10 +289,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // another account's cached data on screen.
       const isIdleUnlockSignIn =
         event === "SIGNED_IN" && !!nextSession
-        && Date.now() < idleUnlockSignInExpiresAt
+        && (pendingIdleUnlockAttempt !== null || Date.now() < idleUnlockSignInExpiresAt)
         && nextSession.user.id === lastSessionRef.current?.user.id;
-      if (event === "SIGNED_IN") {
+      if ((event === "SIGNED_IN" && !isRepeatedSession) || event === "SIGNED_OUT") {
         idleUnlockSignInExpiresAt = 0;
+        pendingIdleUnlockAttempt = null;
       }
 
       if (event === "SIGNED_OUT") {

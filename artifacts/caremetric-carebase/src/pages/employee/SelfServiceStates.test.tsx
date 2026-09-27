@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ employee: {} as Record<string, unknown>, passport: {} as Record<string, unknown>, swaps: {} as Record<string, unknown>, toast: vi.fn(), retry: vi.fn(), credentialScope: vi.fn(), certificateScope: vi.fn(), trainingScope: vi.fn(), shiftScope: vi.fn() }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useId: () => "test",
   useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, vi.fn()],
-  useMemo: (compute: () => unknown) => compute(), useRef: (value: unknown) => ({ current: value }),
+  useMemo: (compute: () => unknown) => compute(), useRef: (value: unknown) => ({ current: value }), useEffect: () => undefined,
 }));
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "profile", role: "employee" } }) }));

@@ -4,9 +4,20 @@ vi.mock("@tanstack/react-query", () => ({ useMutation: h.mutation, useQuery: vi.
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: h.rpc } }));
 import { useEnterpriseRpcCommand } from "./useEnterpriseFoundation";
 import { useRotateIntegrationCredential, useRotateWebhookSecret, useRevokeIntegrationCredential } from "./useIntegrationRegister";
+import { useRotateScimCredential } from "./useScimRegistry";
 const options = (hook: () => unknown) => { hook(); return h.mutation.mock.calls.at(-1)![0]; };
 beforeEach(() => { vi.resetAllMocks(); h.invalidate.mockResolvedValue(undefined); h.rpc.mockResolvedValue({ data: null, error: null }); });
 describe("integration mutation recovery", () => {
+  it.each([null, { connection_key: "key" }, { credential_secret: "secret" }])("treats an incomplete SCIM receipt as an unknown outcome", async data => {
+    h.rpc.mockResolvedValueOnce({ data, error: null }); const mutation = options(useRotateScimCredential);
+    await expect(mutation.mutationFn({ connectionId: "connection" })).rejects.toThrow("may have changed"); await mutation.onSettled();
+    expect(h.invalidate).toHaveBeenCalledWith({ queryKey: ["scim-registry"] });
+  });
+  it("refreshes SCIM registry after an ambiguous rotation failure", async () => {
+    h.rpc.mockResolvedValueOnce({ error: new Error("Response lost") }); const mutation = options(useRotateScimCredential);
+    await expect(mutation.mutationFn({ connectionId: "connection" })).rejects.toThrow("Response lost"); await mutation.onSettled();
+    expect(h.invalidate).toHaveBeenCalledWith({ queryKey: ["scim-registry"] });
+  });
   it.each(["issue_integration_api_credential", "create_integration_webhook_endpoint"])("refreshes the issued register after %s", async rpc => {
     const mutation = options(useEnterpriseRpcCommand); await mutation.onSuccess(null, { rpc, args: {} });
     expect(h.invalidate.mock.calls.map(call => call[0].queryKey)).toEqual([["enterprise-foundation"], ["integration-register"], ["integration-api-credentials"]]);

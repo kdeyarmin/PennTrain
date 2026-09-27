@@ -1,7 +1,8 @@
 import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+const lifecycle=vi.hoisted(()=>({effects:[] as (()=>void|(()=>void))[]}));
 const h=vi.hoisted(()=>({state:[] as unknown[],refs:[] as {current:unknown}[],cursor:0,refCursor:0,required:false,overlay:vi.fn(),rpc:vi.fn(),signIn:vi.fn(),verify:vi.fn(),refresh:vi.fn(),finish:vi.fn(),invalidate:vi.fn(),invalidateMfa:vi.fn(),toast:vi.fn(),loadMfa:vi.fn(),markPassword:vi.fn(),markPreserve:vi.fn(),policy:{} as Record<string,unknown>}));
-vi.mock("react",async original=>({...await original<typeof import("react")>(),useState:(initial:unknown)=>{const i=h.cursor++;if(!(i in h.state))h.state[i]=typeof initial==="function"?initial():initial;return[h.state[i],(value:unknown)=>{h.state[i]=typeof value==="function"?value(h.state[i]):value;}];},useRef:(initial:unknown)=>{const i=h.refCursor++;return h.refs[i]??(h.refs[i]={current:initial});},useCallback:(callback:unknown)=>callback,useEffect:()=>undefined,useContext:(context:{_currentValue:unknown})=>typeof context._currentValue==="boolean"?h.required:h.overlay}));
+vi.mock("react",async original=>({...await original<typeof import("react")>(),useState:(initial:unknown)=>{const i=h.cursor++;if(!(i in h.state))h.state[i]=typeof initial==="function"?initial():initial;return[h.state[i],(value:unknown)=>{h.state[i]=typeof value==="function"?value(h.state[i]):value;}];},useRef:(initial:unknown)=>{const i=h.refCursor++;return h.refs[i]??(h.refs[i]={current:initial});},useCallback:(callback:unknown)=>callback,useEffect:(effect:()=>void|(()=>void))=>{lifecycle.effects.push(effect);},useContext:(context:{_currentValue:unknown})=>typeof context._currentValue==="boolean"?h.required:h.overlay}));
 vi.mock("@tanstack/react-query",()=>({useQuery:(options:{queryKey:string[]})=>options.queryKey[0]==="my_mfa_policy"?h.policy:{data:null,isLoading:false,isError:false},useQueryClient:()=>({invalidateQueries:h.invalidate})}));
 vi.mock("wouter",()=>({useLocation:()=>["/app/policy-documents",vi.fn()],Link:()=>null}));
 vi.mock("@/lib/auth",()=>({useAuth:()=>({user:{id:"manager",email:"manager@test.local",organizationId:"org"}}),useSignOut:()=>vi.fn(),signInWithPassword:h.signIn,markIdleUnlockSignIn:h.markPreserve}));
@@ -15,7 +16,7 @@ import { IdentityReverificationContext } from "@/lib/identityReverification";
 type Node=ReactElement<Record<string,unknown>>;
 const draft=<input aria-label="Unsaved policy title" defaultValue="Draft policy that must survive" />;
 function nodes(value:ReactNode):Node[]{if(Array.isArray(value))return value.flatMap(nodes);if(!value||typeof value!=="object"||!("props" in value))return[];const n=value as Node;return[n,...nodes(n.props.children as ReactNode)];}
-function render(gate=false){h.cursor=0;h.refCursor=0;return nodes(gate?MfaPolicyGate({children:draft}):IdleSessionLock({children:draft}));}
+function render(gate=false){h.cursor=0;h.refCursor=0;lifecycle.effects=[];return nodes(gate?MfaPolicyGate({children:draft}):IdleSessionLock({children:draft}));}
 function fill(id:string,value:string){const input=render().find(n=>n.props.id===id&&n.props.onChange)!;(input.props.onChange as (event:unknown)=>void)({target:{value}});}
 async function submit(){const form=render().find(n=>n.type==="form")!;await (form.props.onSubmit as (event:unknown)=>Promise<void>)({preventDefault:vi.fn()});}
 async function begin(){const provider=render().find(n=>n.type===IdentityReverificationContext.Provider)!;(provider.props.value as ()=>void)();await vi.waitFor(()=>expect(h.rpc).toHaveBeenCalledWith("record_idle_session_lock",{p_route_path:"/app/policy-documents",p_lock_reason:"manual"}));await Promise.resolve();}
@@ -29,6 +30,47 @@ describe("in-place password and second-factor verification",()=>{
   fill("unlock-code","123456");await submit();preservesDraft();expect(h.verify).toHaveBeenCalledWith({factorId:"totp-factor",code:"123456"});expect(h.finish).toHaveBeenCalledWith("server-lock");expect(h.invalidate).toHaveBeenCalledWith({queryKey:["identity_assurance"]});expect(h.overlay).toHaveBeenLastCalledWith(false);expect(render().some(n=>n.props.id==="unlock-password"||n.props.id==="unlock-code")).toBe(false);
  });
  it("does not dismiss the overlay or clear the draft after a rejected password",async()=>{h.signIn.mockResolvedValue({error:new Error("Invalid password")});await begin();fill("unlock-password","incorrect-password");await submit();preservesDraft();expect(h.finish).not.toHaveBeenCalled();expect(h.overlay).not.toHaveBeenCalledWith(false);expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({variant:"destructive"}));});
+ it("waits for the original lock receipt before creating a replacement password session",async()=>{
+  let complete!: (value:unknown)=>void;
+  h.rpc.mockImplementationOnce(()=>new Promise(resolve=>{complete=resolve;}));
+  h.loadMfa.mockResolvedValue({status:{hasVerifiedFactor:false,verified:false},factors:[]});
+  await begin();fill("unlock-password","actual-password");const pending=submit();
+  await Promise.resolve();expect(h.signIn).not.toHaveBeenCalled();preservesDraft();
+  complete({data:"delayed-lock",error:null});await pending;
+  expect(h.signIn).toHaveBeenCalledOnce();expect(h.finish).toHaveBeenCalledWith("delayed-lock");
+ });
+ it("retries a failed lock receipt before password verification and preserves the draft",async()=>{
+  h.rpc.mockResolvedValueOnce({data:null,error:new Error("Offline")});
+  h.loadMfa.mockResolvedValue({status:{hasVerifiedFactor:false,verified:false},factors:[]});
+  await begin();fill("unlock-password","actual-password");await submit();
+  expect(h.rpc).toHaveBeenCalledTimes(2);expect(h.finish).toHaveBeenCalledWith("server-lock");preservesDraft();
+ });
+ it("does not start a password request after the locked page is abandoned",async()=>{
+  let complete!: (value:unknown)=>void;
+  h.rpc.mockImplementationOnce(()=>new Promise(resolve=>{complete=resolve;}));
+  await begin();fill("unlock-password","actual-password");
+  const cleanup=lifecycle.effects[0]();const pending=submit();
+  if(typeof cleanup==="function")cleanup();
+  complete({data:"abandoned-lock",error:null});await pending;
+  expect(h.signIn).not.toHaveBeenCalled();expect(h.finish).not.toHaveBeenCalled();expect(h.toast).not.toHaveBeenCalled();
+ });
+ it("does not replace the password session while the lock service remains unavailable",async()=>{
+  h.rpc.mockResolvedValue({data:null,error:new Error("Offline")});
+  await begin();fill("unlock-password","actual-password");await submit();
+  expect(h.signIn).not.toHaveBeenCalled();expect(h.finish).not.toHaveBeenCalled();
+  expect(h.overlay).not.toHaveBeenCalledWith(false);preservesDraft();
+ });
+ it.each([null, ""])("rejects a missing lock receipt %j before password verification",async data=>{
+  h.rpc.mockResolvedValue({data,error:null});await begin();fill("unlock-password","actual-password");await submit();
+  expect(h.signIn).not.toHaveBeenCalled();expect(h.finish).not.toHaveBeenCalled();preservesDraft();
+ });
+ it("recovers a rejected transport without dismissing the lock early",async()=>{
+  h.rpc.mockRejectedValueOnce(new Error("Network unavailable"));
+  await begin();fill("unlock-password","actual-password");await submit();
+  expect(h.rpc).toHaveBeenCalledTimes(2);expect(h.signIn).toHaveBeenCalledOnce();
+  expect(h.overlay).not.toHaveBeenCalledWith(false);fill("unlock-code","123456");await submit();
+  expect(h.finish).toHaveBeenCalledWith("server-lock");preservesDraft();
+ });
  it("does not accept failed MFA or unlock acknowledgement as a completed verification",async()=>{await begin();fill("unlock-password","actual-password");await submit();h.verify.mockResolvedValueOnce({error:new Error("Invalid authenticator code")});fill("unlock-code","123456");await submit();expect(h.finish).not.toHaveBeenCalled();preservesDraft();h.finish.mockRejectedValueOnce(new Error("Server lock remains active"));await submit();expect(h.overlay).not.toHaveBeenCalledWith(false);expect(h.invalidate).not.toHaveBeenCalledWith({queryKey:["identity_assurance"]});preservesDraft();});
  it("makes an expired mounted session's existing draft inert immediately",()=>{h.required=true;const tree=render();expect(tree).toContain(draft);expect(tree.some(n=>n.props.inert===true&&n.props["aria-hidden"]===true)).toBe(true);expect(tree.some(n=>n.props.id==="unlock-password")).toBe(true);});
  it("keeps an already-authorized page mounted when the outer assurance window expires",()=>{expect(render(true)).toContain(draft);h.policy={...currentPolicy(),data:{requirement:{required:true},verification:{verified:true,expiresAt:null},assuranceIsCurrent:false}};const tree=render(true);expect(tree).toContain(draft);expect(tree.some(n=>n.props.value===true)).toBe(true);});

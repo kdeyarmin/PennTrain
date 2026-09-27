@@ -20,14 +20,18 @@ const TEMPLATE_KEY = ["enterprise-foundation", "role-templates"] as const;
 export function useEnterpriseRoleTemplates() {
   return useQuery({
     queryKey: TEMPLATE_KEY,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("role_templates")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data ?? [];
+    queryFn: async ({ signal }) => {
+      const rows: RoleTemplate[] = [];
+      for (let from = 0; ; ) {
+        const { data, error } = await supabase
+          .from("role_templates")
+          .select("*")
+          .eq("is_active", true)
+          .order("name").order("id").range(from, from + 999).abortSignal(signal);
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data); from += data.length;
+      }
     },
   });
 }
@@ -36,14 +40,18 @@ export function useEnterpriseRoleTemplates() {
 export function usePermissionDefinitions() {
   return useQuery({
     queryKey: [...TEMPLATE_KEY, "permissions"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("permission_definitions")
-        .select("*")
-        .eq("is_active", true)
-        .order("permission_key");
-      if (error) throw error;
-      return data ?? [];
+    queryFn: async ({ signal }) => {
+      const rows: PermissionDefinition[] = [];
+      for (let from = 0; ; ) {
+        const { data, error } = await supabase
+          .from("permission_definitions")
+          .select("*")
+          .eq("is_active", true)
+          .order("permission_key").range(from, from + 999).abortSignal(signal);
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data); from += data.length;
+      }
     },
   });
 }
@@ -51,13 +59,18 @@ export function usePermissionDefinitions() {
 export function useRoleTemplatePermissions(roleTemplateId: string | undefined) {
   return useQuery({
     queryKey: [...TEMPLATE_KEY, "assigned", roleTemplateId ?? null],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("role_template_permissions")
-        .select("permission_key")
-        .eq("role_template_id", roleTemplateId!);
-      if (error) throw error;
-      return (data ?? []).map((row) => row.permission_key);
+    queryFn: async ({ signal }) => {
+      const keys: string[] = [];
+      for (let from = 0; ; ) {
+        const { data, error } = await supabase
+          .from("role_template_permissions")
+          .select("permission_key")
+          .eq("role_template_id", roleTemplateId!)
+          .order("permission_key").range(from, from + 999).abortSignal(signal);
+        if (error) throw error;
+        if (!data?.length) return keys;
+        keys.push(...data.map(row => row.permission_key)); from += data.length;
+      }
     },
     enabled: !!roleTemplateId,
   });

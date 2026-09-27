@@ -178,6 +178,34 @@ describe("AuthProvider session lifecycle", () => {
     h.listener!("SIGNED_IN", { ...original, access_token: "replacement-session" });
     expect(h.clear).toHaveBeenCalledOnce();
   });
+  it("preserves the draft when the actual idle-password request takes longer than fifteen seconds", async () => {
+    await mount(); markIdleUnlockSignIn();
+    const originalNow = Date.now();
+    const clock = vi.spyOn(Date, "now");
+    h.signIn.mockImplementationOnce(async () => {
+      clock.mockReturnValue(originalNow + 20_000);
+      const session = { ...original, access_token: "slow-password-session" };
+      h.listener!("SIGNED_IN", session);
+      return { data: { session }, error: null };
+    });
+    try {
+      await signInWithPassword({ email: "test@example.test", password: "correct" });
+      expect(h.clear).not.toHaveBeenCalled();
+      h.listener!("SIGNED_IN", { ...original, access_token: "later-password-session" });
+      expect(h.clear).toHaveBeenCalledOnce();
+    } finally { clock.mockRestore(); }
+  });
+  it("does not consume the pending idle-password attempt on a same-session refocus", async () => {
+    await mount(); markIdleUnlockSignIn();
+    h.signIn.mockImplementationOnce(async () => {
+      h.listener!("SIGNED_IN", original);
+      const session = { ...original, access_token: "password-after-refocus" };
+      h.listener!("SIGNED_IN", session);
+      return { data: { session }, error: null };
+    });
+    await signInWithPassword({ email: "test@example.test", password: "correct" });
+    expect(h.clear).not.toHaveBeenCalled();
+  });
 
   function compareScope() { const tree = render(); h.effects[1](); return tree; }
   it("clears clinical caches once when a repeated session observes a secondary assignment removal", async () => {

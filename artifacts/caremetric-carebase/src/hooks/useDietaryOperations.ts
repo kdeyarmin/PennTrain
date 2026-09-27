@@ -26,6 +26,17 @@ export interface QualificationWithEmployee extends FoodServiceQualification {
   employee: { id: string; first_name: string; last_name: string; job_title: string | null } | null;
 }
 
+async function readRows<T>(page: (from: number, through: number) => PromiseLike<{ data: T[] | null; error: unknown }>, limit = Infinity) {
+  const rows: T[] = [];
+  while (rows.length < limit) {
+    const { data, error } = await page(rows.length, Math.min(rows.length + 999, limit - 1));
+    if (error) throw error;
+    if (!data?.length) break;
+    rows.push(...data);
+  }
+  return { data: rows, error: null };
+}
+
 function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["dietary-operations"] });
   queryClient.invalidateQueries({ queryKey: ["residents"] });
@@ -36,19 +47,19 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
 export function useDietaryOperations(facilityId?: string, residentId?: string) {
   return useQuery({
     queryKey: ["dietary-operations", facilityId, residentId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const resident = residentId || "00000000-0000-0000-0000-000000000000";
       const [profiles, menus, meals, hydration, assignments, readings, reviews, controls, logs, qualifications] = await Promise.all([
-        supabase.from("resident_dietary_profiles").select("*").eq("resident_id", resident).maybeSingle(),
-        supabase.from("dietary_menu_cycles").select("*,entries:dietary_menu_entries(*)").eq("facility_id", facilityId!).order("starts_on", { ascending: false }),
-        supabase.from("resident_meal_records").select("*").eq("resident_id", resident).order("served_at", { ascending: false }).limit(30),
-        supabase.from("resident_hydration_rounds").select("*").eq("resident_id", resident).order("scheduled_at", { ascending: false }).limit(30),
-        supabase.from("weight_monitoring_assignments").select("*").eq("resident_id", resident).order("created_at", { ascending: false }),
-        supabase.from("resident_weight_readings").select("*").eq("resident_id", resident).order("measured_at", { ascending: false }).limit(30),
-        supabase.from("nutrition_risk_reviews").select("*").eq("resident_id", resident).order("reviewed_at", { ascending: false }).limit(30),
-        supabase.from("food_safety_control_points").select("*").eq("facility_id", facilityId!).order("label"),
-        supabase.from("food_safety_logs").select("*,control:food_safety_control_points(id,label,location_detail,control_type,measurement_unit)").eq("facility_id", facilityId!).order("observed_at", { ascending: false }).limit(50),
-        supabase.from("food_service_employee_qualifications").select("*,employee:employees(id,first_name,last_name,job_title)").eq("facility_id", facilityId!).order("updated_at", { ascending: false }),
+        supabase.from("resident_dietary_profiles").select("*").eq("resident_id", resident).maybeSingle().abortSignal(signal),
+        readRows((from, through) => supabase.from("dietary_menu_cycles").select("*,entries:dietary_menu_entries(*)").eq("facility_id", facilityId!).order("starts_on", { ascending: false }).order("id").range(from, through).abortSignal(signal)),
+        readRows((from, through) => supabase.from("resident_meal_records").select("*").eq("resident_id", resident).order("served_at", { ascending: false }).order("id").range(from, through).abortSignal(signal), 30),
+        readRows((from, through) => supabase.from("resident_hydration_rounds").select("*").eq("resident_id", resident).order("scheduled_at", { ascending: false }).order("id").range(from, through).abortSignal(signal), 30),
+        readRows((from, through) => supabase.from("weight_monitoring_assignments").select("*").eq("resident_id", resident).order("created_at", { ascending: false }).order("id").range(from, through).abortSignal(signal)),
+        readRows((from, through) => supabase.from("resident_weight_readings").select("*").eq("resident_id", resident).order("measured_at", { ascending: false }).order("id").range(from, through).abortSignal(signal), 30),
+        readRows((from, through) => supabase.from("nutrition_risk_reviews").select("*").eq("resident_id", resident).order("reviewed_at", { ascending: false }).order("id").range(from, through).abortSignal(signal), 30),
+        readRows((from, through) => supabase.from("food_safety_control_points").select("*").eq("facility_id", facilityId!).order("label").order("id").range(from, through).abortSignal(signal)),
+        readRows((from, through) => supabase.from("food_safety_logs").select("*,control:food_safety_control_points(id,label,location_detail,control_type,measurement_unit)").eq("facility_id", facilityId!).order("observed_at", { ascending: false }).order("id").range(from, through).abortSignal(signal), 50),
+        readRows((from, through) => supabase.from("food_service_employee_qualifications").select("*,employee:employees(id,first_name,last_name,job_title)").eq("facility_id", facilityId!).order("updated_at", { ascending: false }).order("id").range(from, through).abortSignal(signal)),
       ]);
       const error = [profiles, menus, meals, hydration, assignments, readings, reviews, controls, logs, qualifications].find((result) => result.error)?.error;
       if (error) throw error;

@@ -53,6 +53,14 @@ beforeEach(() => {
 });
 
 describe("training roster invitation actions", () => {
+  it("passes the selected roster year to its employee exemption editor", () => {
+    const field = nodes(render()).find(node => node.props.type === "number")!;
+    (field.props.onChange as (event: unknown) => void)({ target: { value: "2001" } });
+    const exemption = nodes(render()).find(node => (node.props.row as { employee_id?: string } | undefined)?.employee_id === "employee")!;
+    expect(exemption.props.trainingYear).toBe(2001);
+    (field.props.onChange as (event: unknown) => void)({ target: { value: "" } });
+    expect(nodes(render()).find(node => (node.props.row as { employee_id?: string } | undefined)?.employee_id === "employee")!.props.trainingYear).toBeUndefined();
+  });
   it("starts a fresh scoped invitation for revoked access instead of resending its revoked receipt", async () => {
     click(render(), "Send new invitation");
     await vi.waitFor(() => expect(h.toast).toHaveBeenCalledWith({ title: "Invitation sent to Casey Learner" }));
