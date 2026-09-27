@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
+import { FACILITY_TYPES, type FacilityType } from "@/lib/facilityTypes";
 
 export type Facility = Tables<"facilities">;
-export type FacilityInsert = TablesInsert<"facilities">;
+export type FacilityInsert = Omit<TablesInsert<"facilities">, "facility_type"> & { facility_type: FacilityType };
 export type FacilityUpdate = TablesUpdate<"facilities">;
 
 export interface ListFacilitiesFilters {
@@ -47,6 +48,7 @@ export function useCreateFacility() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: FacilityInsert) => {
+      if (!FACILITY_TYPES.some(type => type.value === payload.facility_type)) throw new Error("Select the facility's license type");
       const { data, error } = await supabase.from("facilities").insert(payload).select().single();
       if (error) throw error;
       return data;

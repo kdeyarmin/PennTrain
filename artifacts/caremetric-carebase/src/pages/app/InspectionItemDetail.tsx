@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn, humanize } from "@/lib/utils";
 import { facilityToday } from "@/lib/dateUtils";
 import { evacuationSeconds, fireDrillRecordErrors, type FireDrillRecordErrors } from "@/lib/fireDrillRecord";
-import { INSPECTION_RULES, evacuationFinding, isSleepingHours } from "@/lib/inspectionRules";
+import { INSPECTION_RULES, evacuationFinding, isSleepingHours, inspectionScheduleLabel, inspectionGuidance } from "@/lib/inspectionRules";
 import { PCH_ALR_ONLY_FACILITY_TYPES, type FacilityType } from "@/lib/facilityTypes";
 
 const SHIFT_OPTIONS = ["day", "evening", "overnight"] as const;
@@ -197,11 +197,7 @@ export default function InspectionItemDetail() {
   // its own -- it reads the program's, filtered to the drills marked as sleeping-hours -- so there
   // is nothing to log here and the database refuses an event against it outright.
   const derivedFromId = item?.derived_from_inspection_item_id ?? null;
-  const cadenceLabel = item?.item_type === "fire_drill_program"
-    ? "Every calendar month"
-    : item?.item_type === "sleeping_hours_fire_drill"
-      ? "Every 6 months"
-      : `Every ${item?.inspection_interval_days} days`;
+  const cadenceLabel = item ? inspectionScheduleLabel(item.item_type, item.inspection_interval_days) : "";
 
   // Recomputed from current field values on every render (cheap -- a handful of string checks)
   // rather than tracked as its own state, so an error can never go stale relative to what's
@@ -548,7 +544,7 @@ export default function InspectionItemDetail() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Log Inspection</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
-            {INSPECTION_RULES[item.item_type] && <p className="col-span-full text-sm text-muted-foreground">{INSPECTION_RULES[item.item_type].guidance}</p>}
+            {INSPECTION_RULES[item.item_type] && <p className="col-span-full text-sm text-muted-foreground">{inspectionGuidance(item.item_type, facility?.facility_type)}</p>}
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-date`} className="text-[13px]">Date *</Label>
               <Input id={`${__fieldIds}-date`} type="date" value={performedDate} onChange={(e) => setPerformedDate(e.target.value)} className="h-9" />

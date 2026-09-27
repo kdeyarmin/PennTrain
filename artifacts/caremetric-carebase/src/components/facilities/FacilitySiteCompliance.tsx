@@ -66,17 +66,17 @@ function SitePolicy({ canManage, ...props }: Props & { canManage: boolean }) {
   const query = useFacilitySitePolicy(props.facilityId);
   const save = useSaveFacilitySitePolicy();
   const { toast } = useToast();
-  const [failed, setFailed] = useState(false);
-  const [grace, setGrace] = useState("strict");
-  const [renewal, setRenewal] = useState("every_three_years");
+  const [failed, setFailed] = useState(props.facilityType === "PCH");
+  const [grace, setGrace] = useState("rcg");
+  const [renewal, setRenewal] = useState("changed_use");
   const [reason, setReason] = useState("");
-  useEffect(() => { if (query.data !== undefined) { setFailed(query.data?.count_unsuccessful_pch_drills ?? false); setGrace(query.data?.inspection_grace ?? "strict"); setRenewal(query.data?.alf_approval_renewal ?? "every_three_years"); setReason(query.data?.rationale ?? ""); } }, [props.facilityId, query.data?.facility_id]);
+  useEffect(() => { if (query.data !== undefined) { setFailed(query.data?.count_unsuccessful_pch_drills ?? props.facilityType === "PCH"); setGrace(query.data?.inspection_grace ?? "rcg"); setRenewal(query.data?.alf_approval_renewal ?? "changed_use"); setReason(query.data?.rationale ?? ""); } }, [props.facilityId, props.facilityType, query.data?.facility_id]);
   return <Card><CardHeader><CardTitle>Site compliance policy</CardTitle></CardHeader><CardContent className="space-y-3">
-    <p className="text-sm text-muted-foreground">The strict defaults remain until a manager records a decision. Choosing RCG grace changes overdue classification, not the due date. Monthly fire drills and extinguishers receive no grace. Evacuation-time violations remain recorded under every policy.</p>
+    <p className="text-sm text-muted-foreground">The {props.facilityType === "PCH" ? "Chapter 2600 PCH" : "Chapter 2800 ALF"} regulatory baseline includes DHS RCG grace. Monthly fire drills and extinguishers receive no grace. Evacuation-time violations remain recorded. A saved stricter facility policy is an additional facility requirement, not a DHS requirement.</p>
     {query.isError ? <QueryError what="site policy" error={query.error} onRetry={() => void query.refetch()} /> : <fieldset disabled={!canManage || query.isLoading || save.isPending} className="space-y-3">
       {props.facilityType === "PCH" && <label className="flex gap-2 text-sm"><input type="checkbox" checked={failed} onChange={(e) => setFailed(e.target.checked)} />Count recorded unsuccessful PCH drills toward monthly / sleeping-hours frequency (PCH RCG)</label>}
-      <Choice label="Inspection grace" value={grace} change={setGrace} options={[{ id: "strict", label: "Due date without grace" }, { id: "rcg", label: "RCG: 15 days annual / 5 days shorter intervals, with exclusions" }]} />
-      {props.facilityType === "ALR" && <Choice label="ALF fire approval renewal" value={renewal} change={setRenewal} options={[{ id: "every_three_years", label: "Every three years (§2800.14(e))" }, { id: "changed_use", label: "When building use changed in the past three years (RCG)" }]} />}
+      <Choice label="Inspection grace" value={grace} change={setGrace} options={[{ id: "rcg", label: "DHS RCG baseline: 15 days annual / 5 days shorter intervals, with exclusions" }, { id: "strict", label: "Additional facility policy: no grace" }]} />
+      {props.facilityType === "ALR" && <Choice label="ALF fire approval renewal" value={renewal} change={setRenewal} options={[{ id: "changed_use", label: "DHS RCG baseline: building use changed in the past three years" }, { id: "every_three_years", label: "Additional facility policy: every three years" }]} />}
       <Field label="Decision and source / stricter facility policy" value={reason} change={setReason} />
       {canManage && <Button disabled={reason.trim().length < 5} onClick={() => save.mutate({ facility_id: props.facilityId, organization_id: props.organizationId, count_unsuccessful_pch_drills: props.facilityType === "PCH" && failed, inspection_grace: grace, alf_approval_renewal: renewal, rationale: reason }, { onSuccess: () => toast({ title: "Site policy saved; inspection status recalculated" }), onError: (e: Error) => toast({ title: "Could not save site policy", description: e.message, variant: "destructive" }) })}>Save site policy</Button>}
     </fieldset>}

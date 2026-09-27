@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { isPaRegulatoryFacilityType, type PaRegulatoryFacilityType } from "@/lib/facilityTypes";
 
 export interface SignupOrganizationRequest {
   product?: "train" | "carebase";
@@ -8,6 +9,7 @@ export interface SignupOrganizationRequest {
   firstName: string;
   lastName: string;
   organizationName: string;
+  facilityType: PaRegulatoryFacilityType;
   legalAccepted: boolean;
   turnstileToken: string;
   redirectTo: string;
@@ -39,13 +41,14 @@ async function signupErrorMessage(error: unknown): Promise<string | null> {
 }
 
 /**
- * Public, unauthenticated self-service signup: creates a brand-new organization and sends the
- * new org_admin an invite email via the signup-organization Edge Function. The function owns
- * Turnstile verification, rate limits, org creation, and the trusted org_admin profile update.
+ * Public, unauthenticated self-service signup: creates an organization with its first licensed
+ * facility and sends the new org_admin an invite email via the signup-organization Edge Function.
+ * The function owns verification, rate limits, provisioning, and the trusted org_admin update.
  */
 export function useSignupOrganization() {
   return useMutation({
     mutationFn: async (payload: SignupOrganizationRequest) => {
+      if (!isPaRegulatoryFacilityType(payload.facilityType)) throw new Error("Select Personal Care Home (PCH) or Assisted Living Facility (ALF)");
       const { data, error } = await supabase.functions.invoke<SignupOrganizationResponse & EdgeFunctionErrorShape>(
         "signup-organization",
         {
@@ -55,6 +58,7 @@ export function useSignupOrganization() {
             first_name: payload.firstName,
             last_name: payload.lastName,
             organization_name: payload.organizationName,
+            facility_type: payload.facilityType,
             legal_accepted: payload.legalAccepted,
             turnstile_token: payload.turnstileToken,
             redirect_to: payload.redirectTo,

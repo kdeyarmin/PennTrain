@@ -29,7 +29,7 @@ import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { trainingWorkspaceHref } from "@/lib/trainingOnboarding";
 import { FacilityClinicalCard } from "@/components/facilities/FacilityClinicalCard";
 import { useToast } from "@/hooks/use-toast";
-import { FACILITY_TYPES, PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeBadgeClass, facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
+import { FACILITY_TYPES, PCH_ALR_ONLY_FACILITY_TYPES, facilityTypeBadgeClass, facilityTypeLabel, isPaRegulatoryFacilityType, type FacilityType } from "@/lib/facilityTypes";
 import { FREQUENCY_OPTIONS, responsiblePartyOptions } from "@/lib/residentAssessmentFormSchema";
 import { getComplianceFormLabel } from "@/lib/residentCompliance";
 import { useListAdministratorProfiles, useListAdministratorCeEntriesByOrganization } from "@/hooks/useAdministratorProfiles";
@@ -49,7 +49,7 @@ const RegulatoryActions = lazy(() => import("@/components/residents/RegulatoryAc
 
 interface FacilityFormData {
   name: string;
-  facilityType: FacilityType;
+  facilityType: FacilityType | "";
   licenseNumber: string;
   address: string;
   city: string;
@@ -64,7 +64,7 @@ interface FacilityFormData {
 }
 
 const EMPTY_FORM: FacilityFormData = {
-  name: "", facilityType: "PCH", licenseNumber: "", address: "", city: "",
+  name: "", facilityType: "", licenseNumber: "", address: "", city: "",
   state: "PA", zip: "", phone: "", administratorName: "", administratorEmail: "",
   isActive: true, defaultCareResponsibleParty: "", defaultCareFrequency: "",
 };
@@ -222,7 +222,7 @@ export default function FacilityDetail() {
     if (!facility) return;
     setForm({
       name: facility.name,
-      facilityType: (facility.facility_type as FacilityType) ?? "PCH",
+      facilityType: facility.facility_type as FacilityType,
       licenseNumber: facility.license_number ?? "",
       address: facility.address ?? "",
       city: facility.city ?? "",
@@ -251,7 +251,7 @@ export default function FacilityDetail() {
       {
         id: facility.id,
         name: form.name.trim(),
-        facility_type: form.facilityType,
+        ...(!isPaRegulatoryFacilityType(facility.facility_type) && form.facilityType ? { facility_type: form.facilityType } : {}),
         license_number: form.licenseNumber || null,
         address: form.address || null,
         city: form.city || null,
@@ -426,11 +426,11 @@ export default function FacilityDetail() {
         canManage={["platform_admin", "org_admin"].includes(user?.role ?? "")}
       />
       {["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading resident policy…</p>}><ResidentRegulatoryPolicySettings facilityId={facility.id} canManage={["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "")} /></Suspense>}
-      {["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading site compliance…</p>}><FacilitySiteCompliance organizationId={facility.organization_id} facilityId={facility.id} facilityType={facility.facility_type} /></Suspense>}
+      {["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading site compliance…</p>}><FacilitySiteCompliance key={facility.id} organizationId={facility.organization_id} facilityId={facility.id} facilityType={facility.facility_type} /></Suspense>}
       {["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading regulatory deadlines…</p>}><RegulatoryActions organizationId={facility.organization_id} facilityId={facility.id} facilityType={facility.facility_type} /></Suspense>}
       </>}
 
-      {hasWorkforce && ["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading staff policy…</p>}><StaffRegulatoryPolicy facilityId={facility.id} /></Suspense>}
+      {hasWorkforce && ["PCH", "ALR"].includes(facility.facility_type) && <Suspense fallback={<p>Loading staff policy…</p>}><StaffRegulatoryPolicy key={facility.id} facilityId={facility.id} facilityType={facility.facility_type} /></Suspense>}
 
       {/* Public safety-report poster QR — opaque token, never show facility UUID */}
       {hasCompliance && ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "") && (
@@ -875,20 +875,17 @@ export default function FacilityDetail() {
               <Input id={`${__fieldIds}-facility-name`} value={form.name} onChange={e => field("name", e.target.value)} placeholder="Sunrise Manor" className="h-9" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${__fieldIds}-type`} className="text-[13px]">Type *</Label>
-              <Select
-                value={form.facilityType}
-                // Resets defaultCareResponsibleParty -- its option list is type-specific (e.g. ASP-only
-                // "SHCP"), so a value picked under the old type could be invalid for the new one.
-                onValueChange={v => setForm(f => ({ ...f, facilityType: v as FacilityType, defaultCareResponsibleParty: "" }))}
-              >
-                <SelectTrigger id={`${__fieldIds}-type`} className="h-9"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {FACILITY_TYPES.map(t => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {isPaRegulatoryFacilityType(facility.facility_type) ? <>
+              <p className="text-[13px] font-medium">License type</p>
+              <p className="text-sm">{facilityTypeLabel(facility.facility_type)}</p>
+              <p className="text-xs text-muted-foreground">The license type is fixed to preserve its regulations and records. Create a separate facility for a different license.</p>
+              </> : <>
+                <Label htmlFor={`${__fieldIds}-type`} className="text-[13px]">Type *</Label>
+                <Select value={form.facilityType} onValueChange={value => field("facilityType", value)}>
+                  <SelectTrigger id={`${__fieldIds}-type`} className="h-9"><SelectValue placeholder="Select facility type" /></SelectTrigger>
+                  <SelectContent>{FACILITY_TYPES.filter(type => !isPaRegulatoryFacilityType(type.value)).map(type => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </>}
               <p className="text-xs text-muted-foreground">Chapter 2600 applies to PCH and Chapter 2800 to ALF. Other facility types use separate training configuration.</p>
             </div>
             <div className="space-y-1.5">
@@ -933,7 +930,7 @@ export default function FacilityDetail() {
                 </SelectContent>
               </Select>
             </div>
-            {hasResidentOperations && PCH_ALR_ONLY_FACILITY_TYPES.includes(form.facilityType) && (
+            {hasResidentOperations && PCH_ALR_ONLY_FACILITY_TYPES.includes(facility.facility_type as FacilityType) && (
               <>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${__fieldIds}-default-care-responsible-party`} className="text-[13px]">Default Care Responsible Party</Label>
@@ -946,7 +943,7 @@ export default function FacilityDetail() {
                     <SelectTrigger id={`${__fieldIds}-default-care-responsible-party`} className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
-                      {responsiblePartyOptions(getComplianceFormLabel(form.facilityType) === "ASP" ? "ASP" : "RASP").map(o => (
+                      {responsiblePartyOptions(getComplianceFormLabel(facility.facility_type) === "ASP" ? "ASP" : "RASP").map(o => (
                         <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                       ))}
                     </SelectContent>

@@ -11,6 +11,23 @@ export type StateApprovedFormInfo = {
   sourceLabel: string;
 };
 
+// Both chapters expressly permit equivalent assessment/support forms containing
+// the same information. That permission does not extend to DME or PCH screening.
+export function allowsEquivalentResidentForm(itemType: string, facilityType: string | undefined): boolean {
+  if (facilityType !== "PCH" && facilityType !== "ALR") return false;
+  return ["initial_assessment_15day", "annual_reassessment", "significant_change_reassessment", "support_plan_30day"].includes(itemType)
+    || (facilityType === "ALR" && itemType === "support_plan_quarterly_review");
+}
+
+export function residentItemDeadlineLabel(item: { item_type: string; due_date?: string | null; internal_target_date?: string | null }): string {
+  if (item.item_type === "significant_change_reassessment") {
+    return item.internal_target_date
+      ? `Internal follow-up target ${formatDateForDisplay(item.internal_target_date)}; the Code specifies no numeric allowance`
+      : "Required after a significant change; the Code specifies no numeric allowance";
+  }
+  return `Due ${item.due_date ? formatDateForDisplay(item.due_date) : "—"}`;
+}
+
 const DHS_PCH_FORMS = {
   preadmission: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/Personal_Care_Home-Preadmission-Screening.pdf",
   dme: "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/licensing/bhsl-licensing/documents/2025-07-25-personal-care-homes-dme-reupload.pdf",

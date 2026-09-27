@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, ClipboardList } from "lucide-react";
-import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName } from "@/lib/residentCompliance";
+import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, residentItemDeadlineLabel } from "@/lib/residentCompliance";
 import { QueryError } from "@/components/QueryState";
 
 function humanize(value: string): string {
@@ -113,7 +113,7 @@ export default function ResidentComplianceReport() {
                     <th>Resident</th>
                     <th>Facility</th>
                     <th>Item</th>
-                    <th>Due Date</th>
+                    <th>Deadline / follow-up target</th>
                     <th>Status</th>
                     <th className="w-16" />
                   </tr>
@@ -134,7 +134,7 @@ export default function ResidentComplianceReport() {
                             {ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type)}
                           </div>
                         </td>
-                        <td className="text-muted-foreground">{item.due_date ?? "—"}</td>
+                        <td className="text-muted-foreground">{residentItemDeadlineLabel(item)}</td>
                         <td>
                           <Badge className={complianceStatusBadgeClassName(item.status)} variant="outline">
                             {humanize(item.status)}

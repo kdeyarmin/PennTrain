@@ -3,6 +3,12 @@
 // type "Assisted Living Facility (ALF)", not "Assisted Living Residence (ALR)" -- every user-facing
 // string (marketing copy, UI labels, dropdown options) should say ALF, never ALR or "Residence".
 export type FacilityType = "PCH" | "ALR" | "NH" | "HHA" | "HOS" | "GH";
+export type PaRegulatoryFacilityType = "PCH" | "ALR";
+
+/** Signup must record the administrator's explicit licensed setting, never infer PCH. */
+export function isPaRegulatoryFacilityType(value: unknown): value is PaRegulatoryFacilityType {
+  return value === "PCH" || value === "ALR";
+}
 
 export const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
   { value: "PCH", label: "Personal Care Home (PCH)" },

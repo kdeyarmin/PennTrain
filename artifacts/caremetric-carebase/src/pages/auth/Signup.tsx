@@ -15,16 +15,18 @@ import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { MARKETING_TRIAL_DAYS } from "@/components/marketing/marketingPricing";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { absoluteAppUrl } from "@/lib/appUrl";
+import { isPaRegulatoryFacilityType, type PaRegulatoryFacilityType } from "@/lib/facilityTypes";
 
 interface SignupForm {
   organizationName: string;
+  facilityType: PaRegulatoryFacilityType | "";
   firstName: string;
   lastName: string;
   email: string;
 }
 
 const EMPTY_FORM: SignupForm = {
-  organizationName: "", firstName: "", lastName: "", email: "",
+  organizationName: "", facilityType: "", firstName: "", lastName: "", email: "",
 };
 
 declare global {
@@ -135,6 +137,10 @@ export default function Signup() {
       toast({ variant: "destructive", title: "Legal agreement acceptance required", description: "An authorized facility administrator must accept the platform agreement and BAA before signup." });
       return;
     }
+    if (!isPaRegulatoryFacilityType(form.facilityType)) {
+      toast({ variant: "destructive", title: "Select your facility's license type", description: "Choose Personal Care Home (PCH) or Assisted Living Facility (ALF) so the correct Pennsylvania regulations apply." });
+      return;
+    }
     if (!turnstileSiteKey || !turnstileToken) {
       toast({ variant: "destructive", title: "Signup verification required" });
       return;
@@ -148,6 +154,7 @@ export default function Signup() {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         organizationName: form.organizationName.trim(),
+        facilityType: form.facilityType,
         legalAccepted,
         turnstileToken,
         redirectTo: absoluteAppUrl("/reset-password"),
@@ -221,6 +228,15 @@ export default function Signup() {
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="facilityType" className="text-[13px] font-medium">Facility license type</Label>
+                <select id="facilityType" value={form.facilityType} onChange={e => field("facilityType", e.target.value)} disabled={isPending} required aria-describedby="facilityTypeHelp" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="" disabled>Select PCH or ALF</option>
+                  <option value="PCH">Personal Care Home (PCH)</option>
+                  <option value="ALR">Assisted Living Facility (ALF)</option>
+                </select>
+                <p id="facilityTypeHelp" className="text-xs text-muted-foreground">Your first facility uses Chapter 2600 for PCH or Chapter 2800 for ALF. Each additional facility follows its own license type.</p>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="firstName" className="text-[13px] font-medium">First Name</Label>
@@ -288,7 +304,7 @@ export default function Signup() {
                   Signup verification is not configured for this deployment.
                 </div>
               )}
-              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={isPending || !legalAccepted || !turnstileSiteKey || !turnstileToken}>
+              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={isPending || !form.facilityType || !legalAccepted || !turnstileSiteKey || !turnstileToken}>
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

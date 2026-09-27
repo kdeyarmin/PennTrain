@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { RESIDENT_POLICY_DEFAULTS, residentRegulatoryPolicy } from "@/lib/residentRegulatoryPolicy";
 
-export const RESIDENT_POLICY_DEFAULTS = { alf_admission_grace_days: 0, alf_contract_timing: "before_admission", revision_grace_days: 0, medication_reportability: "all_events" };
-export function ResidentRegulatoryPolicySettings({ facilityId, canManage }: { facilityId: string; canManage: boolean }) {
+export function ResidentRegulatoryPolicySettings(props: { facilityId: string; canManage: boolean }) {
+  return <ResidentRegulatoryPolicyRecord key={props.facilityId} {...props} />;
+}
+function ResidentRegulatoryPolicyRecord({ facilityId, canManage }: { facilityId: string; canManage: boolean }) {
   const { data } = useGetFacility(facilityId);
   const { toast } = useToast();
   const cache = useQueryClient();
@@ -19,7 +22,7 @@ export function ResidentRegulatoryPolicySettings({ facilityId, canManage }: { fa
   const [reason, setReason] = useState("");
   const facility = data;
   const savedPolicy = facility?.resident_regulatory_policy;
-  const policy = draft ?? { ...RESIDENT_POLICY_DEFAULTS, ...(savedPolicy && typeof savedPolicy === "object" && !Array.isArray(savedPolicy) ? savedPolicy as Record<string, string | number> : {}) };
+  const policy = draft ?? residentRegulatoryPolicy(facility?.facility_type, savedPolicy) ?? RESIDENT_POLICY_DEFAULTS;
   const save = useMutation({ mutationFn: async () => {
     const { error } = await supabase.rpc("save_resident_regulatory_policy" as never, { p_facility_id: facilityId, p_policy: policy, p_reason: reason, p_campus_identifier: campus ?? facility?.campus_identifier ?? null } as never);
     if (error) throw error;
@@ -27,14 +30,14 @@ export function ResidentRegulatoryPolicySettings({ facilityId, canManage }: { fa
   const choice = (key: keyof typeof RESIDENT_POLICY_DEFAULTS, label: string, options: [string, string][]) => <div className="space-y-1"><Label htmlFor={`resident-policy-${key}`}>{label}</Label><Select disabled={!canManage} value={String(policy[key])} onValueChange={value => setDraft({ ...policy, [key]: key.endsWith("_days") ? Number(value) : value })}><SelectTrigger id={`resident-policy-${key}`}><SelectValue /></SelectTrigger><SelectContent>{options.map(([value, text]) => <SelectItem key={value} value={value}>{text}</SelectItem>)}</SelectContent></Select></div>;
   if (!facility || !["PCH", "ALR"].includes(facility.facility_type)) return null;
   return <Card><CardHeader><CardTitle>Resident regulatory policy</CardTitle></CardHeader><CardContent className="space-y-3">
-    <p className="text-sm text-muted-foreground">Record the facility's adopted interpretation and supporting decision. Defaults keep the existing stricter deadlines. Changes affect open duties; completed evidence remains unchanged.</p>
+    <p className="text-sm text-muted-foreground">{facility.facility_type === "ALR" ? "ALF — Chapter 2800" : "PCH — Chapter 2600"}. Defaults use the applicable Code and DHS guidance. A saved facility decision is retained and may set earlier internal targets; it is not an additional DHS requirement. Changes affect open duties; completed evidence remains unchanged.</p>
     {facility.facility_type === "ALR" && <>
-      {choice("alf_admission_grace_days", "ALF initial DME / assessment grace", [["0", "No grace — regulation and RCG front matter"], ["15", "15 days — RCG admission discussion"]])}
-      <p className="text-xs text-muted-foreground">The 2800 guide's admission discussion conflicts with its exclusion list. This policy does not replace the documented expedited-admission basis.</p>
-      {choice("alf_contract_timing", "ALF resident contract", [["before_admission", "Complete before admission"], ["within_24_hours", "Complete within 24 hours after actual admission (§22(a)(5))"]])}
+      {choice("alf_admission_grace_days", "ALF initial DME / assessment — conflicting DHS guidance", [["0", "Code admission timing — no general grace"], ["15", "15 days — documented reliance on RCG admission discussion"]])}
+      <p className="text-xs text-muted-foreground">The 2800 guide's admission discussion conflicts with its exclusion list and the Code's named exceptions. The default follows the Code. Record the authority for a different interpretation; this setting does not replace a qualifying expedited-admission basis.</p>
+      {choice("alf_contract_timing", "ALF resident contract", [["within_24_hours", "Within 24 hours after actual admission — §2800.22(a)(5)"], ["before_admission", "Before admission — earlier facility target"]])}
     </>}
-    {choice("revision_grace_days", "Support-plan revision grace (§227(c))", [["0", "No grace — current facility policy"], ["5", "5 days — RCG monthly timeframe grace"]])}
-    {choice("medication_reportability", "Medication-event initial reportability", [["all_events", "Presume every medication event reportable"], ["statutory_errors", "Presume staff medication errors; review other events"]])}
+    {choice("revision_grace_days", "Support-plan revision grace (§227(c))", [["5", "5 days — DHS RCG grace for recurring deadlines"], ["0", "No grace — earlier facility target"]])}
+    {choice("medication_reportability", "Medication-event initial reportability", [["statutory_errors", "Staff prescription errors — review other events"], ["all_events", "All events — additional facility reporting policy"]])}
     <p className="text-xs text-muted-foreground">Near misses, self-administration errors and adverse reactions still require a documented reportability decision. Medication care and notification duties continue independently.</p>
     <Label htmlFor="resident-campus">Licensed homes on the same campus — shared campus identifier</Label><Input id="resident-campus" disabled={!canManage} value={campus ?? facility.campus_identifier ?? ""} onChange={event => setCampus(event.target.value)} />
     <p className="text-xs text-muted-foreground">Use the same identifier only for licensed homes physically on the same campus. A transfer also requires a dated addendum and eligible carried evidence.</p>

@@ -6,6 +6,15 @@ const policy: TrainingPolicy = { id: "p", effective_from: "2026-01-01", year_bas
 const event: TrainingEvent = { id: "e", employee_id: "a", title: "Course", completed_on: "2026-06-01", minutes: 720, delivery: "online", provider: "Provider", provider_qualification: "Qualified source", source_reference: "source1", topics: [], allocations: { base: 720 }, valid_until: null, status: "verified", review_note: "Verified source", evidence_document_id: null, course_assignment_id: null };
 const assess = (events: TrainingEvent[], facilityType = "PCH") => assessTraining({ profile, policy, events, facilityType, shifts: [], hireDate: profile.first_work_date, today: "2026-09-24" });
 describe("standalone training evidence", () => {
+  it("keeps the one-year initial-training transfer condition separate from qualification portability", () => {
+    const oldTransfer = { ...event, completed_on: "2024-12-31", topics: ["initial_transfer"], allocations: {} };
+    for (const facilityType of ["PCH", "ALR"]) {
+      const input = { profile, policy, events: [oldTransfer], facilityType, shifts: [], today: "2026-09-24" };
+      expect(assessTraining(input).find(c => c.key === "unsupervised")?.status).toBe("missing");
+      expect(assessTraining({ ...input, staffPolicy: { alf_transfer_months: null } as never }).find(c => c.key === "unsupervised")?.status).toBe("missing");
+      expect(assessTraining({ ...input, events: [{ ...oldTransfer, completed_on: "2025-01-01" }] }).find(c => c.key === "unsupervised")?.status).toBe("review");
+    }
+  });
   it("uses explicit ALF OJT policy consistently and does not grant a partial-year annual failure", () => {
     const ojt = { ...event, delivery: "ojt" };
     expect(eligibleTrainingMinutes([ojt], "base", "ALR")).toBe(0);

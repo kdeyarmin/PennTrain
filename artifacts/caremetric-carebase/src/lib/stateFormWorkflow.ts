@@ -1,13 +1,13 @@
 import { hasStateFormPrefill } from "../../../../supabase/functions/_shared/stateFormPrefill";
 import { facilityDaysUntil } from "./dateUtils";
-import { getRequiredStateFormInfo } from "./residentCompliance";
+import { allowsEquivalentResidentForm, getRequiredStateFormInfo } from "./residentCompliance";
 import { isDigitalFormEligible } from "./residentAssessmentFormSchema";
 
 // Derives the guided "state forms" pipeline for one resident_compliance_items row from data that
 // already exists (linked resident_assessment_forms + resident_documents) -- no new status columns,
 // so this can never disagree with the server-side compliance state. The completion gate is
-// untouched: only complete_resident_compliance_item() with an is_state_form=true document makes an
-// item compliant; everything here just sequences the UI toward that call.
+// server-owned: complete_resident_compliance_item() validates the linked official or documented
+// equivalent form before making an item compliant; this only sequences the UI toward that call.
 //
 // Shared by StateFormWorkflowStepper.tsx (rendered on ResidentDetail and the State Forms Center)
 // so the two surfaces can't drift.
@@ -34,6 +34,7 @@ export interface WorkflowDocument {
   id: string;
   compliance_item_id: string | null;
   is_state_form: boolean;
+  equivalent_form_review?: unknown;
   document_label: string | null;
   created_at: string;
 }
@@ -102,6 +103,15 @@ function highestVersion<T extends { version_number: number }>(forms: T[]): T | u
   return [...forms].sort((a, b) => b.version_number - a.version_number)[0];
 }
 
+function hasEquivalentFormReview(document: WorkflowDocument): boolean {
+  const review = document.equivalent_form_review;
+  if (!review || typeof review !== "object" || Array.isArray(review)) return false;
+  const fields = review as Record<string, unknown>;
+  return fields.all_required_information === true
+    && typeof fields.reviewer_name === "string" && fields.reviewer_name.trim().length >= 2
+    && typeof fields.review_reference === "string" && fields.review_reference.trim().length >= 10;
+}
+
 function buildSteps(keys: { key: string; label: string }[], currentIndex: number): WorkflowStep[] {
   // currentIndex past the end marks every step done (the "complete" state).
   return keys.map((k, i) => ({
@@ -127,7 +137,11 @@ export function deriveStateFormWorkflow(
 
   const draftForm = highestVersion(linkedForms.filter((f) => f.status === "draft"));
   const finalizedForm = highestVersion(linkedForms.filter((f) => f.status === "finalized"));
-  const stateFormDoc = newestByCreatedAt(linkedDocs.filter((d) => d.is_state_form));
+  // Both forms of eligible completion evidence must survive an upload-success/completion-failure
+  // boundary so retrying never makes staff upload the same evidence again.
+  const equivalentAllowed = allowsEquivalentResidentForm(item.item_type, facilityType);
+  const stateFormDoc = newestByCreatedAt(linkedDocs.filter((d) => d.is_state_form
+    || (equivalentAllowed && hasEquivalentFormReview(d))));
   // The generated reference PDF and the prefill PDF carry an id-bearing label, so matching by
   // label across all of the resident's documents is exact even if a row's compliance_item_id is
   // ever null (labels embed the form/item id being asked about).
@@ -178,7 +192,7 @@ export function deriveStateFormWorkflow(
     };
   }
 
-  // A signed state form is already attached but the item is still open -- e.g. the upload
+  // A signed official or reviewed equivalent form is attached but the item is still open -- the upload
   // succeeded and the completion RPC failed, or the form was uploaded from the generic Documents
   // card. One click left; never make the user re-upload.
   if (stateFormDoc) {

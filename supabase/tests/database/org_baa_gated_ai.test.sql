@@ -21,11 +21,11 @@ select ok(not has_function_privilege('anon','public.org_ai_allowed(uuid)','EXECU
   'anon cannot execute org_ai_allowed');
 select ok(has_function_privilege('authenticated','public.org_ai_allowed(uuid)','EXECUTE'),
   'authenticated may execute org_ai_allowed');
-select ok(not has_function_privilege('anon','public.record_organization_signup(text,text,timestamptz,text)','EXECUTE'),
+select ok(not has_function_privilege('anon','public.record_organization_signup(text,text,timestamptz,text,text)','EXECUTE'),
   'anon cannot execute record_organization_signup');
-select ok(not has_function_privilege('authenticated','public.record_organization_signup(text,text,timestamptz,text)','EXECUTE'),
+select ok(not has_function_privilege('authenticated','public.record_organization_signup(text,text,timestamptz,text,text)','EXECUTE'),
   'authenticated cannot execute record_organization_signup');
-select ok(has_function_privilege('service_role','public.record_organization_signup(text,text,timestamptz,text)','EXECUTE'),
+select ok(has_function_privilege('service_role','public.record_organization_signup(text,text,timestamptz,text,text)','EXECUTE'),
   'service_role may execute record_organization_signup');
 select ok(not has_function_privilege('anon','public.set_organization_baa_acceptance(uuid,text)','EXECUTE'),
   'anon cannot execute set_organization_baa_acceptance');
@@ -175,16 +175,16 @@ select pg_temp.act_as('7ba00000-0000-4000-8000-000000000102','service_role');
 select lives_ok(
   $$ select public.record_organization_signup(
        'PgTap Signup Org','pgtap-signup-org', now() + interval '30 days',
-       'CareMetric-HIPAA-BAA-v2026-07-14') $$,
+       'CareMetric-HIPAA-BAA-v2026-07-14', 'PCH') $$,
   'the signup RPC creates an organization as service_role');
 select throws_ok(
   $$ select public.record_organization_signup(
        'PgTap Signup Org Again','pgtap-signup-org', now() + interval '30 days',
-       'CareMetric-HIPAA-BAA-v2026-07-14') $$,
+       'CareMetric-HIPAA-BAA-v2026-07-14', 'PCH') $$,
   '23505', null, 'a duplicate slug surfaces as 23505 so the caller''s retry loop still works');
 select throws_ok(
   $$ select public.record_organization_signup(
-       'PgTap Signup Org Blank','pgtap-signup-org-blank', now() + interval '30 days', '  ') $$,
+       'PgTap Signup Org Blank','pgtap-signup-org-blank', now() + interval '30 days', '  ', 'PCH') $$,
   '22023', null, 'a blank BAA version is rejected outright');
 reset role;
 select is((select baa_version from public.organizations where slug='pgtap-signup-org'),

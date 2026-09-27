@@ -11,7 +11,7 @@ insert into public.inspection_items(id,organization_id,facility_id,item_kind,ite
 ('e3900000-0000-4000-8000-000000001104','e3900000-0000-4000-8000-000000001001','e3900000-0000-4000-8000-000000001011','procedural','voice_controlled_device_policy','Voice device',30);
 insert into public.inspection_events(id,inspection_item_id,performed_date,performed_by,result,drill_time,alarm_sounded,alarm_or_detector_operative,evacuation_duration_seconds)
 values('e3900000-0000-4000-8000-000000001201','e3900000-0000-4000-8000-000000001101',public.pa_today(),'Fire trainer','fail','14:00',true,true,200);
-select is((select last_inspected_date from public.inspection_items where id='e3900000-0000-4000-8000-000000001101'),null::date,'strict default does not count failed drills');
+select is((select last_inspected_date from public.inspection_items where id='e3900000-0000-4000-8000-000000001101'),public.pa_today(),'PCH RCG baseline counts a recorded unsuccessful drill without erasing its finding');
 insert into public.facility_site_policies(facility_id,organization_id,count_unsuccessful_pch_drills,inspection_grace,rationale)
 values('e3900000-0000-4000-8000-000000001011','e3900000-0000-4000-8000-000000001001',true,'rcg','PCH RCG policy reviewed by administrator');
 select is((select last_inspected_date from public.inspection_items where id='e3900000-0000-4000-8000-000000001101'),public.pa_today(),'explicit PCH counting policy rolls frequency forward');
@@ -54,7 +54,7 @@ values('e3900000-0000-4000-8000-000000001401','e3900000-0000-4000-8000-000000001
 select throws_ok($$insert into public.facility_site_reviews(organization_id,facility_id,review_type,inspection_item_id,occurred_at,evidence,details)
 values('e3900000-0000-4000-8000-000000001001','e3900000-0000-4000-8000-000000001012','fire_approval','e3900000-0000-4000-8000-000000001105',now(),'Reviewed the existing fire approval',jsonb_build_object('approval_document_id','e3900000-0000-4000-8000-000000001401'))$$,'23514',null,'review date cannot substitute for actual approval issue date');
 select lives_ok($$insert into public.facility_site_reviews(id,organization_id,facility_id,review_type,inspection_item_id,occurred_at,evidence,details)
-values('e3900000-0000-4000-8000-000000001302','e3900000-0000-4000-8000-000000001001','e3900000-0000-4000-8000-000000001012','fire_approval','e3900000-0000-4000-8000-000000001105',now(),'Reviewed actual issued approval',jsonb_build_object('approval_document_id','e3900000-0000-4000-8000-000000001401','approval_issued_on',(public.pa_today()-interval '2 years')::date))$$,'approval can be reviewed against its actual issue date');
-select is((select next_review_on from public.facility_site_reviews where id='e3900000-0000-4000-8000-000000001302'),((public.pa_today()-interval '2 years')::date+interval '3 years')::date,'three-year term begins at issue date, not today review date');
+values('e3900000-0000-4000-8000-000000001302','e3900000-0000-4000-8000-000000001001','e3900000-0000-4000-8000-000000001012','fire_approval','e3900000-0000-4000-8000-000000001105',now(),'Reviewed actual issued approval',jsonb_build_object('approval_document_id','e3900000-0000-4000-8000-000000001401','approval_issued_on',(public.pa_today()-interval '2 years')::date,'changed_use_within_three_years',true))$$,'approval can be reviewed against its actual issue date');
+select is((select next_review_on from public.facility_site_reviews where id='e3900000-0000-4000-8000-000000001302'),((public.pa_today()-interval '2 years')::date+interval '3 years')::date,'changed-use three-year term begins at issue date, not today review date');
 select * from finish();
 rollback;

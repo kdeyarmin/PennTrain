@@ -4,10 +4,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
-import { ITEM_TYPE_LABELS, getRequiredStateFormInfo, stateFormBackdateDays, stateFormDateField } from "@/lib/residentCompliance";
+import { ITEM_TYPE_LABELS, allowsEquivalentResidentForm, getRequiredStateFormInfo, stateFormBackdateDays, stateFormDateField } from "@/lib/residentCompliance";
 import { useCompleteResidentComplianceItem } from "@/hooks/useResidentComplianceItems";
 import { useUploadResidentDocument } from "@/hooks/useResidentDocuments";
 
@@ -26,16 +27,20 @@ interface CompleteWithStateFormDialogProps {
   onClose: () => void;
 }
 
-// Documents like the RASP/ASP and DME have to be on the state-approved form -- no exception --
-// so completion always goes through this single path: upload the actual DHS form flagged
-// is_state_form, linked to this specific item, then complete_resident_compliance_item() validates
-// that exact document server-side. There is no "mark complete" shortcut that skips the upload.
+// Completion requires a linked completed DHS form or, only where the chapter
+// permits it, a documented equivalent assessment/support form with all required
+// information. A generated draft alone is never completion evidence.
 export function CompleteWithStateFormDialog({ item, resident, facilityType, existingDocumentId, onClose }: CompleteWithStateFormDialogProps) {
   const { toast } = useToast();
   const uploadDocument = useUploadResidentDocument();
   const completeItem = useCompleteResidentComplianceItem();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [equivalentForm, setEquivalentForm] = useState(false);
+  const [equivalentReviewer, setEquivalentReviewer] = useState("");
+  const [equivalentReference, setEquivalentReference] = useState("");
+  const canUseEquivalent = !!item && allowsEquivalentResidentForm(item.item_type, facilityType);
+  const equivalentReady = !equivalentForm || (canUseEquivalent && equivalentReviewer.trim().length >= 2 && equivalentReference.trim().length >= 10);
   // BACKLOG J5. The date on the form, not the day the scan was uploaded. Before this the RPC
   // stamped pa_today(), so a facility uploading a signed RASP/ASP a fortnight after the assessor
   // signed it recorded the assessment as completed on the upload day -- an ALF initial assessment
@@ -70,6 +75,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, exis
   // resident documents) has no way to undo themselves.
   const close = () => {
     setFile(null);
+    setEquivalentForm(false); setEquivalentReviewer(""); setEquivalentReference("");
     setCompletedOn("");
     setLpnName(""); setLpnLicense(""); setRnName(""); setRnLicense(""); setReviewedOn("");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -77,7 +83,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, exis
   };
 
   const handleMarkComplete = async () => {
-    if (!item || (!file && !existingDocumentId) || !completedOn || dateOutOfRange || !reviewReady) return;
+    if (!item || (!file && !existingDocumentId) || !completedOn || dateOutOfRange || !reviewReady || !equivalentReady) return;
     try {
       const documentId = existingDocumentId ?? (await uploadDocument.mutateAsync({
         file: file!,
@@ -85,9 +91,10 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, exis
         facilityId: resident.facility_id,
         residentId: resident.id,
         complianceItemId: item.id,
-        isStateForm: true,
+        isStateForm: !equivalentForm,
         stateFormSourceLabel: stateForm?.sourceLabel,
         stateFormSourceUrl: stateForm?.url,
+        equivalentFormReview: equivalentForm ? { all_required_information: true, reviewer_name: equivalentReviewer.trim(), review_reference: equivalentReference.trim() } : undefined,
       })).id;
       await completeItem.mutateAsync({ item, documentId, completedOn,
         reviewAttestation: needsFinalPlanReview ? {
@@ -113,8 +120,8 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, exis
         <div className="space-y-3 py-2">
           <p className="text-sm text-muted-foreground">
             {existingDocumentId ? "Confirm the completion date for the attached" : "Attach the completed"} <strong>{stateForm?.label}</strong> form.
-            This must be the official DHS-prescribed form — a CareMetric-prepared draft or any other document
-            can't be used to satisfy this requirement, no exception.
+            {canUseEquivalent ? " An equivalent completed assessment/support form is permitted if it contains all information required by the DHS form and its content review is documented." : " Use the official DHS-prescribed form."}
+            {" A draft alone does not document completion."}
           </p>
           {stateForm && (
             <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
@@ -134,6 +141,14 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, exis
             <Upload className="mr-2 h-3.5 w-3.5" /> Choose File
           </Button>}
           {file && <p className="text-xs text-muted-foreground">{file.name}</p>}
+          {canUseEquivalent && !existingDocumentId && <fieldset className="space-y-2 rounded border p-3">
+            <Label className="flex items-start gap-2"><Checkbox checked={equivalentForm} onCheckedChange={checked => setEquivalentForm(checked === true)} />This is an equivalent completed form containing all required DHS information</Label>
+            {equivalentForm && <>
+              <p className="text-xs text-muted-foreground">Compare every required field with the linked DHS form, including signatures and applicable clinical review. Record where the comparison is documented.</p>
+              <Label htmlFor="equivalent-form-reviewer">Reviewer</Label><Input id="equivalent-form-reviewer" value={equivalentReviewer} onChange={event => setEquivalentReviewer(event.target.value)} />
+              <Label htmlFor="equivalent-form-reference">Content comparison / mapping reference</Label><Input id="equivalent-form-reference" value={equivalentReference} onChange={event => setEquivalentReference(event.target.value)} />
+            </>}
+          </fieldset>}
           <div className="space-y-1.5 pt-1">
             <Label htmlFor="compliance-completed-on">{dateField.label}</Label>
             <Input
@@ -162,7 +177,7 @@ export function CompleteWithStateFormDialog({ item, resident, facilityType, exis
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={close}>Cancel</Button>
-          <Button onClick={handleMarkComplete} disabled={(!file && !existingDocumentId) || !completedOn || dateOutOfRange || !reviewReady || uploadDocument.isPending || completeItem.isPending}>
+          <Button onClick={handleMarkComplete} disabled={(!file && !existingDocumentId) || !completedOn || dateOutOfRange || !reviewReady || !equivalentReady || uploadDocument.isPending || completeItem.isPending}>
             {uploadDocument.isPending || completeItem.isPending ? "Saving..." : existingDocumentId ? "Mark Complete" : "Upload & Mark Complete"}
           </Button>
         </DialogFooter>

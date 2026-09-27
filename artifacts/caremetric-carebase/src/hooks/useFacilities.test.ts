@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Request = { filters: unknown[][]; order: string[]; range: number[]; signal?: AbortSignal };
-const h = vi.hoisted(() => ({ from: vi.fn(), query: vi.fn(), requests: [] as Request[], failAt: -1 }));
+const h = vi.hoisted(() => ({ from: vi.fn(), query: vi.fn(), mutation: vi.fn(), requests: [] as Request[], failAt: -1 }));
 vi.mock("@/lib/supabase", () => ({ supabase: { from: h.from } }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: h.query, useMutation: vi.fn(), useQueryClient: vi.fn() }));
-import { useListFacilities } from "./useFacilities";
+vi.mock("@tanstack/react-query", () => ({ useQuery: h.query, useMutation: h.mutation, useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+import { useCreateFacility, useListFacilities } from "./useFacilities";
 
 const rows = ["first", "second", "last"].map(id => ({ id, name: "Same facility name" }));
 function options(organizationId?: string, enabled = true) { useListFacilities({ organizationId }, enabled); return h.query.mock.calls.at(-1)![0]; }
@@ -21,6 +21,21 @@ beforeEach(() => {
       then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows.slice(request.range[0], request.range[0] + 2), error: request.range[0] === h.failAt ? new Error("Later facility page unavailable") : null }).then(resolve),
     };
     return query;
+  });
+});
+
+describe("explicit facility creation type", () => {
+  function create() { useCreateFacility(); return h.mutation.mock.calls.at(-1)![0].mutationFn; }
+  it.each([undefined, null, "", "ALF", "UNKNOWN"])("rejects omitted or unsupported type %s before writing", async facilityType => {
+    await expect(create()({ organization_id: "organization", name: "Facility", facility_type: facilityType })).rejects.toThrow("Select the facility's license type");
+    expect(h.from).not.toHaveBeenCalled();
+  });
+  it.each(["PCH", "ALR", "NH"])("preserves an explicitly selected supported %s setting", async facilityType => {
+    const payload = { organization_id: "organization", name: "Facility", facility_type: facilityType };
+    const insert = vi.fn(() => ({ select: () => ({ single: async () => ({ data: payload, error: null }) }) }));
+    h.from.mockReturnValue({ insert });
+    expect(await create()(payload)).toEqual(payload);
+    expect(insert).toHaveBeenCalledWith(payload);
   });
 });
 

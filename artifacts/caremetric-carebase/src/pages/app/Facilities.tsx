@@ -13,11 +13,11 @@ import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
-import { FACILITY_TYPES, facilityTypeBadgeClass, facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
+import { FACILITY_TYPES, facilityTypeBadgeClass, facilityTypeLabel, isPaRegulatoryFacilityType, type FacilityType } from "@/lib/facilityTypes";
 
 interface FacilityFormData {
   name: string;
-  facilityType: FacilityType;
+  facilityType: FacilityType | "";
   licenseNumber: string;
   address: string;
   city: string;
@@ -30,7 +30,7 @@ interface FacilityFormData {
 }
 
 const EMPTY_FORM: FacilityFormData = {
-  name: "", facilityType: "PCH", licenseNumber: "", address: "", city: "",
+  name: "", facilityType: "", licenseNumber: "", address: "", city: "",
   state: "PA", zip: "", phone: "", administratorName: "", administratorEmail: "",
   isActive: true,
 };
@@ -50,6 +50,8 @@ export default function Facilities() {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<FacilityFormData>(EMPTY_FORM);
+  const editedFacility = facilities?.find(facility => facility.id === editId);
+  const fixedLicense = !!editId && isPaRegulatoryFacilityType(editedFacility?.facility_type);
 
   const { mutate: createFacility, isPending: creating } = useCreateFacility();
   const { mutate: updateFacility, isPending: updating } = useUpdateFacility();
@@ -98,7 +100,7 @@ export default function Facilities() {
     setEditId(facility.id);
     setForm({
       name: facility.name,
-      facilityType: (facility.facility_type as FacilityType) ?? "PCH",
+      facilityType: (facility.facility_type as FacilityType) ?? "",
       licenseNumber: facility.license_number ?? "",
       address: facility.address ?? "",
       city: facility.city ?? "",
@@ -119,7 +121,6 @@ export default function Facilities() {
     }
     const payload = {
       name: form.name.trim(),
-      facility_type: form.facilityType,
       license_number: form.licenseNumber || null,
       address: form.address || null,
       city: form.city || null,
@@ -132,12 +133,16 @@ export default function Facilities() {
     };
     if (editId) {
       updateFacility(
-        { id: editId, ...payload },
+        { id: editId, ...payload, ...(!fixedLicense && form.facilityType ? { facility_type: form.facilityType } : {}) },
         {
           onSuccess: () => { toast({ title: "Facility updated" }); setShowForm(false); setEditId(null); },
           onError: (e: Error) => toast({ title: "Failed to update facility", description: e.message, variant: "destructive" }),
         },
       );
+      return;
+    }
+    if (!form.facilityType) {
+      toast({ title: "Select the facility's license type", variant: "destructive" });
       return;
     }
     // Platform admins have no organization_id of their own; the org they are
@@ -156,7 +161,7 @@ export default function Facilities() {
       return;
     }
     createFacility(
-      { ...payload, organization_id: targetOrgId },
+      { ...payload, facility_type: form.facilityType, organization_id: targetOrgId },
       {
         onSuccess: () => { toast({ title: "Facility created" }); setShowForm(false); setForm(EMPTY_FORM); },
         onError: (e: Error) => toast({ title: "Failed to create facility", description: e.message, variant: "destructive" }),
@@ -294,15 +299,21 @@ export default function Facilities() {
               <Input id={`${__fieldIds}-facility-name`} value={form.name} onChange={e => field("name", e.target.value)} placeholder="Sunrise Manor" className="h-9" />
             </div>
             <div className="space-y-1.5">
+              {fixedLicense ? <>
+                <p className="text-[13px] font-medium">License type</p>
+                <p className="text-sm">{facilityTypeLabel(form.facilityType)}</p>
+                <p className="text-xs text-muted-foreground">The license type is fixed to preserve its regulations and records. Create a separate facility for a different license.</p>
+              </> : <>
               <Label htmlFor={`${__fieldIds}-type`} className="text-[13px]">Type *</Label>
               <Select value={form.facilityType} onValueChange={v => field("facilityType", v as FacilityType)}>
-                <SelectTrigger id={`${__fieldIds}-type`} className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${__fieldIds}-type`} className="h-9"><SelectValue placeholder="Select license type" /></SelectTrigger>
                 <SelectContent>
-                  {FACILITY_TYPES.map(t => (
+                  {FACILITY_TYPES.filter(t => !editId || !isPaRegulatoryFacilityType(t.value)).map(t => (
                     <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              </>}
               <p className="text-xs text-muted-foreground">Chapter 2600 applies to PCH and Chapter 2800 to ALF. Other facility types use separate training configuration.</p>
             </div>
             <div className="space-y-1.5">
