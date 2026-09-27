@@ -30,6 +30,7 @@ import { TrainingWelcome } from "@/components/training/TrainingWelcome";
 import { ElectiveDiscovery, SavedCoursesFilter } from "@/components/training-discovery/ElectiveDiscovery";
 import { OptionalRefreshers } from "@/components/training-discovery/OptionalRefreshers";
 import { librarySchema, useSaveTrainingDiscovery, useTrainingDiscovery } from "@/hooks/useTrainingDiscovery";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 
 // assigned -> "Start" (nothing begun yet); in_progress/overdue -> "Continue" (progress already
 // exists, or the due date passed either way); completed -> "Review" (re-open a finished course).
@@ -154,7 +155,7 @@ export default function MyCourses() {
   const visibleCourses = availableCourses.filter(course => (!category || course.category === category)
     && (!savedOnly || discovery.data?.saved.includes(course.id))
     && (!activeCollection || discovery.data?.collections.find(collection => collection.id === activeCollection)?.course_ids.includes(course.id))
-    && `${course.title} ${course.description || ""}`.toLowerCase().includes(catalogSearch.toLowerCase()));
+    && `${documentDisplayName({ title: course.title })} ${course.description || ""}`.toLowerCase().includes(catalogSearch.toLowerCase()));
   const handleStart = (courseId: string) => {
     selfEnroll(courseId, {
       onSuccess: (assignmentId) => navigate(`/me/courses/${assignmentId}`),
@@ -191,7 +192,7 @@ export default function MyCourses() {
       {!libraryView && <TrainingWelcome />}
       {!libraryView && !isLoading && !assignmentsError && !requiredAssignments.isError && <Card><CardHeader><CardTitle>{nextRequired ? "Your next required course" : required.length ? "Required learning progress" : "Welcome to your learning account"}</CardTitle></CardHeader><CardContent className="space-y-2">
         <p>{required.filter(a => a.status === "completed").length} / {required.length} required courses completed</p>
-        {nextRequired ? <><p className="font-semibold">{courseById.get(nextRequired.course_id)?.title || "Assigned course"}</p><p>{nextRequired.due_date ? `Due ${formatDateForDisplay(nextRequired.due_date)} · ${formatDueDistance(nextRequired.due_date)}` : "No deadline set"}</p><Button asChild><Link href={`/me/courses/${nextRequired.id}`}>{actionLabel(nextRequired.status)} required course</Link></Button></> : <p>{required.length ? "Review your history below or explore the Course Library." : "Your facility has not assigned required courses yet. You can explore the Course Library while you wait."}</p>}
+        {nextRequired ? <><p className="font-semibold">{documentDisplayName({ title: courseById.get(nextRequired.course_id)?.title, fallback: "Assigned course" })}</p><p>{nextRequired.due_date ? `Due ${formatDateForDisplay(nextRequired.due_date)} · ${formatDueDistance(nextRequired.due_date)}` : "No deadline set"}</p><Button asChild><Link href={`/me/courses/${nextRequired.id}`}>{actionLabel(nextRequired.status)} required course</Link></Button></> : <p>{required.length ? "Review your history below or explore the Course Library." : "Your facility has not assigned required courses yet. You can explore the Course Library while you wait."}</p>}
       </CardContent></Card>}
       {!libraryView && learningPlans.isError && <QueryError what="your learning plans" error={learningPlans.error} onRetry={() => void learningPlans.refetch()} />}
       {!libraryView && !!learningPlans.data?.length && <section className="space-y-2" aria-label="Your learning plans"><h2 className="text-lg font-semibold">Your learning plans</h2>{learningPlans.data.map(plan => <div key={plan.planId} className="rounded border p-3"><h3 className="font-medium">{plan.name}</h3><p className="text-sm">{plan.completed} / {plan.required} required courses completed</p>{plan.needs_reapply || plan.unresolved ? <p className="text-sm">Your facility administrator needs to update or resolve {plan.unresolved} plan requirements. Continue the courses already assigned below.</p> : plan.required > 0 && plan.required === plan.completed ? <p className="text-sm">Plan complete</p> : null}</div>)}</section>}
@@ -257,7 +258,7 @@ export default function MyCourses() {
                   {(index === 0 || a.training_plan_id !== sorted[index - 1].training_plan_id) && <h3 className="text-sm font-semibold pt-2">{a.training_plan_id ? planNames.data?.find(p => p.id === a.training_plan_id)?.name || "Learning plan" : "Individual courses"}</h3>}
                   <div className="flex flex-col gap-3 p-3 rounded-lg border sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium break-words">{course?.title ?? "Training item"}</p>
+                      <p className="font-medium break-words">{documentDisplayName({ title: course?.title, fallback: "Training item" })}</p>
                       <p className="text-xs text-muted-foreground">{a.is_required === false ? (a.assignment_origin === "self_enrolled" ? "You chose this course" : "Optional learning") : "Required by your facility"}{a.training_plan_id ? ` · ${planNames.data?.find(p => p.id === a.training_plan_id)?.name || "Learning plan"}` : ""}</p>
                       <p className="text-xs text-muted-foreground">
                         {a.due_date ? `Due ${formatDateForDisplay(a.due_date)}` : "No due date"}
@@ -311,7 +312,7 @@ export default function MyCourses() {
             visibleCourses.map(course => (
               <div key={course.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
                 <div className="min-w-0">
-                  <p className="font-medium truncate">{course.title}</p>
+                  <p className="font-medium truncate">{documentDisplayName({ title: course.title, fallback: "Course" })}</p>
                   {discovery.data?.metadata.filter(item => item.course_id === course.id).map(item => <div key={item.course_id} className="space-y-1 text-xs text-muted-foreground">{item.language && <p>Language: {item.language}</p>}{item.credit_statement && item.credit_evidence_url && <p>{item.credit_statement} · <a className="underline" href={item.credit_evidence_url} target="_blank" rel="noopener noreferrer">Eligibility documentation</a></p>}</div>)}
                   <p className="text-xs text-muted-foreground">{course.category ?? "Uncategorized"} · {course.estimated_duration_minutes || "Duration not listed"}{course.estimated_duration_minutes ? " minutes" : ""}</p><details className="text-sm mt-2"><summary className="cursor-pointer underline">Course details</summary><p className="whitespace-pre-line">{course.description || "Ask your facility administrator for details about this course."}</p><p className="text-xs mt-2">Optional learning does not change your required completion. Captions and transcripts, when supplied with the course, are available in the player.</p></details>
                 </div>
@@ -345,7 +346,7 @@ export default function MyCourses() {
             <QueryError what="offline training library" error={offlineLibrary.error} onRetry={() => void offlineLibrary.refetch()} />
           ) : offlineLibrary.isLoading ? (
             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Loading offline library…</p>
-          ) : offlineLibrary.data?.length ? offlineLibrary.data.map((item) => <div key={item.assignmentId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{item.title}</p><p className="text-xs text-muted-foreground">Downloaded {new Date(item.downloadedAt).toLocaleString()} · expires {new Date(item.expiresAt).toLocaleDateString()}</p></div><div className="flex gap-2"><Button asChild size="sm" variant="outline"><Link href={`/me/courses/${item.assignmentId}/offline`}>Open offline copy</Link></Button><Button size="icon" variant="ghost" aria-label={`Remove offline copy of ${item.title}`} disabled={removeOffline.isPending} onClick={() => removeOffline.mutate(item.assignmentId, { onSuccess: () => toast({ title: "Offline copy removed" }), onError: (error) => toast({ title: "Offline copy could not be removed", description: error.message, variant: "destructive" }) })}><Trash2 className="h-4 w-4" /></Button></div></div>) : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No courses are available offline yet. Use Download on an active assignment below.</p>}
+          ) : offlineLibrary.data?.length ? offlineLibrary.data.map((item) => <div key={item.assignmentId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{documentDisplayName({ title: item.title, fallback: "Course" })}</p><p className="text-xs text-muted-foreground">Downloaded {new Date(item.downloadedAt).toLocaleString()} · expires {new Date(item.expiresAt).toLocaleDateString()}</p></div><div className="flex gap-2"><Button asChild size="sm" variant="outline"><Link href={`/me/courses/${item.assignmentId}/offline`}>Open offline copy</Link></Button><Button size="icon" variant="ghost" aria-label={`Remove offline copy of ${documentDisplayName({ title: item.title, fallback: "Course" })}`} disabled={removeOffline.isPending} onClick={() => removeOffline.mutate(item.assignmentId, { onSuccess: () => toast({ title: "Offline copy removed" }), onError: (error) => toast({ title: "Offline copy could not be removed", description: error.message, variant: "destructive" }) })}><Trash2 className="h-4 w-4" /></Button></div></div>) : <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No courses are available offline yet. Use Download on an active assignment below.</p>}
           {!offlineLibrary.isLoading && !offlineLibrary.isError && (offlineLibrary.data?.length ?? 0) > 0 && <Button variant="outline" disabled={wipeOffline.isPending} onClick={() => wipeOffline.mutate(undefined, { onSuccess: () => toast({ title: "Offline training wiped from this device" }), onError: (error) => toast({ title: "Offline library could not be wiped", description: error.message, variant: "destructive" }) })}><Trash2 className="mr-2 h-4 w-4" />Revoke device and wipe all</Button>}
         </CardContent>
       </Card></details>}

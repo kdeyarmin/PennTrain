@@ -35,8 +35,16 @@ select is(public.oapsa_duty_status('a2380000-0000-4000-8000-000000000021','2026-
 select is(public.oapsa_duty_status('a2380000-0000-4000-8000-000000000021','2026-04-02')->>'reason','FBI 90-day provisional clock expired','FBI has its independent90-day deadline');
 update public.employee_credentials set issue_date='2026-03-01',status='compliant' where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act73_fbi_fingerprint';
 select is(public.oapsa_duty_status('a2380000-0000-4000-8000-000000000021','2026-04-02')->>'clearancesOnFile','true','received required checks end provisional tracking');
-select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),'2031-01-05'::date,'five-year policy renewal uses issue date');
+select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'an unsaved facility policy does not invent a five-year clearance recurrence');
 select is((select expiration_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'policy recurrence preserves original expiration evidence');
+-- PostgreSQL LEAST ignores NULL inputs. An absent employer renewal must not
+-- hide an actual evidence expiry when the credential trigger recalculates status.
+update public.employee_credentials set issue_date=public.pa_today()-30,expiration_date=public.pa_today()-1,status='compliant'
+where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
+select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'expired evidence does not invent an unsaved renewal policy');
+select is((select expiration_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),public.pa_today()-1,'an unsaved policy preserves the actual expired date');
+select is((select status from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),'expired','actual expiry is enforced when no staff policy has been saved');
+update public.employee_credentials set expiration_date=null where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
 update public.employee_credentials set issue_date=null,status='missing' where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
 update public.employee_background_check_profiles set psp_requested_on='2026-01-02' where employee_id='a2380000-0000-4000-8000-000000000021';
 select is(public.oapsa_duty_status('a2380000-0000-4000-8000-000000000021','2026-01-15')->>'requestsOnTime','false','late clearance requests cannot establish provisional work');
@@ -97,5 +105,42 @@ values('a2380000-0000-4000-8000-000000000011','a2380000-0000-4000-8000-000000000
 select is((select status from public.employee_credentials where id='a2380000-0000-4000-8000-000000000046'),'compliant','enabling the employer TB policy immediately reuses existing valid evidence');
 update public.staff_regulatory_policies set staff_tb_required=false where facility_id='a2380000-0000-4000-8000-000000000011';
 select is((select issue_date from public.employee_credentials where id='a2380000-0000-4000-8000-000000000046'),public.pa_today()-30,'turning optional TB tracking off preserves its actual issue date');
+select is((select clearance_renewal_years from public.staff_regulatory_policies where facility_id='a2380000-0000-4000-8000-000000000011'),null::integer,'saving unrelated policy choices does not add a clearance recurrence');
+update public.employee_credentials set issue_date=public.pa_today()-10,expiration_date=public.pa_today()+100
+where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
+update public.staff_regulatory_policies set clearance_renewal_years=5
+where facility_id='a2380000-0000-4000-8000-000000000011';
+select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),((public.pa_today()-10)+interval '5 years')::date,'an explicit saved employer renewal remains enforced');
+update public.staff_regulatory_policies set staff_tb_required=true where facility_id='a2380000-0000-4000-8000-000000000011';
+select is((select clearance_renewal_years from public.staff_regulatory_policies where facility_id='a2380000-0000-4000-8000-000000000011'),5,'editing unrelated policy preserves explicit employer renewal');
+update public.staff_regulatory_policies set clearance_renewal_years=null where facility_id='a2380000-0000-4000-8000-000000000011';
+select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'removing employer recurrence clears only the derived deadline');
+select is((select expiration_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),public.pa_today()+100,'changing policy preserves actual credential expiration');
+update public.staff_regulatory_policies set clearance_renewal_years=5 where facility_id='a2380000-0000-4000-8000-000000000011';
+update public.employee_credentials set expiration_date=public.pa_today()-1 where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
+update public.staff_regulatory_policies set clearance_renewal_years=null where facility_id='a2380000-0000-4000-8000-000000000011';
+select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'removing a saved renewal policy clears its derived deadline even for expired evidence');
+select is((select expiration_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),public.pa_today()-1,'removing a saved renewal policy preserves an actual expired date');
+select is((select status from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),'expired','removing a saved renewal policy cannot make expired evidence compliant');
+update public.employee_credentials set expiration_date=public.pa_today()+100 where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
+insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,hire_date)
+values('a2380000-0000-4000-8000-000000000027','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','Transfer','Training','Direct care','2026-01-01');
+insert into public.training_documents(id,organization_id,facility_id,employee_id,file_name,storage_bucket,storage_path,file_type)
+values('a2380000-0000-4000-8000-000000000047','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','a2380000-0000-4000-8000-000000000027','Prior training.pdf','external-uploads','a2380000-0000-4000-8000-000000000001/a2380000-0000-4000-8000-000000000011/prior-training.pdf','application/pdf');
+insert into public.training_evidence_events(id,organization_id,facility_id,employee_id,title,completed_on,minutes,delivery,provider,source_reference,provider_qualification,topics,allocations,status,evidence_document_id,reviewed_by,reviewed_at,review_note,created_by)
+values('a2380000-0000-4000-8000-000000000057','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','a2380000-0000-4000-8000-000000000027','Prior home initial training','2024-12-31',60,'external','Prior licensed home','Prior initial training verification','Verified Department-approved prior-home training',array['initial_transfer'],'{}','verified','a2380000-0000-4000-8000-000000000047','a2380000-0000-4000-8000-000000000101',now(),'Reviewed written verification of prior initial training','a2380000-0000-4000-8000-000000000101');
+select is(app_private.staff_adl_ready('a2380000-0000-4000-8000-000000000027'),false,'transfer older than one year at first work cannot clear initial PCH training');
+update public.training_evidence_events set completed_on='2025-01-01' where id='a2380000-0000-4000-8000-000000000057';
+select is(app_private.staff_adl_ready('a2380000-0000-4000-8000-000000000027'),false,'transfer verification alone does not establish demonstration and supervised ADL practice');
+insert into public.employee_regulatory_profiles(employee_id,organization_id,facility_id,role_category,adl_competency_verified_on,adl_competency_evidence,updated_by)
+values('a2380000-0000-4000-8000-000000000027','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','direct_care','2025-01-01','Prior-home written evidence documents demonstration and supervised ADL practice','a2380000-0000-4000-8000-000000000101');
+select is(app_private.staff_adl_ready('a2380000-0000-4000-8000-000000000027'),true,'reviewed document-backed transfer within the prior year satisfies §2600.65(h)');
+select is((select i.status from public.employee_onboarding_items i join public.onboarding_checklist_templates t on t.id=i.template_id where i.employee_id='a2380000-0000-4000-8000-000000000027' and t.code='PCH-ADL-COMPETENCY'),'completed','eligible transfer clears the authoritative onboarding gate without repeating the course');
+update public.training_evidence_events set completed_on='2024-12-31' where id='a2380000-0000-4000-8000-000000000057';
+select is(app_private.staff_adl_ready('a2380000-0000-4000-8000-000000000027'),false,'documented ADL practice does not extend the one-year initial-training transfer exception');
+update public.training_evidence_events set completed_on='2025-01-01' where id='a2380000-0000-4000-8000-000000000057';
+update public.training_evidence_events set status='void' where id='a2380000-0000-4000-8000-000000000057';
+select is(app_private.staff_adl_ready('a2380000-0000-4000-8000-000000000027'),false,'void transfer evidence no longer authorizes the initial-training exception');
+select is((select i.status from public.employee_onboarding_items i join public.onboarding_checklist_templates t on t.id=i.template_id where i.employee_id='a2380000-0000-4000-8000-000000000027' and t.code='PCH-ADL-COMPETENCY'),'pending','voiding the transfer restores the initial-training gate');
 select * from finish();
 rollback;

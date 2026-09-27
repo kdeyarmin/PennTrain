@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useResidentRegulatoryActions, useSaveResidentClinicalDuty, type ResidentRegulatoryAction } from "@/hooks/useResidentRegulatoryActions";
 import { useListResidentDocuments, useUploadResidentDocument } from "@/hooks/useResidentDocuments";
-import { RESIDENT_CLINICAL_DUTIES, isResidentClinicalDuty, type ResidentClinicalDutyType } from "@/lib/residentClinicalDuties";
+import { useListResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
+import { RESIDENT_CLINICAL_DUTIES, isResidentClinicalDuty, equivalentClinicalItemAllowed, type ResidentClinicalDutyType } from "@/lib/residentClinicalDuties";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +21,7 @@ export function ResidentClinicalDuties({ resident, facilityType, canManage }: { 
   const cache = useQueryClient();
   const query = useResidentRegulatoryActions(resident.facility_id, resident.id);
   const docs = useListResidentDocuments(resident.id);
+  const compliance = useListResidentComplianceItems(resident.id);
   const save = useSaveResidentClinicalDuty(resident.id);
   const upload = useUploadResidentDocument();
   const [type, setType] = useState<ResidentClinicalDutyType | null>(null);
@@ -29,10 +31,21 @@ export function ResidentClinicalDuties({ resident, facilityType, canManage }: { 
   const [busy, setBusy] = useState(false);
   const [exitUnit, setExitUnit] = useState(false);
   const rows = query.data?.filter(row => isResidentClinicalDuty(row.action_type)) ?? [];
+  const clinicalDocuments = (docs.data ?? []).filter(doc => {
+    if (doc.organization_id !== resident.organization_id || doc.facility_id !== resident.facility_id || doc.resident_id !== resident.id) return false;
+    if (type === "resident_tb_test" || doc.is_state_form) return true;
+    const item = compliance.data?.find(candidate => candidate.id === doc.compliance_item_id);
+    return !!doc.equivalent_form_review && !!item && item.organization_id === resident.organization_id
+      && item.facility_id === resident.facility_id && item.resident_id === resident.id
+      && equivalentClinicalItemAllowed(facilityType, type ?? "", item.item_type, true);
+  });
+  const selectedDocument = clinicalDocuments.find(doc => doc.id === values.document_id);
+  const needsInitialPlanConfirmation = !file && type === "scu_support_plan" && !selectedDocument?.is_state_form
+    && !!selectedDocument?.equivalent_form_review && compliance.data?.some(item => item.id === selectedDocument.compliance_item_id && item.item_type === "initial_assessment_15day");
   const set = (key: string, value: string) => setValues(old => ({ ...old, [key]: value }));
-  const begin = (kind: ResidentClinicalDutyType, row?: ResidentRegulatoryAction) => { setType(kind); setEditing(row ?? null); setValues({ ...(row?.details as Record<string,string> ?? {}), unit_type: (row?.details as Record<string,string>)?.unit_type ?? "dementia", reason: row?.reason ?? "", document_id: "", completed: "", evidence: "", recipient_name: "", request_decision: "submitted" }); setFile(null); setExitUnit(false); };
+  const begin = (kind: ResidentClinicalDutyType, row?: ResidentRegulatoryAction) => { setType(kind); setEditing(row ?? null); setValues({ ...(row?.details as Record<string,string> ?? {}), unit_type: (row?.details as Record<string,string>)?.unit_type ?? "dementia", reason: row?.reason ?? "", document_id: "", initial_support_plan_confirmed: "", completed: "", evidence: "", recipient_name: "", request_decision: "submitted" }); setFile(null); setExitUnit(false); };
   const field = (key: string, label: string, inputType = "text") => <div className="space-y-1"><Label htmlFor={`clinical-${key}`}>{label}</Label>{inputType === "textarea" ? <Textarea id={`clinical-${key}`} value={values[key] ?? ""} onChange={event => set(key,event.target.value)} /> : <Input id={`clinical-${key}`} type={inputType} value={values[key] ?? ""} max={inputType === "datetime-local" ? toFacilityDateTimeLocal() : undefined} onChange={event => set(key,event.target.value)} />}</div>;
-  const choice = (key: string, label: string, options: [string,string][]) => <div className="space-y-1"><Label htmlFor={`clinical-${key}`}>{label}</Label><Select value={values[key] ?? ""} onValueChange={value => set(key,value)}><SelectTrigger id={`clinical-${key}`}><SelectValue placeholder="Choose" /></SelectTrigger><SelectContent>{options.map(([value,text]) => <SelectItem key={value} value={value}>{text}</SelectItem>)}</SelectContent></Select></div>;
+  const choice = (key: string, label: string, options: [string,string][]) => <div className="space-y-1"><Label htmlFor={`clinical-${key}`}>{label}</Label><Select value={values[key] ?? ""} onValueChange={value => { set(key,value); if(key === "document_id") set("initial_support_plan_confirmed", ""); }}><SelectTrigger id={`clinical-${key}`}><SelectValue placeholder="Choose" /></SelectTrigger><SelectContent>{options.map(([value,text]) => <SelectItem key={value} value={value}>{text}</SelectItem>)}</SelectContent></Select></div>;
   const submit = async () => {
     if (!type) return;
     setBusy(true);
@@ -72,8 +85,9 @@ export function ResidentClinicalDuties({ resident, facilityType, canManage }: { 
         {type === "medication_refusal_notice" && <>{field("recipient_name","Prescriber notified *")}{field("prescriber_instruction","Alternative reporting instruction from prescriber (only if applicable)","textarea")}</>}
         {(editing || type === "scu_admission") && <>{field("completed",exitUnit ? "Actual departure time *" : type === "scu_admission" ? "Admission evidence recorded / confirmed at *" : "Actual clinical completion / notification time *","datetime-local")}{field("evidence",exitUnit ? "Departure evidence *" : "Completed evidence / findings / written determination *","textarea")}</>}
         {exitUnit && field("reason","Reason for departure *","textarea")}
-        {!exitUnit && (type.startsWith("scu_") || type === "resident_tb_test") && <>{choice("document_id","Attached dated clinical document", (docs.data ?? []).map(doc => [doc.id,doc.document_label ?? doc.file_name]))}<Label htmlFor="clinical-upload">Or upload the completed clinical form / test result</Label><Input id="clinical-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={event => setFile(event.target.files?.[0] ?? null)} /></>}
-        <Button disabled={busy || (!editing && !exitUnit && (!values.anchor || !values.reason)) || ((editing || type === "scu_admission") && !values.prescriber_instruction && (!values.completed || !values.evidence))} onClick={() => void submit()}>{busy ? "Saving…" : "Save clinical record"}</Button>
+        {!exitUnit && (type.startsWith("scu_") || type === "resident_tb_test") && <>{docs.isError ? <QueryError what="clinical documents" error={docs.error} onRetry={() => void docs.refetch()} /> : compliance.isError ? <QueryError what="linked assessment and support-plan items" error={compliance.error} onRetry={() => void compliance.refetch()} /> : choice("document_id","Attached dated clinical document", clinicalDocuments.map(doc => [doc.id,doc.document_label ?? doc.file_name]))}<Label htmlFor="clinical-upload">Or upload the completed clinical form / test result</Label><Input id="clinical-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={event => setFile(event.target.files?.[0] ?? null)} /></>}
+        {needsInitialPlanConfirmation && <Label className="flex items-start gap-2"><input id="clinical-initial-support-plan-confirmed" type="checkbox" checked={values.initial_support_plan_confirmed === "true"} onChange={event => set("initial_support_plan_confirmed", String(event.target.checked))} />This combined assessment includes the special-care support plan for this admission, with the required needs, responsible people and resident participation documented.</Label>}
+        <Button disabled={busy || (needsInitialPlanConfirmation && values.initial_support_plan_confirmed !== "true") || (!editing && !exitUnit && (!values.anchor || !values.reason)) || ((editing || type === "scu_admission") && !values.prescriber_instruction && (!values.completed || !values.evidence))} onClick={() => void submit()}>{busy ? "Saving…" : "Save clinical record"}</Button>
       </div>}
     </DialogContent></Dialog>
   </CardContent></Card>;

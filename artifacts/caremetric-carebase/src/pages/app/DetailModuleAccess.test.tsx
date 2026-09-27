@@ -51,7 +51,7 @@ import EmployeeDetail from "./EmployeeDetail";
 import FacilityDetail from "./FacilityDetail";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-beforeEach(() => { harness.fullSuite = false; harness.reads.clear(); });
+beforeEach(() => { harness.fullSuite = false; harness.reads.clear(); harness.facility.id = "facility-1"; harness.facility.facility_type = "PCH"; });
 
 describe("training-only directory details", () => {
   it("keeps learner editing and training while omitting workforce controls and fetches", () => {
@@ -85,5 +85,32 @@ describe("training-only directory details", () => {
     expect(employeeHtml).toContain("Start lifecycle case");
     expect(employeeHtml).toContain("Retention Check-Ins");
     expect(harness.reads.get("credentials")).toBe(true);
+  });
+
+  it("remounts the site policy and review dialogs when the facility changes", () => {
+    harness.fullSuite = true;
+    let tree: React.ReactNode;
+    function CaptureFacilityTree() { tree = FacilityDetail(); return null; }
+    function elements(value: React.ReactNode): React.ReactElement<Record<string, unknown>>[] {
+      if (Array.isArray(value)) return value.flatMap(elements);
+      if (!React.isValidElement<Record<string, unknown>>(value)) return [];
+      return [value, ...elements(value.props.children as React.ReactNode)];
+    }
+    function siteWorkspace() {
+      renderToStaticMarkup(<CaptureFacilityTree />);
+      const boundary = elements(tree).find(element => element.type === React.Suspense
+        && React.isValidElement<{ children: string }>(element.props.fallback)
+        && element.props.fallback.props.children === "Loading site compliance…")!;
+      return boundary.props.children as React.ReactElement<{ facilityId: string; facilityType: string }>;
+    }
+    const personal = siteWorkspace();
+    expect(personal.key).toBe("facility-1");
+    expect(personal.props.facilityType).toBe("PCH");
+    harness.facility.id = "facility-2";
+    harness.facility.facility_type = "ALR";
+    const assisted = siteWorkspace();
+    expect(assisted.key).toBe("facility-2");
+    expect(assisted.key).not.toBe(personal.key);
+    expect(assisted.props).toMatchObject({ facilityId: "facility-2", facilityType: "ALR" });
   });
 });

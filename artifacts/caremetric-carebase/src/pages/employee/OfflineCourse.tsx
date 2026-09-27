@@ -9,6 +9,7 @@ import { QueryError } from "@/components/QueryState";
 import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
 import { useOfflineCourseBundle, useOfflineProgress, useQueueOfflineProgress, useRemoveOfflineCourse, useSyncOfflineProgress } from "@/hooks/useOfflineLearning";
 import { useToast } from "@/hooks/use-toast";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, CloudOff, CloudUpload, FileQuestion, Loader2, PlayCircle, ShieldCheck } from "lucide-react";
 
 // The bundle stores the block's stored locator, which for an org-authored video is
@@ -218,7 +219,7 @@ export default function OfflineCourse() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <Button asChild variant="ghost" size="sm" className="-ml-3"><Link href="/me/courses"><ArrowLeft className="mr-2 h-4 w-4" />My Training</Link></Button>
-          <h1 className="text-2xl font-bold tracking-tight">{bundle.course.title}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{documentDisplayName({ title: bundle.course.title, fallback: "Course" })}</h1>
           <p className="text-sm text-muted-foreground">Secure offline copy · downloaded {new Date(record.downloadedAt).toLocaleString()}</p>
         </div>
         <Badge variant="outline" className="gap-1"><CloudOff className="h-3.5 w-3.5" />Offline mode</Badge>
@@ -241,7 +242,7 @@ export default function OfflineCourse() {
       </Card>
 
       {!current ? <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">This downloaded version has no course blocks.</CardContent></Card> : <Card>
-        <CardHeader><div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{current.type.replace(/_/g, " ")}</Badge>{current.type === "quiz" && <Badge variant="outline"><FileQuestion className="mr-1 h-3 w-3" />Review only</Badge>}</div><CardTitle className="flex items-center gap-2">{current.type === "video" ? <PlayCircle className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}{current.title ?? `Lesson ${stepIndex + 1}`}</CardTitle></CardHeader>
+        <CardHeader><div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{current.type.replace(/_/g, " ")}</Badge>{current.type === "quiz" && <Badge variant="outline"><FileQuestion className="mr-1 h-3 w-3" />Review only</Badge>}</div><CardTitle className="flex items-center gap-2">{current.type === "video" ? <PlayCircle className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}{documentDisplayName({ title: current.title, fallback: `Lesson ${stepIndex + 1}` })}</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {current.type === "text" && <p className="whitespace-pre-wrap rounded-lg border bg-muted/20 p-4 text-sm leading-7">{textContent(current.body)}</p>}
           {current.type === "video" && <div className="space-y-3 rounded-lg border p-4"><p className="text-sm text-muted-foreground">Video assets are streamed only when a connection is available; the lesson title and sequence remain available offline.</p>{current.videoUrl && isOnline && <OfflineVideoLink videoUrl={current.videoUrl} />}</div>}

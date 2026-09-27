@@ -11,10 +11,10 @@ export interface StaffRegulatoryPolicy {
 }
 export const DEFAULT_STAFF_POLICY: StaffRegulatoryPolicy = {
   medication_course_years: null, trainer_recertification_years: 3, annual_grace_days: 15,
-  alf_ojt_allowed: false, alf_transfer_months: 12, staff_tb_required: false, clearance_renewal_years: 5,
+  alf_ojt_allowed: false, alf_transfer_months: 12, staff_tb_required: false, clearance_renewal_years: null,
   pch_cpr_before_care: false, pch_dementia_30day: false,
   waking_start: "07:00", waking_end: "23:00",
-  policy_reference: "DHS 2600/2800 RCG; conservative ALF OJT and transfer interpretation; five-year clearance renewal is facility policy.",
+  policy_reference: "Applicable DHS chapter and RCG; initial-training transfer within one year; no additional facility clearance-renewal policy.",
 };
 export interface EmployeeRegulatoryProfile {
   birth_date: string | null; education: string; role_category: string; education_evidence: string;

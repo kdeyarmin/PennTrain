@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(27);
 
 select is((select applies_to_track from public.onboarding_checklist_templates where organization_id is null and code='ORIENT-40HR'),'all','the statutory 40-hour orientation covers agency, substitutes and volunteers');
 select is((select deadline_value::integer from public.onboarding_checklist_templates where organization_id is null and code='DAY1-FIRE-EP'),0,'fire orientation is due on day one, not the following day');
@@ -88,7 +88,15 @@ select is((public.schedule_staff_care_coverage('a2370000-0000-4000-8000-00000000
 update public.employee_regulatory_profiles set medical_fitness_confirmed=false where employee_id='a2370000-0000-4000-8000-000000000021';
 select is((public.schedule_staff_care_coverage('a2370000-0000-4000-8000-000000000031')->'days'->0->>'available_hours')::numeric,0::numeric,
  'withdrawn fitness evidence invalidates coverage without deleting the assignment');
-update public.facilities set facility_type='ALR' where id='a2370000-0000-4000-8000-000000000011';
-select is((public.schedule_emergency_coverage('a2370000-0000-4000-8000-000000000031')->1->>'required')::integer,2,'36 ALF residents require two in each skill group');
+-- A separately licensed ALF has its own census and schedule; existing PCH
+-- evidence must not be relabeled to exercise the other chapter's staffing ratio.
+insert into public.facilities(id,organization_id,name,facility_type)
+values('a2370000-0000-4000-8000-000000000012','a2370000-0000-4000-8000-000000000001','ALF emergency coverage','ALR');
+insert into public.residents(organization_id,facility_id,first_name,last_name,admission_date,status)
+select 'a2370000-0000-4000-8000-000000000001','a2370000-0000-4000-8000-000000000012','ALF resident',n::text,'2026-01-01','active' from generate_series(1,36) n;
+insert into public.schedules(id,organization_id,facility_id,period_start,period_end)
+values('a2370000-0000-4000-8000-000000000033','a2370000-0000-4000-8000-000000000001','a2370000-0000-4000-8000-000000000012','2026-09-26','2026-09-26');
+select is((public.schedule_emergency_coverage('a2370000-0000-4000-8000-000000000033')->0->>'required')::integer,2,'36 ALF residents require two in each skill group');
+select is((public.schedule_emergency_coverage('a2370000-0000-4000-8000-000000000031')->1->>'required')::integer,1,'the same organization retains its separate PCH requirement');
 select * from finish();
 rollback;

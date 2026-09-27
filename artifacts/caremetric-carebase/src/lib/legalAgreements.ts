@@ -1,6 +1,9 @@
 export const LEGAL_EFFECTIVE_DATE = "July 14, 2026";
 export const LEGAL_COMPANY_NAME = "CareMetric AI LLC";
 export const LEGAL_COMPANY_LOCATION = "Cambria County, Pennsylvania";
+export const SERVICE_AGREEMENT_NAME = "Facility Administrator Agreement";
+export const BAA_NAME = "HIPAA Business Associate Agreement";
+// Acceptance records retain the exact revision; pages use the readable names above.
 export const SERVICE_AGREEMENT_VERSION = "CareMetric-Facility-Admin-Service-Agreement-v2026-07-14";
 export const BAA_VERSION = "CareMetric-HIPAA-BAA-v2026-07-14";
 
@@ -11,7 +14,7 @@ export interface LegalSection {
 
 export const facilityAdminAgreementSections: LegalSection[] = [
   { title: "Parties and authority", body: [
-    `This Facility Administrator Platform Agreement is between ${LEGAL_COMPANY_NAME}, a Pennsylvania limited liability company located in ${LEGAL_COMPANY_LOCATION} ("CareMetric," "we," "us," or "our"), and the facility, provider, organization, or legal entity identified during signup ("Customer," "Facility," "you," or "your"). The individual completing signup represents that they are authorized to bind the Customer and each facility they onboard to these terms.`,
+    `This ${SERVICE_AGREEMENT_NAME} is between ${LEGAL_COMPANY_NAME}, a Pennsylvania limited liability company located in ${LEGAL_COMPANY_LOCATION} ("CareMetric," "we," "us," or "our"), and the facility, provider, organization, or legal entity identified during signup ("Customer," "Facility," "you," or "your"). The individual completing signup confirms that they are authorized to accept these terms on behalf of the Customer and each facility they onboard.`,
     "If the signer is acting for multiple licensed facilities or affiliated entities, the signer confirms they have authority for each participating entity and will keep facility, license, administrator, and billing information accurate.",
   ] },
   { title: "Services", body: [
@@ -83,7 +86,7 @@ export const facilityAdminAgreementSections: LegalSection[] = [
     "This Agreement is governed by the laws of the Commonwealth of Pennsylvania, without regard to conflict-of-law rules. Subject to any mandatory arbitration or small-claims rights in an applicable order form, the state and federal courts serving Cambria County, Pennsylvania are the exclusive venue for disputes arising from this Agreement.",
   ] },
   { title: "Electronic signature and complete agreement", body: [
-    "By checking the acceptance box and submitting signup, the signer electronically signs this Agreement and the Business Associate Agreement, confirms authority to bind Customer, and agrees that electronic records and signatures have the same effect as handwritten signatures.",
+    "By checking the acceptance box and submitting signup, the signer electronically signs this Agreement and the Business Associate Agreement, confirms authority to accept these agreements on behalf of the Customer, and agrees that electronic records and signatures have the same effect as handwritten signatures.",
     "This Agreement, the Business Associate Agreement, and any accepted order form or written commercial terms are the complete agreement for the services and supersede prior discussions about the same subject.",
   ] },
 ];

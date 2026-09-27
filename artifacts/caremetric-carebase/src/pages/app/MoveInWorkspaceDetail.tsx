@@ -43,6 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ResidentAgreementWorkspace } from "@/components/residents/ResidentAgreementWorkspace";
+import { allowsResidentContractAfterAdmission } from "@/lib/residentRegulatoryPolicy";
 
 const TASK_STATES = ["open", "in_progress", "submitted", "approved", "exception", "completed"];
 const STATE_CLASS: Record<string, string> = {
@@ -79,8 +80,7 @@ function MoveInWorkspaceRecord({ id }: { id: string | undefined }) {
   const { toast } = useToast();
   const workspace = useGetMoveInWorkspace(id);
   const { data: admissionFacility } = useGetFacility(workspace.data?.facility_id);
-  const allowContractAfterAdmission = admissionFacility?.facility_type === "ALR"
-    && (admissionFacility as typeof admissionFacility & { resident_regulatory_policy?: Record<string, unknown> }).resident_regulatory_policy?.alf_contract_timing === "within_24_hours";
+  const allowContractAfterAdmission = allowsResidentContractAfterAdmission(admissionFacility?.facility_type, admissionFacility?.resident_regulatory_policy);
   const history = useListMoveInTaskHistory(id);
   const grants = useListMoveInGuestGrants(id);
   const { data: profiles } = useListProfiles({ organizationId: user?.organizationId ?? undefined });

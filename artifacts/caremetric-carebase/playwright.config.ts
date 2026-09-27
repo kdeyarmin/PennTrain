@@ -27,7 +27,7 @@ export default defineConfig({
       // Mobile viewport journeys (shift, course, services, COC, public smoke).
       name: "mobile-chrome",
       use: { ...devices["Pixel 5"] },
-      testMatch: /mobile-workflows|public-smoke|role-journeys/,
+      testMatch: /mobile-workflows|public-smoke|role-journeys|signup-license-type/,
     },
     {
       name: "mobile-safari",

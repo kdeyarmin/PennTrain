@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { CalendarClock, CheckCircle, ChevronDown, ChevronUp, ClipboardList, TriangleAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { humanize } from "@/lib/utils";
-import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, formatDateOnly } from "@/lib/residentCompliance";
+import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, formatDateOnly, residentItemDeadlineLabel } from "@/lib/residentCompliance";
 import { summarizeResidentComplianceAnalytics } from "@/lib/residentComplianceAnalytics";
 import { listUpcomingRenewals, sortOpenItemsByUrgency } from "@/lib/stateFormWorkflow";
 import { StateFormWorkflowStepper } from "@/components/residents/StateFormWorkflowStepper";
@@ -30,6 +30,7 @@ interface CenterItem {
   item_type: string;
   status: string;
   due_date: string | null;
+  internal_target_date: string | null;
   completed_date: string | null;
   triggered_by_item_id: string | null;
   renewal_interval_days: number | null;
@@ -113,7 +114,7 @@ export default function StateFormsCenter() {
               <span>{ITEM_TYPE_LABELS[item.item_type] ?? humanize(item.item_type)}</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              {facility?.name ?? "—"} · Due {item.due_date ? formatDateOnly(item.due_date) : "—"}
+              {facility?.name ?? "—"} · {residentItemDeadlineLabel(item)}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">

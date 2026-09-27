@@ -1,4 +1,5 @@
 import { lazy, Suspense, useId, useMemo, useState } from "react";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -858,10 +859,11 @@ export default function EmployeeDetail() {
                   {documents.map(doc => (
                     <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border">
                       <div>
-                        <p className="font-medium text-sm">{doc.file_name}</p>
+                        <p className="font-medium text-sm">{documentDisplayName({ fileName: doc.file_name, fallback: "Training document" })}</p>
                         <p className="text-xs text-muted-foreground">
                           {doc.document_type.replace(/_/g, " ")} · {new Date(doc.created_at).toLocaleDateString()}
                         </p>
+                        <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">File details</summary><p className="break-all">{doc.file_name}</p></details>
                       </div>
                       <Button variant="ghost" size="sm" onClick={() => handleDownloadDocument(doc)}>
                         <Download className="h-3.5 w-3.5" />
@@ -1068,7 +1070,7 @@ export default function EmployeeDetail() {
             </div>
             {!!documents?.length && (
               <div className="col-span-2 space-y-1.5">
-                <Label htmlFor={`${__fieldIds}-documentation-document`} className="text-[13px]">Documentation Document</Label>
+                <Label htmlFor={`${__fieldIds}-documentation-document`} className="text-[13px]">Supporting document</Label>
                 <Select
                   value={trainingForm.documentId || "none"}
                   onValueChange={v => setTrainingForm(f => ({ ...f, documentId: v === "none" ? "" : v }))}
@@ -1077,7 +1079,7 @@ export default function EmployeeDetail() {
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
                     {documents.map(d => (
-                      <SelectItem key={d.id} value={d.id}>{d.file_name}</SelectItem>
+                      <SelectItem key={d.id} value={d.id}>{documentDisplayName({ fileName: d.file_name, fallback: "Training document" })} · {formatDateForDisplay(d.created_at)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

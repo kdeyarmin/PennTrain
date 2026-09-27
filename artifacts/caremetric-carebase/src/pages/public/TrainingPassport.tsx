@@ -3,6 +3,7 @@ import { Award, Download, ExternalLink, QrCode, ShieldCheck, ShieldX } from "luc
 import { usePublicTrainingPassport } from "@/hooks/useProductExperience";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoMark, BrandName } from "@/components/brand/Logo";
 import { QueryError } from "@/components/QueryState";
@@ -50,7 +51,7 @@ export default function TrainingPassport() {
             </Card>
             <p className="text-xs text-muted-foreground">Each entry is a course completion recorded in CareMetric CareBase and verifiable at the link beside it. Hours shown are the compliance credit recorded for that completion; CareMetric is not a continuing-education accrediting body and this transcript makes no CE claim.</p>
             <div className="space-y-3">{passport.data.certificates.map((certificate) => (
-              <Card key={certificate.certificateId}><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div><p className="flex items-center gap-2 font-semibold"><Award className="h-4 w-4 text-primary" />{certificate.courseTitle}</p><p className="mt-1 text-sm text-muted-foreground">Issued {new Date(certificate.issuedAt).toLocaleDateString()}{certificate.creditHours != null ? ` · ${certificate.creditHours} training hours credited` : ""}{certificate.expiresAt ? ` · ${certificate.isValid ? "Valid through" : "Expired"} ${new Date(certificate.expiresAt).toLocaleDateString()}` : ""}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{certificate.credentialNumber}</p></div><div className="flex items-center gap-2"><Badge variant={certificate.isValid ? "default" : "destructive"}>{certificate.isValid ? "Valid" : "Expired"}</Badge><Button asChild variant="outline" size="sm" className="print:hidden"><Link href={certificate.verificationPath}>Verify <ExternalLink className="ml-1 h-3.5 w-3.5" /></Link></Button></div></CardContent></Card>
+              <Card key={certificate.certificateId}><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div><p className="flex items-center gap-2 font-semibold"><Award className="h-4 w-4 text-primary" />{documentDisplayName({ title: certificate.courseTitle, fallback: "Training certificate" })}</p><p className="mt-1 text-sm text-muted-foreground">Issued {new Date(certificate.issuedAt).toLocaleDateString()}{certificate.creditHours != null ? ` · ${certificate.creditHours} training hours credited` : ""}{certificate.expiresAt ? ` · ${certificate.isValid ? "Valid through" : "Expired"} ${new Date(certificate.expiresAt).toLocaleDateString()}` : ""}</p><p className="mt-1 font-mono text-xs text-muted-foreground">Certificate number: {certificate.credentialNumber}</p></div><div className="flex items-center gap-2"><Badge variant={certificate.isValid ? "default" : "destructive"}>{certificate.isValid ? "Valid" : "Expired"}</Badge><Button asChild variant="outline" size="sm" className="print:hidden"><Link href={certificate.verificationPath}>Verify <ExternalLink className="ml-1 h-3.5 w-3.5" /></Link></Button></div></CardContent></Card>
             ))}</div>
           </>
         )}

@@ -59,8 +59,9 @@ describe("outside training submissions", () => {
   it("offers only actual learner-owned uploads while explaining how to submit a manager-uploaded certificate", () => {
     const tree = render();
     const choices = text(field(tree, "Or choose an existing document"));
-    expect(choices).toContain("Outside course.pdf");
-    expect(choices).not.toContain("Manager-uploaded.pdf");
+    expect(choices).toContain("Outside course");
+    expect(choices).not.toContain(".pdf");
+    expect(choices).not.toContain("Manager");
     expect(text(tree)).toContain("If someone else uploaded your certificate, upload your own copy.");
   });
   it("submits selected evidence with the learner and facility, without completing an assigned course", async () => {

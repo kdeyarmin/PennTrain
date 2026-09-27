@@ -25,6 +25,23 @@ export const INSPECTION_RULES: Record<string, { label: string; kind: "equipment"
   voice_controlled_device_policy: { label: "Voice-Controlled Device Safeguards", kind: "procedural", guidance: "DHS 8/31/2022: resident contract terms, written resident policy notice and consent/privacy safeguards for resident-owned devices. For facility devices, also document authorized administrators, posted operating/recording notice, regular history deletion and no disclosure except as required by law. Set the policy's review interval." },
 };
 
+/** These Chapter 2800 requirements are not Chapter 2600 inspection requirements. */
+export function inspectionTypeAppliesToFacility(type: string, facilityType?: string): boolean {
+  return !["fireplace_chimney_service", "automatic_external_defibrillator"].includes(type) || facilityType === "ALR";
+}
+
+export function inspectionTypeLabel(type: string, facilityType?: string, label = INSPECTION_RULES[type]?.label ?? type.replace(/_/g, " ")): string {
+  return facilityType === "PCH" && !inspectionTypeAppliesToFacility(type, facilityType)
+    ? `${label.replace(/^ALF /, "")} (additional facility policy)` : label;
+}
+
+export function inspectionGuidance(type: string, facilityType?: string): string | undefined {
+  if (facilityType === "PCH" && !inspectionTypeAppliesToFacility(type, facilityType)) {
+    return "Additional facility policy: this inspection's Chapter 2800 requirement applies to ALF facilities. Retain this PCH's chosen schedule and inspection evidence.";
+  }
+  return INSPECTION_RULES[type]?.guidance;
+}
+
 export function isSleepingHours(time: string, start = "23:00", end = "07:00"): boolean {
   if (![time, start, end].every((value) => /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value))) return false;
   const value = time.slice(0, 5);
@@ -34,11 +51,22 @@ export function isSleepingHours(time: string, start = "23:00", end = "07:00"): b
 }
 
 /** Maximum configurable interval; a facility may always choose a shorter schedule. */
-export function maximumInspectionInterval(type: string): number | undefined {
+export function maximumInspectionInterval(type: string, facilityType?: string): number | undefined {
+  if (type === "fireplace_chimney_service" && facilityType === "PCH") return undefined;
   if (["smoke_detector", "fire_alarm_system"].includes(type)) return 31;
   if (type === "private_water_coliform_test") return 92;
   if (["fire_extinguisher", "fire_safety_expert_inspection", "evacuation_time_letter", "emergency_prep_plan_review", "furnace_inspection", "wood_coal_stove_approval", "fireplace_chimney_service", "carbon_monoxide_battery"].includes(type)) return 365;
   return undefined;
+}
+
+/** Describe the calendar baseline stored using the legacy interval marker. */
+export function inspectionScheduleLabel(type: string, days: number): string {
+  if (type === "fire_drill_program") return "Every calendar month";
+  if (type === "sleeping_hours_fire_drill") return "Every 6 calendar months";
+  if (["smoke_detector", "fire_alarm_system"].includes(type) && [30, 31].includes(days)) return "Every calendar month";
+  if (type === "private_water_coliform_test" && [90, 92].includes(days)) return "Every 3 calendar months";
+  if (maximumInspectionInterval(type) === 365 && days === 365) return "Annually (calendar anniversary)";
+  return `Every ${days} days`;
 }
 
 export function evacuationFinding(input: { seconds: number | null; limit: number; present: number | null; evacuated: number | null; exception?: string; alarmSounded: boolean | null; alarmOperative: boolean | null }): string | null {

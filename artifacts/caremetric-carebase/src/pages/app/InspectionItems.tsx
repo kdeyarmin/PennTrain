@@ -25,7 +25,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday } from "@/lib/dateUtils";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
-import { INSPECTION_RULES, maximumInspectionInterval } from "@/lib/inspectionRules";
+import { INSPECTION_RULES, maximumInspectionInterval, inspectionScheduleLabel, inspectionTypeAppliesToFacility, inspectionTypeLabel, inspectionGuidance } from "@/lib/inspectionRules";
 import { paRegulatoryFacilitySelection } from "@/lib/facilityTypes";
 
 const PAGE_SIZE = 15;
@@ -56,10 +56,11 @@ const DERIVED_ITEM_TYPE_LABELS: Record<string, string> = {
   sleeping_hours_fire_drill: "Sleeping-Hours Fire Drill",
 };
 
-function itemTypeLabel(type: string): string {
-  return ITEM_TYPE_OPTIONS.find((o) => o.value === type)?.label
+function itemTypeLabel(type: string, facilityType?: string): string {
+  const label = ITEM_TYPE_OPTIONS.find((o) => o.value === type)?.label
     ?? DERIVED_ITEM_TYPE_LABELS[type]
     ?? type.replace(/_/g, " ");
+  return inspectionTypeLabel(type, facilityType, label);
 }
 
 interface ItemFormData {
@@ -84,15 +85,14 @@ interface ItemFormData {
 const EMPTY_FORM: ItemFormData = {
   facilityId: "", itemType: "fire_extinguisher", label: "", locationDetail: "",
   manufacturer: "", modelNumber: "", serialNumber: "", installDate: "",
-  inspectionIntervalDays: "30", notes: "",
+  inspectionIntervalDays: "365", notes: "",
   evacuationLimit: "", evacuationStandardDate: "", fireSafeArea: "",
   sleepingStart: "23:00", sleepingEnd: "07:00", sleepingBasis: "",
 };
 
-// Everything but a fire drill defaults to an annual cadence when an administrator switches the type
-// selector, saving a manual edit for the common case. A fire drill program's stored interval is
-// cosmetic since 20260905160000 -- 55 Pa. Code 2600.132 states a calendar-month rule, and the
-// database computes it as one -- but the column is NOT NULL, so the row still carries a number.
+// Known types use their own monthly, quarterly or annual baseline. Calendar schedules
+// retain legacy day markers because the interval column is required; the database
+// computes the actual calendar deadline. Other equipment uses its documented schedule.
 const DEFAULT_INTERVAL_DAYS: Partial<Record<InspectionItem["item_type"], number>> = {
   ...Object.fromEntries(Object.entries(INSPECTION_RULES).filter(([, rule]) => rule.days).map(([key, rule]) => [key, rule.days])),
   fire_drill_program: 30,
@@ -179,6 +179,10 @@ export default function InspectionItems() {
   }, [urlState.search]);
 
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
+  const formFacilityType = facilityById.get(form.facilityId)?.facility_type;
+  const formTypeOptions = ITEM_TYPE_OPTIONS.filter((option) => inspectionTypeAppliesToFacility(option.value, formFacilityType)
+    || option.value === editing?.item_type);
+  const formGuidance = inspectionGuidance(form.itemType, formFacilityType);
 
   // DataTable tracks selection as a Set; the bulk-log flow below still works from the array.
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -262,7 +266,7 @@ export default function InspectionItems() {
       toast({ title: "Enter an inspection interval of at least one whole day", variant: "destructive" });
       return;
     }
-    const maximumDays = maximumInspectionInterval(form.itemType);
+    const maximumDays = maximumInspectionInterval(form.itemType, facility.facility_type);
     if (maximumDays && Number(form.inspectionIntervalDays) > maximumDays) {
       toast({ title: `This item allows at most ${maximumDays} days`, description: "A shorter facility schedule is allowed. The monthly or quarterly calendar limit is also enforced.", variant: "destructive" });
       return;
@@ -467,7 +471,7 @@ export default function InspectionItems() {
               {
                 id: "item_type",
                 header: "Type",
-                cell: (item) => <span className="text-muted-foreground">{itemTypeLabel(item.item_type)}</span>,
+                cell: (item) => <span className="text-muted-foreground">{itemTypeLabel(item.item_type, facilityById.get(item.facility_id)?.facility_type)}</span>,
               },
               {
                 id: "next_due_date",
@@ -504,7 +508,7 @@ export default function InspectionItems() {
                   <StatusBadge status={item.status} type="training" />
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {facilityById.get(item.facility_id)?.name ?? "—"} · {itemTypeLabel(item.item_type)}
+                  {facilityById.get(item.facility_id)?.name ?? "—"} · {itemTypeLabel(item.item_type, facilityById.get(item.facility_id)?.facility_type)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">Next due {item.next_due_date ?? "—"}</p>
               </>
@@ -519,7 +523,10 @@ export default function InspectionItems() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-facility`} className="text-[13px]">Facility *</Label>
-              <Select value={form.facilityId} onValueChange={(v) => field("facilityId", v)} disabled={!!editing}>
+              <Select value={form.facilityId} onValueChange={(v) => setForm((current) => ({ ...current, facilityId: v,
+                ...(!inspectionTypeAppliesToFacility(current.itemType, facilityById.get(v)?.facility_type)
+                  ? { itemType: "fire_extinguisher", inspectionIntervalDays: "365" } : {}),
+              }))} disabled={!!editing}>
                 <SelectTrigger id={`${__fieldIds}-facility`} className="h-9"><SelectValue placeholder="Select facility" /></SelectTrigger>
                 <SelectContent>
                   {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
@@ -538,11 +545,12 @@ export default function InspectionItems() {
               >
                 <SelectTrigger id={`${__fieldIds}-type`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ITEM_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  {formTypeOptions.map((o) => <SelectItem key={o.value} value={o.value}>{inspectionTypeAppliesToFacility(o.value, formFacilityType)
+                    ? o.label : `${o.label.replace(/^ALF /, "")} (additional facility policy)`}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            {INSPECTION_RULES[form.itemType] && <p className="col-span-full text-sm text-muted-foreground">{INSPECTION_RULES[form.itemType].guidance}</p>}
+            {formGuidance && <p className="col-span-full text-sm text-muted-foreground">{formGuidance}</p>}
             {["fire_drill_program", "fire_safety_expert_inspection"].includes(form.itemType) && (
               <fieldset className="col-span-full grid grid-cols-2 gap-3 border rounded-md p-3">
                 <legend className="text-sm font-medium">Evacuation standard and sleeping hours</legend>
@@ -565,8 +573,8 @@ export default function InspectionItems() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-inspection-interval-days`} className="text-[13px]">Inspection Interval (days) *</Label>
-              <Input id={`${__fieldIds}-inspection-interval-days`} type="number" min={1} max={maximumInspectionInterval(form.itemType)} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" disabled={form.itemType === "fire_drill_program"} />
-              {maximumInspectionInterval(form.itemType) && <p className="text-xs text-muted-foreground">Maximum {maximumInspectionInterval(form.itemType)} days; choose fewer for a stricter facility schedule. Monthly and quarterly calendar limits also apply.</p>}
+              <Input id={`${__fieldIds}-inspection-interval-days`} type="number" min={1} max={maximumInspectionInterval(form.itemType, formFacilityType)} value={form.inspectionIntervalDays} onChange={(e) => field("inspectionIntervalDays", e.target.value)} className="h-9" disabled={form.itemType === "fire_drill_program"} />
+              {maximumInspectionInterval(form.itemType, formFacilityType) && <p className="text-xs text-muted-foreground">Schedule: {inspectionScheduleLabel(form.itemType, Number(form.inspectionIntervalDays))}. Standard monthly, quarterly and annual schedules follow calendar dates. A shorter interval is an additional facility target.</p>}
               {form.itemType === "fire_drill_program" && (
                 <p className="text-xs text-muted-foreground">
                   Fire drills run on the calendar, not on an interval: one in every month, plus one

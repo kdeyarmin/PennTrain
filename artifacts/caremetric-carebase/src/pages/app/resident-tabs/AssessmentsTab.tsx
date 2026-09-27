@@ -9,7 +9,7 @@ import { StateFormWorkflowStepper } from "@/components/residents/StateFormWorkfl
 import { useListResidentAssessmentForms } from "@/hooks/useResidentAssessmentForms";
 import { useListResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import {
-  complianceStatusBadgeClassName, getComplianceFormLabel, getRequiredStateFormInfo, ITEM_TYPE_LABELS,
+  complianceStatusBadgeClassName, getComplianceFormLabel, getRequiredStateFormInfo, ITEM_TYPE_LABELS, residentItemDeadlineLabel,
 } from "@/lib/residentCompliance";
 import { humanize } from "@/lib/utils";
 import { AssessmentReviewDialog } from "@/components/residents/AssessmentReviewDialog";
@@ -48,7 +48,7 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
   return (
     <div className="space-y-6">
       <ResidentClinicalDuties resident={resident} facilityType={facility?.facility_type} canManage={canManage} />
-      <CampusMoveEvidence resident={resident} facilityType={facility?.facility_type} canManage={canManage} />
+      <CampusMoveEvidence key={resident.id} resident={resident} facilityType={facility?.facility_type} canManage={canManage} />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> {formLabel} Compliance Checklist</CardTitle>
@@ -75,7 +75,7 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Due {item.due_date ?? "—"}{item.completed_date ? ` · Completed ${item.completed_date}` : ""}
+                          {residentItemDeadlineLabel(item)}{item.completed_date ? ` · Completed ${item.completed_date}` : ""}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Required DHS source: <a href={requiredForm.url} target="_blank" rel="noreferrer" className="hover:underline">{requiredForm.sourceLabel}</a>

@@ -11764,7 +11764,7 @@ export type Database = {
         }
         Insert: {
           alf_approval_renewal?: string
-          count_unsuccessful_pch_drills?: boolean
+          count_unsuccessful_pch_drills: boolean
           facility_id: string
           inspection_grace?: string
           organization_id: string
@@ -26040,6 +26040,7 @@ export type Database = {
           final_plan_review: Json | null
           grace_period_days: number
           id: string
+          internal_target_date: string | null
           item_type: string
           notes: string | null
           organization_id: string
@@ -26061,6 +26062,7 @@ export type Database = {
           final_plan_review?: Json | null
           grace_period_days?: number
           id?: string
+          internal_target_date?: string | null
           item_type: string
           notes?: string | null
           organization_id: string
@@ -26082,6 +26084,7 @@ export type Database = {
           final_plan_review?: Json | null
           grace_period_days?: number
           id?: string
+          internal_target_date?: string | null
           item_type?: string
           notes?: string | null
           organization_id?: string
@@ -26750,6 +26753,7 @@ export type Database = {
           compliance_item_id: string | null
           created_at: string
           document_label: string | null
+          equivalent_form_review: Json | null
           facility_id: string
           file_name: string
           file_size: number | null
@@ -26768,6 +26772,7 @@ export type Database = {
           compliance_item_id?: string | null
           created_at?: string
           document_label?: string | null
+          equivalent_form_review?: Json | null
           facility_id: string
           file_name: string
           file_size?: number | null
@@ -26786,6 +26791,7 @@ export type Database = {
           compliance_item_id?: string | null
           created_at?: string
           document_label?: string | null
+          equivalent_form_review?: Json | null
           facility_id?: string
           file_name?: string
           file_size?: number | null
@@ -39141,6 +39147,7 @@ export type Database = {
           final_plan_review: Json | null
           grace_period_days: number
           id: string
+          internal_target_date: string | null
           item_type: string
           notes: string | null
           organization_id: string
@@ -42420,6 +42427,7 @@ export type Database = {
           final_plan_review: Json | null
           grace_period_days: number
           id: string
+          internal_target_date: string | null
           item_type: string
           notes: string | null
           organization_id: string
@@ -43590,15 +43598,26 @@ export type Database = {
         }
         Returns: string
       }
-      record_organization_signup: {
-        Args: {
-          p_baa_version: string
-          p_name: string
-          p_slug: string
-          p_trial_ends_at: string
-        }
-        Returns: string
-      }
+      record_organization_signup:
+        | {
+            Args: {
+              p_baa_version: string
+              p_name: string
+              p_slug: string
+              p_trial_ends_at: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_baa_version: string
+              p_facility_type: string
+              p_name: string
+              p_slug: string
+              p_trial_ends_at: string
+            }
+            Returns: string
+          }
       record_plan_of_correction_version_pdf: {
         Args: {
           p_bucket: string

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw, ShieldCheck, ShieldX, XCircle } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 
 export default function VerifyCertificate() {
   const { slug } = useParams<{ slug: string }>();
@@ -86,7 +87,7 @@ export default function VerifyCertificate() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">This certifies that</p>
                   <p className="text-xl font-bold text-foreground">{result.employee_name}</p>
                   <p className="text-sm text-muted-foreground">has successfully completed</p>
-                  <p className="text-lg font-semibold text-foreground">{result.course_title}</p>
+                  <p className="text-lg font-semibold text-foreground">{documentDisplayName({ title: result.course_title, fallback: "Training course" })}</p>
                 </div>
 
                 <div className="border-t pt-4 grid grid-cols-2 gap-4 text-center">
@@ -119,23 +120,9 @@ export default function VerifyCertificate() {
                     is deliberately absent: this slug is a bearer token that travels in emails and
                     printed PDFs, and a verifier needs to know the credential is real, not what the
                     learner scored (BACKLOG.md I16). */}
-                {(result.course_code
-                  || result.course_version
-                  || result.training_provider
+                {(result.training_provider
                   || result.credential_number) && (
                   <dl className="border-t pt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-center">
-                    {result.course_code && (
-                      <div>
-                        <dt className="text-xs text-muted-foreground">Course code</dt>
-                        <dd className="text-sm font-medium text-foreground mt-0.5">{result.course_code}</dd>
-                      </div>
-                    )}
-                    {result.course_version && (
-                      <div>
-                        <dt className="text-xs text-muted-foreground">Course version</dt>
-                        <dd className="text-sm font-medium text-foreground mt-0.5">{result.course_version}</dd>
-                      </div>
-                    )}
                     {result.credential_number && (
                       <div>
                         <dt className="text-xs text-muted-foreground">Certificate number</dt>
@@ -153,6 +140,13 @@ export default function VerifyCertificate() {
                     )}
                   </dl>
                 )}
+                {(result.course_code || result.course_version) && <details className="border-t pt-3 text-sm">
+                  <summary className="cursor-pointer text-muted-foreground">Course record details</summary>
+                  <dl className="mt-3 space-y-2">
+                    {result.course_code && <div><dt className="text-xs text-muted-foreground">Course code</dt><dd>{result.course_code}</dd></div>}
+                    {result.course_version && <div><dt className="text-xs text-muted-foreground">Recorded course version</dt><dd>{result.course_version}</dd></div>}
+                  </dl>
+                </details>}
               </CardContent>
             </>
           )}

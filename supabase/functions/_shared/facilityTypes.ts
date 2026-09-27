@@ -17,3 +17,7 @@ export function facilityTypeLabel(facilityType: string | null | undefined): stri
   if (!facilityType) return "Unknown";
   return FACILITY_TYPE_LABELS[facilityType] ?? facilityType;
 }
+
+export function isPaRegulatoryFacilityType(value: unknown): value is "PCH" | "ALR" {
+  return value === "PCH" || value === "ALR";
+}

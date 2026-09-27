@@ -13,6 +13,7 @@ import { VersionStatusBadge } from "./components";
 import { QueryError } from "@/components/QueryState";
 import { loadGovernedDraftSource, type GovernedDraftSource } from "@/lib/governedLearningDraft";
 import { errorText } from "@/lib/errorText";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 
 export function VersionsCard({
   canManage,
@@ -99,12 +100,16 @@ export function VersionsCard({
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm">v{v.version_number} — {v.title}</span>
+                    <span className="font-medium text-sm">{documentDisplayName({ title: v.title, fallback: course.title })}</span>
                     <VersionStatusBadge status={v.status} />
                     {course.current_version_id === v.id && (
                       <Badge variant="outline" className="text-[10px] font-medium">Current</Badge>
                     )}
                   </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {v.version_label?.trim() ? <>Recorded edition: {v.version_label} · </> : "Recorded edition: Not provided · "}
+                    Internal revision {v.version_number}
+                  </p>
                   {v.published_at && (
                     <p className="text-xs text-muted-foreground mt-0.5">Published {new Date(v.published_at).toLocaleDateString()}</p>
                   )}

@@ -21,6 +21,7 @@ import { QueryError } from "@/components/QueryState";
 import { FileText, Upload, Trash2, Download, Files, UserRound } from "lucide-react";
 import { errorText } from "@/lib/errorText";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import { canUploadTrainingDocumentType, canUploadTrainingDocuments } from "@/lib/policyPermissions";
 import { ResidentDocumentDeletionQueue } from "@/components/residents/ResidentDocumentDeletionQueue";
 import { ResidentRecordDestructionLog } from "@/components/residents/ResidentRecordDestructionLog";
@@ -39,6 +40,8 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   competency_attachment: "Competency Attachment",
   other: "Other",
 };
+
+const documentName = (doc: Pick<TrainingDocument, "file_name" | "document_type">) => documentDisplayName({ fileName: doc.file_name, fallback: DOC_TYPE_LABELS[doc.document_type] || "Supporting document" });
 
 // Maps each document type to the private Storage bucket it belongs in.
 const DOC_TYPE_BUCKETS: Record<string, UploadDocumentInput["bucket"]> = {
@@ -500,12 +503,12 @@ export default function Documents() {
                       <Checkbox
                         checked={selectedIds.has(doc.id)}
                         onCheckedChange={() => toggleSelected(doc.id)}
-                        aria-label={`Select ${doc.file_name}`}
+                        aria-label={`Select ${documentName(doc)}`}
                       />
                     )}
                     <FileText className="h-9 w-9 shrink-0 text-primary/70" />
                     <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{doc.file_name}</p>
+                      <p className="font-medium text-sm truncate">{documentName(doc)}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <Badge variant="outline" className="text-xs">{DOC_TYPE_LABELS[doc.document_type] ?? doc.document_type}</Badge>
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -515,6 +518,7 @@ export default function Documents() {
                         <span className="text-xs text-muted-foreground">{formatFileSize(doc.file_size)}</span>
                         <span className="text-xs text-muted-foreground">{new Date(doc.created_at).toLocaleDateString()}</span>
                       </div>
+                      <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">File details</summary><p className="break-all">{doc.file_name}</p></details>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -548,7 +552,7 @@ export default function Documents() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Document</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deleteDoc?.file_name}"? This action cannot be undone.
+              Are you sure you want to delete "{deleteDoc ? documentName(deleteDoc) : "this document"}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

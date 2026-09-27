@@ -15,6 +15,8 @@ import { absoluteAppUrl } from "@/lib/appUrl";
 import { useMyTrainingPassport } from "@/hooks/useProductExperience";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { TrainingRecords } from "@/components/training/TrainingRecords";
+import { documentDisplayName } from "@/lib/documentDisplayName";
+import { namedCertificateDownloadUrl } from "@/lib/certificateDownloadUrl";
 
 // Certificate PDFs render on a background job queue; while one is still pending/processing,
 // poll the list so the action button flips to "Download" without a manual refresh.
@@ -73,7 +75,8 @@ export default function MyCertificates() {
     setDownloadingId(certificateId);
     try {
       const { url } = await preparePdf(certificateId);
-      openDocumentUrl(url);
+      const certificate = allCertificates.find(item => item.id === certificateId);
+      openDocumentUrl(namedCertificateDownloadUrl(url, certificate?.course_title_snapshot || (certificate ? courseTitleById.get(certificate.course_id) : undefined)));
     } catch (err) {
       toast({
         title: "Could not generate certificate PDF",
@@ -160,7 +163,7 @@ export default function MyCertificates() {
                   >
                     <div className="min-w-0 flex-1 basis-48">
                       <p className="font-medium text-sm truncate">
-                        {cert.course_title_snapshot ?? courseTitleById.get(cert.course_id) ?? `Course #${cert.course_id.slice(0, 8)}`}
+                        {documentDisplayName({ title: cert.course_title_snapshot || courseTitleById.get(cert.course_id), fallback: "Training certificate" })}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Issued {formatDateForDisplay(cert.issued_at)}
@@ -169,7 +172,7 @@ export default function MyCertificates() {
                         )}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5 font-mono break-all">
-                        {cert.credential_number}
+                        Certificate number: {cert.credential_number}
                       </p>
                       {cert.pdf_status !== "ready" && (
                         <p className="text-xs text-muted-foreground mt-0.5">

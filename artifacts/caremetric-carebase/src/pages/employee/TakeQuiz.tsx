@@ -29,6 +29,7 @@ import {
 import { orderAnswersForAttempt, orderQuestionsForAttempt } from "@/lib/quizShuffle";
 import { createQuizAnswerQueue } from "@/lib/quizAnswerQueue";
 import { isClosedCourseAssignmentStatus } from "@/lib/courseLearningTools";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 
 export default function TakeQuiz() {
   const { assignmentId, quizId } = useParams<{ assignmentId: string; quizId: string }>();
@@ -518,7 +519,7 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
           <ListChecks className="h-6 w-6" />
           {quiz.title}
         </h1>
-        {course && <p className="text-muted-foreground">{course.title}</p>}
+        {course && <p className="text-muted-foreground">{documentDisplayName({ title: course.title, fallback: "Course" })}</p>}
       </div>
 
       {assignmentClosed && <p role="status" className="text-sm text-muted-foreground">

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useSelectTrainingStarterKit, useTrainingStarterKits } from "@/hooks/useTrainingStarterKits";
+import { isPaRegulatoryFacilityType } from "@/lib/facilityTypes";
 
 type ProvisioningReceipt = { requestId: string; organization: string; facility: string; type: string; created: string;
   administrator: { firstName: string; lastName: string; email: string }; invitationSent: boolean;
@@ -52,12 +53,18 @@ export function CreateTrainingFacility() {
   return <div className="space-y-3">
     <Button variant="outline" onClick={() => setOpen(!open)}>Create complimentary training facility</Button>
     {open && !created && <form className="grid gap-3 rounded-lg border p-4 max-w-xl" onSubmit={async e => {
-      e.preventDefault(); const form = e.currentTarget, fields = new FormData(form); setBusy(true);
-      const receipt: ProvisioningReceipt = { requestId, organization: String(fields.get("organization")), facility: String(fields.get("facility")), type: String(fields.get("type")), administrator, created: "", invitationSent: false, starterKitId };
+      e.preventDefault(); const form = e.currentTarget, fields = new FormData(form);
+      const facilityType = fields.get("type");
+      if (!isPaRegulatoryFacilityType(facilityType)) {
+        toast({ title: "Select PCH or ALF", description: "The license type determines which Pennsylvania regulations apply.", variant: "destructive" });
+        return;
+      }
+      setBusy(true);
+      const receipt: ProvisioningReceipt = { requestId, organization: String(fields.get("organization")), facility: String(fields.get("facility")), type: facilityType, administrator, created: "", invitationSent: false, starterKitId };
       saveReceipt(receipt);
       try {
         const { data, error } = await supabase.rpc("provision_training_facility", { p_request_id: requestId,
-          p_organization_name: String(fields.get("organization")), p_facility_name: String(fields.get("facility")), p_facility_type: String(fields.get("type")) });
+          p_organization_name: String(fields.get("organization")), p_facility_name: String(fields.get("facility")), p_facility_type: facilityType });
         if (error) throw error;
         const { organization_id: organizationId, facility_id: facilityId } = data as { organization_id: string; facility_id: string };
         receipt.facilityId = facilityId; receipt.created = organizationId;
@@ -76,7 +83,8 @@ export function CreateTrainingFacility() {
       <p className="text-sm">Complimentary partner — Training only. Creates the organization, facility and ongoing access, then invites its administrator. No card or paid subscription is created. Other modules require their own commercial access.</p>
       <label className="text-sm">Organization name<Input name="organization" defaultValue={saved?.organization} required minLength={2} maxLength={200} /></label>
       <label className="text-sm">Facility name<Input name="facility" defaultValue={saved?.facility} required minLength={2} maxLength={200} /></label>
-      <label className="text-sm">License type<select name="type" defaultValue={saved?.type || "PCH"} className="w-full border rounded p-2"><option value="PCH">Pennsylvania personal care home</option><option value="ALR">Pennsylvania Assisted Living Facility (ALF)</option></select></label>
+      <label className="text-sm">License type<select name="type" defaultValue={isPaRegulatoryFacilityType(saved?.type) ? saved.type : ""} required className="w-full border rounded p-2"><option value="" disabled>Select PCH or ALF</option><option value="PCH">Pennsylvania personal care home</option><option value="ALR">Pennsylvania Assisted Living Facility (ALF)</option></select></label>
+      <p className="text-xs text-muted-foreground">PCH follows Chapter 2600. ALF follows Chapter 2800.</p>
       <label className="text-sm">Optional starter learning kit<select className="w-full border rounded p-2" value={starterKitId} disabled={starterKits.isLoading || starterKits.isError} onChange={event => setStarterKitId(event.target.value)}><option value="">Administrator builds their own plan</option>{starterKits.data?.filter(kit => kit.is_published).map(kit => <option key={kit.id} value={kit.id}>{kit.name}</option>)}</select></label>
       <p className="text-xs text-muted-foreground">A selected kit is ready for the administrator to review in Learning Plans. They enter their own completion deadline before creating the plan.</p>
       {starterKits.isError && <p role="alert" className="text-xs">Starter kits could not load. You can add a kit from the partner facility list after setup.</p>}
