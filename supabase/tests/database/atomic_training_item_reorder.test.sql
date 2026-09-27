@@ -81,7 +81,7 @@ select is((select array_agg(sort_order order by id) from public.course_blocks wh
 reset role;
 drop trigger synthetic_reorder_failure on public.course_blocks;
 select pg_temp.act(101);
-select lives_ok($$update public.course_versions set status='published' where id=pg_temp.id(11)$$,'complete draft passes the normal publication guards');
+select lives_ok($$select public.publish_course_version(pg_temp.id(11))$$,'platform author publishes the complete draft through the application RPC');
 select throws_ok($$select public.swap_training_item_order('course_blocks',pg_temp.id(201),pg_temp.id(202),1,0)$$,'0A000','Only draft course content can be reordered.','published block order remains immutable');
 select throws_ok($$select public.swap_training_item_order('quiz_questions',pg_temp.id(211),pg_temp.id(212),1,0)$$,'0A000','Only draft course content can be reordered.','published question order remains immutable');
 reset role;
