@@ -31,11 +31,48 @@ export interface ObservationFormValues {
   customLabel: string;
 }
 
+/** UCUM codes are what the chart stores. People at the bedside do not read "Cel" as Celsius. */
+const OBSERVATION_UNIT_LABELS: Record<string, string> = {
+  Cel: "°C",
+  "mm[Hg]": "mmHg",
+  "kg/m2": "kg/m²",
+};
+
+export function formatObservationUnit(unit: string | null | undefined): string {
+  if (!unit) return "";
+  return OBSERVATION_UNIT_LABELS[unit] ?? unit;
+}
+
 /** Only visible inputs can satisfy the form or become charted values. */
 export function hasObservationFormValue(input: ObservationFormValues): boolean {
-  return input.observationType === "custom"
-    ? Boolean(input.customLabel.trim() && (input.valueNumeric.trim() || input.valueText.trim()))
-    : Boolean(input.valueNumeric.trim());
+  if (input.observationType === "custom") {
+    return Boolean(input.customLabel.trim() && (input.valueNumeric.trim() || input.valueText.trim()));
+  }
+  if (input.observationType === "blood_pressure") {
+    return Boolean(input.valueNumeric.trim() && input.valueSecondary.trim());
+  }
+  return Boolean(input.valueNumeric.trim());
+}
+
+/**
+ * Same bounds as `app_private.assert_plausible_observation_reading`. A reading the
+ * server will refuse should fail here, before a draft is queued.
+ */
+export function observationReadingError(type: ObservationType, value: number | null, secondary: number | null): string | null {
+  if (value === null) return null;
+  if (type === "blood_pressure") {
+    if (secondary === null) return "Blood pressure needs both a systolic and a diastolic reading.";
+    if (value < 30 || value > 300 || secondary < 15 || secondary > 220 || secondary >= value) {
+      return "Blood pressure readings must be plausible millimeters of mercury, with diastolic lower than systolic.";
+    }
+  }
+  if (type === "spo2" && (value < 0 || value > 100)) return "Oxygen saturation must be between 0 and 100 percent.";
+  if (type === "temperature" && (value < 25 || value > 45)) {
+    return "Enter temperature in Celsius (for example 36.8), not Fahrenheit.";
+  }
+  if (type === "pain_score" && (value < 0 || value > 10)) return "Pain score must be between 0 and 10.";
+  if (type !== "custom" && value < 0) return "This reading cannot be negative.";
+  return null;
 }
 
 /** Shared by the manager and caregiver charts so their entry rules cannot drift. */
@@ -53,10 +90,14 @@ export function parseObservationFormValues(input: ObservationFormValues) {
     if (!Number.isFinite(parsed)) throw new Error("Enter a valid number.");
     return parsed;
   };
+  const valueNumeric = parseNumber(input.valueNumeric);
+  const valueSecondary = OBSERVATION_CONFIG[input.observationType].secondaryLabel
+    ? parseNumber(input.valueSecondary) : null;
+  const readingError = observationReadingError(input.observationType, valueNumeric, valueSecondary);
+  if (readingError) throw new Error(readingError);
   return {
-    valueNumeric: parseNumber(input.valueNumeric),
-    valueSecondary: OBSERVATION_CONFIG[input.observationType].secondaryLabel
-      ? parseNumber(input.valueSecondary) : null,
+    valueNumeric,
+    valueSecondary,
     valueText,
     customLabel,
   };
@@ -100,12 +141,13 @@ export function abnormalBadge(flag: string): { className: string; label: string 
 export function observationValue(observation: ClinicalObservation): string {
   const config = OBSERVATION_CONFIG[observation.observation_type as ObservationType];
   const unit = observation.unit ?? config?.unit ?? "";
-  const unitSuffix = unit && unit !== "{score}" ? ` ${unit}` : "";
+  const unitSuffix = formatObservationUnit(unit);
+  const suffix = unitSuffix && unit !== "{score}" ? ` ${unitSuffix}` : "";
   if (observation.observation_type === "blood_pressure" && observation.value_numeric != null) {
     const diastolic = observation.value_secondary != null ? `/${observation.value_secondary}` : "";
-    return `${observation.value_numeric}${diastolic}${unitSuffix}`;
+    return `${observation.value_numeric}${diastolic}${suffix}`;
   }
-  if (observation.value_numeric != null) return `${observation.value_numeric}${unitSuffix}`;
+  if (observation.value_numeric != null) return `${observation.value_numeric}${suffix}`;
   return observation.value_text ?? "—";
 }
 
@@ -124,12 +166,13 @@ export function summaryVitalTitle(type: string): string {
 
 export function summaryVitalValue(vital: SummaryVital): string {
   const unit = vital.unit ?? OBSERVATION_CONFIG[vital.observation_type as ObservationType]?.unit ?? "";
-  const unitSuffix = unit && unit !== "{score}" ? ` ${unit}` : "";
+  const unitSuffix = formatObservationUnit(unit);
+  const suffix = unitSuffix && unit !== "{score}" ? ` ${unitSuffix}` : "";
   if (vital.observation_type === "blood_pressure" && vital.value_numeric != null) {
     const diastolic = vital.value_secondary != null ? `/${vital.value_secondary}` : "";
-    return `${vital.value_numeric}${diastolic}${unitSuffix}`;
+    return `${vital.value_numeric}${diastolic}${suffix}`;
   }
-  if (vital.value_numeric != null) return `${vital.value_numeric}${unitSuffix}`;
+  if (vital.value_numeric != null) return `${vital.value_numeric}${suffix}`;
   return vital.value_text ?? "—";
 }
 

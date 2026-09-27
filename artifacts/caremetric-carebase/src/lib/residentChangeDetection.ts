@@ -106,6 +106,8 @@ export interface DetectionIncident {
   id?: string;
   incident_type: string;
   occurred_at: string;
+  /** See residentFallEvidence: falls are pathway_key "fall", not a "fall" incident type. */
+  pathway_key?: string | null;
 }
 
 export interface DetectionMealRecord {

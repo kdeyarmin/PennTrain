@@ -1,5 +1,5 @@
 begin;
-select plan(19);
+select plan(26);
 
 -- Structure + hardened grants -----------------------------------------------------------
 select has_table('public', 'clinical_observations', 'native clinical observations table exists');
@@ -162,6 +162,55 @@ select ok(
   (select count(*) from app_private.clinical_access_log
    where resident_id = 'a1000000-0000-4000-8000-000000000301') > 0,
   'clinical reads are written to the HIPAA access log'
+);
+
+-- Incomplete and impossible readings ----------------------------------------------------
+select pg_temp.act_as('a1000000-0000-4000-8000-000000000102');
+select is(
+  (select o.abnormal_flag from public.clinical_observations o
+    where o.id = public.record_clinical_observation(
+      'a1000000-0000-4000-8000-000000000301', 'blood_pressure', now(), 85, 100, null, 'mm[Hg]')),
+  'critical_low',
+  'systolic hypotension stays critical when diastolic is only moderately high'
+);
+select is(
+  (select o.abnormal_flag from public.clinical_observations o
+    where o.id = public.record_clinical_observation(
+      'a1000000-0000-4000-8000-000000000301', 'blood_pressure', now(), 70, 40, null, 'mm[Hg]')),
+  'critical_low',
+  'severe hypotension is critical_low, not an ordinary low'
+);
+select is(
+  (select o.abnormal_flag from public.clinical_observations o
+    where o.id = public.record_clinical_observation(
+      'a1000000-0000-4000-8000-000000000301', 'blood_pressure', now(), 120, 80, null, 'mm[Hg]')),
+  'normal',
+  'a complete 120/80 blood pressure stays normal'
+);
+select throws_ok(
+  $$select public.record_clinical_observation(
+    'a1000000-0000-4000-8000-000000000301', 'blood_pressure', now(), 120, null, null, 'mm[Hg]')$$,
+  '22023', null,
+  'blood pressure without a diastolic reading is refused'
+);
+select throws_ok(
+  $$select public.record_clinical_observation(
+    'a1000000-0000-4000-8000-000000000301', 'spo2', now(), 150, null, null, '%')$$,
+  '22023', null,
+  'oxygen saturation above 100 percent is refused'
+);
+select throws_ok(
+  $$select public.record_clinical_observation(
+    'a1000000-0000-4000-8000-000000000301', 'temperature', now(), 98.6, null, null, 'Cel')$$,
+  '22023', null,
+  'a Fahrenheit temperature is refused instead of being flagged as a critical fever'
+);
+select is(
+  (select o.abnormal_flag from public.clinical_observations o
+    where o.id = public.record_clinical_observation(
+      'a1000000-0000-4000-8000-000000000301', 'temperature', now(), 36.8, null, null, 'Cel')),
+  'normal',
+  'a Celsius temperature in range is normal'
 );
 
 select * from finish();

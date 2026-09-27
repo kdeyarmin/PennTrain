@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   entitlementTermIssues,
   parseEntitlementValue,
+  openTermFromLabel,
   termSummary,
   type EntitlementTermForm,
   type OpenEntitlementTerm,
@@ -156,6 +157,10 @@ describe("termSummary", () => {
     const summary = termSummary(form({ effectiveFrom: "2026-09-01T04:00:00.000Z", effectiveTo: "2027-01-01T05:00:00.000Z" }), NOW);
     expect(summary).toContain("from 9/1/2026");
     expect(summary).toContain("through 12/31/2026");
+  });
+
+  it("labels an open term by the facility day, not the browser's previous evening", () => {
+    expect(openTermFromLabel("2026-09-01T04:00:00.000Z")).toBe("9/1/2026");
   });
 
   it("does not pretend a bad value parsed", () => {

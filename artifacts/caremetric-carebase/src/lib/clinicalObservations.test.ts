@@ -59,6 +59,16 @@ describe("observation entry across manager and caregiver charts", () => {
     expect(parseObservationFormValues(input)).toEqual({ valueNumeric: null, valueSecondary: null, valueText: "Awake", customLabel: "Alertness" });
   });
 
+  it("requires both blood-pressure numbers and refuses a Fahrenheit temperature", () => {
+    expect(hasObservationFormValue(form({ valueSecondary: "" }))).toBe(false);
+    expect(() => parseObservationFormValues(form({ observationType: "temperature", valueNumeric: "98.6", valueSecondary: "" })))
+      .toThrow("Enter temperature in Celsius");
+    expect(() => parseObservationFormValues(form({ observationType: "spo2", valueNumeric: "150", valueSecondary: "" })))
+      .toThrow("Oxygen saturation must be between 0 and 100");
+    expect(parseObservationFormValues(form({ observationType: "temperature", valueNumeric: "36.8", valueSecondary: "" })).valueNumeric)
+      .toBe(36.8);
+  });
+
   it("requires a custom label", () => {
     const input = form({ observationType: "custom" });
     expect(hasObservationFormValue(input)).toBe(false);
@@ -114,7 +124,7 @@ describe("observationValue", () => {
     const value = observationValue(
       observation({ observation_type: "blood_pressure", value_numeric: 120, value_secondary: 80, unit: "mm[Hg]" }),
     );
-    expect(value).toBe("120/80 mm[Hg]");
+    expect(value).toBe("120/80 mmHg");
   });
 
   it("falls back to the observation type's configured unit when the row has none", () => {
@@ -187,7 +197,7 @@ describe("summaryVitalValue", () => {
 
   it("formats blood pressure with a systolic/diastolic pair", () => {
     expect(summaryVitalValue(vital({ observation_type: "blood_pressure", value_numeric: 118, value_secondary: 76, unit: "mm[Hg]" })))
-      .toBe("118/76 mm[Hg]");
+      .toBe("118/76 mmHg");
   });
 
   it("formats a plain numeric value, falling back to the configured unit", () => {

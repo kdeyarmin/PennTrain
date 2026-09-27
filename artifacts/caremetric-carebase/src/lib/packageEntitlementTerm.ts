@@ -161,6 +161,11 @@ function termDayLabel(value: string, endBound: boolean): string {
   return day ? formatDateForDisplay(day) : "an unreadable date";
 }
 
+/** Facility calendar day an open entitlement started, independent of the browser zone. */
+export function openTermFromLabel(effectiveFromAt: string): string {
+  return termDayLabel(effectiveFromAt, false);
+}
+
 /** How this term reads once saved, in the sentence somebody reviewing the package would want. */
 export function termSummary(form: EntitlementTermForm, now: Date): string {
   const parsed = parseEntitlementValue(form.rawValue, form.valueType);

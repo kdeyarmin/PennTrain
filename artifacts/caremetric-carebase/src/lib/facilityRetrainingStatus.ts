@@ -71,6 +71,41 @@ function candidateNameParts(employee: Employee): { firstName: string; lastName: 
 }
 
 /**
+ * One live practicum per employee. `save_practicum` inserts a completed row beside the
+ * rulepack `missing` shell for the same year, and the list is only ordered by due date,
+ * so last-write-wins would keep the shell. Same order as `pickCurrentPracticum` and
+ * `get_org_dashboard_summary`'s `current_practicums`: completion, then due date, then
+ * created_at, then a real status over `missing`, then id.
+ */
+function preferCurrentPracticum(current: Practicum, candidate: Practicum): Practicum {
+  const cComp = candidate.completion_date ?? "";
+  const curComp = current.completion_date ?? "";
+  if (cComp !== curComp) return cComp > curComp ? candidate : current;
+  const cDue = candidate.due_date ?? "";
+  const curDue = current.due_date ?? "";
+  if (cDue !== curDue) return cDue > curDue ? candidate : current;
+  const cCreated = candidate.created_at ?? "";
+  const curCreated = current.created_at ?? "";
+  if (cCreated !== curCreated) return cCreated > curCreated ? candidate : current;
+  const cMissing = candidate.status === "missing";
+  const curMissing = current.status === "missing";
+  if (cMissing !== curMissing) return curMissing ? candidate : current;
+  return (candidate.id ?? "") < (current.id ?? "") ? candidate : current;
+}
+
+function currentPracticums(practicums: Practicum[]): Practicum[] {
+  const byEmployee = new Map<string, Practicum>();
+  for (const practicum of practicums) {
+    const current = byEmployee.get(practicum.employee_id);
+    byEmployee.set(
+      practicum.employee_id,
+      current ? preferCurrentPracticum(current, practicum) : practicum,
+    );
+  }
+  return [...byEmployee.values()];
+}
+
+/**
  * Active med-admin staff who are not currently practicum-compliant (missing row,
  * missing status, due soon, or expired). Used by the Retraining Monitor enroll flow.
  */
@@ -83,8 +118,7 @@ export function listRetrainingCandidates(
     (e) => e.facility_id === facilityId && e.status === "active" && e.administers_medications,
   );
   const practicumByEmployee = new Map(
-    practicums
-      .filter((p) => p.facility_id === facilityId)
+    currentPracticums(practicums.filter((p) => p.facility_id === facilityId))
       .map((p) => [p.employee_id, p] as const),
   );
 
@@ -163,9 +197,9 @@ export function buildFacilityRetrainingStatus(
     // check on the owning employee's status, so a terminated employee's last practicum
     // stays "expired" forever. Exclude those rows here so the facility's compliance
     // picture reflects only currently-active staff.
-    const facilityPracticums = practicums.filter(
+    const facilityPracticums = currentPracticums(practicums.filter(
       (p) => p.facility_id === facility.id && activeStaffIds.has(p.employee_id),
-    );
+    ));
 
     const compliantCount = facilityPracticums.filter((p) => p.status === "compliant").length;
     const dueSoonCount = facilityPracticums.filter((p) => p.status === "due_soon").length;

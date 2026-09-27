@@ -155,6 +155,19 @@ describe("falls", () => {
     expect(fall.evidence).toHaveLength(2);
   });
 
+  it("counts a filed fall even though its incident type is significant injury", () => {
+    const signals = detectResidentChangeSignals(quiet({
+      incidents: [
+        { incident_type: "significant_injury", pathway_key: "fall", occurred_at: daysAgo(1) },
+        { incident_type: "significant_injury", pathway_key: "fall", occurred_at: daysAgo(4) },
+        { incident_type: "significant_injury", pathway_key: "injury", occurred_at: daysAgo(2) },
+      ],
+    }));
+    const fall = signals.find((signal) => signal.kind === "multiple_falls");
+    expect(fall?.evidence).toHaveLength(2);
+    expect(fall?.evidence[0].label).toBe("Incident: fall");
+  });
+
   it("does not fire on a single fall", () => {
     const signals = detectResidentChangeSignals(quiet({
       incidents: [{ incident_type: "fall", occurred_at: daysAgo(3) }],

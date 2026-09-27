@@ -2,6 +2,12 @@ interface FallIncident {
   id?: string;
   incident_type: string;
   occurred_at: string;
+  /**
+   * The pathway the incident was filed under. A fall is stored as
+   * `incident_type = significant_injury` (the only legal injury type) with
+   * `pathway_key = fall`. Matching the type string alone never sees those rows.
+   */
+  pathway_key?: string | null;
 }
 
 interface FallChangeEvent {
@@ -10,15 +16,23 @@ interface FallChangeEvent {
   identified_at: string;
 }
 
+export function isFallIncident(incident: { incident_type?: string | null; pathway_key?: string | null }): boolean {
+  if (incident.pathway_key === "fall") return true;
+  return /fall/i.test(incident.incident_type ?? "");
+}
+
 /** Count explicit incident links once; matching dates alone do not identify the same fall. */
 export function residentFallEvidence(incidents: FallIncident[], changes: FallChangeEvent[]) {
   const linkedIncidents = new Set<string>();
   const evidence: { label: string; at: string }[] = [];
   for (const incident of incidents) {
-    if (!/fall/i.test(incident.incident_type)) continue;
+    if (!isFallIncident(incident)) continue;
     if (incident.id && linkedIncidents.has(incident.id)) continue;
     if (incident.id) linkedIncidents.add(incident.id);
-    evidence.push({ label: `Incident: ${incident.incident_type.replace(/_/g, " ")}`, at: incident.occurred_at });
+    const label = incident.pathway_key === "fall"
+      ? "Incident: fall"
+      : `Incident: ${incident.incident_type.replace(/_/g, " ")}`;
+    evidence.push({ label, at: incident.occurred_at });
   }
   for (const change of changes) {
     if (change.category !== "fall") continue;

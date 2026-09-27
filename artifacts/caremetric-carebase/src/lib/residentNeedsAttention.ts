@@ -95,6 +95,8 @@ export interface NeedsAttentionIncidentLike {
   incident_type: string;
   status: string;
   occurred_at: string;
+  /** See residentFallEvidence: falls are pathway_key "fall", not a "fall" incident type. */
+  pathway_key?: string | null;
 }
 export interface NeedsAttentionAgreementLike {
   id: string;

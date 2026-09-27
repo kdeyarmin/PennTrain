@@ -260,6 +260,18 @@ describe("fall clustering", () => {
     expect(cards.find((card) => card.kind === "fall_cluster")?.title).toBe("3 falls in 30 days");
   });
 
+  it("counts filed falls stored as significant injuries", () => {
+    const cards = buildResidentNeedsAttention(clean({
+      incidents: [
+        { id: "i1", incident_type: "significant_injury", pathway_key: "fall", status: "closed", occurred_at: daysAgo(1) },
+        { id: "i2", incident_type: "significant_injury", pathway_key: "fall", status: "closed", occurred_at: daysAgo(8) },
+        { id: "i3", incident_type: "significant_injury", pathway_key: "fall", status: "closed", occurred_at: daysAgo(14) },
+        { id: "i4", incident_type: "significant_injury", pathway_key: "injury", status: "closed", occurred_at: daysAgo(2) },
+      ],
+    }));
+    expect(cards.find((card) => card.kind === "fall_cluster")?.title).toBe("3 falls in 30 days");
+  });
+
   it("counts falls from incidents and condition changes together", () => {
     // Two falls recorded as condition changes plus one as an incident is still three falls.
     const cards = buildResidentNeedsAttention(clean({

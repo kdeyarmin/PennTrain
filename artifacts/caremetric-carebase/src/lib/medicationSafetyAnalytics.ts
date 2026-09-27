@@ -1,8 +1,11 @@
-export type MedicationEventType = "omission" | "wrong_dose" | "wrong_resident" | "wrong_medication" | "wrong_time" | "documentation_error" | "adverse_reaction" | "refusal" | "near_miss" | "other";
+export type MedicationEventType = "omission" | "wrong_dose" | "wrong_resident" | "wrong_medication" | "wrong_time" | "wrong_route" | "documentation_error" | "adverse_reaction" | "refusal" | "near_miss" | "other";
 
 export interface MedicationIncidentLike {
   id: string;
   incident_type?: string | null;
+  pathway_key?: string | null;
+  /** Pathway form answers. Medication events store the subtype in `error_category`. */
+  pathway_answers?: unknown;
   status?: string | null;
   severity?: string | null;
   occurred_at?: string | null;
@@ -73,8 +76,52 @@ export function classifyMedicationEvent(incidentType: string | null | undefined)
   return "other";
 }
 
+const PATHWAY_ERROR_CATEGORY: Record<string, MedicationEventType> = {
+  wrong_resident: "wrong_resident",
+  wrong_medication: "wrong_medication",
+  wrong_dose: "wrong_dose",
+  wrong_time: "wrong_time",
+  wrong_route: "wrong_route",
+  omitted: "omission",
+  near_miss: "near_miss",
+  adverse_reaction: "adverse_reaction",
+};
+
+function pathwayAnswerRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+/**
+ * The stored incident type for every medication pathway is `medication_error`.
+ * The subtype the roster is about lives in `pathway_answers.error_category`.
+ * A free-text incident type is still classified, so older rows without answers
+ * keep the reading they already had.
+ */
+export function classifyMedicationIncident(incident: Pick<MedicationIncidentLike, "incident_type" | "pathway_key" | "pathway_answers">): MedicationEventType | null {
+  const answers = pathwayAnswerRecord(incident.pathway_answers);
+  const category = typeof answers?.error_category === "string" ? PATHWAY_ERROR_CATEGORY[answers.error_category] : undefined;
+  const eventKind = typeof answers?.event_kind === "string" ? answers.event_kind : "";
+  const fromType = classifyMedicationEvent(incident.incident_type);
+  const isMedication = incident.pathway_key === "medication_event"
+    || fromType !== null
+    || category !== undefined
+    || eventKind === "actual_error"
+    || eventKind === "near_miss"
+    || eventKind === "adverse_reaction";
+  if (!isMedication) return null;
+  if (category) return category;
+  if (eventKind === "near_miss") return "near_miss";
+  if (eventKind === "adverse_reaction") return "adverse_reaction";
+  return fromType ?? "other";
+}
+
+const RETRAINING_EVENT_TYPES = new Set<MedicationEventType>([
+  "wrong_dose", "wrong_medication", "wrong_resident", "wrong_route", "documentation_error",
+]);
+
 export function buildMedicationSafetySummary({ incidents, correctiveActions, today }: { incidents: MedicationIncidentLike[]; correctiveActions: MedicationCorrectiveActionLike[]; today: string }): MedicationSafetySummary {
-  const medIncidents = incidents.filter((incident) => classifyMedicationEvent(incident.incident_type) !== null);
+  const medIncidents = incidents.filter((incident) => classifyMedicationIncident(incident) !== null);
   const actionsByIncident = new Map<string, MedicationCorrectiveActionLike[]>();
   for (const action of correctiveActions) {
     if (!action.incident_id) continue;
@@ -84,12 +131,12 @@ export function buildMedicationSafetySummary({ incidents, correctiveActions, tod
   }
 
   const byType = {
-    omission: 0, wrong_dose: 0, wrong_resident: 0, wrong_medication: 0, wrong_time: 0,
+    omission: 0, wrong_dose: 0, wrong_resident: 0, wrong_medication: 0, wrong_time: 0, wrong_route: 0,
     documentation_error: 0, adverse_reaction: 0, refusal: 0, near_miss: 0, other: 0,
   } satisfies Record<MedicationEventType, number>;
 
   const events = medIncidents.map((incident) => {
-    const eventType = classifyMedicationEvent(incident.incident_type) ?? "other";
+    const eventType = classifyMedicationIncident(incident) ?? "other";
     byType[eventType] += 1;
     const actions = actionsByIncident.get(incident.id) ?? [];
     const isClosed = INCIDENT_CLOSED.has(incident.status ?? "") && Boolean(incident.final_report_submitted_at);
@@ -100,7 +147,7 @@ export function buildMedicationSafetySummary({ incidents, correctiveActions, tod
       status: isClosed ? "closed" : "open",
       occurredAt: incident.occurred_at ?? null,
       followUpOverdue,
-      retrainingRecommended: followUpOverdue || ["wrong_dose", "wrong_medication", "wrong_resident", "documentation_error"].includes(eventType),
+      retrainingRecommended: followUpOverdue || RETRAINING_EVENT_TYPES.has(eventType),
     } satisfies MedicationSafetyEvent;
   });
 

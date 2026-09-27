@@ -10,7 +10,7 @@
  *
  * Everything here is pure so the arithmetic is testable without a Supabase client or a React tree.
  */
-import { facilityToday } from "./dateUtils";
+import { facilityToday, formatDateForDisplay } from "./dateUtils";
 
 export interface FundLedgerEntryLike {
   id: string;
@@ -217,7 +217,11 @@ export function fundSettlementBlocker(input: FundSettlementInput): string | null
   // The floor the server applies for the same reason, said here rather than after the submit.
   if (latestMs !== null && at.getTime() < latestMs) {
     return `A settlement must be dated on or after the most recent ledger entry (${
-      latest!.toLocaleString()
+      formatDateForDisplay(input.latestLedgerAt, {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "America/New_York",
+      })
     }), so the final disbursement is the last row on the statement.`;
   }
   return null;

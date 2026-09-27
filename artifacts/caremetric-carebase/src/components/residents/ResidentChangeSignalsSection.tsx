@@ -9,7 +9,7 @@ import { useListIncidents } from "@/hooks/useIncidents";
 import { useListResidentChangeEvents } from "@/hooks/useResidentChangeEvents";
 import { useResidentServiceExceptions, useResidentUnscheduledServices } from "@/hooks/useFloorMode";
 import {
-  detectResidentChangeSignals, summarizeChangeSignals, type ChangeSignal,
+  detectResidentChangeSignals, summarizeChangeSignals, WEIGHT_LONG_WINDOW_DAYS, type ChangeSignal,
 } from "@/lib/residentChangeDetection";
 import { addFacilityCalendarDays, facilityDateOf, facilityDayBounds, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 
@@ -37,14 +37,27 @@ function useDetectionSupplements(residentId: string) {
   const weights = useQuery({
     queryKey: ["detection-weights", residentId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("resident_weight_readings")
-        .select("weight_lbs, measured_at")
-        .eq("resident_id", residentId)
-        .order("measured_at", { ascending: false })
-        .limit(30);
-      if (error) throw error;
-      return data as { weight_lbs: number; measured_at: string }[];
+      // The 10%-in-180-days rule compares the latest weight with the oldest reading still
+      // inside that window. The newest 30 rows are only about a month of daily weights, so
+      // a slow loss never reached its own baseline. Keep every ordered page from the start
+      // of the long window.
+      const since = facilityDayBounds(addFacilityCalendarDays(facilityToday(), -WEIGHT_LONG_WINDOW_DAYS)).from;
+      const rows: { weight_lbs: number; measured_at: string }[] = [];
+      for (let from = 0; ;) {
+        const { data, error } = await supabase
+          .from("resident_weight_readings")
+          .select("weight_lbs, measured_at")
+          .eq("resident_id", residentId)
+          .gte("measured_at", since)
+          .order("measured_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, from + 499);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < 500) break;
+        from += data.length;
+      }
+      return rows;
     },
   });
 
@@ -155,6 +168,7 @@ export default function ResidentChangeSignalsSection({
       incidents: (incidents.data ?? []).map((entry) => ({
         id: entry.id,
         incident_type: entry.incident_type,
+        pathway_key: entry.pathway_key,
         occurred_at: entry.occurred_at,
       })),
       // intake_percent is 0-100; the detector works in a 0..1 ratio.
