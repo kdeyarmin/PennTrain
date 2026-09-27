@@ -62,6 +62,36 @@ describe("regulatory crosswalk", () => {
     expect(rows.find((row) => row.id === "physical-site-emergency")?.gapCount).toBe(0);
   });
 
+  it("reads an inspection next_due_date and an open plan-of-correction date", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      inspectionItems: [{ status: "expired", next_due_date: "2026-07-01" }],
+      violations: [{ status: "open", poc_due_date: "2026-07-15" }],
+      correctiveActions: [],
+    }, "org_admin");
+    const site = rows.find((row) => row.id === "physical-site-emergency");
+    expect(site?.gapCount).toBe(2);
+    expect(site?.status).toBe("overdue");
+    expect(site?.nextDueDate).toBe("2026-07-01");
+  });
+
+  it("does not keep a finished plan of correction overdue, and still schedules a current inspection", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      inspectionItems: [{ status: "compliant", next_due_date: "2026-12-01" }],
+      violations: [
+        { status: "corrected", poc_due_date: "2026-01-01" },
+        { status: "verified", poc_due_date: "2026-02-01" },
+        { status: "poc_submitted", poc_due_date: "2026-03-01" },
+      ],
+      correctiveActions: [],
+    }, "org_admin");
+    const site = rows.find((row) => row.id === "physical-site-emergency");
+    expect(site?.gapCount).toBe(0);
+    expect(site?.status).toBe("inspection_ready");
+    expect(site?.nextDueDate).toBe("2026-12-01");
+  });
+
   it("keeps auditor access read-only", () => {
     expect(canManageRegulatoryCrosswalk("auditor")).toBe(false);
     expect(baseRows().every((row) => row.canEdit === false)).toBe(true);

@@ -30,8 +30,8 @@ export interface CrosswalkEvidenceInput {
   residentItems?: Array<{ status?: string | null; due_date?: string | null; item_type?: string | null }>;
   incidents?: Array<{ status?: string | null; final_report_submitted_at?: string | null; occurred_at?: string | null }>;
   correctiveActions?: Array<{ status?: string | null; due_date?: string | null }>;
-  inspectionItems?: Array<{ status?: string | null; due_date?: string | null }>;
-  violations?: Array<{ status?: string | null; citation?: string | null }>;
+  inspectionItems?: Array<{ status?: string | null; due_date?: string | null; next_due_date?: string | null }>;
+  violations?: Array<{ status?: string | null; citation?: string | null; due_date?: string | null; poc_due_date?: string | null }>;
   policyDocuments?: Array<{ current_version_id?: string | null }>;
   policyAttestations?: Array<{
     status?: string | null; due_date?: string | null; superseded_at?: string | null;
@@ -208,9 +208,21 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
     );
   }
   if (obligation.evidenceSource === "physical_site") {
+    // inspection_items stores the deadline as next_due_date. dhs_violations stores
+    // the plan-of-correction deadline as poc_due_date. Reading only due_date left
+    // both blank, so an expired detector or an open late plan counted as
+    // needs_attention with no date instead of overdue.
     const records: Array<{ status?: string | null; due_date?: string | null }> = [
-      ...(input.inspectionItems ?? []),
-      ...(input.violations ?? []).map((violation) => ({ status: violation.status })),
+      ...(input.inspectionItems ?? []).map((item) => ({
+        status: item.status,
+        due_date: item.due_date ?? item.next_due_date ?? null,
+      })),
+      ...(input.violations ?? []).map((violation) => ({
+        status: violation.status,
+        // Submitted, corrected, and verified plans keep poc_due_date as history.
+        // Only an open citation still owes that date.
+        due_date: violation.status === "open" ? (violation.due_date ?? violation.poc_due_date ?? null) : null,
+      })),
       ...(input.correctiveActions ?? []),
     ];
     // Completed/cancelled corrective actions keep their past due_date forever;
