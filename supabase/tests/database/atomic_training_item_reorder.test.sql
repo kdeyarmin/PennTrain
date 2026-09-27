@@ -26,12 +26,18 @@ insert into public.courses(id,title,status) values
   (pg_temp.id(10),'Reorder course','draft'),(pg_temp.id(14),'Second plan course','draft');
 insert into public.course_versions(id,course_id,version_number,title,status) values
   (pg_temp.id(11),pg_temp.id(10),1,'Draft','draft'),(pg_temp.id(12),pg_temp.id(10),2,'Other draft','draft');
-insert into public.course_blocks(id,course_version_id,block_type,sort_order,title) values
-  (pg_temp.id(201),pg_temp.id(11),'quiz',0,'First'),(pg_temp.id(202),pg_temp.id(11),'text',1,'Second'),
-  (pg_temp.id(203),pg_temp.id(12),'text',0,'Other version');
+insert into public.course_blocks(id,course_version_id,block_type,sort_order,title,body) values
+  (pg_temp.id(201),pg_temp.id(11),'quiz',0,'First','{}'),
+  (pg_temp.id(202),pg_temp.id(11),'text',1,'Second','{"content":"Confirm the learner identity before recording training attendance."}'),
+  (pg_temp.id(203),pg_temp.id(12),'text',0,'Other version','{"content":"Review the training record before confirming completion."}');
 insert into public.quizzes(id,course_block_id,title) values (pg_temp.id(210),pg_temp.id(201),'Quiz');
 insert into public.quiz_questions(id,quiz_id,question_text,question_type,sort_order) values
   (pg_temp.id(211),pg_temp.id(210),'First','single_choice',0),(pg_temp.id(212),pg_temp.id(210),'Second','single_choice',1);
+insert into public.quiz_answers(id,question_id,answer_text,is_correct,sort_order) values
+  (pg_temp.id(221),pg_temp.id(211),'Confirm the learner identity.',true,0),
+  (pg_temp.id(222),pg_temp.id(211),'Assume the identity without checking.',false,1),
+  (pg_temp.id(223),pg_temp.id(212),'Review the training record.',true,0),
+  (pg_temp.id(224),pg_temp.id(212),'Skip the training record.',false,1);
 insert into public.training_plans(id,organization_id,name) values
   (pg_temp.id(300),pg_temp.id(1),'Plan'),(pg_temp.id(310),pg_temp.id(2),'Other tenant plan');
 insert into public.training_plan_items(id,training_plan_id,course_id,sort_order) values
@@ -74,9 +80,8 @@ select throws_ok($$select public.swap_training_item_order('course_blocks',pg_tem
 select is((select array_agg(sort_order order by id) from public.course_blocks where id in (pg_temp.id(201),pg_temp.id(202))),array[1,0],'first position is rolled back with the failing second item');
 reset role;
 drop trigger synthetic_reorder_failure on public.course_blocks;
-select set_config('app.privileged_write','on',true);
-update public.course_versions set status='published' where id=pg_temp.id(11);
 select pg_temp.act(101);
+select lives_ok($$update public.course_versions set status='published' where id=pg_temp.id(11)$$,'complete draft passes the normal publication guards');
 select throws_ok($$select public.swap_training_item_order('course_blocks',pg_temp.id(201),pg_temp.id(202),1,0)$$,'0A000','Only draft course content can be reordered.','published block order remains immutable');
 select throws_ok($$select public.swap_training_item_order('quiz_questions',pg_temp.id(211),pg_temp.id(212),1,0)$$,'0A000','Only draft course content can be reordered.','published question order remains immutable');
 reset role;
