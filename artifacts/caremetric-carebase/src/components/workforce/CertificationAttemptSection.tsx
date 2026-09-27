@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import { Award, CheckCircle2, CircleDashed, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -184,7 +185,7 @@ export default function CertificationAttemptSection({
                 <SelectContent>
                   {(versions.data ?? []).map((version) => (
                     <SelectItem key={version.id} value={version.id}>
-                      {version.certification_definitions?.name ?? "Certification"} · v{version.version_number}
+                      {documentDisplayName({ title: version.certification_definitions?.name, fallback: "Skills checklist" })} · Checklist edition {version.version_number}
                     </SelectItem>
                   ))}
                 </SelectContent>

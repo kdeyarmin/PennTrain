@@ -1,3 +1,5 @@
+import { documentDisplayName } from "./documentDisplayName";
+
 export type LessonConfidence = "unsure" | "review" | "ready";
 
 export interface LearningToolsState {
@@ -221,12 +223,12 @@ export function buildStudyGuide(
   notes: Record<string, string>,
   confidence: Record<string, LessonConfidence>,
 ) {
-  const lines = [`Study guide: ${courseTitle}`, ""];
+  const lines = [`Study guide: ${documentDisplayName({ title: courseTitle, fallback: "Course" })}`, ""];
   blocks.forEach((block, index) => {
     const note = notes[block.id]?.trim();
     const confidenceLabel = confidence[block.id] ? CONFIDENCE_LABEL[confidence[block.id]] : null;
     if (!note && !confidenceLabel) return;
-    lines.push(`${index + 1}. ${block.title ?? getLearningStepLabel(block)}`);
+    lines.push(`${index + 1}. ${documentDisplayName({ title: block.title, fallback: getLearningStepLabel(block) })}`);
     if (confidenceLabel) lines.push(`   Confidence: ${confidenceLabel}`);
     if (note) lines.push(`   Takeaway: ${note.replace(/\n/g, "\n             ")}`);
     lines.push("");

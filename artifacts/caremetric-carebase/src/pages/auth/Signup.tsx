@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSignupOrganization } from "@/hooks/useSignup";
 import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
-import { BAA_VERSION, SERVICE_AGREEMENT_VERSION } from "@/lib/legalAgreements";
+import { BAA_NAME, BAA_VERSION, SERVICE_AGREEMENT_NAME, SERVICE_AGREEMENT_VERSION } from "@/lib/legalAgreements";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { MARKETING_TRIAL_DAYS } from "@/components/marketing/marketingPricing";
 import { usePageMeta } from "@/lib/usePageMeta";
@@ -283,11 +283,13 @@ export default function Signup() {
                   className="mt-0.5"
                 />
                 <span>
-                  I am authorized to bind this facility or organization, and I agree to the{" "}
-                  <Link href="/legal/facility-signup" className="font-medium text-primary underline underline-offset-2" target="_blank" rel="noopener noreferrer">
-                    Facility Administrator Platform Agreement and HIPAA Business Associate Agreement
-                  </Link>{" "}
-                  ({SERVICE_AGREEMENT_VERSION}; {BAA_VERSION}) for CareMetric AI LLC.
+                  I am authorized to accept these agreements on behalf of this facility or organization. I agree to the{" "}
+                  <Link href="/legal/facility-signup#facility-administrator-agreement" className="font-medium text-primary underline underline-offset-2" target="_blank" rel="noopener noreferrer">
+                    {SERVICE_AGREEMENT_NAME}
+                  </Link>{" "}and{" "}
+                  <Link href="/legal/facility-signup#business-associate-agreement" className="font-medium text-primary underline underline-offset-2" target="_blank" rel="noopener noreferrer">
+                    {BAA_NAME}
+                  </Link>.
                 </span>
               </label>
               {turnstileSiteKey ? (

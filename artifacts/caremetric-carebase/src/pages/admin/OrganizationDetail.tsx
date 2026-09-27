@@ -440,7 +440,7 @@ export default function OrganizationDetail() {
                 <p className="text-sm font-medium">Business Associate Agreement</p>
                 {org.baa_version ? (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    On file: {org.baa_version}
+                    Agreement on file
                     {org.baa_accepted_at ? ` — accepted ${new Date(org.baa_accepted_at).toLocaleString()}` : ""}
                   </p>
                 ) : (
@@ -456,7 +456,7 @@ export default function OrganizationDetail() {
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 className="h-9 max-w-sm"
-                placeholder="BAA version, e.g. CareMetric-HIPAA-BAA-v2026-07-14"
+                placeholder="Agreement version reference"
                 value={baaVersionInput}
                 onChange={(e) => setBaaVersionInput(e.target.value)}
                 disabled={baaSaving}

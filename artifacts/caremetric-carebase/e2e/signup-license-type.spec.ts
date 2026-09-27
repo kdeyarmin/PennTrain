@@ -32,6 +32,9 @@ for (const product of ["carebase", "train"]) {
       await page.getByLabel("First Name", { exact: true }).fill("Facility");
       await page.getByLabel("Last Name", { exact: true }).fill("Administrator");
       await page.getByLabel("Work Email", { exact: true }).fill("admin@example.test");
+      await expect(page.getByRole("link", { name: "Facility Administrator Agreement", exact: true })).toHaveAttribute("href", "/legal/facility-signup#facility-administrator-agreement");
+      await expect(page.getByRole("link", { name: "HIPAA Business Associate Agreement", exact: true })).toHaveAttribute("href", "/legal/facility-signup#business-associate-agreement");
+      await expect(page.locator('label[for="legalAccepted"]')).not.toContainText(/\bbind\b|CareMetric-.*-v\d/);
       await page.getByRole("checkbox").check();
       const submit = page.getByRole("button", { name: "Send verification email", exact: true });
       await expect(submit).toBeDisabled();
@@ -42,7 +45,12 @@ for (const product of ["carebase", "train"]) {
       await submit.click();
       await expect(page.getByText("We sent an invite link to admin@example.test.", { exact: true })).toBeVisible();
       expect(requests).toHaveLength(1);
-      expect(requests[0]).toMatchObject({ facility_type: license.code, organization_name: "New licensed facility" });
+      expect(requests[0]).toMatchObject({
+        facility_type: license.code,
+        organization_name: "New licensed facility",
+        service_agreement_version: "CareMetric-Facility-Admin-Service-Agreement-v2026-07-14",
+        baa_version: "CareMetric-HIPAA-BAA-v2026-07-14",
+      });
     });
   }
 }

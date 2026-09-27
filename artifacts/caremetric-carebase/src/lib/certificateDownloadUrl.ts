@@ -1,3 +1,19 @@
+import { documentDisplayName } from "./documentDisplayName";
+
+/** A suggested filename only; the issued PDF and its evidence identity stay unchanged. */
+export function certificateFileName(courseTitle?: string | null, learnerName?: string | null): string {
+  const course = documentDisplayName({ title: courseTitle, fallback: "Training" });
+  const name = [learnerName?.trim(), course, "Certificate"].filter(Boolean).join(" - ");
+  return `${name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 180).replace(/[. ]+$/, "")}.pdf`;
+}
+
+/** Storage accepts a download-name query separately from the signed object path/token. */
+export function namedCertificateDownloadUrl(signedUrl: string, courseTitle?: string | null, learnerName?: string | null): string {
+  const url = new URL(signedUrl);
+  url.searchParams.set("download", certificateFileName(courseTitle, learnerName));
+  return url.href;
+}
+
 /**
  * Edge runtimes can reach Storage through an internal gateway (e.g. kong:8000) that browsers
  * cannot resolve. Storage signatures authorize the object path, not that gateway's hostname.

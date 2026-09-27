@@ -24,6 +24,7 @@ import {
 import { useListCourseBlocks, useListCourses, useListCourseVersions } from "@/hooks/useCourses";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import {
   buildCourseSnapshot,
   createFormIssues,
@@ -107,7 +108,7 @@ function RegisterAssetCard({ governedSourceIds }: { governedSourceIds: Set<strin
                 <SelectItem value="none" disabled>Every course is already governed</SelectItem>
               ) : (
                 candidates.map((course) => (
-                  <SelectItem key={course.id} value={course.id}>{course.title}</SelectItem>
+                  <SelectItem key={course.id} value={course.id}>{documentDisplayName({ title: course.title, fallback: "Course" })}</SelectItem>
                 ))
               )}
             </SelectContent>
@@ -186,7 +187,7 @@ function AuthorRevisionCard({ assetId, sourceCourseId }: { assetId: string; sour
               ) : (
                 (versions.data ?? []).map((row) => (
                   <SelectItem key={row.id} value={row.id}>
-                    v{row.version_number} · {row.title} · {row.status}
+                    Version {row.version_number} · {documentDisplayName({ title: row.title, fallback: "Course" })} · {row.status}
                   </SelectItem>
                 ))
               )}
@@ -494,7 +495,7 @@ export function GovernedContentRevisionsPanel() {
                 <SelectTrigger id="gc-asset"><SelectValue placeholder="Choose a governed asset" /></SelectTrigger>
                 <SelectContent>
                   {rows.map((asset) => (
-                    <SelectItem key={asset.id} value={asset.id}>{asset.title}</SelectItem>
+                    <SelectItem key={asset.id} value={asset.id}>{documentDisplayName({ title: asset.title, fallback: "Course" })}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

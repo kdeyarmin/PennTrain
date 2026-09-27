@@ -2,6 +2,7 @@ import { PDFDocument, PDFFont, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
 import QRCode from "npm:qrcode@1.5.4";
 import { toWinAnsi } from "../_shared/pdfText.ts";
 import { errorMessage } from "../_shared/errorMessage.ts";
+import { documentDisplayName } from "../_shared/documentDisplayName.ts";
 import {
   CAREMETRIC_LOGO_JPEG,
   SIGNATURE_PATH,
@@ -125,10 +126,16 @@ export async function buildCertificatePdf(
   input: CertificatePdfInput,
   verificationBase: string,
 ): Promise<Uint8Array> {
+  // Render a readable title from the recorded award value. The issuer retains
+  // the original snapshot and any previously stored PDF without rewriting either.
+  const courseTitle = documentDisplayName({
+    title: input.courseTitle,
+    fallback: "Training course",
+  });
   const doc = await PDFDocument.create();
   doc.setTitle(`Certificate of Completion - ${clean(input.employeeName)}`);
   doc.setAuthor("CareMetric Healthcare Advisors");
-  doc.setSubject(clean(input.courseTitle));
+  doc.setSubject(clean(courseTitle));
   doc.setCreator("CareMetric Training");
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -240,7 +247,7 @@ export async function buildCertificatePdf(
     },
   );
   center("for successfully completing", 329, 10.5, italic, { color: GRAY });
-  center(input.courseTitle, 301, 18, bold, {
+  center(courseTitle, 301, 18, bold, {
     minSize: 12,
     maxLines: 2,
     lineHeight: 21,
@@ -279,10 +286,9 @@ export async function buildCertificatePdf(
   center(dateLine, 207, 10, font);
 
   const details: string[] = [];
-  if (input.courseCode) details.push(`Course code: ${input.courseCode}`);
-  if (input.courseVersion) {
-    details.push(`Course version: ${input.courseVersion}`);
-  }
+  // Internal catalog codes and edition labels stay in the issued record and
+  // verification details. Credential numbers and supplied regulatory/provider
+  // identifiers remain on the award itself.
   if (input.regulatoryReference) {
     details.push(`Regulatory reference: ${input.regulatoryReference}`);
   }

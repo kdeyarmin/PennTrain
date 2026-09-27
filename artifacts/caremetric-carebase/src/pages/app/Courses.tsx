@@ -14,6 +14,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { courseDetailPath } from "@/lib/courseRoutes";
 import { QueryError, QueryLoading } from "@/components/QueryState";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 
 interface CourseFormData {
   title: string;
@@ -100,7 +101,7 @@ export default function Courses() {
     if (!search) return true;
     const s = search.toLowerCase();
     return (
-      c.title.toLowerCase().includes(s) ||
+      documentDisplayName({ title: c.title }).toLowerCase().includes(s) ||
       (c.description ?? "").toLowerCase().includes(s)
     );
   });
@@ -253,7 +254,7 @@ export default function Courses() {
                       <Link href={courseDetailPath(course.id, user?.role)}>
                         <div className="cursor-pointer">
                           <span className="font-medium text-foreground hover:text-primary transition-colors">
-                            {course.title}
+                            {documentDisplayName({ title: course.title, fallback: "Course" })}
                           </span>
                           {course.description && (
                             <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{course.description}</p>

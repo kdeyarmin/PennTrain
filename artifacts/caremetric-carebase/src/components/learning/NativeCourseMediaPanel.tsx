@@ -7,6 +7,7 @@ import { useCourseMediaContext, useFinishCourseMedia, callCourseMedia } from "@/
 import { mediaMime, parseMediaOperation, projectMediaStage, type MediaUpload } from "../../../../../supabase/functions/_shared/courseMediaProtocol";
 import { errorText } from "@/lib/errorText";
 import { sha256File } from "@/lib/courseMediaHash";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 
 export function NativeCourseMediaPanel({ versionId, blockId, type, locked = false }: { versionId: string; blockId: string; type: "pdf" | "video"; locked?: boolean }) {
   const context = useCourseMediaContext(versionId, blockId);
@@ -42,7 +43,8 @@ export function NativeCourseMediaPanel({ versionId, blockId, type, locked = fals
     <p className="text-sm font-medium">Course-owned {type === "pdf" ? "PDF" : "video"}</p>
     {context.isLoading && <p className="text-xs">Loading media…</p>}
     {context.error && <p role="alert" className="text-sm text-destructive">{errorText(context.error)}</p>}
-    {context.data?.block.mediaAsset && <p className="text-xs">Attached: {context.data.block.mediaAsset.fileName} · {context.data.block.mediaAsset.byteSize.toLocaleString()} bytes</p>}
+    {context.data?.block.mediaAsset && <div className="text-xs"><p>Attached: {documentDisplayName({ fileName: context.data.block.mediaAsset.fileName, fallback: type === "pdf" ? "Course document" : "Course video" })}</p>
+      <details><summary className="cursor-pointer">Original file details</summary><p>{context.data.block.mediaAsset.fileName} · {context.data.block.mediaAsset.byteSize.toLocaleString()} bytes</p></details></div>}
     {!locked && <>
       <Label htmlFor={`media-file-${blockId}`}>Original {type === "pdf" ? "PDF (up to 25 MiB)" : "MP4 or WebM (up to 100 MiB)"}</Label>
       <Input id={`media-file-${blockId}`} type="file" accept={type === "pdf" ? "application/pdf" : "video/mp4,video/webm"} disabled={busy}
@@ -55,7 +57,8 @@ export function NativeCourseMediaPanel({ versionId, blockId, type, locked = fals
     <Button variant="ghost" size="sm" disabled={busy} onClick={() => { request.current = null; void context.refetch(); }}>Refresh saved uploads</Button>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}{message && <p role="status" className="text-sm">{message}</p>}
     {context.data?.intents.items.map(intent => <div key={intent.operationId} className="border-t pt-2 text-xs">
-      <p>{intent.fileName} · {intent.byteSize.toLocaleString()} bytes · {intent.state}</p><p>{intent.reason}</p>
+      <p>{documentDisplayName({ fileName: intent.fileName, fallback: type === "pdf" ? "Course document" : "Course video" })} · {intent.state}</p><p>{intent.reason}</p>
+      <details><summary className="cursor-pointer">Original file details</summary><p>{intent.fileName} · {intent.byteSize.toLocaleString()} bytes</p></details>
       {intent.state === "committed" ? <p>Saved attachment receipt retained.</p> : intent.canFinishThisSession && !locked ?
         <Button size="sm" disabled={busy || !!context.error} onClick={async () => { setError(null); try { await finish.mutateAsync(intent.operationId); setMessage("Verified media attached to this draft."); } catch (cause) { setError(errorText(cause)); } }}>Attach verified media</Button>
         : <p>This saved operation cannot be attached in the current session or draft. Refresh and upload again after reviewing the current source.</p>}

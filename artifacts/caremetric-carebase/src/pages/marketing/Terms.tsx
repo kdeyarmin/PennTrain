@@ -6,10 +6,10 @@ import {
 } from "@/components/marketing/marketingPricing";
 import { Reveal } from "@/components/marketing/primitives";
 import {
-  BAA_VERSION,
+  BAA_NAME,
   LEGAL_COMPANY_LOCATION,
   LEGAL_COMPANY_NAME,
-  SERVICE_AGREEMENT_VERSION,
+  SERVICE_AGREEMENT_NAME,
 } from "@/lib/legalAgreements";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { Link } from "wouter";
@@ -41,9 +41,9 @@ const TERMS_SECTIONS = [
         You must be authorized to act for the organization you register — at
         signup an authorized administrator accepts the{" "}
         <Link href="/legal/facility-signup" className="font-semibold text-primary hover:underline">
-          Facility Administrator Platform Agreement and HIPAA Business Associate Agreement
+          {SERVICE_AGREEMENT_NAME} and {BAA_NAME}
         </Link>{" "}
-        ({SERVICE_AGREEMENT_VERSION}; {BAA_VERSION}) for {LEGAL_COMPANY_NAME},
+        for {LEGAL_COMPANY_NAME},
         both published in full.
       </>
     ),

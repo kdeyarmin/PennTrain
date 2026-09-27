@@ -34,6 +34,17 @@ beforeEach(() => {
 });
 
 describe("document selection after durable deletion", () => {
+  it("shows a readable purpose for an opaque filename while preserving the original in file details", () => {
+    const original = "550e8400-e29b-41d4-a716-446655440000.pdf";
+    h.page = { count: 1, rows: [{ ...h.page.rows[0], file_name: original, document_type: "external_certificate" }] };
+    const tree = render();
+    expect(nodes(tree).some(node => node.props["aria-label"] === "Select External Certificate")).toBe(true);
+    const fileDetails = nodes(tree).find(node => node.type === "details" && text(node).includes(original))!;
+    expect(fileDetails.props.open).toBeUndefined();
+    expect(text(fileDetails)).toContain("File details");
+    expect(h.page.rows[0].file_name).toBe(original);
+  });
+
   it("moves metadata-removed failures to the cleanup queue and retries only still-present denied records", async () => {
     h.remove.mockImplementation(async doc => {
       if (doc.id === "pending") { h.page = { count: 1, rows: h.page.rows.filter(row => row.id !== "pending") }; throw new Error(pendingMessage); }

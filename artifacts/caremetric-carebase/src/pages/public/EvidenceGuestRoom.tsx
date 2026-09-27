@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import { useParams } from "wouter";
 import {
   useEvidenceGuestRoom,
@@ -191,7 +192,7 @@ export default function EvidenceGuestRoom() {
               {artifacts.map((artifact) => (
                 <li key={artifact.id} className="flex items-center justify-between gap-3 p-3">
                   <div className="min-w-0">
-                    <p className="font-medium truncate">{artifact.displayName}</p>
+                    <p className="font-medium truncate">{documentDisplayName({ title: artifact.displayName, fallback: "Shared document" })}</p>
                     <p className="text-xs text-muted-foreground">
                       {[
                         artifact.artifactType === "binder" ? "Compliance binder (PDF)" : artifact.artifactType.toUpperCase(),

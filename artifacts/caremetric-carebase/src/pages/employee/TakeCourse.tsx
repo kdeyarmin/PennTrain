@@ -75,8 +75,9 @@ import {
 } from "lucide-react";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { createCourseProgressWriter } from "@/lib/courseProgressWriter";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 
-function DocumentBlockLink({ documentId }: { documentId: string | null }) {
+function DocumentBlockLink({ documentId, title }: { documentId: string | null; title?: string | null }) {
   const { data: document, isLoading } = useGetDocument(documentId ?? undefined);
   const getSignedUrl = useDocumentSignedUrl();
   const { toast } = useToast();
@@ -103,7 +104,7 @@ function DocumentBlockLink({ documentId }: { documentId: string | null }) {
   return (
     <Button onClick={handleOpen} disabled={getSignedUrl.isPending}>
       <Download className="mr-2 h-4 w-4" />
-      {getSignedUrl.isPending ? "Opening..." : `Open ${document.file_name}`}
+      {getSignedUrl.isPending ? "Opening..." : `Open ${documentDisplayName({ title, fileName: document.file_name, fallback: "course document" })}`}
     </Button>
   );
 }
@@ -179,6 +180,7 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
     refetch: refetchAssignment,
   } = useGetCourseAssignment(assignmentId);
   const { data: course } = useGetCourse(assignment?.course_id);
+  const courseTitle = documentDisplayName({ title: course?.title, fallback: "Training item" });
   const {
     data: blocks,
     isLoading: blocksLoading,
@@ -614,7 +616,7 @@ useEffect(() => {
 
   const handleCopyStudyGuide = async () => {
     if (!blocks || !hasStudyGuideEntries) return;
-    const guide = buildStudyGuide(course?.title ?? "Training item", blocks, lessonNotes, lessonConfidence);
+    const guide = buildStudyGuide(courseTitle, blocks, lessonNotes, lessonConfidence);
     try {
       await navigator.clipboard.writeText(guide);
       toast({ title: "Study guide copied", description: "Your notes and confidence checks are ready to paste elsewhere." });
@@ -819,7 +821,7 @@ useEffect(() => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {course?.title ?? "This training item"} is no longer assigned to you, so it can no longer
+              {courseTitle} is no longer assigned to you, so it can no longer
               be worked or marked complete. Nothing you did on it was lost.
             </p>
             {assignment.cancellation_reason && (
@@ -851,7 +853,7 @@ useEffect(() => {
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{course?.title ?? "Training item"}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{courseTitle}</h1>
         <div className="flex items-center gap-2 mt-1">
           {alreadyCompleted ? (
             <Badge>Completed</Badge>
@@ -980,8 +982,8 @@ useEffect(() => {
                       role="tab"
                       aria-selected={isCurrent}
                       aria-current={isCurrent ? "step" : undefined}
-                      aria-label={`Lesson ${i + 1}${b.title ? `: ${b.title}` : ""}${isCurrent ? " (current)" : !isVisited ? " (not yet visited)" : ""}`}
-                      title={b.title ?? `Lesson ${i + 1}`}
+                      aria-label={`Lesson ${i + 1}: ${documentDisplayName({ title: b.title, fallback: getBlockLabel(b.block_type) })}${isCurrent ? " (current)" : !isVisited ? " (not yet visited)" : ""}`}
+                      title={documentDisplayName({ title: b.title, fallback: `Lesson ${i + 1}` })}
                       disabled={!isVisited || quizNavigationPending}
                       onClick={() => setStepIndex(i)}
                       className={`min-h-9 max-w-full px-2.5 rounded-full text-[11px] font-medium border transition-colors flex items-center gap-1.5 ${
@@ -994,7 +996,7 @@ useEffect(() => {
                     >
                       <Icon className="h-3 w-3 shrink-0" />
                       <span>{i + 1}</span>
-                      <span className="hidden sm:inline truncate max-w-28">{b.title ?? getBlockLabel(b.block_type)}</span>
+                      <span className="hidden sm:inline truncate max-w-28">{documentDisplayName({ title: b.title, fallback: getBlockLabel(b.block_type) })}</span>
 {confidence && (
   <span className="hidden md:inline text-[10px] opacity-80">
     · {CONFIDENCE_LABEL[confidence]}
@@ -1034,7 +1036,7 @@ useEffect(() => {
                             disabled={locked || quizNavigationPending}
                             onClick={() => jumpToBlock(block.id)}
                           >
-                            {blockIndex + 1}. {block.title ?? getBlockLabel(block.block_type)}
+                            {blockIndex + 1}. {documentDisplayName({ title: block.title, fallback: getBlockLabel(block.block_type) })}
                           </Button>
                         );
                       })}
@@ -1061,7 +1063,7 @@ useEffect(() => {
                     const Icon = BLOCK_ICON[currentBlock?.block_type ?? "text"] ?? FileText;
                     return <Icon className="h-5 w-5" />;
                   })()}
-                  {currentBlock?.title ?? "Untitled lesson"}
+                  {documentDisplayName({ title: currentBlock?.title, fallback: "Lesson" })}
                 </CardTitle>
               </div>
             </CardHeader>
@@ -1109,7 +1111,7 @@ useEffect(() => {
               )}
 
               {currentBlock?.block_type === "pdf" && (
-                currentBlock.media_asset_id ? <CourseMediaDocumentLink versionId={currentBlock.course_version_id} blockId={currentBlock.id} assetId={currentBlock.media_asset_id} /> : <DocumentBlockLink documentId={currentBlock.document_id} />
+                currentBlock.media_asset_id ? <CourseMediaDocumentLink versionId={currentBlock.course_version_id} blockId={currentBlock.id} assetId={currentBlock.media_asset_id} title={currentBlock.title} /> : <DocumentBlockLink documentId={currentBlock.document_id} title={currentBlock.title} />
               )}
 
               {currentBlock?.block_type === "scorm" && (
@@ -1288,7 +1290,7 @@ useEffect(() => {
                 <div className="rounded-lg border bg-muted/30 p-3 text-sm">
                   <p className="font-medium">Up next</p>
                   <p className="text-muted-foreground">
-                    {getLearningStepLabel(nextBlock)}: {nextBlock.title ?? "Untitled lesson"}
+                    {getLearningStepLabel(nextBlock)}: {documentDisplayName({ title: nextBlock.title, fallback: "Next lesson" })}
                   </p>
                 </div>
               )}
@@ -1381,7 +1383,7 @@ useEffect(() => {
           <DialogHeader><DialogTitle>Rate this training</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              How helpful was "{course?.title ?? "this training item"}"? Your feedback helps trainers improve it.
+              How helpful was "{courseTitle}"? Your feedback helps trainers improve it.
             </p>
             <div className="flex items-center gap-1">
               {[1, 2, 3, 4, 5].map((n) => (

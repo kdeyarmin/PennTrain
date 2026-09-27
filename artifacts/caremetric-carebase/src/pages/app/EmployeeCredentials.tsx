@@ -1,7 +1,7 @@
 import { DocumentDeletionQueue } from "@/components/documents/DocumentDeletionQueue";
 import { useId, useMemo, useRef, useState } from "react";
 import { trainingFormNumber } from "@/lib/trainingFormNumbers";
-import { facilityToday } from "@/lib/dateUtils";
+import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import {
   useListEmployeeCredentials, useCreateEmployeeCredential, useUpdateEmployeeCredential, useDeleteEmployeeCredential,
   type EmployeeCredential,
@@ -33,6 +33,7 @@ import { AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, Plus, Pencil, Tr
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 
 const PAGE_SIZE = 15;
 
@@ -111,6 +112,7 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
   const getSignedUrl = useCredentialDocumentSignedUrl();
   const deleteDocument = useDeleteCredentialDocument();
   const [deleteTarget, setDeleteTarget] = useState<CredentialDocument | null>(null);
+  const documentName = (doc: CredentialDocument) => documentDisplayName({ title: doc.document_label, fileName: doc.file_name, fallback: `${credential.credential_label || credentialTypeLabel(credential.credential_type)} document` });
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -151,7 +153,7 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
   return (
     <div className="space-y-2" role="group" aria-labelledby={`${__fieldIds}-credential-documents`}>
       <div className="flex items-center justify-between">
-        <Label id={`${__fieldIds}-credential-documents`} className="text-[13px]">Documentation Documents</Label>
+        <Label id={`${__fieldIds}-credential-documents`} className="text-[13px]">Supporting documents</Label>
         {canManage && (
           <>
             <Button variant="outline" size="sm" disabled={uploadDocument.isPending} onClick={() => fileInputRef.current?.click()}>
@@ -171,7 +173,11 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
         <div className="space-y-1.5">
           {documents.map((doc) => (
             <div key={doc.id} className="flex items-center justify-between p-2 rounded-lg border text-sm">
-              <span className="truncate">{doc.file_name}</span>
+              <div className="min-w-0">
+                <p className="truncate">{documentName(doc)}</p>
+                <p className="text-xs text-muted-foreground">Uploaded {formatDateForDisplay(doc.created_at)}</p>
+                <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">File details</summary><p className="break-all">{doc.file_name}</p></details>
+              </div>
               <div className="flex items-center gap-1 shrink-0">
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownload(doc)} aria-label="Download document">
                   <Download className="h-3.5 w-3.5" />
@@ -190,9 +196,9 @@ function CredentialDocuments({ credential, canManage, canDelete }: { credential:
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Documentation Document</AlertDialogTitle>
+            <AlertDialogTitle>Delete supporting document</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently destroy "{deleteTarget?.file_name}" as compliance documentation for this credential.
+              This will permanently destroy "{deleteTarget ? documentName(deleteTarget) : "this document"}" as compliance documentation for this credential.
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

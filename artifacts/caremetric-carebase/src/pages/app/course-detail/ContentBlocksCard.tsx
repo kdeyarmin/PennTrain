@@ -9,6 +9,7 @@ import type { Role } from "@/lib/auth";
 import { BlockTypeBadge, QuizBlockSummary } from "./components";
 import { documentDisplayName, videoTranscriptContent } from "./helpers";
 import { QueryError } from "@/components/QueryState";
+import { documentDisplayName as readableDocumentName } from "@/lib/documentDisplayName";
 
 export function ContentBlocksCard({
   structureManaged = false,
@@ -65,7 +66,7 @@ export function ContentBlocksCard({
           <CardTitle>
             Content Blocks
             <span className="text-sm font-normal text-muted-foreground ml-2">
-              (v{selectedVersion.version_number} — {selectedVersion.title})
+              (Version {selectedVersion.version_number})
             </span>
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -115,7 +116,7 @@ export function ContentBlocksCard({
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-muted-foreground">#{idx + 1}</span>
                     <BlockTypeBadge blockType={b.block_type} />
-                    <span className="font-medium text-sm">{b.title ?? "Untitled block"}</span>
+                    <span className="font-medium text-sm">{readableDocumentName({ title: b.title, fallback: `Lesson ${b.sort_order + 1}` })}</span>
                   </div>
                   {b.block_type === "text" && (
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
@@ -144,7 +145,7 @@ export function ContentBlocksCard({
                   )}
                   {(b.block_type === "pdf" || b.block_type === "scorm") && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      {b.media_asset_id ? "Course-owned PDF attached." : b.document_id ? `Document: ${documentDisplayName(courseDocumentById.get(b.document_id)) || b.document_id}` : "No document attached."}
+                      {b.media_asset_id ? "Course-owned PDF attached." : b.document_id ? `Document: ${documentDisplayName(courseDocumentById.get(b.document_id), b.title) || "Attached course document"}` : "No document attached."}
                     </p>
                   )}
                   {b.block_type === "quiz" && (

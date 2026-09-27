@@ -5,6 +5,8 @@ import { TrainingDiscoveryAdmin } from "@/components/training-discovery/Training
 import { useInviteUser } from "@/hooks/useProfiles";
 import { trainingActionError } from "@/lib/trainingWorkspace";
 import { certificatePrintPacket } from "@/lib/certificatePrintPacket";
+import { certificateFileName } from "@/lib/certificateDownloadUrl";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal, formatDateForDisplay } from "@/lib/dateUtils";
 import { downloadBlob } from "@/lib/browserDownload";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
@@ -102,11 +104,11 @@ export default function TrainWorkspace() {
   const assignmentById = new Map((progress.data || []).map(assignment => [assignment.id, assignment]));
   const versionById = new Map((assignedVersions.data || []).map(version => [version.id, version]));
   const certificateCourseTitle = (certificate: NonNullable<typeof certificates.data>[number]) => {
-    if (certificate.course_title_snapshot) return certificate.course_title_snapshot;
+    if (certificate.course_title_snapshot) return documentDisplayName({ title: certificate.course_title_snapshot, fallback: "Training course" });
     const assignment = certificate.course_assignment_id ? assignmentById.get(certificate.course_assignment_id) : undefined;
-    if (assignment?.course_version_id) return versionById.get(assignment.course_version_id)?.title || "Assigned course title unavailable";
+    if (assignment?.course_version_id) return documentDisplayName({ title: versionById.get(assignment.course_version_id)?.title, fallback: "Assigned course" });
     if (certificate.course_assignment_id && !assignment) return "Assigned course title unavailable";
-    return courses.data?.find(course => course.id === certificate.course_id)?.title || "Course unavailable";
+    return documentDisplayName({ title: courses.data?.find(course => course.id === certificate.course_id)?.title, fallback: "Training course" });
   };
   const [batchBusy, setBatchBusy] = useState(false);
   const [shiftId, setShiftId] = useState("");
@@ -201,15 +203,15 @@ export default function TrainWorkspace() {
       const { zipSync } = await import("fflate");
       const files: Record<string, Uint8Array> = {};
       // Sequential preparation bounds server work and identifies failures before issuing an incomplete archive.
-      for (const cert of targets) {
+      for (const [index, cert] of targets.entries()) {
         const result = await preparePdf.mutateAsync(cert.id);
-        const response = await fetch(result.url); if (!response.ok) throw new Error(`Could not download certificate ${cert.id}; no archive was created.`);
-        files[`certificate-${cert.id}.pdf`] = new Uint8Array(await response.arrayBuffer());
+        const response = await fetch(result.url); if (!response.ok) throw new Error(`Could not download the ${certificateCourseTitle(cert)} certificate for ${certificateStudentName(cert.employee_id)}; no archive was created.`);
+        files[`${index + 1} - ${certificateFileName(certificateCourseTitle(cert), certificateStudentName(cert.employee_id))}`] = new Uint8Array(await response.arrayBuffer());
       }
       if (format === "pdf") {
         const packet = await certificatePrintPacket(Object.values(files));
-        downloadBlob(`training-certificates-${today}.pdf`, new Blob([new Uint8Array(packet)], { type: "application/pdf" }));
-      } else downloadBlob(`training-certificates-${today}.zip`, new Blob([new Uint8Array(zipSync(files))], { type: "application/zip" }));
+        downloadBlob(`Training certificates - ${today}.pdf`, new Blob([new Uint8Array(packet)], { type: "application/pdf" }));
+      } else downloadBlob(`Training certificates - ${today}.zip`, new Blob([new Uint8Array(zipSync(files))], { type: "application/zip" }));
     } catch (error) { message(error); } finally { setBatchBusy(false); }
   }
   function reportCsv() {
@@ -316,7 +318,7 @@ export default function TrainWorkspace() {
           <Field name="minutes" label="Actual duration in minutes" type="number" /><Options name="delivery" label="Delivery" options={{ online: "Online", classroom: "Classroom", hybrid: "Hybrid with observed practice", ojt: "On-the-job", observed_practice: "Observed practice", external: "External training" }} />
           <Field name="provider" label="Instructor / provider" /><Field name="source_reference" label="Unique event or certificate reference" />
           <Field name="provider_qualification" label="Instructor qualifications / approval reference" required={false} /><Field name="valid_until" label="Valid through (if applicable)" type="date" required={false} />
-          <Options name="evidence_document_id" label="Uploaded evidence" options={{ "": "Choose uploaded evidence (optional)", ...Object.fromEntries((documents.data || []).filter(d => !d.employee_id || d.employee_id === student).map(d => [d.id, d.file_name])) }} /><Options name="course_assignment_id" label="Completed course" options={{ "": "Choose completed course (optional)", ...Object.fromEntries((assignments.data || []).map(a => [a.id, `${courses.data?.find(c => c.id === a.course_id)?.title || "Completed course"} - ${a.completed_at || a.assigned_at}`])) }} />
+          <Options name="evidence_document_id" label="Uploaded evidence" options={{ "": "Choose uploaded evidence (optional)", ...Object.fromEntries((documents.data || []).filter(d => !d.employee_id || d.employee_id === student).map(d => [d.id, `${documentDisplayName({ fileName: d.file_name, fallback: "Training document" })} · ${formatDateForDisplay(d.created_at)}`])) }} /><Options name="course_assignment_id" label="Completed course" options={{ "": "Choose completed course (optional)", ...Object.fromEntries((assignments.data || []).map(a => [a.id, `${documentDisplayName({ title: courses.data?.find(c => c.id === a.course_id)?.title, fallback: "Completed course" })} · ${formatDateForDisplay(a.completed_at || a.assigned_at)}`])) }} />
           {(documents.isError || assignments.isError || courses.isError) && <p role="alert">Evidence choices failed to load. Reload before linking a course or document.</p>}
           <fieldset className="md:col-span-2"><legend className="font-semibold">Topics evidenced</legend><div className="grid md:grid-cols-3 gap-2 text-sm">{Object.entries(TRAINING_TOPICS).map(([key, label]) => <label key={key}><input type="checkbox" name="topics" value={key} /> {label}</label>)}</div></fieldset>
           <fieldset className="md:col-span-2"><legend className="font-semibold">Allocate minutes once</legend><p className="text-sm">The total cannot exceed event duration. Additional dementia and special-unit hours are separate.</p><div className="grid md:grid-cols-3 gap-3 mt-2">{Object.entries(TRAINING_ALLOCATIONS).map(([key, label]) => <Field key={key} name={`credit_${key}`} label={label} type="number" value="0" />)}</div></fieldset>

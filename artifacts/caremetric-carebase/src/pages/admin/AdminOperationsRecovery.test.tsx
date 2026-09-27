@@ -45,7 +45,7 @@ vi.mock("@/hooks/useEmployees", () => ({ useListEmployees: () => ({ data: [{ id:
 vi.mock("@/components/residents/ResidentDocumentDeletionQueue", () => ({ ResidentDocumentDeletionQueue: "queue" }));
 vi.mock("@/components/residents/ResidentRecordDestructionLog", () => ({ ResidentRecordDestructionLog: "log" }));
 vi.mock("@/hooks/useDocuments", () => ({
-  usePaginatedDocuments: () => ({ data: { rows: ["a", "b", "c"].map(id => ({ id, file_name: id, document_type: "certificate", created_at: "2026-01-01" })), count: 3 }, isSuccess: true, isError: false, isLoading: false, isFetching: false, isPlaceholderData: false }),
+  usePaginatedDocuments: () => ({ data: { rows: ["a", "b", "c"].map(id => ({ id, file_name: `Certificate ${id.toUpperCase()}.pdf`, document_type: "certificate", created_at: "2026-01-01" })), count: 3 }, isSuccess: true, isError: false, isLoading: false, isFetching: false, isPlaceholderData: false }),
   useUploadDocument: () => ({ mutateAsync: h.uploadDocument }), useDocumentSignedUrl: () => ({}), useDeleteDocument: () => ({ mutateAsync: h.deleteDocument }),
 }));
 vi.mock("@/hooks/useReleaseFlagAdmin", () => ({
@@ -124,7 +124,7 @@ describe("one-time integration credentials", () => {
 
 
 describe("document administration", () => {
-  const checkbox = (id: string) => render(Documents).find(node => node.props["aria-label"] === `Select ${id}`)!;
+  const checkbox = (id: string) => render(Documents).find(node => node.props["aria-label"] === `Select Certificate ${id.toUpperCase()}`)!;
   it("retains failed deletes and selections added while a batch is pending", async () => {
     const slow = deferred<void>(); h.deleteDocument.mockReturnValueOnce(slow.promise).mockRejectedValueOnce(new Error("Locked"));
     (checkbox("a").props.onCheckedChange as () => void)(); (checkbox("b").props.onCheckedChange as () => void)();

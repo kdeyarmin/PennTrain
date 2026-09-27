@@ -407,7 +407,7 @@ export default function Settings() {
                     </p>
                   ) : organization.baa_version ? (
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      On file: {organization.baa_version}
+                      Agreement on file
                       {organization.baa_accepted_at
                         ? ` — accepted ${new Date(organization.baa_accepted_at).toLocaleDateString()}`
                         : ""}

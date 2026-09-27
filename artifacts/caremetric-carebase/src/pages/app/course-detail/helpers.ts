@@ -1,8 +1,9 @@
 import type { CourseBlock } from "@/hooks/useCourses";
 import type { TrainingDocument } from "@/hooks/useDocuments";
+import { documentDisplayName as readableDocumentName } from "@/lib/documentDisplayName";
 
 export function blockName(block: Pick<CourseBlock, "title" | "sort_order">) {
-  return block.title?.trim() || `Block ${block.sort_order + 1}`;
+  return readableDocumentName({ title: block.title, fallback: `Block ${block.sort_order + 1}` });
 }
 
 export function textBodyContent(block: Pick<CourseBlock, "body">) {
@@ -21,7 +22,7 @@ export function videoTranscriptContent(block: Pick<CourseBlock, "body">) {
   return "";
 }
 
-export function documentDisplayName(document: Pick<TrainingDocument, "file_name" | "storage_path"> | undefined) {
+export function documentDisplayName(document: Pick<TrainingDocument, "file_name" | "storage_path"> | undefined, title?: string | null) {
   if (!document) return "";
-  return document.file_name || document.storage_path.split("/").pop() || "Attached document";
+  return readableDocumentName({ title, fileName: document.file_name, fallback: "Course document" });
 }

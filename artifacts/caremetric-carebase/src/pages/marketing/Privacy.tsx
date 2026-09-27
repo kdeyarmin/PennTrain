@@ -3,10 +3,10 @@ import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { MARKETING_LEGAL_EFFECTIVE_DATE } from "@/components/marketing/marketingPricing";
 import { Reveal } from "@/components/marketing/primitives";
 import {
-  BAA_VERSION,
+  BAA_NAME,
   LEGAL_COMPANY_LOCATION,
   LEGAL_COMPANY_NAME,
-  SERVICE_AGREEMENT_VERSION,
+  SERVICE_AGREEMENT_NAME,
 } from "@/lib/legalAgreements";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { Link } from "wouter";
@@ -24,10 +24,8 @@ const PRIVACY_SECTIONS = [
         describes how we handle information when you use the service or visit
         this site. Organizations that sign up also accept the{" "}
         <Link href="/legal/facility-signup" className="font-semibold text-primary hover:underline">
-          Facility Administrator Platform Agreement and HIPAA Business Associate Agreement
-        </Link>{" "}
-        ({SERVICE_AGREEMENT_VERSION}; {BAA_VERSION}), published in full; that
-        BAA governs Protected Health Information we handle for your
+          {SERVICE_AGREEMENT_NAME} and {BAA_NAME}
+        </Link>. The Business Associate Agreement governs Protected Health Information we handle for your
         organization.
       </>
     ),
