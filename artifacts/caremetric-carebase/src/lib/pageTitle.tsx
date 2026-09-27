@@ -1,13 +1,58 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { APP_PAGES } from "@/lib/appDomains";
+import { routePatternMatches } from "@/lib/productRoutes";
 
-// True when a concrete `location` matches an APP_PAGES `pattern` that may contain :param segments,
-// e.g. "/app/incidents/:id" matches "/app/incidents/abc-123" but not "/app/incidents".
-function pathMatches(pattern: string, location: string): boolean {
-  const p = pattern.split("/").filter(Boolean);
-  const l = location.split("/").filter(Boolean);
-  if (p.length !== l.length) return false;
-  return p.every((segment, i) => segment.startsWith(":") || segment === l[i]);
+// Detail pages belong to their searchable index pages for access checks, but need their own
+// labels while records load, in browser tabs, and in navigation history.
+const DETAIL_PAGE_TITLES = [
+  { path: "/admin/organizations/:id", label: "Organization details" },
+  { path: "/admin/facilities/:id", label: "Facility details" },
+  { path: "/admin/employees/:id", label: "Employee details" },
+  { path: "/admin/courses/:id", label: "Training content details" },
+  { path: "/admin/support-tickets/:id", label: "Support ticket" },
+  { path: "/app/facilities/:id", label: "Facility details" },
+  { path: "/app/employees/:id", label: "Employee details" },
+  { path: "/app/courses/:id", label: "Training content details" },
+  { path: "/app/policy-documents/:id", label: "Policy details" },
+  { path: "/app/template-documents/:code", label: "Document template" },
+  { path: "/app/incidents/:id", label: "Incident details" },
+  { path: "/app/complaints/:id", label: "Complaint details" },
+  { path: "/app/confidential-incidents/:id", label: "Confidential report" },
+  { path: "/app/work/:id", label: "Work item" },
+  { path: "/app/evidence/:id", label: "Documentation collection" },
+  { path: "/app/violations/:id", label: "Violation details" },
+  { path: "/app/residents/:id", label: "Resident details" },
+  { path: "/app/residents/:id/chart", label: "Clinical chart" },
+  { path: "/app/admissions/move-ins/:id", label: "Move-in workspace" },
+  { path: "/app/change-of-condition/:id", label: "Change follow-up" },
+  { path: "/app/qapi/projects/:id", label: "Quality improvement project" },
+  { path: "/app/emergency/:id", label: "Emergency details" },
+  { path: "/app/residents/:residentId/assessment-forms/:formId", label: "Resident assessment form" },
+  { path: "/app/inspections/:id", label: "Inspection details" },
+  { path: "/app/maintenance/scan/:kind/:token", label: "Maintenance QR scan" },
+  { path: "/app/maintenance/:id", label: "Work order" },
+  { path: "/app/help/tickets/:id", label: "Support ticket" },
+  { path: "/app/schedule/setup", label: "Schedule setup" },
+  { path: "/app/schedule/:id", label: "Shift details" },
+  { path: "/trainer/classes/:id/kiosk", label: "Class check-in" },
+  { path: "/trainer/classes/:id", label: "Class details" },
+  { path: "/trainer/facilities/:id", label: "Facility details" },
+  { path: "/trainer/employees/:id", label: "Employee details" },
+  { path: "/me/work/:id", label: "My work item" },
+  { path: "/me/residents/:id", label: "Resident chart" },
+  { path: "/me/change-of-condition/:id", label: "Change follow-up" },
+  { path: "/me/courses/:assignmentId/offline", label: "Offline training" },
+  { path: "/me/courses/:assignmentId", label: "My training" },
+  { path: "/me/courses/:assignmentId/quiz/:quizId", label: "Training quiz" },
+  { path: "/me/help/tickets/:id", label: "Support ticket" },
+] as const;
+
+const PAGE_TITLES = [...APP_PAGES, ...DETAIL_PAGE_TITLES];
+
+function pageTitleDefinition(location: string) {
+  const pathname = location.split(/[?#]/, 1)[0];
+  return PAGE_TITLES.find((page) => page.path === pathname)
+    ?? PAGE_TITLES.find((page) => page.path.includes(":") && routePatternMatches(page.path, pathname));
 }
 
 /**
@@ -19,11 +64,48 @@ function pathMatches(pattern: string, location: string): boolean {
  * (a UUID segment) with its parent list's name.
  */
 export function registryLabelForPath(location: string): string | null {
+  return pageTitleDefinition(location)?.label ?? null;
+}
+
+export interface PageBreadcrumb {
+  label: string;
+  path?: string;
+}
+
+/** Build only real, accessible ancestors; never turn intermediate URL segments into dead links. */
+export function pageBreadcrumbs(
+  location: string,
+  currentTitle: string,
+  homePath: string | null,
+  resolveAccessiblePath: (path: string) => string | null,
+): PageBreadcrumb[] {
   const pathname = location.split(/[?#]/, 1)[0];
-  const exact = APP_PAGES.find((page) => page.path === pathname);
-  if (exact) return exact.label;
-  const pattern = APP_PAGES.find((page) => page.path.includes(":") && pathMatches(page.path, pathname));
-  return pattern ? pattern.label : null;
+  const crumbs: PageBreadcrumb[] = [];
+  const seen = new Set<string>([pathname]);
+  const add = (path: string, label: string) => {
+    const accessible = resolveAccessiblePath(path);
+    if (!accessible || seen.has(accessible)) return;
+    seen.add(accessible);
+    crumbs.push({ path: accessible, label });
+  };
+  if (homePath) add(homePath, "Home");
+
+  const definition = pageTitleDefinition(pathname);
+  if (definition) {
+    const currentPattern = definition.path.split("/").filter(Boolean);
+    const concreteSegments = pathname.split("/").filter(Boolean);
+    const ancestors = PAGE_TITLES.filter((page) => {
+      const candidate = page.path.split("/").filter(Boolean);
+      return candidate.length > 1 && candidate.length < currentPattern.length
+        && candidate.every((segment, index) => segment === currentPattern[index]
+          || (segment.startsWith(":") && currentPattern[index].startsWith(":")));
+    }).sort((a, b) => a.path.split("/").length - b.path.split("/").length);
+    for (const ancestor of ancestors) {
+      const length = ancestor.path.split("/").filter(Boolean).length;
+      add(`/${concreteSegments.slice(0, length).join("/")}`, ancestor.label);
+    }
+  }
+  return [...crumbs, { label: currentTitle }];
 }
 
 const OPAQUE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

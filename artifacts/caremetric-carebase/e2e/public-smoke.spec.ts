@@ -107,4 +107,22 @@ test.describe("public release smoke journeys", () => {
       page.getByRole("link", { name: /free trial/i }).first(),
     ).toHaveAttribute("href", "/signup");
   });
+
+  test("a short mobile screen can reach every menu action", async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 375, height: 480 });
+    await page.goto("/privacy");
+    await page.getByRole("button", { name: "Open menu", exact: true }).click();
+    const menu = page.getByRole("dialog", { name: "Navigation menu" });
+    await expect(menu).toBeVisible();
+    const start = menu.getByRole("link", { name: "Start free trial", exact: true });
+    await start.scrollIntoViewIfNeeded();
+    await expect(start).toBeInViewport();
+    expect(await menu.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await page.screenshot({ path: testInfo.outputPath("short-mobile-menu.png") });
+    await start.click();
+    await expect(page).toHaveURL(/\/signup$/);
+    await expect(page.getByRole("main")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({ path: testInfo.outputPath("mobile-signup.png"), fullPage: true });
+  });
 });

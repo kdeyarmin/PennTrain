@@ -73,8 +73,8 @@ export default function TrainerDashboard() {
           </Link>
           <Link href="/trainer/classes">
             <Button variant={todaysClasses.length > 0 ? "outline" : "default"}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Class
+              <GraduationCap className="h-4 w-4 mr-2" />
+              Manage classes
             </Button>
           </Link>
         </div>
@@ -208,7 +208,7 @@ export default function TrainerDashboard() {
                 <Link href="/trainer/classes">
                   <Button variant="outline" size="sm">
                     <Plus className="h-4 w-4 mr-1" />
-                    Create First Class
+                    Open classes
                   </Button>
                 </Link>
               </div>

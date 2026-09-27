@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { useAuth, useSignOut } from "@/lib/auth";
 import { Link, useLocation, useSearch } from "wouter";
 import { cn } from "@/lib/utils";
-import { canViewPath } from "@/lib/appDomains";
+import { APP_PAGES, canViewPath } from "@/lib/appDomains";
+import { activeNavigationHref, navigationMatchesQuery, parseCollapsedSections } from "@/lib/sidebarNavigation";
+import { normalizeHiddenNavigationSections } from "@/lib/navigationSections";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { useGetOrganizationSettings } from "@/hooks/useOrganizationSettings";
@@ -10,7 +12,7 @@ import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { useOrgFeatureEnabled } from "@/hooks/useFeatureRelease";
 import { useToast } from "@/hooks/use-toast";
 import { PCH_ALR_ONLY_FACILITY_TYPES, hasAnyFacilityType } from "@/lib/facilityTypes";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import type { AuthUser } from "@/lib/auth";
 import { LogoMark, BrandName } from "@/components/brand/Logo";
 import {
@@ -83,6 +85,7 @@ import {
   ScrollText,
   Printer,
   FileUp,
+  X,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; viewOnly?: boolean };
@@ -507,18 +510,6 @@ function getNavSections(
   return [];
 }
 
-function isNavItemActive(item: NavItem, location: string): boolean {
-  const [path, query = ""] = location.split("?");
-  const [target, targetQuery = ""] = item.href.split("?");
-  if (targetQuery) {
-    const current = new URLSearchParams(query);
-    return path === target && [...new URLSearchParams(targetQuery)].every(([key, value]) =>
-      key === "facilityId" || (current.get(key) || (key === "tab" ? "overview" : "")) === value);
-  }
-  if (path === "/me/courses" && new URLSearchParams(query).get("view") === "library") return false;
-  return path === target || (!["/admin", "/app", "/trainer", "/me"].includes(target) && path.startsWith(`${target}/`));
-}
-
 // Persisted per-user so each person's choice of which groups to keep collapsed sticks across
 // visits, without needing a backend round-trip for what's purely a display preference.
 function collapsedSectionsStorageKey(userId: string): string {
@@ -528,9 +519,9 @@ function collapsedSectionsStorageKey(userId: string): string {
 function loadCollapsedSections(userId: string): Set<string> {
   try {
     const raw = window.localStorage.getItem(collapsedSectionsStorageKey(userId));
-    return raw ? new Set(JSON.parse(raw)) : new Set();
+    return parseCollapsedSections(raw);
   } catch {
-    return new Set();
+    return parseCollapsedSections(null);
   }
 }
 
@@ -541,9 +532,6 @@ function saveCollapsedSections(userId: string, titles: Set<string>): void {
     // localStorage unavailable (private browsing, quota) -- collapse state just won't persist
   }
 }
-
-/** Default-collapsed advanced/admin groups so daily work stays above the fold. */
-const DEFAULT_COLLAPSED_SECTIONS = new Set(["Advanced", "Admin"]);
 
 /**
  * The sidebar's inner content (logo, filter, nav sections, user footer). Shared by the
@@ -566,11 +554,10 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   // yet" instead of a workspace, so leading the onboarding list with it advertises a dead end.
   const surveyDayFeature = useOrgFeatureEnabled("survey_day_mode");
   const [filter, setFilter] = useState("");
+  const navId = useId();
+  const [manuallyClosed, setManuallyClosed] = useState<{ location: string; titles: Set<string> }>({ location: "", titles: new Set() });
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
-    if (!user) return new Set(DEFAULT_COLLAPSED_SECTIONS);
-    const stored = loadCollapsedSections(user.id);
-    // First visit: seed Advanced/Admin collapsed so managers land on daily work.
-    return stored.size === 0 ? new Set(DEFAULT_COLLAPSED_SECTIONS) : stored;
+    return user ? loadCollapsedSections(user.id) : parseCollapsedSections(null);
   });
   const [collapsedSectionsUserId, setCollapsedSectionsUserId] = useState<string | null>(() => user?.id ?? null);
 
@@ -578,7 +565,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     if (!user) return;
     if (collapsedSectionsUserId !== user.id) {
       const stored = loadCollapsedSections(user.id);
-      setCollapsedSections(stored.size === 0 ? new Set(DEFAULT_COLLAPSED_SECTIONS) : stored);
+      setCollapsedSections(stored);
       setCollapsedSectionsUserId(user.id);
       return;
     }
@@ -597,10 +584,11 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   // it. Platform admins bypass the gate server-side and have no Survey Day nav entry either way.
   const showSurveyDay = surveyDayFeature.isLoading || surveyDayFeature.isError
     || surveyDayFeature.isEnabled;
-  const hiddenSections = new Set(organizationSettings.data?.hidden_navigation_sections ?? []);
   const viewOnlyPaths: readonly string[] = VIEW_ONLY_NAV_PATHS_BY_ROLE[user.role] ?? [];
   const trainingOnly = !moduleAccess.isLoading && moduleAccess.enabledModules.has("train")
     && !(["carebase", "workforce", "compliance", "billing"] as const).some(module => moduleAccess.enabledModules.has(module));
+  const hiddenSections = new Set(trainingOnly || user.role === "platform_admin" ? []
+    : normalizeHiddenNavigationSections(organizationSettings.data?.hidden_navigation_sections));
   const facilityContext = new URLSearchParams(locationSearch).get("facilityId");
   const trainingHref = (tab: string) => `/app/train?${new URLSearchParams({ tab, ...(facilityContext ? { facilityId: facilityContext } : {}) })}`;
   const trainingSections: NavSection[] = [{ title: "Training", items: [
@@ -611,6 +599,19 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     { href: trainingHref("enrollments"), label: "Reports", icon: BarChart3 },
     { href: trainingHref("certificates"), label: "Certificates", icon: Printer },
     { href: trainingHref("settings"), label: "Facility Settings", icon: Settings },
+    { href: "/me/courses", label: "My training", icon: GraduationCap },
+  ] }, { title: "More training tools", items: [
+    { href: "/trainer/classes", label: "In-service classes", icon: GraduationCap },
+    { href: "/app/course-assignments", label: "Assignments", icon: FileCheck },
+    { href: "/app/training-matrix", label: "Training matrix", icon: Grid },
+    { href: "/app/training-plans", label: "Training plans", icon: ListChecks },
+    { href: "/app/pending-approvals", label: "Pending approvals", icon: ClipboardCheck },
+    { href: "/app/documents", label: "Documents", icon: Files },
+  ] }, { title: "Management", items: [
+    { href: "/app/facilities", label: "Facilities", icon: Building2 },
+    { href: "/app/invitations", label: "Invitations", icon: Send },
+    { href: "/app/users", label: "Users", icon: Users },
+    { href: "/app/settings", label: "Organization settings", icon: Settings },
   ] }, { title: "Support", items: [{ href: "/app/help", label: "Help", icon: HelpCircle }, { href: "/account/security", label: "Account security", icon: ShieldCheck }, { href: "/app/billing", label: "Access and subscription", icon: CreditCard }] }];
   const learnerSections: NavSection[] = [{ title: "My learning", items: [
     { href: "/me/courses", label: "My Learning", icon: GraduationCap },
@@ -634,16 +635,22 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     }))
     .filter((section) => section.items.length > 0);
 
-  const toggleSection = (title: string) => {
+  const toggleSection = (title: string, isOpen: boolean) => {
     setCollapsedSections((prev) => {
       const next = new Set(prev);
-      if (next.has(title)) next.delete(title); else next.add(title);
+      if (isOpen) next.add(title); else next.delete(title);
       return next;
+    });
+    setManuallyClosed(prev => {
+      const titles = new Set(prev.location === navigationLocation ? prev.titles : []);
+      if (isOpen) titles.add(title); else titles.delete(title);
+      return { location: navigationLocation, titles };
     });
   };
 
   const flattenedNavItems = navSections.flatMap((section) => section.items);
-  const currentNavItem = flattenedNavItems.find((item) => isNavItemActive(item, navigationLocation));
+  const currentHref = activeNavigationHref(flattenedNavItems, navigationLocation);
+  const currentNavItem = flattenedNavItems.find((item) => item.href === currentHref);
   const pinnedPages = new Set(navigation.favoritePaths);
   const isCurrentPagePinned = !!currentNavItem && pinnedPages.has(currentNavItem.href);
   const toggleCurrentPagePin = () => {
@@ -698,11 +705,15 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       .map((section) => ({
         ...section,
         items: isFiltering
-          ? section.items.filter((item) => item.label.toLowerCase().includes(trimmedFilter))
+          ? section.items.filter((item) => navigationMatchesQuery(item, trimmedFilter, section.title,
+            APP_PAGES.find(page => page.path === item.href.split("?")[0])?.keywords))
           : section.items,
       }))
       .filter((section) => section.items.length > 0),
   ];
+  const activeHref = activeNavigationHref([
+    ...flattenedNavItems, ...(recentSection?.items ?? []),
+  ], navigationLocation);
 
   return (
     <>
@@ -725,6 +736,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             onClick={toggleCurrentPagePin}
             className="w-full h-8 px-3 rounded-lg bg-sidebar-accent/30 hover:bg-sidebar-accent/50 text-[12px] font-medium text-sidebar-foreground/70 flex items-center gap-2 transition-colors"
             aria-pressed={isCurrentPagePinned}
+            disabled={navigation.setFavorites.isPending}
           >
             <Star className={cn("h-3.5 w-3.5", isCurrentPagePinned && "fill-sidebar-primary text-sidebar-primary")} />
             {isCurrentPagePinned ? "Unpin current page" : "Pin current page"}
@@ -738,29 +750,34 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             onKeyDown={(e) => { if (e.key === "Escape") setFilter(""); }}
             placeholder="Find a page..."
             aria-label="Filter navigation"
-            className="w-full h-8 pl-8 pr-2 rounded-lg bg-sidebar-accent/40 border border-transparent text-[13px] text-sidebar-foreground placeholder:text-sidebar-foreground/40 focus:outline-none focus:ring-1 focus:ring-sidebar-primary/50"
+            className="w-full h-9 pl-8 pr-9 rounded-lg bg-sidebar-accent/40 border border-transparent text-[13px] text-sidebar-foreground placeholder:text-sidebar-foreground/40 focus:outline-none focus:ring-1 focus:ring-sidebar-primary/50"
           />
+          {filter && <button type="button" aria-label="Clear navigation search" onClick={() => setFilter("")}
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-sidebar-primary"><X className="h-4 w-4" /></button>}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 py-3 [scrollbar-gutter:stable]">
+      <nav aria-label="Main navigation" className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-gutter:stable]">
         {visibleSections.length === 0 && (
-          <p className="px-3 py-6 text-[13px] text-sidebar-foreground/40 text-center">No pages match "{filter.trim()}"</p>
+          <p role="status" className="px-3 py-6 text-[13px] text-sidebar-foreground/70 text-center">No pages match "{filter.trim()}". Try another name or clear the search.</p>
         )}
         {visibleSections.map((section, si) => {
-          const containsActiveItem = section.items.some((item) => isNavItemActive(item, navigationLocation));
-          const isOpen = isFiltering || !section.title || containsActiveItem || !collapsedSections.has(section.title);
+          const containsActiveItem = section.items.some((item) => item.href === activeHref || item.href === currentHref);
+          const explicitlyClosed = manuallyClosed.location === navigationLocation && manuallyClosed.titles.has(section.title ?? "");
+          const isOpen = isFiltering || !section.title || (containsActiveItem && !explicitlyClosed) || !collapsedSections.has(section.title);
           const sectionKey = section.title ?? section.items[0]?.href ?? "dashboard";
+          const sectionId = `${navId}-${sectionKey.replace(/[^a-z0-9]/gi, "-")}`;
           return (
             <div key={sectionKey} className={cn(si > 0 && "mt-3")}>
               {section.title && (
                 <button
                   type="button"
-                  onClick={() => toggleSection(section.title!)}
+                  onClick={() => toggleSection(section.title!, isOpen)}
                   aria-expanded={isOpen}
-                  className="w-full flex items-center justify-between gap-2 px-3 py-1.5 mb-1 rounded-md hover:bg-sidebar-accent/40 transition-colors"
+                  aria-controls={sectionId}
+                  className="w-full min-h-9 flex items-center justify-between gap-2 px-3 py-1.5 mb-1 rounded-md hover:bg-sidebar-accent/40 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-sidebar-primary"
                 >
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-sidebar-foreground/70">
                     {section.title}
                   </span>
                   <ChevronDown className={cn(
@@ -769,27 +786,26 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                   )} />
                 </button>
               )}
-              {isOpen && (
-                <div className="space-y-0.5">
+                <div id={sectionId} hidden={!isOpen} className="space-y-0.5">
                   {section.items.map((item) => {
-                    const isActive = isNavItemActive(item, navigationLocation);
-                    const isExactActive = location === item.href;
+                    const isActive = item.href === activeHref || item.href === currentHref;
                     const Icon = item.icon;
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
+                        aria-current={isActive ? (item.href === activeHref ? "page" : "location") : undefined}
                         onClick={() => { setFilter(""); onNavigate?.(); }}
                         className={cn(
-                          "group flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 text-[13px] font-medium relative",
-                          (isActive || isExactActive)
+                          "group flex min-h-10 items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 text-[13px] font-medium relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-sidebar-primary",
+                          isActive
                             ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
                             : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
                         )}
                       >
                         <Icon className={cn(
                           "h-[18px] w-[18px] shrink-0 transition-colors",
-                          (isActive || isExactActive) ? "text-sidebar-primary" : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground/60"
+                          isActive ? "text-sidebar-primary" : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground/60"
                         )} />
                         <span className="flex-1">{item.label}</span>
                         {item.viewOnly && (
@@ -800,20 +816,19 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                             View
                           </span>
                         )}
-                        {(isActive || isExactActive) && (
+                        {isActive && (
                           <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/30" />
                         )}
                       </Link>
                     );
                   })}
                 </div>
-              )}
             </div>
           );
         })}
-      </div>
+      </nav>
 
-      <div className="px-4 py-4 border-t border-sidebar-border">
+      <div className="shrink-0 px-4 py-4 border-t border-sidebar-border">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -867,7 +882,7 @@ export function Sidebar() {
   if (!user) return null;
 
   return (
-    <aside className="hidden md:flex h-screen w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <aside className="hidden md:flex h-full min-h-0 w-[260px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <SidebarNav />
     </aside>
   );
@@ -883,12 +898,13 @@ export function MobileSidebar({
 }) {
   const { user } = useAuth();
   const [location] = useLocation();
+  const search = useSearch();
 
   // Close the drawer on any route change (covers nav taps and programmatic navigation).
   React.useEffect(() => {
     onOpenChange(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location]);
+  }, [location, search]);
 
   if (!user) return null;
 
@@ -898,6 +914,8 @@ export function MobileSidebar({
         side="left"
         className="w-[280px] max-w-[85vw] p-0 bg-sidebar text-sidebar-foreground border-sidebar-border flex flex-col gap-0"
       >
+        <SheetTitle className="sr-only">Navigation menu</SheetTitle>
+        <SheetDescription className="sr-only">Find a page, choose a workspace, or open your account menu.</SheetDescription>
         <SidebarNav onNavigate={() => onOpenChange(false)} />
       </SheetContent>
     </Sheet>

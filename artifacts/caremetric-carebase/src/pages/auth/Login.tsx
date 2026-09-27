@@ -111,19 +111,19 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden">
+    <main className="min-h-screen w-full flex items-center justify-center relative overflow-hidden py-8">
       <AuthBackground />
 
       <div className="w-full max-w-[420px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
-          <Link href="/" aria-label="CareMetric CareBase home">
+          <Link href="/" aria-label="CareMetric home">
             <LogoMark className="h-20 w-20" />
           </Link>
           <div className="space-y-1.5">
             <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
               <BrandName />
             </h1>
-            <p className="text-sm text-muted-foreground">Operations &amp; Compliance Platform</p>
+            <p className="text-sm text-muted-foreground">{import.meta.env.VITE_CAREMETRIC_MODULES === "train" ? "Facility staff training and education" : "Operations & Compliance Platform"}</p>
           </div>
         </div>
 
@@ -141,6 +141,8 @@ export default function Login() {
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="username"
+                  autoCapitalize="none"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -159,6 +161,7 @@ export default function Login() {
                 <Input
                   id="password"
                   type="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loginMutation.isPending || ssoMutation.isPending}
@@ -216,6 +219,6 @@ export default function Login() {
           55 Pa. Code Chapters 2600 &amp; 2800 Compliance Platform
         </p>
       </div>
-    </div>
+    </main>
   );
 }

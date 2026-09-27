@@ -4,12 +4,15 @@ import { Button } from "@/components/ui/button";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/lib/auth";
 import { homePathForRole } from "@/lib/appDomains";
+import { useProductModuleAccess } from "@/lib/productModuleAccess";
+import { usePageTitle } from "@/lib/pageTitle";
 import { AlertCircle, ArrowLeft, Home, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 
 export default function NotFound() {
   const { user, isLoading, isAuthenticated } = useAuth();
-  const homePath = homePathForRole(user?.role) ?? "/";
+  const moduleAccess = useProductModuleAccess();
+  const homePath = moduleAccess.homePath ?? homePathForRole(user?.role) ?? "/";
 
   // Unknown routes are served the homepage HTML with a 200 status (soft 404), so tell
   // crawlers not to index them. usePageMeta isn't used here because it sets a canonical
@@ -17,7 +20,7 @@ export default function NotFound() {
   // not restored on unmount -- the next page's meta hook overwrites it -- but the robots
   // meta is removed so it can't leak onto real pages.
   useEffect(() => {
-    document.title = "Page not found — CareMetric CareBase";
+    document.title = `Page not found — CareMetric ${import.meta.env.VITE_APP_PRODUCT === "train" ? "Train" : "CareBase"}`;
     const robotsMeta = document.createElement("meta");
     robotsMeta.name = "robots";
     robotsMeta.content = "noindex";
@@ -27,7 +30,7 @@ export default function NotFound() {
     };
   }, []);
 
-  if (isLoading) {
+  if (isLoading || moduleAccess.isLoading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -62,7 +65,7 @@ export default function NotFound() {
   );
 
   if (isAuthenticated) {
-    return <MainLayout>{content}</MainLayout>;
+    return <MainLayout><NotFoundTitle />{content}</MainLayout>;
   }
 
   return (
@@ -70,4 +73,9 @@ export default function NotFound() {
       {content}
     </div>
   );
+}
+
+function NotFoundTitle() {
+  usePageTitle("Page not found");
+  return null;
 }

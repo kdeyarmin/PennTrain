@@ -22,6 +22,7 @@ import { useNotificationReach } from "@/hooks/useNotificationReach";
 import { useIdentitySecurityPolicy, useSetPrivilegedSessionWindow } from "@/hooks/useIdentitySecurityPolicy";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { replaceOrganizationLogo } from "@/lib/organizationLogo";
+import { normalizeHiddenNavigationSections, TAILORABLE_NAVIGATION_SECTIONS } from "@/lib/navigationSections";
 
 const DEFAULT_WARNING_DAYS = 90;
 const LOGO_BUCKET = "org-branding";
@@ -45,15 +46,6 @@ const EMPTY_FORM: SettingsFormData = {
   kioskIdleTimeoutMinutes: "5",
   hiddenNavigationSections: [],
 };
-
-const TAILORABLE_SECTIONS = [
-  "Staff Training & Requirements",
-  "Competency & Qualifications",
-  "Credentialing & Screening",
-  "Residents",
-  "Incidents & Alerts",
-  "Reporting & Documents",
-] as const;
 
 function parseDefaultWarningDays(json: unknown): number {
   if (json && typeof json === "object" && !Array.isArray(json) && "default" in (json as Record<string, unknown>)) {
@@ -121,7 +113,7 @@ export default function Settings() {
         defaultWarningDays: String(parseDefaultWarningDays(settings.default_warning_days)),
         idleTimeoutMinutes: String(settings.idle_timeout_minutes ?? 30),
         kioskIdleTimeoutMinutes: String(settings.kiosk_idle_timeout_minutes ?? 5),
-        hiddenNavigationSections: settings.hidden_navigation_sections ?? [],
+        hiddenNavigationSections: normalizeHiddenNavigationSections(settings.hidden_navigation_sections),
       } : EMPTY_FORM);
     }
     setLogoPath(settings?.branding_logo_path ?? null);
@@ -221,7 +213,7 @@ export default function Settings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
           <p className="text-muted-foreground">Manage organization and facility settings</p>
@@ -245,7 +237,25 @@ export default function Settings() {
         </QueryLoading>
       ) : (
         <>
-          <Card>
+          <nav aria-label="Settings sections" className="rounded-lg border bg-muted/30 p-4">
+            <p className="mb-2 text-sm font-medium">Jump to a section</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+              <a href="#settings-branding" className="text-primary underline underline-offset-4">Branding</a>
+              <a href="#settings-notifications" className="text-primary underline underline-offset-4">Notifications</a>
+              {organization && <a href="#settings-ai" className="text-primary underline underline-offset-4">AI features</a>}
+              <a href="#settings-deliveries" className="text-primary underline underline-offset-4">Delivery history</a>
+              <a href="#settings-compliance" className="text-primary underline underline-offset-4">Compliance</a>
+              <a href="#settings-sessions" className="text-primary underline underline-offset-4">Session security</a>
+              {user?.organizationId && <a href="#settings-identity" className="text-primary underline underline-offset-4">Privileged access</a>}
+              <a href="#settings-navigation" className="text-primary underline underline-offset-4">Sidebar sections</a>
+              {user?.role === "org_admin" && <>
+                <a href="#settings-sandbox" className="text-primary underline underline-offset-4">{organization?.is_demo ? "Demo workspace" : "Training sandbox"}</a>
+                <a href="#settings-export" className="text-primary underline underline-offset-4">Organization export</a>
+              </>}
+            </div>
+          </nav>
+
+          <Card id="settings-branding" tabIndex={-1} className="scroll-mt-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Palette className="h-5 w-5" />
@@ -291,7 +301,7 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="settings-notifications" tabIndex={-1} className="scroll-mt-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bell className="h-5 w-5" />
@@ -365,7 +375,7 @@ export default function Settings() {
           </Card>
 
           {organization && (
-            <Card>
+            <Card id="settings-ai" tabIndex={-1} className="scroll-mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5" />
@@ -423,7 +433,7 @@ export default function Settings() {
             </Card>
           )}
 
-          <Card>
+          <Card id="settings-deliveries" tabIndex={-1} className="scroll-mt-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Send className="h-5 w-5" />
@@ -476,7 +486,7 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="settings-compliance" tabIndex={-1} className="scroll-mt-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
@@ -537,7 +547,7 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="settings-sessions" tabIndex={-1} className="scroll-mt-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5" />Shared-device session security</CardTitle>
               <CardDescription>Soft-lock an unattended session without discarding the user’s work. Kiosk routes use the shorter timeout.</CardDescription>
@@ -558,7 +568,7 @@ export default function Settings() {
               Gated on having an organization at all: a platform admin viewing this page without
               one has no row to read and would otherwise get a card with an empty body. */}
           {user?.organizationId && (
-          <Card>
+          <Card id="settings-identity" tabIndex={-1} className="scroll-mt-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><LockKeyhole className="h-5 w-5" />Multi-factor and privileged access</CardTitle>
               <CardDescription>
@@ -655,21 +665,21 @@ export default function Settings() {
           </Card>
           )}
 
-          <Card>
+          <Card id="settings-navigation" tabIndex={-1} className="scroll-mt-6">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><PanelLeftClose className="h-5 w-5" />Navigation module tailoring</CardTitle>
-              <CardDescription>Hide modules your facilities do not use. This changes navigation only; server-side entitlements and permissions remain authoritative.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><PanelLeftClose className="h-5 w-5" />Sidebar sections</CardTitle>
+              <CardDescription>Choose which sections appear in your organization's management sidebar. Turn a section on to show it, then select Save Changes. This only changes the menu; access to pages stays the same.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2">
-              {TAILORABLE_SECTIONS.map((section) => {
-                const hidden = form.hiddenNavigationSections.includes(section);
-                return <div key={section} className="flex items-center justify-between rounded-lg border p-3"><span className="text-sm font-medium">{section}</span><Switch checked={!hidden} onCheckedChange={(visible) => field("hiddenNavigationSections", visible ? form.hiddenNavigationSections.filter((item) => item !== section) : Array.from(new Set([...form.hiddenNavigationSections, section])))} disabled={!canManage} aria-label={`${hidden ? "Show" : "Hide"} ${section}`} /></div>;
+              {TAILORABLE_NAVIGATION_SECTIONS.map(({ title, description }) => {
+                const hidden = form.hiddenNavigationSections.includes(title);
+                return <div key={title} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div className="min-w-0"><p className="text-sm font-medium">{title}</p><p className="text-xs text-muted-foreground">{description}</p></div><Switch checked={!hidden} onCheckedChange={(visible) => field("hiddenNavigationSections", visible ? form.hiddenNavigationSections.filter((item) => item !== title) : Array.from(new Set([...form.hiddenNavigationSections, title])))} disabled={!canManage} aria-label={`${hidden ? "Show" : "Hide"} ${title}`} /></div>;
               })}
             </CardContent>
           </Card>
 
           {user?.role === "org_admin" && organization?.is_demo && (
-            <Card className="border-blue-200 bg-blue-50/40">
+            <Card id="settings-sandbox" tabIndex={-1} className="scroll-mt-6 border-blue-200 bg-blue-50/40">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><RefreshCw className="h-5 w-5" />Public demo workspace</CardTitle>
                 <CardDescription>This organization contains fictional starter data. Restoring the baseline repairs or recreates the guided examples without sending email, SMS, or push notifications.</CardDescription>
@@ -695,7 +705,7 @@ export default function Settings() {
           )}
 
           {user?.role === "org_admin" && !organization?.is_demo && (
-            <Card>
+            <Card id="settings-sandbox" tabIndex={-1} className="scroll-mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><FlaskConical className="h-5 w-5" />Training sandbox</CardTitle>
                 <CardDescription>A visually flagged facility with synthetic employees and residents. It is excluded from binders, reports, and peer benchmarks.</CardDescription>
@@ -708,7 +718,7 @@ export default function Settings() {
           )}
 
           {user?.role === "org_admin" && (
-            <Card>
+            <Card id="settings-export" tabIndex={-1} className="scroll-mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5" />Complete organization export</CardTitle>
                 <CardDescription>Request a ZIP containing per-table CSVs and a document manifest with short-lived signed URLs. Completed archives expire after seven days.</CardDescription>
@@ -740,6 +750,15 @@ export default function Settings() {
                 })}</div>
               </CardContent>
             </Card>
+          )}
+
+          {canManage && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm text-muted-foreground">Save notification, compliance, session timeout and sidebar preferences.</p>
+              <Button onClick={handleSave} disabled={saving || hydratedOrganizationId.current !== user?.organizationId}>
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           )}
 
           {!canManage && (

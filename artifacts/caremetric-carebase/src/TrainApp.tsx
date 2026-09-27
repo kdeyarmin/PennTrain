@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, Link } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,8 +11,11 @@ import { FullPageLoading, MaintenanceGatedRoute, ProtectedRoute, type UserRole }
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { ProductTelemetry } from "@/components/ProductTelemetry";
 import { TrainLanding } from "@/pages/TrainLanding";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const Security = lazy(() => import("@/pages/marketing/Security"));
 const TrainingReports = lazy(() => import("@/pages/admin/TrainingReports"));
 const Announcements = lazy(() => import("@/pages/app/Announcements"));
 const Billing = lazy(() => import("@/pages/app/Billing"));
@@ -71,12 +74,23 @@ const ORG_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer", "audi
 const PENDING_APPROVAL_ROLES: UserRole[] = ["org_admin", "facility_manager", "trainer"];
 const PLATFORM_ADMIN: UserRole[] = ["platform_admin"];
 
+function TrainAdministration() {
+  return <div className="mx-auto max-w-4xl space-y-6">
+    <div><h1 className="text-2xl font-bold tracking-tight">Train administration</h1><p className="mt-2 text-muted-foreground">Review facility learning progress or open the owner console to manage organizations and plans.</p></div>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Card><CardHeader><CardTitle>Facility training reports</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Review enrollment, completion, and certificates across facilities.</p><Button asChild><Link href="/admin/training-reports">Open training reports</Link></Button></CardContent></Card>
+      <Card><CardHeader><CardTitle>Organizations &amp; plans</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Manage customer organizations, facility access, and module terms in CareBase.</p><Button asChild variant="outline"><a href="https://cmcarebase.com/admin/organizations">Open owner console</a></Button></CardContent></Card>
+    </div>
+    <Button asChild variant="outline"><Link href="/me/courses">My training</Link></Button>
+  </div>;
+}
+
 function TrainHome() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const access = useProductModuleAccess();
   if (isLoading || access.isLoading) return <FullPageLoading label="Loading CareMetric Train" />;
   if (!isAuthenticated) return <TrainLanding />;
-  if (user?.role === "platform_admin") return <div className="p-8"><h1 className="text-2xl font-bold">CareMetric Train administration</h1><p className="my-4">Create complimentary facilities and manage module terms in the owner console.</p><a className="underline" href="https://cmcarebase.com/admin/organizations">Open owner console</a></div>;
+  if (user?.role === "platform_admin") return <Redirect to="/admin" />;
   return <Redirect to={access.homePath || "/login"} />;
 }
 
@@ -97,8 +111,9 @@ function TrainRouter() {
       <Route path="/checkin">{() => <MaintenanceGatedRoute component={CheckIn} />}</Route>
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
+      <Route path="/security" component={Security} />
       <Route path="/admin">
-        {() => <ProtectedRoute component={AdminDashboard} allowedRoles={PLATFORM_ADMIN} />}
+        {() => <ProtectedRoute component={TrainAdministration} allowedRoles={PLATFORM_ADMIN} />}
       </Route>
       <Route path="/admin/training-reports">
         {() => <ProtectedRoute component={TrainingReports} allowedRoles={PLATFORM_ADMIN} />}
@@ -232,7 +247,7 @@ function TrainRouter() {
       </Route>
       <Route path="/app/help/tickets/:id">{() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={ORG_ROLES} />}</Route>
       <Route path="/me/help/tickets/:id">{() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={["employee"]} />}</Route>
-      <Route component={TrainHome} />
+      <Route component={NotFound} />
     </Switch></Suspense>;
 }
 

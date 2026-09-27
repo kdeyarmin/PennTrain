@@ -104,6 +104,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const navigation = useNavigationWorkspace();
   const lastRecordedPath = useRef<string | null>(null);
+  const mainContent = useRef<HTMLElement>(null);
+
+  // The app scrolls inside main rather than window. A new page should begin at its
+  // heading; query-only filter/tab changes retain the reader's place.
+  useEffect(() => {
+    mainContent.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [location]);
 
   useEffect(() => {
     const path = location.split(/[?#]/, 1)[0];
@@ -174,7 +181,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     // manager's, and it is not AAL2 -- with the exit rendered underneath it and therefore not on
     // screen at all. Out here the way back is always visible, and the timer keeps running whichever
     // gate is showing.
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
+    <div className="flex h-dvh w-full flex-col overflow-hidden bg-background">
       <ImpersonationBanner />
       <div className="min-h-0 flex-1 overflow-auto">
     <MfaPolicyGate>
@@ -196,7 +203,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           <OfflineSyncManager />
         </RouteErrorBoundary>
         <Header onOpenMobileNav={() => setMobileNavOpen(true)} />
-        <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto bg-background focus:outline-none">
+        <main ref={mainContent} id="main-content" tabIndex={-1} className="min-h-0 flex-1 overflow-auto bg-background focus:outline-none">
           <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
             {/* Own boundary: a crash in the guidance panel must never blank the
                 route content (and vice versa) -- previously it rendered outside

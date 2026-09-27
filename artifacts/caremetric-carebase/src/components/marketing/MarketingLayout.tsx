@@ -19,6 +19,9 @@ import {
   stripBase,
 } from "@/lib/publicPaths";
 import { MarketingAIBot } from "@/components/marketing/MarketingAIBot";
+import { TrainingPublicFooter, TrainingPublicHeader } from "@/components/marketing/TrainingPublicChrome";
+
+const TRAINING_ONLY = import.meta.env.VITE_CAREMETRIC_MODULES === "train";
 
 /**
  * Wouter doesn't reset scroll between route changes -- handle it ourselves, in
@@ -146,10 +149,14 @@ function hashNavClickHandler(href: string): ((event: React.MouseEvent) => void) 
   const targetPath = href.slice(0, hashIndex) || "/";
   const targetId = href.slice(hashIndex + 1);
   return (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if (stripBase(window.location.pathname) !== targetPath) return;
     event.preventDefault();
-    window.history.pushState(null, "", href);
-    document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth" });
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    window.history.pushState(null, "", `${base}${href}`);
+    document.getElementById(targetId)?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
   };
 }
 
@@ -175,7 +182,7 @@ function NavAnchorLink({
       aria-current={ariaCurrent}
       onClick={(event) => {
         hashClick?.(event);
-        onNavigate?.();
+        if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) onNavigate?.();
       }}
     >
       {children}
@@ -239,6 +246,8 @@ function MarketingHeader() {
   useEffect(() => {
     setMenuOpen(false);
   }, [location]);
+
+  if (TRAINING_ONLY) return <TrainingPublicHeader />;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur-md">
@@ -322,9 +331,9 @@ function MarketingHeader() {
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[280px] max-w-[85vw]">
+          <SheetContent side="right" className="w-[280px] max-w-[85vw] overflow-y-auto overscroll-contain">
             <SheetTitle className="sr-only">Navigation menu</SheetTitle>
-            <nav className="mt-8 flex flex-col gap-1">
+            <nav aria-label="Mobile primary" className="mt-8 flex flex-col gap-1">
               {/* Mobile lists everything flat (no dropdowns) -- the product
                   pages that fold into the desktop "Product" menu plus the
                   inline links (Pricing). */}
@@ -406,6 +415,7 @@ function MarketingHeader() {
 }
 
 function MarketingFooter() {
+  if (TRAINING_ONLY) return <TrainingPublicFooter />;
   const footerLink = "text-white/70 hover:text-white hover:underline";
   return (
     <footer className="bg-[var(--mkt-navy-950)] text-white/75">
@@ -442,7 +452,7 @@ function MarketingFooter() {
             <a href="https://cmbreathe.com" target="_blank" rel="noreferrer" className={footerLink}>CareMetric Breathe</a>
             <Link href="/login" className={footerLink}>Log in</Link>
             <Link href="/signup" className={footerLink}>Start free trial</Link>
-            <Link href="/#start" className={footerLink}>Get started</Link>
+            <NavAnchorLink href="/#start" className={footerLink}>Get started</NavAnchorLink>
           </nav>
         </div>
 
@@ -475,7 +485,7 @@ export function MarketingLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <MarketingFooter />
-      <MarketingAIBot />
+      {!TRAINING_ONLY && <MarketingAIBot />}
     </div>
   );
 }

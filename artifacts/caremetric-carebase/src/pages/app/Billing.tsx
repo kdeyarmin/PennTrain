@@ -3,6 +3,7 @@ import { CreditCard, Network } from "lucide-react";
 import { BillingPlanSelector } from "@/components/billing/BillingPlanSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useProductModuleAccess } from "@/lib/productModuleAccess";
 
 /**
  * Org-admin self-serve billing surface. Plan selection and Stripe checkout live
@@ -11,6 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  * /app/enterprise → Billing.
  */
 export default function Billing() {
+  const moduleAccess = useProductModuleAccess();
+  const showEnterprise = moduleAccess.canAccessPath("/app/enterprise");
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -23,12 +26,12 @@ export default function Billing() {
             Choose CareMetric Train or CareBase, manage your subscription, and open the Stripe billing portal.
           </p>
         </div>
-        <Button asChild variant="outline">
+        {showEnterprise && <Button asChild variant="outline">
           <Link href="/app/enterprise">
             <Network className="mr-2 h-4 w-4" />
             Enterprise foundation
           </Link>
-        </Button>
+        </Button>}
       </div>
 
       <Card className="border-primary/15 bg-gradient-to-br from-primary/5 via-background to-background">
@@ -39,11 +42,11 @@ export default function Billing() {
           </CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Need SSO, SCIM, entitlement overrides, or portfolio scope? Use{" "}
+          {showEnterprise ? <>For organization-wide plans and access settings, open{" "}
           <Link href="/app/enterprise" className="font-medium text-foreground underline underline-offset-2">
             Enterprise foundation
           </Link>
-          .
+          .</> : <>Need help choosing a plan? <Link href="/app/help" className="font-medium text-foreground underline underline-offset-2">Contact support</Link>.</>}
         </CardContent>
       </Card>
 
