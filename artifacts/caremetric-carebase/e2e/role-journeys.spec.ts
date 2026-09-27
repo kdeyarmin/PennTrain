@@ -244,10 +244,19 @@ test.describe("authenticated role journeys", () => {
             ]);
             expect(response.ok()).toBe(true);
             expect(Object.keys(response.request().postDataJSON()).sort()).toEqual([field, "organization_id", "profile_id"].sort());
+            return response;
           };
-          await saveField("qualification_path", "hundred_hour_course", async () => {
+          const firstSave = await saveField("qualification_path", "hundred_hour_course", async () => {
             await page.getByLabel("Qualification Path", { exact: true }).click();
             await page.getByRole("option", { name: "100-Hour Administrator Course", exact: true }).click();
+          });
+          // Observe through the same MFA-verified browser session. This table intentionally
+          // has no service-role SELECT grant; setup credentials are not its read authority.
+          const authorization = await firstSave.request().headerValue("authorization");
+          if (!authorization) throw new Error("The qualification save did not include its authenticated session.");
+          const qualificationReader = createClient(supabaseUrl, anonKey, {
+            auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+            global: { headers: { Authorization: authorization } },
           });
           await saveField("hundred_hour_course_provider", "Journey provider", async () => {
             await page.getByLabel("Training Course Provider", { exact: true }).fill("Journey provider");
@@ -260,8 +269,8 @@ test.describe("authenticated role journeys", () => {
             await completedDate.blur();
             await expect(completedDate).not.toBeFocused();
           });
-          const saved = await admin.from("administrator_profiles").select("hundred_hour_course_provider,hundred_hour_course_completed_date")
-            .eq("profile_id", account.id).single();
+          const saved = await qualificationReader.from("administrator_profiles").select("hundred_hour_course_provider,hundred_hour_course_completed_date")
+            .eq("profile_id", account.id).eq("organization_id", organizationId).single();
           expect(saved.error).toBeNull();
           expect(saved.data).toEqual({ hundred_hour_course_provider: "Journey provider", hundred_hour_course_completed_date: "2026-09-01" });
           const competencyPassed = page.getByRole("checkbox", { name: "Competency test passed", exact: true });
@@ -275,8 +284,8 @@ test.describe("authenticated role journeys", () => {
             await page.getByLabel("Training Course Provider", { exact: true }).fill("");
             await page.getByLabel("Training Course Provider", { exact: true }).press("Tab");
           });
-          const cleared = await admin.from("administrator_profiles").select("hundred_hour_course_provider,hundred_hour_course_completed_date,competency_test_passed")
-            .eq("profile_id", account.id).single();
+          const cleared = await qualificationReader.from("administrator_profiles").select("hundred_hour_course_provider,hundred_hour_course_completed_date,competency_test_passed")
+            .eq("profile_id", account.id).eq("organization_id", organizationId).single();
           expect(cleared.error).toBeNull();
           expect(cleared.data).toEqual({ hundred_hour_course_provider: null, hundred_hour_course_completed_date: "2026-09-01", competency_test_passed: false });
         });
