@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DOCUMENT_TEMPLATES, TEMPLATE_CATEGORIES, getTemplateComplianceMetadata, searchTemplates } from "@/lib/documentTemplates";
@@ -27,12 +28,15 @@ export default function TemplateDocuments() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
+          type="search"
+          aria-label="Search templates"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search templates by title or code..."
           className="pl-9"
         />
       </div>
+      {isSearching && <Button size="sm" variant="outline" onClick={() => setQuery("")}>Clear search</Button>}
 
       {isSearching ? (
         <Card>
@@ -84,9 +88,9 @@ function TemplateList({ templates }: { templates: typeof DOCUMENT_TEMPLATES }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-xs font-mono">{t.code}</Badge>
-                <p className="font-medium text-sm truncate">{t.title}</p>
+                <p className="font-medium text-sm break-words">{t.title}</p>
               </div>
-              <p className="text-xs text-muted-foreground truncate mt-0.5">{t.description}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t.description}</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 {metadata.facilityTypes.map((facilityType) => <Badge key={facilityType} variant="secondary" className="text-[10px]">{facilityType === "ALR" ? "ALF" : facilityType}</Badge>)}
                 <Badge variant="outline" className="text-[10px]">{metadata.binderSection}</Badge>

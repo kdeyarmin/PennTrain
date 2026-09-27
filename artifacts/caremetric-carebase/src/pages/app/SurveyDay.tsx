@@ -539,7 +539,7 @@ function StaffRosterSection({ sessionId }: { sessionId: string }) {
           <Input
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search staff by name or title"
+            placeholder="Search staff by name or title" aria-label="Search survey staff roster"
             className="max-w-xs"
           />
           <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>

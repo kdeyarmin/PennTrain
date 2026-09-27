@@ -492,12 +492,12 @@ export default function SystemJobs() {
                         </Button>
                       )}
                       {job.operator_route ? (
-                        <Link href={job.operator_route}>
-                          <Button size="sm" variant="outline">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={job.operator_route}>
                             Open
                             <ExternalLink className="ml-2 h-3.5 w-3.5" />
-                          </Button>
-                        </Link>
+                          </Link>
+                        </Button>
                       ) : !recovery ? (
                         <span className="text-xs text-muted-foreground">
                           {job.retry_mode === "automatic" ? "Automatic retry" : "Runbook only"}

@@ -340,6 +340,7 @@ export default function Settings() {
                   </p>
                 </div>
                 <Switch
+                  aria-label="Email Notifications"
                   checked={form.emailNotificationsEnabled}
                   onCheckedChange={v => field("emailNotificationsEnabled", v)}
                   disabled={!canManage}
@@ -353,6 +354,7 @@ export default function Settings() {
                   </p>
                 </div>
                 <Switch
+                  aria-label="SMS Notifications"
                   checked={form.smsNotificationsEnabled}
                   onCheckedChange={v => field("smsNotificationsEnabled", v)}
                   disabled={!canManage}
@@ -366,6 +368,7 @@ export default function Settings() {
                   </p>
                 </div>
                 <Switch
+                  aria-label="Web Push Notifications"
                   checked={form.webPushNotificationsEnabled}
                   onCheckedChange={v => field("webPushNotificationsEnabled", v)}
                   disabled={!canManage}
@@ -394,6 +397,7 @@ export default function Settings() {
                     </p>
                   </div>
                   <Switch
+                    aria-label="Enable AI features"
                     checked={organization.ai_features_enabled}
                     onCheckedChange={(v) =>
                       updateOrganization(

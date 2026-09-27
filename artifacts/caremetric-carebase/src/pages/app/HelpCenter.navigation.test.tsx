@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { canAccessProductPath, withModuleDependencies, type ProductModuleId } from "@/lib/productModules";
 
 const h = vi.hoisted(() => ({
-  role: "org_admin", modules: new Set<string>(), articlePath: "/app/courses",
+  role: "org_admin", modules: new Set<string>(), articlePath: "/app/courses", tab: "faq", setFilters: vi.fn(),
   answer: {
     intent: "navigation", intentLabel: "Navigation", confidence: "high", answer: "Open a related page.",
     nextSteps: [], followUpQuestions: [],
@@ -16,6 +16,7 @@ vi.mock("react", async original => ({
   useState: (initial: unknown) => [initial === null ? h.answer : typeof initial === "function" ? initial() : initial, vi.fn()],
 }));
 vi.mock("wouter", () => ({ Link: "a", useLocation: () => ["/app/help", vi.fn()] }));
+vi.mock("@/hooks/useUrlState", () => ({ useUrlState: () => [{ tab: h.tab }, h.setFilters] }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { role: h.role } }) }));
 vi.mock("@/lib/productModuleAccess", () => ({ useProductModuleAccess: () => ({
   enabledModules: h.modules,
@@ -49,8 +50,19 @@ function renderChild(tree: ReactNode, name: string): ReactNode {
 function links(tree: ReactNode) { return nodes(tree).filter(node => node.type === "a").map(node => node.props.href); }
 function jobAide() { return renderChild(renderChild(HelpCenter(), "JobAidesTab"), "JobAideItem"); }
 
-beforeEach(() => { h.role = "org_admin"; h.modules = new Set(withModuleDependencies(["train"])); h.articlePath = "/app/courses"; });
+beforeEach(() => { h.role = "org_admin"; h.modules = new Set(withModuleDependencies(["train"])); h.articlePath = "/app/courses"; h.tab = "faq"; h.setFilters.mockClear(); });
 describe("help navigation follows the current workspace", () => {
+  it("reopens the Support tab from a ticket return link and persists tab changes", () => {
+    h.tab = "support";
+    const tabs = nodes(HelpCenter()).find(node => node.props.value === "support" && typeof node.props.onValueChange === "function")!;
+    expect(tabs).toBeDefined();
+    (tabs.props.onValueChange as (value: string) => void)("manual");
+    expect(h.setFilters).toHaveBeenCalledWith({ tab: "manual" });
+  });
+  it("recovers an unknown bookmarked tab to FAQ", () => {
+    h.tab = "unknown";
+    expect(nodes(HelpCenter()).some(node => node.props.value === "faq" && typeof node.props.onValueChange === "function")).toBe(true);
+  });
   it("retains enabled training links and omits disabled credential links in an answer", () => {
     expect(links(renderChild(HelpCenter(), "HelpCopilotPanel"))).toEqual(["/app/courses"]);
   });

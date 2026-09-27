@@ -215,7 +215,7 @@ export default function ComplianceCommandCenter() {
         )}
       </div>
 
-      <Tabs value={urlState.tab} onValueChange={(v) => set({ tab: v })}>
+      <Tabs value={["dashboard", "requirements", "templates"].includes(urlState.tab) ? urlState.tab : "dashboard"} onValueChange={(v) => set({ tab: v })}>
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="requirements">Requirements</TabsTrigger>
@@ -259,7 +259,7 @@ export default function ComplianceCommandCenter() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input className="w-56 pl-8" placeholder="Search requirements…" value={urlState.search} onChange={(e) => set({ search: e.target.value })} />
+              <Input className="w-56 pl-8" aria-label="Search compliance requirements" placeholder="Search requirements…" value={urlState.search} onChange={(e) => set({ search: e.target.value })} />
             </div>
             <Select value={urlState.facility} onValueChange={(v) => set({ facility: v, building: "all" })}>
               <SelectTrigger className="w-44" aria-label="Facility"><SelectValue /></SelectTrigger>

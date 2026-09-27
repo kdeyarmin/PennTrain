@@ -39,6 +39,7 @@ export default function DhsFormsLibrary() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search forms by title or description..."
+          aria-label="Search DHS forms"
           className="pl-9"
         />
       </div>
@@ -81,7 +82,7 @@ export default function DhsFormsLibrary() {
       )}
 
       <Card className="bg-muted/20">
-        <CardContent className="pt-6 text-xs text-muted-foreground space-y-1.5">
+        <CardContent className="pt-6 text-xs text-foreground space-y-1.5">
           <p>
             Mirrored from the{" "}
             <a href={DHS_FORMS_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
@@ -107,7 +108,7 @@ function FormList({ forms }: { forms: DhsForm[] }) {
   return (
     <div className="space-y-2">
       {forms.map((form) => (
-        <div key={form.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border">
+        <div key={form.id} className="flex flex-col items-start justify-between gap-3 p-3 rounded-lg border sm:flex-row">
           <div className="min-w-0">
             <p className="font-medium text-sm">{form.title}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{form.description}</p>
@@ -120,7 +121,7 @@ function FormList({ forms }: { forms: DhsForm[] }) {
               <Badge variant="outline" className="text-[10px]">{form.format}</Badge>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-start gap-1.5 sm:flex-col sm:items-end shrink-0">
             <Button asChild size="sm" variant="outline">
               <a href={form.url} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="mr-1.5 h-3.5 w-3.5" />

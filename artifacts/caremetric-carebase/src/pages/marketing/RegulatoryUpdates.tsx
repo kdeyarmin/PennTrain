@@ -107,7 +107,7 @@ function UpdateCard({ update }: { update: RegulatoryUpdate }) {
 export default function RegulatoryUpdates() {
   usePageMeta({ ...MARKETING_ROUTE_META["/regulatory-updates"], path: "/regulatory-updates" });
 
-  const { data: updates, isLoading, isError } = useRegulatoryUpdates({ limit: 100 });
+  const { data: updates, isLoading, isError, isFetching, refetch } = useRegulatoryUpdates({ limit: 100 });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   // Only show filter chips for categories that actually appear in the feed.
@@ -244,8 +244,9 @@ export default function RegulatoryUpdates() {
               <div className="rounded-2xl border border-[#e5eaf0] bg-white p-8 text-center">
                 <p className="text-sm font-medium text-[#0d2742]">Updates couldn&apos;t load right now.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Please refresh, or subscribe below to get them by email instead.
+                  Check your connection and try again, or subscribe below to get updates by email.
                 </p>
+                <Button className="mt-4" variant="outline" disabled={isFetching} onClick={() => void refetch()}>{isFetching ? "Trying again…" : "Try again"}</Button>
               </div>
             )}
 

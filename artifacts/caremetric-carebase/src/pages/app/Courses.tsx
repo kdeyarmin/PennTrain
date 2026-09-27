@@ -157,7 +157,7 @@ export default function Courses() {
           <h1>Training Content</h1>
           <p>Browse the system catalog and your organization's training content.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {user?.role === "platform_admin" && (
             <Tabs value={catalogScope} onValueChange={v => setCatalogScope(v as "system" | "all")}>
               <TabsList>
@@ -186,6 +186,7 @@ export default function Courses() {
           <div className="relative flex-1 min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              aria-label="Search training content"
               placeholder="Search training content..."
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -203,14 +204,14 @@ export default function Courses() {
               <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
-          {categories.length > 0 && (
+          {(categories.length > 0 || category !== "all") && (
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-48 h-9 bg-card" aria-label="Filter by category">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(c => (
+                {[...new Set([...categories, ...(category !== "all" ? [category] : [])])].sort().map(c => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
               </SelectContent>
@@ -231,8 +232,11 @@ export default function Courses() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No training content yet</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
+            <p className="text-sm font-medium text-muted-foreground">{search || status !== "all" || category !== "all" ? "No training content matches your filters" : "No training content yet"}</p>
+            {search || status !== "all" || category !== "all" ? <>
+              <p className="text-sm text-muted-foreground mt-1">Clear the filters to browse all available training content.</p>
+              <Button className="mt-3" variant="outline" onClick={() => { setSearch(""); setStatus("all"); setCategory("all"); }}>Clear filters</Button>
+            </> : <p className="text-sm text-muted-foreground mt-1">{canCreate ? "Create your first training item using New Training Content above." : "Your administrator will make training content available here."}</p>}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -275,7 +279,7 @@ export default function Courses() {
                       )}
                     </td>
                     <td>
-                      <Link href={courseDetailPath(course.id, user?.role)}>
+                      <Link href={courseDetailPath(course.id, user?.role)} aria-label={`Open ${documentDisplayName({ title: course.title, fallback: "course" })}`}>
                         <ChevronRight className="h-4 w-4 text-muted-foreground/40 cursor-pointer" />
                       </Link>
                     </td>

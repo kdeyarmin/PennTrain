@@ -277,7 +277,7 @@ export default function PchAlrOperations() {
         <CardContent>
           <div className="relative max-w-xl">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search medication, 2800.64, rights, emergency, binder..." className="pl-9" />
+            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search medication, 2800.64, rights, emergency, binder..." aria-label="Search compliance workflows" className="pl-9" />
           </div>
         </CardContent>
       </Card>

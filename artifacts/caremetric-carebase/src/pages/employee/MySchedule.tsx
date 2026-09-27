@@ -194,7 +194,7 @@ export default function MySchedule() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">My Schedule</h1>
-          <p className="text-muted-foreground">View shifts, request time off, claim eligible openings, and propose governed swaps.</p>
+          <p className="text-muted-foreground">View your shifts, request time off, find open shifts, and request a shift swap.</p>
         </div>
         <Button
           onClick={() => setTimeOffDraft({ startsAt: "", endsAt: "", reason: "" })}
@@ -255,8 +255,7 @@ export default function MySchedule() {
               <Repeat2 className="h-5 w-5" />Swap requests awaiting a decision ({(mySwaps.data ?? []).length})
             </CardTitle>
             <CardDescription>
-              Yours to withdraw until a manager decides. Withdrawing takes it out of their queue —
-              previously the only way out was asking them to deny something nobody wanted any more.
+              You can withdraw a pending swap request before your manager makes a decision.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -331,15 +330,13 @@ export default function MySchedule() {
           <CardHeader>
             <CardTitle>Recent time-off requests</CardTitle>
             <CardDescription>
-              Status is updated after a manager decision. A request still pending is yours to
-              withdraw — previously the only way out was asking a manager to deny something nobody
-              wanted any more.
+              Track your manager’s decision here. You can withdraw a request while it is pending.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {workspace.isError ? null : workspace.isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : timeOffRequests.length === 0 ? <p className="text-sm text-muted-foreground">No recent requests.</p> : timeOffRequests.map((request) => (
               <div key={String(request.id)} className="space-y-2 rounded-lg border p-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div><p className="font-medium">{new Date(String(request.starts_at)).toLocaleString()} – {new Date(String(request.ends_at)).toLocaleString()}</p><p className="text-muted-foreground">{String(request.request_type).replace(/_/g, " ")}</p></div>
                   <div className="flex items-center gap-2">
                     <Badge variant={request.status === "approved" ? "default" : "outline"}>{String(request.status)}</Badge>
@@ -392,7 +389,7 @@ export default function MySchedule() {
             <div className="space-y-2"><Label htmlFor="time-off-start">Starts</Label><Input id="time-off-start" type="datetime-local" value={timeOffDraft?.startsAt ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, startsAt: event.target.value } : draft)} /></div>
             <div className="space-y-2"><Label htmlFor="time-off-end">Ends</Label><Input id="time-off-end" type="datetime-local" value={timeOffDraft?.endsAt ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, endsAt: event.target.value } : draft)} /></div>
             {timeOffWindowError ? <p className="text-sm text-destructive">{timeOffWindowError}</p> : null}
-            <div className="space-y-2"><Label htmlFor="time-off-reason">Reason</Label><Textarea id="time-off-reason" value={timeOffDraft?.reason ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, reason: event.target.value } : draft)} maxLength={1000} /></div>
+            <div className="space-y-2"><Label htmlFor="time-off-reason">Reason (at least 5 characters)</Label><Textarea id="time-off-reason" value={timeOffDraft?.reason ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, reason: event.target.value } : draft)} maxLength={1000} /></div>
           </fieldset>
           <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setTimeOffDraft(null)}>Cancel</Button><Button onClick={() => void submitTimeOffRequest()} disabled={!timeOffDraft?.startsAt || !timeOffDraft.endsAt || Boolean(timeOffWindowError) || timeOffDraft.reason.trim().length < 5 || busy}>Submit request</Button></DialogFooter>
         </DialogContent>
@@ -403,7 +400,7 @@ export default function MySchedule() {
           <DialogHeader><DialogTitle>Request a shift swap</DialogTitle><DialogDescription>Your shift {selectedShift ? `on ${formatDateLabel(selectedShift.shift_date, { month: "short", day: "numeric" })}` : ""} will remain assigned until a manager approves the swap after rechecking both employees.</DialogDescription></DialogHeader>
           <fieldset disabled={busy} className="space-y-4 py-2">
             <div className="space-y-2"><Label htmlFor={`${__fieldIds}-swap-with`}>Swap with</Label><Select disabled={busy || candidates.isLoading || candidates.isFetching || candidates.isError} value={swapTargetId} onValueChange={setSwapTargetId}><SelectTrigger id={`${__fieldIds}-swap-with`}><SelectValue placeholder={candidates.isLoading ? "Loading eligible options..." : "Select a coworker's shift"} /></SelectTrigger><SelectContent>{(candidates.data ?? []).map((candidate) => <SelectItem key={candidate.assignment_id} value={candidate.assignment_id}>{candidate.employee_name} · {formatDateLabel(candidate.shift_date, { month: "short", day: "numeric" })} · {formatTimeLabel(candidate.start_time)}–{formatTimeLabel(candidate.end_time)}</SelectItem>)}</SelectContent></Select>{candidates.isError ? <QueryError what="shift swap candidates" error={candidates.error} onRetry={() => void candidates.refetch()} /> : null}{!candidates.isLoading && !candidates.isError && (candidates.data?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground">No candidate shifts are currently available at this facility.</p> : null}</div>
-            <div className="space-y-2"><Label htmlFor="swap-reason">Reason</Label><Textarea id="swap-reason" value={swapReason} onChange={(event) => setSwapReason(event.target.value)} maxLength={1000} /></div>
+            <div className="space-y-2"><Label htmlFor="swap-reason">Reason (at least 5 characters)</Label><Textarea id="swap-reason" value={swapReason} onChange={(event) => setSwapReason(event.target.value)} maxLength={1000} /></div>
           </fieldset>
           <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setSwapAssignmentId(null)}>Cancel</Button><Button onClick={() => void submitSwapRequest()} disabled={!candidateReady || !selectedShift || shiftsError || swapReason.trim().length < 5 || busy}>Submit swap</Button></DialogFooter>
         </DialogContent>

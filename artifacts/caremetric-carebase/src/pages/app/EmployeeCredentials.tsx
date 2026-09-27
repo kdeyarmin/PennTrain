@@ -221,7 +221,7 @@ export default function EmployeeCredentials() {
 
   const [filters, setFilters] = useUrlState(CREDENTIALS_FILTER_DEFAULTS);
   const { facilityFilter, employeeFilter, statusFilter } = filters;
-  const page = Math.max(1, Number(filters.page) || 1);
+  const requestedPage = Math.max(1, Math.floor(Number(filters.page)) || 1);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<EmployeeCredential | null>(null);
@@ -279,6 +279,7 @@ export default function EmployeeCredentials() {
     .filter((c): c is EmployeeCredential => !!c);
   const sorted = [...allCredentials].sort((a, b) => (a.expiration_date ?? "9999").localeCompare(b.expiration_date ?? "9999"));
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
   const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const openCreate = () => {
@@ -444,7 +445,7 @@ export default function EmployeeCredentials() {
 
       <div className="premium-card">
         <div className="filter-bar">
-          <Select value={facilityFilter} onValueChange={(v) => setFilters({ facilityFilter: v, page: "1" })}>
+          <Select value={facilityFilter} onValueChange={(v) => setFilters({ facilityFilter: v, employeeFilter: "all", page: "1" })}>
             <SelectTrigger className="w-48 h-9 bg-card" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Facilities</SelectItem>
@@ -455,7 +456,7 @@ export default function EmployeeCredentials() {
             <SelectTrigger className="w-48 h-9 bg-card" aria-label="Employee"><SelectValue placeholder="All Employees" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Employees</SelectItem>
-              {(employees ?? []).map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
+              {(employees ?? []).filter(e => facilityFilter === "all" || e.facility_id === facilityFilter).map((e) => <SelectItem key={e.id} value={e.id}>{e.last_name}, {e.first_name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={(v) => setFilters({ statusFilter: v, page: "1" })}>
@@ -482,8 +483,9 @@ export default function EmployeeCredentials() {
             <ShieldCheck className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No credentials found</p>
             <p className="text-xs text-muted-foreground/60 mt-1">
-              {canManage ? "Add a credential to get started." : "Try adjusting your filters."}
+              {facilityFilter !== "all" || employeeFilter !== "all" || statusFilter !== "all" ? "Try adjusting your filters to find existing credentials." : canManage ? "Add a credential to get started." : "Your facility administrator can add credentials here."}
             </p>
+            {(facilityFilter !== "all" || employeeFilter !== "all" || statusFilter !== "all") && <Button className="mt-3" variant="outline" size="sm" onClick={() => setFilters({ facilityFilter: "all", employeeFilter: "all", statusFilter: "all", page: "1" })}>Clear filters</Button>}
           </div>
         ) : (
           <>
@@ -535,16 +537,16 @@ export default function EmployeeCredentials() {
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between px-5 py-4 border-t border-border/60">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
                 Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sorted.length)}</span> of {sorted.length}
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setFilters({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
+                <Button variant="outline" size="sm" className="h-8" aria-label="Previous page" onClick={() => setFilters({ page: String(Math.max(1, page - 1)) })} disabled={page === 1}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-[13px] text-muted-foreground px-2">Page {page} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-8" onClick={() => setFilters({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
+                <Button variant="outline" size="sm" className="h-8" aria-label="Next page" onClick={() => setFilters({ page: String(Math.min(totalPages, page + 1)) })} disabled={page === totalPages}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

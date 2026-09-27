@@ -746,7 +746,7 @@ export default function ValueCenter() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap items-end gap-3">
-              <div className="min-w-72 flex-1 space-y-2">
+              <div className="min-w-0 w-full flex-1 space-y-2 sm:min-w-72">
                 <Label htmlFor={`${__fieldIds}-room-name`}>Room name</Label>
                 <Input id={`${__fieldIds}-room-name`} value={warRoomName} onChange={event => setWarRoomName(event.target.value)} />
               </div>
@@ -829,7 +829,7 @@ export default function ValueCenter() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap items-end gap-3">
-                <div className="min-w-72 flex-1 space-y-2">
+                <div className="min-w-0 w-full flex-1 space-y-2 sm:min-w-72">
                   <Label htmlFor={`${__fieldIds}-project-name`}>Project name</Label>
                   <Input id={`${__fieldIds}-project-name`} value={projectName} onChange={event => setProjectName(event.target.value)} />
                 </div>

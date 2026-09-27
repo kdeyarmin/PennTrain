@@ -17,6 +17,7 @@ import {
   SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES,
 } from "@/hooks/useSupportTickets";
 import { useAuth } from "@/lib/auth";
+import { useUrlState } from "@/hooks/useUrlState";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { viewablePathForRole } from "@/lib/appDomains";
 import {
@@ -556,8 +557,8 @@ function SupportTab({ base }: { base: string }) {
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Subject</label>
-                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Briefly describe the issue" />
+                <label htmlFor="support-subject" className="text-sm font-medium">Subject</label>
+                <Input id="support-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Briefly describe the issue" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Category</label>
@@ -583,8 +584,9 @@ function SupportTab({ base }: { base: string }) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Message</label>
+              <label htmlFor="support-message" className="text-sm font-medium">Message</label>
               <Textarea
+                id="support-message"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={5}
@@ -593,7 +595,7 @@ function SupportTab({ base }: { base: string }) {
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Attachment (optional)</label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                   <Paperclip className="h-3.5 w-3.5 mr-1.5" /> {file ? "Replace File" : "Attach File"}
                 </Button>
@@ -668,11 +670,16 @@ function SupportTab({ base }: { base: string }) {
   );
 }
 
+const HELP_FILTER_DEFAULTS = { tab: "faq" };
+const HELP_TABS = ["faq", "job-aides", "manual", "glossary", "support"];
+
 export default function HelpCenter() {
   const { user } = useAuth();
   const [location] = useLocation();
   const base = location.startsWith("/me") ? "/me" : "/app";
-  const [activeTab, setActiveTab] = useState("faq");
+  const [helpFilters, setHelpFilters] = useUrlState(HELP_FILTER_DEFAULTS);
+  const activeTab = HELP_TABS.includes(helpFilters.tab) ? helpFilters.tab : "faq";
+  const setActiveTab = (tab: string) => setHelpFilters({ tab });
   const centralSupportHub = useFeatureReleaseActive(CENTRAL_SUPPORT_HUB_FEATURE_KEY);
 
   // Read once per mount rather than tracked live -- this page is about where the user *came from*

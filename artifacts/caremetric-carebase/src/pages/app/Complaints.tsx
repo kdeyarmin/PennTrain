@@ -67,6 +67,11 @@ export default function Complaints() {
   const rows = complaints.data?.rows ?? [];
   const total = complaints.data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Wait for the server count before correcting a bookmark whose page no longer exists.
+  // Otherwise an empty page hides the only controls that could return to the case list.
+  useEffect(() => {
+    if (complaints.data !== undefined && !complaints.isError && !complaints.isPlaceholderData && page > totalPages) setUrlState({ page: String(totalPages) });
+  }, [complaints.data, complaints.isError, complaints.isPlaceholderData, page, totalPages, setUrlState]);
 
   const metrics = [
     { label: "Open cases", value: summary.openCases, icon: MessageSquareWarning, color: "text-blue-600" },

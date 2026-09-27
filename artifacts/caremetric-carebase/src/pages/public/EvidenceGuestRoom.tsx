@@ -30,9 +30,9 @@ function formatBytes(bytes: number | null): string {
 
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-muted/40 flex items-start justify-center px-4 py-10">
+    <main className="min-h-screen bg-muted/40 flex items-start justify-center px-4 py-10">
       <div className="w-full max-w-2xl space-y-4">
-        <div className="flex items-center gap-2 text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
           <FolderLock className="h-5 w-5" />
           <span className="font-semibold tracking-tight text-foreground">CareMetric CareBase</span>
           <span className="text-sm">· Documentation Room</span>
@@ -43,7 +43,7 @@ function Shell({ children }: { children: ReactNode }) {
           survey and audit purposes only.
         </p>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -59,7 +59,7 @@ export default function EvidenceGuestRoom() {
     "/evidence-access",
   ));
   const { toast } = useToast();
-  const { data: room, isLoading, isError, refetch } = useEvidenceGuestRoom(token);
+  const { data: room, isLoading, isError, isFetching, refetch } = useEvidenceGuestRoom(token);
   const acceptTerms = useAcceptEvidenceGuestTerms();
   const download = useEvidenceGuestDownload();
 
@@ -90,17 +90,19 @@ export default function EvidenceGuestRoom() {
         <Card>
           <CardHeader>
             <CardTitle role="heading" aria-level={1} className="flex items-center gap-2">
-              <ShieldX className="h-5 w-5 text-red-600" /> This link is no longer available
+              <ShieldX className="h-5 w-5 shrink-0 text-red-600" /> {isError ? "Documentation room couldn't load" : "This link is no longer available"}
             </CardTitle>
             <CardDescription>
-              {room?.reason === "step_up_required"
+              {isError
+                ? "We couldn't check your access right now. Check your connection and try again. You do not need to request a new link unless the facility confirms that this one has expired."
+                : room?.reason === "step_up_required"
                 ? "This link requires additional identity verification. Please contact the facility that shared it with you."
                 : "The link may have expired or been revoked, or the address may be incomplete. Please contact the facility that shared it with you for a new link."}
             </CardDescription>
           </CardHeader>
           {isError && (
             <CardContent>
-              <Button variant="outline" onClick={() => refetch()}>Try again</Button>
+              <Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>{isFetching ? "Trying again…" : "Try again"}</Button>
             </CardContent>
           )}
         </Card>
@@ -192,7 +194,7 @@ export default function EvidenceGuestRoom() {
               {artifacts.map((artifact) => (
                 <li key={artifact.id} className="flex items-center justify-between gap-3 p-3">
                   <div className="min-w-0">
-                    <p className="font-medium truncate">{documentDisplayName({ title: artifact.displayName, fallback: "Shared document" })}</p>
+                    <p className="font-medium break-words">{documentDisplayName({ title: artifact.displayName, fallback: "Shared document" })}</p>
                     <p className="text-xs text-muted-foreground">
                       {[
                         artifact.artifactType === "binder" ? "Compliance binder (PDF)" : artifact.artifactType.toUpperCase(),
@@ -205,7 +207,7 @@ export default function EvidenceGuestRoom() {
                       </p>
                     )}
                   </div>
-                  <Button size="sm" onClick={() => handleDownload(artifact)} disabled={download.isPending}>
+                  <Button size="sm" className="shrink-0" aria-label={`Download ${documentDisplayName({ title: artifact.displayName, fallback: "shared document" })}`} onClick={() => handleDownload(artifact)} disabled={download.isPending}>
                     {download.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
                     Download
                   </Button>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
+import { Button } from "@/components/ui/button";
 
 export default function ManagerDigest() {
   const { id } = useParams<{ id: string }>();
@@ -12,7 +13,7 @@ export default function ManagerDigest() {
 
   if (digest.isLoading) return <div className="space-y-3"><Skeleton className="h-10 w-80" /><Skeleton className="h-72 w-full" /></div>;
   if (digest.isError) return <QueryError what="weekly manager digest" error={digest.error} onRetry={() => digest.refetch()} />;
-  if (!digest.data) return <p className="text-sm text-muted-foreground">This digest is no longer available.</p>;
+  if (!digest.data) return <div className="space-y-3"><h1 className="text-xl font-semibold">Digest unavailable</h1><p className="text-sm text-muted-foreground">This digest is no longer available. Open Today to see your current priorities.</p><Button asChild variant="outline"><Link href="/app/today">Open Today</Link></Button></div>;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

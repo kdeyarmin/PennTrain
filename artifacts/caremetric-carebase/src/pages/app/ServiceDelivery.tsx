@@ -470,7 +470,7 @@ export default function ServiceDelivery() {
               {Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search resident, room, or service" />
+          <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search resident, room, or service" aria-label="Search resident services" />
         </CardContent>
       </Card>
 

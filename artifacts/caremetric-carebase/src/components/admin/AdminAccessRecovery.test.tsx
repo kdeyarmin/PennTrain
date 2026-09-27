@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
   definitionsError: false, retry: vi.fn(), save: vi.fn(), toast: vi.fn(), end: vi.fn(), grant: vi.fn(), revoke: vi.fn(),
   rotate: vi.fn(), link: vi.fn(), clipboard: vi.fn(), registryError: false, ssoError: false,
   plan: vi.fn(), manifestError: false, manifestFetching: false,
-  createPolicy: vi.fn(), policyPending: false, createRegulatory: vi.fn(), updateRegulatory: vi.fn(), deleteRegulatory: vi.fn(),
+  createPolicy: vi.fn(), navigate: vi.fn(), policyPending: false, createRegulatory: vi.fn(), updateRegulatory: vi.fn(), deleteRegulatory: vi.fn(),
 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -27,6 +27,7 @@ vi.mock("react", async original => ({
   },
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: h.user }) }));
+vi.mock("wouter", () => ({ Link: "a", useLocation: () => ["/app/policy-documents", h.navigate] }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/hooks/useOrganizations", () => ({ useListOrganizations: () => ({ data: [{ id: "org-a", name: "Organization A" }, { id: "org-b", name: "Organization B" }], isSuccess: true }) }));
 vi.mock("@/hooks/useEnterpriseRoleTemplates", () => ({
@@ -271,6 +272,7 @@ describe("policy creation draft recovery", () => {
     open(false); open(true); title("Replacement policy"); pending.resolve({ id: "old-policy" }); await completion;
     expect(tree().find(n => typeof n.props.onOpenChange === "function")!.props.open).toBe(true);
     expect(tree().find(n => n.props.id === "policy-title")!.props.value).toBe("Replacement policy"); expect(h.toast).not.toHaveBeenCalled();
+    expect(h.navigate).not.toHaveBeenCalled();
   });
   it.each(["account", "unmount"])("expires a policy completion after %s replacement", async changed => {
     open(true); title("Old policy"); const pending = deferred<object>(); h.createPolicy.mockReturnValueOnce(pending.promise); const completion = create();
@@ -282,6 +284,7 @@ describe("policy creation draft recovery", () => {
     expect(tree().find(n => typeof n.props.onOpenChange === "function")!.props.open).toBe(true);
     expect(tree().find(n => n.props.id === "policy-title")!.props.value).toBe("Retry policy"); await create();
     expect(tree().find(n => typeof n.props.onOpenChange === "function")!.props.open).toBe(false);
+    expect(h.navigate).toHaveBeenCalledWith("/app/policy-documents/created-policy");
   });
   it("freezes submitted fields while their policy is being created", () => {
     open(true); h.policyPending = true;

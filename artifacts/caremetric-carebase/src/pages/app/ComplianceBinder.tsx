@@ -218,7 +218,7 @@ export default function ComplianceBinder() {
           ) : (
             <div className="space-y-2">
               {exports.map(job => (
-                <div key={job.id} className="flex items-center justify-between gap-3 py-2 border-b last:border-0 text-sm">
+                <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 py-2 border-b last:border-0 text-sm">
                   <div className="min-w-0">
                     <p className="font-medium">
                       {scopeLabel(job.facility_ids)}
@@ -240,6 +240,7 @@ export default function ComplianceBinder() {
                           variant="outline"
                           size="sm"
                           title="Download PDF"
+                          aria-label="Download binder PDF"
                           disabled={downloading && downloadingJobId === job.id}
                           onClick={() => handleDownloadExisting(job.id, "pdf")}
                         >
@@ -251,6 +252,7 @@ export default function ComplianceBinder() {
                           variant="outline"
                           size="sm"
                           title="Download CSV appendix (.zip)"
+                          aria-label="Download CSV appendix ZIP"
                           disabled={downloading && downloadingJobId === job.id}
                           onClick={() => handleDownloadExisting(job.id, "appendix")}
                         >

@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, role: "org_admin", pending: false, retractPending: false, record: vi.fn(), retract: vi.fn(), toast: vi.fn(), observations: [] as Record<string, unknown>[] }));
+const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, role: "org_admin", pending: false, residentMissing: false, retractPending: false, record: vi.fn(), retract: vi.fn(), toast: vi.fn(), observations: [] as Record<string, unknown>[] }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(), useId: () => "chart",
   useState: (initial: unknown) => { const i = h.cursor++; if (!(i in h.slots)) h.slots[i] = typeof initial === "function" ? initial() : initial; return [h.slots[i], (value: unknown) => { h.slots[i] = typeof value === "function" ? value(h.slots[i]) : value; }]; },
@@ -10,7 +10,7 @@ vi.mock("wouter", () => ({ Link: "a", useParams: () => ({ id: "resident" }) }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { role: h.role } }) }));
 vi.mock("@/lib/pageTitle", () => ({ usePageTitle: vi.fn() }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
-vi.mock("@/hooks/useResidents", () => ({ useGetResident: () => ({ data: { id: "resident", first_name: "Resident", last_name: "A", clinical_data_consent: "not_granted" } }) }));
+vi.mock("@/hooks/useResidents", () => ({ useGetResident: () => ({ data: h.residentMissing ? null : { id: "resident", first_name: "Resident", last_name: "A", clinical_data_consent: "not_granted" } }) }));
 vi.mock("@/components/residents/ResidentCareDocumentation", () => ({ ResidentCareDocumentation: "section" }));
 vi.mock("@/hooks/useFhirIntegration", () => ({ useResidentFhirClinical: () => ({}), useResidentFhirWritebackTarget: () => ({ data: null }) }));
 vi.mock("@/hooks/useClinicalObservations", () => ({
@@ -29,8 +29,14 @@ function fill(id: string, value: string) { (field(id).props.onChange as (event: 
 function button(label: string) { return nodes(render()).find(node => node.props.onClick && text(node.props.children as ReactNode).trim() === label)!; }
 function dialog() { return nodes(render()).find(node => node.type === Dialog)!; }
 function prepare() { (button("Record observation").props.onClick as () => void)(); fill("obs-value", "120"); fill("obs-secondary", "80"); fill("obs-observed-at", "2026-09-26T09:30"); }
-beforeEach(() => { vi.clearAllMocks(); h.slots = []; h.cursor = 0; h.role = "org_admin"; h.pending = false; h.retractPending = false; h.observations = []; h.record.mockResolvedValue("observation"); });
+beforeEach(() => { vi.clearAllMocks(); h.slots = []; h.cursor = 0; h.role = "org_admin"; h.pending = false; h.residentMissing = false; h.retractPending = false; h.observations = []; h.record.mockResolvedValue("observation"); });
 describe("clinical observation action boundary", () => {
+  it("shows a recovery route instead of an empty clinical chart for a missing resident", () => {
+    h.residentMissing = true;
+    expect(text(render())).toContain("Resident not found");
+    expect(nodes(render()).some(node => node.props.href === "/app/residents")).toBe(true);
+    expect(button("Record observation")).toBeUndefined();
+  });
   it("keeps the submitted dialog and fields locked until its request settles", async () => {
     let finish!: () => void; h.record.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
     prepare(); const submit = button("Record").props.onClick as () => void; submit(); submit();

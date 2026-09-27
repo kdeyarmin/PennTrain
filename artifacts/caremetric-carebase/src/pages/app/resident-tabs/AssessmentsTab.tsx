@@ -36,7 +36,8 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
   const governedStatuses = governedStatusByCitation(citationTopics ?? []);
   const itemsQuery = useListResidentComplianceItems(resident.id);
   const { data: items, isLoading: itemsLoading } = itemsQuery;
-  const { data: reviews } = useResidentAssessmentReviews(resident.id);
+  const reviewsQuery = useResidentAssessmentReviews(resident.id);
+  const { data: reviews } = reviewsQuery;
   const recordClinicalReview = useRecordAssessmentReviewClinicalReview();
   const [openTemplate, setOpenTemplate] = useState<AssessmentTemplate | null>(null);
   const templates = internalReviewTemplates(facility?.facility_type);
@@ -166,7 +167,11 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
               </p>
             )}
 
-            <div className="grid gap-2 md:grid-cols-2">
+            {reviewsQuery.isError ? (
+              <QueryError what="this resident's clinical reviews" error={reviewsQuery.error} onRetry={() => void reviewsQuery.refetch()} />
+            ) : reviewsQuery.isLoading ? (
+              <Skeleton className="h-24" />
+            ) : <div className="grid gap-2 md:grid-cols-2">
               {templates.map((template) => {
                 const latest = (reviews ?? []).find((review) => review.template_key === template.key);
                 const citation = templateCitation(template, facility?.facility_type);
@@ -223,7 +228,7 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
                   </div>
                 );
               })}
-            </div>
+            </div>}
           </CardContent>
         </Card>
       )}

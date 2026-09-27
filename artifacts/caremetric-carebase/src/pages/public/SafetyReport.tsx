@@ -82,6 +82,7 @@ export default function SafetyReport() {
   const [resolved, setResolved] = useState<ResolvedFacility | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [resolveAttempt, setResolveAttempt] = useState(0);
   const [summary, setSummary] = useState("");
   const [narrative, setNarrative] = useState("");
   const [urgent, setUrgent] = useState(false);
@@ -198,7 +199,7 @@ export default function SafetyReport() {
       canceled = true;
       window.clearTimeout(timer);
     };
-  }, [facilityToken]);
+  }, [facilityToken, resolveAttempt]);
 
   const copyValue = async (label: string, value: string) => {
     try {
@@ -297,7 +298,7 @@ export default function SafetyReport() {
                   <dd className="flex items-start justify-between gap-2">
                     <span className="break-all font-mono text-xs">{String(result.confirmationToken ?? "")}</span>
                     {result.confirmationToken != null && (
-                      <Button type="button" size="sm" variant="outline" onClick={() => void copyValue("Confirmation token", String(result.confirmationToken))}>
+                      <Button type="button" size="sm" variant="outline" aria-label="Copy confirmation token" onClick={() => void copyValue("Confirmation token", String(result.confirmationToken))}>
                         <Copy className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -308,7 +309,7 @@ export default function SafetyReport() {
                   <dd className="flex items-start justify-between gap-2">
                     <span className="break-all font-mono text-xs">{String(result.resumeSecret ?? "")}</span>
                     {result.resumeSecret != null && (
-                      <Button type="button" size="sm" variant="outline" onClick={() => void copyValue("Resume secret", String(result.resumeSecret))}>
+                      <Button type="button" size="sm" variant="outline" aria-label="Copy resume secret" onClick={() => void copyValue("Resume secret", String(result.resumeSecret))}>
                         <Copy className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -359,16 +360,18 @@ export default function SafetyReport() {
                 )}
                 {resolving && <p className="text-xs text-muted-foreground">Checking facility code…</p>}
                 {resolveError && (
-                  <p role="alert" className="text-xs text-destructive">{resolveError}</p>
+                  <div className="space-y-2"><p role="alert" className="text-xs text-destructive">{resolveError}</p><Button type="button" size="sm" variant="outline" disabled={resolving} onClick={() => setResolveAttempt(attempt => attempt + 1)}>Check facility code again</Button></div>
                 )}
               </div>
               <div>
-                <Label htmlFor="summary">Short summary</Label>
-                <Input id="summary" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="What happened, in one sentence" />
+                <Label htmlFor="summary">Short summary (required)</Label>
+                <Input id="summary" aria-describedby="summary-help" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="What happened, in one sentence" />
+                <p id="summary-help" className="mt-1 text-xs text-muted-foreground">At least 5 characters.</p>
               </div>
               <div>
-                <Label htmlFor="narrative">What happened?</Label>
-                <Textarea id="narrative" value={narrative} onChange={(e) => setNarrative(e.target.value)} rows={6} placeholder="Include when, where, who was involved (initials only when needed), and any immediate action taken." />
+                <Label htmlFor="narrative">What happened? (required)</Label>
+                <Textarea id="narrative" aria-describedby="narrative-help" value={narrative} onChange={(e) => setNarrative(e.target.value)} rows={6} placeholder="Include when, where, who was involved (initials only when needed), and any immediate action taken." />
+                <p id="narrative-help" className="mt-1 text-xs text-muted-foreground">At least 10 characters.</p>
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <Label htmlFor="danger">Immediate danger</Label>

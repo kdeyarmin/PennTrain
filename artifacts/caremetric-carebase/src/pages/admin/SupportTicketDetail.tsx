@@ -110,7 +110,7 @@ export default function SupportTicketDetail() {
     return (
       <div className="text-center py-16">
         <p className="text-muted-foreground">Ticket not found.</p>
-        <Link href="/admin/support-tickets"><Button variant="outline" className="mt-4">Back to Support Tickets</Button></Link>
+        <Button asChild variant="outline" className="mt-4"><Link href="/admin/support-tickets">Back to Support Tickets</Link></Button>
       </div>
     );
   }

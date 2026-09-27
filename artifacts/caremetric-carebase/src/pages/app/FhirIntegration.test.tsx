@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({
   state: [] as unknown[], refs: [] as Array<{ current: unknown }>, deps: [] as Array<unknown[] | undefined>, effects: [] as Array<() => unknown>, cleanups: [] as Array<unknown>,
   cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
   org: "org-a", actor: "operator", role: "org_admin", residentFacility: "stale-facility", facility: "a",
-  save: vi.fn(), map: vi.fn(), resolve: vi.fn(), toast: vi.fn(), selectFacility: vi.fn(),
+  save: vi.fn(), map: vi.fn(), resolve: vi.fn(), toast: vi.fn(), selectFacility: vi.fn(), facilityError: false, retryFacilities: vi.fn(),
 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(), useId: () => "review", useMemo: (compute: () => unknown) => compute(),
@@ -28,7 +28,7 @@ vi.mock("@/lib/viewingOrg", () => ({ useViewingOrg: () => ({ viewingOrgId: h.org
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/components/facilities/FhirWritebackSettings", () => ({ FhirWritebackSettings: "writeback" }));
 vi.mock("@/hooks/useResidentNavigationContext", () => ({ useResidentNavigationContext: () => ({ facilityId: h.residentFacility, setFacilityId: h.selectFacility }) }));
-vi.mock("@/hooks/useFacilities", () => ({ useListFacilities: () => ({ data: ["a", "b"].map(id => ({ id, name: id, organization_id: h.org })) }) }));
+vi.mock("@/hooks/useFacilities", () => ({ useListFacilities: () => ({ data: ["a", "b"].map(id => ({ id, name: id, organization_id: h.org })), isError: h.facilityError, error: new Error("Facility lookup failed"), refetch: h.retryFacilities }) }));
 vi.mock("@/hooks/useResidents", () => ({ useListResidents: () => ({ data: [{ id: "resident", first_name: "Pat", last_name: "Resident" }] }) }));
 vi.mock("@/hooks/useIntegrationCredentials", () => ({ useOrganizationIntegrationCredentials: () => ({ data: [] }), credentialIsExpired: () => false }));
 vi.mock("@/hooks/useFhirIntegration", () => ({
@@ -53,9 +53,23 @@ const Page = () => FhirFacilityWorkspace({ facilityId: h.facility, facilities: u
 const button = (label: string, index = 0) => render(Page).filter(node => textMatches(node, label) && node.props.onClick)[index];
 const dialog = (index: number) => render(Page).filter(node => node.props.onOpenChange)[index];
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
-beforeEach(() => { vi.clearAllMocks(); h.state = []; h.refs = []; h.deps = []; h.cleanups = []; h.org = "org-a"; h.actor = "operator"; h.role = "org_admin"; h.facility = "a"; h.residentFacility = "stale-facility"; });
+beforeEach(() => { vi.clearAllMocks(); h.state = []; h.refs = []; h.deps = []; h.cleanups = []; h.org = "org-a"; h.actor = "operator"; h.role = "org_admin"; h.facility = "a"; h.residentFacility = "stale-facility"; h.facilityError = false; });
 afterEach(unmount);
 describe("FHIR workspace review identity", () => {
+  it("offers facility lookup recovery instead of presenting an empty integration", () => {
+    h.facilityError = true;
+    const retry = render(Page).find(node => node.props.what === "integration facilities")!;
+    expect(retry).toBeDefined();
+    (retry.props.onRetry as () => void)();
+    expect(h.retryFacilities).toHaveBeenCalledOnce();
+    expect(button("Configure source").props.disabled).toBe(true);
+    expect(render(Page).filter(node => node.props.onClick && textMatches(node, "Map patient")).every(node => node.props.disabled)).toBe(true);
+  });
+  it("explains unavailable facility scope and prevents opening an unusable source form", () => {
+    h.facility = "";
+    expect(render(Page).some(node => node.props.children === "Select a facility to continue")).toBe(true);
+    expect(button("Configure source").props.disabled).toBe(true);
+  });
   it("drops an out-of-scope resident facility and remounts drafts for facility, organization and actor changes", () => {
     const first = render(FhirIntegration)[0]; expect(first.props.facilityId).toBe("a");
     (first.props.onFacilityChange as (id: string) => void)("b");

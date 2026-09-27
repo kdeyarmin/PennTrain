@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -63,6 +63,7 @@ export default function ConfidentialIncidents() {
     data: intakesPage,
     isLoading,
     isError,
+    isPlaceholderData,
     error,
     refetch,
   } = usePaginatedDomainList<ConfidentialIntake>("confidential_incident_intakes", {
@@ -82,6 +83,9 @@ export default function ConfidentialIncidents() {
   const rows = intakesPage?.rows ?? [];
   const total = intakesPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  useEffect(() => {
+    if (intakesPage !== undefined && !isError && !isPlaceholderData && page > totalPages) setUrlState({ page: String(totalPages) });
+  }, [intakesPage, isError, isPlaceholderData, page, totalPages, setUrlState]);
   const hasFilters = urlState.facilityId !== "all" || urlState.status !== "all" || urlState.severity !== "all" || Boolean(urlState.search);
 
   const canReviewDetails = ["platform_admin", "org_admin", "auditor"].includes(user?.role ?? "");
@@ -139,6 +143,7 @@ export default function ConfidentialIncidents() {
                 value={urlState.search}
                 onChange={e => setUrlState({ search: e.target.value, page: "1" })}
                 placeholder="Search summary or intake number"
+                aria-label="Search confidential reports"
                 className="h-9 pl-8"
               />
             </div>

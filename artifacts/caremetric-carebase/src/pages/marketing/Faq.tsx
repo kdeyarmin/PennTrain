@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { MarketingLayout } from "@/components/marketing/MarketingLayout";
 import { Reveal, TechGrid } from "@/components/marketing/primitives";
 import { FAQS } from "@/components/marketing/content";
@@ -82,6 +84,12 @@ function FaqCard({ faq }: { faq: MarketingFaq }) {
 export default function Faq() {
   usePageMeta({ ...MARKETING_ROUTE_META["/faq"], path: "/faq" });
   useJsonLd("faq-jsonld", FAQ_JSON_LD);
+  const [search, setSearch] = useState("");
+  const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matchingFaqs = FAQS.filter(faq => {
+    const content = `${faq.category} ${faq.question} ${faq.answer}`.toLowerCase();
+    return terms.every(term => content.includes(term));
+  });
 
   return (
     <MarketingLayout>
@@ -99,11 +107,26 @@ export default function Faq() {
 
       <section className="bg-white">
         <div className="mx-auto flex max-w-[820px] flex-col gap-10 px-4 py-14 sm:px-6">
-          {FAQ_CATEGORIES.map((category) => {
-            const faqs = FAQS.filter((faq) => faq.category === category);
+          <div className="space-y-4 rounded-xl border bg-slate-50 p-5">
+            <div className="space-y-2">
+              <Label htmlFor="faq-search">Find an answer</Label>
+              <div className="flex flex-wrap gap-2">
+                <Input id="faq-search" type="search" placeholder="Search topics, questions, or answers" value={search} onChange={event => setSearch(event.target.value)} className="min-w-0 flex-1 basis-48 bg-white" aria-describedby="faq-search-results" />
+                {search && <Button variant="outline" onClick={() => setSearch("")}>Clear search</Button>}
+              </div>
+              <p id="faq-search-results" role="status" className="text-sm text-muted-foreground">{matchingFaqs.length} {matchingFaqs.length === 1 ? "answer" : "answers"}{terms.length ? " found" : " available"}.</p>
+            </div>
+            <nav aria-label="Frequently asked question topics" className="flex flex-wrap gap-x-5 gap-y-3">
+              {FAQ_CATEGORIES.map((category, index) => matchingFaqs.some(faq => faq.category === category) && <a key={category} href={`#faq-topic-${index}`} className="text-sm font-medium text-primary underline underline-offset-4">{category}</a>)}
+            </nav>
+          </div>
+          {matchingFaqs.length === 0 && <div className="rounded-xl border p-6 text-center"><h2 className="font-semibold">No matching answers</h2><p className="mt-2 text-sm text-muted-foreground">Try a shorter search or clear it to browse all topics. You can also <a className="text-primary underline" href="mailto:hello@caremetric.ai">contact us</a>.</p><Button className="mt-4" variant="outline" onClick={() => setSearch("")}>Show all answers</Button></div>}
+          {FAQ_CATEGORIES.map((category, index) => {
+            const faqs = matchingFaqs.filter((faq) => faq.category === category);
+            if (!faqs.length) return null;
             return (
               <Reveal key={category} className="flex flex-col gap-2.5">
-                <h2 className="mb-1.5 text-[22px] font-bold leading-tight text-[#0d2742]">{category}</h2>
+                <h2 id={`faq-topic-${index}`} className="mb-1.5 scroll-mt-24 text-[22px] font-bold leading-tight text-[#0d2742]">{category}</h2>
                 {faqs.map((faq) => (
                   <FaqCard key={faq.question} faq={faq} />
                 ))}

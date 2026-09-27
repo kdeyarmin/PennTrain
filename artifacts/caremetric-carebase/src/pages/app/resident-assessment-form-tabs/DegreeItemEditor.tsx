@@ -60,6 +60,7 @@ export const DegreeItemEditor = memo(function DegreeItemEditor({
           {!answer.serviceNeedNotApplicable && (
             <Textarea
               placeholder="Service need description"
+              aria-label={`${item.label}: service need description`}
               className="text-xs min-h-16"
               value={answer.serviceNeedDescription}
               onChange={(e) =>
@@ -83,6 +84,7 @@ export const DegreeItemEditor = memo(function DegreeItemEditor({
             <>
               <Textarea
                 placeholder="Plan to meet the need"
+                aria-label={`${item.label}: plan to meet the need`}
                 className="text-xs min-h-16"
                 value={answer.planDescription}
                 onChange={(e) =>

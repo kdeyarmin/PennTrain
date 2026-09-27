@@ -340,7 +340,7 @@ export default function WorkItemDetail() {
                         <SelectItem value="completion_record">Completion record</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input type="file" onChange={event => setEvidenceFile(event.target.files?.[0] ?? null)} />
+                    <Input type="file" aria-label="Documentation file" onChange={event => setEvidenceFile(event.target.files?.[0] ?? null)} />
                     <Button onClick={handleEvidenceUpload} disabled={!evidenceFile || !evidenceType || uploadEvidence.isPending}>
                       <FileUp className="mr-2 h-4 w-4" /> {uploadEvidence.isPending ? "Uploading..." : "Upload"}
                     </Button>
@@ -348,8 +348,8 @@ export default function WorkItemDetail() {
                   <div className="space-y-3">
                     <Label htmlFor={`${__fieldIds}-link-governed-record`}>Link governed record</Label>
                     <Input id={`${__fieldIds}-link-governed-record`} value={linkedRecordType} onChange={event => setLinkedRecordType(event.target.value)} placeholder="Record type, e.g. incident" />
-                    <Input value={linkedRecordId} onChange={event => setLinkedRecordId(event.target.value)} placeholder="Record UUID" />
-                    <Input value={evidenceType} onChange={event => setEvidenceType(event.target.value)} placeholder="Documentation type" />
+                    <Input aria-label="Record UUID" value={linkedRecordId} onChange={event => setLinkedRecordId(event.target.value)} placeholder="Record UUID" />
+                    <Input aria-label="Linked documentation type" value={evidenceType} onChange={event => setEvidenceType(event.target.value)} placeholder="Documentation type" />
                     <Button
                       variant="outline"
                       disabled={!linkedRecordType.trim() || !linkedRecordId || !evidenceType.trim() || submitLinkedEvidence.isPending}
@@ -391,9 +391,9 @@ export default function WorkItemDetail() {
                   {activity.data.dependencies.map(dependency => (
                     <div key={dependency.id} className="flex items-center justify-between rounded-md border p-3 text-sm">
                       <div>
-                        <Link href={`${backPath}/${dependency.dependency?.id}`} className="font-medium hover:underline">
-                          {dependency.dependency?.title ?? "Unavailable work item"}
-                        </Link>
+                        {dependency.dependency ? <Link href={`${backPath}/${dependency.dependency.id}`} className="font-medium hover:underline">
+                          {dependency.dependency.title}
+                        </Link> : <span className="text-muted-foreground">Unavailable work item</span>}
                         <p className="text-xs text-muted-foreground">
                           {dependency.dependency_type.replace(/_/g, " ")} · {WORK_ITEM_STATE_LABELS[dependency.dependency?.state ?? ""] ?? dependency.dependency?.state}
                         </p>
@@ -461,7 +461,7 @@ export default function WorkItemDetail() {
             <CardContent className="space-y-4">
               {canContribute && (
                 <div className="space-y-2">
-                  <Textarea value={comment} onChange={event => setComment(event.target.value)} placeholder="Add a progress note, blocker, or handoff..." />
+                  <Textarea aria-label="Progress note, blocker, or handoff" value={comment} onChange={event => setComment(event.target.value)} placeholder="Add a progress note, blocker, or handoff..." />
                   <Button
                     disabled={!comment.trim() || addComment.isPending}
                     onClick={() => addComment.mutate({ workItemId: work.id, body: comment.trim() }, {

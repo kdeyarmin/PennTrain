@@ -220,7 +220,7 @@ export function FhirFacilityWorkspace({ facilityId, facilities, scopeOrgId, onFa
           <Button variant="outline" onClick={() => void workspace.refetch()} disabled={workspace.isFetching}>
             <RefreshCw className={`mr-2 h-4 w-4 ${workspace.isFetching ? "animate-spin" : ""}`} />Refresh
           </Button>
-          {canManage && <Button onClick={() => { sourceReview.current++; setSourceName(""); setVendorName(""); setExternalFacilityId(""); setFhirBaseUrl(""); setCredentialId(""); setFreshnessMinutes("60"); setSourceDialogOpen(true); }}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}
+          {canManage && <Button disabled={!facilityId || facilities.isLoading || facilities.isError} onClick={() => { sourceReview.current++; setSourceName(""); setVendorName(""); setExternalFacilityId(""); setFhirBaseUrl(""); setCredentialId(""); setFreshnessMinutes("60"); setSourceDialogOpen(true); }}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}
         </div>
       </div>
 
@@ -250,7 +250,7 @@ export function FhirFacilityWorkspace({ facilityId, facilities, scopeOrgId, onFa
         <CardContent className="p-4">
           <div className="max-w-sm space-y-2">
             <Label htmlFor={`${__fieldIds}-facility`}>Facility</Label>
-            <Select value={facilityId} onValueChange={onFacilityChange}>
+            <Select value={facilityId} onValueChange={onFacilityChange} disabled={facilities.isLoading || facilities.isError}>
               <SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger>
               <SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -258,7 +258,7 @@ export function FhirFacilityWorkspace({ facilityId, facilities, scopeOrgId, onFa
         </CardContent>
       </Card>
 
-      {workspace.isError ? <QueryError what="FHIR integration" error={workspace.error} onRetry={() => workspace.refetch()} /> : workspace.isLoading ? <QueryLoading what="FHIR integration" /> : (
+      {facilities.isError ? <QueryError what="integration facilities" error={facilities.error} onRetry={() => void facilities.refetch()} /> : facilities.isLoading ? <QueryLoading what="integration facilities" /> : !facilityId ? <Alert><AlertTitle>Select a facility to continue</AlertTitle><AlertDescription>No facility is available in the current organization. Choose another organization or ask your administrator to provide facility access.</AlertDescription></Alert> : workspace.isError ? <QueryError what="FHIR integration" error={workspace.error} onRetry={() => workspace.refetch()} /> : workspace.isLoading ? <QueryLoading what="FHIR integration" /> : (
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <Card><CardHeader className="pb-2"><CardDescription>Open sync exceptions</CardDescription><CardTitle className="text-3xl">{openExceptions.length}</CardTitle></CardHeader></Card>

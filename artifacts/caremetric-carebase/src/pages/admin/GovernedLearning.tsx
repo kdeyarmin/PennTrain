@@ -125,7 +125,8 @@ function StandardsPackagesPanel() {
 export default function GovernedLearning() {
   const snapshot = useGovernedLearning();
   if (snapshot.isLoading) return <div className="flex min-h-[45vh] items-center justify-center"><RefreshCw className="h-6 w-6 animate-spin" /></div>;
-  if (!snapshot.data) return <Alert variant="destructive"><AlertTitle>Governed content unavailable</AlertTitle><AlertDescription>{snapshot.error instanceof Error ? snapshot.error.message : "Unable to load control plane."}</AlertDescription></Alert>;
+  if (snapshot.isError) return <QueryError what="governed content and training" error={snapshot.error} onRetry={() => void snapshot.refetch()} />;
+  if (!snapshot.data) return <Alert variant="destructive"><AlertTitle>Governed content unavailable</AlertTitle><AlertDescription>No training governance snapshot is available.</AlertDescription><Button className="mt-3" variant="outline" onClick={() => void snapshot.refetch()}>Try again</Button></Alert>;
   const data = snapshot.data;
   return (
     <div className="space-y-6 p-4 md:p-6">

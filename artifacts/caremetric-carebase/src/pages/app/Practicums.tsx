@@ -351,7 +351,7 @@ export default function Practicums() {
                 return (
                   <div
                     key={p.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${canManage ? "cursor-pointer hover:bg-accent/5" : ""}`}
+                    className={`flex flex-col gap-3 p-3 rounded-lg border transition-colors sm:flex-row sm:items-center sm:justify-between ${canManage ? "cursor-pointer hover:bg-accent/5" : ""}`}
                     onClick={canManage ? () => openEditDialog(p) : undefined}
                   >
                     <div className="flex items-center gap-3">
@@ -378,7 +378,7 @@ export default function Practicums() {
                         <span>Obs</span>
                       </div>
                       <StatusBadge status={p.status} />
-                      {canManage && <Pencil className="h-3.5 w-3.5 text-muted-foreground/60" />}
+                      {canManage && <Button variant="outline" size="sm" aria-label={`Edit practicum for ${employeeName(p.employee_id)}`} onClick={event => { event.stopPropagation(); openEditDialog(p); }}><Pencil className="mr-1.5 h-3.5 w-3.5" />Edit</Button>}
                     </div>
                   </div>
                 );

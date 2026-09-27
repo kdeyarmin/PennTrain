@@ -59,15 +59,17 @@ export default function ClassKiosk() {
   };
 
   const { data: cls, isLoading: classLoading, isError: classError, error, refetch } = useGetTrainingClass(classId);
-  const { data: attendees } = useListClassAttendees(classId);
+  const attendeesQuery = useListClassAttendees(classId);
+  const { data: attendees } = attendeesQuery;
   // Scoped to the class's facility when it has one -- an org-wide search would otherwise let a
   // same-named employee from a different site get checked in by mistake at a live kiosk with
   // people waiting. Cross-facility classes (facility_id null) fall back to an org-wide search,
   // which is why facility name is still surfaced per row below.
-  const { data: facilityEmployees } = useListEmployees(
+  const facilityEmployeesQuery = useListEmployees(
     { status: "active", facilityId: cls?.facility_id ?? undefined },
     { enabled: !!cls?.facility_id },
   );
+  const { data: facilityEmployees } = facilityEmployeesQuery;
   // ClassDetail's Add Attendees dialog isn't facility-restricted, so a class can legitimately have
   // an attendee whose home facility differs from the class's own. Fetch ONLY those missing
   // attendee ids (not the entire active roster) so they can still check in without an org-wide load.
@@ -83,12 +85,17 @@ export default function ClassKiosk() {
     if (!cls?.facility_id) return [];
     return attendeeEmployeeIds.filter((id) => !facilityEmployeeIds.has(id));
   }, [cls?.facility_id, attendeeEmployeeIds, facilityEmployeeIds]);
-  const { data: crossFacilityAttendees } = useListEmployeesByIds(missingAttendeeIds);
+  const crossFacilityQuery = useListEmployeesByIds(missingAttendeeIds);
+  const { data: crossFacilityAttendees } = crossFacilityQuery;
   // Org-wide active list only when the class itself is not facility-scoped (facility_id null).
-  const { data: allActiveEmployees } = useListEmployees(
+  const allActiveEmployeesQuery = useListEmployees(
     { status: "active" },
     { enabled: !!cls && !cls.facility_id },
   );
+  const { data: allActiveEmployees } = allActiveEmployeesQuery;
+  const rosterQueries = [attendeesQuery, ...(cls?.facility_id ? [facilityEmployeesQuery, ...(missingAttendeeIds.length ? [crossFacilityQuery] : [])] : [allActiveEmployeesQuery])];
+  const rosterError = rosterQueries.find(query => query.isError);
+  const rosterLoading = rosterQueries.some(query => query.isLoading);
   const { data: facilities } = useListFacilities();
   const { mutateAsync: checkinKiosk, isPending } = useCheckinViaKioskPin();
 
@@ -123,7 +130,7 @@ export default function ClassKiosk() {
   };
 
   const handleSubmit = async () => {
-    if (!classId || !selectedEmployeeId || pin.length < 4) return;
+    if (!classId || !selectedEmployeeId || pin.length < 4 || rosterError || rosterLoading) return;
     try {
       const result = await checkinKiosk({ classId, employeeId: selectedEmployeeId, pin });
       const name = selectedEmployee ? `${selectedEmployee.first_name} ${selectedEmployee.last_name}` : "You";
@@ -198,7 +205,7 @@ export default function ClassKiosk() {
           <p className="text-sm text-muted-foreground">Enter your PIN to check in or out</p>
         </CardHeader>
         <CardContent className="space-y-5">
-          {feedback ? (
+          {rosterError ? <QueryError what="the class check-in roster" error={rosterError.error} onRetry={() => { void Promise.all(rosterQueries.map(query => query.refetch())); }} /> : rosterLoading ? <QueryLoading what="the class check-in roster" /> : feedback ? (
             <div className="flex flex-col items-center gap-3 py-6">
               {feedback.ok ? <CheckCircle2 className="h-16 w-16 text-success" /> : <XCircle className="h-16 w-16 text-destructive" />}
               <p className="text-center font-medium">{feedback.message}</p>
@@ -207,6 +214,7 @@ export default function ClassKiosk() {
             <div className="space-y-2">
               <Input
                 placeholder="Type your name..."
+                aria-label="Search your name"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-12 text-lg text-center"

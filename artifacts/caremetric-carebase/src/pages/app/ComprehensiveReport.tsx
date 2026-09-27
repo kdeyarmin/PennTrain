@@ -345,7 +345,7 @@ export default function ComprehensiveReport() {
         )}
 
         <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
             <ListChecks className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold">Report contents</h2>
             <span className="text-xs text-muted-foreground">
@@ -532,7 +532,7 @@ function ReportSection({ section }: { section: ReportSectionData }) {
           </Badge>
         )}
         {section.reference && (
-          <Badge variant="secondary" className="text-[10px] font-normal">
+          <Badge variant="secondary" className="max-w-full whitespace-normal text-[10px] font-normal">
             {section.reference}
           </Badge>
         )}

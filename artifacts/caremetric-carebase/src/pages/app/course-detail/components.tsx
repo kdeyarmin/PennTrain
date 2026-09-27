@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import {
   BookOpen, FileText, Video, File as FileIcon, ListChecks, Layers,
   type LucideIcon,
@@ -64,11 +65,12 @@ export function QuizBlockSummary({
   canManage: boolean;
   role: Role | undefined;
 }) {
-  const { data: quiz, isLoading, isError } = useGetQuizByBlockId(blockId);
+  const { data: quiz, isLoading, isError, error, refetch } = useGetQuizByBlockId(blockId);
 
   if (isLoading) return <p className="text-xs text-muted-foreground">Loading quiz…</p>;
+  if (isError) return <QueryError error={error} onRetry={() => refetch()} what="this lesson's quiz" />;
 
-  if (isError || !quiz) {
+  if (!quiz) {
     return (
       <div className="flex items-center gap-2">
         <p className="text-xs text-muted-foreground italic">No quiz configured yet for this block.</p>

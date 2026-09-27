@@ -113,7 +113,7 @@ export default function SupportTicketDetail() {
     return (
       <div className="text-center py-16">
         <p className="text-muted-foreground">Ticket not found.</p>
-        <Link href={`${base}/help`}><Button variant="outline" className="mt-4">Back to Help Center</Button></Link>
+        <Button asChild variant="outline" className="mt-4"><Link href={`${base}/help?tab=support`}>Back to Support</Link></Button>
       </div>
     );
   }
@@ -124,8 +124,8 @@ export default function SupportTicketDetail() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <Link href={`${base}/help`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3">
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to Help Center
+        <Link href={`${base}/help?tab=support`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to Support
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
@@ -176,14 +176,15 @@ export default function SupportTicketDetail() {
             </div>
           ) : (
             <div className="space-y-2 pt-2 border-t">
-              <Textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={3} placeholder="Add a reply..." disabled={messagesError} />
-              <div className="flex items-center gap-2">
+              <label htmlFor="support-reply" className="text-sm font-medium">Reply</label>
+              <Textarea id="support-reply" value={reply} onChange={(e) => setReply(e.target.value)} rows={3} placeholder="Add a reply..." disabled={messagesError} />
+              <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={messagesError}>
                   <Paperclip className="h-3.5 w-3.5 mr-1.5" /> {file ? "Replace File" : "Attach File"}
                 </Button>
                 {file && (
                   <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-muted rounded px-2 py-1">
-                    {file.name}
+                    <span className="break-all">{file.name}</span>
                     <button type="button" onClick={() => setFile(null)} aria-label="Remove attachment">
                       <X className="h-3 w-3" />
                     </button>

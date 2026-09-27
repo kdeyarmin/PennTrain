@@ -89,7 +89,7 @@ function getStatusLabel(status: string | undefined): string {
   }
 }
 
-function StatusDot({ entry, onClick }: { entry: MatrixCell | undefined; onClick?: () => void }) {
+function StatusDot({ entry, label, onClick }: { entry: MatrixCell | undefined; label: string; onClick?: () => void }) {
   const color = getStatusColor(entry?.status);
   return (
     <button
@@ -97,7 +97,7 @@ function StatusDot({ entry, onClick }: { entry: MatrixCell | undefined; onClick?
       onClick={onClick}
       className="inline-flex items-center justify-center w-6 h-6 rounded-full hover:ring-2 hover:ring-offset-1 hover:ring-primary/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary"
       title={getStatusLabel(entry?.status)}
-      aria-label={getStatusLabel(entry?.status)}
+      aria-label={`${label}: ${getStatusLabel(entry?.status)}`}
     >
       <span
         aria-hidden="true"
@@ -122,6 +122,8 @@ function SortButton({ field, sortField, sortDir, onSort }: {
   const active = sortField === field;
   return (
     <button
+      type="button"
+      aria-label={`Sort by ${field === "lastName" ? "employee name" : "role"}, ${active && sortDir === "asc" ? "descending" : "ascending"}`}
       className="ml-1 inline-flex items-center text-muted-foreground hover:text-foreground"
       onClick={() => onSort(field)}
     >
@@ -176,6 +178,7 @@ function TrainerSelectField({
       </Select>
       {selection === TRAINER_CUSTOM && (
         <Input
+          aria-label="External trainer name"
           className="h-9" placeholder="Trainer name"
           value={customName} onChange={e => onCustomNameChange(e.target.value)}
         />
@@ -885,6 +888,7 @@ export default function TrainingMatrix() {
 
         <Input
           placeholder="Search by name or job title..."
+          aria-label="Search employees by name or job title"
           value={search}
           onChange={e => { setSearchInput(e.target.value); setUrlState({ page: "1" }); }}
           className="w-full sm:w-64"
@@ -944,7 +948,7 @@ export default function TrainingMatrix() {
                 </span>
               )}
             </CardTitle>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <span aria-hidden="true" style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", backgroundColor: "#22c55e" }} />
                 Compliant
@@ -985,7 +989,7 @@ export default function TrainingMatrix() {
                       <h3 className="font-medium">{row.employee.first_name} {row.employee.last_name}</h3>
                       <p className="text-xs text-muted-foreground">{row.employee.job_title || "No role listed"}</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid gap-2 sm:grid-cols-2">
                       {matrixTrainingTypes.map((tt) => {
                         const cell = row.cells.find((candidate) => candidate.trainingTypeId === tt.id);
                         const fullTrainingType = trainingTypes?.find((type) => type.id === tt.id);
@@ -1020,15 +1024,15 @@ export default function TrainingMatrix() {
                   </article>
                 ))}
               </div>
-              <div className="hidden overflow-x-auto md:block">
+              <div className="hidden overflow-x-auto md:block" role="region" aria-label="Training compliance matrix" tabIndex={0}>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b" style={{ position: "sticky", top: 0, zIndex: 10 }}>
-                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground sticky left-0 bg-background min-w-[180px]">
+                    <th scope="col" aria-sort={sortField === "lastName" ? sortDir === "asc" ? "ascending" : "descending" : "none"} className="text-left py-2 pr-4 font-medium text-muted-foreground sticky left-0 bg-background min-w-[180px]">
                       <span>Employee</span>
                       <SortButton field="lastName" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                     </th>
-                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground min-w-[140px] bg-background">
+                    <th scope="col" aria-sort={sortField === "jobTitle" ? sortDir === "asc" ? "ascending" : "descending" : "none"} className="text-left py-2 pr-4 font-medium text-muted-foreground min-w-[140px] bg-background">
                       <span>Role</span>
                       <SortButton field="jobTitle" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                     </th>
@@ -1053,6 +1057,7 @@ export default function TrainingMatrix() {
                           <td key={tt.id} className="py-2 px-2 text-center">
                             <StatusDot
                               entry={cell}
+                              label={`${row.employee.first_name} ${row.employee.last_name}, ${tt.name}`}
                               onClick={() => {
                                 if (!fullTrainingType) return;
                                 setSelectedCell({
@@ -1086,11 +1091,11 @@ export default function TrainingMatrix() {
           )}
 
           {!matrixError && !matrixLoading && totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t">
               <span className="text-sm text-muted-foreground">
                 Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
               </span>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
                 <span className="text-sm flex items-center px-2">Page {page} of {totalPages}</span>
                 <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>

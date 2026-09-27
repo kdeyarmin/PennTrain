@@ -241,7 +241,7 @@ export default function GuestAccessCenter() {
       {grantsQuery.data?.truncated ? (
         <p className="text-sm text-amber-700">
           At least one grant type returned a full page of {GRANT_PAGE_SIZE} rows, so older grants may not be
-          listed. Narrow by grant type to see the rest.
+          listed. Open the relevant evidence collection, move-in workspace, or resident record to review older grants; filtering this list does not load additional records.
         </p>
       ) : null}
 

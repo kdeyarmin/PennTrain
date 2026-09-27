@@ -53,7 +53,7 @@ export function useCareLevelReview(facilityId: string | undefined, residents: Re
     return buildCareLevelReview(residents, sources.data.rates, [sources.data.clinical, sources.data.forms]);
   }, [residents, sources.data]);
 
-  return { rows, isLoading: sources.isLoading, isError: sources.isError, error: sources.error };
+  return { rows, isLoading: sources.isLoading, isError: sources.isError, error: sources.error, refetch: sources.refetch };
 }
 
 /**
