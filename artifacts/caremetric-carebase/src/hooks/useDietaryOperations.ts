@@ -50,7 +50,7 @@ export function useDietaryOperations(facilityId?: string, residentId?: string) {
     queryFn: async ({ signal }) => {
       const resident = residentId || "00000000-0000-0000-0000-000000000000";
       const [profiles, menus, meals, hydration, assignments, readings, reviews, controls, logs, qualifications] = await Promise.all([
-        supabase.from("resident_dietary_profiles").select("*").eq("resident_id", resident).maybeSingle().abortSignal(signal),
+        supabase.from("resident_dietary_profiles").select("*").eq("resident_id", resident).abortSignal(signal).maybeSingle(),
         readRows((from, through) => supabase.from("dietary_menu_cycles").select("*,entries:dietary_menu_entries(*)").eq("facility_id", facilityId!).order("starts_on", { ascending: false }).order("id").range(from, through).abortSignal(signal)),
         readRows((from, through) => supabase.from("resident_meal_records").select("*").eq("resident_id", resident).order("served_at", { ascending: false }).order("id").range(from, through).abortSignal(signal), 30),
         readRows((from, through) => supabase.from("resident_hydration_rounds").select("*").eq("resident_id", resident).order("scheduled_at", { ascending: false }).order("id").range(from, through).abortSignal(signal), 30),
