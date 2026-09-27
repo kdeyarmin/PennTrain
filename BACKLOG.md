@@ -18,7 +18,7 @@
 | CL12 | done | Change signals kept 60 meals from a 14-day fetch and the newest 10 hospital transfers of all time. Six meals a day already exceed 60 rows across 14 days, and ten newer canceled transfers hid a real visit still inside the 30-day rule. Both reads now keep every row in the window the signal uses. |
 | CL13 | done | Survey prep and the binder pin list treated the ten newest exports in the organization as this facility's binders. Newer jobs for other facilities, or a multi-facility packet, made a finished single-facility binder look missing. Those reads now ask for this facility's own succeeded exports. |
 | CL14 | done | The DME register read inspections in one unpaged select. Past PostgREST's thousand-row cap, an item whose last inspection was older than that page was labeled never inspected. The register and the inspection read now keep every page. |
-| CL15 | done | The resident balance tile's subtitle was the count of active weight plans. The balance now shows the last ledger date, and weight plans are their own tile. |
+| CL15 | done | The resident balance tile's subtitle was the count of active weight plans. The balance now shows the last ledger date on the Pennsylvania facility calendar, and weight plans are their own tile. |
 
 ## Edge function corrections — September 27, 2026
 
