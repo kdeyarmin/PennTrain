@@ -5,7 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Request } from "@playwright/test";
 import { gotoAppRoute, hasLiveSupabaseEnv, requireLiveSupabaseEnv, signInAs } from "./helpers/auth";
 import { totpCode } from "./helpers/totp";
 import { monitorQueryFailures } from "./helpers/queryFailures";
@@ -256,23 +256,71 @@ test.describe("all role navigation and sensitive route boundaries", () => {
       }
 
       for (const [path, heading] of destinations) {
-        await visitStep(`open ${path}`, async () => {
-          const { mfaGated } = await gotoAppRoute(page, path, 25_000);
-          expect.soft(mfaGated, `${path} must render after MFA verification`).toBe(false);
-          await expect.soft.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).toBe(path);
-          await expect.soft(page.locator("main#main-content h1").first()).toHaveText(heading, { timeout: 15_000 });
-          // Do not accept the title alone while a failed query is still about to replace its data.
-          await page.waitForLoadState("networkidle", { timeout: 15_000 });
-          // React Query retries can start after networkidle's 500ms quiet window. Give exact
-          // successful retries time to recover, while retaining persistent 400/403 failures.
-          await expect.soft.poll(() => queryFailures.unresolved(), {
-            message: `unresolved data queries on ${path}`, timeout: 8_000, intervals: [250, 500, 1_000],
-          }).toEqual([]);
-          queryFailures.clear();
-          await expect.soft(page.locator('main#main-content [aria-busy="true"]')).toHaveCount(0);
-          await expect.soft(page.locator("main#main-content").getByText(/^(?:Couldn.t load|Could not load|Failed to load|Something went wrong)/)).toHaveCount(0);
-          expect.soft(runtimeErrors.splice(0), `uncaught browser errors on ${path}`).toEqual([]);
-        });
+        const traceEnterprise = role === "platform_admin" && path === "/admin/enterprise";
+        const visitStarted = performance.now();
+        const timingReads: Promise<void>[] = [];
+        const timingUrl = (request: Request) => {
+          const url = new URL(request.url());
+          return url.origin === new URL(supabaseUrl).origin && [
+            "/rest/v1/rpc/get_enterprise_scope_control_plane",
+            "/rest/v1/rpc/get_workforce_compliance_control_plane",
+            "/rest/v1/enterprise_access_grants",
+          ].includes(url.pathname) ? url : null;
+        };
+        const recordTiming = (request: Request, status: number | "failed" | "unavailable") => {
+          const url = timingUrl(request);
+          if (!url) return;
+          const rawOffset = url.searchParams.get("offset");
+          const offset = rawOffset !== null && /^\d+$/.test(rawOffset) && Number.isSafeInteger(Number(rawOffset))
+            ? Number(rawOffset) : null;
+          const timing = request.timing();
+          const elapsed = timing.responseEnd >= 0 ? timing.responseEnd : Date.now() - timing.startTime;
+          // Only paths, numeric offsets, statuses and durations: never request queries, bodies,
+          // headers, identities or failure text. Include the empty terminating grants page.
+          console.info("[enterprise-read-timing]", JSON.stringify({
+            path: url.pathname, offset, status, durationMs: Math.max(0, Math.round(elapsed)),
+          }));
+        };
+        const onFinished = (request: Request) => {
+          if (!timingUrl(request)) return;
+          timingReads.push(request.response().then(
+            response => recordTiming(request, response?.status() ?? "unavailable"),
+            () => recordTiming(request, "unavailable"),
+          ));
+        };
+        const onFailed = (request: Request) => recordTiming(request, "failed");
+        if (traceEnterprise) {
+          page.on("requestfinished", onFinished);
+          page.on("requestfailed", onFailed);
+        }
+        try {
+          await visitStep(`open ${path}`, async () => {
+            const { mfaGated } = await gotoAppRoute(page, path, 25_000);
+            expect.soft(mfaGated, `${path} must render after MFA verification`).toBe(false);
+            await expect.soft.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).toBe(path);
+            await expect.soft(page.locator("main#main-content h1").first()).toHaveText(heading, { timeout: 15_000 });
+            // Do not accept the title alone while a failed query is still about to replace its data.
+            await page.waitForLoadState("networkidle", { timeout: 15_000 });
+            // React Query retries can start after networkidle's 500ms quiet window. Give exact
+            // successful retries time to recover, while retaining persistent 400/403 failures.
+            await expect.soft.poll(() => queryFailures.unresolved(), {
+              message: `unresolved data queries on ${path}`, timeout: 8_000, intervals: [250, 500, 1_000],
+            }).toEqual([]);
+            queryFailures.clear();
+            await expect.soft(page.locator('main#main-content [aria-busy="true"]')).toHaveCount(0);
+            await expect.soft(page.locator("main#main-content").getByText(/^(?:Couldn.t load|Could not load|Failed to load|Something went wrong)/)).toHaveCount(0);
+            expect.soft(runtimeErrors.splice(0), `uncaught browser errors on ${path}`).toEqual([]);
+          });
+        } finally {
+          if (traceEnterprise) {
+            page.off("requestfinished", onFinished);
+            page.off("requestfailed", onFailed);
+            await Promise.all(timingReads);
+            console.info("[enterprise-route-timing]", JSON.stringify({
+              path, durationMs: Math.round(performance.now() - visitStarted),
+            }));
+          }
+        }
       }
 
       const denialHome = ["org_admin", "facility_manager", "auditor"].includes(role) ? "/app" : HOMES[role];
