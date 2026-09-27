@@ -91,11 +91,10 @@ select is(
   'frontline staff can capture a structured category and observations'
 );
 select pg_temp.act_as('59000000-0000-4000-8000-000000000101');
--- The window comes from resident_compliance_rule_packs since 20260906140000 (BACKLOG J36). It used
--- to be a literal `pa_today(), null, 2, 0` -- due today with no grace at all -- so the nightly
--- recalculation marked the resident overdue the morning after any change of condition, before a
--- RASP could plausibly have been redone. What this asserts now is that the item is raised, and
--- that its deadline is the rule pack's rather than today.
+-- A human reassessment decision must raise the required item and preserve the
+-- rule pack's operational follow-up target. Section 2600.225 sets no numeric
+-- completion allowance: the product target must not become a statutory deadline
+-- or grace period, or imply the assessment may wait until that target.
 select ok(
   exists (
     select 1 from public.resident_compliance_items c
@@ -103,15 +102,19 @@ select ok(
     join public.resident_compliance_rule_packs rp
       on rp.item_type = 'significant_change_reassessment'
      and rp.state = 'PA'
+     and rp.facility_type = 'PCH'
+     and rp.admission_track = 'standard'
      and rp.is_active
      and rp.organization_id is null
     where e.id = (select id from change_ids where key = 'event')
       and c.item_type = 'significant_change_reassessment'
-      and c.due_date = public.pa_today() + rp.offset_days
-      and c.grace_period_days = rp.grace_period_days
-      and c.due_date > public.pa_today()
+      and c.internal_target_date = public.pa_today() + rp.offset_days
+      and c.internal_target_date > public.pa_today()
+      and c.due_date is null
+      and c.grace_period_days = 0
+      and c.status = 'missing'
   ),
-  'a human reassessment decision raises the item on the rule pack''s window, not due the same day'
+  'a human reassessment decision raises a required item with a separate internal target and no invented statutory allowance'
 );
 select ok(
   exists (

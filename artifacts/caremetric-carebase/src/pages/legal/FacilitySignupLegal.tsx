@@ -3,11 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import {
-  BAA_VERSION,
+  BAA_NAME,
   LEGAL_COMPANY_LOCATION,
   LEGAL_COMPANY_NAME,
   LEGAL_EFFECTIVE_DATE,
-  SERVICE_AGREEMENT_VERSION,
+  SERVICE_AGREEMENT_NAME,
   baaSections,
   facilityAdminAgreementSections,
 } from "@/lib/legalAgreements";
@@ -57,8 +57,6 @@ export default function FacilitySignupLegal() {
           <CardHeader>
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">Effective {LEGAL_EFFECTIVE_DATE}</Badge>
-              <Badge variant="outline">{SERVICE_AGREEMENT_VERSION}</Badge>
-              <Badge variant="outline">{BAA_VERSION}</Badge>
             </div>
             <CardTitle>{LEGAL_COMPANY_NAME}</CardTitle>
             <CardDescription>
@@ -73,13 +71,13 @@ export default function FacilitySignupLegal() {
               </p>
             </div>
 
-            <section className="space-y-3">
-              <h2 className="text-2xl font-bold text-slate-950">Facility Administrator Platform Agreement</h2>
+            <section id="facility-administrator-agreement" className="space-y-3 scroll-mt-6">
+              <h2 className="text-2xl font-bold text-slate-950">{SERVICE_AGREEMENT_NAME}</h2>
               <SectionList sections={facilityAdminAgreementSections} />
             </section>
 
-            <section className="space-y-3 border-t pt-8">
-              <h2 className="text-2xl font-bold text-slate-950">HIPAA Business Associate Agreement</h2>
+            <section id="business-associate-agreement" className="space-y-3 border-t pt-8 scroll-mt-6">
+              <h2 className="text-2xl font-bold text-slate-950">{BAA_NAME}</h2>
               <SectionList sections={baaSections} />
             </section>
           </CardContent>

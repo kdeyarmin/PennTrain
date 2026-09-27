@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { downloadCsv } from "@/lib/csv";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import type { Json } from "@/lib/database.types";
 
 const fieldClass = "block w-full rounded border bg-background p-2 text-sm";
@@ -85,7 +86,7 @@ export function TrainingRecords({ facilityId, organizationId, employeeId, employ
         <label className="text-sm">Completion date<input className={fieldClass} type="date" name="completed_on" required max={facilityToday()} /></label>
         <label className="text-sm">Training duration in minutes<input className={fieldClass} type="number" name="minutes" required min={1} max={1440} /></label>
         <label className="text-sm">Upload certificate or transcript<input className={fieldClass} type="file" accept="application/pdf,image/png,image/jpeg" disabled={busy} onChange={e => { setFile(e.target.files?.[0] || null); setDocumentId(""); }} /><span className="text-muted-foreground">PDF, PNG or JPEG; maximum 20 MB.</span></label>
-        <label className="text-sm">Or choose an existing document<select className={fieldClass} value={documentId} disabled={busy} onChange={e => { setDocumentId(e.target.value); setFile(null); }}><option value="">Choose a document</option>{documentId && !submissionDocuments?.some(d => d.id === documentId) && <option value={documentId}>Your newly uploaded evidence</option>}{submissionDocuments?.map(d => <option key={d.id} value={d.id}>{d.file_name}</option>)}</select><span className="text-muted-foreground">Only files you uploaded yourself can be submitted here. If someone else uploaded your certificate, upload your own copy.</span></label>
+        <label className="text-sm">Or choose an existing document<select className={fieldClass} value={documentId} disabled={busy} onChange={e => { setDocumentId(e.target.value); setFile(null); }}><option value="">Choose a document</option>{documentId && !submissionDocuments?.some(d => d.id === documentId) && <option value={documentId}>Your newly uploaded evidence</option>}{submissionDocuments?.map(d => <option key={d.id} value={d.id}>{documentDisplayName({ fileName: d.file_name, fallback: d.document_type === "transcript" ? "Training transcript" : "Training certificate" })}{d.created_at ? ` · ${formatDateForDisplay(d.created_at)}` : ""}</option>)}</select><span className="text-muted-foreground">Only files you uploaded yourself can be submitted here. If someone else uploaded your certificate, upload your own copy.</span></label>
         <Button disabled={busy || (!file && !documentId)}>{busy ? "Submitting…" : "Submit for review"}</Button>
       </form>
     </CardContent></Card>}

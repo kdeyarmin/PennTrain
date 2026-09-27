@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 import { Link, useParams } from "wouter";
 import { useAuth } from "@/lib/auth";
 import {
@@ -338,7 +339,7 @@ function EvidenceCollectionRecord({ id }: { id: string | undefined }) {
                 <tbody>
                   {(artifacts ?? []).map((a) => (
                     <tr key={a.id} className={a.withdrawn_at ? "opacity-60" : undefined}>
-                      <td className="font-medium">{a.display_name}</td>
+                      <td className="font-medium">{documentDisplayName({ title: a.display_name, fallback: "Compliance binder" })}</td>
                       <td className="text-sm">{formatBytes(a.snapshot_artifact?.byte_size)}</td>
                       <td className="font-mono text-xs text-muted-foreground">
                         {a.snapshot_artifact?.content_sha256 ? `${a.snapshot_artifact.content_sha256.slice(0, 16)}…` : "—"}
@@ -540,7 +541,7 @@ function EvidenceCollectionRecord({ id }: { id: string | undefined }) {
       <Dialog open={!!withdrawTarget} onOpenChange={(open) => !open && setWithdrawTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Withdraw "{withdrawTarget?.display_name}"</DialogTitle>
+            <DialogTitle>Withdraw "{documentDisplayName({ title: withdrawTarget?.display_name, fallback: "Compliance binder" })}"</DialogTitle>
             <DialogDescription>
               Guests lose access immediately. Withdrawal is logged and cannot be undone by re-adding the
               same export.
@@ -647,7 +648,7 @@ function EvidenceCollectionRecord({ id }: { id: string | undefined }) {
                             )
                           }
                         />
-                        {a.display_name}
+                        {documentDisplayName({ title: a.display_name, fallback: "Compliance binder" })}
                       </label>
                     ))}
                   </div>

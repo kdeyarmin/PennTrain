@@ -259,8 +259,8 @@ select is(
   (select due_date from public.resident_compliance_items
    where resident_id = 'a2280000-0000-4000-8000-000000000201'
      and item_type = 'support_plan_quarterly_review' and completed_date is null),
-  public.pa_today() - 85,
-  'and completing it starts the quarterly review, due 90 days after the plan'
+  ((public.pa_today() - 175) + interval '3 months')::date,
+  'and completing it starts the quarterly review three calendar months after the plan'
 );
 
 select app_private.backfill_alf_support_plan_cycle();

@@ -216,8 +216,8 @@ select is((select final_plan_review->>'lpn_name' from public.resident_compliance
 select is(
   (select due_date from public.resident_compliance_items
    where resident_id = 'a2270000-0000-4000-8000-000000000201' and item_type = 'support_plan_quarterly_review'),
-  public.pa_today() + 70,
-  'completing the plan starts the quarterly review, due 90 days after the date on the plan'
+  ((public.pa_today()-20)+interval '3 months')::date,
+  'completing the plan starts the quarterly review three calendar months after the date on the plan'
 );
 
 select is(
@@ -262,7 +262,7 @@ select is(
   (select due_date from public.resident_compliance_items
    where resident_id = 'a2270000-0000-4000-8000-000000000201'
      and item_type = 'support_plan_quarterly_review' and completed_date is null),
-  public.pa_today() + 90,
+  (public.pa_today()+interval '3 months')::date,
   'due a quarter after the review that was done'
 );
 select is(

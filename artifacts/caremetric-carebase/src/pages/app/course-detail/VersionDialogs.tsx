@@ -9,6 +9,7 @@ import type { Course, CourseBlock, CourseVersion } from "@/hooks/useCourses";
 import type { Role } from "@/lib/auth";
 import { BlockTypeBadge, CourseVideoPreview, QuizBlockSummary } from "./components";
 import { blockName, documentDisplayName, textBodyContent, videoTranscriptContent } from "./helpers";
+import { documentDisplayName as readableDocumentName } from "@/lib/documentDisplayName";
 
 export function NewVersionDialog({
   open,
@@ -81,7 +82,7 @@ export function StudentPreviewDialog({
         <div className="space-y-4 py-2">
           <div className="rounded-md border p-4">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-normal">Training item</p>
-            <h2 className="text-xl font-semibold">{course.title}</h2>
+            <h2 className="text-xl font-semibold">{readableDocumentName({ title: course.title, fallback: "Course" })}</h2>
             {course.description && <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{course.description}</p>}
           </div>
           {!blocks || blocks.length === 0 ? (
@@ -95,7 +96,7 @@ export function StudentPreviewDialog({
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
                       <p className="text-xs text-muted-foreground">Lesson {index + 1} of {blocks.length}</p>
-                      <h3 className="text-base font-semibold">{block.title ?? blockName(block)}</h3>
+                      <h3 className="text-base font-semibold">{readableDocumentName({ title: block.title, fallback: blockName(block) })}</h3>
                     </div>
                     <BlockTypeBadge blockType={block.block_type} />
                   </div>
@@ -126,12 +127,12 @@ export function StudentPreviewDialog({
                     </div>
                   )}
 
-                  {block.block_type === "pdf" && block.media_asset_id ? <CourseMediaDocumentLink versionId={block.course_version_id} blockId={block.id} assetId={block.media_asset_id} /> : (block.block_type === "pdf" || block.block_type === "scorm") && (
+                  {block.block_type === "pdf" && block.media_asset_id ? <CourseMediaDocumentLink versionId={block.course_version_id} blockId={block.id} assetId={block.media_asset_id} title={block.title} /> : (block.block_type === "pdf" || block.block_type === "scorm") && (
                     <div className="flex items-center gap-3 rounded-md bg-muted/50 p-3">
                       <FileIcon className="h-5 w-5 text-muted-foreground" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">
-                          {block.document_id ? documentDisplayName(courseDocumentById.get(block.document_id)) || "Attached document" : "No document attached"}
+                          {block.document_id ? documentDisplayName(courseDocumentById.get(block.document_id), block.title) || "Course document" : "No document attached"}
                         </p>
                         <p className="text-xs text-muted-foreground">{block.block_type === "pdf" ? "PDF resource" : "SCORM package"}</p>
                       </div>

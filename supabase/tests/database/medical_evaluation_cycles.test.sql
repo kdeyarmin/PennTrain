@@ -175,7 +175,7 @@ select is(
 select is(
   (select due_date from public.resident_compliance_items
    where resident_id = '2e000000-0000-4000-8000-000000000201' and item_type = 'annual_medical_evaluation'),
-  public.pa_today() + 365,
+  (public.pa_today()+interval '1 year')::date,
   'due a year from completion, not a year from the missed original deadline');
 
 -- The other half of the pair: an annual evaluation ten days past due IS still covered.

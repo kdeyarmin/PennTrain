@@ -1,5 +1,6 @@
 import { trainingCsv } from "./trainingWorkspace";
 import { formatDateForDisplay } from "./dateUtils";
+import { documentDisplayName } from "./documentDisplayName";
 
 export type TrainingReportDateBasis = "assigned" | "completed" | "certificate" | "due";
 export interface TrainingEnrollmentFilters {
@@ -73,7 +74,7 @@ export function trainingEnrollmentScope(filters: TrainingEnrollmentFilters, repo
 }
 export const TRAINING_REPORT_HEADERS = ["Student", "Facility", "Course", "Status", "Progress %", "Enrolled", "Due", "Completed", "Certificate number", "Certificate issued", "Certificate PDF status", "Enrollment ID", "Required / optional", "Learning plan", "Course version", "Earned credit hours"];
 export function trainingEnrollmentCells(row: TrainingEnrollmentRow): string[] {
-  return [row.student, row.facility, row.course, row.status.replaceAll("_", " "), String(row.percent_complete),
+  return [row.student, row.facility, documentDisplayName({ title: row.course, fallback: "Training course" }), row.status.replaceAll("_", " "), String(row.percent_complete),
     formatDateForDisplay(row.assigned_at, { timeZone: "America/New_York" }), formatDateForDisplay(row.due_date), formatDateForDisplay(row.completed_at, { timeZone: "America/New_York" }),
     row.credential_number || "", formatDateForDisplay(row.certificate_issued_at, { timeZone: "America/New_York" }), row.certificate_pdf_status || "", row.id, row.is_required === false ? "Optional" : "Required", row.plan_name || "", row.course_version || "", String(row.credit_hours ?? 0)];
 }

@@ -1,7 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { ITEM_TYPE_LABELS, getRequiredStateFormInfo, getRequiredStateFormLabel, stateFormBackdateDays, stateFormDateField } from "./residentCompliance";
+import { ITEM_TYPE_LABELS, getRequiredStateFormInfo, getRequiredStateFormLabel, stateFormBackdateDays, stateFormDateField, allowsEquivalentResidentForm, residentItemDeadlineLabel } from "./residentCompliance";
 
 const PA_DHS_URL_PREFIX = "https://www.pa.gov/";
+
+describe("chapter-specific form alternatives and dates", () => {
+  it("permits equivalent assessment/support forms only for the applicable chapter and item", () => {
+    for (const type of ["PCH", "ALR"]) {
+      expect(allowsEquivalentResidentForm("initial_assessment_15day", type)).toBe(true);
+      expect(allowsEquivalentResidentForm("support_plan_30day", type)).toBe(true);
+      expect(allowsEquivalentResidentForm("medical_evaluation", type)).toBe(false);
+      expect(allowsEquivalentResidentForm("preadmission_screening", type)).toBe(false);
+    }
+    expect(allowsEquivalentResidentForm("support_plan_quarterly_review", "ALR")).toBe(true);
+    expect(allowsEquivalentResidentForm("support_plan_quarterly_review", "PCH")).toBe(false);
+    expect(allowsEquivalentResidentForm("initial_assessment_15day", "NH")).toBe(false);
+  });
+
+  it("does not describe a significant-change internal target as a statutory allowance", () => {
+    const label = residentItemDeadlineLabel({ item_type: "significant_change_reassessment", due_date: null, internal_target_date: "2026-10-01" });
+    expect(label).toContain("Internal follow-up target");
+    expect(label).toContain("Code specifies no numeric allowance");
+    expect(label).not.toContain("Due");
+    expect(residentItemDeadlineLabel({ item_type: "medical_evaluation", due_date: "2026-10-01" })).toMatch(/^Due /);
+  });
+});
 
 describe("getRequiredStateFormInfo", () => {
   it("maps PCH assessment items to the official PA DHS RASP form", () => {

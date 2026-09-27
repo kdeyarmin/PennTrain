@@ -590,6 +590,8 @@ test.describe("new training facility administrator", () => {
     const facilityName = `Owner-created ALF ${suffix}`;
     await page.getByLabel("Organization name", { exact: true }).fill(organizationName);
     await page.getByLabel("Facility name", { exact: true }).fill(facilityName);
+    await expect(page.getByRole("combobox", { name: "License type", exact: true })).toHaveValue("");
+    await expect(page.getByRole("combobox", { name: "License type", exact: true })).toHaveAttribute("required", "");
     await page.getByRole("combobox", { name: "License type", exact: true }).selectOption({ label: "Pennsylvania Assisted Living Facility (ALF)" });
     const administratorEmail = `owner-invited-training-admin-${suffix}@test.local`;
     await page.getByLabel("Administrator first name", { exact: true }).fill("Facility");

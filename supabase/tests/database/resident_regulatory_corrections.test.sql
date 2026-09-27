@@ -9,6 +9,9 @@ insert into public.incidents(id,organization_id,facility_id,incident_type,occurr
 ('aa260000-0000-4000-8000-000000000101','aa260000-0000-4000-8000-000000000001','aa260000-0000-4000-8000-000000000011','food_poisoning',now(),now(),'Documented food poisoning requiring a Department report'),
 ('aa260000-0000-4000-8000-000000000102','aa260000-0000-4000-8000-000000000001','aa260000-0000-4000-8000-000000000012','food_poisoning',now(),now(),'Documented food poisoning requiring a Department report'),
 ('aa260000-0000-4000-8000-000000000103','aa260000-0000-4000-8000-000000000001','aa260000-0000-4000-8000-000000000011','medication_error',now(),now(),'Wrong medication administered by a staff member');
+update public.incidents set pathway_key='medication_event',
+  pathway_answers='{"event_kind":"actual_error","administration_by":"staff","error_category":"wrong_medication"}'
+where id='aa260000-0000-4000-8000-000000000103';
 select is((select count(*)::integer from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000101' and notification_type in ('resident_family','designated_person')),0,'PCH food poisoning does not receive ALF-only family duties');
 select is((select count(*)::integer from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000102' and notification_type in ('resident_family','designated_person') and due_at=now()),2,'ALF family and designated person each have an immediate notification');
 select is((select due_at from public.incident_notifications where incident_id='aa260000-0000-4000-8000-000000000101' and notification_type='state_hotline'),now()+interval '24 hours','moderate food poisoning receives the 24-hour Department duty');

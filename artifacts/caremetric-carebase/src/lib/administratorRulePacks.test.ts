@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { buildAdministratorRulePack, summarizeAdministratorRulePack, type AdministratorRulePackProfile } from "./administratorRulePacks";
 
 describe("administrator rule packs", () => {
+  it("uses twelve calendar months across leap day when no training-year policy is saved", () => {
+    const check = (today: string, completed_date: string) => buildAdministratorRulePack("PCH", {
+      today, ceEntries: [{ completed_date, hours: 24 }],
+    }).find(rule => rule.id === "administrator-continuing-education");
+    expect(check("2024-03-01", "2023-03-01")).toMatchObject({ status: "due_soon", dueDate: "2024-03-01", earnedHours: 24 });
+    expect(check("2024-03-02", "2023-03-01")).toMatchObject({ status: "missing", earnedHours: 0 });
+    expect(check("2025-02-28", "2024-02-29")).toMatchObject({ status: "due_soon", dueDate: "2025-02-28", earnedHours: 24 });
+    expect(check("2025-03-01", "2024-02-29")).toMatchObject({ status: "missing", earnedHours: 0 });
+    expect(check("2024-02-28", "2023-02-28")).toMatchObject({ status: "due_soon", dueDate: "2024-02-28", earnedHours: 24 });
+    expect(check("2024-02-29", "2023-02-28")).toMatchObject({ status: "missing", earnedHours: 0 });
+  });
   it("does not infer ALF orientation or dementia evidence from a course or NHA license", () => {
     for (const profile of [{ hundred_hour_course_completed_date: "2026-01-01" }, { nha_license_number: "NHA123" }]) {
       expect(buildAdministratorRulePack("ALR", { profile, today: "2026-07-13" })

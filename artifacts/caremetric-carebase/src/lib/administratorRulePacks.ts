@@ -61,7 +61,6 @@ export interface AdministratorRulePackRequirement {
   earnedHours?: number;
 }
 
-const CE_WINDOW_DAYS = 365;
 const DUE_SOON_DAYS = 30;
 
 /**
@@ -94,10 +93,10 @@ function statusFromDueDate(dueDate: string | null, today: string, present: boole
 function allocateCe(ceEntries: AdministratorRulePackCeEntry[], today: string, from?: string, options: {
   excluded?: Map<AdministratorRulePackCeEntry, number>; remaining?: { medication: number; resuscitation: number; online: number }; limit?: number;
 } = {}) {
-  const cutoff = from ?? addFacilityCalendarDays(today, -CE_WINDOW_DAYS);
   let { medication, resuscitation, online } = options.remaining ?? { medication: 6, resuscitation: 4, online: 12 };
   const credits = new Map<AdministratorRulePackCeEntry, number>();
-  const total = ceEntries.filter(entry => entry.completed_date >= cutoff && entry.completed_date <= today)
+  const total = ceEntries.filter(entry => entry.completed_date <= today
+    && (from ? entry.completed_date >= from : addFacilityCalendarYears(entry.completed_date, 1) >= today))
     .sort((a, b) => Number(/online|webinar/i.test(a.source ?? "")) - Number(/online|webinar/i.test(b.source ?? "")))
     .reduce((sum, entry) => {
       const isOnline = /online|webinar/i.test(entry.source ?? "");
@@ -217,8 +216,8 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
 
   const selectedPeriod = evidence.trainingPolicy ? trainingPeriod(evidence.today, firstEmployed ?? evidence.today,
     evidence.trainingPolicy.administrator_year_basis, evidence.trainingPolicy.administrator_year_start) : null;
-  const ceCutoff = selectedPeriod?.start ?? addFacilityCalendarDays(evidence.today, -CE_WINDOW_DAYS);
-  const ceWindowEntries = ceEntries.filter((entry) => entry.completed_date >= ceCutoff && entry.completed_date <= evidence.today);
+  const ceWindowEntries = ceEntries.filter((entry) => entry.completed_date <= evidence.today
+    && (selectedPeriod ? entry.completed_date >= selectedPeriod.start : addFacilityCalendarYears(entry.completed_date, 1) >= evidence.today));
   let ceHours = rollingCe(ceEntries, evidence.today, selectedPeriod?.start);
   const courseFirstYear = Boolean(qualifiedByCourse && firstEmployed && firstEmployed <= evidence.today
     && profile?.hundred_hour_course_completed_date && profile.hundred_hour_course_completed_date <= firstEmployed
@@ -235,15 +234,15 @@ export function buildAdministratorRulePack(facilityType: FacilityType, evidence:
     ceHours = allocateCe(ceEntries, evidence.today, selectedPeriod!.start, { excluded: repair.credits }).total;
     priorOverdue = evidence.today > graceEnd && prior.total + repair.total < 24;
   }
-  // The CE requirement lapses on the first day the trailing-365-day total drops
+  // The CE requirement lapses on the first day the trailing-12-month total drops
   // below 24 hours, i.e. when enough of the oldest entries age out of the window.
   // Walking entries oldest-first, the due date is the last day the entry whose
-  // aging-out drops the remaining total below 24 still counts (its date + 365).
+  // aging-out drops the remaining total below 24 still counts (its next anniversary).
   let ceDueDate: string | null = selectedPeriod ? addFacilityCalendarDays(selectedPeriod.end, evidence.annualGraceDays ?? 15) : null;
   if (ceHours >= 24 && !selectedPeriod) {
     const sortedByDate = [...ceWindowEntries].sort((a, b) => a.completed_date.localeCompare(b.completed_date));
     for (const entry of sortedByDate) {
-      const candidate = addFacilityCalendarDays(entry.completed_date, CE_WINDOW_DAYS);
+      const candidate = addFacilityCalendarYears(entry.completed_date, 1);
       if (rollingCe(ceWindowEntries, addFacilityCalendarDays(candidate, 1)) < 24) {
         ceDueDate = candidate;
         break;

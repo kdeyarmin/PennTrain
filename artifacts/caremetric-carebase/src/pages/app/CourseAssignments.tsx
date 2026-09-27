@@ -25,6 +25,7 @@ import {
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListQuizzesForCourseVersion } from "@/hooks/useQuizzes";
 import { useListCertificates, usePrepareCertificatePdf } from "@/hooks/useCertificates";
+import { namedCertificateDownloadUrl } from "@/lib/certificateDownloadUrl";
 import {
   describeBulkAssignment, summarizeBulkAssignment, summarizeCourseAssignmentAnalytics,
 } from "@/lib/courseAssignmentAnalytics";
@@ -598,7 +599,9 @@ export default function CourseAssignments() {
     setDownloadingCertId(certificateId);
     try {
       const { url } = await prepareCertPdf(certificateId);
-      openDocumentUrl(url);
+      const certificate = certificates?.find(item => item.id === certificateId);
+      const learner = certificate ? employeeById.get(certificate.employee_id) : undefined;
+      openDocumentUrl(namedCertificateDownloadUrl(url, certificate?.course_title_snapshot || (certificate ? courseById.get(certificate.course_id)?.title : undefined), learner ? `${learner.first_name} ${learner.last_name}` : undefined));
     } catch (err) {
       toast({
         title: "Could not generate certificate PDF",

@@ -72,8 +72,6 @@ Deno.test("branded certificate preserves award facts, provider attribution and P
       "CareMetric Healthcare Advisors",
       "Organization / facility: Sample Senior Living / Meadowbrook Community",
       "Issued: September 25, 2026 | Renewal due: September 25, 2027",
-      "Course code: PC-101",
-      "Course version: 1.0",
       "Regulatory reference: Sample course reference",
       "Training provider: Original Course Instructor, RN",
       "Final examination score: 94%",
@@ -88,11 +86,38 @@ Deno.test("branded certificate preserves award facts, provider attribution and P
     );
   }
   assert(!hasText(content, "DHS APPROVED"));
+  assert(!hasText(content, "Course code: PC-101"));
+  assert(!hasText(content, "Course version: 1.0"));
   assertEquals(
     content.match(/\sdo\b/g)?.length,
     2,
     "Brand and verification images must be drawn",
   );
+});
+
+Deno.test("new certificate display removes source filenames and editions while retaining the recorded award facts", async () => {
+  const recorded = Object.freeze({
+    ...certificate,
+    courseTitle: "imports/Medication_Administration_v2026_1.pdf",
+    courseCode: "internal_medication_source_v2026_1",
+    courseVersion: "medication_source_release_v2026_1.pdf",
+    regulatoryReference: "55 Pa. Code 2600.190",
+    providerCredential: "RN 123456",
+  });
+  const original = { ...recorded };
+  const pdf = await PDFDocument.load(
+    await buildCertificatePdf(recorded, "https://training.example.com"),
+  );
+  const content = textOperators(pdf);
+  assert(hasText(content, "Medication Administration"));
+  assertEquals(pdf.getSubject(), "Medication Administration");
+  assert(!hasText(content, `Course code: ${recorded.courseCode}`));
+  assert(!hasText(content, `Course version: ${recorded.courseVersion}`));
+  assert(hasText(content, "Regulatory reference: 55 Pa. Code 2600.190"));
+  assert(hasText(content, "Training provider: Original Course Instructor, RN 123456"));
+  assert(hasText(content, "Credential number: CMT-SAMPLE-001"));
+  assert(hasText(content, "Verify at training.example.com/verify/sample-certificate"));
+  assertEquals(recorded, original, "Rendering must not change the supplied snapshot values");
 });
 
 Deno.test("issued PDF embeds the exact owner-supplied Healthcare Advisors logo", async () => {

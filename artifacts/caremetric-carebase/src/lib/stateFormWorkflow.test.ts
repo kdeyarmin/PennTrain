@@ -42,6 +42,38 @@ function doc(overrides: Partial<WorkflowDocument> = {}): WorkflowDocument {
 }
 
 describe("deriveStateFormWorkflow", () => {
+  const equivalentReview = { all_required_information: true, reviewer_name: "Facility reviewer", review_reference: "Signed comparison of all DHS form fields" };
+
+  it.each(["PCH", "ALR"])("reuses a reviewed %s equivalent form after the completion request fails", facilityType => {
+    const equivalent = doc({ id: "equivalent", equivalent_form_review: equivalentReview });
+    const state = deriveStateFormWorkflow(item(), [], [equivalent], facilityType);
+    expect(state.step).toBe("ready_to_complete");
+    expect(state.primaryAction).toMatchObject({ key: "mark_compliant", documentId: "equivalent" });
+    expect(state.linkedStateFormDocumentId).toBe("equivalent");
+    const completed = deriveStateFormWorkflow(item({ status: "compliant", completed_date: TODAY }), [], [equivalent], facilityType);
+    expect(completed.secondaryActions).toContainEqual({ key: "view_signed_form", label: "View signed form", documentId: "equivalent" });
+  });
+
+  it.each([
+    ["PCH", "medical_evaluation"], ["ALR", "annual_medical_evaluation"],
+    ["PCH", "preadmission_screening"], ["PCH", "support_plan_quarterly_review"], ["NH", "annual_reassessment"],
+  ])("does not use an equivalent form outside the %s %s permission", (facilityType, itemType) => {
+    const state = deriveStateFormWorkflow(item({ item_type: itemType }), [], [doc({ equivalent_form_review: equivalentReview })], facilityType);
+    expect(state.linkedStateFormDocumentId).toBeNull();
+    expect(state.primaryAction?.key).not.toBe("mark_compliant");
+  });
+
+  it("recognizes an ALF quarterly review only when the reviewed equivalent is linked to this item", () => {
+    const reviewItem = item({ item_type: "support_plan_quarterly_review" });
+    const equivalent = doc({ equivalent_form_review: equivalentReview });
+    expect(deriveStateFormWorkflow(reviewItem, [], [equivalent], "ALR").step).toBe("ready_to_complete");
+    expect(deriveStateFormWorkflow(reviewItem, [], [{ ...equivalent, compliance_item_id: "other-item" }], "ALR").linkedStateFormDocumentId).toBeNull();
+  });
+
+  it.each([null, {}, { ...equivalentReview, all_required_information: false }, { ...equivalentReview, reviewer_name: "" }, { ...equivalentReview, review_reference: "" }])("keeps unreviewed or incomplete equivalent evidence out of the completion step", review => {
+    expect(deriveStateFormWorkflow(item(), [], [doc({ equivalent_form_review: review })], "PCH").linkedStateFormDocumentId).toBeNull();
+  });
+
   it("starts a digital item at not_started with start_prep primary and a 4-step rail", () => {
     const state = deriveStateFormWorkflow(item(), [], [], "PCH");
     expect(state.step).toBe("not_started");
@@ -192,6 +224,19 @@ describe("sortOpenItemsByUrgency", () => {
       item({ id: "b", status: "missing", due_date: null }),
     ];
     expect(sortOpenItemsByUrgency(items, TODAY).map((i) => i.id)).toEqual(["a", "b"]);
+  });
+
+  it("orders undated significant-change work by its internal target without assigning a legal deadline", () => {
+    const items = [
+      item({ id: "later", item_type: "significant_change_reassessment", status: "missing", due_date: null, internal_target_date: "2026-07-20" }),
+      item({ id: "undated", status: "missing", due_date: null }),
+      item({ id: "earlier", item_type: "significant_change_reassessment", status: "missing", due_date: null, internal_target_date: "2026-07-10" }),
+      item({ id: "statutory", status: "missing", due_date: "2026-07-15", internal_target_date: "2026-07-01" }),
+    ];
+    const sorted = sortOpenItemsByUrgency(items, TODAY);
+    expect(sorted.map(row => row.id)).toEqual(["earlier", "statutory", "later", "undated"]);
+    expect(sorted.find(row => row.id === "earlier")).toMatchObject({ status: "missing", due_date: null });
+    expect(items.map(row => row.id)).toEqual(["later", "undated", "earlier", "statutory"]);
   });
 });
 

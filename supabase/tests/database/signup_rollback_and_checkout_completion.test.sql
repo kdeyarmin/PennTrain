@@ -17,7 +17,7 @@ values (
 select lives_ok(
   $$ select public.record_organization_signup(
        'Rollback Signup Org', 'rollback-signup-org',
-       now() + interval '30 days', 'CareMetric-HIPAA-BAA-v2026-07-14') $$,
+       now() + interval '30 days', 'CareMetric-HIPAA-BAA-v2026-07-14', 'PCH') $$,
   'signup RPC creates the organization'
 );
 

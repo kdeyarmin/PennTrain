@@ -1,7 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { evacuationFinding, isSleepingHours, maximumInspectionInterval } from "./inspectionRules";
+import { evacuationFinding, isSleepingHours, maximumInspectionInterval, inspectionScheduleLabel, inspectionTypeAppliesToFacility, inspectionTypeLabel, inspectionGuidance } from "./inspectionRules";
 
 describe("DHS fire inspection rules", () => {
+  it("keeps ALF-only inspection requirements out of PCH defaults while identifying retained voluntary records", () => {
+    for (const type of ["fireplace_chimney_service", "automatic_external_defibrillator"]) {
+      expect(inspectionTypeAppliesToFacility(type, "PCH")).toBe(false);
+      expect(inspectionTypeAppliesToFacility(type, "ALR")).toBe(true);
+      expect(inspectionTypeAppliesToFacility(type)).toBe(false);
+      expect(inspectionGuidance(type, "PCH")).toContain("Additional facility policy");
+      expect(inspectionGuidance(type, "ALR")).toContain("2800");
+      expect(inspectionTypeLabel(type, "PCH")).toContain("(additional facility policy)");
+      expect(inspectionTypeLabel(type, "PCH")).not.toMatch(/^ALF /);
+      expect(inspectionTypeLabel(type, "ALR")).toMatch(/^ALF /);
+    }
+    expect(inspectionTypeAppliesToFacility("fire_extinguisher", "PCH")).toBe(true);
+    expect(inspectionGuidance("fire_extinguisher", "PCH")).toContain("annually");
+    expect(inspectionTypeLabel("smoke_detector", "PCH")).toBe("Smoke Detector");
+    expect(inspectionTypeLabel("sprinkler_system", "PCH", "Sprinkler System")).toBe("Sprinkler System");
+    expect(maximumInspectionInterval("fireplace_chimney_service", "PCH")).toBeUndefined();
+    expect(maximumInspectionInterval("fireplace_chimney_service", "ALR")).toBe(365);
+    for (const facilityType of ["NH", "HHA", "HOS", "GH", undefined]) {
+      expect(maximumInspectionInterval("fireplace_chimney_service", facilityType)).toBe(365);
+    }
+  });
+  it("labels calendar baselines separately from explicit fixed-day facility schedules", () => {
+    expect(inspectionScheduleLabel("furnace_inspection", 365)).toBe("Annually (calendar anniversary)");
+    expect(inspectionScheduleLabel("smoke_detector", 30)).toBe("Every calendar month");
+    expect(inspectionScheduleLabel("private_water_coliform_test", 90)).toBe("Every 3 calendar months");
+    expect(inspectionScheduleLabel("furnace_inspection", 180)).toBe("Every 180 days");
+    expect(inspectionScheduleLabel("other_equipment", 365)).toBe("Every 365 days");
+  });
   it("recognizes the cross-midnight sleeping window and custom supported windows", () => {
     expect(isSleepingHours("23:00")).toBe(true);
     expect(isSleepingHours("06:59:59")).toBe(true);

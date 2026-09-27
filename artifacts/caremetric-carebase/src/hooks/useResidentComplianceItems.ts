@@ -33,7 +33,7 @@ export interface ListAllResidentComplianceItemsFilters {
 type ResidentComplianceItemSummary = Pick<
   ResidentComplianceItem,
   | "id" | "resident_id" | "facility_id" | "item_type" | "due_date" | "status"
-  | "completed_date" | "triggered_by_item_id" | "renewal_interval_days"
+  | "completed_date" | "triggered_by_item_id" | "renewal_interval_days" | "internal_target_date"
 >;
 
 // `options.enabled` matters for callers that intend to scope by facilityId but don't have one yet
@@ -64,7 +64,7 @@ export function useListAllResidentComplianceItems(
       for (let from = 0; ;) {
         let query = supabase
           .from("resident_compliance_items")
-          .select("id,resident_id,facility_id,item_type,due_date,status,completed_date,triggered_by_item_id,renewal_interval_days")
+          .select("id,resident_id,facility_id,item_type,due_date,status,completed_date,triggered_by_item_id,renewal_interval_days,internal_target_date")
           .order("due_date")
           .order("id")
           .range(from, Math.min(from + pageSize, 50000) - 1);

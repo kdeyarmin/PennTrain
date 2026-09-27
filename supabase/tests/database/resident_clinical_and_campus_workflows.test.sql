@@ -30,7 +30,7 @@ select throws_ok($$update public.resident_regulatory_actions set evidence='Chang
 select throws_ok($$insert into public.residents(organization_id,facility_id,first_name,last_name,admission_date,admission_track) values(pg_temp.id(1),pg_temp.id(13),'No','Basis',public.pa_today(),'expedited')$$,'23514',null,'expedited admission cannot omit its qualifying condition and source');
 select lives_ok($$insert into public.residents(organization_id,facility_id,first_name,last_name,admission_date,admission_track,expedited_admission_basis,expedited_admission_evidence) values(pg_temp.id(1),pg_temp.id(13),'Valid','Basis',public.pa_today(),'expedited','acute_care_hospital','Acute hospital discharge summary on record')$$,'expedited hospital admission records its evidence');
 
-select is((select resident_regulatory_policy->>'alf_admission_grace_days' from public.facilities where id=pg_temp.id(13)),'0','default ALF admission policy remains strict');
+select is((select resident_regulatory_policy->>'alf_admission_grace_days' from public.facilities where id=pg_temp.id(13)),'0','ALF admission follows the Code while conflicting RCG general-grace guidance remains unresolved');
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 select public.save_resident_regulatory_policy(pg_temp.id(13),'{"alf_admission_grace_days":15,"alf_contract_timing":"within_24_hours","revision_grace_days":5,"medication_reportability":"statutory_errors"}', 'Recorded facility policy decision following review','other-campus');
 select is((select grace_period_days from public.resident_compliance_items where resident_id=pg_temp.id(103) and item_type='medical_evaluation'),15,'selected ALF policy updates the open admission duty');

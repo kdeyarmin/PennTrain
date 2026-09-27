@@ -9,3 +9,12 @@ export const RESIDENT_CLINICAL_DUTIES = {
 } as const;
 export type ResidentClinicalDutyType = keyof typeof RESIDENT_CLINICAL_DUTIES;
 export function isResidentClinicalDuty(type: string): type is ResidentClinicalDutyType { return Object.hasOwn(RESIDENT_CLINICAL_DUTIES, type); }
+
+/** Combined RASP/ASP evidence retains its assessment and plan purposes; admission screening is prescribed. */
+export function equivalentClinicalItemAllowed(facilityType: string | undefined, actionType: string, itemType: string, initialPlanConfirmed = false): boolean {
+  if (!facilityType || !["PCH", "ALR"].includes(facilityType)) return false;
+  if (actionType === "scu_support_plan" && itemType === "initial_assessment_15day") return initialPlanConfirmed;
+  if (itemType === "support_plan_quarterly_review" && facilityType !== "ALR") return false;
+  if (["scu_support_plan", "scu_plan_review"].includes(actionType)) return ["support_plan_30day", "support_plan_quarterly_review", "annual_reassessment", "significant_change_reassessment"].includes(itemType);
+  return actionType === "scu_continuing_need" && ["annual_reassessment", "significant_change_reassessment", "support_plan_quarterly_review"].includes(itemType);
+}

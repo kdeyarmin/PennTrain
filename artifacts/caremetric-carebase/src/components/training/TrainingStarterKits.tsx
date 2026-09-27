@@ -9,6 +9,7 @@ import { QueryError } from "@/components/QueryState";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { facilityToday } from "@/lib/dateUtils";
 import { isExplicitCompletionDeadline } from "@/lib/trainingPlanEditing";
+import { documentDisplayName } from "@/lib/documentDisplayName";
 
 const emptyKit = () => ({ name: "", description: "", items: [] as StarterKit["items"], is_published: false });
 
@@ -34,7 +35,7 @@ export function StarterKitPlanComparison({ kit, planId, courses }: { kit: Starte
   const added = kit.items.filter(item => !items.some(existing => existing.course_id === item.course_id));
   const removed = items.filter(item => item.course_id && !kit.items.some(proposed => proposed.course_id === item.course_id));
   const changed = kit.items.filter(item => items.some(existing => existing.course_id === item.course_id && existing.is_required !== item.is_required));
-  const title = (id: string | null) => courses.find(course => course.id === id)?.title || "Unavailable course";
+  const title = (id: string | null) => documentDisplayName({ title: courses.find(course => course.id === id)?.title, fallback: "Unavailable course" });
   return <div className="rounded border p-3 space-y-2 text-sm" aria-label="Starter kit changes">
     <p className="font-medium">Compared with your current facility plan</p>
     <p>Your facility’s edits are included in this comparison. Reviewing or copying this kit keeps that plan, its assignments, deadlines, and completions intact.</p>
@@ -52,7 +53,7 @@ export function ManageTrainingStarterKits() {
   const courses = useListCourses({}, !!editing);
   const save = useSaveTrainingStarterKit();
   const catalog = (courses.data ?? []).filter(c => !c.organization_id && c.status === "published" && c.current_version_id);
-  const shown = catalog.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
+  const shown = catalog.filter(c => documentDisplayName({ title: c.title, fallback: "Course" }).toLowerCase().includes(search.toLowerCase()));
   return <details className="rounded-lg border p-4 space-y-3">
     <summary className="font-semibold cursor-pointer">Manage Training starter kits</summary>
     <p className="text-sm text-muted-foreground">Create reusable orientation or annual course collections for your facilities. Published kits appear in Learning Plans. Administrators review each copy and enter their own deadlines; later kit edits leave existing facility plans unchanged.</p>
@@ -69,7 +70,7 @@ export function ManageTrainingStarterKits() {
       <label className="block text-sm">Find published global courses<Input value={search} onChange={e => setSearch(e.target.value)} /></label>
       {courses.isError ? <QueryError what="global courses" error={courses.error} onRetry={() => void courses.refetch()} /> : courses.isLoading ? <p>Loading courses…</p> : <div className="max-h-72 overflow-y-auto space-y-2">{shown.map(course => {
         const selected = editing.items.find(item => item.course_id === course.id);
-        return <div key={course.id} className="border rounded p-2 space-y-1"><label className="flex gap-2"><input type="checkbox" checked={!!selected} disabled={!selected && editing.items.length >= 100} onChange={e => setEditing({ ...editing, items: e.target.checked ? [...editing.items, { course_id: course.id, is_required: true }] : editing.items.filter(item => item.course_id !== course.id) })} />{course.title}</label>
+        return <div key={course.id} className="border rounded p-2 space-y-1"><label className="flex gap-2"><input type="checkbox" checked={!!selected} disabled={!selected && editing.items.length >= 100} onChange={e => setEditing({ ...editing, items: e.target.checked ? [...editing.items, { course_id: course.id, is_required: true }] : editing.items.filter(item => item.course_id !== course.id) })} />{documentDisplayName({ title: course.title, fallback: "Course" })}</label>
           {selected && <label className="ml-6 flex gap-2 text-xs"><input type="checkbox" checked={selected.is_required} onChange={e => setEditing({ ...editing, items: editing.items.map(item => item.course_id === course.id ? { ...item, is_required: e.target.checked } : item) })} />Required in the copied plan</label>}
         </div>;
       })}{!shown.length && <p>No published global courses match.</p>}</div>}
@@ -148,7 +149,7 @@ export function FacilityTrainingStarterKits({ facilities, selectedFacility, onCr
         {!courses.isLoading && !courses.isError && <p className="text-sm">{starterKitDuration(kit.items, courses.data ?? [])}</p>}
         {comparisonPlan && <StarterKitPlanComparison kit={kit} planId={comparisonPlan.id} courses={courses.data ?? []} />}
         {previousCopy(kit.id) && !comparisonPlan && <p className="text-sm">Your existing copy remains separate. {plans.isLoading ? "Loading the current plan comparison…" : "The current plan comparison is unavailable; review its courses before assigning a new copy."}</p>}
-        <ul className="list-disc pl-5 text-sm space-y-1">{kit.items.map(item => <li key={item.course_id}>{courses.data?.find(c => c.id === item.course_id)?.title || "Loading course details…"} — {item.is_required ? "Required" : "Optional"}</li>)}</ul>
+        <ul className="list-disc pl-5 text-sm space-y-1">{kit.items.map(item => <li key={item.course_id}>{documentDisplayName({ title: courses.data?.find(c => c.id === item.course_id)?.title, fallback: "Loading course details…" })} — {item.is_required ? "Required" : "Optional"}</li>)}</ul>
         {courses.isError && <QueryError what="course details" error={courses.error} onRetry={() => void courses.refetch()} />}
         <label className="block text-sm">Facility plan name<Input required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} /></label>
         <label className="block text-sm">Training year<Input required type="number" min={1990} max={2200} value={year} onChange={e => setYear(e.target.value)} /></label>

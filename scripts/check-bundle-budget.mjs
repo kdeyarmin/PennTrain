@@ -103,7 +103,12 @@ const budgets = {
   // largest modules to fetched assets recovers about 84 KiB, which would still leave this metric
   // warning, so it is not the cheaper move either. Sized like the 4700 -> 5200 step before it: a
   // deliberate raise on main rather than a per-feature shave, leaving the measurement at 81.3%.
-  totalJavaScript: 5900 * 1024,
+  // Restore aggregate headroom after the readable agreement/course/certificate labels:
+  // the preceding commit already measured 5896.3 KiB (99.9% of 5900). The follow-up
+  // measured 5902.8 KiB; its 6.5 KiB growth is the shared formatter and lazy-page labels.
+  // The initial shell moved only 1167.1 -> 1167.2 KiB and every route guard still passes.
+  // Keep the initial-shell and individual-route limits unchanged; 6600 restores ~10%.
+  totalJavaScript: 6600 * 1024,
   // Measured 129.3 KiB when this headroom policy was adopted. Raised 160 -> 176 on the
   // full-app-debugging branch: organic growth had reached 156.1 KiB, which is 97.5% of the old
   // budget and under 4 KiB of headroom. This budget is not advisory on this repo -- Railway's

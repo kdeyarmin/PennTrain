@@ -39,19 +39,19 @@ export interface UploadResidentDocumentInput {
   /**
    * True only when `file` IS the actual DHS-prescribed form (RASP/ASP, DME, Preadmission
    * Screening, etc.) as completed by facility staff -- never set for CareMetric-generated
-   * reference PDFs. complete_resident_compliance_item() requires a linked document with this
-   * flag set; defaults to false so every other upload path (the generic Documents uploader,
-   * generate-resident-assessment-pdf) stays inert by default.
+   * reference PDFs. Eligible assessment/support forms may instead carry a documented
+   * equivalentFormReview. Ordinary reference uploads carry neither designation.
    */
   isStateForm?: boolean;
   stateFormSourceLabel?: string;
   stateFormSourceUrl?: string;
+  equivalentFormReview?: { all_required_information: true; reviewer_name: string; review_reference: string };
 }
 
 export function useUploadResidentDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ file, organizationId, facilityId, residentId, complianceItemId, documentLabel, isStateForm, stateFormSourceLabel, stateFormSourceUrl }: UploadResidentDocumentInput) => {
+    mutationFn: async ({ file, organizationId, facilityId, residentId, complianceItemId, documentLabel, isStateForm, stateFormSourceLabel, stateFormSourceUrl, equivalentFormReview }: UploadResidentDocumentInput) => {
       if (isStateForm && !stateFormSourceLabel) {
         throw new Error("State-form uploads must include the official PA DHS source label.");
       }
@@ -76,6 +76,7 @@ export function useUploadResidentDocument() {
           is_state_form: isStateForm ?? false,
           state_form_source_label: stateFormSourceLabel ?? null,
           state_form_source_url: stateFormSourceUrl ?? null,
+          equivalent_form_review: equivalentFormReview ?? null,
         })
         .select()
         .single();

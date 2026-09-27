@@ -207,8 +207,10 @@ export function assessTraining(input: { profile?: TrainingProfile; policy?: Trai
     const courseOnlyLegacy = Boolean(alr && input.regulatoryProfile?.continuous_service_since
       && input.regulatoryProfile.continuous_service_since <= "2007-10-31");
     const missing = missingTopics(courseOnlyLegacy ? topics.filter(topic => topic !== "dhs_direct_care") : topics);
-    const transferMonths = input.staffPolicy ? input.staffPolicy.alf_transfer_months : 12;
-    const transfer = has("initial_transfer", alr && transferMonths === null ? undefined : beforeMonths(p.first_work_date, alr ? transferMonths ?? 12 : 12), p.first_work_date);
+    // §2800.55 honors prior qualification evidence without expiry; it does not remove
+    // the separate one-year initial-training exception in §2800.65(k).
+    const transferMonths = Math.min(12, Math.max(1, input.staffPolicy?.alf_transfer_months ?? 12));
+    const transfer = has("initial_transfer", beforeMonths(p.first_work_date, alr ? transferMonths : 12), p.first_work_date);
     const legacyHire = Boolean(input.regulatoryProfile?.continuous_service_since && input.regulatoryProfile.continuous_service_since <= "2006-04-24");
     const licensed = Boolean(input.regulatoryProfile?.licensed_professional_exemption && input.regulatoryProfile.exemption_evidence.trim().length >= 5
       && input.regulatoryProfile.professional_exemption_valid_until && input.regulatoryProfile.professional_exemption_valid_until >= today);
