@@ -160,7 +160,7 @@ export default function AssessmentsTab({ resident, facility, canManage, resident
               {" "}{formLabel}, and finalizing one never completes a compliance item on its own.
             </p>
             {isCitationLibraryStale() && (
-              <p className="rounded-md border border-dashed p-2 text-[11px] text-amber-700 dark:text-amber-500">
+              <p className="rounded-md border border-dashed p-2 text-[11px] text-amber-700">
                 The regulatory citation library was last reviewed {formatDateForDisplay(PA_CITATIONS_LAST_VERIFIED)} and is
                 past its review window — treat the guidance below as needing re-verification.
               </p>

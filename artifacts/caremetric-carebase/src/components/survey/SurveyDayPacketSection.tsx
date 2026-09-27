@@ -80,7 +80,7 @@ function GuestGrantList({
               <div>
                 <p className="font-medium">
                   {grant.guest_label}{" "}
-                  <span className={state === "active" ? "text-emerald-700 dark:text-emerald-500" : "text-muted-foreground"}>
+                  <span className={state === "active" ? "text-emerald-700" : "text-muted-foreground"}>
                     · {state}
                   </span>
                 </p>

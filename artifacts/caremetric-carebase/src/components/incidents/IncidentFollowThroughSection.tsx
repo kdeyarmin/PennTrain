@@ -90,7 +90,7 @@ function ReportabilityDialog({
 
         {prompts.length > 0 && (
           <div className="rounded-md border border-amber-500/50 bg-amber-500/5 p-2 text-sm">
-            <p className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-500">
+            <p className="flex items-center gap-1.5 font-medium text-amber-700">
               <ShieldQuestion className="h-4 w-4" /> Worth considering
             </p>
             <ul className="mt-1 space-y-0.5 pl-5 text-xs text-muted-foreground">
@@ -479,7 +479,7 @@ export default function IncidentFollowThroughSection({
               <Badge
                 variant="outline"
                 className={reportability === "pending_review"
-                  ? "border-amber-500 text-amber-700 dark:text-amber-500"
+                  ? "border-amber-500 text-amber-700"
                   : undefined}
               >
                 {REPORTABILITY_STATUS_LABELS[reportability] ?? reportability}

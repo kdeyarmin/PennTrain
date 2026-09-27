@@ -723,7 +723,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <div className="flex flex-col">
           <BrandName product={import.meta.env.VITE_APP_PRODUCT === "train" ? "Train" : "CareBase"} className="font-bold text-[15px] text-sidebar-foreground leading-tight" />
-          <span className="text-[11px] text-sidebar-foreground/50 font-medium">
+          <span className="text-[11px] text-sidebar-foreground/70 font-medium">
             {import.meta.env.VITE_APP_PRODUCT === "train" ? "Train Learning Platform" : "CareBase Platform"}
           </span>
         </div>
@@ -743,14 +743,14 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           </button>
         )}
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sidebar-foreground/40 pointer-events-none" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-sidebar-foreground/65 pointer-events-none" />
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Escape") setFilter(""); }}
             placeholder="Find a page..."
             aria-label="Filter navigation"
-            className="w-full h-9 pl-8 pr-9 rounded-lg bg-sidebar-accent/40 border border-transparent text-[13px] text-sidebar-foreground placeholder:text-sidebar-foreground/40 focus:outline-none focus:ring-1 focus:ring-sidebar-primary/50"
+            className="w-full h-9 pl-8 pr-9 rounded-lg bg-muted border border-input text-[13px] text-sidebar-foreground placeholder:text-sidebar-foreground/65 focus:outline-none focus:ring-1 focus:ring-sidebar-primary/50"
           />
           {filter && <button type="button" aria-label="Clear navigation search" onClick={() => setFilter("")}
             className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-sidebar-primary"><X className="h-4 w-4" /></button>}
@@ -781,7 +781,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                     {section.title}
                   </span>
                   <ChevronDown className={cn(
-                    "h-3.5 w-3.5 text-sidebar-foreground/30 transition-transform duration-150",
+                    "h-3.5 w-3.5 text-sidebar-foreground/60 transition-transform duration-150",
                     !isOpen && "-rotate-90"
                   )} />
                 </button>
@@ -800,24 +800,24 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                           "group flex min-h-10 items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 text-[13px] font-medium relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-sidebar-primary",
                           isActive
                             ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                            : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
                         )}
                       >
                         <Icon className={cn(
                           "h-[18px] w-[18px] shrink-0 transition-colors",
-                          isActive ? "text-sidebar-primary" : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground/60"
+                          isActive ? "text-sidebar-primary" : "text-sidebar-foreground/65 group-hover:text-sidebar-foreground/80"
                         )} />
                         <span className="flex-1">{item.label}</span>
                         {item.viewOnly && (
                           <span
-                            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/45 ring-1 ring-inset ring-sidebar-border"
+                            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/70 ring-1 ring-inset ring-sidebar-border"
                             title="You can open this page, but only an organization administrator can change it."
                           >
                             View
                           </span>
                         )}
                         {isActive && (
-                          <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/30" />
+                          <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/60" />
                         )}
                       </Link>
                     );
@@ -841,9 +841,9 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-medium text-sidebar-foreground truncate">{user.firstName} {user.lastName}</p>
-                <p className="text-[11px] text-sidebar-foreground/40 capitalize truncate">{user.role.replace(/_/g, " ")}</p>
+                <p className="text-[11px] text-sidebar-foreground/65 capitalize truncate">{user.role.replace(/_/g, " ")}</p>
               </div>
-              <ChevronsUpDown className="h-4 w-4 text-sidebar-foreground/40 shrink-0" />
+              <ChevronsUpDown className="h-4 w-4 text-sidebar-foreground/65 shrink-0" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="start" side="top">

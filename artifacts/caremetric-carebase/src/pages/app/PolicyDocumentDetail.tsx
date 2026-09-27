@@ -241,7 +241,7 @@ export function CampaignQuestions({ campaignId }: { campaignId: string }) {
                 <li
                   key={index}
                   className={index === question.correct_choice_index
-                    ? "text-emerald-700 dark:text-emerald-500"
+                    ? "text-emerald-700"
                     : "text-muted-foreground"}
                 >
                   {index === question.correct_choice_index ? "✓ " : "· "}{choice}

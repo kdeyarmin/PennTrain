@@ -514,7 +514,7 @@ export default function InspectionReadiness() {
                               {" ("}
                               {display.text}
                               {display.qualifier && (
-                                <span className="text-amber-700 dark:text-amber-500" title={display.detail ?? undefined}>
+                                <span className="text-amber-700" title={display.detail ?? undefined}>
                                   {" \u2014 "}{display.qualifier}
                                 </span>
                               )}
