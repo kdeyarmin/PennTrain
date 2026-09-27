@@ -307,7 +307,7 @@ export function useListCourseBlocks(courseVersionId: string | undefined) {
         .from("course_blocks")
         .select("*")
         .eq("course_version_id", courseVersionId!)
-        .order("sort_order");
+        .order("sort_order").order("id", { ascending: true });
       if (error) throw error;
       return data;
     },

@@ -80,9 +80,54 @@ select throws_ok($$select public.swap_training_item_order('course_blocks',pg_tem
 select is((select array_agg(sort_order order by id) from public.course_blocks where id in (pg_temp.id(201),pg_temp.id(202))),array[1,0],'first position is rolled back with the failing second item');
 reset role;
 drop trigger synthetic_reorder_failure on public.course_blocks;
+
+-- An earlier partial swap can leave equal positions. Moving either member must
+-- repair the stable visible order rather than reporting a successful no-op.
+insert into public.course_blocks(id,course_version_id,block_type,sort_order,title,body) values
+  (pg_temp.id(204),pg_temp.id(11),'text',3,'Earlier lesson','{"content":"Keep attendance evidence with the learner record."}'),
+  (pg_temp.id(205),pg_temp.id(11),'text',12,'Later lesson','{"content":"Review completion evidence before granting credit."}');
+update public.course_blocks set sort_order=7 where id in (pg_temp.id(201),pg_temp.id(202));
+update public.quiz_questions set sort_order=7 where quiz_id=pg_temp.id(210);
+update public.training_plan_items set sort_order=7 where training_plan_id=pg_temp.id(300);
+update public.competency_template_items set sort_order=7 where template_id=pg_temp.id(400);
+select pg_temp.act(101);
+select lives_ok($$select public.swap_training_item_order('course_blocks',pg_temp.id(201),pg_temp.id(202),7,7)$$,'tied blocks move while repairing their parent order');
+select is((select array_agg(id order by sort_order,id) from public.course_blocks where course_version_id=pg_temp.id(11)),
+  array[pg_temp.id(204),pg_temp.id(202),pg_temp.id(201),pg_temp.id(205)],'the tied pair exchanges places and unrelated siblings retain their relative order');
+select is((select array_agg(sort_order order by sort_order) from public.course_blocks where course_version_id=pg_temp.id(11)),array[0,1,2,3],'all repaired positions are distinct and contiguous');
+select throws_ok($$select public.swap_training_item_order('course_blocks',pg_temp.id(201),pg_temp.id(202),7,7)$$,'40001','Training item order changed. Reload and retry.','a stale tied-position request cannot undo the repair');
+select lives_ok($$select public.swap_training_item_order('quiz_questions',pg_temp.id(212),pg_temp.id(211),7,7)$$,'question ties also move when the second visible item is selected');
+select is((select array_agg(id order by sort_order,id) from public.quiz_questions where quiz_id=pg_temp.id(210)),array[pg_temp.id(212),pg_temp.id(211)],'question tie repair uses the same stable ordering');
+select pg_temp.act(102);
+select lives_ok($$select public.swap_training_item_order('training_plan_items',pg_temp.id(301),pg_temp.id(302),7,7)$$,'organization author repairs tied plan items');
+select is((select array_agg(id order by sort_order,id) from public.training_plan_items where training_plan_id=pg_temp.id(300)),array[pg_temp.id(302),pg_temp.id(301)],'tied plan items exchange places');
+select pg_temp.act(103);
+select throws_ok($$select public.swap_training_item_order('competency_template_items',pg_temp.id(401),pg_temp.id(402),7,7)$$,'42501',null,'tie repair does not grant a learner checklist editing rights');
+select pg_temp.act(102);
+select lives_ok($$select public.swap_training_item_order('competency_template_items',pg_temp.id(401),pg_temp.id(402),7,7)$$,'organization author repairs tied checklist items');
+select is((select array_agg(id order by sort_order,id) from public.competency_template_items where template_id=pg_temp.id(400)),array[pg_temp.id(402),pg_temp.id(401)],'tied checklist items exchange places');
+
+reset role;
+update public.course_blocks set sort_order=7 where id in (pg_temp.id(201),pg_temp.id(202));
+create function pg_temp.fail_tie_normalization() returns trigger language plpgsql as $$
+begin if new.id=pg_temp.id(205) then return null; end if; return new; end;
+$$;
+create trigger synthetic_tie_failure before update on public.course_blocks for each row execute function pg_temp.fail_tie_normalization();
+select pg_temp.act(101);
+select throws_ok($$select public.swap_training_item_order('course_blocks',pg_temp.id(201),pg_temp.id(202),7,7)$$,'42501','All training items must be editable to repair tied positions.','a skipped unrelated sibling rejects incomplete normalization');
+select is((select array_agg(sort_order order by id) from public.course_blocks where course_version_id=pg_temp.id(11)),array[7,7,0,3],'affected-count mismatch rolls back every repaired position');
+reset role;
+create or replace function pg_temp.fail_tie_normalization() returns trigger language plpgsql as $$
+begin if new.id=pg_temp.id(205) then raise exception 'Synthetic unrelated-sibling failure'; end if; return new; end;
+$$;
+select pg_temp.act(101);
+select throws_ok($$select public.swap_training_item_order('course_blocks',pg_temp.id(201),pg_temp.id(202),7,7)$$,'P0001','Synthetic unrelated-sibling failure','an unrelated sibling failure aborts the whole tie repair');
+select is((select array_agg(sort_order order by id) from public.course_blocks where course_version_id=pg_temp.id(11)),array[7,7,0,3],'third-row failure preserves the complete original parent order');
+reset role;
+drop trigger synthetic_tie_failure on public.course_blocks;
 select pg_temp.act(101);
 select lives_ok($$select public.publish_course_version(pg_temp.id(11))$$,'platform author publishes the complete draft through the application RPC');
-select throws_ok($$select public.swap_training_item_order('course_blocks',pg_temp.id(201),pg_temp.id(202),1,0)$$,'0A000','Only draft course content can be reordered.','published block order remains immutable');
+select throws_ok($$select public.swap_training_item_order('course_blocks',pg_temp.id(201),pg_temp.id(202),7,7)$$,'0A000','Only draft course content can be reordered.','published block ties remain immutable');
 select throws_ok($$select public.swap_training_item_order('quiz_questions',pg_temp.id(211),pg_temp.id(212),1,0)$$,'0A000','Only draft course content can be reordered.','published question order remains immutable');
 reset role;
 select * from finish();

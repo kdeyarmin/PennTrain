@@ -81,7 +81,7 @@ export function useListTrainingPlanItems(planId: string | undefined) {
         .from("training_plan_items")
         .select("*")
         .eq("training_plan_id", planId!)
-        .order("sort_order");
+        .order("sort_order").order("id", { ascending: true });
       if (error) throw error;
       return data;
     },

@@ -183,7 +183,7 @@ export function useListQuizQuestions(quizId: string | undefined) {
         .from("quiz_questions")
         .select("*, quiz_question_explanations(explanation)")
         .eq("quiz_id", quizId!)
-        .order("sort_order");
+        .order("sort_order").order("id", { ascending: true });
       if (error) throw error;
       return data.map(({ quiz_question_explanations, ...q }) => ({
         ...q,

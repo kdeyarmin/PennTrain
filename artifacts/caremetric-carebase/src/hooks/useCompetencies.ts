@@ -85,7 +85,7 @@ export function useListCompetencyTemplateItems(templateId: string | undefined) {
         .from("competency_template_items")
         .select("*")
         .eq("template_id", templateId!)
-        .order("sort_order");
+        .order("sort_order").order("id", { ascending: true });
       if (error) throw error;
       return data;
     },
