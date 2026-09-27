@@ -1,0 +1,38 @@
+import type { ReactElement, ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const h = vi.hoisted(() => ({ slots: [] as unknown[], cursor: 0, effects: [] as (() => void)[], role: "org_admin", itemResult: "pass", itemsError: false, pending: false, create: vi.fn(), sample: vi.fn(), record: vi.fn(), complete: vi.fn(), cancel: vi.fn(), prompt: vi.fn(), toast: vi.fn() }));
+vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useId: () => "survey", useMemo: (compute: () => unknown) => compute(),
+  useState: (initial: unknown) => { const i = h.cursor++; if (!(i in h.slots)) h.slots[i] = typeof initial === "function" ? initial() : initial; return [h.slots[i], (value: unknown) => { h.slots[i] = typeof value === "function" ? value(h.slots[i]) : value; }]; },
+  useRef: (initial: unknown) => { const i = h.cursor++; return h.slots[i] ??= { current: initial }; },
+  useEffect: (effect: () => void, deps: unknown[]) => { const i = h.cursor++; const old = h.slots[i] as unknown[] | undefined; if (!old || deps.some((dep, j) => !Object.is(dep, old[j]))) { h.slots[i] = deps; h.effects.push(effect); } },
+}));
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "manager", role: h.role, organizationId: "org" } }) }));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
+vi.mock("@/hooks/useFacilities", () => ({ useListFacilities: () => ({ data: ["a", "b"].map(id => ({ id, name: id, facility_type: "PCH" })) }) }));
+vi.mock("@/hooks/useSurveyRehearsals", () => ({
+  useListSurveyRehearsals: (facility: string) => ({ data: ["one", "two"].map(id => ({ id: `${facility}-${id}`, facility_id: facility, name: id, status: "sampled", sample_method: "random", sample_size: 12, notes: `Saved ${id} notes` })) }),
+  useSurveyRehearsalItems: () => ({ data: [{ id: "item", domain: "training", risk_tier: "low", result: h.itemResult }], isError: h.itemsError }),
+  useCreateSurveyRehearsal: () => ({ mutateAsync: h.create, isPending: h.pending }), useSampleSurveyRehearsal: () => ({ mutateAsync: h.sample, isPending: h.pending }), useRecordSurveyRehearsalItemResult: () => ({ mutateAsync: h.record, isPending: h.pending }), useCompleteSurveyRehearsal: () => ({ mutateAsync: h.complete, isPending: h.pending }), useCancelSurveyRehearsal: () => ({ mutateAsync: h.cancel, isPending: h.pending }),
+}));
+import SurveyRehearsals from "./SurveyRehearsals";
+type Node = ReactElement<Record<string, unknown>>;
+function nodes(value: ReactNode): Node[] { if (Array.isArray(value)) return value.flatMap(nodes); if (!value || typeof value !== "object" || !("props" in value)) return []; const node = value as Node; return [node, ...nodes(node.props.children as ReactNode)]; }
+function text(value: ReactNode): string { if (typeof value === "string" || typeof value === "number") return String(value); if (Array.isArray(value)) return value.map(text).join(""); return value && typeof value === "object" && "props" in value ? text((value as Node).props.children as ReactNode) : ""; }
+function render() { h.cursor = 0; let page = SurveyRehearsals(); if (h.effects.length) { h.effects.splice(0).forEach(effect => effect()); h.cursor = 0; page = SurveyRehearsals(); } return nodes(page); }
+function button(label: string) { return render().find(node => node.props.onClick && text(node.props.children as ReactNode).trim() === label)!; }
+function click(label: string) { (button(label).props.onClick as () => void)(); }
+function fill(id: string, value: string) { (render().find(node => node.props.id === id)!.props.onChange as (event: unknown) => void)({ target: { value } }); }
+function select(id: string) { (render().find(node => node.key === id && node.type === "button")!.props.onClick as () => void)(); }
+const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
+beforeEach(() => { vi.clearAllMocks(); h.slots = []; h.effects = []; h.role = "org_admin"; h.pending = false; h.itemsError = false; h.itemResult = "pass"; h.complete.mockResolvedValue({ passRate: 100 }); h.create.mockResolvedValue("created"); h.cancel.mockResolvedValue(true); vi.stubGlobal("window", { prompt: h.prompt }); });
+afterEach(() => vi.unstubAllGlobals());
+describe("survey rehearsal completion", () => {
+  it("never overwrites the selected rehearsal's report with the unrelated create draft notes", async () => { fill("rehearsal-notes", "Future rehearsal planning"); select("a-one"); click("Complete"); await flush(); expect(h.complete).toHaveBeenCalledWith({ rehearsalId: "a-one", notes: "Saved one notes" }); });
+  it("edits completion notes for the selected rehearsal and resets them on replacement", () => { select("a-one"); fill("rehearsal-completion-notes", "Unsaved completion findings"); render(); expect(render().find(node => node.props.id === "rehearsal-completion-notes")!.props.value).toBe("Unsaved completion findings"); select("a-two"); expect(render().find(node => node.props.id === "rehearsal-completion-notes")!.props.value).toBe("Saved two notes"); });
+  it.each(["", "0", "1.5", "201", "Infinity"])("refuses invalid sample size %s without substituting a different value", value => { fill("sample-size", value); click("Create rehearsal"); expect(h.create).not.toHaveBeenCalled(); });
+  it("preserves a newer selection when an old sampling request completes", async () => { let done!: (value: unknown) => void; h.sample.mockReturnValueOnce(new Promise(resolve => { done = resolve; })); select("a-one"); click("Draw sample"); select("a-two"); render(); done({ itemCount: 1 }); await flush(); expect(render().find(node => node.key === "a-two" && node.type === "button")!.props.className).toContain("border-primary"); });
+  it("does not select a created rehearsal after the operator switched facilities", async () => { let done!: (value: unknown) => void; h.create.mockReturnValueOnce(new Promise(resolve => { done = resolve; })); click("Create rehearsal"); const picker = render().find(node => node.props.onValueChange && node.props.value === "a")!; (picker.props.onValueChange as (value: string) => void)("b"); render(); done("a-one"); await flush(); const replacement = render().find(node => node.props.onValueChange && node.props.value === "b")!; (replacement.props.onValueChange as (value: string) => void)("a"); expect(render().find(node => node.props.id === "rehearsal-completion-notes")).toBeUndefined(); });
+  it("blocks completion while findings are unresolved or unavailable", () => { select("a-one"); h.itemResult = "pending"; expect(button("Complete").props.disabled).toBe(true); click("Complete"); h.itemResult = "pass"; h.itemsError = true; click("Complete"); expect(h.complete).not.toHaveBeenCalled(); });
+  it("retains a failed completion draft for retry without duplicate submission", async () => { let reject!: (reason: Error) => void; h.complete.mockReturnValueOnce(new Promise((_resolve, no) => { reject = no; })); select("a-one"); fill("rehearsal-completion-notes", "Final review findings"); click("Complete"); click("Complete"); expect(h.complete).toHaveBeenCalledOnce(); reject(new Error("Save failed")); await flush(); click("Complete"); await flush(); expect(h.complete).toHaveBeenCalledTimes(2); expect(h.complete).toHaveBeenLastCalledWith({ rehearsalId: "a-one", notes: "Final review findings" }); });
+  it("cancels no server work when the reason prompt is dismissed", async () => { select("a-one"); h.prompt.mockReturnValue(null); click("Cancel"); await flush(); expect(h.cancel).not.toHaveBeenCalled(); h.prompt.mockReturnValue("Weather emergency"); click("Cancel"); await flush(); expect(h.cancel).toHaveBeenCalledWith({ rehearsalId: "a-one", reason: "Weather emergency" }); });
+});

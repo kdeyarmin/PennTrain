@@ -1,5 +1,7 @@
+import { deleteDocumentWithReceipt } from "@/lib/documentDeletion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { hasDefinitivePostgresWriteRejection } from "@/lib/postgresWriteOutcome";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 
 export type WorkOrder = Tables<"work_orders">;
@@ -341,7 +343,20 @@ export function useUploadMaintenanceDocument() {
         document_label: input.documentLabel ?? null,
       }).select().single();
       if (error) {
-        await supabase.storage.from("maintenance-documents").remove([path]);
+        // A lost response can conceal committed metadata. Keep the bytes until the
+        // server both rejects the write definitively and confirms its absence.
+        const unknown = new Error("The document save could not be confirmed. The uploaded file was retained; refresh the document list before retrying.");
+        let saved: MaintenanceDocument | null;
+        try {
+          const result = await supabase.from("maintenance_documents").select("*")
+            .eq("organization_id", input.organizationId).eq("storage_bucket", "maintenance-documents").eq("storage_path", path).maybeSingle();
+          if (result.error) throw result.error;
+          saved = result.data;
+        } catch { throw unknown; }
+        if (saved) return saved;
+        if (!hasDefinitivePostgresWriteRejection(error)) throw unknown;
+        const { error: cleanupError } = await supabase.storage.from("maintenance-documents").remove([path]);
+        if (cleanupError) throw new Error(`${error.message} (also failed to remove uploaded file: ${cleanupError.message})`);
         throw error;
       }
       return data;
@@ -365,12 +380,10 @@ export function useMaintenanceDocumentSignedUrl() {
 export function useDeleteMaintenanceDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (doc: MaintenanceDocument) => {
-      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
-      if (storageError) throw storageError;
-      const { error } = await supabase.from("maintenance_documents").delete().eq("id", doc.id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["maintenance_documents"] }),
+    mutationFn: (doc: MaintenanceDocument) => deleteDocumentWithReceipt("maintenance", doc.id),
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["maintenance_documents"] }),
+      queryClient.invalidateQueries({ queryKey: ["document_deletions"] }),
+    ]),
   });
 }

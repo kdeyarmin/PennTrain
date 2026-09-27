@@ -1,3 +1,4 @@
+import { DocumentDeletionQueue } from "@/components/documents/DocumentDeletionQueue";
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -197,6 +198,7 @@ export default function ComplianceCommandCenter() {
 
   return (
     <div className="space-y-6">
+      <DocumentDeletionQueue kind="compliance" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Compliance Command Center</h1>

@@ -6,7 +6,6 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useTrainingYearPolicy } from "@/hooks/useTrainingWorkspace";
 import { useStaffRegulatoryPolicy } from "@/hooks/useStaffRegulatory";
 import {
-  type AdministratorProfileInsert,
   useGetAdministratorProfileByProfileId, useUpsertAdministratorProfile,
   useListAdministratorCeEntries, useAddAdministratorCeEntry, useDeleteAdministratorCeEntry,
   useUploadAdministratorDocument, useAdministratorDocumentSignedUrl,
@@ -24,9 +23,9 @@ import { GraduationCap, FileCheck2, Send, Upload, Trash2, Download } from "lucid
 import { buildAdministratorRulePack, summarizeAdministratorRulePack, NHA_EXEMPTION_EMPLOYED_BEFORE } from "@/lib/administratorRulePacks";
 import { addFacilityCalendarDays, facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { facilityTypeLabel, type FacilityType } from "@/lib/facilityTypes";
-import { supabase } from "@/lib/supabase";
 import { QueryError } from "@/components/QueryState";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { isCareCalendarDate } from "@/lib/careFormDates";
 
 const CE_SOURCE_OPTIONS = ["In-Service", "Conference", "Webinar", "Online Course", "Other"];
 const ROLLING_WINDOW_HOURS_REQUIRED = 24;
@@ -42,25 +41,45 @@ function DocumentUploadRow({
 }: { label: string; path: string | null; organizationId: string; profileId: string; onUploaded: (path: string) => void | Promise<void> }) {
   const __fieldIds = useId();
   const { toast } = useToast();
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const upload = useUploadAdministratorDocument();
   const getSignedUrl = useAdministratorDocumentSignedUrl();
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+
+  const persistPath = async (newPath: string) => {
+    if (mounted.current) setPendingPath(newPath);
+    try {
+      await onUploaded(newPath);
+      if (!mounted.current) return;
+      setPendingPath(null);
+      toast({ title: "Document uploaded" });
+    } catch (err) {
+      // The metadata write may have committed before its response was lost.
+      // Keep the stored evidence and retry the same path instead of deleting it.
+      if (mounted.current) toast({ variant: "destructive", title: "Couldn't confirm the document link", description: `${err instanceof Error ? err.message : String(err)}. Retry saving the document link.` });
+    }
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    let newPath: string | null = null;
+    if (!file || savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     try {
-      newPath = await upload.mutateAsync({ file, organizationId, profileId });
-      await onUploaded(newPath);
-      toast({ title: "Document uploaded" });
+      const newPath = await upload.mutateAsync({ file, organizationId, profileId });
+      await persistPath(newPath);
     } catch (err) {
-      if (newPath) {
-        await supabase.storage.from("administrator-documents").remove([newPath]);
-      }
-      toast({ variant: "destructive", title: "Upload failed", description: err instanceof Error ? err.message : String(err) });
+      if (mounted.current) toast({ variant: "destructive", title: "Upload failed", description: err instanceof Error ? err.message : String(err) });
     } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      savingRef.current = false;
+      if (mounted.current) {
+        setSaving(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -68,9 +87,9 @@ function DocumentUploadRow({
     if (!path) return;
     try {
       const url = await getSignedUrl.mutateAsync(path);
-      openDocumentUrl(url);
+      if (mounted.current) openDocumentUrl(url);
     } catch (err) {
-      toast({ variant: "destructive", title: "Couldn't open document", description: err instanceof Error ? err.message : String(err) });
+      if (mounted.current) toast({ variant: "destructive", title: "Couldn't open document", description: err instanceof Error ? err.message : String(err) });
     }
   };
 
@@ -81,10 +100,15 @@ function DocumentUploadRow({
         {path && (
           <Button size="sm" variant="outline" onClick={handleView}><Download className="mr-1.5 h-3.5 w-3.5" /> View</Button>
         )}
-        <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={upload.isPending}>
-          <Upload className="mr-1.5 h-3.5 w-3.5" /> {upload.isPending ? "Uploading..." : path ? "Replace" : "Upload"}
+        <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={saving}>
+          <Upload className="mr-1.5 h-3.5 w-3.5" /> {saving ? "Saving..." : path ? "Replace" : "Upload"}
         </Button>
-        <input id={`${__fieldIds}-field`} ref={fileInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleUpload} />
+        <input id={`${__fieldIds}-field`} ref={fileInputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" disabled={saving} onChange={handleUpload} />
+        {pendingPath && <Button size="sm" variant="outline" disabled={saving} onClick={async () => {
+          if (savingRef.current) return;
+          savingRef.current = true; setSaving(true);
+          try { await persistPath(pendingPath); } finally { savingRef.current = false; if (mounted.current) setSaving(false); }
+        }}>Retry saving document</Button>}
       </div>
     </div>
   );
@@ -93,6 +117,8 @@ function DocumentUploadRow({
 function AdministratorProfileEditor({ profileId, organizationId }: { profileId: string; organizationId: string }) {
   const __fieldIds = useId();
   const { toast } = useToast();
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const profileQuery = useGetAdministratorProfileByProfileId(profileId);
   const { data: profile } = profileQuery;
   const { mutateAsync: upsertProfile, isPending: savingProfile } = useUpsertAdministratorProfile();
@@ -115,6 +141,8 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
   const qualificationBusy = qualificationQueries.some((query) => query.isLoading || query.isPending);
 
   const [ceForm, setCeForm] = useState({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "", creditCategory: "general" });
+  const [ceSubmitting, setCeSubmitting] = useState(false);
+  const ceSubmittingRef = useRef(false);
 
   const rollingTotal = useMemo(() => {
     // Trailing window on the Pennsylvania facility calendar — not browser `setDate(-365)`.
@@ -138,77 +166,56 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
   const administratorRuleSummary = useMemo(() => summarizeAdministratorRulePack(administratorRulePack), [administratorRulePack]);
   const ceRequirement = administratorRulePack.find((requirement) => requirement.id === "administrator-continuing-education");
 
-  // Blur-saves overlap: typing a date and clicking a checkbox fires two upserts before the first
-  // refetch lands, and each used to resend the render-time `profile` snapshot -- so the second
-  // wrote the first's column back to null. Successive saves build on the last payload sent until a
-  // fresh server row supersedes it.
-  const lastSentRef = useRef<AdministratorProfileInsert | null>(null);
-  useEffect(() => { lastSentRef.current = null; }, [profile]);
-
+  const profileReady = !profileQuery.isLoading && !profileQuery.isPending && !profileQuery.isError && profile !== undefined;
   const save = async (patch: Partial<AdministratorProfile>, options?: { rethrow?: boolean }) => {
     try {
-      const base: AdministratorProfileInsert = lastSentRef.current ?? {
-        organization_id: organizationId,
-        profile_id: profileId,
-        qualification_path: profile?.qualification_path ?? null,
-        hundred_hour_course_completed_date: profile?.hundred_hour_course_completed_date ?? null,
-        hundred_hour_course_provider: profile?.hundred_hour_course_provider ?? null,
-        hundred_hour_course_document_path: profile?.hundred_hour_course_document_path ?? null,
-        competency_test_passed: profile?.competency_test_passed ?? false,
-        competency_test_date: profile?.competency_test_date ?? null,
-        nha_license_number: profile?.nha_license_number ?? null,
-        nha_license_state: profile?.nha_license_state ?? null,
-        nha_license_expiration: profile?.nha_license_expiration ?? null,
-        first_employed_as_administrator_on: profile?.first_employed_as_administrator_on ?? null,
-        regional_office_verification_submitted_date: profile?.regional_office_verification_submitted_date ?? null,
-        regional_office_verification_document_path: profile?.regional_office_verification_document_path ?? null,
-        regional_office_verification_notes: profile?.regional_office_verification_notes ?? null,
-        department_orientation_completed_date: profile?.department_orientation_completed_date ?? null,
-        department_orientation_document_path: profile?.department_orientation_document_path ?? null,
-        dementia_initial_completed_date: profile?.dementia_initial_completed_date ?? null,
-        dementia_initial_hours: profile?.dementia_initial_hours ?? null,
-        dementia_initial_document_path: profile?.dementia_initial_document_path ?? null,
-        dementia_annual_completed_date: profile?.dementia_annual_completed_date ?? null,
-        dementia_annual_hours: profile?.dementia_annual_hours ?? null,
-        dementia_annual_document_path: profile?.dementia_annual_document_path ?? null,
-        legacy_no_break_over_one_year: profile?.legacy_no_break_over_one_year ?? false,
-        legacy_training_document_path: profile?.legacy_training_document_path ?? null,
-        competency_exemption_basis: profile?.competency_exemption_basis ?? "regulation",
-        competency_exemption_evidence: profile?.competency_exemption_evidence ?? null,
-        alf_supplement_completed_date: profile?.alf_supplement_completed_date ?? null,
-        alf_supplement_hours: profile?.alf_supplement_hours ?? null,
-        alf_supplement_test_passed: profile?.alf_supplement_test_passed ?? false,
-        alf_supplement_document_path: profile?.alf_supplement_document_path ?? null,
-      };
-      const payload = { ...base, ...patch };
-      lastSentRef.current = payload;
-      await upsertProfile(payload);
-      toast({ title: "Saved" });
+      if (!profileReady) throw new Error("Reload the administrator profile before saving.");
+      // Send only this field's change. A delayed blur save must not resend a
+      // stale snapshot of other fields, even when two saves finish out of order.
+      await upsertProfile({ ...patch, organization_id: organizationId, profile_id: profileId });
+      if (!options?.rethrow && mounted.current) toast({ title: "Saved" });
     } catch (e) {
-      toast({ variant: "destructive", title: "Couldn't save", description: e instanceof Error ? e.message : String(e) });
       if (options?.rethrow) throw e;
+      if (mounted.current) toast({ variant: "destructive", title: "Couldn't save", description: e instanceof Error ? e.message : String(e) });
     }
   };
-
   const handleAddCe = async () => {
-    if (!profile?.id || !ceForm.hours || !ceForm.topic || !ceForm.completedDate) return;
+    if (!profileReady || !profile?.id || addingCe || ceSubmittingRef.current) return;
+    const hours = Number(ceForm.hours);
+    if (!Number.isFinite(hours) || hours <= 0 || !ceForm.topic.trim()
+      || !isCareCalendarDate(ceForm.completedDate)) {
+      toast({ variant: "destructive", title: "Check the CE entry", description: "Enter positive hours, a topic, and a valid completion date." });
+      return;
+    }
+    ceSubmittingRef.current = true;
+    setCeSubmitting(true);
     try {
       await addCeEntry({
         administrator_profile_id: profile.id,
         organization_id: organizationId,
-        hours: Number(ceForm.hours),
-        topic: ceForm.topic,
+        hours,
+        topic: ceForm.topic.trim(),
         source: ceForm.source,
         completed_date: ceForm.completedDate,
         provider: ceForm.provider || null,
         credit_category: ceForm.creditCategory,
       });
+      if (!mounted.current) return;
       setCeForm({ hours: "", topic: "", source: CE_SOURCE_OPTIONS[0], completedDate: "", provider: "", creditCategory: "general" });
       toast({ title: "CE entry added" });
     } catch (e) {
-      toast({ variant: "destructive", title: "Couldn't add CE entry", description: e instanceof Error ? e.message : String(e) });
+      if (mounted.current) toast({ variant: "destructive", title: "Couldn't add CE entry", description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      ceSubmittingRef.current = false;
+      if (mounted.current) setCeSubmitting(false);
     }
   };
+
+  if (profile === undefined) {
+    return profileQuery.isError
+      ? <QueryError what="this administrator's qualification record" error={profileQuery.error} onRetry={() => void profileQuery.refetch()} />
+      : <p role="status">Loading administrator qualification record…</p>;
+  }
 
   return (
     <div className="space-y-6">
@@ -219,6 +226,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           onRetry={() => void Promise.all(qualificationQueries.map((query) => query.refetch()))}
         />
       )}
+      <fieldset disabled={!profileReady} className="space-y-6">
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -437,10 +445,11 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           <CardDescription>{ceRequirement?.detail ?? "Annual CE requirement, with source and documentation captured per entry."}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <fieldset disabled={addingCe || ceSubmitting} className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
             <div className="space-y-1">
               <Label htmlFor={`${__fieldIds}-hours`} className="text-xs">Hours</Label>
-              <Input id={`${__fieldIds}-hours`} type="number" step="0.5" min="0.5" value={ceForm.hours} onChange={(e) => setCeForm((f) => ({ ...f, hours: e.target.value }))} className="h-9" />
+              <Input id={`${__fieldIds}-hours`} type="number" step="any" min="0" value={ceForm.hours} onChange={(e) => setCeForm((f) => ({ ...f, hours: e.target.value }))} className="h-9" />
             </div>
             <div className="space-y-1 col-span-2">
               <Label htmlFor={`${__fieldIds}-topic`} className="text-xs">Topic</Label>
@@ -460,8 +469,8 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
               <Input id={`${__fieldIds}-date`} type="date" value={ceForm.completedDate} onChange={(e) => setCeForm((f) => ({ ...f, completedDate: e.target.value }))} className="h-9" />
             </div>
             <div className="col-span-2 sm:col-span-5">
-              <Button size="sm" onClick={handleAddCe} disabled={addingCe || !profile?.id || !ceForm.hours || !ceForm.topic || !ceForm.completedDate}>
-                {addingCe ? "Adding..." : "Add Entry"}
+              <Button size="sm" onClick={handleAddCe} disabled={addingCe || ceSubmitting || !profile?.id || !ceForm.hours || !ceForm.topic || !ceForm.completedDate}>
+                {addingCe || ceSubmitting ? "Adding..." : "Add Entry"}
               </Button>
               {!profile?.id && (
                 <p className="mt-1 text-xs text-muted-foreground">Choose a qualification path above first; CE entries attach to that record.</p>
@@ -470,6 +479,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
           </div>
 
           <label className="block text-sm">CE credit category<select className="block rounded border p-2" value={ceForm.creditCategory} onChange={e => setCeForm(f => ({ ...f, creditCategory: e.target.value }))}><option value="general">General approved training</option><option value="medication">Medication training (6-hour cap)</option><option value="resuscitation">First aid / CPR / airway (4-hour cap)</option></select></label>
+          </fieldset>
           <p className="text-xs text-muted-foreground">Online and webinar credit is capped at 12 hours. Online-only first aid / CPR / airway receives no credit. Keep Department approval with the training evidence.</p>
           <div className="space-y-2 pt-2 border-t">
             {ceEntriesQuery.isLoading || ceEntriesQuery.isPending ? (
@@ -493,12 +503,12 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
                     size="icon" variant="ghost" className="h-8 w-8 text-destructive shrink-0"
                     onClick={() => {
                       void deleteCeEntry({ id: entry.id, administratorProfileId: entry.administrator_profile_id })
-                        .then(() => toast({ title: "CE entry deleted" }))
-                        .catch((e: unknown) => toast({
+                        .then(() => { if (mounted.current) toast({ title: "CE entry deleted" }); })
+                        .catch((e: unknown) => { if (mounted.current) toast({
                           variant: "destructive",
                           title: "Couldn't delete CE entry",
                           description: e instanceof Error ? e.message : String(e),
-                        }));
+                        }); });
                     }}
                     aria-label="Delete CE entry"
                   >
@@ -512,6 +522,7 @@ function AdministratorProfileEditor({ profileId, organizationId }: { profileId: 
       </Card>
 
       {savingProfile && <p className="text-xs text-muted-foreground">Saving...</p>}
+      </fieldset>
     </div>
   );
 }
@@ -567,7 +578,7 @@ export default function AdministratorQualification() {
       )}
 
       {activeProfileId && user?.organizationId && (
-        <AdministratorProfileEditor profileId={activeProfileId} organizationId={user.organizationId} />
+        <AdministratorProfileEditor key={`${user.organizationId}:${activeProfileId}`} profileId={activeProfileId} organizationId={user.organizationId} />
       )}
     </div>
   );

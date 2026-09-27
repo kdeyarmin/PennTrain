@@ -49,6 +49,10 @@ export function VoiceAssistantPanel({
     if (el) el.scrollTop = el.scrollHeight;
   }, [session.turns, session.livePartial]);
 
+  useEffect(() => {
+    if (disabledByPlatform && ["active", "requesting", "connecting"].includes(session.status)) session.stop();
+  }, [disabledByPlatform, session.status, session.stop]);
+
   if (disabledByPlatform) {
     return (
       <Card>
@@ -107,12 +111,15 @@ export function VoiceAssistantPanel({
             </Button>
           )}
           {starting && (
+            <>
             <Button disabled>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               {session.status === "requesting"
                 ? "Requesting microphone…"
                 : "Connecting…"}
             </Button>
+            <Button variant="outline" onClick={session.stop}>Cancel voice session</Button>
+            </>
           )}
           {live && (
             <Button variant="destructive" onClick={session.stop}>

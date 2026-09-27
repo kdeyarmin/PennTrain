@@ -1,3 +1,4 @@
+import { DocumentDeletionQueue } from "@/components/documents/DocumentDeletionQueue";
 import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
 import { Link, useSearch } from "wouter";
@@ -297,6 +298,7 @@ export default function Incidents() {
 
   return (
     <div className="space-y-6">
+      <DocumentDeletionQueue kind="incident" />
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Incidents</h1>

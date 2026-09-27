@@ -1,8 +1,9 @@
-import { useId, useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, CheckCircle2, Clock3, DollarSign, Download, FileImage, Pause, Pencil, Play, ShieldCheck, Trash2, Upload, UserRound, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { careDateTimeInstant } from "@/lib/careFormDates";
 import { humanize } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
@@ -79,6 +80,11 @@ export default function WorkOrderDetail() {
   const uploadDocument = useUploadMaintenanceDocument();
   const openDocument = useMaintenanceDocumentSignedUrl();
   const deleteDocument = useDeleteMaintenanceDocument();
+  const submitting = useRef(new Set<string>());
+  const begin = (kind: string, pending: boolean) => {
+    if (!canManage || pending || submitting.current.has(kind)) return false;
+    submitting.current.add(kind); return true;
+  };
 
   const [showEdit, setShowEdit] = useState(false);
   const [showTransition, setShowTransition] = useState(false);
@@ -107,7 +113,7 @@ export default function WorkOrderDetail() {
       vendor: order.external_vendor ?? "", target: localTarget, parts: order.parts_needed ?? "",
       estimatedCost: order.estimated_cost == null ? "" : String(order.estimated_cost), residentImpact: order.resident_impact ?? "",
     });
-  }, [order]);
+  }, [order?.id]);
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((employee) => [employee.id, employee])), [employees]);
   const assignedEmployee = order?.assigned_employee_id ? employeeById.get(order.assigned_employee_id) : undefined;
@@ -118,6 +124,7 @@ export default function WorkOrderDetail() {
   if (!order) return <div className="py-16 text-center"><p>Work order not found.</p><Button asChild variant="outline" className="mt-4"><Link href="/app/maintenance">Back to maintenance</Link></Button></div>;
 
   const openTransition = (nextStatus: string) => {
+    if (transition.isPending || submitting.current.has("transition")) return;
     setTargetStatus(nextStatus);
     setTransitionNotes("");
     setActualCost(order.actual_cost == null ? "" : String(order.actual_cost));
@@ -127,33 +134,51 @@ export default function WorkOrderDetail() {
   };
 
   const openVerify = () => {
+    if (verify.isPending || submitting.current.has("verification")) return;
     setVerificationDecision("verified");
     setVerificationNotes("");
     setShowVerify(true);
   };
 
+  const validCost = (value: string) => !value || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 9999999999.99
+    && Math.abs(Number(value) * 100 - Math.round(Number(value) * 100)) < 0.000001);
+  const transitionStart = careDateTimeInstant(downtimeStarted);
+  const transitionEnd = careDateTimeInstant(downtimeEnded);
+  const transitionValid = transitionNotes.trim().length >= 3 && validCost(actualCost)
+    && (!downtimeStarted || !!transitionStart) && (!downtimeEnded || !!transitionEnd)
+    && (!transitionStart || !transitionEnd || transitionEnd >= transitionStart);
+  const editTarget = careDateTimeInstant(edit.target);
+  const editValid = (!edit.target || !!editTarget) && validCost(edit.estimatedCost);
+  const changeTransitionOpen = (open: boolean) => { if (!transition.isPending && !submitting.current.has("transition")) setShowTransition(open); };
+  const changeVerifyOpen = (open: boolean) => { if (!verify.isPending && !submitting.current.has("verification")) setShowVerify(open); };
+  const changeEditOpen = (open: boolean) => { if (!updateDetails.isPending && !submitting.current.has("details")) setShowEdit(open); };
   const submitTransition = () => {
+    if (!transitionValid || !begin("transition", transition.isPending)) return;
     transition.mutate({
       id: order.id,
       targetStatus,
       notes: transitionNotes,
       actualCost: actualCost ? Number(actualCost) : null,
-      downtimeStartedAt: downtimeStarted ? facilityDateTimeLocalToUtcIso(downtimeStarted) : null,
-      downtimeEndedAt: downtimeEnded ? facilityDateTimeLocalToUtcIso(downtimeEnded) : null,
+      downtimeStartedAt: transitionStart,
+      downtimeEndedAt: transitionEnd,
     }, {
+      onSettled: () => submitting.current.delete("transition"),
       onSuccess: () => { setShowTransition(false); toast({ title: targetStatus === "pending_verification" ? "Work submitted for supervisor verification" : `Work order moved to ${humanize(targetStatus)}` }); },
       onError: (error: Error) => toast({ title: "Transition failed", description: error.message, variant: "destructive" }),
     });
   };
 
   const submitVerification = () => {
+    if (!canVerify || verificationNotes.trim().length < 3 || !begin("verification", verify.isPending)) return;
     verify.mutate({ id: order.id, decision: verificationDecision, notes: verificationNotes }, {
+      onSettled: () => submitting.current.delete("verification"),
       onSuccess: () => { setShowVerify(false); toast({ title: verificationDecision === "verified" ? "Repair verified" : "Work returned for additional repair" }); },
       onError: (error: Error) => toast({ title: "Verification failed", description: error.message, variant: "destructive" }),
     });
   };
 
   const saveDetails = () => {
+    if (!editValid || !begin("details", updateDetails.isPending)) return;
     updateDetails.mutate({
       id: order.id,
       locationDetail: edit.locationDetail, roomNumber: edit.roomNumber,
@@ -161,18 +186,19 @@ export default function WorkOrderDetail() {
       temporaryProtectiveAction: edit.protectiveAction,
       assignedEmployeeId: edit.employeeId === "none" ? null : edit.employeeId,
       externalVendor: edit.vendor,
-      targetCompletionAt: edit.target ? facilityDateTimeLocalToUtcIso(edit.target) : null,
+      targetCompletionAt: editTarget,
       partsNeeded: edit.parts,
       estimatedCost: edit.estimatedCost ? Number(edit.estimatedCost) : null,
       residentImpact: edit.residentImpact,
     }, {
+      onSettled: () => submitting.current.delete("details"),
       onSuccess: () => { setShowEdit(false); toast({ title: "Work-order details updated" }); },
       onError: (error: Error) => toast({ title: "Update failed", description: error.message, variant: "destructive" }),
     });
   };
 
   const upload = () => {
-    if (!documentFile) return;
+    if (!documentFile || !begin("upload", uploadDocument.isPending)) return;
     uploadDocument.mutate({
       file: documentFile,
       organizationId: order.organization_id,
@@ -180,6 +206,7 @@ export default function WorkOrderDetail() {
       workOrderId: order.id,
       documentType,
     }, {
+      onSettled: () => submitting.current.delete("upload"),
       onSuccess: () => { setDocumentFile(undefined); toast({ title: "Maintenance documentation uploaded" }); },
       onError: (error: Error) => toast({ title: "Upload failed", description: error.message, variant: "destructive" }),
     });
@@ -203,6 +230,7 @@ export default function WorkOrderDetail() {
         </div>
         <div className="flex flex-wrap gap-2">
           {canManage && !["verified","canceled"].includes(order.status) && <Button variant="outline" onClick={() => {
+            if (updateDetails.isPending || submitting.current.has("details")) return;
             const localTarget = order.target_completion_at ? toFacilityDateTimeLocal(order.target_completion_at) : "";
             setEdit({
               locationDetail: order.location_detail ?? "", roomNumber: order.room_number ?? "",
@@ -242,7 +270,7 @@ export default function WorkOrderDetail() {
           </CardContent></Card>
 
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileImage className="h-5 w-5" /> Photos &amp; documents</CardTitle></CardHeader><CardContent className="space-y-4">
-            {canManage && !["verified","canceled"].includes(order.status) && <div className="grid items-end gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[180px_1fr_auto]"><div><Label htmlFor={`${__fieldIds}-documentation-type`}>Documentation type</Label><Select value={documentType} onValueChange={(value) => setDocumentType(value as typeof documentType)}><SelectTrigger id={`${__fieldIds}-documentation-type`}><SelectValue /></SelectTrigger><SelectContent>{DOCUMENT_TYPES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-jpeg-png-webp-or-pdf`}>JPEG, PNG, WebP, or PDF</Label><Input id={`${__fieldIds}-jpeg-png-webp-or-pdf`} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setDocumentFile(event.target.files?.[0])} /></div><Button onClick={upload} disabled={!documentFile || uploadDocument.isPending}><Upload className="mr-2 h-4 w-4" /> Upload</Button></div>}
+            {canManage && !["verified","canceled"].includes(order.status) && <fieldset disabled={uploadDocument.isPending} className="grid items-end gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[180px_1fr_auto]"><div><Label htmlFor={`${__fieldIds}-documentation-type`}>Documentation type</Label><Select value={documentType} onValueChange={(value) => setDocumentType(value as typeof documentType)}><SelectTrigger id={`${__fieldIds}-documentation-type`}><SelectValue /></SelectTrigger><SelectContent>{DOCUMENT_TYPES.map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-jpeg-png-webp-or-pdf`}>JPEG, PNG, WebP, or PDF</Label><Input id={`${__fieldIds}-jpeg-png-webp-or-pdf`} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setDocumentFile(event.target.files?.[0])} /></div><Button onClick={upload} disabled={!documentFile || uploadDocument.isPending}><Upload className="mr-2 h-4 w-4" /> Upload</Button></fieldset>}
             {documentsError ? (
               <QueryError what="repair documentation" error={documentsErrorDetail} onRetry={() => void refetchDocuments()} />
             ) : documentsLoading ? (
@@ -271,11 +299,11 @@ export default function WorkOrderDetail() {
         </CardContent></Card>
       </div>
 
-      <Dialog open={showTransition} onOpenChange={(open) => { if (!open) { setShowTransition(false); setTransitionNotes(""); setActualCost(""); setDowntimeStarted(""); setDowntimeEnded(""); } else setShowTransition(true); }}><DialogContent><DialogHeader><DialogTitle>{targetStatus === "pending_verification" ? "Complete repair and submit for verification" : `Move to ${humanize(targetStatus)}`}</DialogTitle></DialogHeader><div className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-field`}>{targetStatus === "pending_verification" ? "Repair notes *" : "Transition notes *"}</Label><Textarea id={`${__fieldIds}-field`} value={transitionNotes} onChange={(e) => setTransitionNotes(e.target.value)} /></div>{targetStatus === "pending_verification" && <><div><Label htmlFor={`${__fieldIds}-actual-cost`}>Actual cost</Label><Input id={`${__fieldIds}-actual-cost`} type="number" min="0" step="0.01" value={actualCost} onChange={(e) => setActualCost(e.target.value)} /></div><div className="grid grid-cols-2 gap-3"><div><Label htmlFor={`${__fieldIds}-downtime-started`}>Downtime started</Label><Input id={`${__fieldIds}-downtime-started`} type="datetime-local" value={downtimeStarted} onChange={(e) => setDowntimeStarted(e.target.value)} /></div><div><Label htmlFor={`${__fieldIds}-downtime-ended`}>Downtime ended</Label><Input id={`${__fieldIds}-downtime-ended`} type="datetime-local" value={downtimeEnded} onChange={(e) => setDowntimeEnded(e.target.value)} /></div></div><p className="rounded-md bg-warning/10 p-3 text-sm">This records repair completion but does not mark the item compliant. A supervisor must verify it next.</p></>}</div><DialogFooter><Button variant="outline" onClick={() => setShowTransition(false)}>Cancel</Button><Button onClick={submitTransition} disabled={transition.isPending || transitionNotes.trim().length < 3}>{targetStatus === "pending_verification" ? "Submit for verification" : "Save transition"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={showTransition} onOpenChange={changeTransitionOpen}><DialogContent><DialogHeader><DialogTitle>{targetStatus === "pending_verification" ? "Complete repair and submit for verification" : `Move to ${humanize(targetStatus)}`}</DialogTitle></DialogHeader><fieldset disabled={transition.isPending} className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-field`}>{targetStatus === "pending_verification" ? "Repair notes *" : "Transition notes *"}</Label><Textarea id={`${__fieldIds}-field`} value={transitionNotes} onChange={(e) => setTransitionNotes(e.target.value)} /></div>{targetStatus === "pending_verification" && <><div><Label htmlFor={`${__fieldIds}-actual-cost`}>Actual cost</Label><Input id={`${__fieldIds}-actual-cost`} type="number" min="0" step="0.01" value={actualCost} onChange={(e) => setActualCost(e.target.value)} /></div><div className="grid grid-cols-2 gap-3"><div><Label htmlFor={`${__fieldIds}-downtime-started`}>Downtime started</Label><Input id={`${__fieldIds}-downtime-started`} type="datetime-local" value={downtimeStarted} onChange={(e) => setDowntimeStarted(e.target.value)} /></div><div><Label htmlFor={`${__fieldIds}-downtime-ended`}>Downtime ended</Label><Input id={`${__fieldIds}-downtime-ended`} type="datetime-local" value={downtimeEnded} onChange={(e) => setDowntimeEnded(e.target.value)} /></div></div><p className="rounded-md bg-warning/10 p-3 text-sm">This records repair completion but does not mark the item compliant. A supervisor must verify it next.</p></>}</fieldset><DialogFooter><Button disabled={transition.isPending} variant="outline" onClick={() => changeTransitionOpen(false)}>Cancel</Button><Button onClick={submitTransition} disabled={transition.isPending || !transitionValid}>{targetStatus === "pending_verification" ? "Submit for verification" : "Save transition"}</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={showVerify} onOpenChange={(open) => { if (!open) { setShowVerify(false); setVerificationNotes(""); setVerificationDecision("verified"); } else setShowVerify(true); }}><DialogContent><DialogHeader><DialogTitle>Supervisor verification</DialogTitle></DialogHeader><div className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-decision`}>Decision</Label><Select value={verificationDecision} onValueChange={(value) => setVerificationDecision(value as typeof verificationDecision)}><SelectTrigger id={`${__fieldIds}-decision`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="verified">Repair verified</SelectItem><SelectItem value="reopened">Return for additional work</SelectItem></SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-verification-findings`}>Verification findings *</Label><Textarea id={`${__fieldIds}-verification-findings`} value={verificationNotes} onChange={(e) => setVerificationNotes(e.target.value)} placeholder="Describe what was inspected and why the repair is accepted or returned" /></div>{verificationDecision === "verified" && asset && <p className="rounded-md bg-success/10 p-3 text-sm">Verification will create a passing follow-up inspection for {asset.label} and restore its compliance status.</p>}</div><DialogFooter><Button variant="outline" onClick={() => setShowVerify(false)}>Cancel</Button><Button onClick={submitVerification} disabled={verify.isPending || verificationNotes.trim().length < 3}>{verificationDecision === "verified" ? "Verify repair" : "Reopen work order"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={showVerify} onOpenChange={changeVerifyOpen}><DialogContent><DialogHeader><DialogTitle>Supervisor verification</DialogTitle></DialogHeader><fieldset disabled={verify.isPending} className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-decision`}>Decision</Label><Select value={verificationDecision} onValueChange={(value) => setVerificationDecision(value as typeof verificationDecision)}><SelectTrigger id={`${__fieldIds}-decision`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="verified">Repair verified</SelectItem><SelectItem value="reopened">Return for additional work</SelectItem></SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-verification-findings`}>Verification findings *</Label><Textarea id={`${__fieldIds}-verification-findings`} value={verificationNotes} onChange={(e) => setVerificationNotes(e.target.value)} placeholder="Describe what was inspected and why the repair is accepted or returned" /></div>{verificationDecision === "verified" && asset && <p className="rounded-md bg-success/10 p-3 text-sm">Verification will create a passing follow-up inspection for {asset.label} and restore its compliance status.</p>}</fieldset><DialogFooter><Button disabled={verify.isPending} variant="outline" onClick={() => changeVerifyOpen(false)}>Cancel</Button><Button onClick={submitVerification} disabled={verify.isPending || verificationNotes.trim().length < 3}>{verificationDecision === "verified" ? "Verify repair" : "Reopen work order"}</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={showEdit} onOpenChange={setShowEdit}><DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto"><DialogHeader><DialogTitle>Edit work-order details</DialogTitle></DialogHeader><div className="grid gap-4 py-2 sm:grid-cols-2"><div><Label htmlFor={`${__fieldIds}-safety-risk`}>Safety risk</Label><Select value={edit.safetyRisk} onValueChange={(value) => setEdit({ ...edit, safetyRisk: value })}><SelectTrigger id={`${__fieldIds}-safety-risk`}><SelectValue /></SelectTrigger><SelectContent>{["none","low","moderate","high","immediate_danger"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-priority`}>Priority</Label><Select value={edit.priority} onValueChange={(value) => setEdit({ ...edit, priority: value })}><SelectTrigger id={`${__fieldIds}-priority`}><SelectValue /></SelectTrigger><SelectContent>{["routine","urgent","emergency"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><EmployeeSearchSelect label="Assigned employee" value={edit.employeeId === "none" ? "" : edit.employeeId} onValueChange={(id) => setEdit({ ...edit, employeeId: id || "none" })} facilityId={order.facility_id} allowEmpty emptyLabel="Unassigned" emptyValue="none" /></div><div><Label htmlFor={`${__fieldIds}-external-vendor`}>External vendor</Label><Input id={`${__fieldIds}-external-vendor`} value={edit.vendor} onChange={(e) => setEdit({ ...edit, vendor: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-room`}>Room</Label><Input id={`${__fieldIds}-room`} value={edit.roomNumber} onChange={(e) => setEdit({ ...edit, roomNumber: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-location-detail`}>Location detail</Label><Input id={`${__fieldIds}-location-detail`} value={edit.locationDetail} onChange={(e) => setEdit({ ...edit, locationDetail: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-target-completion`}>Target completion</Label><Input id={`${__fieldIds}-target-completion`} type="datetime-local" value={edit.target} onChange={(e) => setEdit({ ...edit, target: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-estimated-cost`}>Estimated cost</Label><Input id={`${__fieldIds}-estimated-cost`} type="number" min="0" step="0.01" value={edit.estimatedCost} onChange={(e) => setEdit({ ...edit, estimatedCost: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-temporary-protective-action`}>Temporary protective action</Label><Textarea id={`${__fieldIds}-temporary-protective-action`} value={edit.protectiveAction} onChange={(e) => setEdit({ ...edit, protectiveAction: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-parts-needed`}>Parts needed</Label><Textarea id={`${__fieldIds}-parts-needed`} value={edit.parts} onChange={(e) => setEdit({ ...edit, parts: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-resident-impact`}>Resident impact</Label><Textarea id={`${__fieldIds}-resident-impact`} value={edit.residentImpact} onChange={(e) => setEdit({ ...edit, residentImpact: e.target.value })} /></div></div><DialogFooter><Button variant="outline" onClick={() => setShowEdit(false)}>Cancel</Button><Button onClick={saveDetails} disabled={updateDetails.isPending}>Save changes</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={showEdit} onOpenChange={changeEditOpen}><DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto"><DialogHeader><DialogTitle>Edit work-order details</DialogTitle></DialogHeader><fieldset disabled={updateDetails.isPending} className="grid gap-4 py-2 sm:grid-cols-2"><div><Label htmlFor={`${__fieldIds}-safety-risk`}>Safety risk</Label><Select value={edit.safetyRisk} onValueChange={(value) => setEdit({ ...edit, safetyRisk: value })}><SelectTrigger id={`${__fieldIds}-safety-risk`}><SelectValue /></SelectTrigger><SelectContent>{["none","low","moderate","high","immediate_danger"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-priority`}>Priority</Label><Select value={edit.priority} onValueChange={(value) => setEdit({ ...edit, priority: value })}><SelectTrigger id={`${__fieldIds}-priority`}><SelectValue /></SelectTrigger><SelectContent>{["routine","urgent","emergency"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div><div><EmployeeSearchSelect label="Assigned employee" value={edit.employeeId === "none" ? "" : edit.employeeId} onValueChange={(id) => setEdit({ ...edit, employeeId: id || "none" })} facilityId={order.facility_id} allowEmpty emptyLabel="Unassigned" emptyValue="none" /></div><div><Label htmlFor={`${__fieldIds}-external-vendor`}>External vendor</Label><Input id={`${__fieldIds}-external-vendor`} value={edit.vendor} onChange={(e) => setEdit({ ...edit, vendor: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-room`}>Room</Label><Input id={`${__fieldIds}-room`} value={edit.roomNumber} onChange={(e) => setEdit({ ...edit, roomNumber: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-location-detail`}>Location detail</Label><Input id={`${__fieldIds}-location-detail`} value={edit.locationDetail} onChange={(e) => setEdit({ ...edit, locationDetail: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-target-completion`}>Target completion</Label><Input id={`${__fieldIds}-target-completion`} type="datetime-local" value={edit.target} onChange={(e) => setEdit({ ...edit, target: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-estimated-cost`}>Estimated cost</Label><Input id={`${__fieldIds}-estimated-cost`} type="number" min="0" step="0.01" value={edit.estimatedCost} onChange={(e) => setEdit({ ...edit, estimatedCost: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-temporary-protective-action`}>Temporary protective action</Label><Textarea id={`${__fieldIds}-temporary-protective-action`} value={edit.protectiveAction} onChange={(e) => setEdit({ ...edit, protectiveAction: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-parts-needed`}>Parts needed</Label><Textarea id={`${__fieldIds}-parts-needed`} value={edit.parts} onChange={(e) => setEdit({ ...edit, parts: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-resident-impact`}>Resident impact</Label><Textarea id={`${__fieldIds}-resident-impact`} value={edit.residentImpact} onChange={(e) => setEdit({ ...edit, residentImpact: e.target.value })} /></div></fieldset><DialogFooter><Button disabled={updateDetails.isPending} variant="outline" onClick={() => changeEditOpen(false)}>Cancel</Button><Button onClick={saveDetails} disabled={updateDetails.isPending || !editValid}>Save changes</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }

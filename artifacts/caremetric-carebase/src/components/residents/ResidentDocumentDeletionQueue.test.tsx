@@ -30,6 +30,7 @@ vi.mock("@/hooks/useDocuments", () => ({
 }));
 
 import { ResidentDocumentDeletionQueue } from "./ResidentDocumentDeletionQueue";
+vi.mock("@/components/documents/DocumentDeletionQueue", () => ({ DocumentDeletionQueue: () => null }));
 import Documents from "@/pages/app/Documents";
 
 type Node = ReactElement<Record<string, unknown>>;

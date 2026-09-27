@@ -5,6 +5,7 @@ import { useTrainingFacilityScope } from "@/hooks/useFacilityAssignments";
 import { trainingFacilityFromSearch, trainingWorkspaceHref } from "@/lib/trainingOnboarding";
 import { facilityToday, formatDateForDisplay } from "@/lib/dateUtils";
 import { isExplicitCompletionDeadline } from "@/lib/trainingPlanEditing";
+import { boundedSettled } from "@/lib/boundedSettled";
 import {
   useListCourseAssignmentsPaginated,
   useCreateCourseAssignment,
@@ -421,7 +422,7 @@ export default function CourseAssignments() {
   // (mirrors CourseDetail.tsx's handleGenerateAllVideos bulk pattern) so one employee's failure
   // doesn't stop the rest, then reports one summary toast instead of one per employee.
   const handleAssign = async () => {
-    if (facilityActionsBlocked) return;
+    if (facilityActionsBlocked || assigning || employeesLoading || employeesError || courseVersionsLoading || courseVersionsError) return;
     if (selectedEmployeeIds.size === 0 || !assignForm.courseId) {
       toast({ title: "Select at least one employee and training item", variant: "destructive" });
       return;
@@ -455,8 +456,7 @@ export default function CourseAssignments() {
     }
 
     setAssigning(true);
-    const results = await Promise.allSettled(
-      targetEmployees.map(employee =>
+    const results = await boundedSettled(targetEmployees, 4, employee =>
         createAssignmentAsync({
           employee_id: employee.id,
           course_id: courseId,
@@ -466,7 +466,6 @@ export default function CourseAssignments() {
           due_date: assignForm.dueDate,
           assigned_by: assignedBy,
         }),
-      ),
     );
     setAssigning(false);
 
@@ -490,10 +489,12 @@ export default function CourseAssignments() {
       variant: outcome.failed === 0 ? "success" : fulfilledCount === 0 ? "destructive" : undefined,
     });
 
-    if (fulfilledCount > 0) {
+    if (outcome.failed === 0) {
       setShowAssignForm(false);
       setAssignForm(EMPTY_ASSIGN_FORM);
       setSelectedEmployeeIds(new Set());
+    } else {
+      setSelectedEmployeeIds(new Set(targetEmployees.filter((_, index) => results[index].status === "rejected").map(employee => employee.id)));
     }
   };
 
@@ -516,12 +517,11 @@ export default function CourseAssignments() {
   };
 
   const handleBulkComplete = async () => {
-    if (selectedAssignmentIds.size === 0) return;
-    const ids = Array.from(selectedAssignmentIds);
+    if (selectedAssignmentIds.size === 0 || bulkCompleting || completing || assignmentsError) return;
+    const ids = paginated.filter(assignment => selectedAssignmentIds.has(assignment.id) && isEligibleForComplete(assignment)).map(assignment => assignment.id);
+    if (!ids.length) return;
     setBulkCompleting(true);
-    const results = await Promise.allSettled(
-      ids.map((id) => completeAssignmentAsync(id)),
-    );
+    const results = await boundedSettled(ids, 4, id => completeAssignmentAsync(id));
     setBulkCompleting(false);
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
@@ -540,7 +540,8 @@ export default function CourseAssignments() {
       variant: failed === 0 ? "success" : succeeded === 0 ? "destructive" : undefined,
     });
 
-    if (succeeded > 0) setSelectedAssignmentIds(new Set());
+    const completedIds = new Set(ids.filter((_, index) => results[index].status === "fulfilled"));
+    setSelectedAssignmentIds(current => new Set([...current].filter(id => !completedIds.has(id))));
   };
 
   const openUnblock = (mode: "grant" | "cancel", assignment: CourseAssignment) => {
@@ -672,7 +673,7 @@ export default function CourseAssignments() {
             size="sm"
             variant="outline"
             onClick={handleBulkComplete}
-            disabled={bulkCompleting}
+            disabled={bulkCompleting || completing}
           >
             <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
             {bulkCompleting ? "Completing..." : "Mark Complete Selected"}
@@ -681,6 +682,7 @@ export default function CourseAssignments() {
             size="sm"
             variant="ghost"
             onClick={() => setSelectedAssignmentIds(new Set())}
+            disabled={bulkCompleting}
           >
             Clear Selection
           </Button>
@@ -743,6 +745,7 @@ export default function CourseAssignments() {
                 <Checkbox
                   checked={allEligibleSelected ? true : someEligibleSelected ? "indeterminate" : false}
                   onCheckedChange={toggleSelectAllEligible}
+                  disabled={bulkCompleting}
                   aria-label="Select all eligible assignments on this page"
                 />
                 <span className="text-xs text-muted-foreground">
@@ -782,6 +785,7 @@ export default function CourseAssignments() {
                               <Checkbox
                                 checked={selectedAssignmentIds.has(a.id)}
                                 onCheckedChange={() => toggleAssignment(a.id)}
+                                disabled={bulkCompleting}
                                 aria-label={`Select assignment for ${emp ? `${emp.last_name}, ${emp.first_name}` : a.employee_id}`}
                               />
                             ) : null}
@@ -904,6 +908,7 @@ export default function CourseAssignments() {
       )}
 
       <Dialog open={showAssignForm} onOpenChange={o => {
+        if (assigning) return;
         if (!o) {
           setShowAssignForm(false);
           setAssignForm(EMPTY_ASSIGN_FORM);
@@ -919,7 +924,7 @@ export default function CourseAssignments() {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-training-item`} className="text-[13px]">Training item *</Label>
-              <Select value={assignForm.courseId} onValueChange={handleCourseChange}>
+              <Select value={assignForm.courseId} onValueChange={handleCourseChange} disabled={assigning}>
                 <SelectTrigger id={`${__fieldIds}-training-item`} className="h-9"><SelectValue placeholder="Select training item" /></SelectTrigger>
                 <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-content-available-width)]">
                   {publishedCourses.map(c => (
@@ -930,13 +935,13 @@ export default function CourseAssignments() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-due-date`} className="text-[13px]">Completion required by *</Label>
-              <Input id={`${__fieldIds}-due-date`} type="date" required value={assignForm.dueDate} onChange={e => field("dueDate", e.target.value)} className="h-9" />
+              <Input id={`${__fieldIds}-due-date`} type="date" required value={assignForm.dueDate} onChange={e => field("dueDate", e.target.value)} className="h-9" disabled={assigning} />
               <p className="text-xs text-muted-foreground">Enter the facility's deadline. No completion date is calculated automatically.</p>
             </div>
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label htmlFor={`${__fieldIds}-assign-employee-search`} className="text-[13px]">Employees * ({selectedEmployeeIds.size} selected)</Label>
-                <Select value={assignFacilityFilter} onValueChange={setAssignFacilityFilter}>
+                <Select value={assignFacilityFilter} onValueChange={setAssignFacilityFilter} disabled={assigning}>
                   <SelectTrigger id={`${__fieldIds}-assign-facility-filter`} aria-label="Filter employees by facility" className="h-8 w-44 text-xs"><SelectValue placeholder="All Facilities" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Facilities</SelectItem>
@@ -951,6 +956,7 @@ export default function CourseAssignments() {
                   placeholder="Search employees to assign"
                   value={assignEmployeeSearch}
                   onChange={(e) => setAssignEmployeeSearch(e.target.value)}
+                  disabled={assigning}
                 />
               </div>
               <div className="border rounded-md overflow-hidden">
@@ -958,6 +964,7 @@ export default function CourseAssignments() {
                   <Checkbox
                     checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
                     onCheckedChange={toggleSelectAllFiltered}
+                    disabled={assigning}
                     aria-label="Select all in facility"
                   />
                   <span className="text-muted-foreground">
@@ -981,6 +988,7 @@ export default function CourseAssignments() {
                         <Checkbox
                           checked={selectedEmployeeIds.has(e.id)}
                           onCheckedChange={() => toggleEmployee(e.id)}
+                          disabled={assigning}
                         />
                         <span className="flex-1 truncate">{e.last_name}, {e.first_name}</span>
                         {e.job_title && <span className="text-xs text-muted-foreground truncate">{e.job_title}</span>}
@@ -992,10 +1000,10 @@ export default function CourseAssignments() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAssignForm(false)}>Cancel</Button>
+            <Button variant="outline" disabled={assigning} onClick={() => { if (!assigning) setShowAssignForm(false); }}>Cancel</Button>
             <Button
               onClick={handleAssign}
-              disabled={facilityActionsBlocked || assigning || selectedEmployeeIds.size === 0 || !assignForm.courseId || !defaultVersion}
+              disabled={facilityActionsBlocked || assigning || employeesLoading || employeesError || courseVersionsLoading || courseVersionsError || selectedEmployeeIds.size === 0 || !assignForm.courseId || !defaultVersion}
               className="shadow-sm"
             >
               {assigning

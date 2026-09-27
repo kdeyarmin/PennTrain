@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 import { storageSafeFileName } from "@/lib/storagePaths";
+import { hasDefinitivePostgresWriteRejection } from "@/lib/postgresWriteOutcome";
 
 export type PolicyDocument = Tables<"policy_documents">;
 export type PolicyDocumentInsert = TablesInsert<"policy_documents">;
@@ -158,7 +159,23 @@ export function useUploadPolicyDocumentVersion() {
         .select()
         .single();
       if (error) {
-        await supabase.storage.from("policy-documents").remove([path]);
+        const unknown = new Error("The policy version save could not be confirmed. The uploaded file was retained; refresh the version list before retrying.");
+        let saved: PolicyDocumentVersion | null;
+        try {
+          const result = await supabase.from("policy_document_versions").select("*")
+            .eq("organization_id", organizationId).eq("policy_document_id", policyDocumentId)
+            .eq("storage_bucket", "policy-documents").eq("storage_path", path).maybeSingle();
+          if (result.error) throw result.error;
+          saved = result.data;
+        } catch { throw unknown; }
+        if (saved) return saved;
+        if (!hasDefinitivePostgresWriteRejection(error)) throw unknown;
+        try {
+          const { error: cleanupError } = await supabase.storage.from("policy-documents").remove([path]);
+          if (cleanupError) throw cleanupError;
+        } catch {
+          throw new Error(`${error.message} (the uploaded file could not be removed; refresh the version list before retrying)`);
+        }
         throw error;
       }
       return data;

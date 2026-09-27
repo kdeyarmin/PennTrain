@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   useListPackages,
   useCreatePackage,
@@ -179,8 +179,21 @@ function centsInput(cents: number | null): string {
   return cents === null ? "" : (cents / 100).toFixed(2);
 }
 
-function dollarsToCents(value: string): number {
-  return Math.round(Number(value || 0) * 100);
+function wholeNumber(value: string, label: string, minimum = 0, maximum = 2_147_483_647): number {
+  const number = Number(value);
+  if (!value.trim() || !Number.isInteger(number) || number < minimum || number > maximum) {
+    throw new Error(`${label} must be a whole number from ${minimum} through ${maximum}.`);
+  }
+  return number;
+}
+
+function dollarsToCents(value: string, label: string): number {
+  const amount = value.trim();
+  const cents = Math.round(Number(amount) * 100);
+  if (!/^(?:\d+(?:\.\d{1,2})?|\.\d{1,2})$/.test(amount) || !Number.isSafeInteger(cents) || cents > 2_147_483_647) {
+    throw new Error(`${label} must be a non-negative dollar amount with at most two decimal places.`);
+  }
+  return cents;
 }
 
 function metricDefinition(metric: string) {
@@ -237,24 +250,38 @@ export default function Packages() {
   const [editPriceId, setEditPriceId] = useState<string | null>(null);
   const [deletePriceId, setDeletePriceId] = useState<string | null>(null);
   const [priceForm, setPriceForm] = useState<PriceFormData>(EMPTY_PRICE_FORM);
+  // A late save belongs to its submitted draft, even if the operator opens another editor.
+  const packageDraft = useRef(0), priceDraft = useRef(0);
+  const packageEditor = useRef(0), priceEditor = useRef(0);
+  useEffect(() => () => { packageDraft.current += 1; priceDraft.current += 1; packageEditor.current += 1; priceEditor.current += 1; }, []);
 
   const packageById = useMemo(
     () => new Map((packages ?? []).map((pkg) => [pkg.id, pkg])),
     [packages],
   );
 
-  const packageField = <K extends keyof PackageFormData>(key: K, value: PackageFormData[K]) =>
+  const packageField = <K extends keyof PackageFormData>(key: K, value: PackageFormData[K]) => {
+    packageDraft.current += 1;
     setPackageForm((current) => ({ ...current, [key]: value }));
-  const priceField = <K extends keyof PriceFormData>(key: K, value: PriceFormData[K]) =>
+  };
+  const priceField = <K extends keyof PriceFormData>(key: K, value: PriceFormData[K]) => {
+    priceDraft.current += 1;
     setPriceForm((current) => ({ ...current, [key]: value }));
+  };
+  const closePackage = () => { packageDraft.current += 1; packageEditor.current += 1; setShowPackageForm(false); };
+  const closePrice = () => { priceDraft.current += 1; priceEditor.current += 1; setShowPriceForm(false); };
 
   const openCreatePackage = () => {
+    packageEditor.current += 1;
+    packageDraft.current += 1;
     setEditId(null);
     setPackageForm(EMPTY_PACKAGE_FORM);
     setShowPackageForm(true);
   };
 
   const openEditPackage = (pkg: Package) => {
+    packageEditor.current += 1;
+    packageDraft.current += 1;
     setEditId(pkg.id);
     setPackageForm({
       name: pkg.name,
@@ -276,12 +303,16 @@ export default function Packages() {
   };
 
   const openCreatePrice = (packageId = "") => {
+    priceEditor.current += 1;
+    priceDraft.current += 1;
     setEditPriceId(null);
     setPriceForm({ ...EMPTY_PRICE_FORM, packageId });
     setShowPriceForm(true);
   };
 
   const openEditPrice = (price: PackageBillingPrice) => {
+    priceEditor.current += 1;
+    priceDraft.current += 1;
     setEditPriceId(price.id);
     setPriceForm({
       packageId: price.package_id,
@@ -304,6 +335,7 @@ export default function Packages() {
   };
 
   const handlePackageSubmit = () => {
+    if (creating || updating) return;
     if (!packageForm.name.trim()) {
       toast({ title: "Package name is required", variant: "destructive" });
       return;
@@ -325,6 +357,26 @@ export default function Packages() {
       featureRecord[module.entitlementKey] = packageForm.enabledModules.includes(module.id);
     }
 
+    let numeric;
+    try {
+      const discount = Number(packageForm.annualDiscountPercent);
+      if (!packageForm.annualDiscountPercent.trim() || !Number.isFinite(discount) || discount < 0 || discount > 50 || Math.abs(discount * 100 - Math.round(discount * 100)) > 0.000001) {
+        throw new Error("Annual discount must be from 0 through 50 with at most two decimal places.");
+      }
+      numeric = {
+        trial_days: wholeNumber(packageForm.trialDays, "Trial days", 0, 90),
+        annual_discount_percent: discount,
+        sort_order: wholeNumber(packageForm.sortOrder, "Sort order", -2_147_483_648),
+        facility_limit: packageForm.facilityLimit.trim() ? wholeNumber(packageForm.facilityLimit, "Facility limit") : null,
+        learner_limit: packageForm.learnerLimit.trim() ? wholeNumber(packageForm.learnerLimit, "Learner limit") : null,
+        price_monthly_cents: packageForm.priceMonthly.trim() ? dollarsToCents(packageForm.priceMonthly, "Monthly price") : null,
+      };
+    } catch (error) {
+      toast({ title: "Check package values", description: (error as Error).message, variant: "destructive" });
+      return;
+    }
+    const submittedDraft = packageDraft.current, submittedPriceDraft = priceDraft.current;
+    const submittedEditor = packageEditor.current;
     const payload = {
       name: packageForm.name.trim(),
       description: packageForm.description.trim(),
@@ -332,12 +384,7 @@ export default function Packages() {
       is_recommended: packageForm.isRecommended,
       contact_sales: packageForm.contactSales,
       pricing_strategy: packageForm.pricingStrategy,
-      trial_days: Number.parseInt(packageForm.trialDays || "0", 10),
-      annual_discount_percent: Number(packageForm.annualDiscountPercent || 0),
-      sort_order: Number.parseInt(packageForm.sortOrder || "0", 10),
-      facility_limit: packageForm.facilityLimit.trim() ? Number.parseInt(packageForm.facilityLimit, 10) : null,
-      learner_limit: packageForm.learnerLimit.trim() ? Number.parseInt(packageForm.learnerLimit, 10) : null,
-      price_monthly_cents: packageForm.priceMonthly.trim() ? dollarsToCents(packageForm.priceMonthly) : null,
+      ...numeric,
       features: featureRecord,
     };
 
@@ -345,6 +392,7 @@ export default function Packages() {
       updatePackage({ id: editId, ...payload }, {
         onSuccess: () => {
           toast({ title: "Package updated" });
+          if (packageDraft.current !== submittedDraft) return;
           setShowPackageForm(false);
           setEditId(null);
         },
@@ -354,9 +402,14 @@ export default function Packages() {
       createPackage(payload, {
         onSuccess: (createdPackage) => {
           toast({ title: "Package created", description: "Add its monthly or annual billing configuration next." });
+          // Further typing in this same create editor belongs to the newly saved record.
+          // A replacement editor must never adopt the old receipt.
+          if (packageEditor.current !== submittedEditor) return;
+          setEditId(createdPackage.id);
+          if (packageDraft.current !== submittedDraft) return;
           setShowPackageForm(false);
           setPackageForm(EMPTY_PACKAGE_FORM);
-          openCreatePrice(createdPackage.id);
+          if (priceDraft.current === submittedPriceDraft) openCreatePrice(createdPackage.id);
         },
         onError: (error: Error) => toast({ title: "Package could not be created", description: error.message, variant: "destructive" }),
       });
@@ -364,6 +417,7 @@ export default function Packages() {
   };
 
   const handlePriceSubmit = () => {
+    if (creatingPrice || updatingPrice) return;
     if (!priceForm.packageId || !priceForm.displayName.trim()) {
       toast({ title: "Package and price name are required", variant: "destructive" });
       return;
@@ -372,39 +426,47 @@ export default function Packages() {
       toast({ title: "Stripe Price ID must begin with price_", variant: "destructive" });
       return;
     }
-    const baseCents = dollarsToCents(priceForm.baseAmount);
-    if (!Number.isFinite(baseCents) || baseCents < 0) {
-      toast({ title: "Base amount must be a valid non-negative dollar amount", variant: "destructive" });
-      return;
-    }
-    if (priceForm.billingMetric === "flat" && baseCents <= 0) {
-      toast({ title: "Flat prices need a positive base amount", variant: "destructive" });
-      return;
-    }
-
     const flat = priceForm.billingMetric === "flat";
+    let numeric;
+    try {
+      const baseCents = dollarsToCents(priceForm.baseAmount || "0", "Base amount");
+      if (flat && baseCents <= 0) throw new Error("Flat prices need a positive base amount.");
+      const minimum = flat ? 1 : wholeNumber(priceForm.minimumQuantity, "Minimum quantity", 1);
+      numeric = {
+        base_amount_cents: baseCents,
+        unit_amount_cents: flat || !priceForm.unitAmount.trim() ? null : dollarsToCents(priceForm.unitAmount, "Unit amount"),
+        included_quantity: flat ? 0 : wholeNumber(priceForm.includedQuantity, "Included quantity"),
+        minimum_quantity: minimum,
+        maximum_quantity: flat ? 1 : priceForm.maximumQuantity.trim() ? wholeNumber(priceForm.maximumQuantity, "Maximum quantity", minimum) : null,
+        sort_order: wholeNumber(priceForm.sortOrder, "Sort order", -2_147_483_648),
+      };
+      if (!/^[a-z]{3}$/i.test(priceForm.currency.trim())) throw new Error("Currency must be a three-letter code.");
+    } catch (error) {
+      toast({ title: "Check billing values", description: (error as Error).message, variant: "destructive" });
+      return;
+    }
+    const submittedDraft = priceDraft.current;
+    const submittedEditor = priceEditor.current;
     const payload = {
       package_id: priceForm.packageId,
       display_name: priceForm.displayName.trim(),
       recurring_interval: priceForm.recurringInterval,
       billing_metric: priceForm.billingMetric,
       pricing_model: flat ? "flat" : priceForm.pricingModel,
-      base_amount_cents: baseCents,
-      unit_amount_cents: flat || !priceForm.unitAmount.trim() ? null : dollarsToCents(priceForm.unitAmount),
-      included_quantity: flat ? 0 : Number.parseInt(priceForm.includedQuantity || "0", 10),
-      minimum_quantity: flat ? 1 : Number.parseInt(priceForm.minimumQuantity || "1", 10),
-      maximum_quantity: flat ? 1 : priceForm.maximumQuantity.trim() ? Number.parseInt(priceForm.maximumQuantity, 10) : null,
+      ...numeric,
       stripe_price_id: priceForm.stripePriceId.trim() || null,
       currency: priceForm.currency.trim().toLowerCase(),
       is_seat_based: !flat,
       is_primary: priceForm.isPrimary,
       is_active: priceForm.isActive,
-      sort_order: Number.parseInt(priceForm.sortOrder || "0", 10),
     };
 
     const callbacks = {
-      onSuccess: () => {
+      onSuccess: (savedPrice: PackageBillingPrice) => {
         toast({ title: editPriceId ? "Billing configuration updated" : "Billing configuration created" });
+        if (priceEditor.current !== submittedEditor) return;
+        setEditPriceId(savedPrice.id);
+        if (priceDraft.current !== submittedDraft) return;
         setShowPriceForm(false);
         setEditPriceId(null);
       },
@@ -603,7 +665,7 @@ export default function Packages() {
         </CardContent>
       </Card>
 
-      <Dialog open={showPackageForm} onOpenChange={(open) => { if (!open) { setShowPackageForm(false); setEditId(null); setPackageForm(EMPTY_PACKAGE_FORM); } }}>
+      <Dialog open={showPackageForm} onOpenChange={(open) => { if (!open) { closePackage(); setEditId(null); setPackageForm(EMPTY_PACKAGE_FORM); } }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader><DialogTitle>{editId ? "Edit package" : "Add package"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
@@ -628,11 +690,11 @@ export default function Packages() {
             })}</div><p className="text-xs text-muted-foreground">CareMetric CareBase is the all-inclusive bundle: it always includes Train, Workforce, Compliance, and Billing.</p></div>
             <div className="col-span-full space-y-1.5"><Label htmlFor={`${__fieldIds}-advanced-feature-flags-json`}>Advanced feature flags (JSON)</Label><Textarea id={`${__fieldIds}-advanced-feature-flags-json`} value={packageForm.featuresJson} onChange={(event) => packageField("featuresJson", event.target.value)} className="min-h-24 font-mono text-xs" /><p className="text-xs text-muted-foreground">Product module keys above are synchronized when you save.</p></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setShowPackageForm(false)}>Cancel</Button><Button onClick={handlePackageSubmit} disabled={creating || updating}>{creating || updating ? "Saving..." : editId ? "Save changes" : "Create package"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={closePackage}>Cancel</Button><Button onClick={handlePackageSubmit} disabled={creating || updating}>{creating || updating ? "Saving..." : editId ? "Save changes" : "Create package"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showPriceForm} onOpenChange={(open) => { if (!open) { setShowPriceForm(false); setEditPriceId(null); setPriceForm(EMPTY_PRICE_FORM); } }}>
+      <Dialog open={showPriceForm} onOpenChange={(open) => { if (!open) { closePrice(); setEditPriceId(null); setPriceForm(EMPTY_PRICE_FORM); } }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader><DialogTitle>{editPriceId ? "Edit billing configuration" : "Add billing configuration"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
@@ -651,13 +713,13 @@ export default function Packages() {
             <div className="space-y-1.5"><Label htmlFor={`${__fieldIds}-sort-order-2`}>Sort order</Label><Input id={`${__fieldIds}-sort-order-2`} type="number" value={priceForm.sortOrder} onChange={(event) => priceField("sortOrder", event.target.value)} /></div>
             <div className="flex items-center justify-between rounded-lg border p-3"><div><p className="text-sm font-medium">Active primary price</p><p className="text-xs text-muted-foreground">Eligible for checkout</p></div><div className="flex gap-3"><Switch checked={priceForm.isPrimary} onCheckedChange={(value) => priceField("isPrimary", value)} aria-label="Primary price" /><Switch checked={priceForm.isActive} onCheckedChange={(value) => priceField("isActive", value)} aria-label="Active price" /></div></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setShowPriceForm(false)}>Cancel</Button><Button onClick={handlePriceSubmit} disabled={creatingPrice || updatingPrice}>{creatingPrice || updatingPrice ? "Saving..." : "Save billing configuration"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={closePrice}>Cancel</Button><Button onClick={handlePriceSubmit} disabled={creatingPrice || updatingPrice}>{creatingPrice || updatingPrice ? "Saving..." : "Save billing configuration"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={Boolean(deleteId)} onOpenChange={(open) => { if (!open) setDeleteId(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete package</AlertDialogTitle><AlertDialogDescription>This permanently removes the package and its draft billing configurations. Packages assigned to an organization cannot be deleted.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { if (!deleteId) return; deletePackage(deleteId, { onSuccess: () => { toast({ title: "Package deleted" }); setDeleteId(null); }, onError: (error: Error) => toast({ title: "Package could not be deleted", description: error.message, variant: "destructive" }) }); }} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{deleting ? "Deleting..." : "Delete"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={Boolean(deleteId)} onOpenChange={(open) => { if (!open) setDeleteId(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete package</AlertDialogTitle><AlertDialogDescription>This permanently removes the package and its draft billing configurations. Packages assigned to an organization cannot be deleted.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { if (!deleteId) return; deletePackage(deleteId, { onSuccess: () => { toast({ title: "Package deleted" }); setDeleteId(current => current === deleteId ? null : current); }, onError: (error: Error) => toast({ title: "Package could not be deleted", description: error.message, variant: "destructive" }) }); }} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{deleting ? "Deleting..." : "Delete"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
-      <AlertDialog open={Boolean(deletePriceId)} onOpenChange={(open) => { if (!open) setDeletePriceId(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete billing configuration</AlertDialogTitle><AlertDialogDescription>Delete only draft or unused configurations. For a live Stripe Price, make this row inactive and add a replacement so historical subscription reconciliation remains intact.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { if (!deletePriceId) return; deletePrice(deletePriceId, { onSuccess: () => { toast({ title: "Billing configuration deleted" }); setDeletePriceId(null); }, onError: (error: Error) => toast({ title: "Billing configuration could not be deleted", description: error.message, variant: "destructive" }) }); }} disabled={deletingPrice} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{deletingPrice ? "Deleting..." : "Delete"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={Boolean(deletePriceId)} onOpenChange={(open) => { if (!open) setDeletePriceId(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete billing configuration</AlertDialogTitle><AlertDialogDescription>Delete only draft or unused configurations. For a live Stripe Price, make this row inactive and add a replacement so historical subscription reconciliation remains intact.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { if (!deletePriceId) return; deletePrice(deletePriceId, { onSuccess: () => { toast({ title: "Billing configuration deleted" }); setDeletePriceId(current => current === deletePriceId ? null : current); }, onError: (error: Error) => toast({ title: "Billing configuration could not be deleted", description: error.message, variant: "destructive" }) }); }} disabled={deletingPrice} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{deletingPrice ? "Deleting..." : "Delete"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { deleteDocumentWithReceipt } from "@/lib/documentDeletion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
@@ -194,14 +195,10 @@ export function useDocumentSignedUrl() {
 export function useDeleteDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (doc: TrainingDocument) => {
-      // Storage returns { error } rather than throwing. Deleting metadata first would leave an
-      // undiscoverable orphan file in the private bucket whenever remove fails.
-      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
-      if (storageError) throw new Error(storageError.message);
-      const { error } = await supabase.from("training_documents").delete().eq("id", doc.id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents"] }),
+    mutationFn: (doc: TrainingDocument) => deleteDocumentWithReceipt("training", doc.id),
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["documents"] }),
+      queryClient.invalidateQueries({ queryKey: ["document_deletions"] }),
+    ]),
   });
 }

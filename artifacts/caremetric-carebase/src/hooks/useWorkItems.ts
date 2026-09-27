@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { storageSafeFileName } from "@/lib/storagePaths";
+import { recoverUploadedWrite } from "@/lib/uploadWriteRecovery";
 import type { Tables } from "@/lib/database.types";
 import type { PaginatedResult } from "@/lib/dataTable";
 
@@ -470,8 +471,13 @@ export function useUploadWorkItemEvidence() {
         p_linked_record_id: null,
       } as never);
       if (error) {
-        await supabase.storage.from("work-item-evidence").remove([path]);
-        throw error;
+        const saved = await recoverUploadedWrite<WorkItemEvidence>({ error,
+          read: () => supabase.from("work_item_evidence").select("*")
+            .eq("organization_id", workItem.organization_id).eq("work_item_id", workItem.id)
+            .eq("storage_bucket", "work-item-evidence").eq("storage_path", path).maybeSingle(),
+          remove: () => supabase.storage.from("work-item-evidence").remove([path]),
+        });
+        return saved.id;
       }
       return data;
     },

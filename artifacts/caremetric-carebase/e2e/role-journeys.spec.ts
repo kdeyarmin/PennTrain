@@ -231,6 +231,49 @@ test.describe("authenticated role journeys", () => {
       }
 
       if (role === "org_admin") {
+        await test.step("qualification autosaves preserve other fields through authenticated PostgREST upserts", async () => {
+          await gotoAppRoute(page, "/app/administrator-qualification");
+          await page.getByLabel("Administrator", { exact: true }).click();
+          await page.getByRole("option", { name: /Organization administrator/ }).click();
+          const saveField = async (field: string, value: unknown, change: () => Promise<unknown>) => {
+            const [response] = await Promise.all([
+              page.waitForResponse(response => response.url().includes("/rest/v1/administrator_profiles?")
+                && response.request().method() === "POST"
+                && response.request().postDataJSON()?.[field] === value),
+              change(),
+            ]);
+            expect(response.ok()).toBe(true);
+            expect(Object.keys(response.request().postDataJSON()).sort()).toEqual([field, "organization_id", "profile_id"].sort());
+          };
+          await saveField("qualification_path", "hundred_hour_course", async () => {
+            await page.getByLabel("Qualification Path", { exact: true }).click();
+            await page.getByRole("option", { name: "100-Hour Administrator Course", exact: true }).click();
+          });
+          await saveField("hundred_hour_course_provider", "Journey provider", async () => {
+            await page.getByLabel("Training Course Provider", { exact: true }).fill("Journey provider");
+            await page.getByLabel("Training Course Provider", { exact: true }).press("Tab");
+          });
+          await saveField("hundred_hour_course_completed_date", "2026-09-01", async () => {
+            await page.getByLabel("Training Course Completed Date", { exact: true }).fill("2026-09-01");
+            await page.getByLabel("Training Course Completed Date", { exact: true }).press("Tab");
+          });
+          const saved = await admin.from("administrator_profiles").select("hundred_hour_course_provider,hundred_hour_course_completed_date")
+            .eq("profile_id", account.id).single();
+          expect(saved.error).toBeNull();
+          expect(saved.data).toEqual({ hundred_hour_course_provider: "Journey provider", hundred_hour_course_completed_date: "2026-09-01" });
+          await saveField("competency_test_passed", true, () => page.getByRole("checkbox", { name: "Competency test passed", exact: true }).check());
+          await expect(page.getByRole("checkbox", { name: "Competency test passed", exact: true })).toBeChecked();
+          await saveField("competency_test_passed", false, () => page.getByRole("checkbox", { name: "Competency test passed", exact: true }).uncheck());
+          await expect(page.getByRole("checkbox", { name: "Competency test passed", exact: true })).not.toBeChecked();
+          await saveField("hundred_hour_course_provider", null, async () => {
+            await page.getByLabel("Training Course Provider", { exact: true }).fill("");
+            await page.getByLabel("Training Course Provider", { exact: true }).press("Tab");
+          });
+          const cleared = await admin.from("administrator_profiles").select("hundred_hour_course_provider,hundred_hour_course_completed_date,competency_test_passed")
+            .eq("profile_id", account.id).single();
+          expect(cleared.error).toBeNull();
+          expect(cleared.data).toEqual({ hundred_hour_course_provider: null, hundred_hour_course_completed_date: "2026-09-01", competency_test_passed: false });
+        });
         await test.step("changing employee routes discards the previous employee's draft", async () => {
           const { data: staff, error } = await admin.from("employees").insert([
             { organization_id: organizationId, facility_id: facilityId, first_name: "RouteAlpha", last_name: "Staff", status: "active", job_title: "Caregiver" },

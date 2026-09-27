@@ -78,6 +78,7 @@ function useCompleteHospitalReturn(residentId: string) {
       queryClient.invalidateQueries({ queryKey: ["work-items"] });
       // Returning restores the census and makes scheduled care visible again.
       queryClient.invalidateQueries({ queryKey: ["residents"] });
+      queryClient.invalidateQueries({ queryKey: ["occupancy-board"] });
       queryClient.invalidateQueries({ queryKey: ["resident-360", residentId] });
       queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["resident-care-delivery"] });

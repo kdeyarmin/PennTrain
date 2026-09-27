@@ -1,6 +1,6 @@
-import { useEffect } from "react";
-import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import type { Tables } from "@/lib/database.types";
 
 export type Notification = Tables<"notifications">;
@@ -13,14 +13,19 @@ export type Notification = Tables<"notifications">;
 const NOTIFICATIONS_KEY = ["notifications"] as const;
 
 export function useListNotifications(limit = 30) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: [...NOTIFICATIONS_KEY, limit],
-    queryFn: async () => {
+    queryKey: [...NOTIFICATIONS_KEY, user?.id ?? null, user?.organizationId ?? null, user?.role ?? null, limit],
+    enabled: !!user?.id,
+    queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
+        .eq("profile_id", user!.id)
         .order("created_at", { ascending: false })
-        .limit(limit);
+        .order("id", { ascending: false })
+        .limit(limit)
+        .abortSignal(signal);
       if (error) throw error;
       return data;
     },
@@ -30,13 +35,17 @@ export function useListNotifications(limit = 30) {
 }
 
 export function useUnreadNotificationCount() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: [...NOTIFICATIONS_KEY, "unread-count"],
-    queryFn: async () => {
+    queryKey: [...NOTIFICATIONS_KEY, user?.id ?? null, user?.organizationId ?? null, user?.role ?? null, "unread-count"],
+    enabled: !!user?.id,
+    queryFn: async ({ signal }) => {
       const { count, error } = await supabase
         .from("notifications")
         .select("id", { count: "exact", head: true })
-        .is("read_at", null);
+        .eq("profile_id", user!.id)
+        .is("read_at", null)
+        .abortSignal(signal);
       if (error) throw error;
       return count ?? 0;
     },
@@ -44,47 +53,10 @@ export function useUnreadNotificationCount() {
   });
 }
 
+// Confirm read state through the server. Rolling back a whole optimistic snapshot
+// can replace newer arrivals or another account's cache after a delayed failure.
 function invalidateNotifications(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
-}
-
-type NotificationQuerySnapshot = Array<[QueryKey, unknown]>;
-
-function restoreNotificationQueries(queryClient: QueryClient, snapshot?: NotificationQuerySnapshot) {
-  snapshot?.forEach(([queryKey, value]) => queryClient.setQueryData(queryKey, value));
-}
-
-function optimisticallyReadOne(queryClient: QueryClient, id: string) {
-  const readAt = new Date().toISOString();
-  let wasUnread = false;
-  queryClient.setQueriesData<Notification[]>(
-    {
-      queryKey: NOTIFICATIONS_KEY,
-      predicate: (query) => typeof query.queryKey[1] === "number",
-    },
-    (rows) => rows?.map((row) => {
-      if (row.id !== id) return row;
-      if (!row.read_at) wasUnread = true;
-      return { ...row, read_at: row.read_at ?? readAt };
-    }),
-  );
-  if (wasUnread) {
-    queryClient.setQueryData<number>([...NOTIFICATIONS_KEY, "unread-count"], (count) =>
-      Math.max(0, (count ?? 0) - 1),
-    );
-  }
-}
-
-function optimisticallyReadAll(queryClient: QueryClient) {
-  const readAt = new Date().toISOString();
-  queryClient.setQueriesData<Notification[]>(
-    {
-      queryKey: NOTIFICATIONS_KEY,
-      predicate: (query) => typeof query.queryKey[1] === "number",
-    },
-    (rows) => rows?.map((row) => ({ ...row, read_at: row.read_at ?? readAt })),
-  );
-  queryClient.setQueryData([...NOTIFICATIONS_KEY, "unread-count"], 0);
+  return queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
 }
 
 export function useMarkNotificationRead() {
@@ -94,13 +66,6 @@ export function useMarkNotificationRead() {
       const { error } = await supabase.rpc("mark_notification_read", { p_id: id });
       if (error) throw error;
     },
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: NOTIFICATIONS_KEY });
-      const previous = queryClient.getQueriesData({ queryKey: NOTIFICATIONS_KEY });
-      optimisticallyReadOne(queryClient, id);
-      return { previous };
-    },
-    onError: (_error, _id, context) => restoreNotificationQueries(queryClient, context?.previous),
     onSettled: () => invalidateNotifications(queryClient),
   });
 }
@@ -112,13 +77,6 @@ export function useMarkAllNotificationsRead() {
       const { error } = await supabase.rpc("mark_all_notifications_read");
       if (error) throw error;
     },
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: NOTIFICATIONS_KEY });
-      const previous = queryClient.getQueriesData({ queryKey: NOTIFICATIONS_KEY });
-      optimisticallyReadAll(queryClient);
-      return { previous };
-    },
-    onError: (_error, _variables, context) => restoreNotificationQueries(queryClient, context?.previous),
     onSettled: () => invalidateNotifications(queryClient),
   });
 }
@@ -130,14 +88,18 @@ export type NotificationDelivery = Tables<"notification_deliveries">;
 // the queue_notification_delivery trigger and the dispatch-notifications Edge Function; there is
 // no client insert/update, only this list view.
 export function useListNotificationDeliveries(limit = 20) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["notification_deliveries", limit],
-    queryFn: async () => {
+    queryKey: ["notification_deliveries", user?.id ?? null, user?.organizationId ?? null, user?.role ?? null, limit],
+    enabled: !!user?.id,
+    queryFn: async ({ signal }) => {
       const { data, error } = await supabase
         .from("notification_deliveries")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(limit);
+        .order("id", { ascending: false })
+        .limit(limit)
+        .abortSignal(signal);
       if (error) throw error;
       return data;
     },

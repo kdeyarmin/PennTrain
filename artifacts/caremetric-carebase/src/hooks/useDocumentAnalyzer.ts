@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { recoverUploadedWrite } from "@/lib/uploadWriteRecovery";
 import { describeFunctionError } from "@/hooks/useResidentAssessmentForms";
 import {
   type DocumentAnalyzerJob,
@@ -119,9 +120,15 @@ export function useUploadAnalyzerDocuments() {
           p_source_path: path,
         });
         if (enqueueError || !jobRow) {
-          // Roll the orphaned object back so a re-upload of the same file starts clean.
-          await supabase.storage.from(ANALYZER_BUCKET).remove([path]);
-          rejected.push({ fileName: file.name, reason: enqueueError?.message ?? "Failed to queue the upload" });
+          try {
+            const saved = await recoverUploadedWrite<DocumentAnalyzerJob>({ error: enqueueError,
+              read: () => supabase.from("document_analyzer_jobs").select("*").eq("source_path", path).maybeSingle(),
+              remove: () => supabase.storage.from(ANALYZER_BUCKET).remove([path]),
+            });
+            enqueued.push(saved);
+          } catch (error) {
+            rejected.push({ fileName: file.name, reason: error && typeof error === "object" && "message" in error ? String(error.message) : String(error) });
+          }
           continue;
         }
         enqueued.push(jobRow as unknown as DocumentAnalyzerJob);

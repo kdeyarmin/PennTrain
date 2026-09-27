@@ -1,5 +1,6 @@
-import { useId, useEffect, useMemo, useState } from "react";
-import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
+import { addFacilityCalendarDays, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { careDateTimeInstant } from "@/lib/careFormDates";
 
 import { Link, useParams } from "wouter";
 import {
@@ -79,6 +80,11 @@ export default function EmergencyEventDetail() {
   const saveReview = useSaveEmergencyAfterAction();
   const addAction = useAddEmergencyCorrectiveAction();
   const transition = useTransitionEmergencyEvent();
+  const submitting = useRef(new Set<string>());
+  const begin = (kind: string, pending: boolean) => {
+    if (!canManage || pending || submitting.current.has(kind)) return false;
+    submitting.current.add(kind); return true;
+  };
 
   const [timelineType, setTimelineType] = useState("observation");
   const [timelineAt, setTimelineAt] = useState(localDateTime());
@@ -113,7 +119,7 @@ export default function EmergencyEventDetail() {
     setGaps(review.gaps_identified ?? "");
     setLessons(review.lessons_learned ?? "");
     setCorrectivePlan(review.corrective_action_plan ?? "");
-  }, [eventQuery.data?.review]);
+  }, [eventQuery.data?.review?.id]);
 
   const residentCounts = useMemo(() => {
     const rows = eventQuery.data?.residents ?? [];
@@ -142,10 +148,12 @@ export default function EmergencyEventDetail() {
     gaps,
     correctivePlan,
   });
+  const actionInstant = careDateTimeInstant(actionDueAt);
+  const timelineInstant = careDateTimeInstant(timelineAt);
   const actionReady = canCreateEmergencyCorrectiveWork({
     title: actionTitle,
     ownerProfileId: actionOwner,
-    dueAt: actionDueAt ? facilityDateTimeLocalToUtcIso(actionDueAt) : "",
+    dueAt: actionInstant ?? "",
   });
   const designatedNotified = (eventQuery.data?.communications ?? []).filter(
     (row) => row.audience === "designated_person" && ["sent", "confirmed"].includes(row.delivery_status),
@@ -177,14 +185,17 @@ export default function EmergencyEventDetail() {
     },
   );
 
-  const submitTimeline = () => addTimeline.mutate(
+  const submitTimeline = () => {
+    if (!timelineInstant || !timelineDescription.trim() || ["closed", "canceled"].includes(event.status) || !begin("timeline", addTimeline.isPending)) return;
+    addTimeline.mutate(
     {
       eventId: id,
       eventType: timelineType,
       description: timelineDescription,
-      occurredAt: timelineAt ? facilityDateTimeLocalToUtcIso(timelineAt) : new Date().toISOString(),
+      occurredAt: timelineInstant,
     },
     {
+      onSettled: () => submitting.current.delete("timeline"),
       onSuccess: () => {
         toast({ title: "Timeline entry added" });
         setTimelineDescription("");
@@ -194,7 +205,7 @@ export default function EmergencyEventDetail() {
       },
       onError: mutationError("Could not add timeline entry"),
     },
-  );
+  ); };
 
   const submitCommunication = () => logCommunication.mutate(
     { eventId: id, audience, recipientName, recipientContact, channel, deliveryStatus, message: communicationMessage },
@@ -207,7 +218,9 @@ export default function EmergencyEventDetail() {
     },
   );
 
-  const submitReview = () => saveReview.mutate(
+  const submitReview = () => {
+    if (!reviewReady || !begin("review", saveReview.isPending)) return;
+    saveReview.mutate(
     {
       eventId: id,
       status: reviewStatus,
@@ -218,17 +231,14 @@ export default function EmergencyEventDetail() {
       correctiveActionPlan: correctivePlan,
     },
     {
+      onSettled: () => submitting.current.delete("review"),
       onSuccess: () => toast({ title: `After-action review ${reviewStatus}` }),
       onError: mutationError("Could not save after-action review"),
     },
-  );
+  ); };
 
   const submitAction = () => {
-    if (!canCreateEmergencyCorrectiveWork({
-      title: actionTitle,
-      ownerProfileId: actionOwner,
-      dueAt: actionDueAt ? facilityDateTimeLocalToUtcIso(actionDueAt) : "",
-    })) return;
+    if (!actionReady || !actionInstant || !begin("action", addAction.isPending)) return;
     addAction.mutate(
       {
         eventId: id,
@@ -236,9 +246,10 @@ export default function EmergencyEventDetail() {
         description: actionDescription,
         ownerProfileId: actionOwner,
         priority: actionPriority,
-        dueAt: facilityDateTimeLocalToUtcIso(actionDueAt),
+        dueAt: actionInstant,
       },
       {
+        onSettled: () => submitting.current.delete("action"),
         onSuccess: () => {
           toast({ title: "Corrective work created" });
           setActionTitle("");
@@ -368,7 +379,7 @@ export default function EmergencyEventDetail() {
                 {eventQuery.data?.timeline.map((entry) => (
                   <div key={entry.id} className="border-l-2 pl-3"><div className="flex justify-between gap-2"><Badge variant="outline">{human(entry.event_type)}</Badge><span className="text-xs text-muted-foreground">{new Date(entry.occurred_at).toLocaleString()}</span></div><p className="mt-1 text-sm">{entry.description}</p></div>
                 ))}
-                {canManage && !["closed", "canceled"].includes(event.status) && <div className="space-y-2 border-t pt-3 print:hidden"><div className="grid gap-2 sm:grid-cols-2"><Select value={timelineType} onValueChange={setTimelineType}><SelectTrigger aria-label="Timeline entry type"><SelectValue /></SelectTrigger><SelectContent>{["observation","decision","resource","evacuation","relocation","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Input type="datetime-local" value={timelineAt} onChange={(e) => setTimelineAt(e.target.value)} /></div><Textarea placeholder="Timeline description" value={timelineDescription} onChange={(e) => setTimelineDescription(e.target.value)} /><Button disabled={!timelineDescription} onClick={submitTimeline}>Add timeline entry</Button></div>}
+                {canManage && !["closed", "canceled"].includes(event.status) && <fieldset disabled={addTimeline.isPending} className="space-y-2 border-t pt-3 print:hidden"><div className="grid gap-2 sm:grid-cols-2"><Select value={timelineType} onValueChange={setTimelineType}><SelectTrigger aria-label="Timeline entry type"><SelectValue /></SelectTrigger><SelectContent>{["observation","decision","resource","evacuation","relocation","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Input type="datetime-local" value={timelineAt} onChange={(e) => setTimelineAt(e.target.value)} /></div><Textarea placeholder="Timeline description" value={timelineDescription} onChange={(e) => setTimelineDescription(e.target.value)} /><Button disabled={addTimeline.isPending || !timelineDescription.trim() || !timelineInstant} onClick={submitTimeline}>Add timeline entry</Button></fieldset>}
               </CardContent>
             </Card>
 
@@ -387,15 +398,15 @@ export default function EmergencyEventDetail() {
         <TabsContent value="review" className="space-y-4">
           <Card>
             <CardHeader><CardTitle>After-action review</CardTitle><CardDescription>Approval is required before formal event closure.</CardDescription></CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2">
+            <CardContent><fieldset disabled={saveReview.isPending} className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1"><Label htmlFor={`${__fieldIds}-status`}>Status</Label><Select value={reviewStatus} onValueChange={setReviewStatus} disabled={!canManage}><SelectTrigger id={`${__fieldIds}-status`}><SelectValue /></SelectTrigger><SelectContent>{["draft","submitted","approved"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1 md:col-span-2"><Label htmlFor={`${__fieldIds}-response-summary`}>Response summary</Label><Textarea id={`${__fieldIds}-response-summary`} value={responseSummary} onChange={(e) => setResponseSummary(e.target.value)} readOnly={!canManage} /></div>
               <div className="space-y-1"><Label htmlFor={`${__fieldIds}-strengths`}>Strengths</Label><Textarea id={`${__fieldIds}-strengths`} value={strengths} onChange={(e) => setStrengths(e.target.value)} readOnly={!canManage} /></div>
               <div className="space-y-1"><Label htmlFor={`${__fieldIds}-gaps-identified`}>Gaps identified</Label><Textarea id={`${__fieldIds}-gaps-identified`} value={gaps} onChange={(e) => setGaps(e.target.value)} readOnly={!canManage} /></div>
               <div className="space-y-1"><Label htmlFor={`${__fieldIds}-lessons-learned`}>Lessons learned</Label><Textarea id={`${__fieldIds}-lessons-learned`} value={lessons} onChange={(e) => setLessons(e.target.value)} readOnly={!canManage} /></div>
               <div className="space-y-1"><Label htmlFor={`${__fieldIds}-corrective-action-plan`}>Corrective-action plan</Label><Textarea id={`${__fieldIds}-corrective-action-plan`} value={correctivePlan} onChange={(e) => setCorrectivePlan(e.target.value)} readOnly={!canManage} /></div>
-              {canManage && <Button className="md:col-span-2 print:hidden" disabled={!reviewReady} onClick={submitReview}>Save / approve after-action review</Button>}
-            </CardContent>
+              {canManage && <Button className="md:col-span-2 print:hidden" disabled={saveReview.isPending || !reviewReady} onClick={submitReview}>Save / approve after-action review</Button>}
+            </fieldset></CardContent>
           </Card>
 
           <Card>
@@ -405,7 +416,7 @@ export default function EmergencyEventDetail() {
                 const workItem = action.work_item as { id: string; title: string; state: string; priority: string; due_at: string } | null;
                 return workItem && <div key={action.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3"><div><p className="font-medium">{workItem.title}</p><p className="text-xs text-muted-foreground">Due {new Date(workItem.due_at).toLocaleString()}</p></div><div className="flex gap-2"><Badge variant="outline">{human(workItem.priority)}</Badge><Badge>{human(workItem.state)}</Badge><Button asChild variant="outline" size="sm"><Link href={`/app/work/${workItem.id}`}>Open work item</Link></Button></div></div>;
               })}
-              {canManage && <div className="grid gap-2 border-t pt-3 md:grid-cols-2 print:hidden"><Input placeholder="Corrective action title" value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} /><Select value={actionOwner} onValueChange={setActionOwner}><SelectTrigger aria-label="Action owner"><SelectValue placeholder="Owner" /></SelectTrigger><SelectContent>{profiles.data?.filter((profile) => profile.is_active).map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select><Textarea className="md:col-span-2" placeholder="Description" value={actionDescription} onChange={(e) => setActionDescription(e.target.value)} /><Select value={actionPriority} onValueChange={setActionPriority}><SelectTrigger aria-label="Action priority"><SelectValue /></SelectTrigger><SelectContent>{["low","normal","high","urgent"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Input type="datetime-local" value={actionDueAt} onChange={(e) => setActionDueAt(e.target.value)} /><Button className="md:col-span-2" disabled={!actionReady} onClick={submitAction}>Create corrective work item</Button></div>}
+              {canManage && <fieldset disabled={addAction.isPending} className="grid gap-2 border-t pt-3 md:grid-cols-2 print:hidden"><Input placeholder="Corrective action title" value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} /><Select value={actionOwner} onValueChange={setActionOwner}><SelectTrigger aria-label="Action owner"><SelectValue placeholder="Owner" /></SelectTrigger><SelectContent>{profiles.data?.filter((profile) => profile.is_active).map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select><Textarea className="md:col-span-2" placeholder="Description" value={actionDescription} onChange={(e) => setActionDescription(e.target.value)} /><Select value={actionPriority} onValueChange={setActionPriority}><SelectTrigger aria-label="Action priority"><SelectValue /></SelectTrigger><SelectContent>{["low","normal","high","urgent"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select><Input type="datetime-local" value={actionDueAt} onChange={(e) => setActionDueAt(e.target.value)} /><Button className="md:col-span-2" disabled={addAction.isPending || !actionReady} onClick={submitAction}>Create corrective work item</Button></fieldset>}
             </CardContent>
           </Card>
         </TabsContent>

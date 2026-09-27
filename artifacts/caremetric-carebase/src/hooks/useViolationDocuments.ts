@@ -1,7 +1,9 @@
+import { deleteDocumentWithReceipt } from "@/lib/documentDeletion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { storageSafeFileName } from "@/lib/storagePaths";
+import { recoverUploadedWrite } from "@/lib/uploadWriteRecovery";
 
 export type ViolationDocument = Tables<"violation_documents">;
 
@@ -52,8 +54,12 @@ export function useUploadViolationDocument() {
         .select()
         .single();
       if (error) {
-        await supabase.storage.from("violation-documents").remove([path]);
-        throw error;
+        return recoverUploadedWrite<ViolationDocument>({ error,
+          read: () => supabase.from("violation_documents").select("*")
+            .eq("organization_id", organizationId).eq("violation_id", violationId)
+            .eq("storage_bucket", "violation-documents").eq("storage_path", path).maybeSingle(),
+          remove: () => supabase.storage.from("violation-documents").remove([path]),
+        });
       }
       return data;
     },
@@ -79,12 +85,10 @@ export function useViolationDocumentSignedUrl() {
 export function useDeleteViolationDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (doc: ViolationDocument) => {
-      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
-      if (storageError) throw storageError;
-      const { error } = await supabase.from("violation_documents").delete().eq("id", doc.id);
-      if (error) throw error;
-    },
-    onSuccess: (_data, doc) => queryClient.invalidateQueries({ queryKey: ["violation_documents", doc.violation_id] }),
+    mutationFn: (doc: ViolationDocument) => deleteDocumentWithReceipt("violation", doc.id),
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["violation_documents"] }),
+      queryClient.invalidateQueries({ queryKey: ["document_deletions"] }),
+    ]),
   });
 }

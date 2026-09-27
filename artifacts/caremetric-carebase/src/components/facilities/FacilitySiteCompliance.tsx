@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -10,7 +10,8 @@ import { useFacilityTransportVehicles } from "@/hooks/useResidentServicesCalenda
 import { useResidentAgreements } from "@/hooks/useResidentAgreements";
 import { useListDocuments, useUploadDocument, useDocumentSignedUrl } from "@/hooks/useDocuments";
 import { BEDSIDE_FIELDS, VOICE_FIELDS, SITE_REVIEW_LABELS, siteDeadlines, drillWeekdayRotation, type SiteReviewType } from "@/lib/facilitySiteCompliance";
-import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { careDateTimeInstant, isCareCalendarDate } from "@/lib/careFormDates";
 import { humanize } from "@/lib/utils";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,7 +70,7 @@ function SitePolicy({ canManage, ...props }: Props & { canManage: boolean }) {
   const [grace, setGrace] = useState("strict");
   const [renewal, setRenewal] = useState("every_three_years");
   const [reason, setReason] = useState("");
-  useEffect(() => { if (query.data !== undefined) { setFailed(query.data?.count_unsuccessful_pch_drills ?? false); setGrace(query.data?.inspection_grace ?? "strict"); setRenewal(query.data?.alf_approval_renewal ?? "every_three_years"); setReason(query.data?.rationale ?? ""); } }, [query.data]);
+  useEffect(() => { if (query.data !== undefined) { setFailed(query.data?.count_unsuccessful_pch_drills ?? false); setGrace(query.data?.inspection_grace ?? "strict"); setRenewal(query.data?.alf_approval_renewal ?? "every_three_years"); setReason(query.data?.rationale ?? ""); } }, [props.facilityId, query.data?.facility_id]);
   return <Card><CardHeader><CardTitle>Site compliance policy</CardTitle></CardHeader><CardContent className="space-y-3">
     <p className="text-sm text-muted-foreground">The strict defaults remain until a manager records a decision. Choosing RCG grace changes overdue classification, not the due date. Monthly fire drills and extinguishers receive no grace. Evacuation-time violations remain recorded under every policy.</p>
     {query.isError ? <QueryError what="site policy" error={query.error} onRetry={() => void query.refetch()} /> : <fieldset disabled={!canManage || query.isLoading || save.isPending} className="space-y-3">
@@ -92,6 +93,7 @@ function DrillRotation({ facilityId }: { facilityId: string }) {
 function ReviewDialog({ previous, onClose, onSaved, ...props }: Props & { previous: FacilitySiteReview | null; onClose: () => void; onSaved: () => void }) {
   const { toast } = useToast();
   const mutation = useAddFacilitySiteReview();
+  const saving = useRef(false);
   const [type, setType] = useState<SiteReviewType>((previous?.review_type as SiteReviewType) ?? "bedside_device");
   const [event, setEvent] = useState(previous?.event_kind ?? "review");
   const [item, setItem] = useState(previous?.inspection_item_id ?? "");
@@ -118,18 +120,22 @@ function ReviewDialog({ previous, onClose, onSaved, ...props }: Props & { previo
   const docOptions = (documents.data ?? []).filter((doc) => doc.employee_id === (type === "driver_license" ? employee || null : null)).map((doc) => ({ id: doc.id, label: doc.file_name }));
   const chooseDoc = (key: string, label: string) => <div className="space-y-1" key={key}><Choice label={label} value={details[key] ?? ""} change={(v) => set(key, v)} options={docOptions} />{details[key] && <Button size="sm" variant="ghost" onClick={() => { const doc = documents.data?.find((d) => d.id === details[key]); if (doc) signedUrl.mutate(doc, { onSuccess: (url) => openDocumentUrl(url), onError: (e: Error) => toast({ title: "Could not open evidence", description: e.message, variant: "destructive" }) }); }}>Open copy</Button>}</div>;
   const detailField = (key: string, label: string, inputType?: string) => <Field key={key} label={label} type={inputType} value={details[key] ?? ""} change={(v) => set(key, v)} />;
+  const occurredAt = careDateTimeInstant(occurred);
+  const validDates = !!occurredAt && (!next || isCareCalendarDate(next)) && Object.entries(details).every(([key, value]) => !value
+    || (key.endsWith("_at") ? !!careDateTimeInstant(value) : key.endsWith("_on") ? isCareCalendarDate(value) : true));
+  const lookupError = items.error ?? vehicles.error ?? residents.error ?? employees.error ?? plans.error ?? agreements.error ?? documents.error;
   const submit = () => {
-    if (!occurred || evidence.trim().length < 5) return;
-    const converted = Object.fromEntries(Object.entries(details).map(([key, value]) => [key, key.endsWith("_at") && value ? facilityDateTimeLocalToUtcIso(value) : value]));
+    if (!validDates || !occurredAt || evidence.trim().length < 5 || lookupError || mutation.isPending || upload.isPending || saving.current) return;
+    saving.current = true;
+    const converted = Object.fromEntries(Object.entries(details).map(([key, value]) => [key, key.endsWith("_at") && value ? careDateTimeInstant(value)! : value]));
     mutation.mutate({ organization_id: props.organizationId, facility_id: props.facilityId, review_type: type, event_kind: event,
       inspection_item_id: ["bedside_device", "voice_device", "fire_approval"].includes(type) ? item || null : null, vehicle_id: type === "vehicle_documents" ? vehicle || null : null,
       resident_id: ["bedside_device", "voice_device"].includes(type) ? resident || null : null, employee_id: type === "driver_license" ? employee || null : null, external_driver_name: type === "driver_license" && !employee ? external.trim() || null : null,
       support_plan_id: type === "bedside_device" ? plan || null : null, agreement_version_id: type === "voice_device" ? agreement || null : null, supersedes_id: previous?.id ?? null,
-      occurred_at: facilityDateTimeLocalToUtcIso(occurred), next_review_on: next || null, details: converted, evidence: evidence.trim(),
-    }, { onSuccess: onSaved, onError: (e: Error) => toast({ title: "Could not record review", description: e.message, variant: "destructive" }) });
+      occurred_at: occurredAt, next_review_on: next || null, details: converted, evidence: evidence.trim(),
+    }, { onSettled: () => { saving.current = false; }, onSuccess: onSaved, onError: (e: Error) => toast({ title: "Could not record review", description: e.message, variant: "destructive" }) });
   };
-  const lookupError = items.error ?? vehicles.error ?? residents.error ?? employees.error ?? plans.error ?? agreements.error ?? documents.error;
-  return <Dialog open onOpenChange={(value) => !value && onClose()}><DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>{previous ? "Append site follow-up / correction" : "Record site review"}</DialogTitle></DialogHeader><div className="space-y-3">
+  return <Dialog open onOpenChange={(value) => { if (!value && !saving.current && !mutation.isPending && !upload.isPending) onClose(); }}><DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>{previous ? "Append site follow-up / correction" : "Record site review"}</DialogTitle></DialogHeader><fieldset disabled={mutation.isPending || upload.isPending} className="space-y-3">
     {lookupError && <p role="alert" className="text-sm text-destructive">Evidence choices could not load: {String(lookupError.message)}</p>}
     <Choice label="Review type" value={type} disabled={!!previous} change={(v) => { setType(v as SiteReviewType); setEvent("review"); setDetails({}); setItem(""); setNext(""); }} options={Object.entries(SITE_REVIEW_LABELS).map(([id, label]) => ({ id, label }))} />
     {["bedside_device", "voice_device", "fire_approval"].includes(type) && <Choice label="Device / fire approval item" value={item} disabled={!!previous} change={setItem} options={(items.data ?? []).filter((i) => i.item_type === ({ bedside_device: "bedside_mobility_device", voice_device: "voice_controlled_device_policy", fire_approval: "fire_safety_approval" } as Record<string, string>)[type]).map((i) => ({ id: i.id, label: i.label }))} />}
@@ -147,8 +153,8 @@ function ReviewDialog({ previous, onClose, onSaved, ...props }: Props & { previo
       {["vehicle_documents", "driver_license", "fire_approval"].includes(type) && <label className="block space-y-1 text-sm"><span>Upload a document copy, then select it above</span><Input type="file" disabled={upload.isPending} onChange={(e) => { const file = e.target.files?.[0]; if (file) upload.mutate({ file, bucket: "external-uploads", organizationId: props.organizationId, facilityId: props.facilityId, employeeId: type === "driver_license" ? employee || undefined : undefined, documentType: "other" }, { onSuccess: () => toast({ title: "Document uploaded; choose it for the relevant field" }), onError: (error: Error) => toast({ title: "Upload failed", description: error.message, variant: "destructive" }) }); }} /></label>}
     </>}
     <Field label="Reviewer, findings, decision and evidence / correction reason" value={evidence} change={setEvidence} />
-    <Button disabled={mutation.isPending || upload.isPending || !!lookupError || !occurred || evidence.trim().length < 5} onClick={submit}>Record review</Button>
-  </div></DialogContent></Dialog>;
+    <Button disabled={mutation.isPending || upload.isPending || !!lookupError || !validDates || evidence.trim().length < 5} onClick={submit}>Record review</Button>
+  </fieldset></DialogContent></Dialog>;
 }
 
 

@@ -5,6 +5,8 @@ const h = vi.hoisted(() => ({
   cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
   profiles: [] as Record<string, unknown>[], deliveries: [] as Record<string, unknown>[], terms: [] as Record<string, unknown>[],
   evidenceError: false, evidenceRetry: vi.fn(), update: vi.fn(), resetMfa: vi.fn(), bulkRetry: vi.fn(), toast: vi.fn(), rpc: vi.fn(),
+  templatesError: false, templatesRetry: vi.fn(), preview: vi.fn(), previewInput: undefined as undefined | { subjectTemplate: string; bodyTemplate: string }, previewPending: false,
+  savedPreview: vi.fn(), savedResult: undefined as undefined | { templateId: string; version: number; subject: string; body: string },
 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(), useId: () => "target",
@@ -35,10 +37,10 @@ vi.mock("@/hooks/useNotificationReach", () => ({ useNotificationReach: () => ({ 
 vi.mock("@/hooks/useAdminNotificationDeliveries", () => ({
   useListNotificationDeliveries: () => ({ data: h.deliveries }), useOrganizationNameMap: () => ({ data: {} }),
   useBulkRetryNotificationDeliveries: () => ({ mutateAsync: h.bulkRetry }), useRetryNotificationDelivery: () => ({}),
-  useNotificationDeliveryOperations: () => ({}), useNotificationDeliveryEvidence: () => ({ isError: h.evidenceError, error: new Error("Documentation unavailable"), refetch: h.evidenceRetry }), useNotificationTemplateLibrary: () => ({ data: [] }),
-  usePreviewNotificationTemplate: () => ({}), useCreateNotificationTemplateVersion: () => ({}), useActivateNotificationTemplate: () => ({}),
+  useNotificationDeliveryOperations: () => ({}), useNotificationDeliveryEvidence: () => ({ isError: h.evidenceError, error: new Error("Documentation unavailable"), refetch: h.evidenceRetry }), useNotificationTemplateLibrary: () => ({ data: ["a", "b"].map(id => ({ id, templateKey: id, channel: "email", version: 1, status: "active" })), isError: h.templatesError, error: new Error("Templates unavailable"), refetch: h.templatesRetry }),
+  usePreviewNotificationTemplate: () => ({ mutateAsync: h.preview, data: h.previewInput ? { subject: "Rendered draft", body: "Rendered copy" } : undefined, variables: h.previewInput, isPending: h.previewPending }), useCreateNotificationTemplateVersion: () => ({}), useActivateNotificationTemplate: () => ({}),
   useSetNotificationSpendPolicy: () => ({}), useSetNotificationChannelPolicy: () => ({}), useAcknowledgeNotificationSpendAlert: () => ({}),
-  useNotificationDeliveryHealth: () => ({}), usePreviewSavedNotificationTemplate: () => ({}),
+  useNotificationDeliveryHealth: () => ({}), usePreviewSavedNotificationTemplate: () => ({ mutateAsync: h.savedPreview, data: h.savedResult }),
 }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: h.terms }), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: h.rpc } }));
@@ -62,6 +64,7 @@ const click = (node: Node) => (node.props.onClick as (event: unknown) => unknown
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes; }); return { promise, resolve }; }
 beforeEach(() => {
   vi.clearAllMocks(); h.evidenceError = false; h.state = []; h.refs = []; h.deps = [];
+  h.templatesError = false; h.previewInput = undefined; h.previewPending = false; h.savedResult = undefined; h.preview.mockResolvedValue(undefined); h.savedPreview.mockResolvedValue(undefined);
   vi.stubGlobal("window", { location: { search: "" } });
   h.profiles = ["Alice", "Beth"].map((name, index) => ({ id: `user-${index}`, first_name: name, last_name: "Staff", email: `${name}@example.test`, role: "employee", is_active: true, sms_opt_in: false, preferred_notification_channel: "email" }));
   h.deliveries = ["a", "b", "c"].map(id => ({ id, recipient: `${id}@example.test`, status: "failed", final_outcome: "failed", delivery_type: "reminder", channel: "email", created_at: "2026-09-01T12:00:00Z" }));
@@ -125,4 +128,27 @@ it("surfaces notification evidence failures with a scoped retry", () => {
   click(render(NotificationDeliveries).find(node => Array.isArray(node.props.children) && node.props.children.includes("Documentation"))!);
   (render(NotificationDeliveries).find(node => node.props.what === "delivery documentation")!.props.onRetry as () => void)();
   expect(h.evidenceRetry).toHaveBeenCalledOnce();
+});
+
+describe("notification template review", () => {
+  const draftPreview = () => render(NotificationDeliveries).find(n => n.props.children === "Preview")!;
+  const showsDraft = () => render(NotificationDeliveries).some(n => n.props.children === "Rendered draft");
+  it("shows failed template reads and retries the library", () => {
+    h.templatesError = true;
+    const error = render(NotificationDeliveries).find(n => n.props.what === "notification template library")!; expect(error).toBeDefined(); (error.props.onRetry as () => void)(); expect(h.templatesRetry).toHaveBeenCalledOnce();
+  });
+  it.each(["Template subject", "Template body"])("hides a preview received after %s changes", async field => {
+    const pending = deferred<void>(); h.preview.mockReturnValueOnce(pending.promise);
+    const operation = click(draftPreview()); h.previewInput = h.preview.mock.calls[0][0]; h.previewPending = true;
+    (render(NotificationDeliveries).find(n => n.props["aria-label"] === field)!.props.onChange as (e: unknown) => void)({ target: { value: "Replacement content" } });
+    h.previewPending = false; pending.resolve(); await operation; expect(showsDraft()).toBe(false);
+  });
+  it("shows a current preview and hides it during a new request", async () => {
+    await click(draftPreview()); h.previewInput = h.preview.mock.calls[0][0]; expect(showsDraft()).toBe(true); h.previewPending = true; expect(showsDraft()).toBe(false);
+  });
+  it("does not label one saved version's receipt as another template's preview", async () => {
+    const previews = () => render(NotificationDeliveries).filter(n => n.props.children === "Preview");
+    await click(previews()[1]); h.savedResult = { templateId: "a", version: 1, subject: "Stored A", body: "Body A" }; expect(render(NotificationDeliveries).some(n => n.props.children === "Stored A")).toBe(true);
+    h.savedPreview.mockReturnValueOnce(new Promise(() => {})); click(previews()[2]); expect(render(NotificationDeliveries).some(n => n.props.children === "Stored A")).toBe(false);
+  });
 });

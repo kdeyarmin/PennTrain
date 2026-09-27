@@ -1,6 +1,8 @@
+import { deleteDocumentWithReceipt } from "@/lib/documentDeletion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { storageSafeFileName } from "@/lib/storagePaths";
+import { recoverUploadedWrite } from "@/lib/uploadWriteRecovery";
 import type { Tables } from "@/lib/database.types";
 
 export type IncidentDocument = Tables<"incident_documents">;
@@ -51,8 +53,12 @@ export function useUploadIncidentDocument() {
         .select()
         .single();
       if (error) {
-        await supabase.storage.from("incident-documents").remove([path]);
-        throw error;
+        return recoverUploadedWrite<IncidentDocument>({ error,
+          read: () => supabase.from("incident_documents").select("*")
+            .eq("organization_id", organizationId).eq("incident_id", incidentId)
+            .eq("storage_bucket", "incident-documents").eq("storage_path", path).maybeSingle(),
+          remove: () => supabase.storage.from("incident-documents").remove([path]),
+        });
       }
       return data;
     },
@@ -78,12 +84,10 @@ export function useIncidentDocumentSignedUrl() {
 export function useDeleteIncidentDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (doc: IncidentDocument) => {
-      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
-      if (storageError) throw storageError;
-      const { error } = await supabase.from("incident_documents").delete().eq("id", doc.id);
-      if (error) throw error;
-    },
-    onSuccess: (_data, doc) => queryClient.invalidateQueries({ queryKey: ["incident_documents", doc.incident_id] }),
+    mutationFn: (doc: IncidentDocument) => deleteDocumentWithReceipt("incident", doc.id),
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["incident_documents"] }),
+      queryClient.invalidateQueries({ queryKey: ["document_deletions"] }),
+    ]),
   });
 }

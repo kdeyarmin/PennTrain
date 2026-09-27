@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ClipboardCheck, FlaskConical, Play, CheckCircle2, Ban } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
@@ -45,7 +45,6 @@ export default function SurveyRehearsals() {
   const activeFacilityId = supportedFacilities.find((facility) => facility.id === facilityId)?.id || supportedFacilities[0]?.id || "";
   const rehearsals = useListSurveyRehearsals(activeFacilityId || undefined);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const items = useSurveyRehearsalItems(selectedId);
   const create = useCreateSurveyRehearsal();
   const sample = useSampleSurveyRehearsal();
   const record = useRecordSurveyRehearsalItemResult();
@@ -64,23 +63,37 @@ export default function SurveyRehearsals() {
   const [sampleSize, setSampleSize] = useState("12");
   const [sampleMethod, setSampleMethod] = useState("random");
   const [notes, setNotes] = useState("");
+  const [completionNotes, setCompletionNotes] = useState("");
+  const busy = useRef(false);
+  const selection = useRef({ key: "", generation: 0 });
+  const selectionKey = `${activeFacilityId}:${selectedId}`;
+  if (selection.current.key !== selectionKey) selection.current = { key: selectionKey, generation: selection.current.generation + 1 };
+  const operationPending = create.isPending || sample.isPending || record.isPending || complete.isPending || cancel.isPending;
+  const validSampleSize = Number.isInteger(Number(sampleSize)) && Number(sampleSize) >= 1 && Number(sampleSize) <= 200;
 
   const selected = useMemo(
-    () => (rehearsals.data ?? []).find((row) => row.id === selectedId) ?? null,
-    [rehearsals.data, selectedId],
+    () => rehearsals.isError ? null : (rehearsals.data ?? []).find((row) => row.id === selectedId && row.facility_id === activeFacilityId) ?? null,
+    [rehearsals.data, rehearsals.isError, selectedId, activeFacilityId],
   );
+  const items = useSurveyRehearsalItems(selected?.id ?? null);
+  useEffect(() => { setCompletionNotes(selected?.notes ?? ""); }, [selected?.id]);
+  const begin = () => {
+    if (!canRunRehearsals || busy.current || operationPending) return false;
+    busy.current = true; return true;
+  };
 
   const start = async () => {
-    if (!activeFacilityId || name.trim().length < 3) return;
+    if (!activeFacilityId || !validSampleSize || name.trim().length < 3 || !begin()) return;
+    const generation = selection.current.generation;
     try {
       const id = await create.mutateAsync({
         facilityId: activeFacilityId,
         name: name.trim(),
-        sampleSize: Math.min(200, Math.max(1, Number(sampleSize) || 10)),
+        sampleSize: Number(sampleSize),
         sampleMethod,
         notes: notes.trim() || null,
       });
-      setSelectedId(id);
+      if (selection.current.generation === generation) setSelectedId(id);
       toast({ title: "Rehearsal created" });
     } catch (error) {
       toast({
@@ -88,13 +101,15 @@ export default function SurveyRehearsals() {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-    }
+    } finally { busy.current = false; }
   };
 
   const runSample = async (rehearsal: SurveyRehearsal) => {
+    if (rehearsal.id !== selected?.id || !["draft", "sampled"].includes(rehearsal.status) || !begin()) return;
+    const generation = selection.current.generation;
     try {
       const result = await sample.mutateAsync(rehearsal.id);
-      setSelectedId(rehearsal.id);
+      if (selection.current.generation === generation) setSelectedId(rehearsal.id);
       toast({
         title: "Sample drawn",
         description: `${String(result.itemCount ?? 0)} items ready for review`,
@@ -105,26 +120,26 @@ export default function SurveyRehearsals() {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-    }
+    } finally { busy.current = false; }
   };
 
   const markItem = async (itemId: string, result: string) => {
-    if (!selectedId) return;
+    if (!selected || ["completed", "canceled"].includes(selected.status) || items.isError || !items.data?.some(item => item.id === itemId) || !begin()) return;
     try {
-      await record.mutateAsync({ itemId, result, rehearsalId: selectedId });
+      await record.mutateAsync({ itemId, result, rehearsalId: selected.id });
     } catch (error) {
       toast({
         title: "Could not record finding",
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-    }
+    } finally { busy.current = false; }
   };
 
   const finish = async () => {
-    if (!selectedId) return;
+    if (!selected || !["sampled", "in_progress"].includes(selected.status) || items.isError || items.isLoading || !items.data?.length || items.data.some(item => item.result === "pending") || !begin()) return;
     try {
-      const report = await complete.mutateAsync({ rehearsalId: selectedId, notes: notes.trim() || undefined });
+      const report = await complete.mutateAsync({ rehearsalId: selected.id, notes: completionNotes.trim() || undefined });
       toast({
         title: "Rehearsal completed",
         description: `Pass rate ${String(report.passRate ?? "—")}% · ${String(report.attentionCount ?? 0)} attention items`,
@@ -135,15 +150,15 @@ export default function SurveyRehearsals() {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-    }
+    } finally { busy.current = false; }
   };
 
   const abort = async () => {
-    if (!selectedId) return;
+    if (!selected || ["completed", "canceled"].includes(selected.status) || busy.current || operationPending || !canRunRehearsals) return;
     const reason = window.prompt("Cancellation reason (required)");
-    if (!reason || reason.trim().length < 3) return;
+    if (!reason || reason.trim().length < 3 || !begin()) return;
     try {
-      await cancel.mutateAsync({ rehearsalId: selectedId, reason: reason.trim() });
+      await cancel.mutateAsync({ rehearsalId: selected.id, reason: reason.trim() });
       toast({ title: "Rehearsal canceled" });
     } catch (error) {
       toast({
@@ -151,7 +166,7 @@ export default function SurveyRehearsals() {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-    }
+    } finally { busy.current = false; }
   };
 
   return (
@@ -254,7 +269,7 @@ export default function SurveyRehearsals() {
             <Textarea id="rehearsal-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
           <div className="md:col-span-2">
-            <Button disabled={!activeFacilityId || create.isPending} onClick={() => void start()}>
+            <Button disabled={!activeFacilityId || operationPending || !validSampleSize || name.trim().length < 3} onClick={() => void start()}>
               {create.isPending ? "Creating…" : "Create rehearsal"}
             </Button>
           </div>
@@ -314,16 +329,16 @@ export default function SurveyRehearsals() {
               {canRunRehearsals && selected && !["completed", "canceled"].includes(selected.status) && (
                 <div className="flex flex-wrap gap-2">
                   {["draft", "sampled"].includes(selected.status) && (
-                    <Button size="sm" variant="outline" disabled={sample.isPending} onClick={() => void runSample(selected)}>
+                    <Button size="sm" variant="outline" disabled={operationPending} onClick={() => void runSample(selected)}>
                       <Play className="mr-2 h-4 w-4" /> {sample.isPending ? "Sampling…" : "Draw sample"}
                     </Button>
                   )}
                   {["sampled", "in_progress"].includes(selected.status) && (
-                    <Button size="sm" disabled={complete.isPending} onClick={() => void finish()}>
+                    <Button size="sm" disabled={operationPending || items.isError || items.isLoading || !items.data?.length || items.data.some(item => item.result === "pending")} onClick={() => void finish()}>
                       <CheckCircle2 className="mr-2 h-4 w-4" /> Complete
                     </Button>
                   )}
-                  <Button size="sm" variant="destructive" disabled={cancel.isPending} onClick={() => void abort()}>
+                  <Button size="sm" variant="destructive" disabled={operationPending} onClick={() => void abort()}>
                     <Ban className="mr-2 h-4 w-4" /> Cancel
                   </Button>
                 </div>
@@ -331,6 +346,7 @@ export default function SurveyRehearsals() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            {selected && canRunRehearsals && !["completed", "canceled"].includes(selected.status) && <div className="space-y-2"><Label htmlFor="rehearsal-completion-notes">Completion notes for this rehearsal</Label><Textarea id="rehearsal-completion-notes" value={completionNotes} disabled={operationPending} onChange={event => setCompletionNotes(event.target.value)} /></div>}
             {!selected ? (
               <p className="py-10 text-center text-sm text-muted-foreground">No rehearsal selected.</p>
             ) : items.isLoading ? (
@@ -361,7 +377,7 @@ export default function SurveyRehearsals() {
                           key={result}
                           size="sm"
                           variant={item.result === result ? "default" : "outline"}
-                          disabled={record.isPending}
+                          disabled={operationPending}
                           onClick={() => void markItem(item.id, result)}
                         >
                           {label(result)}

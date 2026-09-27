@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   employees: [] as Record<string, unknown>[], historical: [] as Record<string, unknown>[], registrations: [] as Record<string, unknown>[],
   lookupError: false, updatingAttendance: false, add: vi.fn(), complete: vi.fn(), update: vi.fn(),
   lookup: vi.fn(), retryNames: vi.fn(), toast: vi.fn(), register: vi.fn(), record: vi.fn(), digest: vi.fn(),
+  upload: vi.fn(), linkRoster: vi.fn(), cleanup: [] as Array<() => void>,
 }));
 vi.mock("react", async original => {
   const state = (initial: unknown) => {
@@ -15,7 +16,7 @@ vi.mock("react", async original => {
   };
   return { ...await original<typeof import("react")>(), useId: () => "test", useState: state,
     useMemo: (factory: () => unknown) => factory(), useCallback: (fn: unknown) => fn,
-    useRef: (value: unknown) => state({ current: value })[0], useEffect: () => {},
+    useRef: (value: unknown) => state({ current: value })[0], useEffect: (effect: () => (() => void) | void) => { const cleanup = effect(); if (cleanup) h.cleanup.push(cleanup); },
   };
 });
 vi.mock("wouter", () => ({ useRoute: () => [true, { id: "class-a" }], useLocation: () => ["", vi.fn()], Link: "a" }));
@@ -24,6 +25,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("@/lib/certificationAttempt", () => ({ signatureDigest: h.digest }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "manager", organizationId: "org", role: "org_admin" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
+vi.mock("@/hooks/useDocuments", () => ({ useUploadDocument: () => ({ mutateAsync: h.upload }), useGetDocument: () => ({}), useDocumentSignedUrl: () => ({}) }));
 vi.mock("@/hooks/useFacilities", () => ({ useListFacilities: () => ({ data: [{ id: "facility", name: "Facility" }] }) }));
 vi.mock("@/hooks/useFacilityAssignments", () => ({ useListMyFacilityAssignments: () => ({ data: [] }) }));
 vi.mock("@/hooks/useTrainingTypes", () => ({ useListTrainingTypes: () => ({ data: [] }) }));
@@ -40,7 +42,7 @@ vi.mock("@/hooks/useTrainingClasses", () => ({
   useCompleteTrainingClass: () => ({ mutateAsync: h.complete }),
   useAddClassAttendee: () => ({ mutateAsync: h.add }),
   useUpdateClassAttendee: () => ({ mutate: h.update, mutateAsync: h.update, isPending: h.updatingAttendance }),
-  useUpdateTrainingClass: () => ({ mutate: vi.fn() }),
+  useUpdateTrainingClass: () => ({ mutate: vi.fn(), mutateAsync: h.linkRoster }),
   useGenerateClassCheckinToken: () => ({ mutateAsync: vi.fn() }),
   useRevokeClassCheckinTokens: () => ({ mutateAsync: vi.fn() }),
   useGenerateClassNoticePdf: () => ({ mutateAsync: vi.fn() }),
@@ -82,10 +84,41 @@ const sessionProps = { classId: "class-a", classStatus: "scheduled", capacity: 2
 beforeEach(() => {
   vi.resetAllMocks(); h.state = []; h.cursor = 0; h.status = "scheduled"; h.attendees = []; h.registrations = [];
   h.historical = []; h.lookupError = false; h.updatingAttendance = false;
+  h.cleanup = []; h.upload.mockResolvedValue({ id: "new-roster" }); h.linkRoster.mockResolvedValue({});
   h.employees = ["a", "b", "c"].map(id => ({ id, first_name: "Learner", last_name: id, status: "active", facility_id: "facility" }));
 });
 
 describe("live class roster workflows", () => {
+  it("retains an uploaded roster after an uncertain class link and retries the same document", async () => {
+    h.attendees = [{ id: "attendance", employee_id: "a", attended: true }];
+    h.linkRoster.mockRejectedValueOnce(new Error("Response lost"));
+    const file = new File(["roster"], "roster.pdf");
+    await (nodes(render()).find(n => n.type === "input" && n.props.type === "file")!.props.onChange as (event: unknown) => Promise<void>)({ target: { files: [file], value: "roster.pdf" } });
+    expect(h.upload).toHaveBeenCalledExactlyOnceWith({ file, bucket: "signin-sheets", organizationId: "org", facilityId: "facility", documentType: "roster", storagePrefix: "org/facility/class-a" });
+    expect(h.toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Roster uploaded; class link needs retry" }));
+    expect(nodes(render()).find(n => n.type === "input" && n.props.type === "file")?.props.disabled).toBe(true);
+    await click("Complete & Create Records"); expect(h.complete).not.toHaveBeenCalled();
+    await click("Retry linking roster");
+    expect(h.linkRoster.mock.calls).toEqual([[{ id: "class-a", roster_document_id: "new-roster" }], [{ id: "class-a", roster_document_id: "new-roster" }]]);
+    expect(h.upload).toHaveBeenCalledTimes(1); expect(h.toast).toHaveBeenLastCalledWith({ title: "Roster uploaded" });
+  });
+  it("locks roster upload through linking and suppresses feedback after leaving the class", async () => {
+    h.attendees = [{ id: "attendance", employee_id: "a", attended: true }];
+    let finish!: () => void; h.linkRoster.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    const upload = nodes(render()).find(n => n.type === "input" && n.props.type === "file")!.props.onChange as (event: unknown) => Promise<void>;
+    const event = { target: { files: [new File(["roster"], "roster.pdf")], value: "" } };
+    const pending = upload(event); await Promise.resolve(); await upload(event);
+    expect(h.upload).toHaveBeenCalledTimes(1); expect(button("Complete & Create Records").props.disabled).toBe(true);
+    h.cleanup.forEach(cleanup => cleanup()); finish(); await pending; expect(h.toast).not.toHaveBeenCalled();
+  });
+  it("finishes an already-requested upload against its captured class after unmount without feedback", async () => {
+    h.attendees = [{ id: "attendance", employee_id: "a", attended: true }];
+    let finish!: () => void; h.upload.mockImplementationOnce(() => new Promise(resolve => { finish = () => resolve({ id: "late-roster" }); }));
+    const upload = nodes(render()).find(n => n.type === "input" && n.props.type === "file")!.props.onChange as (event: unknown) => Promise<void>;
+    const pending = upload({ target: { files: [new File(["roster"], "roster.pdf")], value: "" } });
+    h.cleanup.forEach(cleanup => cleanup()); finish(); await pending;
+    expect(h.linkRoster).toHaveBeenCalledExactlyOnceWith({ id: "class-a", roster_document_id: "late-roster" }); expect(h.toast).not.toHaveBeenCalled();
+  });
   it("exposes session registration before any walk-in attendees exist", () => {
     const session = nodes(render()).find(node => node.type === SessionRosterCard);
     expect(session?.props).toMatchObject({ classId: "class-a", classStatus: "scheduled" });

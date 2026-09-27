@@ -26,7 +26,7 @@ import {
 import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
-import { useGetDocument, useDocumentSignedUrl } from "@/hooks/useDocuments";
+import { useGetDocument, useDocumentSignedUrl, useUploadDocument } from "@/hooks/useDocuments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryError } from "@/components/QueryState";
 import { Badge } from "@/components/ui/badge";
@@ -86,7 +86,6 @@ import { errorText } from "@/lib/errorText";
 import { SessionRosterCard } from "@/components/training/SessionRosterCard";
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
-import { storageSafeFileName } from "@/lib/storagePaths";
 import { boundedSettled } from "@/lib/boundedSettled";
 
 // No Supabase hook deletes a training class yet; RLS already lets a trainer
@@ -307,6 +306,7 @@ export default function ClassDetail() {
   const addAttendee = useAddClassAttendee();
   const updateAttendee = useUpdateClassAttendee();
   const updateTrainingClass = useUpdateTrainingClass();
+  const uploadDocument = useUploadDocument();
   const deleteClass = useDeleteTrainingClass();
 
   const [showAddAttendees, setShowAddAttendees] = useState(false);
@@ -322,6 +322,10 @@ export default function ClassDetail() {
   const [addingAttendees, setAddingAttendees] = useState(false);
   const addingAttendeesRef = useRef(false);
   const [uploadingRoster, setUploadingRoster] = useState(false);
+  const uploadingRosterRef = useRef(false);
+  const rosterUploadMounted = useRef(true);
+  useEffect(() => { rosterUploadMounted.current = true; return () => { rosterUploadMounted.current = false; }; }, []);
+  const [pendingRosterLink, setPendingRosterLink] = useState<{ classId: string; documentId: string } | null>(null);
   const [bulkAttendanceUpdating, setBulkAttendanceUpdating] = useState(false);
   const [sessionRosterBusy, setSessionRosterBusy] = useState(false);
   const legacyRosterBusy = addingAttendees || bulkAttendanceUpdating || updateAttendee.isPending || completeClass.isPending || uploadingRoster;
@@ -505,7 +509,7 @@ export default function ClassDetail() {
   }
 
   async function handleComplete() {
-    if (!classId || rosterBusy || attendeesLoading || attendeesError) return;
+    if (!classId || rosterBusy || pendingRosterLink || attendeesLoading || attendeesError) return;
     const recordsToCreate = allAttendees.filter((a) => a.attended && !a.training_record_id).length;
     try {
       await completeClass.mutateAsync(classId);
@@ -525,7 +529,7 @@ export default function ClassDetail() {
   async function handleRosterUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || !classId || !cls) return;
+    if (!file || !classId || !cls || rosterBusy || uploadingRosterRef.current || pendingRosterLink || !isOpen || writeBlock) return;
     if (!cls.facility_id) {
       toast({
         title: "Assign a facility to this class before uploading a roster",
@@ -535,49 +539,45 @@ export default function ClassDetail() {
     }
     if (!user?.organizationId) return;
 
+    uploadingRosterRef.current = true;
     setUploadingRoster(true);
+    let documentId: string | undefined;
     try {
-      const path = `${user.organizationId}/${cls.facility_id}/${classId}/${storageSafeFileName(file.name)}`;
-      const { error: uploadError } = await supabase.storage
-        .from("signin-sheets")
-        .upload(path, file, { upsert: true });
-      if (uploadError) throw uploadError;
-
-      const { data: doc, error: docError } = await supabase
-        .from("training_documents")
-        .insert({
-          organization_id: user.organizationId,
-          facility_id: cls.facility_id,
-          document_type: "roster",
-          file_name: file.name,
-          file_type: file.type,
-          file_size: file.size,
-          storage_bucket: "signin-sheets",
-          storage_path: path,
-        })
-        .select()
-        .single();
-      if (docError) {
-        await supabase.storage.from("signin-sheets").remove([path]);
-        throw docError;
+      // Unique paths preserve previous roster evidence. The shared uploader reconciles
+      // uncertain metadata responses before deciding whether cleanup is safe.
+      const doc = await uploadDocument.mutateAsync({ file, bucket: "signin-sheets", organizationId: user.organizationId,
+        facilityId: cls.facility_id, documentType: "roster", storagePrefix: `${user.organizationId}/${cls.facility_id}/${classId}` });
+      documentId = doc.id;
+      if (rosterUploadMounted.current) setPendingRosterLink({ classId, documentId });
+      // Finish the requested link with its captured class identity, even after navigation.
+      await updateTrainingClass.mutateAsync({ id: classId, roster_document_id: documentId });
+      if (rosterUploadMounted.current) {
+        setPendingRosterLink(null);
+        toast({ title: "Roster uploaded" });
       }
-
-      try {
-        await updateTrainingClass.mutateAsync({ id: classId, roster_document_id: doc.id });
-      } catch (linkError) {
-        await supabase.storage.from("signin-sheets").remove([path]);
-        await supabase.from("training_documents").delete().eq("id", doc.id);
-        throw linkError;
-      }
-      toast({ title: "Roster uploaded" });
     } catch (err) {
-      toast({
-        title: "Failed to upload roster",
-        description: err instanceof Error ? err.message : undefined,
+      if (rosterUploadMounted.current) toast({
+        title: documentId ? "Roster uploaded; class link needs retry" : "Failed to upload roster",
+        description: documentId ? "The uploaded document was retained. Retry linking it to this class." : err instanceof Error ? err.message : undefined,
         variant: "destructive",
       });
     } finally {
-      setUploadingRoster(false);
+      uploadingRosterRef.current = false;
+      if (rosterUploadMounted.current) setUploadingRoster(false);
+    }
+  }
+
+  async function retryRosterLink() {
+    if (!pendingRosterLink || pendingRosterLink.classId !== classId || rosterBusy || uploadingRosterRef.current || !isOpen || writeBlock) return;
+    uploadingRosterRef.current = true; setUploadingRoster(true);
+    try {
+      await updateTrainingClass.mutateAsync({ id: pendingRosterLink.classId, roster_document_id: pendingRosterLink.documentId });
+      if (rosterUploadMounted.current) { setPendingRosterLink(null); toast({ title: "Roster uploaded" }); }
+    } catch (err) {
+      if (rosterUploadMounted.current) toast({ title: "Couldn't link the roster", description: errorText(err), variant: "destructive" });
+    } finally {
+      uploadingRosterRef.current = false;
+      if (rosterUploadMounted.current) setUploadingRoster(false);
     }
   }
 
@@ -1158,18 +1158,19 @@ export default function ClassDetail() {
               accept=".pdf,.jpg,.jpeg,.png"
               className="hidden"
               onChange={handleRosterUpload}
-              disabled={rosterBusy}
+              disabled={rosterBusy || !!pendingRosterLink}
             />
-            <Button variant="outline" asChild disabled={rosterBusy}>
+            <Button variant="outline" asChild disabled={rosterBusy || !!pendingRosterLink}>
               <span>
                 <Upload className="h-4 w-4 mr-2" />
                 {uploadingRoster ? "Uploading..." : "Upload Roster"}
               </span>
             </Button>
           </label>
+          {pendingRosterLink?.classId === classId && <Button variant="outline" disabled={rosterBusy} onClick={retryRosterLink}>Retry linking roster</Button>}
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button disabled={rosterBusy || attendeesLoading || attendeesError}>
+              <Button disabled={rosterBusy || !!pendingRosterLink || attendeesLoading || attendeesError}>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Complete Class
               </Button>
@@ -1185,7 +1186,7 @@ export default function ClassDetail() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleComplete} disabled={rosterBusy || attendeesLoading || attendeesError}>
+                <AlertDialogAction onClick={handleComplete} disabled={rosterBusy || !!pendingRosterLink || attendeesLoading || attendeesError}>
                   Complete &amp; Create Records
                 </AlertDialogAction>
               </AlertDialogFooter>

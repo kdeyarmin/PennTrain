@@ -38386,6 +38386,15 @@ export type Database = {
         }
         Returns: Json
       }
+      begin_document_deletion: {
+        Args: { p_document_id: string; p_document_kind: string }
+        Returns: {
+          document_id: string
+          document_kind: string
+          storage_bucket: string
+          storage_path: string
+        }[]
+      }
       begin_notification_delivery_attempt: {
         Args: {
           p_content_sha256: string
@@ -39081,6 +39090,10 @@ export type Database = {
       configure_train_signup: {
         Args: { p_complimentary?: boolean; p_organization_id: string }
         Returns: undefined
+      }
+      confirm_document_deletion: {
+        Args: { p_document_id: string; p_document_kind: string }
+        Returns: boolean
       }
       confirm_resident_document_deletion: {
         Args: { p_document_id: string }
@@ -42112,6 +42125,18 @@ export type Database = {
           p_target: Json
         }
         Returns: Json
+      }
+      list_pending_document_deletions: {
+        Args: { p_document_kind?: string; p_facility_id?: string }
+        Returns: {
+          document_id: string
+          document_kind: string
+          facility_id: string
+          file_name: string
+          requested_at: string
+          storage_bucket: string
+          storage_path: string
+        }[]
       }
       list_pending_resident_document_deletions: {
         Args: { p_resident_id?: string }

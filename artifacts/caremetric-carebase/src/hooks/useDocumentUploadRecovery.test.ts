@@ -10,6 +10,17 @@ const input = { file: new File(["pdf"], "record.pdf"), organizationId: "org", fa
 const run = () => { useUploadDocument(); return h.mutation.mock.calls.at(-1)![0].mutationFn(input); };
 beforeEach(() => { vi.resetAllMocks(); h.upload.mockResolvedValue({ error: null }); h.remove.mockResolvedValue({ error: null }); h.insert.mockResolvedValue({ data: null, error: new Error("Response lost") }); h.read.mockResolvedValue({ data: null, error: null }); });
 describe("training document upload outcomes", () => {
+  it("allocates separate roster paths for replacements with the same filename and recovers a committed receipt", async () => {
+    useUploadDocument(); const upload = h.mutation.mock.calls.at(-1)![0].mutationFn;
+    const roster = { ...input, bucket: "signin-sheets", documentType: "roster", storagePrefix: "org/facility/class-a" };
+    h.insert.mockResolvedValueOnce({ data: { id: "prior" }, error: null });
+    expect(await upload(roster)).toEqual({ id: "prior" });
+    h.read.mockResolvedValueOnce({ data: { id: "replacement" }, error: null });
+    expect(await upload(roster)).toEqual({ id: "replacement" });
+    const paths = h.upload.mock.calls.map(([path]) => path);
+    expect(paths[0]).not.toEqual(paths[1]); expect(paths.every(path => path.startsWith("org/facility/class-a/") && path.endsWith("-record.pdf"))).toBe(true);
+    expect(h.upload.mock.calls.every(call => call.length === 2)).toBe(true); expect(h.remove).not.toHaveBeenCalled();
+  });
   it("recovers matching committed metadata without deleting its file", async () => {
     h.read.mockResolvedValue({ data: { id: "saved" }, error: null }); expect(await run()).toEqual({ id: "saved" }); expect(h.remove).not.toHaveBeenCalled();
     expect(h.eq.mock.calls).toEqual([["organization_id", "org"], ["storage_bucket", "external-uploads"], ["storage_path", h.upload.mock.calls[0][0]]]);

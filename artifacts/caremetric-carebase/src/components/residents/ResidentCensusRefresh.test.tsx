@@ -33,13 +33,14 @@ vi.mock("@/hooks/useResidentAssessmentReviews", () => ({ useResidentAssessmentRe
 vi.mock("@/hooks/useResidentCareDelivery", () => ({ useResidentSupportPlans: () => ({ data: [] }) }));
 import RecordHospitalReturnDialog from "./RecordHospitalReturnDialog";
 import ResidentHospitalSection from "./ResidentHospitalSection";
-import { useTransitionResidentCensus } from "@/hooks/useAdmissions";
+import { useCreateRoomWithBeds, useReserveBedForProspect, useSetBedAvailability, useTransitionResidentCensus } from "@/hooks/useAdmissions";
 
 const censusKeys = [
   ["residents", { facilityId: "facility-a" }], ["residents", "resident-a"],
   ["resident-care-header", "resident-a"], ["resident-360", "resident-a"],
   ["resident-timeline", "resident-a", 30], ["resident-service-tasks", { facilityId: "facility-a" }],
   ["resident-care-delivery", "analytics"], ["my-shift-workspace"], ["daily-operations-command-center", "facility-a"],
+  ["occupancy-board", "facility-a"],
 ];
 let client: QueryClient;
 beforeEach(() => {
@@ -71,12 +72,26 @@ it("refreshes census-dependent resident and task views after discharge", async (
   expectRefreshed(censusKeys);
   expect(client.getQueryState(["resident-360", "resident-b"])?.isInvalidated).toBe(false);
 });
+it.each([
+  ["room creation", useCreateRoomWithBeds, { facilityId: "facility-a", buildingName: "Main", roomNumber: "101", roomType: "shared", bedCount: 2, genderRestriction: "none" }],
+  ["bed availability", useSetBedAvailability, { bedId: "bed-a", status: "maintenance_hold", holdReason: "Repairs" }],
+  ["bed reservation", useReserveBedForProspect, { prospectId: "prospect-a", bedId: "bed-a" }],
+] as const)("refreshes the licensed-capacity occupancy display after %s", async (_label, useHook, input) => {
+  const keys = [["occupancy-board", "facility-a"], ["admissions", "beds", "facility-a"]]; seed(keys); useHook();
+  const result = await h.mutations[0].mutationFn(input); h.mutations[0].onSuccess(result, input); expectRefreshed(keys);
+});
 it("refreshes the restored census, scheduled care, and new shift handoff after hospital return", async () => {
   const keys = [...censusKeys, ["hospital-episodes", "resident-a"], ["resident-assessment-reviews", "resident-a"], ["work-items"], ["shift-report-entries", "facility-a"]];
   seed(keys); render();
   const result = await h.mutations[0].mutationFn({ episodeId: "episode-a", returnTime: "2026-03-09T14:00:00Z", changedOrderAckStatus: "not_applicable", medicationReconciliationStatus: "not_applicable", assessmentReviewRequired: false, supportPlanReviewRequired: false });
   h.mutations[0].onSuccess(result);
   expectRefreshed(keys);
+});
+it("refreshes the board's away and hospital-leave counts after a hospital transfer", async () => {
+  const { useStartHospitalTransfer } = await vi.importActual<typeof import("@/hooks/useResidentCareDelivery")>("@/hooks/useResidentCareDelivery");
+  seed([["occupancy-board", "facility-a"]]); useStartHospitalTransfer();
+  const input = { residentId: "resident-a", reason: "Hospital evaluation", destination: "Hospital", transferTime: "2026-09-26T14:00:00Z", transportMethod: "ambulance" };
+  const result = await h.mutations[0].mutationFn(input); h.mutations[0].onSuccess(result, input); expectRefreshed([["occupancy-board", "facility-a"]]);
 });
 it("removes a closed hospital reconciliation from cached work and attention queues", async () => {
   const keys = [["work-items", { state: "open" }], ["resident-360", "resident-a"], ["daily-operations-command-center", "facility-a"], ["my-shift-workspace"], ["hospital-episodes", "resident-a"]];

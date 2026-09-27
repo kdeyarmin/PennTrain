@@ -1,3 +1,4 @@
+import { DocumentDeletionQueue } from "@/components/documents/DocumentDeletionQueue";
 import { useId, useMemo, useRef, useState } from "react";
 import { trainingFormNumber } from "@/lib/trainingFormNumbers";
 import { facilityToday } from "@/lib/dateUtils";
@@ -375,6 +376,7 @@ export default function EmployeeCredentials() {
 
   return (
     <div className="space-y-6">
+      <DocumentDeletionQueue kind="credential" />
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Credentials &amp; Clearances</h1>

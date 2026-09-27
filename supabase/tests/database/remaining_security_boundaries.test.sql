@@ -82,6 +82,12 @@ insert into public.employees(
   ('71000000-0000-4000-8000-000000000031','71000000-0000-4000-8000-000000000001','71000000-0000-4000-8000-000000000011','71000000-0000-4000-8000-000000000023','Worker','A','security-worker-a@test.local','Aide','active'),
   ('71000000-0000-4000-8000-000000000032','71000000-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000012','71000000-0000-4000-8000-000000000024','Worker','B','security-worker-b@test.local','Aide','active');
 
+-- Existing files let the later registration cases exercise canonical scope
+-- stamping and rejection of a foreign-tenant alias, rather than missing bytes.
+insert into storage.objects(bucket_id, name, owner_id) values
+  ('credential-documents', '71000000-0000-4000-8000-000000000001/71000000-0000-4000-8000-000000000011/clearance.pdf', '71000000-0000-4000-8000-000000000021'),
+  ('credential-documents', '71000000-0000-4000-8000-000000000002/71000000-0000-4000-8000-000000000012/foreign.pdf', '71000000-0000-4000-8000-000000000024');
+
 create or replace function pg_temp.act_as(p_id uuid, p_session text default 'session-1')
 returns void language plpgsql as $$
 begin

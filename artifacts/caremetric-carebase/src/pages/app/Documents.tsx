@@ -1,3 +1,4 @@
+import { DocumentDeletionQueue } from "@/components/documents/DocumentDeletionQueue";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,9 @@ export default function Documents() {
   const {
     data: documentsPage,
     isLoading,
+    isSuccess: documentsSuccess,
+    isFetching: documentsFetching,
+    isPlaceholderData: documentsPlaceholder,
     isError: documentsError,
     error: documentsErrorDetail,
     refetch: refetchDocuments,
@@ -100,6 +104,7 @@ export default function Documents() {
   const rows = documentsPage?.rows ?? [];
   const total = documentsPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const documentsReady = documentsSuccess && !documentsError && !isLoading && !documentsFetching && !documentsPlaceholder;
 
   const uploadDocument = useUploadDocument();
   const getSignedUrl = useDocumentSignedUrl();
@@ -121,6 +126,17 @@ export default function Documents() {
     () => new Map(rows.map((d) => [d.id, d])),
     [rows],
   );
+
+  // Metadata can be gone even when byte cleanup rejects. Only a confirmed page
+  // refresh can prune those selections; unavailable/placeholder lists retain retries.
+  useEffect(() => {
+    if (!documentsReady || !documentsPage) return;
+    const visible = new Set(documentsPage.rows.map(document => document.id));
+    setSelectedIds(previous => {
+      const remaining = new Set([...previous].filter(id => visible.has(id)));
+      return remaining.size === previous.size ? previous : remaining;
+    });
+  }, [documentsReady, documentsPage]);
 
   const allPageSelected = rows.length > 0 && rows.every((d) => selectedIds.has(d.id));
   const somePageSelected = rows.some((d) => selectedIds.has(d.id));
@@ -217,8 +233,8 @@ export default function Documents() {
         next.delete(deleteDoc.id);
         return next;
       });
-    } catch {
-      toast({ title: "Delete failed", variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Delete failed", description: errorText(error), variant: "destructive" });
     } finally {
       setDeleteDoc(current => current?.id === deleteDoc.id ? null : current);
     }
@@ -226,9 +242,19 @@ export default function Documents() {
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0 || bulkDeletePending || deleteDocument.isPending) return;
+    if (!documentsReady) {
+      toast({ title: "Reload documents before deleting", description: "Wait for the document list to finish loading or retry its failed request.", variant: "destructive" });
+      return;
+    }
     const docs = Array.from(selectedIds)
       .map((id) => rowById.get(id))
       .filter((d): d is TrainingDocumentWithEmployee => !!d);
+    if (docs.length === 0) {
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+      toast({ title: "No selected documents remain in this view", description: "Check Pending file deletions for files that still need cleanup." });
+      return;
+    }
 
     setBulkDeletePending(true);
     const results = await Promise.allSettled(
@@ -239,6 +265,7 @@ export default function Documents() {
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.length - succeeded;
+    const firstFailure = results.find(result => result.status === "rejected");
     toast({
       title:
         failed === 0
@@ -248,7 +275,7 @@ export default function Documents() {
             : "Bulk delete partially completed",
       description:
         failed > 0
-          ? `${succeeded} of ${results.length} deleted. ${failed} failed.`
+          ? `${succeeded} of ${results.length} deleted. ${failed} failed.${firstFailure?.status === "rejected" ? ` ${errorText(firstFailure.reason)}` : ""}`
           : undefined,
       variant: failed === 0 ? undefined : succeeded === 0 ? "destructive" : undefined,
     });
@@ -275,6 +302,7 @@ export default function Documents() {
 
   return (
     <div className="space-y-6">
+      <DocumentDeletionQueue />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Documents</h1>
         <p className="text-muted-foreground">
@@ -376,7 +404,7 @@ export default function Documents() {
             size="sm"
             variant="destructive"
             onClick={() => setConfirmBulkDelete(true)}
-            disabled={bulkDeletePending}
+            disabled={bulkDeletePending || deleteDocument.isPending || !documentsReady}
           >
             <Trash2 className="mr-1.5 h-3.5 w-3.5" />
             {bulkDeletePending ? "Deleting..." : "Delete Selected"}
@@ -546,7 +574,7 @@ export default function Documents() {
             <AlertDialogCancel disabled={bulkDeletePending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleBulkDelete}
-              disabled={bulkDeletePending}
+              disabled={bulkDeletePending || deleteDocument.isPending || !documentsReady}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {bulkDeletePending ? "Deleting..." : "Delete Selected"}

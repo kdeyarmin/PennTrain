@@ -1,5 +1,7 @@
+import { deleteDocumentWithReceipt } from "@/lib/documentDeletion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { recoverUploadedWrite } from "@/lib/uploadWriteRecovery";
 import type { Tables } from "@/lib/database.types";
 
 export type ComplianceRequirement = Tables<"compliance_requirements">;
@@ -14,11 +16,11 @@ export type ComplianceDocument = Tables<"compliance_requirement_documents">;
 const rpc = (supabase.rpc as unknown as (
   name: string,
   args: Record<string, unknown>,
-) => Promise<{ data: unknown; error: { message: string } | null }>).bind(supabase);
+) => Promise<{ data: unknown; error: { message: string; code?: string } | null }>).bind(supabase);
 
 async function callRpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await rpc(name, args);
-  if (error) throw new Error(error.message);
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
   return data as T;
 }
 
@@ -272,7 +274,7 @@ export function useUploadComplianceEvidence() {
   return useMutation({
     mutationFn: async ({ instance, file, label }: { instance: ComplianceInstance; file: File; label?: string }) => {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const path = `${instance.organization_id}/${instance.facility_id}/${instance.id}/${Date.now()}_${safeName}`;
+      const path = `${instance.organization_id}/${instance.facility_id}/${instance.id}/${crypto.randomUUID()}_${safeName}`;
       const upload = await supabase.storage.from("compliance-evidence").upload(path, file, { upsert: false });
       if (upload.error) throw new Error(upload.error.message);
       try {
@@ -285,8 +287,12 @@ export function useUploadComplianceEvidence() {
           p_document_label: label ?? null,
         });
       } catch (error) {
-        await supabase.storage.from("compliance-evidence").remove([path]);
-        throw error;
+        return recoverUploadedWrite<ComplianceDocument>({ error,
+          read: () => supabase.from("compliance_requirement_documents").select("*")
+            .eq("organization_id", instance.organization_id).eq("instance_id", instance.id)
+            .eq("storage_bucket", "compliance-evidence").eq("storage_path", path).maybeSingle(),
+          remove: () => supabase.storage.from("compliance-evidence").remove([path]),
+        });
       }
     },
     onSuccess: () => invalidateAll(queryClient),
@@ -296,14 +302,11 @@ export function useUploadComplianceEvidence() {
 export function useRemoveComplianceEvidence() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (document: ComplianceDocument) => {
-      // Delete the stored file first so a sensitive evidence object never orphans in the private
-      // bucket; only if that succeeds do we drop the metadata row + evidence count via the RPC.
-      const del = await supabase.storage.from(document.storage_bucket).remove([document.storage_path]);
-      if (del.error) throw new Error(del.error.message);
-      return callRpc<boolean>("remove_compliance_evidence", { p_document_id: document.id });
+    mutationFn: (document: ComplianceDocument) => deleteDocumentWithReceipt("compliance", document.id),
+    onSettled: () => {
+      invalidateAll(queryClient);
+      return queryClient.invalidateQueries({ queryKey: ["document_deletions"] });
     },
-    onSuccess: () => invalidateAll(queryClient),
   });
 }
 

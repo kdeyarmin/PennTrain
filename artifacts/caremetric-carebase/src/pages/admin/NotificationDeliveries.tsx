@@ -108,10 +108,11 @@ export default function NotificationDeliveries() {
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: operations, isLoading: operationsLoading, isError: operationsError } = useNotificationDeliveryOperations();
   const { data: evidence, isLoading: evidenceLoading, isError: evidenceError, error: evidenceErrorDetail, refetch: refetchEvidence } = useNotificationDeliveryEvidence(evidenceDeliveryId);
-  const { data: templates = [] } = useNotificationTemplateLibrary();
+  const templateLibrary = useNotificationTemplateLibrary();
+  const { data: templates = [] } = templateLibrary;
   const { mutate: retryDelivery, isPending: retrying } = useRetryNotificationDelivery();
   const { mutateAsync: bulkRetry, isPending: bulkRetrying } = useBulkRetryNotificationDeliveries();
-  const { mutateAsync: previewTemplate, data: templatePreview, isPending: previewing } = usePreviewNotificationTemplate();
+  const { mutateAsync: previewTemplate, data: templatePreview, variables: previewedDraft, isPending: previewing } = usePreviewNotificationTemplate();
   const { mutateAsync: createTemplate, isPending: savingTemplate } = useCreateNotificationTemplateVersion();
   const { mutateAsync: activateTemplate, isPending: activatingTemplate } = useActivateNotificationTemplate();
   const { mutateAsync: setSpendPolicy, isPending: savingSpendPolicy } = useSetNotificationSpendPolicy();
@@ -753,13 +754,13 @@ export default function NotificationDeliveries() {
               <Button variant="outline" onClick={handlePreviewTemplate} disabled={previewing}>{previewing ? "Previewing..." : "Preview"}</Button>
               <Button onClick={handleSaveTemplate} disabled={savingTemplate}>{savingTemplate ? "Activating..." : "Save and activate version"}</Button>
             </div>
-            {templatePreview && (
+            {templatePreview && !previewing && previewedDraft?.subjectTemplate === templateSubject && previewedDraft?.bodyTemplate === templateBody && (
               <div className="rounded-md border bg-muted/30 p-3 text-sm">
                 <p className="font-medium">{templatePreview.subject}</p>
                 <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{templatePreview.body}</p>
               </div>
             )}
-            <div className="max-h-64 overflow-auto rounded-md border">
+            {templateLibrary.isError ? <QueryError what="notification template library" error={templateLibrary.error} onRetry={() => void templateLibrary.refetch()} /> : templateLibrary.isLoading ? <p>Loading notification templates…</p> : <div className="max-h-64 overflow-auto rounded-md border">
               <Table>
                 <TableHeader><TableRow><TableHead>Template</TableHead><TableHead>Scope</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
                 <TableBody>
@@ -774,7 +775,7 @@ export default function NotificationDeliveries() {
                           {template.status !== "active" && <Button size="sm" variant="ghost" disabled={activatingTemplate} onClick={() => handleActivateTemplate(template.id)}>Activate</Button>}
                         </TableCell>
                       </TableRow>
-                      {previewedTemplateId === template.id && savedTemplatePreview && (
+                      {previewedTemplateId === template.id && !previewingSaved && savedTemplatePreview?.templateId === template.id && (
                         <TableRow>
                           <TableCell colSpan={4} className="bg-muted/30 text-sm">
                             <p className="font-medium">{savedTemplatePreview.subject}</p>
@@ -787,7 +788,7 @@ export default function NotificationDeliveries() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </div>}
           </CardContent>
         </Card>
 

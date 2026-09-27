@@ -91,9 +91,10 @@ function RegisterAssetCard({ governedSourceIds }: { governedSourceIds: Set<strin
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap items-end gap-3">
+        {coursesFailed && <QueryError what="available courses" error={courses.error} onRetry={() => void courses.refetch()} />}
         <div className="min-w-[16rem] flex-1 space-y-2">
           <Label htmlFor="gc-register-course">Course</Label>
-          <Select value={courseId} onValueChange={setCourseId} disabled={coursesBusy || coursesFailed}>
+          <Select value={courseId} onValueChange={setCourseId} disabled={coursesBusy || coursesFailed || register.isPending}>
             <SelectTrigger id="gc-register-course">
               <SelectValue placeholder={registerPlaceholder} />
             </SelectTrigger>
@@ -113,8 +114,9 @@ function RegisterAssetCard({ governedSourceIds }: { governedSourceIds: Set<strin
           </Select>
         </div>
         <Button
-          disabled={!courseId || register.isPending}
+          disabled={!courseId || coursesBusy || coursesFailed || register.isPending || !candidates.some(course => course.id === courseId)}
           onClick={async () => {
+            if (coursesBusy || coursesFailed || register.isPending || !candidates.some(course => course.id === courseId)) return;
             try {
               await register.mutateAsync({ courseId });
               toast({ title: "Course is now under governed publication control" });
@@ -146,7 +148,7 @@ function AuthorRevisionCard({ assetId, sourceCourseId }: { assetId: string; sour
   useEffect(() => { setSourceVersionId(""); }, [sourceCourseId]);
 
   const version = (versions.data ?? []).find((row) => row.id === sourceVersionId);
-  const blocksReady = !!sourceVersionId && !blocks.isLoading && !blocks.isError && blocks.data !== undefined;
+  const blocksReady = !!sourceVersionId && !versions.isLoading && !versions.isError && !blocks.isLoading && !blocks.isError && blocks.data !== undefined;
   const snapshot = useMemo(
     () => (version && blocksReady ? buildCourseSnapshot(version, blocks.data ?? []) : null),
     [version, blocks.data, blocksReady],
@@ -168,9 +170,11 @@ function AuthorRevisionCard({ assetId, sourceCourseId }: { assetId: string; sour
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
+        {versions.isError && <QueryError className="md:col-span-2" what="source versions" error={versions.error} onRetry={() => void versions.refetch()} />}
+        {sourceVersionId && blocks.isError && <QueryError className="md:col-span-2" what="source version blocks" error={blocks.error} onRetry={() => void blocks.refetch()} />}
         <div className="space-y-2">
           <Label htmlFor="gc-version">Source version</Label>
-          <Select value={sourceVersionId} onValueChange={setSourceVersionId}>
+          <Select value={sourceVersionId} onValueChange={setSourceVersionId} disabled={create.isPending || versions.isLoading || versions.isError}>
             <SelectTrigger id="gc-version"><SelectValue placeholder="Choose a version to snapshot" /></SelectTrigger>
             <SelectContent>
               {versions.isLoading ? (
@@ -194,7 +198,7 @@ function AuthorRevisionCard({ assetId, sourceCourseId }: { assetId: string; sour
           <Select
             value={materialChangeAction}
             onValueChange={(value) => setMaterialChangeAction(value as MaterialChangeAction)}
-            disabled={!materialChange}
+            disabled={!materialChange || create.isPending}
           >
             <SelectTrigger id="gc-material-action"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -209,6 +213,7 @@ function AuthorRevisionCard({ assetId, sourceCourseId }: { assetId: string; sour
           <Textarea
             id="gc-summary"
             value={changeSummary}
+            disabled={create.isPending}
             onChange={(event) => setChangeSummary(event.target.value)}
             placeholder="Reworked the wandering-response section after the 2800.104 citation"
           />
@@ -217,6 +222,7 @@ function AuthorRevisionCard({ assetId, sourceCourseId }: { assetId: string; sour
           <Checkbox
             id="gc-material"
             checked={materialChange}
+            disabled={create.isPending}
             onCheckedChange={(checked) => {
               const next = checked === true;
               setMaterialChange(next);
@@ -257,7 +263,7 @@ function AuthorRevisionCard({ assetId, sourceCourseId }: { assetId: string; sour
           <Button
             disabled={issues.length > 0 || !snapshot || blocksLoading || create.isPending}
             onClick={async () => {
-              if (!snapshot) return;
+              if (!snapshot || create.isPending || issues.length > 0 || versions.isError || blocks.isError) return;
               try {
                 await create.mutateAsync({
                   assetId, sourceVersionId, changeSummary, materialChange, materialChangeAction, snapshot,
@@ -386,6 +392,7 @@ function RevisionRow({
           <Textarea
             id={`gc-reason-${revision.id}`}
             value={reason}
+            disabled={pending}
             onChange={(event) => setReason(event.target.value)}
             rows={2}
             placeholder={step === "review"
@@ -510,7 +517,7 @@ export function GovernedContentRevisionsPanel() {
         </Card>
       )}
 
-      {selected && <AuthorRevisionCard assetId={selected.id} sourceCourseId={selected.source_id} />}
+      {selected && <AuthorRevisionCard key={selected.id} assetId={selected.id} sourceCourseId={selected.source_id} />}
     </div>
   );
 }
