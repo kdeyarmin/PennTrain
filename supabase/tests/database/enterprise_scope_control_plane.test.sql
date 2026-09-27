@@ -188,7 +188,11 @@ select pg_temp.act_as(pg_temp.id(103));
 select throws_ok('select public.get_enterprise_scope_control_plane()', '42501', 'An active authenticated profile is required',
   'a disabled profile cannot inspect the control plane with an old subject claim');
 reset role;
+-- RESET ROLE does not clear the disabled employee's JWT claims. Billing changes
+-- use the same authenticated AAL2 platform setup as phase2_scope_workforce.
+select pg_temp.act_as(pg_temp.id(101));
 update public.organizations set subscription_status='suspended' where id=pg_temp.id(1);
+reset role;
 select pg_temp.act_as(pg_temp.id(102));
 select throws_ok('select public.get_enterprise_scope_control_plane()', '42501', 'An active authenticated profile is required',
   'a suspended caller organization cannot inspect the control plane');
