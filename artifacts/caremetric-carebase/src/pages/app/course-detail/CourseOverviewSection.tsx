@@ -109,6 +109,13 @@ export function CourseOverviewSection({
               <p className="text-sm text-muted-foreground">No description on file.</p>
             )}
           </div>
+          {selectedVersion && <div>
+            <p className="text-xs text-muted-foreground">Course edition</p>
+            <p className="text-sm">
+              {selectedVersion.version_label?.trim() ? <>Recorded edition: {selectedVersion.version_label} · </> : "Recorded edition: Not provided · "}
+              Internal revision {selectedVersion.version_number}
+            </p>
+          </div>}
           <div>
             <p className="text-xs text-muted-foreground">Estimated Duration</p>
             <p className="text-sm">{course.estimated_duration_minutes ? `${course.estimated_duration_minutes} minutes` : "—"}</p>
@@ -118,7 +125,7 @@ export function CourseOverviewSection({
             {selectedVersion?.credited_duration_rationale && (
               <div className="mt-1.5 rounded-md border bg-muted/30 p-2.5 space-y-1">
                 <p className="text-xs font-medium">
-                  Version {selectedVersion.version_number} delivers this in{" "}
+                  The selected edition delivers this in{" "}
                   {designedMinutes} minute{designedMinutes === 1 ? "" : "s"} of designed step time.
                 </p>
                 <p className="text-xs text-muted-foreground">{selectedVersion.credited_duration_rationale}</p>

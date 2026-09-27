@@ -108,6 +108,20 @@ returns boolean language sql immutable set search_path='' as $$
     or p_type='ALR' and p_item='support_plan_quarterly_review'
 $$;
 revoke all on function app_private.resident_equivalent_form_allowed(text,text) from public,anon,authenticated;
+-- RASP/ASP reviews may include both assessment and support-plan evidence. An
+-- initial general assessment does not establish a later special-care review,
+-- and §231(c) still requires the Department's cognitive/CPB admission screening.
+create function app_private.resident_equivalent_clinical_item_allowed(p_type text,p_action text,p_item text,p_initial_plan_confirmed boolean default false)
+returns boolean language sql immutable set search_path='' as $$
+  select coalesce(app_private.resident_equivalent_form_allowed(p_type,p_item) and case
+    when p_action='scu_support_plan' and p_item='initial_assessment_15day' then p_initial_plan_confirmed
+    when p_action in ('scu_support_plan','scu_plan_review') then p_item in
+      ('support_plan_30day','support_plan_quarterly_review','annual_reassessment','significant_change_reassessment')
+    when p_action='scu_continuing_need' then p_item in ('annual_reassessment','significant_change_reassessment')
+      or p_type='ALR' and p_item='support_plan_quarterly_review'
+    else false end,false)
+$$;
+revoke all on function app_private.resident_equivalent_clinical_item_allowed(text,text,text,boolean) from public,anon,authenticated;
 create function app_private.validate_resident_equivalent_form()
 returns trigger language plpgsql security definer set search_path='' as $$
 declare v_item public.resident_compliance_items%rowtype; v_type text;
@@ -174,8 +188,20 @@ begin
   end loop;
   select pg_get_functiondef(oid),prosrc into strict v_def,v_body from pg_proc
     where oid='app_private.prepare_resident_clinical_duty()'::regprocedure;
-  if position('or is_state_form))' in v_body)=0 then raise exception 'Clinical document gate changed'; end if;
-  v_new:=replace(v_body,'or is_state_form))','or is_state_form or equivalent_form_review is not null))');
+  if position('select 1 from public.resident_documents where id=v_doc and resident_id=v.id' in v_body)=0
+    or position('or is_state_form))' in v_body)=0 then raise exception 'Clinical document gate changed'; end if;
+  v_new:=replace(v_body,'select 1 from public.resident_documents where id=v_doc and resident_id=v.id',
+    'select 1 from public.resident_documents d where d.id=v_doc and d.resident_id=v.id and d.organization_id=new.organization_id and d.facility_id=new.facility_id');
+  v_new:=replace(v_new,'or is_state_form))',$gate$or d.is_state_form or (
+          jsonb_typeof(d.equivalent_form_review)='object'
+          and d.equivalent_form_review->'all_required_information'='true'::jsonb
+          and length(btrim(d.equivalent_form_review->>'review_reference'))>=10
+          and length(btrim(d.equivalent_form_review->>'reviewer_name'))>=2
+          and exists(select 1 from public.resident_compliance_items i
+            where i.id=d.compliance_item_id and i.resident_id=new.resident_id
+              and i.organization_id=new.organization_id and i.facility_id=new.facility_id
+              and app_private.resident_equivalent_clinical_item_allowed(v_type,new.action_type,i.item_type,
+                new.details->>'initial_support_plan_confirmed'='true')))))$gate$);
   execute replace(v_def,v_body,v_new);
 end $migration$;
 

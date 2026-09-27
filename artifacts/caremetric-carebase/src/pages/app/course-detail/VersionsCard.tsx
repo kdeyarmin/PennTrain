@@ -101,12 +101,15 @@ export function VersionsCard({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm">{documentDisplayName({ title: v.title, fallback: course.title })}</span>
-                    <span className="text-xs text-muted-foreground">Version {v.version_number}</span>
                     <VersionStatusBadge status={v.status} />
                     {course.current_version_id === v.id && (
                       <Badge variant="outline" className="text-[10px] font-medium">Current</Badge>
                     )}
                   </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {v.version_label?.trim() ? <>Recorded edition: {v.version_label} · </> : "Recorded edition: Not provided · "}
+                    Internal revision {v.version_number}
+                  </p>
                   {v.published_at && (
                     <p className="text-xs text-muted-foreground mt-0.5">Published {new Date(v.published_at).toLocaleDateString()}</p>
                   )}

@@ -145,5 +145,58 @@ insert into public.resident_compliance_rule_packs(organization_id,state,facility
 values(pg_temp.id(1),'PA','ALR','standard','support_plan_quarterly_review','after_admission',90,90,5,14,true,false);
 select is(app_private.resident_cycle_next_due('2026-03-01','support_plan_quarterly_review',90,pg_temp.id(1),'ALR','standard'),
   '2026-05-30'::date,'an explicit tenant ninety-day rule keeps its saved interval');
+
+-- SCU evidence must match its clinical purpose; a review of the initial general
+-- assessment is not a reusable clearance for every later unit duty.
+create function pg_temp.clinical(kind text,r uuid,doc uuid,initial_plan_confirmed boolean default null) returns void language plpgsql as $$
+declare v public.residents%rowtype;
+begin
+  select * into v from public.residents where id=r;
+  insert into public.resident_regulatory_actions(organization_id,facility_id,resident_id,action_type,anchor_at,reason,status,completed_at,evidence,details)
+  values(v.organization_id,v.facility_id,v.id,kind,now()-interval '2 days','Current special-care review','completed',now()-interval '1 day',
+    'Current SCU needs and continuing placement assessed; support plan reviewed with resident participation',
+    jsonb_build_object('unit_type','dementia','document_id',doc,'initial_support_plan_confirmed',initial_plan_confirmed,'screened_at',now()-interval '3 days',
+      'screening_collaborator','Physician assessment team','screening_collaborator_role','physician','medical_provider_role','crnp',
+      'admission_agreement','Signed resident agreement','alternatives_considered','Less restrictive arrangements reviewed',
+      'medical_evaluated_on',public.pa_today()-10,'medical_evaluation_evidence','DHS evaluation documents unit need'));
+end $$;
+select throws_ok(format('select pg_temp.clinical(%L,pg_temp.id(21),pg_temp.id(201))',kind),
+  '23514',null,'an initial assessment equivalent cannot satisfy '||kind)
+from unnest(array['scu_admission','scu_support_plan','scu_plan_review','scu_continuing_need']) kind;
+select throws_ok($$select pg_temp.clinical('scu_support_plan',pg_temp.id(21),pg_temp.id(201),false)$$,
+  '23514',null,'an initial assessment without confirmed SCU plan content cannot satisfy initial support planning');
+select lives_ok($$select pg_temp.clinical('scu_support_plan',pg_temp.id(21),pg_temp.id(201),true)$$,
+  'a combined initial RASP with explicitly confirmed SCU plan content can satisfy initial support planning');
+select lives_ok($$select pg_temp.clinical('scu_support_plan',pg_temp.id(22),pg_temp.id(204),true)$$,
+  'a combined initial ALF ASP with explicitly confirmed SCU plan content can satisfy initial support planning');
+select throws_ok(format('select pg_temp.clinical(%L,pg_temp.id(21),pg_temp.id(201),true)',kind),
+  '23514',null,'initial-plan confirmation cannot substitute for '||kind)
+from unnest(array['scu_admission','scu_plan_review','scu_continuing_need']) kind;
+select pg_temp.attach(601,pg_temp.id(21),'support_plan_30day',true);
+select pg_temp.attach(602,pg_temp.id(21),'annual_reassessment',true);
+select pg_temp.attach(603,pg_temp.id(21),'significant_change_reassessment',true);
+select ok((select i.completed_date is null from public.resident_documents d join public.resident_compliance_items i on i.id=d.compliance_item_id where d.id=pg_temp.id(601)),
+  'matching dated plan evidence does not require a separate mark-compliant workflow first');
+select lives_ok(format('select pg_temp.clinical(%L,pg_temp.id(21),pg_temp.id(601))',kind),
+  'reviewed support-plan evidence can satisfy '||kind)
+from unnest(array['scu_support_plan','scu_plan_review']) kind;
+select throws_ok($$select pg_temp.clinical('scu_continuing_need',pg_temp.id(21),pg_temp.id(601))$$,
+  '23514',null,'a support-plan-only review does not attest to a continuing-need reassessment');
+select lives_ok(format('select pg_temp.clinical(%L,pg_temp.id(21),pg_temp.id(%s))',kind,doc),
+  'combined PCH RASP '||doc||' supports the documented '||kind)
+from unnest(array['scu_support_plan','scu_plan_review','scu_continuing_need']) kind
+cross join unnest(array[602,603]) doc;
+select lives_ok(format('select pg_temp.clinical(%L,pg_temp.id(33),pg_temp.id(425))',kind),
+  'combined ALF quarterly ASP supports the documented '||kind)
+from unnest(array['scu_support_plan','scu_plan_review','scu_continuing_need']) kind;
+select throws_ok($$select pg_temp.clinical('scu_plan_review',pg_temp.id(21),pg_temp.id(425))$$,
+  '23514',null,'a reviewed equivalent in another resident and facility cannot satisfy the duty');
+select throws_ok($$select pg_temp.clinical('scu_admission',pg_temp.id(21),pg_temp.id(602))$$,
+  '23514',null,'a combined annual RASP does not replace the prescribed SCU admission screening');
+insert into public.resident_documents(id,organization_id,facility_id,resident_id,file_name,file_type,storage_path,is_state_form,state_form_source_label)
+values(pg_temp.id(604),pg_temp.id(1),pg_temp.id(12),pg_temp.id(22),'special-care-plan.pdf','application/pdf',
+  pg_temp.id(1)||'/'||pg_temp.id(12)||'/special-care-plan.pdf',true,'PA DHS completed special-care support plan');
+select lives_ok($$select pg_temp.clinical('scu_plan_review',pg_temp.id(22),pg_temp.id(604))$$,
+  'the existing resident-scoped prescribed-form path remains available');
 select * from finish();
 rollback;
