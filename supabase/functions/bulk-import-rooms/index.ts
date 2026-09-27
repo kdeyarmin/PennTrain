@@ -4,7 +4,7 @@ import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
-import { MAX_IMPORT_BODY_BYTES, readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
+import { roomBedCount } from "./capacity.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -160,13 +160,14 @@ Deno.serve(async (req: Request) => {
     const facilityName = row.facility?.trim();
     const roomNumber = row.room_number?.trim();
     const unit = row.unit?.trim() || "";
-    const capacityRaw = row.capacity?.trim();
-    const capacity = capacityRaw ? Math.max(1, Math.min(8, parseInt(capacityRaw, 10) || 1)) : 1;
+    const capacityResult = roomBedCount(row.capacity);
+    const capacity = capacityResult.ok ? capacityResult.bedCount : 1;
     const statusRaw = (row.status?.trim() || "active").toLowerCase();
     const rowErrors: string[] = [];
     const warnings: string[] = [];
     if (!facilityName) rowErrors.push("facility is required");
     if (!roomNumber) rowErrors.push("room_number is required");
+    if (!capacityResult.ok) rowErrors.push(capacityResult.error);
     const facilityId = facilityName ? facilityByName.get(facilityName.toLowerCase()) : undefined;
     if (facilityName && !facilityId) rowErrors.push(`Unknown facility: ${facilityName}`);
 

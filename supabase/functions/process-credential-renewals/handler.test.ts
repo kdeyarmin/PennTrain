@@ -131,3 +131,63 @@ Deno.test("renewal worker accounts for a gate-rejected upload in the run result 
   assertEquals(finished?.args.p_failed_count, 0);
   assertEquals(finished?.args.p_result, { rejected: 1 });
 });
+
+Deno.test("renewal OCR keeps a zero confidence and drops a calendar-impossible date", async () => {
+  const rpcArgs: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const document = { select: () => document, eq: () => document,
+    maybeSingle: async () => ({ data: {
+      id: "doc-1", storage_bucket: "credential-documents", storage_path: "org-1/doc-1.pdf",
+      file_type: "application/pdf", file_name: "license.pdf",
+    }, error: null }) };
+  const handler = createProcessCredentialRenewalsHandler({
+    createClient: ((_: string, key: string) => key === "service" ? {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        rpcArgs.push({ name, args });
+        if (name === "claim_system_job_execution") return { data: [{ should_execute: true, run_id: "run-1" }], error: null };
+        if (name === "claim_credential_renewal_submissions") {
+          return { data: [{ id: "sub-1", credential_document_id: "doc-1", organization_id: "org-1" }], error: null };
+        }
+        if (name === "record_credential_renewal_extraction" || name === "finish_system_job") return { data: null, error: null };
+        throw new Error(`unexpected privileged RPC: ${name}`);
+      },
+      from: () => document,
+      storage: { from: () => ({ download: async () => ({ data: new Blob(["%PDF-1.4"]), error: null }) }) },
+    } : { auth: { getUser: async () => ({ data: { user: null }, error: null }) } }) as never,
+    getEnv: (name) => ({
+      ...ENV,
+      ANTHROPIC_BAA_CONFIRMED: "true",
+      ANTHROPIC_API_KEY: "test-key",
+    })[name],
+    authorizeCron: (req) => req.headers.get(CRON_SECRET_HEADER) === "valid-worker-secret" ? null : new Response(null, { status: 401 }),
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    content: [{
+      type: "tool_use",
+      name: "emit_credential_fields",
+      input: {
+        issuingAuthority: "Pennsylvania",
+        expirationDate: "2026-02-30",
+        issueDate: "02/30/2026",
+        credentialNumber: "A1",
+        credentialLabel: "Med tech",
+        confidence: 0,
+      },
+    }],
+  }), { status: 200 })) as typeof fetch;
+  try {
+    const response = await handler(new Request("https://function.test", { method: "POST",
+      headers: { [CRON_SECRET_HEADER]: "valid-worker-secret" },
+    }));
+    assertEquals(response.status, 200);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const recorded = rpcArgs.find((call) => call.name === "record_credential_renewal_extraction");
+  const fields = recorded?.args.p_extracted_fields as Record<string, string>;
+  const confidence = recorded?.args.p_confidence as { overall: number };
+  assertEquals(fields.expirationDate, "");
+  assertEquals(fields.issueDate, "");
+  assertEquals(fields.credentialNumber, "A1");
+  assertEquals(confidence.overall, 0);
+});
