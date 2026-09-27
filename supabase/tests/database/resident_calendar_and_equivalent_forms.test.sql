@@ -141,7 +141,7 @@ select ok((select compliance_item_id is not null and equivalent_form_review->>'r
   'quarterly equivalent evidence is linked and stamped without becoming an official form');
 
 -- A saved tenant rule is not silently reinterpreted as a statutory default.
-insert into public.resident_compliance_rule_packs(organization_id,state,facility_type,admission_track,item_type,offset_basis,offset_days,renewal_interval_days,grace_period_days,warning_days,is_active,instantiate_on_admission)
+insert into public.resident_compliance_rule_packs(organization_id,state,facility_type,admission_track,item_type,offset_basis,offset_days,renewal_interval_days,grace_period_days,warning_days,is_active,instantiate_at_admission)
 values(pg_temp.id(1),'PA','ALR','standard','support_plan_quarterly_review','after_admission',90,90,5,14,true,false);
 select is(app_private.resident_cycle_next_due('2026-03-01','support_plan_quarterly_review',90,pg_temp.id(1),'ALR','standard'),
   '2026-05-30'::date,'an explicit tenant ninety-day rule keeps its saved interval');

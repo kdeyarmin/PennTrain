@@ -40,7 +40,14 @@ select is((select count(*)::integer from app_private.resident_record_destruction
 -- continue to apply if the facility is moved or reclassified.
 update public.residents set discharge_date=(public.pa_today()-interval '4 years')::date where id='a2380000-0000-4000-8000-000000000022';
 select throws_ok($$delete from public.resident_compliance_items where id='a2380000-0000-4000-8000-000000000042'$$,'23514',null,'backdating a discharge cannot shorten a recorded retention period');
+select throws_ok($$update public.facilities set facility_type='NH' where id='a2380000-0000-4000-8000-000000000012'$$,
+  '23514',null,'a current license edit cannot relabel retained ALF evidence');
+-- Simulate a legacy reclassification from before license identity was locked.
+-- Retention must protect that historical state too; only the new identity guard
+-- is suspended for this isolated fixture, and all retention guards stay enabled.
+alter table public.facilities disable trigger preserve_facility_license_type;
 update public.facilities set facility_type='NH' where id='a2380000-0000-4000-8000-000000000012';
+alter table public.facilities enable trigger preserve_facility_license_type;
 select throws_ok($$delete from public.resident_compliance_items where id='a2380000-0000-4000-8000-000000000042'$$,'23514',null,'facility reclassification cannot strip a retained ALF record of its protection');
 
 insert into app_private.audit_legal_holds(id,organization_id,facility_id,reason,created_by)

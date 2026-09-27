@@ -16,9 +16,9 @@ select lives_ok($$select public.record_organization_signup('Signup PCH','typed-s
 select lives_ok($$select public.record_organization_signup('Signup ALF','typed-signup-alf',now()+interval '30 days','accepted','ALR')$$,
   'ALF signup succeeds using the stored ALR code');
 select results_eq($$select f.facility_type,f.state from public.facilities f join public.organizations o on o.id=f.organization_id where o.slug='typed-signup-pch'$$,
-  $$values('PCH'::text,'PA'::text)$$,'PCH signup creates exactly one Pennsylvania PCH');
+  $$select 'PCH'::text,'PA'::text$$,'PCH signup creates exactly one Pennsylvania PCH');
 select results_eq($$select f.facility_type,f.state from public.facilities f join public.organizations o on o.id=f.organization_id where o.slug='typed-signup-alf'$$,
-  $$values('ALR'::text,'PA'::text)$$,'ALF signup creates exactly one Pennsylvania ALF');
+  $$select 'ALR'::text,'PA'::text$$,'ALF signup creates exactly one Pennsylvania ALF');
 select throws_ok($$insert into public.facilities(organization_id,name) select id,'Unspecified facility' from public.organizations where slug='typed-signup-pch'$$,
   '23502',null,'direct facility creation also requires an explicit type');
 select throws_ok($$update public.facilities set facility_type='ALR' where name='Signup PCH'$$,

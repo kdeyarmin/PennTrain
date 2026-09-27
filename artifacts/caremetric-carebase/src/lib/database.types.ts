@@ -11764,7 +11764,7 @@ export type Database = {
         }
         Insert: {
           alf_approval_renewal?: string
-          count_unsuccessful_pch_drills?: boolean
+          count_unsuccessful_pch_drills: boolean
           facility_id: string
           inspection_grace?: string
           organization_id: string
@@ -39057,6 +39057,7 @@ export type Database = {
           final_plan_review: Json | null
           grace_period_days: number
           id: string
+          internal_target_date: string | null
           item_type: string
           notes: string | null
           organization_id: string
@@ -42336,6 +42337,7 @@ export type Database = {
           final_plan_review: Json | null
           grace_period_days: number
           id: string
+          internal_target_date: string | null
           item_type: string
           notes: string | null
           organization_id: string

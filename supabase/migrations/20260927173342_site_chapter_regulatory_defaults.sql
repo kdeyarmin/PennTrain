@@ -75,7 +75,9 @@ declare v_def text; v_old text; v_new text;
 begin
   v_def:=pg_get_functiondef('public.recalculate_inspection_item_compliance(uuid)'::regprocedure);
   v_old:='exists(select 1 from public.facility_site_policies p join public.facilities f on f.id=p.facility_id where p.facility_id=ii.facility_id and f.facility_type=''PCH'' and p.count_unsuccessful_pch_drills)';
-  v_new:='exists(select 1 from public.facilities f left join public.facility_site_policies p on p.facility_id=f.id where f.id=ii.facility_id and f.facility_type=''PCH'' and coalesce(p.count_unsuccessful_pch_drills,true))';
+  -- A generic failure/maintenance event is not an attempted drill. The recorded
+  -- drill time distinguishes a held (including aborted) drill from such an issue.
+  v_new:='e.drill_time is not null and exists(select 1 from public.facilities f left join public.facility_site_policies p on p.facility_id=f.id where f.id=ii.facility_id and f.facility_type=''PCH'' and coalesce(p.count_unsuccessful_pch_drills,true))';
   if position(v_old in v_def)=0 then raise exception 'Review inspection drill counting before changing its baseline'; end if;
   v_def:=replace(v_def,v_old,v_new);
   v_old:='i.item_type, i.inspection_interval_days, h.last_date,';

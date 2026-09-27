@@ -1,5 +1,5 @@
 begin;
-select plan(23);
+select plan(27);
 select is(public.inspection_item_next_due_date('furnace_inspection',365,date '2027-03-01',date '2027-01-01'),date '2028-03-01','annual site review spans leap day without a premature deadline');
 select is(public.inspection_item_next_due_date('smoke_detector',30,date '2026-07-01',date '2026-01-01'),date '2026-08-31','a July test permits the next test anywhere in August');
 select is(public.inspection_item_next_due_date('fire_alarm_system',31,date '2026-01-01',date '2026-01-01'),date '2026-02-28','alarm testing follows each calendar month including February');
@@ -28,6 +28,20 @@ select throws_ok($$update public.inspection_items set inspection_interval_days=7
   '23514',null,'the ALF annual chimney maximum remains enforced on updates');
 select is(app_private.site_inspection_grace('e9270000-0000-4000-8000-000000000011','fireplace_chimney_service'),0,
   'a voluntary PCH chimney schedule does not inherit Chapter 2800 grace');
+insert into public.inspection_items(id,organization_id,facility_id,item_type,item_kind,label,inspection_interval_days,install_date)
+values('e9270000-0000-4000-8000-000000000021','e9270000-0000-4000-8000-000000000001','e9270000-0000-4000-8000-000000000011','fire_drill_program','procedural','Recorded drills only',30,public.pa_today()-400);
+insert into public.inspection_events(id,inspection_item_id,performed_date,performed_by,result,notes)
+values('e9270000-0000-4000-8000-000000000031','e9270000-0000-4000-8000-000000000021',public.pa_today(),'Site staff','fail','Maintenance issue; no drill was conducted');
+select is((select last_inspected_date from public.inspection_items where id='e9270000-0000-4000-8000-000000000021'),null::date,
+  'a bare issue or maintenance event does not count as an unsuccessful drill');
+select is((select status from public.inspection_items where id='e9270000-0000-4000-8000-000000000021'),'expired',
+  'the monthly drill remains overdue without a recorded drill');
+insert into public.inspection_events(id,inspection_item_id,performed_date,performed_by,result,drill_time,exit_route_used,residents_present_count,residents_evacuated_count,staff_participating_count,problems_encountered,alarm_sounded,alarm_or_detector_operative)
+values('e9270000-0000-4000-8000-000000000032','e9270000-0000-4000-8000-000000000021',public.pa_today(),'Site staff','fail','14:00','Front exit',6,0,1,'Drill stopped because evacuation was unsafe; corrective action remains pending',true,true);
+select is((select last_inspected_date from public.inspection_items where id='e9270000-0000-4000-8000-000000000021'),public.pa_today(),
+  'an actual recorded unsuccessful drill counts even when stopped before an evacuation time exists');
+select ok((select result='fail' and follow_up_required from public.inspection_events where id='e9270000-0000-4000-8000-000000000032'),
+  'frequency credit preserves the unsuccessful result and required follow-up');
 insert into public.facility_site_policies(facility_id,organization_id,rationale) values
 ('e9270000-0000-4000-8000-000000000011','e9270000-0000-4000-8000-000000000001','Use this chapter regulatory baseline'),
 ('e9270000-0000-4000-8000-000000000012','e9270000-0000-4000-8000-000000000001','Use this chapter regulatory baseline');
