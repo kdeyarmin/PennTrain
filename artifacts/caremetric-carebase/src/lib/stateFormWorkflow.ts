@@ -20,6 +20,7 @@ export interface WorkflowItem {
   item_type: string;
   status: string;
   due_date: string | null;
+  internal_target_date?: string | null;
   completed_date: string | null;
 }
 
@@ -292,16 +293,19 @@ function daysUntil(date: string, today: string): number {
 }
 
 // Group ordering: expired (most overdue first) < missing < due_soon (nearest due first) <
-// everything else. Within a group, earlier due dates first; null due dates last.
+// everything else. Within a group, use the due date or operational follow-up target,
+// earliest first, with undated work last. A target never changes the compliance status.
 const URGENCY_GROUP: Record<string, number> = { expired: 0, missing: 1, due_soon: 2 };
 
 export function sortOpenItemsByUrgency<T extends WorkflowItem>(items: T[], _today: string): T[] {
   return [...items].sort((a, b) => {
     const groupDiff = (URGENCY_GROUP[a.status] ?? 3) - (URGENCY_GROUP[b.status] ?? 3);
     if (groupDiff !== 0) return groupDiff;
-    if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
-    if (a.due_date) return -1;
-    if (b.due_date) return 1;
+    const aDate = a.due_date ?? a.internal_target_date;
+    const bDate = b.due_date ?? b.internal_target_date;
+    if (aDate && bDate) return aDate.localeCompare(bDate);
+    if (aDate) return -1;
+    if (bDate) return 1;
     return 0; // Array.prototype.sort is stable, so equal keys keep their incoming order.
   });
 }

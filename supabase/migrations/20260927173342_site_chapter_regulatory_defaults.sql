@@ -21,6 +21,7 @@ revoke all on function app_private.site_inspection_grace(uuid,text) from public,
 
 -- §2800.129(c)'s annual chimney service is ALF-specific. Preserve voluntary
 -- PCH equipment records without imposing the other chapter's maximum interval.
+-- Other license types retain their existing interval cap; only PCH is exempt.
 alter table public.inspection_items drop constraint inspection_regulatory_interval_check;
 alter table public.inspection_items add constraint inspection_regulatory_interval_check check (
   inspection_interval_days > 0 and (item_type='fireplace_chimney_service'
@@ -30,8 +31,8 @@ create function app_private.enforce_chapter_inspection_interval()
 returns trigger language plpgsql set search_path='' as $$
 begin
   if new.item_type='fireplace_chimney_service' and new.inspection_interval_days>365
-    and exists(select 1 from public.facilities f where f.id=new.facility_id and f.facility_type='ALR') then
-    raise exception 'ALF chimney and flue service must follow the annual Chapter 2800 schedule' using errcode='23514';
+    and not exists(select 1 from public.facilities f where f.id=new.facility_id and f.facility_type='PCH') then
+    raise exception 'Chimney and flue service intervals above 365 days are permitted only for voluntary PCH policies' using errcode='23514';
   end if;
   return new;
 end $$;

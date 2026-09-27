@@ -1,11 +1,13 @@
 import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedTrainingFilters } from "@/lib/trainingAutomation";
+import type { TrainingEnrollmentPage } from "@/lib/trainingEnrollmentReport";
 
 type SavedReport = { id: string; name: string; organizationId: string; facilityId: string; filters: SavedTrainingFilters };
 const h = vi.hoisted(() => ({ state: [] as unknown[], stateIndex: 0, effectIndex: 0, dependencies: [] as unknown[][],
   effects: [] as (() => void)[], changed: false, search: "", navigate: vi.fn(), report: vi.fn(), savedId: vi.fn(),
   saved: undefined as SavedReport | undefined,
+  page: undefined as TrainingEnrollmentPage | undefined, prepare: vi.fn(), open: vi.fn(), toast: vi.fn(), preparing: false,
 }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useId: () => "report-heading", useState: (initial: unknown) => {
   const index = h.stateIndex++;
@@ -29,9 +31,10 @@ vi.mock("@/hooks/useEmployees", () => ({ useListEmployees: () => ({ data: [] }) 
 vi.mock("@/hooks/useTrainingPlans", () => ({ useListTrainingPlans: () => ({ data: [] }) }));
 vi.mock("@/hooks/useTrainingProgress", () => ({ useSetAssignmentRequirement: () => ({}) }));
 vi.mock("@/hooks/useFacilities", () => ({ useListFacilities: () => ({ data: [] }) }));
-vi.mock("@/hooks/useCertificates", () => ({ usePrepareCertificatePdf: () => ({}) }));
-vi.mock("@/hooks/useTrainingEnrollmentReport", () => ({ useTrainingEnrollmentReport: (...args: unknown[]) => { h.report(...args); return {}; } }));
-vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock("@/hooks/useCertificates", () => ({ usePrepareCertificatePdf: () => ({ mutateAsync: h.prepare, isPending: h.preparing }) }));
+vi.mock("@/hooks/useTrainingEnrollmentReport", () => ({ useTrainingEnrollmentReport: (...args: unknown[]) => { h.report(...args); return { data: h.page }; } }));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
+vi.mock("@/lib/openDocumentUrl", () => ({ openDocumentUrl: h.open }));
 vi.mock("./TrainingReminderReceipts", () => ({ TrainingReminderReceipts: () => null }));
 vi.mock("./TrainingReportAutomation", () => ({ TrainingReportAutomation: () => null }));
 vi.mock("./TrainingReportAnalytics", () => ({ TrainingReportAnalytics: () => null }));
@@ -72,8 +75,51 @@ function remount(props: ReportScope = scope) { h.state = []; h.dependencies = []
 beforeEach(() => {
   h.state = []; h.dependencies = []; h.stateIndex = 0; h.effectIndex = 0; h.effects = []; h.changed = false;
   h.search = "facilityId=facility-a&tab=enrollments"; h.saved = undefined;
+  h.page = undefined; h.preparing = false; h.prepare.mockReset(); h.open.mockReset(); h.toast.mockReset();
   h.report.mockReset(); h.savedId.mockReset(); h.navigate.mockReset().mockImplementation((target: string) => {
     h.search = target.split("?")[1] || ""; h.changed = true;
+  });
+});
+
+describe("training report certificate delivery", () => {
+  const url = "https://project.supabase.co/storage/v1/object/sign/certificates/opaque-id.pdf?token=issued.signature";
+  beforeEach(() => {
+    h.prepare.mockResolvedValue({ url });
+    h.page = {
+      organization_name: "Training organization", facility_name: "Training home", generated_at: "2026-09-27T12:00:00Z", date_basis: "assigned",
+      limit: 50, offset: 0, total: 1, students: 1, completed: 1, in_progress: 0, not_started: 0, canceled: 0, completion_denominator: 1, certificates: 1,
+      rows: [{ id: "assignment", employee_id: "employee", student: "Pat Example", facility_id: "facility-a", facility: "Training home", course_id: "course", course: "Fire_Safety_v3.pdf",
+        status: "completed", assigned_at: "2026-09-01", due_date: null, completed_at: "2026-09-27", percent_complete: 100,
+        certificate_id: "certificate", credential_number: "CM-123", certificate_issued_at: "2026-09-27", certificate_pdf_status: "ready" }],
+    };
+  });
+
+  it("keeps Open inline and offers a distinct download of the same PDF with a readable name", async () => {
+    const tree = render();
+    const open = nodes(tree).find(node => node.props.onClick && text(node) === "Open certificate")!;
+    const download = nodes(tree).find(node => node.props.onClick && text(node) === "Download PDF")!;
+    await (open.props.onClick as () => Promise<void>)();
+    expect(h.open).toHaveBeenLastCalledWith(url);
+    expect(new URL(h.open.mock.calls[0][0]).searchParams.has("download")).toBe(false);
+    await (download.props.onClick as () => Promise<void>)();
+    const named = new URL(h.open.mock.calls[1][0]);
+    expect(named.pathname).toBe(new URL(url).pathname);
+    expect(named.searchParams.get("token")).toBe("issued.signature");
+    expect(named.searchParams.get("download")).toBe("Pat Example - Fire Safety - Certificate.pdf");
+    expect(h.prepare.mock.calls).toEqual([["certificate"], ["certificate"]]);
+    expect(h.page!.rows[0].course).toBe("Fire_Safety_v3.pdf");
+  });
+
+  it("keeps both actions disabled while preparing and does not open a failed download", async () => {
+    h.preparing = true;
+    const actions = nodes(render()).filter(node => node.props.onClick && ["Open certificate", "Download PDF"].includes(text(node)));
+    expect(actions).toHaveLength(2);
+    expect(actions.every(node => node.props.disabled === true)).toBe(true);
+    h.preparing = false; h.prepare.mockRejectedValue(new Error("Certificate unavailable"));
+    const download = nodes(render()).find(node => node.props.onClick && text(node) === "Download PDF")!;
+    await (download.props.onClick as () => Promise<void>)();
+    expect(h.open).not.toHaveBeenCalled();
+    expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
   });
 });
 

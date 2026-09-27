@@ -1,5 +1,5 @@
 begin;
-select plan(27);
+select plan(41);
 select is(public.inspection_item_next_due_date('furnace_inspection',365,date '2027-03-01',date '2027-01-01'),date '2028-03-01','annual site review spans leap day without a premature deadline');
 select is(public.inspection_item_next_due_date('smoke_detector',30,date '2026-07-01',date '2026-01-01'),date '2026-08-31','a July test permits the next test anywhere in August');
 select is(public.inspection_item_next_due_date('fire_alarm_system',31,date '2026-01-01',date '2026-01-01'),date '2026-02-28','alarm testing follows each calendar month including February');
@@ -12,7 +12,10 @@ insert into public.organizations(id,name,slug) values('e9270000-0000-4000-8000-0
 insert into public.facilities(id,organization_id,name,facility_type) values
 ('e9270000-0000-4000-8000-000000000011','e9270000-0000-4000-8000-000000000001','PCH baseline','PCH'),
 ('e9270000-0000-4000-8000-000000000012','e9270000-0000-4000-8000-000000000001','ALF baseline','ALR'),
-('e9270000-0000-4000-8000-000000000013','e9270000-0000-4000-8000-000000000001','Unrelated license','NH');
+('e9270000-0000-4000-8000-000000000013','e9270000-0000-4000-8000-000000000001','Unrelated nursing home license','NH'),
+('e9270000-0000-4000-8000-000000000014','e9270000-0000-4000-8000-000000000001','Unrelated home health license','HHA'),
+('e9270000-0000-4000-8000-000000000015','e9270000-0000-4000-8000-000000000001','Unrelated hospice license','HOS'),
+('e9270000-0000-4000-8000-000000000016','e9270000-0000-4000-8000-000000000001','Unrelated group home license','GH');
 select is(app_private.site_inspection_grace('e9270000-0000-4000-8000-000000000011','furnace_inspection'),15,'unsaved PCH uses annual RCG grace');
 select is(app_private.site_inspection_grace('e9270000-0000-4000-8000-000000000012','smoke_detector'),5,'unsaved ALF uses applicable shorter-interval grace');
 select is(app_private.site_inspection_grace('e9270000-0000-4000-8000-000000000011','fire_drill_program'),0,'monthly PCH drill never receives general grace');
@@ -26,6 +29,23 @@ select lives_ok($$insert into public.inspection_items(organization_id,facility_i
   'the ALF annual chimney baseline is accepted');
 select throws_ok($$update public.inspection_items set inspection_interval_days=730 where label='ALF chimney service'$$,
   '23514',null,'the ALF annual chimney maximum remains enforced on updates');
+select throws_ok($$insert into public.inspection_items(organization_id,facility_id,item_type,item_kind,label,inspection_interval_days)
+  values('e9270000-0000-4000-8000-000000000001','e9270000-0000-4000-8000-000000000012','fireplace_chimney_service','equipment','Overlong ALF chimney service',730)$$,
+  '23514',null,'the ALF annual chimney maximum remains enforced on inserts');
+select lives_ok($$update public.inspection_items set inspection_interval_days=1095 where label='Voluntary PCH chimney service'$$,
+  'a voluntary PCH chimney interval can also be updated without an ALF maximum');
+-- The PCH exception must not weaken unrelated markets through direct writes.
+select throws_ok(format($$insert into public.inspection_items(organization_id,facility_id,item_type,item_kind,label,inspection_interval_days)
+  values(%L,%L,'fireplace_chimney_service','equipment',%L,730)$$,organization_id,id,facility_type||' overlong chimney service'),
+  '23514',null,facility_type||' retains the existing chimney maximum on inserts')
+from public.facilities where organization_id='e9270000-0000-4000-8000-000000000001' and facility_type in ('NH','HHA','HOS','GH');
+select lives_ok(format($$insert into public.inspection_items(organization_id,facility_id,item_type,item_kind,label,inspection_interval_days)
+  values(%L,%L,'fireplace_chimney_service','equipment',%L,365)$$,organization_id,id,facility_type||' chimney service'),
+  facility_type||' still accepts the existing 365-day chimney interval')
+from public.facilities where organization_id='e9270000-0000-4000-8000-000000000001' and facility_type in ('NH','HHA','HOS','GH');
+select throws_ok(format($$update public.inspection_items set inspection_interval_days=730 where facility_id=%L and item_type='fireplace_chimney_service'$$,id),
+  '23514',null,facility_type||' retains the existing chimney maximum on updates')
+from public.facilities where organization_id='e9270000-0000-4000-8000-000000000001' and facility_type in ('NH','HHA','HOS','GH');
 select is(app_private.site_inspection_grace('e9270000-0000-4000-8000-000000000011','fireplace_chimney_service'),0,
   'a voluntary PCH chimney schedule does not inherit Chapter 2800 grace');
 insert into public.inspection_items(id,organization_id,facility_id,item_type,item_kind,label,inspection_interval_days,install_date)

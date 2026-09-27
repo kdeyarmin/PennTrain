@@ -30,6 +30,11 @@ export function inspectionTypeAppliesToFacility(type: string, facilityType?: str
   return !["fireplace_chimney_service", "automatic_external_defibrillator"].includes(type) || facilityType === "ALR";
 }
 
+export function inspectionTypeLabel(type: string, facilityType?: string, label = INSPECTION_RULES[type]?.label ?? type.replace(/_/g, " ")): string {
+  return facilityType === "PCH" && !inspectionTypeAppliesToFacility(type, facilityType)
+    ? `${label.replace(/^ALF /, "")} (additional facility policy)` : label;
+}
+
 export function inspectionGuidance(type: string, facilityType?: string): string | undefined {
   if (facilityType === "PCH" && !inspectionTypeAppliesToFacility(type, facilityType)) {
     return "Additional facility policy: this inspection's Chapter 2800 requirement applies to ALF facilities. Retain this PCH's chosen schedule and inspection evidence.";

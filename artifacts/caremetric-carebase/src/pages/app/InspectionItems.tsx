@@ -25,7 +25,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday } from "@/lib/dateUtils";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
-import { INSPECTION_RULES, maximumInspectionInterval, inspectionScheduleLabel, inspectionTypeAppliesToFacility, inspectionGuidance } from "@/lib/inspectionRules";
+import { INSPECTION_RULES, maximumInspectionInterval, inspectionScheduleLabel, inspectionTypeAppliesToFacility, inspectionTypeLabel, inspectionGuidance } from "@/lib/inspectionRules";
 import { paRegulatoryFacilitySelection } from "@/lib/facilityTypes";
 
 const PAGE_SIZE = 15;
@@ -60,8 +60,7 @@ function itemTypeLabel(type: string, facilityType?: string): string {
   const label = ITEM_TYPE_OPTIONS.find((o) => o.value === type)?.label
     ?? DERIVED_ITEM_TYPE_LABELS[type]
     ?? type.replace(/_/g, " ");
-  return facilityType === "PCH" && !inspectionTypeAppliesToFacility(type, facilityType)
-    ? `${label.replace(/^ALF /, "")} (additional facility policy)` : label;
+  return inspectionTypeLabel(type, facilityType, label);
 }
 
 interface ItemFormData {

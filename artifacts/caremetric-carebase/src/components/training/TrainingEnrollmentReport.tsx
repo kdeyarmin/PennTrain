@@ -20,11 +20,12 @@ import { readTrainingEnrollmentReport, useTrainingEnrollmentReport } from "@/hoo
 import { useToast } from "@/hooks/use-toast";
 import { downloadBlob } from "@/lib/browserDownload";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { namedCertificateDownloadUrl } from "@/lib/certificateDownloadUrl";
 import { facilityToday } from "@/lib/dateUtils";
 import {
   collectTrainingEnrollmentReport, DATE_BASIS_LABELS, TRAINING_REPORT_EXPORT_LIMIT, TRAINING_REPORT_EXPORT_LIMIT_MESSAGE,
   trainingEnrollmentCells, trainingEnrollmentCsv, trainingEnrollmentScope,
-  type TrainingEnrollmentFilters, type TrainingEnrollmentPage, type TrainingReportDateBasis,
+  type TrainingEnrollmentFilters, type TrainingEnrollmentPage, type TrainingEnrollmentRow, type TrainingReportDateBasis,
 } from "@/lib/trainingEnrollmentReport";
 
 const selectClass = "h-10 w-full rounded-md border bg-background px-3 text-sm";
@@ -63,6 +64,14 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
   const facilities = useListFacilities({ organizationId }, !!organizationId && !facilityId);
   const preparePdf = usePrepareCertificatePdf();
   const { toast } = useToast();
+  async function certificateAction(row: TrainingEnrollmentRow, download: boolean) {
+    try {
+      const pdf = await preparePdf.mutateAsync(row.certificate_id!);
+      // Storage's download query forces an attachment. Keep the viewing action
+      // inline so users can read or print before choosing to save a named copy.
+      openDocumentUrl(download ? namedCertificateDownloadUrl(pdf.url, row.course, row.student) : pdf.url);
+    } catch (error) { failure(error); }
+  }
   const page = reportLinkPending ? undefined : report.data;
   const exceedsExportLimit = !!page && page.total > TRAINING_REPORT_EXPORT_LIMIT;
   const change = (next: Partial<TrainingEnrollmentFilters>) => { setFilters(current => ({ ...current, ...next })); setOffset(0); };
@@ -153,7 +162,7 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
       <p className="text-sm"><strong>{page.completion_denominator ? `${Math.round(page.completed / page.completion_denominator * 100)}% complete` : "No non-canceled enrollments"}</strong> · {page.completed} completed / {page.completion_denominator} non-canceled {page.completion_denominator === 1 ? "enrollment" : "enrollments"} · {page.canceled} canceled · {page.in_progress} in progress · {page.not_started} assigned</p>
       <p className="text-xs text-muted-foreground">{trainingEnrollmentScope(filters, page)} Totals cover all matching rows, including pages not currently shown.</p>
       <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{["Student", "Facility", "Course / purpose", "Status", "Progress", "Enrolled", "Due", "Completed", "Certificate"].map(label => <th key={label} className="border-b p-2">{label}</th>)}</tr></thead><tbody>
-        {page.rows.map(row => { const cells = trainingEnrollmentCells(row); return <tr key={row.id}><td className="border-b p-2"><button className="underline text-left" onClick={() => change({ employeeId: row.employee_id })}>{row.student}</button></td><td className="border-b p-2">{row.facility}</td><td className="border-b p-2">{cells[2]}<p className="text-xs">{row.is_required === false ? "Optional" : "Required"}{row.plan_name ? ` · ${row.plan_name}` : ""}</p>{row.is_required && row.assignment_is_required === false && <p className="text-xs">Required by an enrolled learning plan</p>}{canManage && (!row.is_required || row.assignment_is_required !== false) && !row.training_plan_id && !["completed", "canceled"].includes(row.status) && <Button size="sm" variant="ghost" title="Change the individual assignment; required learning-plan items continue to apply." disabled={requirement.isPending} onClick={() => requirement.mutate({ id: row.id, required: row.is_required === false }, { onError: failure })}>{row.is_required === false ? "Make required" : "Make optional"}</Button>}</td><td className="border-b p-2">{cells[3]}</td><td className="border-b p-2">{row.percent_complete}%</td><td className="border-b p-2">{cells[5]}</td><td className="border-b p-2">{cells[6]}</td><td className="border-b p-2">{cells[7]}</td><td className="border-b p-2">{row.certificate_id ? <Button size="sm" variant="outline" disabled={preparePdf.isPending} onClick={async () => { try { const pdf = await preparePdf.mutateAsync(row.certificate_id!); openDocumentUrl(pdf.url); } catch (error) { failure(error); } }}>Open certificate</Button> : "Not issued"}</td></tr>; })}
+        {page.rows.map(row => { const cells = trainingEnrollmentCells(row); return <tr key={row.id}><td className="border-b p-2"><button className="underline text-left" onClick={() => change({ employeeId: row.employee_id })}>{row.student}</button></td><td className="border-b p-2">{row.facility}</td><td className="border-b p-2">{cells[2]}<p className="text-xs">{row.is_required === false ? "Optional" : "Required"}{row.plan_name ? ` · ${row.plan_name}` : ""}</p>{row.is_required && row.assignment_is_required === false && <p className="text-xs">Required by an enrolled learning plan</p>}{canManage && (!row.is_required || row.assignment_is_required !== false) && !row.training_plan_id && !["completed", "canceled"].includes(row.status) && <Button size="sm" variant="ghost" title="Change the individual assignment; required learning-plan items continue to apply." disabled={requirement.isPending} onClick={() => requirement.mutate({ id: row.id, required: row.is_required === false }, { onError: failure })}>{row.is_required === false ? "Make required" : "Make optional"}</Button>}</td><td className="border-b p-2">{cells[3]}</td><td className="border-b p-2">{row.percent_complete}%</td><td className="border-b p-2">{cells[5]}</td><td className="border-b p-2">{cells[6]}</td><td className="border-b p-2">{cells[7]}</td><td className="border-b p-2">{row.certificate_id ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={preparePdf.isPending} onClick={() => certificateAction(row, false)}>Open certificate</Button><Button size="sm" variant="outline" disabled={preparePdf.isPending} onClick={() => certificateAction(row, true)}>Download PDF</Button></div> : "Not issued"}</td></tr>; })}
       </tbody></table></div>
       {!page.total && <p>No enrollments match these filters. Assign a course to a student to begin tracking completion.</p>}
       <div className="flex flex-wrap items-center gap-3"><span className="text-sm">{page.total ? `${offset + 1}–${Math.min(offset + page.rows.length, page.total)} of ${page.total} ${page.total === 1 ? "enrollment" : "enrollments"}` : "0 enrollments"}</span><Button variant="outline" disabled={offset === 0 || report.isFetching || exporting} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous report page</Button><Button variant="outline" disabled={offset + page.rows.length >= page.total || report.isFetching || exporting} onClick={() => setOffset(offset + 50)}>Next report page</Button></div>

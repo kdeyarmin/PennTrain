@@ -43504,16 +43504,26 @@ export type Database = {
         }
         Returns: string
       }
-      record_organization_signup: {
-        Args: {
-          p_baa_version: string
-          p_facility_type: string
-          p_name: string
-          p_slug: string
-          p_trial_ends_at: string
-        }
-        Returns: string
-      }
+      record_organization_signup:
+        | {
+            Args: {
+              p_baa_version: string
+              p_name: string
+              p_slug: string
+              p_trial_ends_at: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_baa_version: string
+              p_facility_type: string
+              p_name: string
+              p_slug: string
+              p_trial_ends_at: string
+            }
+            Returns: string
+          }
       record_plan_of_correction_version_pdf: {
         Args: {
           p_bucket: string

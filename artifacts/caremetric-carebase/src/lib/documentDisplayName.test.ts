@@ -22,6 +22,8 @@ describe("readable document names", () => {
     expect(documentDisplayName({ fileName: "tenant/1727747788999_training_handout.pdf" })).toBe("Training handout");
     expect(documentDisplayName({ title: "imports/Medication_Administration_v2026_1.pdf" })).toBe("Medication Administration");
     expect(documentDisplayName({ fileName: "20260000-0000-4000-8000-000000000001.pdf", fallback: "Course handout" })).toBe("Course handout");
+    expect(documentDisplayName({ fileName: "20260000-0000-4000-8000-000000000001-Fire_Safety.pdf" })).toBe("Fire Safety");
+    expect(documentDisplayName({ fileName: "Fire_Safety-20260000-0000-4000-8000-000000000001.pdf" })).toBe("Fire Safety");
     expect(documentDisplayName({ fileName: "abcdef0123456789.pdf", fallback: "Training certificate" })).toBe("Training certificate");
     expect(documentDisplayName({ title: " ", fallback: "Course document" })).toBe("Course document");
     expect(documentDisplayName({ fileName: "Fall%20Prevention.pdf?token=private" })).toBe("Fall Prevention");

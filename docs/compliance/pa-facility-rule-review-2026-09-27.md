@@ -10,6 +10,8 @@ Selection belongs to each licensed facility, not an administrator or organizatio
 
 Signup now requires an explicit choice, validates it on the server and atomically creates the first Pennsylvania facility. There is no default PCH selection. Creation of additional facilities also requires an explicit choice. An existing PCH/ALF facility cannot be relabeled to another license, because recorded resident deadlines, training evidence and citations belong to its original chapter; a different license requires a separate facility record. Other supported facility categories retain their separate configuration.
 
+The rollout retains the existing service-role-only four-argument signup RPC for the previously deployed Edge Function while the database is upgraded. That legacy path creates no facility and infers no license. The new five-argument caller requires the selected license. Retire the legacy overload in a separate deployment after all callers have migrated, rather than interrupting signup during the database-first deployment.
+
 ## Material differences retained
 
 | Workflow | PCH | ALF | Authority |

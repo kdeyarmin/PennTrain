@@ -5,7 +5,7 @@ export interface DocumentDisplayNameInput {
 }
 
 const FILE_EXTENSION = /\.(?:pdf|docx?|xlsx?|pptx?|csv|txt|md|rtf|zip|mp4|webm|mov|mp3|wav|vtt|srt|png|jpe?g|gif|webp|html?)$/i;
-const UUID = /(?:^|[\s_])(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=$|[\s_])/gi;
+const UUID = /(?:^|[\s_-])(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=$|[\s_-])/gi;
 const VERSION_SUFFIX = /(?:^|[\s_.–—-]+)(?:v(?:ersion)?|rev(?:ision)?)[\s_.-]*\d+(?:[._-]\d+)*(?:[\s_.-]+(?:final|draft|copy))?$/i;
 
 /** Presentation only: never use this label as a Storage path, filename or evidence identifier. */

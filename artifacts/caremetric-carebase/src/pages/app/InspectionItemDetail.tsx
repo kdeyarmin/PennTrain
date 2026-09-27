@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn, humanize } from "@/lib/utils";
 import { facilityToday } from "@/lib/dateUtils";
 import { evacuationSeconds, fireDrillRecordErrors, type FireDrillRecordErrors } from "@/lib/fireDrillRecord";
-import { INSPECTION_RULES, evacuationFinding, isSleepingHours, inspectionScheduleLabel, inspectionGuidance } from "@/lib/inspectionRules";
+import { INSPECTION_RULES, evacuationFinding, isSleepingHours, inspectionScheduleLabel, inspectionTypeLabel, inspectionGuidance } from "@/lib/inspectionRules";
 import { PCH_ALR_ONLY_FACILITY_TYPES, type FacilityType } from "@/lib/facilityTypes";
 
 const SHIFT_OPTIONS = ["day", "evening", "overnight"] as const;
@@ -323,7 +323,7 @@ export default function InspectionItemDetail() {
           </div>
           <div>
             <h1 className="text-2xl font-bold">{item.label}</h1>
-            <p className="text-muted-foreground">{facilityName} · {item.item_type.replace(/_/g, " ")}</p>
+            <p className="text-muted-foreground">{facilityName} · {inspectionTypeLabel(item.item_type, facility.facility_type)}</p>
             <div className="mt-2">{isFireDrill && <span className="text-xs mr-2">Schedule status</span>}<StatusBadge status={item.status} type="training" /></div>
           </div>
         </div>

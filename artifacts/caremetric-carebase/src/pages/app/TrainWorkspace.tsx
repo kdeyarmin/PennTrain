@@ -5,7 +5,7 @@ import { TrainingDiscoveryAdmin } from "@/components/training-discovery/Training
 import { useInviteUser } from "@/hooks/useProfiles";
 import { trainingActionError } from "@/lib/trainingWorkspace";
 import { certificatePrintPacket } from "@/lib/certificatePrintPacket";
-import { certificateFileName } from "@/lib/certificateDownloadUrl";
+import { certificateFileName, namedCertificateDownloadUrl } from "@/lib/certificateDownloadUrl";
 import { documentDisplayName } from "@/lib/documentDisplayName";
 import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal, formatDateForDisplay } from "@/lib/dateUtils";
 import { downloadBlob } from "@/lib/browserDownload";
@@ -152,11 +152,23 @@ export default function TrainWorkspace() {
     const employee = employeeMap.get(id);
     return employee ? `${employee.first_name} ${employee.last_name}` : `Student record ${id}`;
   };
+  const certificateLearnerName = (certificate: NonNullable<typeof certificates.data>[number]) => {
+    const employee = employeeMap.get(certificate.employee_id);
+    return certificate.learner_name_snapshot?.trim() || (employee ? `${employee.first_name} ${employee.last_name}` : "Learner");
+  };
   const certs = (certificates.data || []).filter(c => (!student || c.employee_id === student)
     && (!certificateCourse || c.course_id === certificateCourse) && (!certificateStatus || c.pdf_status === certificateStatus)
     && (!certificateFrom || paDay(new Date(c.issued_at)) >= certificateFrom) && (!certificateThrough || paDay(new Date(c.issued_at)) <= certificateThrough));
   const studentEvents = (data?.events || []).filter(e => e.employee_id === student);
   const message = (error: unknown) => toast({ title: "Training action failed", description: trainingActionError(error), variant: "destructive" });
+  async function certificateAction(certificate: NonNullable<typeof certificates.data>[number], download: boolean) {
+    try {
+      const result = await preparePdf.mutateAsync(certificate.id);
+      // A named Storage download is an attachment; Open PDF / print must retain
+      // the inline URL. Neither action changes the issued object or its snapshot.
+      openDocumentUrl(download ? namedCertificateDownloadUrl(result.url, certificateCourseTitle(certificate), certificateLearnerName(certificate)) : result.url);
+    } catch (error) { message(error); }
+  }
   async function submit(kind: string, event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget, fields = new FormData(form);
     const payload: Record<string, Json> = Object.fromEntries(Array.from(fields.entries()).map(([k, v]) => [k, String(v)]));
@@ -206,7 +218,7 @@ export default function TrainWorkspace() {
       for (const [index, cert] of targets.entries()) {
         const result = await preparePdf.mutateAsync(cert.id);
         const response = await fetch(result.url); if (!response.ok) throw new Error(`Could not download the ${certificateCourseTitle(cert)} certificate for ${certificateStudentName(cert.employee_id)}; no archive was created.`);
-        files[`${index + 1} - ${certificateFileName(certificateCourseTitle(cert), certificateStudentName(cert.employee_id))}`] = new Uint8Array(await response.arrayBuffer());
+        files[`${index + 1} - ${certificateFileName(certificateCourseTitle(cert), certificateLearnerName(cert))}`] = new Uint8Array(await response.arrayBuffer());
       }
       if (format === "pdf") {
         const packet = await certificatePrintPacket(Object.values(files));
@@ -342,7 +354,7 @@ export default function TrainWorkspace() {
         {historicalStudents.isError && <p role="alert">Some historical student names could not be loaded. Certificates remain available by credential number. <Button variant="link" onClick={() => void historicalStudents.refetch()}>Retry student names</Button></p>}
         <Button onClick={() => void certificateDownload("zip")} disabled={batchBusy || !certs.some(c => selectedCerts.has(c.id))}>{batchBusy ? "Preparing certificates…" : "Download selected certificates (ZIP)"}</Button>
         <Button variant="outline" onClick={() => void certificateDownload("pdf")} disabled={batchBusy || !certs.some(c => selectedCerts.has(c.id))}>Download selected for printing (PDF)</Button>
-        {certificates.isError ? <p role="alert">Certificates could not be loaded. <Button onClick={() => void certificates.refetch()}>Retry</Button></p> : certificates.isLoading ? <p>Loading certificates…</p> : !certs.length ? <p>No certificates match these filters. Certificates become available after eligible course completion.</p> : certs.map(c => <div key={c.id} className="flex flex-wrap gap-3 items-center border-b py-3"><label><input type="checkbox" checked={selectedCerts.has(c.id)} onChange={e => setSelectedCerts(old => { const next = new Set(old); if (e.target.checked) next.add(c.id); else next.delete(c.id); return next; })} /> {certificateStudentName(c.employee_id)} · {certificateCourseTitle(c)} · {c.credential_number} · issued {formatDateForDisplay(c.issued_at, { timeZone: "America/New_York" })} · PDF {c.pdf_status}</label><Button variant="outline" disabled={preparePdf.isPending} onClick={async () => { try { const result = await preparePdf.mutateAsync(c.id); openDocumentUrl(result.url); } catch (error) { message(error); } }}>Open PDF / print</Button></div>)}
+        {certificates.isError ? <p role="alert">Certificates could not be loaded. <Button onClick={() => void certificates.refetch()}>Retry</Button></p> : certificates.isLoading ? <p>Loading certificates…</p> : !certs.length ? <p>No certificates match these filters. Certificates become available after eligible course completion.</p> : certs.map(c => <div key={c.id} className="flex flex-wrap gap-3 items-center border-b py-3"><label><input type="checkbox" checked={selectedCerts.has(c.id)} onChange={e => setSelectedCerts(old => { const next = new Set(old); if (e.target.checked) next.add(c.id); else next.delete(c.id); return next; })} /> {certificateStudentName(c.employee_id)} · {certificateCourseTitle(c)} · {c.credential_number} · issued {formatDateForDisplay(c.issued_at, { timeZone: "America/New_York" })} · PDF {c.pdf_status}</label><Button variant="outline" disabled={preparePdf.isPending} onClick={() => certificateAction(c, false)}>Open PDF / print</Button><Button variant="outline" disabled={preparePdf.isPending} onClick={() => certificateAction(c, true)}>Download PDF</Button></div>)}
       </TabsContent>
       <TabsContent value="reports" className="space-y-4">
         <div className="flex flex-wrap gap-3 print:hidden"><Input aria-label="Filter report students" placeholder="Filter students" value={search} onChange={e => setSearch(e.target.value)} /><select aria-label="Report requirement status" className={selectClass} value={reportMode} onChange={e => setReportMode(e.target.value)}><option value="all">All students</option><option value="missing">Missing evidence</option><option value="overdue">Past reference date</option><option value="review">Needs review</option></select><Button onClick={exportReport}>Export CSV and evidence index</Button><Button variant="outline" disabled={batchBusy || documents.isLoading || certificates.isLoading} onClick={() => void inspectionPacket()}>Download inspection packet (ZIP)</Button><Button variant="outline" onClick={() => window.print()}>Print report</Button></div>

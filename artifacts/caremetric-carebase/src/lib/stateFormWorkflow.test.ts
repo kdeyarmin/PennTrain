@@ -225,6 +225,19 @@ describe("sortOpenItemsByUrgency", () => {
     ];
     expect(sortOpenItemsByUrgency(items, TODAY).map((i) => i.id)).toEqual(["a", "b"]);
   });
+
+  it("orders undated significant-change work by its internal target without assigning a legal deadline", () => {
+    const items = [
+      item({ id: "later", item_type: "significant_change_reassessment", status: "missing", due_date: null, internal_target_date: "2026-07-20" }),
+      item({ id: "undated", status: "missing", due_date: null }),
+      item({ id: "earlier", item_type: "significant_change_reassessment", status: "missing", due_date: null, internal_target_date: "2026-07-10" }),
+      item({ id: "statutory", status: "missing", due_date: "2026-07-15", internal_target_date: "2026-07-01" }),
+    ];
+    const sorted = sortOpenItemsByUrgency(items, TODAY);
+    expect(sorted.map(row => row.id)).toEqual(["earlier", "statutory", "later", "undated"]);
+    expect(sorted.find(row => row.id === "earlier")).toMatchObject({ status: "missing", due_date: null });
+    expect(items.map(row => row.id)).toEqual(["later", "undated", "earlier", "statutory"]);
+  });
 });
 
 describe("listUpcomingRenewals", () => {

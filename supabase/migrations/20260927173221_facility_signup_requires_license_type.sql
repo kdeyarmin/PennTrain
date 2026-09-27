@@ -1,7 +1,13 @@
 -- A license selection belongs to a facility, never to an entire organization:
 -- an organization can operate separately licensed PCH and ALF locations.
 -- ALF is the product label for the existing stored ALR code (Chapter 2800).
-drop function public.record_organization_signup(text,text,timestamptz,text);
+-- Rollout is additive: deploy-migrations.yml pushes the database before Edge
+-- Functions. Keep the existing service-role-only four-argument RPC unchanged
+-- while the previously deployed signup function still calls it. It creates an
+-- organization/settings only, never an inferred PCH or ALF facility. Remove that
+-- legacy signature in a separate deployment after the five-argument caller is live.
+-- All five arguments below are required: no default may make the two RPC
+-- signatures ambiguous or allow the new caller to omit the selected license.
 create function public.record_organization_signup(
   p_name text, p_slug text, p_trial_ends_at timestamptz,
   p_baa_version text, p_facility_type text

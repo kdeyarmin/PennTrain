@@ -37,6 +37,14 @@ update public.employee_credentials set issue_date='2026-03-01',status='compliant
 select is(public.oapsa_duty_status('a2380000-0000-4000-8000-000000000021','2026-04-02')->>'clearancesOnFile','true','received required checks end provisional tracking');
 select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'an unsaved facility policy does not invent a five-year clearance recurrence');
 select is((select expiration_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'policy recurrence preserves original expiration evidence');
+-- PostgreSQL LEAST ignores NULL inputs. An absent employer renewal must not
+-- hide an actual evidence expiry when the credential trigger recalculates status.
+update public.employee_credentials set issue_date=public.pa_today()-30,expiration_date=public.pa_today()-1,status='compliant'
+where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
+select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'expired evidence does not invent an unsaved renewal policy');
+select is((select expiration_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),public.pa_today()-1,'an unsaved policy preserves the actual expired date');
+select is((select status from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),'expired','actual expiry is enforced when no staff policy has been saved');
+update public.employee_credentials set expiration_date=null where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
 update public.employee_credentials set issue_date=null,status='missing' where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
 update public.employee_background_check_profiles set psp_requested_on='2026-01-02' where employee_id='a2380000-0000-4000-8000-000000000021';
 select is(public.oapsa_duty_status('a2380000-0000-4000-8000-000000000021','2026-01-15')->>'requestsOnTime','false','late clearance requests cannot establish provisional work');
@@ -108,6 +116,13 @@ select is((select clearance_renewal_years from public.staff_regulatory_policies 
 update public.staff_regulatory_policies set clearance_renewal_years=null where facility_id='a2380000-0000-4000-8000-000000000011';
 select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'removing employer recurrence clears only the derived deadline');
 select is((select expiration_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),public.pa_today()+100,'changing policy preserves actual credential expiration');
+update public.staff_regulatory_policies set clearance_renewal_years=5 where facility_id='a2380000-0000-4000-8000-000000000011';
+update public.employee_credentials set expiration_date=public.pa_today()-1 where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
+update public.staff_regulatory_policies set clearance_renewal_years=null where facility_id='a2380000-0000-4000-8000-000000000011';
+select is((select policy_renewal_due_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),null::date,'removing a saved renewal policy clears its derived deadline even for expired evidence');
+select is((select expiration_date from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),public.pa_today()-1,'removing a saved renewal policy preserves an actual expired date');
+select is((select status from public.employee_credentials where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history'),'expired','removing a saved renewal policy cannot make expired evidence compliant');
+update public.employee_credentials set expiration_date=public.pa_today()+100 where employee_id='a2380000-0000-4000-8000-000000000021' and credential_type='act34_criminal_history';
 insert into public.employees(id,organization_id,facility_id,first_name,last_name,job_title,hire_date)
 values('a2380000-0000-4000-8000-000000000027','a2380000-0000-4000-8000-000000000001','a2380000-0000-4000-8000-000000000011','Transfer','Training','Direct care','2026-01-01');
 insert into public.training_documents(id,organization_id,facility_id,employee_id,file_name,storage_bucket,storage_path,file_type)
