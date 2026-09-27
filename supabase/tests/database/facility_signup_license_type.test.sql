@@ -12,7 +12,8 @@ select ok(has_function_privilege('service_role','public.record_organization_sign
 select results_eq($$select pronargs::integer,pronargdefaults::integer from pg_proc where oid in (
   'public.record_organization_signup(text,text,timestamptz,text)'::regprocedure,
   'public.record_organization_signup(text,text,timestamptz,text,text)'::regprocedure) order by pronargs$$,
-  $$values(4,0),(5,0)$$,'both named argument sets resolve exactly, with no optional license argument');
+  $$select * from (values(4,0),(5,0)) as expected(argument_count,default_count)$$,
+  'both named argument sets resolve exactly, with no optional license argument');
 set local role service_role;
 select lives_ok($$select public.record_organization_signup(p_name=>'Legacy signup',p_slug=>'legacy-signup-rollout',
   p_trial_ends_at=>now()+interval '30 days',p_baa_version=>'accepted')$$,
