@@ -7,7 +7,9 @@ import { zipSync } from "fflate";
 
 test("real local operational Storage preserves referenced evidence and recovers durable cleanup", {
   skip: process.env.CAREMETRIC_LOCAL_OPERATIONAL_DOCUMENT_TESTS !== "true",
-  timeout: 90_000,
+  // Six sequential end-to-end scenarios share setup and teardown. CI's first
+  // five take about 81 seconds; reserve time for the full Train-only scenario.
+  timeout: 240_000,
 }, async (t) => {
   const url = new URL(process.env.SUPABASE_URL ?? "");
   assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(url.hostname), "Fixtures require disposable loopback Supabase");
