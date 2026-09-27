@@ -35,6 +35,7 @@ import {
   OBSERVATION_ORDER,
   QUICK_OBSERVATION_TYPES,
   abnormalBadge,
+  formatObservationUnit,
   hasObservationFormValue,
   isCriticalFlag,
   observationTitle,
@@ -442,7 +443,7 @@ export default function MyResidentChart() {
                 autoFocus
                 value={valueNumeric}
                 onChange={(event) => setValueNumeric(event.target.value)}
-                placeholder={isCustom ? "Optional if using text" : ""}
+                placeholder={isCustom ? "Optional if using text" : observationType === "temperature" ? "36.8" : ""}
               />
             </div>
             {config.secondaryLabel ? (
@@ -465,7 +466,7 @@ export default function MyResidentChart() {
               // only creates a way to record a wrong one at the bedside.
               <div className="space-y-2">
                 <span className="text-sm font-medium">Unit</span>
-                <p className="flex h-9 items-center text-sm text-muted-foreground">{unit || "—"}</p>
+                <p className="flex h-9 items-center text-sm text-muted-foreground">{formatObservationUnit(unit) || "—"}</p>
               </div>
             )}
             {isCustom && (
@@ -478,6 +479,12 @@ export default function MyResidentChart() {
                   placeholder="Optional narrative value"
                 />
               </div>
+            )}
+            {observationType === "temperature" && (
+              <p className="text-sm text-muted-foreground sm:col-span-2">Use Celsius. 98.6°F is 37.0°C.</p>
+            )}
+            {observationType === "blood_pressure" && (
+              <p className="text-sm text-muted-foreground sm:col-span-2">Enter both systolic and diastolic. A systolic under 90 is flagged critical.</p>
             )}
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor={`${__fieldIds}-observed-at`}>Observed at</Label>

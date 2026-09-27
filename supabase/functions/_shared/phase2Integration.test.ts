@@ -147,6 +147,24 @@ Deno.test("webhook destinations reject SSRF targets and fail closed on DNS", asy
   assertEquals((await validatePhase2WebhookDestination("https://unresolved.example/events", async () => {
     throw new Error("NXDOMAIN");
   })).valid, false);
+  assertEquals((await validatePhase2WebhookDestination("https://[::1]/events", publicResolver)).reason, "non_public_address");
+  assertEquals((await validatePhase2WebhookDestination("https://[64:ff9b::7f00:1]/events", publicResolver)).valid, false);
+  assertEquals((await validatePhase2WebhookDestination("https://[64:ff9b::a00:1]/events", publicResolver)).valid, false);
+  assertEquals((await validatePhase2WebhookDestination("https://[0:0:0:0:0:ffff:7f00:1]/events", publicResolver)).valid, false);
+  assertEquals((await validatePhase2WebhookDestination("https://[::ffff:10.0.0.1]/events", publicResolver)).valid, false);
+  assertEquals((await validatePhase2WebhookDestination("https://[2002:7f00:1::]/events", publicResolver)).valid, false);
+  assertEquals((await validatePhase2WebhookDestination("https://0177.0.0.1/events", publicResolver)).valid, false);
+  assertEquals((await validatePhase2WebhookDestination("https://[64:ff9b::808:808]/events", publicResolver)).valid, true);
+  assertEquals((await validatePhase2WebhookDestination("https://[::ffff:8.8.8.8]/events", publicResolver)).valid, true);
+  const mappedResolver = async (_host: string, type: "A" | "AAAA") =>
+    type === "AAAA" ? ["0:0:0:0:0:ffff:7f00:1"] : [];
+  const nat64Resolver = async (_host: string, type: "A" | "AAAA") =>
+    type === "AAAA" ? ["64:ff9b::a00:1"] : [];
+  const octalResolver = async (_host: string, type: "A" | "AAAA") =>
+    type === "A" ? ["0177.0.0.1"] : [];
+  assertEquals((await validatePhase2WebhookDestination("https://hooks.example.test/events", mappedResolver)).valid, false);
+  assertEquals((await validatePhase2WebhookDestination("https://hooks.example.test/events", nat64Resolver)).valid, false);
+  assertEquals((await validatePhase2WebhookDestination("https://hooks.example.test/events", octalResolver)).valid, false);
 });
 
 Deno.test("pinned webhook transport connects to the validated IP with the TLS hostname", async () => {

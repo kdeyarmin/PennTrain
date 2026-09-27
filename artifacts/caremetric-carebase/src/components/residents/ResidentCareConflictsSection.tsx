@@ -73,7 +73,10 @@ export default function ResidentCareConflictsSection({
         // records rather than an empty array. `assistance_level` is the denormalized column, which
         // is why this does not have to unpack exception_details client-side.
         serviceExceptions: (serviceExceptions ?? []).map((exception) => ({
-          status: exception.completion_response ?? exception.status,
+          // Task status, not the completion response. Late care stays
+          // completed_as_planned on the response and completed_late on the status;
+          // passing the response made that set unreachable.
+          status: exception.status,
           service_name: exception.service_name,
           at: exception.performed_at ?? exception.scheduled_start,
           assistance_level: exception.documented_assistance_level,

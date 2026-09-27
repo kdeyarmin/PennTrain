@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import {
   entitlementTermIssues,
+  openTermFromLabel,
   parseEntitlementValue,
   termSummary,
   type FeatureValueType,
@@ -295,7 +296,7 @@ export function PackageEntitlementTermCard({
             {!entitlements.isLoading && !entitlements.isError && (current ?? []).map((row) => (
               <p key={row.id} className="text-xs text-muted-foreground">
                 {row.featureKey} = {JSON.stringify(row.entitlementValue)} · from{" "}
-                {new Date(row.effectiveFromAt).toLocaleDateString()}
+                {openTermFromLabel(row.effectiveFromAt)}
                 {row.contractReference ? ` · ${row.contractReference}` : ""}{" "}
                 <Badge variant="outline">{row.source}</Badge>
               </p>

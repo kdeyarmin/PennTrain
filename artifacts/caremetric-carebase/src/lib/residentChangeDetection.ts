@@ -88,6 +88,11 @@ export interface DetectionServiceException {
   documented_assistance_level: string | null;
   service_name: string;
   at: string | null;
+  /**
+   * Task status. A late delivery stays `completed_as_planned` on the response and
+   * `completed_late` here, so the residual exception count has to see both.
+   */
+  status?: string | null;
 }
 
 export interface DetectionUnscheduledService {
@@ -106,6 +111,8 @@ export interface DetectionIncident {
   id?: string;
   incident_type: string;
   occurred_at: string;
+  /** See residentFallEvidence: falls are pathway_key "fall", not a "fall" incident type. */
+  pathway_key?: string | null;
 }
 
 export interface DetectionMealRecord {

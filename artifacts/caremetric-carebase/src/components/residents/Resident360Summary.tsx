@@ -7,10 +7,22 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { QueryError } from "@/components/QueryState";
 import { useResident360Snapshot, useResidentTimeline } from "@/hooks/useResident360";
+import { facilityDateOf, formatDateForDisplay } from "@/lib/dateUtils";
 import { filterResidentTimeline, residentTimelineSourceSummary, timelineTypeLabel } from "@/lib/residentTimeline";
 
 function Metric({ label, value, detail }: { label: string; value: number | string; detail: string }) {
   return <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold">{value}</p><p className="text-xs text-muted-foreground">{detail}</p></div>;
+}
+
+/** The dollar tile's subtitle is the ledger, not the dietary weight-plan count. */
+export function residentBalanceDetail(lastPostedAt: string | null | undefined): string {
+  const day = facilityDateOf(lastPostedAt);
+  return day ? `Last posted ${formatDateForDisplay(day)}` : "No ledger activity";
+}
+
+export function weightPlanDetail(profileUpdatedAt: string | null | undefined): string {
+  const day = facilityDateOf(profileUpdatedAt);
+  return day ? `Dietary profile updated ${formatDateForDisplay(day)}` : "No dietary profile on file";
 }
 
 /**
@@ -26,7 +38,15 @@ export function Resident360MetricCard({ residentId }: { residentId: string }) {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><HeartPulse className="h-5 w-5" />Resident 360</CardTitle><CardDescription>A resident-centered view across compliance, operations, service delivery, dietary, finance, and safety records.</CardDescription></CardHeader>
         <CardContent className="space-y-4">
-          {snapshot.isError ? <QueryError what="the resident 360 summary" error={snapshot.error} onRetry={() => snapshot.refetch()} /> : snapshot.isLoading || !data ? <div className="h-24 animate-pulse rounded bg-muted" /> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Open risks" value={risks} detail={`${data.openRisks.incidents} incidents · ${data.openRisks.conditionChanges} condition changes`} /><Metric label="Compliance gaps" value={data.openRisks.complianceGaps} detail={`${data.openRisks.complaints} open complaints`} /><Metric label="Services due" value={data.serviceDelivery.dueNext24Hours} detail={`${data.serviceDelivery.exceptionsLast7Days} exceptions in 7 days`} /><Metric label="Resident balance" value={new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(data.finance.balance)} detail={`${data.dietary.openWeightMonitoring} active weight plan(s)`} /></div>}
+          {snapshot.isError ? <QueryError what="the resident 360 summary" error={snapshot.error} onRetry={() => snapshot.refetch()} /> : snapshot.isLoading || !data ? <div className="h-24 animate-pulse rounded bg-muted" /> : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <Metric label="Open risks" value={risks} detail={`${data.openRisks.incidents} incidents · ${data.openRisks.conditionChanges} condition changes`} />
+              <Metric label="Compliance gaps" value={data.openRisks.complianceGaps} detail={`${data.openRisks.complaints} open complaints`} />
+              <Metric label="Services due" value={data.serviceDelivery.dueNext24Hours} detail={`${data.serviceDelivery.exceptionsLast7Days} exceptions in 7 days`} />
+              <Metric label="Resident balance" value={new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(data.finance.balance)} detail={residentBalanceDetail(data.finance.lastPostedAt)} />
+              <Metric label="Weight plans" value={data.dietary.openWeightMonitoring} detail={weightPlanDetail(data.dietary.profileUpdatedAt)} />
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Link className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted" href={`/app/incidents?resident=${residentId}`}><AlertTriangle className="h-4 w-4" />Incidents</Link>
             <Link className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted" href={`/app/change-of-condition?resident=${residentId}`}><Activity className="h-4 w-4" />Condition changes</Link>

@@ -32,16 +32,29 @@ function emptyExtraction(notes: string) {
   };
 }
 
+function isRealCalendarDate(iso: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day;
+}
+
 function sanitizeDate(value: unknown): string {
   const s = typeof value === "string" ? value.trim().slice(0, 32) : "";
   if (!s) return "";
-  if (DATE_PATTERN.test(s)) return s;
+  if (DATE_PATTERN.test(s)) return isRealCalendarDate(s) ? s : "";
   // Accept common MM/DD/YYYY → YYYY-MM-DD when unambiguous
   const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (m) {
     const mm = m[1].padStart(2, "0");
     const dd = m[2].padStart(2, "0");
-    return `${m[3]}-${mm}-${dd}`;
+    const iso = `${m[3]}-${mm}-${dd}`;
+    return isRealCalendarDate(iso) ? iso : "";
   }
   return "";
 }
@@ -317,7 +330,12 @@ export function createProcessCredentialRenewalsHandler({
             }
             if (!parsed) throw new Error("Model returned no structured credential fields");
 
-            const overall = Math.max(0, Math.min(100, Number(parsed.confidence ?? 40) || 40));
+            // 0 is a real confidence. `Number(0) || 40` used to store that as 40.
+            const rawConfidence = parsed.confidence ?? 40;
+            const numericConfidence = typeof rawConfidence === "number" ? rawConfidence : Number(rawConfidence);
+            const overall = Number.isFinite(numericConfidence)
+              ? Math.max(0, Math.min(100, Math.round(numericConfidence)))
+              : 40;
             extractedFields = {
               issuingAuthority: sanitizeField(parsed.issuingAuthority, 200),
               expirationDate: sanitizeDate(parsed.expirationDate),

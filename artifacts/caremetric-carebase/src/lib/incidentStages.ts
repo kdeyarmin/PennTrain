@@ -116,6 +116,11 @@ export interface IncidentStageInput {
   assessmentReviewFinalized: boolean;
   /** Whether a support plan version was created or revised after the incident occurred. */
   supportPlanRevisedAfterIncident: boolean;
+  /**
+   * Whether someone recorded that the plan already in effect was reviewed and needs no change.
+   * A new plan and this decision are the two ways the stage is done.
+   */
+  supportPlanReviewedNoChange?: boolean;
   now?: Date;
 }
 
@@ -262,6 +267,7 @@ export function buildIncidentStages(input: IncidentStageInput): IncidentStage[] 
   const reportabilityDecided = incident.reportability_status !== "pending_review";
   const findings = trimmed(incident.investigation_findings).length > 0;
   const rootCause = trimmed(incident.root_cause).length > 0;
+  const supportPlanSettled = input.supportPlanRevisedAfterIncident || input.supportPlanReviewedNoChange === true;
 
   const notificationResult = notificationStage(incident, notifications, now);
   const correctiveResult = correctiveActionStage(correctiveActions, now);
@@ -370,8 +376,8 @@ export function buildIncidentStages(input: IncidentStageInput): IncidentStage[] 
       why: "A plan unchanged after a major event is either correct or unread, and the record cannot tell which unless someone says so.",
       status: !reviewsApply
         ? "not_applicable"
-        : input.supportPlanRevisedAfterIncident ? "complete" : "not_started",
-      outstanding: !reviewsApply || input.supportPlanRevisedAfterIncident
+        : supportPlanSettled ? "complete" : "not_started",
+      outstanding: !reviewsApply || supportPlanSettled
         ? null
         : "Revise the support plan or record that it was reviewed and needs no change.",
       prerequisites: ["assessment_review"],

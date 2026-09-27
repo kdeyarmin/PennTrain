@@ -211,10 +211,20 @@ export function phase2RoundRobinByTenant<T extends { organization_id: string }>(
   return ordered;
 }
 
+function parseCanonicalIpv4(value: string): number[] | null {
+  const parts = value.split(".");
+  // Leading zeros are not decimal here. `0177.0.0.1` is 127.0.0.1 to stacks that still
+  // honor octal, and `Number("0177")` is 177, so the old check called that address public.
+  if (parts.length !== 4 || parts.some((part) => !/^(0|[1-9]\d{0,2})$/.test(part))) return null;
+  const numbers = parts.map(Number);
+  if (numbers.some((part) => part > 255)) return null;
+  return numbers;
+}
+
 function phase2PublicIpv4(value: string): boolean {
-  const parts = value.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
-  const [a, b] = parts;
+  const numbers = parseCanonicalIpv4(value);
+  if (!numbers) return false;
+  const [a, b] = numbers;
   return !(
     a === 0 || a === 10 || a === 127 || a >= 224 ||
     (a === 100 && b >= 64 && b <= 127) ||
@@ -226,16 +236,71 @@ function phase2PublicIpv4(value: string): boolean {
   );
 }
 
+function expandIpv6(address: string): number[] | null {
+  let value = address.toLowerCase();
+  const embedded = /^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/.exec(value);
+  if (embedded) {
+    const numbers = parseCanonicalIpv4(embedded[2]);
+    if (!numbers) return null;
+    const hi = (numbers[0] << 8) | numbers[1];
+    const lo = (numbers[2] << 8) | numbers[3];
+    value = `${embedded[1]}${hi.toString(16)}:${lo.toString(16)}`;
+  }
+  if (!/^[0-9a-f:]+$/.test(value) || value.includes(":::")) return null;
+  const halves = value.split("::");
+  if (halves.length > 2) return null;
+  const parseSide = (side: string): number[] | null => {
+    if (side === "") return [];
+    const groups = side.split(":");
+    if (groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return null;
+    return groups.map((group) => Number.parseInt(group, 16));
+  };
+  if (halves.length === 1) {
+    const groups = parseSide(halves[0]);
+    return groups && groups.length === 8 ? groups : null;
+  }
+  const left = parseSide(halves[0]);
+  const right = parseSide(halves[1]);
+  if (!left || !right) return null;
+  const missing = 8 - left.length - right.length;
+  if (missing < 1) return null;
+  return [...left, ...Array<number>(missing).fill(0), ...right];
+}
+
+function embeddedIpv4(hi: number, lo: number): string {
+  return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+}
+
 function phase2PublicIp(value: string): boolean {
   const address = value.toLowerCase().replace(/^\[|\]$/g, "").split("%")[0];
-  if (/^[0-9.]+$/.test(address)) return phase2PublicIpv4(address);
-  if (!address.includes(":")) return false;
-  if (address === "::" || address === "::1" || address.startsWith("fc") || address.startsWith("fd") ||
-    /^fe[89ab]/.test(address) || address.startsWith("ff") || address.startsWith("100:") ||
-    address.startsWith("64:ff9b:1:") || address.startsWith("2001:2:") ||
-    address.startsWith("2001:10:") || address.startsWith("2001:db8:")) return false;
-  if (address.startsWith("::ffff:")) return phase2PublicIpv4(address.slice(7));
-  return /^[0-9a-f:]+$/.test(address);
+  if (!address.includes(":")) return phase2PublicIpv4(address);
+  const groups = expandIpv6(address);
+  if (!groups) return false;
+  const [a, b, c, d, e, f, g, h] = groups;
+  if (groups.every((part) => part === 0)) return false;
+  if (groups.slice(0, 7).every((part) => part === 0) && h === 1) return false;
+  // fc00::/7 unique local, fe80::/10 link-local, ff00::/8 multicast.
+  if ((a & 0xfe00) === 0xfc00) return false;
+  if (a >= 0xfe80 && a <= 0xfebf) return false;
+  if ((a & 0xff00) === 0xff00) return false;
+  // 100::/16 discard, documentation, benchmarking, and ORCHID (2001:10::/28).
+  if (a === 0x0100) return false;
+  if (a === 0x2001 && (b === 0x0db8 || b === 0x0002 || (b >= 0x0010 && b <= 0x001f))) return false;
+  // Local-use NAT64, the whole 64:ff9b:1::/48. The well-known prefix is checked below
+  // so a public embedded IPv4 can still be reached and a private one cannot.
+  if (a === 0x0064 && b === 0xff9b && c === 0x0001) return false;
+  // IPv4-mapped ::ffff:0:0/96, including the expanded form 0:0:0:0:0:ffff:7f00:1
+  // that the old `::ffff:` prefix check never saw.
+  if (groups.slice(0, 5).every((part) => part === 0) && f === 0xffff) {
+    return phase2PublicIpv4(embeddedIpv4(g, h));
+  }
+  // Well-known NAT64 64:ff9b::/96. The previous check only named 64:ff9b:1::/48.
+  if (a === 0x0064 && b === 0xff9b && c === 0 && d === 0 && e === 0 && f === 0) {
+    return phase2PublicIpv4(embeddedIpv4(g, h));
+  }
+  // 6to4 2002::/16 carries an IPv4 in the next 32 bits.
+  if (a === 0x2002) return phase2PublicIpv4(embeddedIpv4(b, c));
+  return true;
 }
 
 export type Phase2DnsResolver = (hostname: string, recordType: "A" | "AAAA") => Promise<string[]>;

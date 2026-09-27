@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 // Ratcheting floor for per-function runtime test coverage (N-12a). A function counts as
 // runtime-tested when a *.test.ts sits in the same directory as its index.ts entrypoint
 // (_shared unit tests do not count -- they never exercise a handler's request path).
-// Currently runtime-tested: capture-product-event, report-client-error, run-data-lifecycle, create-billing-session, stripe-billing-webhook, sync-billing-quantities, process-data-import-jobs, generate-fire-drill-tracker-pdf, attest-policy, process-organization-export-jobs, admin-update-user, invite-user, scim-provision, create-user, impersonate-user.
+// Currently runtime-tested: capture-product-event, report-client-error, run-data-lifecycle, create-billing-session, stripe-billing-webhook, sync-billing-quantities, process-data-import-jobs, generate-fire-drill-tracker-pdf, attest-policy, process-organization-export-jobs, admin-update-user, invite-user, scim-provision, create-user, impersonate-user, bulk-import-rooms.
 // scim-provision's test covers roleGuard.ts -- the administrator guard the handler consults
 // before apply_scim_change (BACKLOG.md J22) -- not the whole request path, because index.ts
 // calls Deno.serve at module scope and has no importable handler to drive. It still ratchets:

@@ -15305,6 +15305,96 @@ export type Database = {
           },
         ]
       }
+      incident_support_plan_reviews: {
+        Row: {
+          facility_id: string
+          incident_id: string
+          organization_id: string
+          rationale: string
+          resident_id: string
+          reviewed_at: string
+          reviewed_by: string
+          support_plan_id: string
+        }
+        Insert: {
+          facility_id: string
+          incident_id: string
+          organization_id: string
+          rationale: string
+          resident_id: string
+          reviewed_at?: string
+          reviewed_by: string
+          support_plan_id: string
+        }
+        Update: {
+          facility_id?: string
+          incident_id?: string
+          organization_id?: string
+          rationale?: string
+          resident_id?: string
+          reviewed_at?: string
+          reviewed_by?: string
+          support_plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_support_plan_reviews_facility_id_fkey"
+            columns: ["facility_id"]
+            isOneToOne: false
+            referencedRelation: "facilities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_support_plan_reviews_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: true
+            referencedRelation: "incident_list_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_support_plan_reviews_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: true
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_support_plan_reviews_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_support_plan_reviews_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "resident_roster_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_support_plan_reviews_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_support_plan_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_support_plan_reviews_support_plan_id_fkey"
+            columns: ["support_plan_id"]
+            isOneToOne: false
+            referencedRelation: "resident_support_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incidents: {
         Row: {
           administrator_approval_note: string | null
@@ -43413,6 +43503,10 @@ export type Database = {
       record_idle_session_unlock: {
         Args: { p_lock_event_id: string }
         Returns: undefined
+      }
+      record_incident_support_plan_review: {
+        Args: { p_incident_id: string; p_rationale: string }
+        Returns: string
       }
       record_learning_package_artifact: {
         Args: {

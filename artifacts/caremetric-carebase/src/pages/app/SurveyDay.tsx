@@ -13,7 +13,7 @@ import { useListEmployees } from "@/hooks/useEmployees";
 import { useListTrainingRecords } from "@/hooks/useTrainingRecords";
 import { useListEmployeeCredentials } from "@/hooks/useEmployeeCredentials";
 import { useListInspectionItems } from "@/hooks/useInspectionItems";
-import { useListBinderExports, useGetBinderExport, useBinderDownloadUrl } from "@/hooks/useComplianceBinder";
+import { useSingleFacilitySucceededBinders, useGetBinderExport, useBinderDownloadUrl } from "@/hooks/useComplianceBinder";
 import { useListEvidenceCollections } from "@/hooks/useEvidenceRoom";
 import { useOrgFeatureEnabled } from "@/hooks/useFeatureRelease";
 import { useListMyFacilityAssignments } from "@/hooks/useFacilityAssignments";
@@ -175,9 +175,9 @@ function ActivationCard({ facilityId, facilityName, facilityType, organizationId
 }) {
   const { toast } = useToast();
   const activate = useActivateSurveyDay();
-  const { data: binders } = useListBinderExports({ organizationId: organizationId || undefined });
+  const { data: binders } = useSingleFacilitySucceededBinders(facilityId);
   const { data: collections } = useListEvidenceCollections({ organizationId: organizationId || undefined });
-  const latestBinder = (binders ?? []).find((b: any) => b.status === "succeeded" && Array.isArray(b.facility_ids) && b.facility_ids.length === 1 && b.facility_ids[0] === facilityId);
+  const latestBinder = binders?.[0];
   const latestCollection = (collections ?? []).find((c: any) => c.facility_id === facilityId && c.status === "published");
 
   const start = () => activate.mutate(facilityId, {
@@ -416,15 +416,9 @@ function BinderSection({ sessionId, facilityId, organizationId, pinnedBinderJobI
   // manual pin is needed (G16.6): a regeneration started by anyone silently replaces the binder a
   // surveyor is being walked through, and without this there is no way back to the earlier one.
   const pin = usePinSurveyDayBinder();
-  const { data: allBinders } = useListBinderExports({ organizationId: organizationId || undefined });
-  // The server accepts only a succeeded export whose facility_ids is exactly this facility, so the
-  // list offers exactly that and nothing else -- an option that can only fail is not an option.
-  const pinnable = (allBinders ?? []).filter((job: { id: string; status: string; facility_ids?: string[] | null }) =>
-    job.status === "succeeded"
-    && Array.isArray(job.facility_ids)
-    && job.facility_ids.length === 1
-    && job.facility_ids[0] === facilityId
-    && job.id !== pinnedBinderJobId);
+  const { data: allBinders } = useSingleFacilitySucceededBinders(facilityId);
+  // The server accepts only a succeeded export whose facility_ids is exactly this facility.
+  const pinnable = (allBinders ?? []).filter((job) => job.id !== pinnedBinderJobId);
   const completedAt = pinned?.completed_at as string | undefined;
   const isCurrent = completedAt ? (Date.now() - new Date(completedAt).valueOf()) < 24 * 60 * 60 * 1000 : false;
   const packetJob = pinned as SurveyEvidencePacketJob | undefined;
