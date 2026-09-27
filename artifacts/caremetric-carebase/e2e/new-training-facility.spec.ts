@@ -485,7 +485,7 @@ test.describe("new training facility administrator", () => {
       const printed = await page.evaluate(() =>
         (window as Window & { trainingPrintSnapshot?: { text: string; rows: string[][]; html: string; head: string } }).trainingPrintSnapshot!,
       );
-      expect(printed.text).toContain("1 enrollments; 1 distinct students; 1 completed / 1 non-canceled; 1 issued certificates");
+      expect(printed.text).toContain("1 enrollment; 1 distinct student; 1 completed / 1 non-canceled; 1 issued certificate");
       expect(printed.rows[0]).toEqual(expect.arrayContaining(["Everly Newlearner", fixture.facility.name]));
       const printedRow = printed.rows[0].join(" ");
       expect(printedRow).toContain(fixture.courseTitle);
@@ -494,7 +494,11 @@ test.describe("new training facility administrator", () => {
       expect(printedRow).toContain("Completed:");
       expect(printed.text).not.toContain("Aspen other facility");
 
-      await report.screenshot({ path: "test-results/new-training-facility-report.png" });
+      // The report scrolls inside main; a tall element capture has transparent
+      // off-viewport regions in WebKit. Capture the visible report controls.
+      await report.getByRole("heading", { name: "Enrollment, completion & certificates", exact: true })
+        .evaluate(heading => heading.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" }));
+      await page.screenshot({ path: "test-results/new-training-facility-report.png", fullPage: false, animations: "disabled" });
       const printEvidence = await page.context().newPage();
       try {
         await printEvidence.emulateMedia({ media: "print" });
