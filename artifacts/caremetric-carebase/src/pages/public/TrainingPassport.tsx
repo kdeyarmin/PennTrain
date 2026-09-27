@@ -23,7 +23,7 @@ export default function TrainingPassport() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 print:bg-white">
       <div className="mx-auto max-w-3xl space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 print:hidden"><div className="flex items-center gap-3"><LogoMark className="h-12 w-12" /><div><BrandName className="font-bold" /><p className="text-sm text-muted-foreground">Portable training passport</p></div></div><Button onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Save as PDF</Button></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 print:hidden"><div className="flex items-center gap-3"><LogoMark className="h-12 w-12" /><div><BrandName className="font-bold" /><p className="text-sm text-muted-foreground">Portable training passport</p></div></div>{passport.data && !passport.isLoading && !passport.isError && <Button onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Save as PDF</Button>}</div>
         {passport.isLoading ? <Card><CardContent className="py-16 text-center text-muted-foreground">Loading passport…</CardContent></Card> : passport.isError ? (
           // "Revoked, replaced, or does not exist" is a claim about the link. A failed fetch
           // is a claim about us -- saying the first when the second happened sends the holder
@@ -50,6 +50,7 @@ export default function TrainingPassport() {
               </CardHeader>
             </Card>
             <p className="text-xs text-muted-foreground">Each entry is a course completion recorded in CareMetric CareBase and verifiable at the link beside it. Hours shown are the compliance credit recorded for that completion; CareMetric is not a continuing-education accrediting body and this transcript makes no CE claim.</p>
+            {passport.data.certificates.length === 0 && <p className="rounded-lg border bg-white p-6 text-center text-sm text-muted-foreground">No training certificates have been added to this passport yet.</p>}
             <div className="space-y-3">{passport.data.certificates.map((certificate) => (
               <Card key={certificate.certificateId}><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div><p className="flex items-center gap-2 font-semibold"><Award className="h-4 w-4 text-primary" />{documentDisplayName({ title: certificate.courseTitle, fallback: "Training certificate" })}</p><p className="mt-1 text-sm text-muted-foreground">Issued {new Date(certificate.issuedAt).toLocaleDateString()}{certificate.creditHours != null ? ` · ${certificate.creditHours} training hours credited` : ""}{certificate.expiresAt ? ` · ${certificate.isValid ? "Valid through" : "Expired"} ${new Date(certificate.expiresAt).toLocaleDateString()}` : ""}</p><p className="mt-1 font-mono text-xs text-muted-foreground">Certificate number: {certificate.credentialNumber}</p></div><div className="flex items-center gap-2"><Badge variant={certificate.isValid ? "default" : "destructive"}>{certificate.isValid ? "Valid" : "Expired"}</Badge><Button asChild variant="outline" size="sm" className="print:hidden"><Link href={certificate.verificationPath}>Verify <ExternalLink className="ml-1 h-3.5 w-3.5" /></Link></Button></div></CardContent></Card>
             ))}</div>

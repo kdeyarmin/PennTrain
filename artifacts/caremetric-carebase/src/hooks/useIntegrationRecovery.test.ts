@@ -20,7 +20,7 @@ describe("integration mutation recovery", () => {
   });
   it.each(["issue_integration_api_credential", "create_integration_webhook_endpoint"])("refreshes the issued register after %s", async rpc => {
     const mutation = options(useEnterpriseRpcCommand); await mutation.onSuccess(null, { rpc, args: {} });
-    expect(h.invalidate.mock.calls.map(call => call[0].queryKey)).toEqual([["enterprise-foundation"], ["integration-register"], ["integration-api-credentials"]]);
+    expect(h.invalidate.mock.calls.map(call => call[0].queryKey)).toEqual([["enterprise-foundation"], ["governed-record-options"], ["integration-register"], ["integration-api-credentials"]]);
   });
   it.each([[useRotateIntegrationCredential, { credentialId: "key" }], [useRotateWebhookSecret, { endpointId: "endpoint" }]] as const)("does not claim an empty rotation response left the server unchanged", async (hook, input) => {
     const mutation = options(hook); await expect(mutation.mutationFn(input)).rejects.toThrow("Refresh"); await mutation.onSettled();

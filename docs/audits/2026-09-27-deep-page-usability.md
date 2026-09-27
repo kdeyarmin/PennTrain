@@ -26,17 +26,26 @@ This is a source review plus targeted tests and browser samples, **not a claim t
 6. **Improve phone layouts and readability.** Long report references, document titles, action groups, pagers, matrix controls, DHS form rows and learner controls wrap within the viewport. Report scope/table text and public portal/source notes have stronger contrast. Dark mode remains removed, including under OS dark preference.
 7. **Improve public self-service.** FAQ search matches question/answer/topic terms and has topic shortcuts and clear/no-match feedback. Signup agreements have section jumps. Safety-report and guest-request forms explain minimum input requirements and offer facility/link retry without discarding valid input.
 
+## Follow-up improvements — September 27, 2026
+
+The next pass implements the concrete follow-ups from this review:
+
+- Enterprise commands use readable searchable record choices with organization/facility scope, retry/empty states, unambiguous references and current-selection validation. Lifecycle apply still requires an allowed preview for the exact current request. Common work documentation uses record choices; specialist record types retain an explicit advanced path. Simple entitlement values use Yes/No, number or text inputs; structured values remain advanced.
+- Guest access has genuine cursor pagination beyond 200 records per type. Backend filters determine the requested type/status within the permitted organization. Failed continuation preserves already loaded records and exposes retry; counts identify loaded results.
+- Admin dashboard and notifications use URL-backed task sections. Dashboard attention queues come first. Notification warnings remain reachable from the delivery queue, drafts survive section changes, and documentation opens in a dialog with focus restoration. Today puts due work before optional guidance; preference saving is available at the bottom of the page.
+- Resident assignment failures offer recovery while keeping authorized charts accessible. Invitation searches synchronize with navigation and clearing removes stale URL search. AI/video selectors distinguish failed lookups from empty choices and retain draft input; pending video retries keep their original request even if provider choices are unavailable. Guest pages explain empty tasks/certificates and avoid PDF or document-delivery actions in inappropriate states.
+
+Local browser scenarios use fictional responses and block backend requests. The follow-up did not change database schemas, permissions, provider settings, notifications or tenant records. Live acceptance remains outstanding.
+
 ## Remaining opportunities
 
 These are review findings, not completed changes. Corresponding work remains open in `BACKLOG.md`.
 
 | Priority | Opportunity | Evidence and recommended next step |
 | --- | --- | --- |
-| High | Replace raw record IDs and JSON with scoped selectors | Enterprise Foundation and linked work documentation still require users to know record IDs/types. Build searchable organization/facility/record pickers with a readable command review, preserving the existing authorization and preview contracts. |
+| Medium | Finish specialist record selectors | Common enterprise/work forms now have scoped choices and readable review. Advanced manual record types and structured entitlement values remain available for existing specialist workflows; add dedicated choices where a clear data contract is available. |
 | High | Validate complete role journeys with a representative tenant | Source coverage and fixture checks do not verify backend permissions, real records, provider integrations or every responsive state. Run administrator, manager, trainer, employee and auditor tasks through CI and tenant acceptance, including mobile Safari, long names, large lists and denied/empty/loading states. |
-| Medium | Finish smaller read-state and URL consistency gaps | The detailed ledger records resident-assignment grouping when its queue fails, invitation search changes on an already mounted page, AI/provider option reads, and some guest-portal empty states. Keep failures distinct from absence and preserve the user's input/context. |
-| Medium | Browse older guest grants | GuestAccessCenter loads a bounded set per grant type; its type filter only narrows those rows. The explanatory copy is corrected, but browsing older grants needs real pagination through the data contract. |
-| Medium | Reduce dense administrative pages | Admin dashboard, notifications, enterprise controls and Today contain multiple competing explanations and task groups. Use role-based acceptance sessions to choose the first-screen priorities, then add task-specific subsections and progressive disclosure. |
+| Medium | Continue simplifying specialist administration | Dashboard/notification sections and Today disclosure are implemented. Validate their priority order with operators; simplify dense specialist tables, paginate notification history beyond its existing bounded list, and let unrelated Today panels recover independently. |
 
 ## Verification
 

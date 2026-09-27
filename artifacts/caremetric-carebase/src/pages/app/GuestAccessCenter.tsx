@@ -1,11 +1,13 @@
 import { useId, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, KeyRound, ShieldOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
+import { useUrlState } from "@/hooks/useUrlState";
+import { useGuestAccessGrants, type GrantKind, type GrantStatus, type UnifiedGrant } from "@/hooks/useGuestAccessGrants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,20 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 
-type GrantKind = "evidence" | "move_in" | "agreement" | "portal";
-
-interface UnifiedGrant {
-  kind: GrantKind;
-  id: string;
-  label: string;
-  facilityLabel?: string | null;
-  expiresAt?: string | null;
-  revokedAt?: string | null;
-  createdAt?: string | null;
-  parentHref: string;
-  parentLabel: string;
-}
-
 const KIND_LABEL: Record<GrantKind, string> = {
   evidence: "Evidence room",
   move_in: "Move-in",
@@ -37,8 +25,7 @@ const KIND_LABEL: Record<GrantKind, string> = {
   portal: "Resident portal",
 };
 
-/** Per-table row cap. Each source is fetched separately, so a full page means "there may be more". */
-const GRANT_PAGE_SIZE = 200;
+const FILTER_DEFAULTS = { kind: "all", status: "active" };
 
 function isActive(grant: UnifiedGrant) {
   if (grant.revokedAt) return false;
@@ -52,8 +39,9 @@ export default function GuestAccessCenter() {
   const { viewingOrgId } = useViewingOrg();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [kindFilter, setKindFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [filters, setFilters] = useUrlState(FILTER_DEFAULTS);
+  const kindFilter = Object.hasOwn(KIND_LABEL, filters.kind) ? filters.kind as GrantKind : "all";
+  const statusFilter: GrantStatus = filters.status === "inactive" || filters.status === "all" ? filters.status : "active";
   const [revokeTarget, setRevokeTarget] = useState<UnifiedGrant | null>(null);
   const [reason, setReason] = useState("");
   const [revoking, setRevoking] = useState(false);
@@ -64,132 +52,14 @@ export default function GuestAccessCenter() {
   // /admin. Evidence and move-in workspaces admit every role that can open this page.
   const residentBase = user?.role === "platform_admin" ? "/admin/residents" : "/app/residents";
 
-  const grantsQuery = useQuery({
-    queryKey: ["guest-access-center", orgId, statusFilter, residentBase],
-    enabled: !!orgId,
-    queryFn: async (): Promise<{ rows: UnifiedGrant[]; truncated: boolean }> => {
-      // Status has to be decided on the server. Each table is capped at GRANT_PAGE_SIZE newest
-      // rows, so filtering to Active only after the fetch means a long-lived grant that happens to
-      // be older than a page full of revoked ones never appears -- and a grant nobody can see is a
-      // grant nobody can revoke, which is the whole purpose of this page.
-      const nowIso = new Date().toISOString();
-      const scopeStatus = <T extends { is: any; or: any }>(query: T): T => {
-        if (statusFilter === "active") {
-          return query.is("revoked_at", null).or(`expires_at.is.null,expires_at.gt.${nowIso}`) as T;
-        }
-        if (statusFilter === "inactive") {
-          return query.or(`revoked_at.not.is.null,expires_at.lte.${nowIso}`) as T;
-        }
-        return query;
-      };
-
-      const [evidence, moveIn, agreements, portals] = await Promise.all([
-        scopeStatus(
-          supabase
-            .from("evidence_guest_grants")
-            .select("id, guest_label, expires_at, revoked_at, created_at, collection_id, organization_id")
-            .eq("organization_id", orgId!),
-        )
-          .order("created_at", { ascending: false })
-          .limit(GRANT_PAGE_SIZE),
-        scopeStatus(
-          supabase
-            .from("move_in_guest_grants")
-            .select("id, guest_label, expires_at, revoked_at, created_at, workspace_id, organization_id")
-            .eq("organization_id", orgId!),
-        )
-          .order("created_at", { ascending: false })
-          .limit(GRANT_PAGE_SIZE),
-        scopeStatus(
-          supabase
-            .from("resident_agreement_guest_grants")
-            .select("id, guest_label, expires_at, revoked_at, created_at, resident_id, organization_id")
-            .eq("organization_id", orgId!),
-        )
-          .order("created_at", { ascending: false })
-          .limit(GRANT_PAGE_SIZE),
-        scopeStatus(
-          supabase
-            .from("resident_portal_grants")
-            .select("id, designated_person_name, relationship_label, expires_at, revoked_at, created_at, resident_id, organization_id")
-            .eq("organization_id", orgId!),
-        )
-          .order("created_at", { ascending: false })
-          .limit(GRANT_PAGE_SIZE),
-      ]);
-
-      const firstError = evidence.error ?? moveIn.error ?? agreements.error ?? portals.error;
-      if (firstError) throw firstError;
-
-      const rows: UnifiedGrant[] = [
-        ...(evidence.data ?? []).map((g: any) => ({
-          kind: "evidence" as const,
-          id: g.id,
-          label: g.guest_label ?? "Evidence guest",
-          expiresAt: g.expires_at,
-          revokedAt: g.revoked_at,
-          createdAt: g.created_at,
-          parentHref: `/app/evidence/${g.collection_id}`,
-          parentLabel: "Open evidence collection",
-        })),
-        ...(moveIn.data ?? []).map((g: any) => ({
-          kind: "move_in" as const,
-          id: g.id,
-          label: g.guest_label ?? "Move-in guest",
-          expiresAt: g.expires_at,
-          revokedAt: g.revoked_at,
-          createdAt: g.created_at,
-          parentHref: `/app/admissions/move-ins/${g.workspace_id}`,
-          parentLabel: "Open move-in workspace",
-        })),
-        ...(agreements.data ?? []).map((g: any) => ({
-          kind: "agreement" as const,
-          id: g.id,
-          label: g.guest_label ?? "Agreement signer",
-          expiresAt: g.expires_at,
-          revokedAt: g.revoked_at,
-          createdAt: g.created_at,
-          parentHref: `${residentBase}/${g.resident_id}`,
-          parentLabel: "Open resident",
-        })),
-        ...(portals.data ?? []).map((g: any) => ({
-          kind: "portal" as const,
-          id: g.id,
-          label: g.designated_person_name
-            ? `${g.designated_person_name}${g.relationship_label ? ` (${g.relationship_label})` : ""}`
-            : "Portal guest",
-          expiresAt: g.expires_at,
-          revokedAt: g.revoked_at,
-          createdAt: g.created_at,
-          parentHref: `${residentBase}/${g.resident_id}`,
-          parentLabel: "Open resident",
-        })),
-      ];
-
-      // A source that came back exactly full may have more behind it. Say so rather than let the
-      // list read as complete.
-      const truncated = [evidence, moveIn, agreements, portals].some(
-        (result) => (result.data ?? []).length >= GRANT_PAGE_SIZE,
-      );
-
-      return {
-        rows: rows.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))),
-        truncated,
-      };
-    },
-  });
-
+  const grantsQuery = useGuestAccessGrants({ organizationId: orgId ?? "", kind: kindFilter, status: statusFilter, residentBase }, user?.id);
   const filtered = useMemo(() => {
-    let rows = grantsQuery.data?.rows ?? [];
-    if (kindFilter !== "all") rows = rows.filter((r) => r.kind === kindFilter);
-    // Status is already scoped server-side; re-applying it here only trims rows that crossed their
-    // expiry between the query and this render.
-    if (statusFilter === "active") rows = rows.filter(isActive);
-    if (statusFilter === "inactive") rows = rows.filter((r) => !isActive(r));
-    return rows;
-  }, [grantsQuery.data, kindFilter, statusFilter]);
-
-  const activeCount = (grantsQuery.data?.rows ?? []).filter(isActive).length;
+    const rows = grantsQuery.data?.pages.flatMap(page => page.rows) ?? [];
+    // Hide grants that expired between a successful read and this render.
+    return statusFilter === "active" ? rows.filter(isActive) : rows;
+  }, [grantsQuery.data, statusFilter]);
+  const activeCount = filtered.filter(isActive).length;
+  const unavailable = !orgId || grantsQuery.isLoading || (grantsQuery.isError && !grantsQuery.isFetchNextPageError);
 
   const revoke = async () => {
     if (!revokeTarget || reason.trim().length < 5) return;
@@ -228,25 +98,18 @@ export default function GuestAccessCenter() {
       <div className="page-header">
         <h1 className="flex items-center gap-2"><KeyRound className="h-6 w-6" /> Guest access center</h1>
         <p className="text-muted-foreground">
-          Review and revoke external tokens for evidence rooms, move-in workspaces, agreements, and resident portals.
+          Review and revoke guest access to evidence rooms, move-in workspaces, agreements, and resident portals.
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.isLoading || grantsQuery.isError ? "—" : (grantsQuery.data?.rows.length ?? 0)}</p><p className="text-sm text-muted-foreground">Grants in view</p></CardContent></Card>
-        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{grantsQuery.isLoading || grantsQuery.isError ? "—" : activeCount}</p><p className="text-sm text-muted-foreground">Active in view</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{unavailable ? "—" : filtered.length}</p><p className="text-sm text-muted-foreground">Matching grants loaded</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{unavailable ? "—" : activeCount}</p><p className="text-sm text-muted-foreground">Active grants loaded</p></CardContent></Card>
         <Card><CardContent className="pt-5"><p className="text-2xl font-bold">{canManage ? "Revoke" : "View"}</p><p className="text-sm text-muted-foreground">{canManage ? "Managers may revoke with reason" : "Read-only for auditors"}</p></CardContent></Card>
       </div>
 
-      {grantsQuery.data?.truncated ? (
-        <p className="text-sm text-amber-700">
-          At least one grant type returned a full page of {GRANT_PAGE_SIZE} rows, so older grants may not be
-          listed. Open the relevant evidence collection, move-in workspace, or resident record to review older grants; filtering this list does not load additional records.
-        </p>
-      ) : null}
-
       <div className="filter-bar premium-card flex flex-wrap gap-2">
-        <Select value={kindFilter} onValueChange={setKindFilter}>
+        <Select value={kindFilter} onValueChange={kind => setFilters({ kind })}>
           <SelectTrigger className="w-48" aria-label="Grant type"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All grant types</SelectItem>
@@ -255,7 +118,7 @@ export default function GuestAccessCenter() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={status => setFilters({ status })}>
           <SelectTrigger className="w-40" aria-label="Grant status"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Active only</SelectItem>
@@ -268,15 +131,21 @@ export default function GuestAccessCenter() {
       <Card>
         <CardHeader>
           <CardTitle>External access grants</CardTitle>
-          <CardDescription>Up to 200 most recent grants per type. Open the parent record to issue new tokens.</CardDescription>
+          <CardDescription>Newest first. Load older grants below, or open the parent record to issue new access.</CardDescription>
         </CardHeader>
         <CardContent>
-          {grantsQuery.isError ? (
+          {!orgId ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">Select an organization to review guest access.</p>
+          ) : grantsQuery.isError && !grantsQuery.isFetchNextPageError ? (
             <QueryError what="guest access grants" error={grantsQuery.error} onRetry={() => grantsQuery.refetch()} />
           ) : grantsQuery.isLoading ? (
             <QueryLoading what="guest access grants" />
           ) : filtered.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">No guest grants match these filters.</p>
+            <div className="space-y-3 py-10 text-center">
+              <p className="text-sm text-muted-foreground">No guest grants match these filters.</p>
+              {(kindFilter !== "all" || statusFilter !== "all") && <Button variant="outline" onClick={() => setFilters({ kind: "all", status: "all" })}>Show all grants</Button>}
+              <p className="text-sm text-muted-foreground">Create guest access from an evidence collection, move-in workspace, or resident record.</p>
+            </div>
           ) : (
             <div className="space-y-2">
               {filtered.map((grant) => {
@@ -285,7 +154,7 @@ export default function GuestAccessCenter() {
                   <div key={`${grant.kind}-${grant.id}`} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">{grant.label}</p>
+                        <p className="break-words font-medium [overflow-wrap:anywhere]">{grant.label}</p>
                         <Badge variant="outline">{KIND_LABEL[grant.kind]}</Badge>
                         <Badge variant={active ? "default" : "secondary"}>{active ? "Active" : grant.revokedAt ? "Revoked" : "Expired"}</Badge>
                       </div>
@@ -294,12 +163,12 @@ export default function GuestAccessCenter() {
                         {grant.expiresAt ? ` · Expires ${formatDateForDisplay(grant.expiresAt)}` : ""}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex shrink-0 flex-wrap gap-2">
                       <Button asChild size="sm" variant="outline">
                         <Link href={grant.parentHref}><ExternalLink className="mr-1 h-3.5 w-3.5" />{grant.parentLabel}</Link>
                       </Button>
                       {canManage && active && (
-                        <Button size="sm" variant="destructive" onClick={() => { setRevokeTarget(grant); setReason(""); }}>
+                        <Button size="sm" variant="destructive" aria-label={`Revoke access for ${grant.label}`} onClick={() => { setRevokeTarget(grant); setReason(""); }}>
                           <ShieldOff className="mr-1 h-3.5 w-3.5" /> Revoke
                         </Button>
                       )}
@@ -307,6 +176,17 @@ export default function GuestAccessCenter() {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {!unavailable && orgId && (
+            <div className="mt-5 space-y-3 border-t pt-4">
+              <p className="text-sm text-muted-foreground" role="status">
+                {filtered.length} matching {filtered.length === 1 ? "grant" : "grants"} loaded{grantsQuery.hasNextPage ? ". Older grants are available." : ". All matching grants loaded."}
+              </p>
+              {grantsQuery.isFetchNextPageError && <p role="alert" className="text-sm text-destructive">Could not load older grants. Your current results are still available. Try again.</p>}
+              {grantsQuery.hasNextPage && <Button variant="outline" disabled={grantsQuery.isFetching} onClick={() => void grantsQuery.fetchNextPage()}>
+                {grantsQuery.isFetchingNextPage ? "Loading older grants…" : grantsQuery.isFetchNextPageError ? "Retry loading older grants" : "Load older grants"}
+              </Button>}
             </div>
           )}
         </CardContent>
@@ -321,7 +201,7 @@ export default function GuestAccessCenter() {
             {revokeTarget ? `${revokeTarget.label} (${KIND_LABEL[revokeTarget.kind]}) will stop working immediately.` : ""}
           </p>
           <div className="space-y-2">
-            <Label htmlFor={`${__fieldIds}-reason`}>Reason *</Label>
+            <Label htmlFor={`${__fieldIds}-reason`}>Reason * (at least 5 characters)</Label>
             <Input id={`${__fieldIds}-reason`} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Survey complete; access no longer needed" />
           </div>
           <DialogFooter>

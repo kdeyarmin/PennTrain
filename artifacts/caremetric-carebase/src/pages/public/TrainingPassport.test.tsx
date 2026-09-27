@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   slug: "passport-a", key: null as string | null, state: [] as unknown[], cursor: 0,
   effects: [] as { deps?: unknown[]; cleanup?: () => void }[], generate: vi.fn(),
+  passportState: {} as Record<string, unknown>,
 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -25,7 +26,7 @@ vi.mock("@/lib/appUrl", () => ({ absoluteAppUrl: (path: string) => `https://app.
 vi.mock("@/lib/usePageMeta", () => ({ usePageMeta: vi.fn() }));
 vi.mock("@/hooks/useProductExperience", () => ({ usePublicTrainingPassport: (slug: string) => ({ data: {
   employeeName: `Learner ${slug}`, certificateCount: 0, creditedCertificateCount: 0, certificates: [],
-} }) }));
+}, ...h.passportState }) }));
 
 import TrainingPassport from "./TrainingPassport";
 import { QrCodeImage } from "@/components/QrCodeImage";
@@ -51,10 +52,14 @@ function pendingQr() {
   h.generate.mockReturnValueOnce(promise);
   return { resolve, reject };
 }
-beforeEach(() => { vi.clearAllMocks(); h.slug = "passport-a"; h.key = null; h.state = []; h.cursor = 0; h.effects = []; });
+beforeEach(() => { vi.clearAllMocks(); h.slug = "passport-a"; h.key = null; h.state = []; h.cursor = 0; h.effects = []; h.passportState = {}; });
 afterEach(() => { h.effects.forEach(effect => effect?.cleanup?.()); });
 
 describe("public passport QR identity", () => {
+  it.each([{ isLoading: true }, { isError: true }, { data: null }])("does not offer an incomplete PDF when the passport is unavailable: %j", state => {
+    h.passportState = state;
+    expect(nodes(TrainingPassport()).some(node => typeof node.props.onClick === "function")).toBe(false);
+  });
   it("removes the previous learner's QR immediately when the passport changes", async () => {
     const first = pendingQr(); renderQr(); first.resolve("data:image/png;base64,passport-a");
     await Promise.resolve();

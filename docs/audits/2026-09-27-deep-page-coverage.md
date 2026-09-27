@@ -7,6 +7,8 @@ Dated source and test evidence supporting the deep usability review. BACKLOG.md 
 
 Paths below are relative to `artifacts/caremetric-carebase/src/pages`. Source review covers page entry/exit paths, primary controls, loading/error/empty states and mobile layout structure. It does not mean every state was exercised against a live backend.
 
+Follow-up: the [deep review report](2026-09-27-deep-page-usability.md#follow-up-improvements--september-27-2026) supersedes the initial residual notes for EnterpriseFoundation, WorkItemDetail, GuestAccessCenter, AdminDashboard, NotificationDeliveries, NotificationSettings, Today, MyResidents, InvitationLifecycle, AiCourseWizard, CourseDetail/video dialogs, TrainingPassport and MoveInGuestPortal. Those follow-ups now have scoped selectors, pagination, task sections or explicit read/empty-state recovery as documented there. Specialist advanced forms and live tenant acceptance remain open in `BACKLOG.md`.
+
 | Checked source | Evidence / outcome |
 | --- | --- |
 | app/Alerts.tsx | Checked role-aware record links, status/severity/facility/search, selection, mutations and pagination. Added search name and wrapped mobile actions, bulk toolbar and pager. Remaining: cross-page selections persist across search/facility changes; consider an explicit selected-record review before bulk changes. No alert resolved/dismissed. |

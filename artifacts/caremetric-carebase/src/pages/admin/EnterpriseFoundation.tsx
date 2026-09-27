@@ -45,6 +45,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { ENTERPRISE_OPERATION_GUARDRAILS, summarizeSetupProgress, type GuidedSetupItem } from "@/lib/enterpriseOperations";
 import { QueryError } from "@/components/QueryState";
+import { GovernedRecordPicker } from "@/components/GovernedRecordPicker";
+import { useAvailableGovernedRecord, type GovernedRecordKind } from "@/hooks/useGovernedRecordOptions";
 
 function isScalar(value: EnterpriseJson): value is string | number | boolean | null {
   return value === null || ["string", "number", "boolean"].includes(typeof value);
@@ -71,11 +73,10 @@ function statusVariant(value: EnterpriseJson): "default" | "secondary" | "destru
 
 function JsonValue({ value }: { value: EnterpriseJson }) {
   if (isScalar(value)) return <span>{formatScalar(value)}</span>;
-  return (
-    <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs">
-      {JSON.stringify(value, null, 2)}
-    </pre>
-  );
+  if (Array.isArray(value)) return value.length ? <ul className="space-y-3">{value.map((item, index) => <li key={index} className="min-w-0 rounded-md border p-3"><JsonValue value={item} /></li>)}</ul> : <span>No records</span>;
+  return <dl className="space-y-2 text-sm">{Object.entries(value).map(([key, item]) => <div key={key} className="grid min-w-0 gap-1 sm:grid-cols-[minmax(8rem,1fr)_minmax(0,2fr)]">
+    <dt className="font-medium">{labelFor(key)}</dt><dd className="min-w-0 break-words"><JsonValue value={item} /></dd>
+  </div>)}</dl>;
 }
 
 function ControlPlanePanel({
@@ -133,7 +134,9 @@ function ControlPlanePanel({
   );
 }
 
-function LifecycleCommand() {
+export function LifecycleCommand() {
+  const { user } = useAuth();
+  const [organizationId, setOrganizationId] = useState(user?.organizationId ?? "");
   const __fieldIds = useId();
   const { toast } = useToast();
   const previewCommand = useEnterpriseRpcCommand();
@@ -154,8 +157,15 @@ function LifecycleCommand() {
     p_reason: reason.trim(),
   };
   const currentKey = JSON.stringify(commandArgs);
+  const previewAllowsTransition = preview !== null && !Array.isArray(preview) && typeof preview === "object" && preview.allowed === true;
+
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const choice0Available = useAvailableGovernedRecord("employee", employeeId, organizationId);
+  const choice1Available = useAvailableGovernedRecord("facility", targetFacilityId, organizationId, true);
+  const selectionReady = organizationAvailable && choice0Available && choice1Available;
 
   const previewTransition = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!employeeId || reason.trim().length < 8) {
       toast({ title: "Employee and a meaningful reason are required", variant: "destructive" });
       return;
@@ -175,12 +185,13 @@ function LifecycleCommand() {
   };
 
   const submit = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!employeeId || reason.trim().length < 8) {
       toast({ title: "Employee and a meaningful reason are required", variant: "destructive" });
       return;
     }
     try {
-      if (previewKey !== currentKey) {
+      if (previewKey !== currentKey || !previewAllowsTransition) {
         toast({ title: "Preview the current transition first", variant: "destructive" });
         return;
       }
@@ -204,9 +215,9 @@ function LifecycleCommand() {
         <CardDescription>Lifecycle commands retain documentation, capture the reason, and apply access changes transactionally.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2"><GovernedRecordPicker id="phase2-lifecycle-organization" label="Organization" kind="organization" value={organizationId} onValueChange={value => { setOrganizationId(value); setEmployeeId(""); setTargetFacilityId(""); }} /></div>
         <div className="space-y-1.5 md:col-span-2">
-          <Label htmlFor="phase2-employee-id">Employee ID</Label>
-          <Input id="phase2-employee-id" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} placeholder="Employee UUID" />
+          <GovernedRecordPicker key={organizationId} id="phase2-employee-id" label="Employee" kind="employee" value={employeeId} onValueChange={setEmployeeId} organizationId={organizationId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${__fieldIds}-transition`}>Transition</Label>
@@ -224,8 +235,7 @@ function LifecycleCommand() {
           <Input id="phase2-effective-date" type="date" value={effectiveDate} onChange={(event) => setEffectiveDate(event.target.value)} />
         </div>
         <div className="space-y-1.5 md:col-span-2">
-          <Label htmlFor="phase2-target-facility">Target facility ID (hire, rehire, or transfer)</Label>
-          <Input id="phase2-target-facility" value={targetFacilityId} onChange={(event) => setTargetFacilityId(event.target.value)} placeholder="Optional facility UUID" />
+          <GovernedRecordPicker key={organizationId} id="phase2-target-facility" label="Target facility (hire, rehire, or transfer)" kind="facility" value={targetFacilityId} onValueChange={setTargetFacilityId} organizationId={organizationId} optional />
         </div>
         <div className="space-y-1.5 md:col-span-2">
           <Label htmlFor="phase2-transition-reason">Reason</Label>
@@ -238,10 +248,10 @@ function LifecycleCommand() {
           </div>
         ) : null}
         <div className="flex flex-wrap gap-2 md:col-span-2">
-          <Button variant="outline" onClick={() => void previewTransition()} disabled={previewCommand.isPending || applyCommand.isPending}>
+          <Button variant="outline" onClick={() => void previewTransition()} disabled={!selectionReady || previewCommand.isPending || applyCommand.isPending}>
             Preview effects
           </Button>
-          <Button onClick={() => void submit()} disabled={applyCommand.isPending || previewKey !== currentKey}>
+          <Button onClick={() => void submit()} disabled={!selectionReady || applyCommand.isPending || previewKey !== currentKey || !previewAllowsTransition}>
             Apply guarded transition
           </Button>
         </div>
@@ -250,7 +260,9 @@ function LifecycleCommand() {
   );
 }
 
-function ScopeGrantCommand() {
+export function ScopeGrantCommand() {
+  const { user } = useAuth();
+  const [organizationId, setOrganizationId] = useState(user?.organizationId ?? "");
   const __fieldIds = useId();
   const { toast } = useToast();
   const command = useEnterpriseRpcCommand();
@@ -263,7 +275,13 @@ function ScopeGrantCommand() {
   const roleTemplates = useEnterpriseRoleTemplates();
   const [reason, setReason] = useState("");
 
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const choice0Available = useAvailableGovernedRecord("profile", profileId, organizationId);
+  const choice1Available = useAvailableGovernedRecord(scopeType as GovernedRecordKind, scopeId, organizationId);
+  const selectionReady = organizationAvailable && choice0Available && choice1Available;
+
   const submit = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!profileId || !scopeId || !roleTemplateId || reason.trim().length < 8) {
       toast({ title: "Profile, scope, role template, and a meaningful reason are required", variant: "destructive" });
       return;
@@ -293,9 +311,9 @@ function ScopeGrantCommand() {
         <CardDescription>The trusted resolver combines this effective-dated grant with hierarchy and tenant state.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2"><GovernedRecordPicker id="phase2-grant-organization" label="Organization" kind="organization" value={organizationId} onValueChange={value => { setOrganizationId(value); setProfileId(""); setScopeId(""); }} /></div>
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-grant-profile">Profile ID</Label>
-          <Input id="phase2-grant-profile" value={profileId} onChange={(event) => setProfileId(event.target.value)} />
+          <GovernedRecordPicker key={organizationId} id="phase2-grant-profile" label="Person" kind="profile" value={profileId} onValueChange={setProfileId} organizationId={organizationId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="phase2-role-template">Role template</Label>
@@ -312,7 +330,7 @@ function ScopeGrantCommand() {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${__fieldIds}-scope-type`}>Scope type</Label>
-          <Select value={scopeType} onValueChange={setScopeType}>
+          <Select value={scopeType} onValueChange={value => { setScopeType(value); setScopeId(""); }}>
             <SelectTrigger id={`${__fieldIds}-scope-type`}><SelectValue /></SelectTrigger>
             <SelectContent>
               {['portfolio', 'region', 'organization', 'facility'].map((value) => <SelectItem key={value} value={value}>{labelFor(value)}</SelectItem>)}
@@ -320,27 +338,34 @@ function ScopeGrantCommand() {
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-grant-scope">Scope ID</Label>
-          <Input id="phase2-grant-scope" value={scopeId} onChange={(event) => setScopeId(event.target.value)} />
+          <GovernedRecordPicker key={`${organizationId}-${scopeType}`} id="phase2-grant-scope" label={`${labelFor(scopeType)} scope`} kind={scopeType as GovernedRecordKind} value={scopeId} onValueChange={setScopeId} organizationId={organizationId} />
         </div>
         <div className="space-y-1.5 md:col-span-2">
           <Label htmlFor="phase2-grant-reason">Reason</Label>
           <Textarea id="phase2-grant-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Approved responsibility or access change" />
         </div>
-        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={command.isPending}>Grant enterprise role</Button></div>
+        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!selectionReady || command.isPending}>Grant enterprise role</Button></div>
       </CardContent>
     </Card>
   );
 }
 
 function ComplianceProfileAssignmentCommand() {
+  const { user } = useAuth();
+  const [organizationId, setOrganizationId] = useState(user?.organizationId ?? "");
   const { toast } = useToast();
   const command = useEnterpriseRpcCommand();
   const [employeeId, setEmployeeId] = useState("");
   const [profileDefinitionId, setProfileDefinitionId] = useState("");
   const [reason, setReason] = useState("");
 
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const choice0Available = useAvailableGovernedRecord("employee", employeeId, organizationId);
+  const choice1Available = useAvailableGovernedRecord("compliance_profile", profileDefinitionId, organizationId);
+  const selectionReady = organizationAvailable && choice0Available && choice1Available;
+
   const submit = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!employeeId || !profileDefinitionId || reason.trim().length < 8) {
       toast({ title: "Employee, profile definition, and a meaningful reason are required", variant: "destructive" });
       return;
@@ -368,19 +393,18 @@ function ComplianceProfileAssignmentCommand() {
         <CardDescription>Assignments retain their effective dates and explanation; mandatory regulatory baselines cannot be weakened.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2"><GovernedRecordPicker id="phase2-compliance-organization" label="Organization" kind="organization" value={organizationId} onValueChange={value => { setOrganizationId(value); setEmployeeId(""); setProfileDefinitionId(""); }} /></div>
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-profile-employee">Employee ID</Label>
-          <Input id="phase2-profile-employee" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} />
+          <GovernedRecordPicker key={organizationId} id="phase2-profile-employee" label="Employee" kind="employee" value={employeeId} onValueChange={setEmployeeId} organizationId={organizationId} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-profile-definition">Profile definition ID</Label>
-          <Input id="phase2-profile-definition" value={profileDefinitionId} onChange={(event) => setProfileDefinitionId(event.target.value)} />
+          <GovernedRecordPicker key={organizationId} id="phase2-profile-definition" label="Compliance profile" kind="compliance_profile" value={profileDefinitionId} onValueChange={setProfileDefinitionId} organizationId={organizationId} />
         </div>
         <div className="space-y-1.5 md:col-span-2">
           <Label htmlFor="phase2-profile-reason">Reason</Label>
           <Textarea id="phase2-profile-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why this governed profile applies" />
         </div>
-        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={command.isPending}>Assign compliance profile</Button></div>
+        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!selectionReady || command.isPending}>Assign compliance profile</Button></div>
       </CardContent>
     </Card>
   );
@@ -394,7 +418,11 @@ function RegulatoryRuleCommand() {
   const [action, setAction] = useState("submit");
   const [notes, setNotes] = useState("");
 
+  const choice0Available = useAvailableGovernedRecord("rule_version", versionId);
+  const selectionReady = choice0Available;
+
   const submit = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!versionId || (["approve", "withdraw"].includes(action) && notes.trim().length < 10)) {
       toast({ title: "Version ID and meaningful review/withdrawal notes are required", variant: "destructive" });
       return;
@@ -423,8 +451,7 @@ function RegulatoryRuleCommand() {
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-rule-version">Rule version ID</Label>
-          <Input id="phase2-rule-version" value={versionId} onChange={(event) => setVersionId(event.target.value)} />
+          <GovernedRecordPicker key={"rules"} id="phase2-rule-version" label="Rule version" kind="rule_version" value={versionId} onValueChange={setVersionId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${__fieldIds}-action`}>Action</Label>
@@ -445,7 +472,7 @@ function RegulatoryRuleCommand() {
             <Textarea id="phase2-rule-notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
           </div>
         ) : null}
-        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={command.isPending}>Run guarded rule action</Button></div>
+        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!selectionReady || command.isPending}>Run guarded rule action</Button></div>
       </CardContent>
     </Card>
   );
@@ -556,7 +583,11 @@ function IdentityDomainCommand() {
   // actually works -- lost the value the operator had been told to publish, and the only way
   // forward on offer was to register again, which overwrote the digest and silently invalidated
   // the TXT record they published last night.
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const selectionReady = organizationAvailable;
+
   const register = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     const normalizedDomain = domain.trim().toLowerCase().replace(/\.$/, "");
     if (!organizationId || !normalizedDomain.includes(".")) {
       toast({ title: "Organization and a valid domain are required", variant: "destructive" });
@@ -621,15 +652,14 @@ function IdentityDomainCommand() {
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-domain-org">Organization ID</Label>
-          <Input id="phase2-domain-org" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
+          <GovernedRecordPicker id="phase2-domain-org" label="Organization" kind="organization" value={organizationId} onValueChange={setOrganizationId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="phase2-domain-name">Domain</Label>
           <Input id="phase2-domain-name" value={domain} onChange={(event) => setDomain(event.target.value)} placeholder="example.org" />
         </div>
         <div className="md:col-span-2">
-          <Button variant="outline" onClick={() => void register()} disabled={command.isPending || !domain.trim()}>
+          <Button variant="outline" onClick={() => void register()} disabled={!selectionReady || command.isPending || !domain.trim()}>
             Register domain
           </Button>
           <p className="mt-1.5 text-xs text-muted-foreground">
@@ -693,7 +723,7 @@ function IdentityDomainCommand() {
                           size="sm"
                           variant="ghost"
                           onClick={() => void rotate(entry.id, entry.domain)}
-                          disabled={command.isPending}
+                          disabled={!selectionReady || command.isPending}
                         >
                           Issue a new challenge
                         </Button>
@@ -715,12 +745,19 @@ function IdentityDomainCommand() {
 }
 
 function IdentityDomainRevocationCommand() {
+  const { user } = useAuth();
+  const [organizationId, setOrganizationId] = useState(user?.organizationId ?? "");
   const { toast } = useToast();
   const command = useEnterpriseRpcCommand();
   const [domainId, setDomainId] = useState("");
   const [reason, setReason] = useState("");
 
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const choice0Available = useAvailableGovernedRecord("domain", domainId, organizationId);
+  const selectionReady = organizationAvailable && choice0Available;
+
   const revoke = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!domainId || reason.trim().length < 10) {
       toast({ title: "Domain ID and a meaningful revocation reason are required", variant: "destructive" });
       return;
@@ -744,15 +781,15 @@ function IdentityDomainRevocationCommand() {
         <CardDescription>Emergency revocation suspends attached SSO connections and deactivates linked profiles with retained documentation.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2"><GovernedRecordPicker id="phase2-revoke-domain-organization" label="Organization" kind="organization" value={organizationId} onValueChange={value => { setOrganizationId(value); setDomainId(""); }} /></div>
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-revoke-domain">Domain ID</Label>
-          <Input id="phase2-revoke-domain" value={domainId} onChange={(event) => setDomainId(event.target.value)} />
+          <GovernedRecordPicker key={organizationId} id="phase2-revoke-domain" label="Domain" kind="domain" value={domainId} onValueChange={setDomainId} organizationId={organizationId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="phase2-revoke-domain-reason">Reason</Label>
           <Input id="phase2-revoke-domain-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Ownership or security incident reference" />
         </div>
-        <div className="md:col-span-2"><Button variant="destructive" onClick={() => void revoke()} disabled={command.isPending}>Revoke domain and linked access</Button></div>
+        <div className="md:col-span-2"><Button variant="destructive" onClick={() => void revoke()} disabled={!selectionReady || command.isPending}>Revoke domain and linked access</Button></div>
       </CardContent>
     </Card>
   );
@@ -771,7 +808,12 @@ function SsoConnectionCommand() {
   const [defaultRole, setDefaultRole] = useState("employee");
   const [jitEnabled, setJitEnabled] = useState(true);
 
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const choice0Available = useAvailableGovernedRecord("domain", identityDomainId, organizationId, false, true);
+  const selectionReady = organizationAvailable && choice0Available;
+
   const create = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!organizationId || !identityDomainId || !providerConnectionId || !displayName.trim() || !user) {
       toast({ title: "Complete every SSO connection field", variant: "destructive" });
       return;
@@ -805,12 +847,10 @@ function SsoConnectionCommand() {
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-sso-org">Organization ID</Label>
-          <Input id="phase2-sso-org" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
+          <GovernedRecordPicker id="phase2-sso-org" label="Organization" kind="organization" value={organizationId} onValueChange={(value) => { setOrganizationId(value); setIdentityDomainId(""); }} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-sso-domain">Verified domain ID</Label>
-          <Input id="phase2-sso-domain" value={identityDomainId} onChange={(event) => setIdentityDomainId(event.target.value)} />
+          <GovernedRecordPicker key={organizationId} id="phase2-sso-domain" label="Verified domain" kind="domain" value={identityDomainId} onValueChange={setIdentityDomainId} organizationId={organizationId} verifiedDomainsOnly />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="phase2-sso-provider">Supabase SSO provider UUID</Label>
@@ -840,7 +880,7 @@ function SsoConnectionCommand() {
           <div><Label htmlFor="phase2-sso-jit">Allow verified-domain JIT membership</Label><p className="text-xs text-muted-foreground">Disable when every identity must be pre-provisioned.</p></div>
           <Switch id="phase2-sso-jit" checked={jitEnabled} onCheckedChange={setJitEnabled} />
         </div>
-        <div className="md:col-span-2"><Button onClick={() => void create()} disabled={insert.isPending}>Register SAML connection</Button></div>
+        <div className="md:col-span-2"><Button onClick={() => void create()} disabled={!selectionReady || insert.isPending}>Register SAML connection</Button></div>
       </CardContent>
     </Card>
   );
@@ -858,7 +898,12 @@ function ScimConnectionCommand() {
   const [defaultFacilityId, setDefaultFacilityId] = useState("");
   const [issued, setIssued] = useState<IssuedScimCredential | null>(null);
 
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const choice0Available = useAvailableGovernedRecord("facility", defaultFacilityId, organizationId);
+  const selectionReady = organizationAvailable && choice0Available;
+
   const createConnection = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!organizationId || !displayName.trim() || !provider.trim() || !defaultFacilityId) {
       toast({ title: "Complete every SCIM connection field", variant: "destructive" });
       return;
@@ -897,12 +942,10 @@ function ScimConnectionCommand() {
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-scim-org">Organization ID</Label>
-          <Input id="phase2-scim-org" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
+          <GovernedRecordPicker id="phase2-scim-org" label="Organization" kind="organization" value={organizationId} onValueChange={(value) => { setOrganizationId(value); setDefaultFacilityId(""); }} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-scim-facility">Default facility ID</Label>
-          <Input id="phase2-scim-facility" value={defaultFacilityId} onChange={(event) => setDefaultFacilityId(event.target.value)} />
+          <GovernedRecordPicker key={organizationId} id="phase2-scim-facility" label="Default facility" kind="facility" value={defaultFacilityId} onValueChange={setDefaultFacilityId} organizationId={organizationId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="phase2-scim-name">Connection name</Label>
@@ -922,7 +965,7 @@ function ScimConnectionCommand() {
             </AlertDescription>
           </Alert>
         ) : null}
-        <div className="md:col-span-2"><Button onClick={() => void createConnection()} disabled={command.isPending || !!issued}>Create SCIM connection</Button></div>
+        <div className="md:col-span-2"><Button onClick={() => void createConnection()} disabled={!selectionReady || command.isPending || !!issued}>Create SCIM connection</Button></div>
       </CardContent>
     </Card>
     {/* Creating was the whole of it. Listing, rotating a credential, and attaching an SSO identity
@@ -933,12 +976,19 @@ function ScimConnectionCommand() {
 }
 
 function SessionRevocationCommand() {
+  const { user } = useAuth();
+  const [organizationId, setOrganizationId] = useState(user?.organizationId ?? "");
   const { toast } = useToast();
   const command = useEnterpriseRpcCommand();
   const [profileId, setProfileId] = useState("");
   const [reason, setReason] = useState("");
 
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const choice0Available = useAvailableGovernedRecord("profile", profileId, organizationId);
+  const selectionReady = organizationAvailable && choice0Available;
+
   const revoke = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!profileId || reason.trim().length < 8) {
       toast({ title: "Profile and a meaningful revocation reason are required", variant: "destructive" });
       return;
@@ -967,21 +1017,21 @@ function SessionRevocationCommand() {
         <CardDescription>Revokes active sessions, deactivates the profile, and records immutable AAL2-authorized documentation.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2"><GovernedRecordPicker id="phase2-session-organization" label="Organization" kind="organization" value={organizationId} onValueChange={value => { setOrganizationId(value); setProfileId(""); }} /></div>
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-revoke-profile">Profile ID</Label>
-          <Input id="phase2-revoke-profile" value={profileId} onChange={(event) => setProfileId(event.target.value)} />
+          <GovernedRecordPicker key={organizationId} id="phase2-revoke-profile" label="Person" kind="profile" value={profileId} onValueChange={setProfileId} organizationId={organizationId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="phase2-revoke-reason">Reason</Label>
           <Input id="phase2-revoke-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Security incident reference" />
         </div>
-        <div className="md:col-span-2"><Button variant="destructive" onClick={() => void revoke()} disabled={command.isPending}>Revoke sessions and deactivate</Button></div>
+        <div className="md:col-span-2"><Button variant="destructive" onClick={() => void revoke()} disabled={!selectionReady || command.isPending}>Revoke sessions and deactivate</Button></div>
       </CardContent>
     </Card>
   );
 }
 
-function EntitlementCommand() {
+export function EntitlementCommand() {
   const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -990,18 +1040,24 @@ function EntitlementCommand() {
   const [featureKey, setFeatureKey] = useState("");
   const [decision, setDecision] = useState("grant");
   const [entitlementValue, setEntitlementValue] = useState("true");
+  const [valueType, setValueType] = useState("boolean");
   const [reason, setReason] = useState("");
 
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const selectionReady = organizationAvailable;
+
   const submit = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!organizationId || !featureKey.trim() || reason.trim().length < 8) {
       toast({ title: "Organization, feature, and a meaningful reason are required", variant: "destructive" });
       return;
     }
     let parsedValue: unknown;
     try {
-      parsedValue = JSON.parse(entitlementValue);
+      parsedValue = valueType === "text" ? entitlementValue : JSON.parse(entitlementValue);
+      if (valueType === "number" && (typeof parsedValue !== "number" || !Number.isFinite(parsedValue))) throw new Error("Invalid number");
     } catch {
-      toast({ title: "Entitlement value must be valid JSON", variant: "destructive" });
+      toast({ title: valueType === "number" ? "Enter a valid number" : "Enter a valid structured value", variant: "destructive" });
       return;
     }
     try {
@@ -1030,8 +1086,7 @@ function EntitlementCommand() {
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5 md:col-span-2">
-          <Label htmlFor="phase2-entitlement-org">Organization ID</Label>
-          <Input id="phase2-entitlement-org" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
+          <GovernedRecordPicker id="phase2-entitlement-org" label="Organization" kind="organization" value={organizationId} onValueChange={setOrganizationId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="phase2-feature-key">Feature key</Label>
@@ -1045,15 +1100,23 @@ function EntitlementCommand() {
           </Select>
         </div>
         <div className="space-y-1.5 md:col-span-2">
-          <Label htmlFor="phase2-entitlement-value">Typed value (JSON)</Label>
-          <Textarea id="phase2-entitlement-value" value={entitlementValue} onChange={(event) => setEntitlementValue(event.target.value)} placeholder='{"seatLimit":100}' />
+          <Label htmlFor="phase2-entitlement-value-type">Value type</Label>
+          <Select value={valueType} onValueChange={value => { setValueType(value); setEntitlementValue(value === "boolean" ? "true" : value === "number" ? "0" : value === "json" ? "{}" : ""); }}>
+            <SelectTrigger id="phase2-entitlement-value-type"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="boolean">Yes / No</SelectItem><SelectItem value="number">Number</SelectItem><SelectItem value="text">Text</SelectItem><SelectItem value="json">Structured value (advanced)</SelectItem></SelectContent>
+          </Select>
+          <Label htmlFor="phase2-entitlement-value">Value</Label>
+          {valueType === "boolean" ? <Select value={entitlementValue} onValueChange={setEntitlementValue}><SelectTrigger id="phase2-entitlement-value"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Yes</SelectItem><SelectItem value="false">No</SelectItem></SelectContent></Select>
+            : valueType === "json" ? <Textarea id="phase2-entitlement-value" value={entitlementValue} onChange={event => setEntitlementValue(event.target.value)} placeholder='{"seatLimit":100}' />
+              : <Input id="phase2-entitlement-value" type={valueType === "number" ? "number" : "text"} value={entitlementValue} onChange={event => setEntitlementValue(event.target.value)} />}
+          {valueType === "json" && <p className="text-xs text-muted-foreground">Use JSON only for a feature that requires a structured value.</p>}
         </div>
         <div className="space-y-1.5 md:col-span-2">
           <Label htmlFor="phase2-entitlement-reason">Reason</Label>
           <Textarea id="phase2-entitlement-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Approved contract or access exception" />
         </div>
         <div className="md:col-span-2">
-          <Button onClick={() => void submit()} disabled={command.isPending}>Record entitlement grant</Button>
+          <Button onClick={() => void submit()} disabled={!selectionReady || command.isPending}>Record entitlement grant</Button>
         </div>
       </CardContent>
     </Card>
@@ -1069,7 +1132,11 @@ function BillingOverrideCommand() {
   const [reason, setReason] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
 
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const selectionReady = organizationAvailable;
+
   const submit = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (!organizationId || reason.trim().length < 10) {
       toast({ title: "Organization and a meaningful override reason are required", variant: "destructive" });
       return;
@@ -1099,8 +1166,7 @@ function BillingOverrideCommand() {
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="phase2-billing-override-org">Organization ID</Label>
-          <Input id="phase2-billing-override-org" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
+          <GovernedRecordPicker id="phase2-billing-override-org" label="Organization" kind="organization" value={organizationId} onValueChange={setOrganizationId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${__fieldIds}-override-state`}>Override state</Label>
@@ -1117,7 +1183,7 @@ function BillingOverrideCommand() {
           <Label htmlFor="phase2-billing-override-reason">Reason</Label>
           <Input id="phase2-billing-override-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
         </div>
-        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={command.isPending}>Apply billing override</Button></div>
+        <div className="md:col-span-2"><Button onClick={() => void submit()} disabled={!selectionReady || command.isPending}>Apply billing override</Button></div>
       </CardContent>
     </Card>
   );
@@ -1142,7 +1208,11 @@ export function IntegrationProvisioningCommand() {
     return () => { secretRequest.current++; };
   }, [secretScope]);
 
+  const organizationAvailable = useAvailableGovernedRecord("organization", organizationId);
+  const selectionReady = organizationAvailable;
+
   const submit = async () => {
+    if (!selectionReady) { toast({ title: "Choose available records before continuing", description: "Retry any unavailable choices, then review your selection.", variant: "destructive" }); return; }
     if (command.isPending) return;
     const values = scopesOrEvents.split(",").map((value) => value.trim()).filter(Boolean);
     if (!organizationId || !name.trim() || values.length === 0 || (kind === "webhook" && !destinationUrl)) {
@@ -1190,8 +1260,7 @@ export function IntegrationProvisioningCommand() {
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5 md:col-span-2">
-          <Label htmlFor="phase2-integration-org">Organization ID</Label>
-          <Input id="phase2-integration-org" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
+          <GovernedRecordPicker id="phase2-integration-org" label="Organization" kind="organization" value={organizationId} onValueChange={setOrganizationId} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${__fieldIds}-integration-type`}>Integration type</Label>
@@ -1222,7 +1291,7 @@ export function IntegrationProvisioningCommand() {
           </Alert>
         ) : null}
         <div className="md:col-span-2">
-          <Button onClick={() => void submit()} disabled={command.isPending}>Provision securely</Button>
+          <Button onClick={() => void submit()} disabled={!selectionReady || command.isPending}>Provision securely</Button>
         </div>
       </CardContent>
     </Card>

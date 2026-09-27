@@ -20,7 +20,7 @@ export function useBulkVideoGeneration(blocks: CourseBlock[] | undefined) {
 
   const [showBulkVideoGen, setShowBulkVideoGen] = useState(false);
   const [bulkVideoForm, setBulkVideoForm] = useState({ avatarId: "", voiceId: "" });
-  const { data: bulkHeygenOptions, isLoading: bulkHeygenOptionsLoading } = useListHeygenOptions(showBulkVideoGen);
+  const { data: bulkHeygenOptions, isLoading: bulkHeygenOptionsLoading, isError: bulkHeygenOptionsIsError, error: bulkHeygenOptionsError, refetch: retryBulkHeygenOptions } = useListHeygenOptions(showBulkVideoGen);
   const preferredBulkHeygenAvatar = bulkHeygenOptions?.avatars.find(a => a.is_ai_twin) ?? bulkHeygenOptions?.avatars[0];
   const preferredBulkHeygenVoice = bulkHeygenOptions?.voices.find(v => v.voice_id === preferredBulkHeygenAvatar?.default_voice_id)
     ?? bulkHeygenOptions?.voices.find(v => /english|en[-_ ]?us|en[-_ ]?gb/i.test(`${v.language ?? ""} ${v.name ?? ""}`)) ?? bulkHeygenOptions?.voices[0];
@@ -55,6 +55,7 @@ export function useBulkVideoGeneration(blocks: CourseBlock[] | undefined) {
   };
 
   const handleGenerateAllVideos = async () => {
+    if (bulkHeygenOptionsLoading || bulkHeygenOptionsIsError || !bulkHeygenOptions?.avatars.some(avatar => avatar.id === bulkVideoForm.avatarId) || !bulkHeygenOptions?.voices.some(voice => voice.voice_id === bulkVideoForm.voiceId)) return;
     if (!bulkVideoForm.avatarId || !bulkVideoForm.voiceId) {
       toast({ title: "Avatar and voice are required", variant: "destructive" });
       return;
@@ -115,6 +116,9 @@ export function useBulkVideoGeneration(blocks: CourseBlock[] | undefined) {
     setBulkVideoForm,
     bulkHeygenOptions,
     bulkHeygenOptionsLoading,
+    bulkHeygenOptionsIsError,
+    bulkHeygenOptionsError,
+    retryBulkHeygenOptions,
     bulkGenBlockIds,
     bulkGenSkippedCount,
     bulkGenStartFailures,

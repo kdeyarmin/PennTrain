@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,7 +11,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { Link, useSearch } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,8 +68,17 @@ export default function InvitationLifecycle() {
   const [status, setStatus] = useState("all");
   const [role, setRole] = useState("all");
   const locationSearch = useSearch();
-  const [search, setSearch] = useState(new URLSearchParams(locationSearch).get("search") || "");
+  const [location, navigate] = useLocation();
+  const urlSearch = new URLSearchParams(locationSearch).get("search") || "";
+  const [search, setSearchText] = useState(urlSearch);
   const [page, setPage] = useState(0);
+  useEffect(() => { setSearchText(urlSearch); setPage(0); }, [urlSearch]);
+  const setSearch = (value: string) => {
+    setSearchText(value);
+    const params = new URLSearchParams(locationSearch);
+    if (value) params.set("search", value); else params.delete("search");
+    navigate(`${location}${params.size ? `?${params}` : ""}`, { replace: true });
+  };
   const [revokeTarget, setRevokeTarget] = useState<UserInvitation | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -87,6 +96,10 @@ export default function InvitationLifecycle() {
 
   const total = invitations.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  useEffect(() => {
+    if (invitations.data && !invitations.isFetching && !invitations.isError && !invitations.isPlaceholderData && page >= pageCount) setPage(pageCount - 1);
+  }, [invitations.data, invitations.isFetching, invitations.isError, invitations.isPlaceholderData, page, pageCount]);
+  const hasFilters = Boolean(search.trim() || status !== "all" || role !== "all");
   const canManage = user?.role === "org_admin" || user?.role === "facility_manager" || user?.role === "platform_admin";
   const isPlatformAdmin = user?.role === "platform_admin";
   const { viewingOrgId } = useViewingOrg();
@@ -192,6 +205,7 @@ export default function InvitationLifecycle() {
             <Input
               className="pl-9"
               placeholder="Search email or name"
+              aria-label="Search invitations by email or name"
               value={search}
               onChange={(event) => { setSearch(event.target.value); setPage(0); }}
             />
@@ -237,9 +251,10 @@ export default function InvitationLifecycle() {
           ) : invitations.isError ? (
             <QueryError what="invitations" error={invitations.error} onRetry={() => invitations.refetch()} />
           ) : invitations.data?.rows.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              No invitation receipts yet. Send portal invites from Users or Employees, or use bulk invite.
-            </p>
+            <div className="space-y-3 py-10 text-center text-sm text-muted-foreground">
+              <p>{hasFilters ? "No invitations match these filters." : "No invitations yet. Send invitations from Users or Employees."}</p>
+              {hasFilters && <Button variant="outline" onClick={() => { setSearch(""); setRole("all"); setStatus("all"); setPage(0); }}>Clear filters</Button>}
+            </div>
           ) : (
             invitations.data?.rows.map((invitation) => (
               <div key={invitation.id} className="rounded-lg border p-4">
@@ -254,7 +269,7 @@ export default function InvitationLifecycle() {
                       </Badge>
                       <Badge variant="outline">{invitationRoleLabel(invitation.invited_role)}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{invitation.email}</p>
+                    <p className="break-all text-sm text-muted-foreground">{invitation.email}</p>
                     <p className="text-xs text-muted-foreground">
                       Sent {new Date(invitation.sent_at).toLocaleString()} · last activity{" "}
                       {new Date(invitation.last_sent_at).toLocaleString()} ·{" "}
@@ -296,18 +311,19 @@ export default function InvitationLifecycle() {
           )}
 
           {total > PAGE_SIZE && (
-            <div className="flex items-center justify-between border-t pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
               <p className="text-sm text-muted-foreground">
                 Page {page + 1} of {pageCount}
               </p>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>
+                <Button size="sm" variant="outline" aria-label="Previous invitations page" disabled={page === 0 || invitations.isFetching} onClick={() => setPage((value) => value - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={page + 1 >= pageCount}
+                  aria-label="Next invitations page"
+                  disabled={page + 1 >= pageCount || invitations.isFetching}
                   onClick={() => setPage((value) => value + 1)}
                 >
                   <ChevronRight className="h-4 w-4" />
