@@ -145,7 +145,8 @@ export function usePromotableBinderExports(facilityId: string | undefined) {
         .from("binder_export_jobs")
         .select("*")
         .eq("status", "succeeded")
-        .eq("facility_ids", `{${facilityId}}`)
+        // Braced literal: a string[] becomes "uuid" in the query string and matches nothing.
+        .eq("facility_ids", `{${facilityId}}` as unknown as string[])
         .not("content_sha256", "is", null)
         .order("completed_at", { ascending: false })
         .order("id", { ascending: false })

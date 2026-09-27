@@ -20,20 +20,29 @@ export interface ListProfilesFilters {
 // scope to "nothing", it scopes to "no filter at all". That fires an unscoped fetch first and the
 // correctly-scoped one right behind it, and `profiles_select` is
 // `is_platform_admin() or id = auth.uid() or organization_id = current_org_id()`, so for a
-// platform_admin the unscoped one reads every profile on the platform (and silently stops at
-// PostgREST's 1,000-row cap). Mirrors useListEmployees, which carries the same option for the same
-// reason. Defaults to `undefined`, which react-query treats as "always enabled", so every existing
-// caller that does not pass `options` is unaffected.
+// platform_admin the unscoped one reads every profile on the platform. Mirrors useListEmployees,
+// which carries the same option for the same reason. Defaults to `undefined`, which react-query
+// treats as "always enabled", so every existing caller that does not pass `options` is unaffected.
 export function useListProfiles(filters: ListProfilesFilters = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["profiles", filters],
     queryFn: async () => {
-      let query = supabase.from("profiles").select("*").order("last_name");
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      if (filters.role) query = query.eq("role", filters.role);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // Same cap the employee roster already pages past. A directory ordered only by
+      // surname drops everyone past the first thousand, and equal surnames need an id
+      // tie-break so a page boundary does not skip a person.
+      const pageSize = 1000;
+      const rows: Profile[] = [];
+      for (let from = 0; ;) {
+        let query = supabase.from("profiles").select("*").order("last_name").order("id", { ascending: true });
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        if (filters.role) query = query.eq("role", filters.role);
+        const { data, error } = await query.range(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+        from += data.length;
+      }
+      return rows;
     },
     enabled: options.enabled,
   });
