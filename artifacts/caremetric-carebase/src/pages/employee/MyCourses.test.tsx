@@ -1,5 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CardTitle } from "@/components/ui/card";
 
 const h = vi.hoisted(() => ({ state: [] as unknown[], cursor: 0 }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(),
@@ -44,6 +46,8 @@ describe("My Learning list selection", () => {
     expect(button(tree, "Optional").props).toMatchObject({ "aria-pressed": true, variant: "default" });
     expect(button(tree, "Required").props).toMatchObject({ "aria-pressed": false, variant: "outline" });
     expect(text(tree)).toContain("Your optional learning (1)");
+    const title = nodes(tree).find(node => node.type === CardTitle && text(node) === "Your optional learning (1)")!;
+    expect(renderToStaticMarkup(title)).toMatch(/<h2\b[^>]*>[\s\S]*Your optional learning \(1\)[\s\S]*<\/h2>/);
     expect(text(tree)).toContain("Optional learning course");
     (button(tree, "Completed / history").props.onClick as () => void)(); tree = render();
     expect(button(tree, "Completed / history").props["aria-pressed"]).toBe(true);

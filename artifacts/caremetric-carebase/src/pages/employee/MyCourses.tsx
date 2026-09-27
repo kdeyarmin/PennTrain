@@ -197,10 +197,10 @@ export default function MyCourses() {
       {!libraryView && !!learningPlans.data?.length && <section className="space-y-2" aria-label="Your learning plans"><h2 className="text-lg font-semibold">Your learning plans</h2>{learningPlans.data.map(plan => <div key={plan.planId} className="rounded border p-3"><h3 className="font-medium">{plan.name}</h3><p className="text-sm">{plan.completed} / {plan.required} required courses completed</p>{plan.needs_reapply || plan.unresolved ? <p className="text-sm">Your facility administrator needs to update or resolve {plan.unresolved} plan requirements. Continue the courses already assigned below.</p> : plan.required > 0 && plan.required === plan.completed ? <p className="text-sm">Plan complete</p> : null}</div>)}</section>}
       {!libraryView && <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle><h2 className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5" />
             {learningTab === "required" ? "Required by your facility" : learningTab === "optional" ? "Your optional learning" : "Completed learning and history"} {!isLoading && `(${filtered.length})`}
-          </CardTitle>
+          </h2></CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2 flex-wrap" role="group" aria-label="Learning lists">{["required", "optional", "history"].map(value => <Button key={value} aria-pressed={learningTab === value} variant={learningTab === value ? "default" : "outline"} onClick={() => { setLearningTab(value); setStatusFilter("all"); }}>{value === "history" ? "Completed / history" : value === "required" ? "Required" : "Optional"}</Button>)}</div>
