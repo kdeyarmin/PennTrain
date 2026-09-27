@@ -37,6 +37,10 @@ The next pass implements the concrete follow-ups from this review:
 
 Local browser scenarios use fictional responses and block backend requests. The follow-up did not change database schemas, permissions, provider settings, notifications or tenant records. Live acceptance remains outstanding.
 
+Follow-up verification after incorporating main's clinical fixes (`44ab61de`): **4,227 application, 271 server and 96 voice tests passed (4,594 total)**; 34 backend-dependent tests were skipped. Focused tests cover scoped selector pages and failed reads, exact lifecycle previews, guest cursor boundaries beyond 200 rows, invitation URL changes and provider recovery. The 52 synthetic browser scenario/viewport samples cover admin/notification sections (39), guest paging (3), resident/invitation/AI/passport recovery (8), and long searchable picker choices (2), with zero final overflow, page errors, backend calls or sampled WCAG A/AA violations. Independent review also checked the merged care files and preserved durable video retries when provider choices cannot load.
+
+Final workspace typecheck, source-integrity, planning-register, route-link and query-invalidation checks passed. All workspace builds and the standalone Train build passed with explicitly local test configuration. Bundle budgets passed, with entry and total JavaScript size above their 90% warning thresholds. Thirty public CareBase smoke journeys and two built Train phone/desktop navigation journeys passed. The final video recovery adjustment passed its focused 17-test rerun. Production credentials, real tenant data and provider mutations were not used; database-backed CI and live acceptance remain separate release gates.
+
 ## Remaining opportunities
 
 These are review findings, not completed changes. Corresponding work remains open in `BACKLOG.md`.
@@ -49,7 +53,7 @@ These are review findings, not completed changes. Corresponding work remains ope
 
 ## Verification
 
-The final full workspace suite passed **4,153 application tests, 271 server tests and 96 voice tests (4,520 total)**. The configured suites skipped 18 backend-dependent server tests and 16 voice tests. No test failures remain in those local suites.
+The initial deep-review workspace suite passed **4,153 application tests, 271 server tests and 96 voice tests (4,520 total)**. The configured suites skipped 18 backend-dependent server tests and 16 voice tests. The newer follow-up counts appear above.
 
 - Targeted behavioral tests cover filter scope, stale-page recovery, navigation destinations, guidance visibility, learner read states, guest retry and form accessibility.
 - Final workspace typecheck, CareBase production build and standalone Train production build passed. Source-integrity, route-link, planning-register and CareBase bundle-budget checks passed; the existing entry/resident chunks remain close to their configured size budgets.

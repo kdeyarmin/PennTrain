@@ -529,7 +529,7 @@ export default function CourseDetail() {
   const openVideoGen = (block: CourseBlock) => {
     const pending = hasPendingCourseVideoGeneration(block.body) ? courseVideoGenerationJob(block.body) : undefined;
     videoGenRequestId.current = pending?.attempt_id ?? crypto.randomUUID();
-    videoGenRequestTitle.current = pending ? pending.title : block.title ?? undefined;
+    videoGenRequestTitle.current = pending ? pending.title ?? undefined : block.title ?? undefined;
     setVideoGenBlock(block);
     setVideoGenForm({ avatarId: pending?.avatar_id ?? "", voiceId: pending?.voice_id ?? "",
       script: pending?.script ?? (block.body as { script?: string } | null)?.script ?? "" });
@@ -581,7 +581,7 @@ export default function CourseDetail() {
         avatarId: submission.avatarId,
         voiceId: submission.voiceId,
         script: submission.script.trim(),
-        title: retryingVideo ? pendingVideoJob?.title : videoGenRequestTitle.current,
+        title: retryingVideo ? pendingVideoJob?.title ?? undefined : videoGenRequestTitle.current,
         replaceExisting: Boolean(videoGenBlock.video_url || videoGenBlock.media_asset_id),
         expectedVideoUrl: videoGenBlock.video_url,
         expectedMediaAssetId: videoGenBlock.media_asset_id,
