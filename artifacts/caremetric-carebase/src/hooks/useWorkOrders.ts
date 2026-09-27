@@ -24,7 +24,7 @@ export function useListWorkOrders(filters: WorkOrderFilters = {}) {
       // silently omitted older unresolved repairs once enough newer orders had accumulated.
       const pageSize = 1000;
       const rows: WorkOrder[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase.from("work_orders").select("*").order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, from + pageSize - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.status) query = query.eq("status", filters.status);
@@ -34,7 +34,8 @@ export function useListWorkOrders(filters: WorkOrderFilters = {}) {
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

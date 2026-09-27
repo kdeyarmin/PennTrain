@@ -59,6 +59,21 @@ export function ReleaseCohortMembershipCard() {
   const canAssign = organizationId.trim() && cohortId && featureKey.trim()
     && reason.trim().length >= MIN_ASSIGN_REASON;
 
+  const handleAssign = () => {
+    if (!canAssign || assign.isPending || cohorts.isError || cohorts.isLoading) return;
+    try {
+      const expiration = expiresAt ? facilityDateTimeLocalToUtcIso(`${expiresAt}T23:59`) : undefined;
+      assign.mutate({
+        organizationId: organizationId.trim(), cohortId, featureKey: featureKey.trim(), reason: reason.trim(), expiresAt: expiration,
+      }, {
+        onSuccess: () => toast({ title: "Organization added to the cohort" }),
+        onError: error => toast({ title: "Assignment blocked", description: errorText(error), variant: "destructive" }),
+      });
+    } catch (error) {
+      toast({ title: "Invalid cohort expiration", description: errorText(error), variant: "destructive" });
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -112,17 +127,8 @@ export function ReleaseCohortMembershipCard() {
         </div>
         <Button
           size="sm"
-          disabled={assign.isPending || !canAssign}
-          onClick={() => assign.mutate({
-            organizationId: organizationId.trim(),
-            cohortId,
-            featureKey: featureKey.trim(),
-            reason: reason.trim(),
-            expiresAt: expiresAt ? facilityDateTimeLocalToUtcIso(`${expiresAt}T23:59`) : undefined,
-          }, {
-            onSuccess: () => { setReason(""); toast({ title: "Organization added to the cohort" }); },
-            onError: (error) => toast({ title: "Assignment blocked", description: errorText(error), variant: "destructive" }),
-          })}
+          disabled={assign.isPending || !canAssign || cohorts.isError || cohorts.isLoading}
+          onClick={handleAssign}
         >
           {assign.isPending ? "Assigning…" : "Add to cohort"}
         </Button>
@@ -174,7 +180,7 @@ export function ReleaseCohortMembershipCard() {
                         featureKey: membership.feature_key,
                         reason: removeReason.trim(),
                       }, {
-                        onSuccess: () => { setRemoving(null); toast({ title: "Organization removed from the cohort" }); },
+                        onSuccess: () => { setRemoving(current => current?.id === membership.id ? null : current); toast({ title: "Organization removed from the cohort" }); },
                         onError: (error) => toast({ title: "Removal blocked", description: errorText(error), variant: "destructive" }),
                       })}
                     >

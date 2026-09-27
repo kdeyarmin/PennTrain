@@ -132,7 +132,8 @@ export default function MedicationIntegration() {
   // all moved to the new one. Ignore any selection absent from the current list rather than
   // trusting local state to have been reset; while the list is loading nothing is in scope, which
   // gates the queries off instead of running them against a stale facility.
-  const scopedFacilities = facilities.data ?? [];
+  const scopedFacilities = facilities.isError || facilities.isLoading ? []
+    : (facilities.data ?? []).filter(facility => !scopeOrgId || facility.organization_id === scopeOrgId);
   const selectionInScope = scopedFacilities.some((facility) => facility.id === selectedFacilityId);
   const contextFacilityInScope = scopedFacilities.some((facility) => facility.id === residentContext.facilityId);
   const facilityId = (selectionInScope ? selectedFacilityId : "")
@@ -142,9 +143,15 @@ export default function MedicationIntegration() {
     [facilities.data, facilityId],
   );
   const workspace = useMedicationIntegration(facilityId || undefined);
+  const linkedResident = residentContext.linkedResident;
+  // A URL resident can outlive a viewed-organization or facility change. Verify its actual
+  // facility before reading or displaying its clinical record in the replacement workspace.
+  const residentId = !linkedResident.isError && !linkedResident.isLoading
+    && linkedResident.data?.id === residentContext.residentId
+    && linkedResident.data?.facility_id === facilityId ? residentContext.residentId : "";
   // Content only when a resident is chosen, and then through the reader that logs the access.
   const residentMedications = useResidentExternalMedications(
-    residentContext.residentId || undefined,
+    residentId || undefined,
     "eMAR integration review",
   );
   // Gated on the facility being known. `useListResidents` applies its facility filter only `if`
@@ -214,13 +221,13 @@ export default function MedicationIntegration() {
       lastOrderAt: null, lastAdministrationAt: null, residents: [],
     },
   };
-  const displayedOrders = residentMedications.data?.orders ?? [];
-  const displayedAdministrations = residentMedications.data?.administrations ?? [];
+  const displayedOrders = residentId ? residentMedications.data?.orders ?? [] : [];
+  const displayedAdministrations = residentId ? residentMedications.data?.administrations ?? [] : [];
   const openExceptions = data.exceptions.filter((item) => !["resolved", "dismissed"].includes(item.status));
-  const activeOrderCount = residentContext.residentId
+  const activeOrderCount = residentId
     ? displayedOrders.filter((item) => item.order_status === "active").length
     : data.activity.orderActiveTotal;
-  const nonRoutineCount = residentContext.residentId
+  const nonRoutineCount = residentId
     ? displayedAdministrations.filter((item) => item.administration_status !== "administered").length
     : data.activity.nonRoutineTotal;
 
@@ -276,7 +283,7 @@ export default function MedicationIntegration() {
 
       <Alert><DatabaseZap className="h-4 w-4" /><AlertTitle>External clinical source of truth</AlertTitle><AlertDescription>CareBase displays normalized records received from a connected eMAR. Medication orders and administrations cannot be prescribed, changed, or back-entered here. Confirm clinical details and correct discrepancies in the source eMAR.</AlertDescription></Alert>
 
-      <Card><CardContent className="p-4"><div className="max-w-sm space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={facilityId} onValueChange={(value) => { setSelectedFacilityId(value); residentContext.setFacilityId(value); }}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select>{residentContext.residentId && <p className="text-xs text-muted-foreground">Showing medication documentation for {residentNames.get(residentContext.residentId) ?? "the selected resident"}. Change facility to clear this resident filter.</p>}</div></CardContent></Card>
+      <Card><CardContent className="p-4"><div className="max-w-sm space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={facilityId} onValueChange={(value) => { setSelectedFacilityId(value); residentContext.setFacilityId(value); }}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select>{residentId && <p className="text-xs text-muted-foreground">Showing medication documentation for {residentNames.get(residentId) ?? "the selected resident"}. Change facility to clear this resident filter.</p>}</div></CardContent></Card>
 
       {workspace.isError ? <QueryError what="medication integration" error={workspace.error} onRetry={() => workspace.refetch()} /> : workspace.isLoading ? <QueryLoading what="medication integration" /> : (
         <>
@@ -287,7 +294,11 @@ export default function MedicationIntegration() {
           <Tabs defaultValue="exceptions"><TabsList><TabsTrigger value="exceptions">Exceptions ({openExceptions.length})</TabsTrigger><TabsTrigger value="orders">External orders</TabsTrigger><TabsTrigger value="administrations">Administration documentation</TabsTrigger></TabsList>
             <TabsContent value="exceptions" className="space-y-3">{data.exceptions.length === 0 ? <Card><CardContent className="py-10 text-center"><CheckCircle2 className="mx-auto mb-2 h-7 w-7 text-emerald-600" /><p>No integration exceptions recorded.</p></CardContent></Card> : data.exceptions.map((item) => <Card key={item.id}><CardContent className="flex flex-wrap items-start justify-between gap-4 p-4"><div><div className="mb-1 flex flex-wrap gap-2"><Badge variant={item.severity === "urgent" ? "destructive" : "outline"}>{human(item.severity)}</Badge><Badge variant="secondary">{human(item.status)}</Badge></div><p className="font-medium">{human(item.exception_type)}</p><p className="text-sm text-muted-foreground">{item.summary}</p>{item.external_resident_id && <p className="mt-1 text-xs text-muted-foreground">External resident ID: {item.external_resident_id}</p>}</div>{canManage && !["resolved", "dismissed"].includes(item.status) && <Button size="sm" variant="outline" onClick={() => { setSelectedException(item); setResolutionStatus("acknowledged"); setResolutionNote(""); setMappingResidentId(""); setExceptionOwnerId(""); setExceptionDueAt(`${addFacilityCalendarDays(facilityToday(), 1)}T09:00`); }}>Review</Button>}</CardContent></Card>)}</TabsContent>
             <TabsContent value="orders" className="space-y-3">
-              {!residentContext.residentId ? (
+              {residentContext.residentId && linkedResident.isLoading ? (
+                <QueryLoading what="selected resident" />
+              ) : residentContext.residentId && linkedResident.isError ? (
+                <QueryError what="selected resident" error={linkedResident.error} onRetry={() => void linkedResident.refetch()} />
+              ) : !residentId ? (
                 <MedicationActivityView activity={data.activity} residentNames={residentNames} />
               ) : residentMedications.isLoading ? (
                 <QueryLoading what="external orders" />
@@ -298,7 +309,11 @@ export default function MedicationIntegration() {
               ) : displayedOrders.map((order) => <Card key={order.id}><CardContent className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium">{order.medication_display}</p><p className="text-sm text-muted-foreground">{residentNames.get(order.resident_id) ?? "Scoped resident"}</p>{order.directions && <p className="mt-2 text-sm">{order.directions}</p>}{order.schedule_display && <p className="text-sm text-muted-foreground">{order.schedule_display}</p>}</div><Badge variant="outline">{human(order.order_status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">Source updated {new Date(order.source_updated_at).toLocaleString()}</p></CardContent></Card>)}
             </TabsContent>
             <TabsContent value="administrations" className="space-y-3">
-              {!residentContext.residentId ? (
+              {residentContext.residentId && linkedResident.isLoading ? (
+                <QueryLoading what="selected resident" />
+              ) : residentContext.residentId && linkedResident.isError ? (
+                <QueryError what="selected resident" error={linkedResident.error} onRetry={() => void linkedResident.refetch()} />
+              ) : !residentId ? (
                 <MedicationActivityView activity={data.activity} residentNames={residentNames} />
               ) : residentMedications.isLoading ? (
                 <QueryLoading what="administration documentation" />

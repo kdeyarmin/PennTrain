@@ -22,7 +22,7 @@ beforeEach(() => {
         const from = call.range?.[0] ?? 0;
         return Promise.resolve(resolve(failSecondPage && from === 1000
           ? { data: null, error: new Error("Service queue page unavailable") }
-          : { error: null, data: Array.from({ length: from === 0 ? 1000 : 1 }, (_, id) => ({ id: `row-${from + id}` })) }));
+          : { error: null, data: Array.from({ length: from === 0 ? 1000 : from === 1000 ? 1 : 0 }, (_, id) => ({ id: `row-${from + id}` })) }));
       },
     };
     return query;
@@ -37,7 +37,7 @@ describe("complete daily care queues", () => {
     const rows = await mocks.useQuery.mock.calls[0][0].queryFn();
     expect(rows).toHaveLength(1001);
     expect(rows.at(-1)).toEqual({ id: "row-1000" });
-    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999]]);
+    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999], [1001, 2000]]);
     for (const call of calls) {
       expect(call.name).toBe("get_resident_service_task_queue");
       expect(call.args).toEqual({ p_from: filters.from, p_through: filters.through, p_facility_id: "facility-a", p_status: "scheduled" });

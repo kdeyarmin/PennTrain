@@ -117,7 +117,7 @@ describe("medication integration exception visibility", () => {
     useMedicationIntegration("facility-a");
     expect((await queryFn()).exceptions).toHaveLength(1001);
     const exceptionCalls = calls.filter((call) => call.table === "medication_integration_exceptions");
-    expect(exceptionCalls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999]]);
+    expect(exceptionCalls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999], [1001, 2000]]);
     for (const call of exceptionCalls) {
       expect(call.order).toEqual(["last_seen_at", "id"]);
       expect(call.filters).toEqual([["facility_id", "facility-a"]]);

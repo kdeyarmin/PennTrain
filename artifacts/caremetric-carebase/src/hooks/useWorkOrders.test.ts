@@ -24,7 +24,7 @@ describe("maintenance work queue completeness", () => {
             ? { data: null, error: new Error("Next page unavailable") }
             : { error: null, data: from === 0
               ? Array.from({ length: 1000 }, (_, id) => ({ id: `closed-${id}`, status: "verified" }))
-              : [{ id: "old-open-repair", status: "open" }] }));
+              : from === 1000 ? [{ id: "old-open-repair", status: "open" }] : [] }));
         },
       };
       return query;
@@ -38,7 +38,7 @@ describe("maintenance work queue completeness", () => {
     const orders = await queryFn();
     expect(orders).toHaveLength(1001);
     expect(orders.at(-1)).toEqual({ id: "old-open-repair", status: "open" });
-    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999]]);
+    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999], [1001, 2000]]);
     for (const call of calls) {
       expect(call.order).toEqual(["created_at", "id"]);
       expect(call.filters).toEqual({ facility_id: "facility-a", priority: "urgent", inspection_item_id: "asset-a" });

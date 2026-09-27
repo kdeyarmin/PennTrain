@@ -11,11 +11,12 @@ export function useResidentRegulatoryActions(facilityId: string, residentId?: st
     queryKey: ["resident_regulatory_actions", facilityId, residentId ?? "facility", user?.id, user?.organizationId, user?.role, user?.facilityId],
     queryFn: async () => {
       const rows: ResidentRegulatoryAction[] = [];
-      for (let from = 0; ; from += 1000) {
+      for (let from = 0; ;) {
         const { data, error } = await supabase.rpc("get_resident_regulatory_actions" as never, { p_facility_id: facilityId, p_resident_id: residentId, p_offset: from } as never) as unknown as { data: ResidentRegulatoryAction[] | null; error: Error | null };
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < 1000) return rows;
+        if (!data?.length) return rows;
+        from += data.length;
       }
     },
     enabled: !!facilityId && !!user,

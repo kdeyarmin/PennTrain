@@ -20,10 +20,12 @@ interface PageCall {
 let calls: PageCall[];
 let documentCount: number;
 let failOffset: number | undefined;
+let responseCap: number;
 
 beforeEach(() => {
   calls = [];
   documentCount = 1001;
+  responseCap = 1000;
   failOffset = undefined;
   mocks.useQuery.mockReset();
   mocks.from.mockReset().mockImplementation(() => {
@@ -41,7 +43,7 @@ beforeEach(() => {
         const [from, to] = call.range ?? [0, 999];
         return Promise.resolve(resolve({
           data: failOffset === from ? null : Array.from(
-            { length: Math.max(0, Math.min(to + 1, documentCount) - from) },
+            { length: Math.max(0, Math.min(to + 1, from + responseCap, documentCount) - from) },
             (_, index) => ({ id: `document-${from + index}`, created_at: "2026-09-01T12:00:00Z" }),
           ),
           error: failOffset === from ? new Error("Document page unavailable") : null,
@@ -64,7 +66,7 @@ describe("complete training document lists", () => {
     expect(rows.filter((row) => !linkedIds.has(row.id))).toEqual([
       expect.objectContaining({ id: "document-1000" }),
     ]);
-    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999]]);
+    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999], [1001, 2000]]);
     for (const call of calls) {
       expect(call.order).toEqual([["created_at", { ascending: false }], ["id", { ascending: true }]]);
       expect(call.filters).toEqual([["in", "document_type", ["certificate", "external_certificate", "transcript"]]]);
@@ -78,7 +80,7 @@ describe("complete training document lists", () => {
       storagePathPrefix: "org/course_100%/", documentType: "certificate",
     });
     await queryFn(signal);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     for (const call of calls) {
       expect(call.filters).toEqual([
         ["eq", "employee_id", "employee-a"], ["eq", "facility_id", "facility-a"],
@@ -101,4 +103,10 @@ describe("complete training document lists", () => {
     expect(await queryFn()).toHaveLength(1000);
     expect(calls).toHaveLength(2);
   });
+});
+
+it("continues through a deployment row cap lower than the requested range", async () => {
+  responseCap = 2; documentCount = 5; useListDocuments({ facilityId: "facility-a" });
+  expect(await queryFn()).toHaveLength(5);
+  expect(calls.map(call => call.range?.[0])).toEqual([0, 2, 4, 5]);
 });

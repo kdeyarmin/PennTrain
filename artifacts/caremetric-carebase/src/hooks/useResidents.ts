@@ -32,20 +32,21 @@ export function useListResidents(filters: ListResidentsFilters = {}, options: Li
     queryFn: async () => {
       const pageSize = 1000;
       const all: Resident[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("residents")
           .select("*")
           .order("last_name")
           .order("id", { ascending: true })
-          .range(from, from + pageSize - 1);
+          .range(from, Math.min(from + pageSize, 50000) - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.status) query = query.eq("status", filters.status);
         const { data, error } = await query;
         if (error) throw error;
         const batch = (data ?? []) as Resident[];
         all.push(...batch);
-        if (batch.length < pageSize || all.length >= 50000) break;
+        if (batch.length === 0 || all.length >= 50000) break;
+        from += batch.length;
       }
       return all;
     },
@@ -73,20 +74,21 @@ export function useListResidentNames(filters: ListResidentsFilters = {}, options
     queryFn: async () => {
       const pageSize = 1000;
       const all: ResidentNameRow[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("residents")
           .select("id,facility_id,first_name,last_name,room,status")
           .order("last_name")
           .order("id")
-          .range(from, from + pageSize - 1);
+          .range(from, Math.min(from + pageSize, 50000) - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.status) query = query.eq("status", filters.status);
         const { data, error } = await query;
         if (error) throw error;
         const batch = (data ?? []) as ResidentNameRow[];
         all.push(...batch);
-        if (batch.length < pageSize || all.length >= 50000) break;
+        if (batch.length === 0 || all.length >= 50000) break;
+        from += batch.length;
       }
       return all;
     },

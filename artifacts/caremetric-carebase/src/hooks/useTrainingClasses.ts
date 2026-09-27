@@ -91,7 +91,7 @@ export function useClassAttendeeCounts() {
       // what OFFSET paging needs.
       const pageSize = 1000;
       const counts: Record<string, number> = {};
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         const { data, error } = await supabase
           .from("training_class_attendees")
           .select("class_id")
@@ -99,7 +99,8 @@ export function useClassAttendeeCounts() {
           .range(from, from + pageSize - 1);
         if (error) throw error;
         for (const row of data ?? []) counts[row.class_id] = (counts[row.class_id] ?? 0) + 1;
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return counts;
     },

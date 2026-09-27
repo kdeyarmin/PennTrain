@@ -107,7 +107,7 @@ export default function NotificationDeliveries() {
   });
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: operations, isLoading: operationsLoading, isError: operationsError } = useNotificationDeliveryOperations();
-  const { data: evidence, isLoading: evidenceLoading } = useNotificationDeliveryEvidence(evidenceDeliveryId);
+  const { data: evidence, isLoading: evidenceLoading, isError: evidenceError, error: evidenceErrorDetail, refetch: refetchEvidence } = useNotificationDeliveryEvidence(evidenceDeliveryId);
   const { data: templates = [] } = useNotificationTemplateLibrary();
   const { mutate: retryDelivery, isPending: retrying } = useRetryNotificationDelivery();
   const { mutateAsync: bulkRetry, isPending: bulkRetrying } = useBulkRetryNotificationDeliveries();
@@ -676,7 +676,7 @@ export default function NotificationDeliveries() {
             <Button variant="ghost" size="sm" onClick={() => setEvidenceDeliveryId(null)}>Close</Button>
           </CardHeader>
           <CardContent>
-            {evidenceLoading ? (
+            {evidenceError ? <QueryError what="delivery documentation" error={evidenceErrorDetail} onRetry={() => void refetchEvidence()} /> : evidenceLoading ? (
               <div className="h-24 rounded-md bg-muted animate-pulse" />
             ) : evidence ? (
               <div className="space-y-5">

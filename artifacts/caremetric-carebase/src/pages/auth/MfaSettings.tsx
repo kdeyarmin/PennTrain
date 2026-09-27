@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { clearLocalSessionState } from "@/lib/auth";
+import { clearLocalSessionState, useAuth } from "@/lib/auth";
 import {
   describeMfaError,
   maskMfaPhone,
@@ -45,6 +45,22 @@ type PendingChallenge = {
 };
 
 export default function MfaSettings() {
+  const { user } = useAuth();
+  const scopeRef = useRef({ profileId: user?.id, active: true });
+  if (scopeRef.current.profileId !== user?.id) {
+    scopeRef.current.active = false;
+    scopeRef.current = { profileId: user?.id, active: true };
+  }
+  const scope = scopeRef.current;
+  const readSequence = useRef(0);
+  useEffect(() => {
+    scope.active = true;
+    // Cancel immediately on Auth changes, before React replaces the protected page.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session || session.user.id !== scope.profileId) scope.active = false;
+    });
+    return () => { scope.active = false; readSequence.current++; subscription.unsubscribe(); };
+  }, [scope]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -72,11 +88,15 @@ export default function MfaSettings() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const loadSecurityState = useCallback(async () => {
+    if (!scope.active) return;
+    const sequence = ++readSequence.current;
     const result = await fetchMfaSecurityState().catch((error: unknown) => {
+      if (!scope.active || sequence !== readSequence.current) return null;
       setStatus(null);
       setLoadError(describeMfaError(error));
       throw error;
     });
+    if (!result || !scope.active || sequence !== readSequence.current) return;
     const allFactors = result.factors;
     setFactors(allFactors);
     setStatus(result.status);
@@ -87,13 +107,13 @@ export default function MfaSettings() {
       if (current && (!result.status.smsRequired ? allFactors : usable).some((factor) => factor.id === current)) return current;
       return usable[0]?.id ?? null;
     });
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     let cancelled = false;
     loadSecurityState()
       .catch((error) => {
-        if (!cancelled) {
+        if (!cancelled && scope.active) {
           setLoadError(describeMfaError(error));
           toast({
             variant: "destructive",
@@ -103,12 +123,12 @@ export default function MfaSettings() {
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && scope.active) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [loadSecurityState, toast]);
+  }, [loadSecurityState, toast, scope]);
 
   useEffect(() => {
     if (!status?.verified || !status.expiresAt) return;
@@ -135,7 +155,7 @@ export default function MfaSettings() {
   const awaitingSms = isPhoneFlow && challenge?.factorId !== (enrollment?.factorId ?? selectedFactorId);
 
   const beginTotpEnrollment = async () => {
-    if (status?.smsRequired) return;
+    if (!scope.active || status?.smsRequired) return;
     setBusyAction("enroll");
     try {
       const totpCount = factors.filter((factor) => factor.factor_type === "totp").length;
@@ -143,6 +163,7 @@ export default function MfaSettings() {
         factorType: "totp",
         friendlyName: `CareMetric Authenticator ${totpCount + 1}`,
       });
+      if (!scope.active) return;
       if (error) throw error;
       setEnrollment({
         factorId: data.id,
@@ -156,17 +177,19 @@ export default function MfaSettings() {
       setCode("");
       await loadSecurityState();
     } catch (error) {
+      if (!scope.active) return;
       toast({
         variant: "destructive",
         title: "Couldn't start enrollment",
         description: describeMfaError(error),
       });
     } finally {
-      setBusyAction(null);
+      if (scope.active) setBusyAction(null);
     }
   };
 
   const beginPhoneEnrollment = async () => {
+    if (!scope.active) return;
     const phone = normalizeMfaPhone(phoneEntry ?? "");
     if (!phone) {
       toast({
@@ -180,6 +203,7 @@ export default function MfaSettings() {
     setBusyAction("enroll");
     try {
       const sent = await sendSmsMfaCode(phone);
+      if (!scope.active) return;
       // Pending enrollment has no reusable factor until the server verifies this session's code.
       const pendingId = `sms-enrollment:${sent.challengeId}`;
       setEnrollment({ factorId: pendingId, factorType: "sms", phone: sent.maskedPhone });
@@ -188,29 +212,33 @@ export default function MfaSettings() {
       setCode("");
       toast({ title: "Verification code sent", description: `Enter the code sent to ${sent.maskedPhone}.` });
     } catch (error) {
+      if (!scope.active) return;
       toast({
         variant: "destructive",
         title: "Couldn't start enrollment",
         description: describeMfaError(error),
       });
     } finally {
-      setBusyAction(null);
+      if (scope.active) setBusyAction(null);
     }
   };
 
   /** Issues the challenge that actually delivers the SMS, for enrollment and for step-up alike. */
   const sendSmsCode = async (factorId: string) => {
+    if (!scope.active) return;
     const wasBusy = busyAction;
     if (!wasBusy) setBusyAction("send-code");
     try {
       const factor = factors.find((candidate) => candidate.id === factorId);
       if (factor?.factor_type === "phone") {
         const { data, error } = await supabase.auth.mfa.challenge({ factorId, channel: "sms" });
+        if (!scope.active) return;
         if (error) throw error;
         setChallenge({ factorId, challengeId: data.id });
       } else {
         // Existing factors never accept a destination supplied by this browser.
         const sent = await sendSmsMfaCode(enrollment?.factorId === factorId ? normalizeMfaPhone(phoneEntry ?? "") ?? undefined : undefined);
+        if (!scope.active) return;
         setChallenge({ factorId, challengeId: sent.challengeId });
       }
       setCode("");
@@ -219,17 +247,19 @@ export default function MfaSettings() {
         description: "Enter the code we just texted you. It expires in a few minutes.",
       });
     } catch (error) {
+      if (!scope.active) return;
       toast({
         variant: "destructive",
         title: "Couldn't send the code",
         description: describeMfaError(error),
       });
     } finally {
-      if (!wasBusy) setBusyAction(null);
+      if (!wasBusy && scope.active) setBusyAction(null);
     }
   };
 
   const verifyFactor = async () => {
+    if (!scope.active) return;
     const factorId = enrollment?.factorId ?? selectedFactorId;
     if (!factorId || !/^\d{6}$/.test(code.trim())) {
       toast({
@@ -261,8 +291,10 @@ export default function MfaSettings() {
         });
         if (error) throw error;
       }
+      if (!scope.active) return;
       if (activeFactorType !== "sms") {
         const { error: refreshError } = await supabase.auth.refreshSession();
+        if (!scope.active) return;
         if (refreshError) throw refreshError;
       }
       setEnrollment(null);
@@ -270,33 +302,43 @@ export default function MfaSettings() {
       setPhoneEntry(null);
       setCode("");
       await invalidateMfaDependentQueries(queryClient);
+      if (!scope.active) return;
       await loadSecurityState();
+      if (!scope.active) return;
       toast({
         title: isPhoneFlow ? "Phone verified" : "Authenticator verified",
         description: "This session now meets the multi-factor security requirement.",
       });
     } catch (error) {
+      if (!scope.active) return;
       toast({
         variant: "destructive",
         title: "Verification failed",
         description: describeMfaError(error),
       });
     } finally {
-      setBusyAction(null);
+      if (scope.active) setBusyAction(null);
     }
   };
 
   const removeFactor = async (factorId: string) => {
+    if (!scope.active) return;
     setBusyAction(`remove:${factorId}`);
     try {
       const factor = factors.find((candidate) => candidate.id === factorId);
       if (factor?.factor_type === "sms" || status?.smsRequired) return;
       const { error } = await supabase.auth.mfa.unenroll({ factorId });
+      if (!scope.active) return;
       if (error) throw error;
       // Native removal requires a new JWT; it is offered only for accounts without app SMS.
       const { error: refreshError } = await supabase.auth.refreshSession();
+      if (!scope.active) return;
       if (refreshError) {
-        await supabase.auth.signOut();
+        const { error: signOutError } = await supabase.auth.signOut();
+        if (signOutError) throw new Error("The factor was removed, but session assurance could not be refreshed. Sign out and sign in again.");
+        // Sign-out can finish after another login. Never clear that account's local state.
+        const { data: current, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || current.session) return;
         await clearLocalSessionState();
         throw new Error("The factor was removed, but session assurance could not be refreshed. You were signed out for safety.");
       }
@@ -304,16 +346,19 @@ export default function MfaSettings() {
       if (challenge?.factorId === factorId) setChallenge(null);
       setCode("");
       await invalidateMfaDependentQueries(queryClient);
+      if (!scope.active) return;
       await loadSecurityState();
+      if (!scope.active) return;
       toast({ title: "Factor removed" });
     } catch (error) {
+      if (!scope.active) return;
       toast({
         variant: "destructive",
         title: "Couldn't remove factor",
         description: describeMfaError(error),
       });
     } finally {
-      setBusyAction(null);
+      if (scope.active) setBusyAction(null);
     }
   };
 
@@ -336,7 +381,7 @@ export default function MfaSettings() {
   }
 
   if (loadError || !status) {
-    return <Alert variant="destructive"><AlertTitle>Account security unavailable</AlertTitle><AlertDescription>{loadError ?? "The verification status could not be confirmed."}</AlertDescription><Button className="mt-3" onClick={() => { setLoading(true); void loadSecurityState().catch((error) => setLoadError(describeMfaError(error))).finally(() => setLoading(false)); }}>Retry</Button></Alert>;
+    return <Alert variant="destructive"><AlertTitle>Account security unavailable</AlertTitle><AlertDescription>{loadError ?? "The verification status could not be confirmed."}</AlertDescription><Button className="mt-3" onClick={() => { setLoading(true); void loadSecurityState().catch(() => undefined).finally(() => { if (scope.active) setLoading(false); }); }}>Retry</Button></Alert>;
   }
 
   const verifiedHere = mfaStatusIsVerified(status);

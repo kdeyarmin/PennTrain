@@ -43,7 +43,7 @@ export function useListCourseAssignments(filters: ListCourseAssignmentsFilters =
       // without it rows repeat on one page and are dropped from another.
       const pageSize = 1000;
       const rows: CourseAssignment[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("course_assignments")
           .select("*")
@@ -58,7 +58,8 @@ export function useListCourseAssignments(filters: ListCourseAssignmentsFilters =
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

@@ -84,7 +84,7 @@ export function useListShiftReportEntries(facilityId?: string, includeClosed = f
       // shift's entries, so the `id` tie-break is what makes the order total.
       const pageSize = 1000;
       const rows: ShiftReportEntry[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = asRpc().from("shift_report_entries")
           .select("*, facilities(name), residents(first_name,last_name), owner:profiles!shift_report_entries_follow_up_owner_profile_id_fkey(first_name,last_name)")
           .order("review_due_at", { ascending: true })
@@ -95,7 +95,8 @@ export function useListShiftReportEntries(facilityId?: string, includeClosed = f
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...((data ?? []) as ShiftReportEntry[]));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

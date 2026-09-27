@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useLocation } from "wouter";
 import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
@@ -22,6 +22,8 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   const [activeOptionId, setActiveOptionId] = useState<string | undefined>();
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const resultsId = `${useId()}-global-search-results`;
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
@@ -68,14 +70,17 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
     };
   }, [open]);
 
-  const { data: results, isFetching, isError, error, refetch } = useGlobalSearch(debouncedQuery, user?.role);
-  const actionResults = searchCommandActions(debouncedQuery, user?.role, moduleAccess.enabledModules);
-  const pageResults = searchPages(debouncedQuery, user?.role, moduleAccess.enabledModules);
+  const { data: recordResults, isFetching, isError, error, refetch } = useGlobalSearch(debouncedQuery, user?.role);
+  const isDebouncing = query.trim() !== debouncedQuery.trim();
+  const results = !isDebouncing && !isError ? recordResults : undefined;
+  // Navigation is local and remains useful while record lookup is pending or unavailable.
+  const actionResults = searchCommandActions(query, user?.role, moduleAccess.enabledModules);
+  const pageResults = searchPages(query, user?.role, moduleAccess.enabledModules);
   const workspaceItems = results?.items.filter((item) => moduleAccess.canAccessPath(item.route)) ?? [];
   const residents = moduleAccess.canAccessModule("carebase") ? results?.residents ?? [] : [];
   const courses = moduleAccess.canAccessModule("train") ? results?.courses ?? [] : [];
   const hasWorkspaceItems = workspaceItems.length > 0;
-  const hasResults = !!results && (actionResults.length || pageResults.length || hasWorkspaceItems || results.organizations.length || results.profiles.length || results.employees.length || residents.length || courses.length);
+  const hasResults = actionResults.length || pageResults.length || hasWorkspaceItems || results?.organizations.length || results?.profiles.length || results?.employees.length || residents.length || courses.length;
   const favoriteShortcuts = navigationWorkspace.favoritePaths
     .filter((path) => moduleAccess.canAccessPath(path))
     .map((path: string) => {
@@ -97,12 +102,13 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   const go = (path: string) => {
     setQuery("");
     setOpen(false);
+    setActiveOptionId(undefined);
     navigate(path);
     onNavigate?.();
   };
 
   const optionId = (kind: string, key: string) =>
-    `global-search-${kind}-${encodeURIComponent(key).replaceAll("%", "")}`;
+    `${resultsId}-${kind}-${encodeURIComponent(key).replaceAll("%", "")}`;
   const optionClass = (id: string) => cn(
     "w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-muted",
     activeOptionId === id && "bg-muted ring-1 ring-inset ring-primary/40",
@@ -128,7 +134,7 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
       return;
     }
     const options = Array.from(
-      document.querySelectorAll<HTMLButtonElement>("#global-search-results [role='option']"),
+      resultsRef.current?.querySelectorAll<HTMLButtonElement>("[role='option']") ?? [],
     );
     if (options.length === 0) return;
     const currentIndex = options.findIndex((option) => option.id === activeOptionId);
@@ -164,12 +170,13 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={open && (query.trim().length >= 2 || hasShortcuts)}
-        aria-controls="global-search-results"
-        aria-activedescendant={activeOptionId}
+        aria-controls={resultsId}
+        aria-activedescendant={open ? activeOptionId : undefined}
       />
       {open && (query.trim().length >= 2 || hasShortcuts) && (
         <div
-          id="global-search-results"
+          ref={resultsRef}
+          id={resultsId}
           role="listbox"
           aria-label="Search results"
           className="absolute right-0 top-full z-50 mt-1 max-h-96 w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border bg-popover shadow-lg sm:w-72"
@@ -216,18 +223,17 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
               )}
               {!hasShortcuts && <p className="px-3 py-4 text-xs text-muted-foreground text-center">Type two or more characters to search.</p>}
             </div>
-          ) : isFetching && !hasResults ? (
-            <p className="px-3 py-4 text-xs text-muted-foreground text-center" aria-live="polite">Searching...</p>
-          ) : isError ? (
-            <div className="px-3 py-4 text-xs text-center" role="alert">
-              <p className="font-medium text-destructive">Search failed</p>
-              <p className="mt-1 text-muted-foreground">{error instanceof Error ? error.message : "Try again."}</p>
-              <button type="button" className="mt-2 rounded text-primary underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void refetch()}>Retry search</button>
-            </div>
-          ) : !hasResults ? (
-            <p className="px-3 py-4 text-xs text-muted-foreground text-center" aria-live="polite">No matches for "{query.trim()}"</p>
           ) : (
             <div className="py-1">
+              {isError && !isDebouncing && (
+                <div className="px-3 py-4 text-xs text-center" role="alert">
+                  <p className="font-medium text-destructive">Record search unavailable</p>
+                  <p className="mt-1 text-muted-foreground">{error instanceof Error ? error.message : "Try again."}</p>
+                  <button type="button" className="mt-2 rounded text-primary underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void refetch()}>Retry search</button>
+                </div>
+              )}
+              {(isDebouncing || isFetching) && <p className="px-3 py-2 text-xs text-muted-foreground" aria-live="polite">Searching records...</p>}
+              {!hasResults && !isDebouncing && !isFetching && !isError && <p className="px-3 py-4 text-xs text-muted-foreground text-center" aria-live="polite">No matches for "{query.trim()}"</p>}
               {!!actionResults.length && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Actions</p>

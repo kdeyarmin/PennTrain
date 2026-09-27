@@ -62,7 +62,7 @@ describe("complete resident appointment reads", () => {
     const rows = await result();
     expect(rows).toHaveLength(1001);
     expect(rows.at(-1)).toMatchObject({ id: "appointment-1000", status: "follow_up_required" });
-    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999]]);
+    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999], [1001, 2000]]);
     for (const call of calls) {
       expect(call.resident).toBe("resident-a");
       expect(call.order).toEqual(["starts_at", "id"]);
@@ -91,8 +91,8 @@ describe("complete resident appointment reads", () => {
     items = ids.map((id) => ({ id: `item-${id}`, appointment_id: id }));
     useResidentAppointmentPreparation([...ids].reverse().concat(ids[0]));
     expect(await result()).toHaveLength(ids.length);
-    expect(calls.map((call) => call.ids?.length)).toEqual([100, 100, 5]);
-    expect(calls.flatMap((call) => call.ids ?? [])).toEqual(ids);
+    expect(calls.filter(call => call.range?.[0] === 0).map((call) => call.ids?.length)).toEqual([100, 100, 5]);
+    expect(calls.filter(call => call.range?.[0] === 0).flatMap((call) => call.ids ?? [])).toEqual(ids);
   });
 
   it.each(["appointments", "preparation"])("rejects partial %s results on a later-page failure", async (kind) => {

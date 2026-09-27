@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, KeyRound, RefreshCw, Webhook } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,8 @@ const MIN_REASON = 10;
  */
 export function IntegrationRegisterCard({ organizationId }: { organizationId: string }) {
   const { toast } = useToast();
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const credentials = useIntegrationCredentialRegister(organizationId);
   const webhooks = useIntegrationWebhookRegister(organizationId);
   const subscriptions = useIntegrationWebhookSubscriptions(organizationId);
@@ -64,14 +66,28 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
     || reactivateEndpoint.isPending || setSubscription.isPending || replayDelivery.isPending;
   const reasonTooShort = reason.trim().length < MIN_REASON;
 
+  const [copied, setCopied] = useState(false);
+  const secretReview = useRef(0);
   const showSecret = (secret: RotatedSecret) => {
+    if (!mounted.current) return;
+    secretReview.current++;
     setShown(secret);
-    void navigator.clipboard?.writeText(secret.value).catch(() => undefined);
+    setCopied(false);
+  };
+  const copySecret = async () => {
+    if (!shown) return;
+    const review = secretReview.current;
+    try {
+      await navigator.clipboard.writeText(shown.value);
+      if (mounted.current && review === secretReview.current) setCopied(true);
+    } catch {
+      if (mounted.current && review === secretReview.current) toast({ title: "Could not copy the secret", description: "Select and copy the displayed value manually.", variant: "destructive" });
+    }
   };
 
   const submitReason = () => {
-    if (!reasonFor) return;
-    const done = () => { setReasonFor(null); setReason(""); };
+    if (!reasonFor || busy || reasonTooShort) return;
+    const done = () => { if (mounted.current) { setReasonFor(null); setReason(""); } };
     const onError = (error: unknown) => toast({
       title: "Blocked", description: errorText(error), variant: "destructive",
     });
@@ -119,8 +135,9 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
             <AlertTitle>{shown.label}</AlertTitle>
             <AlertDescription className="space-y-2">
               <code className="block break-all rounded bg-muted p-2 font-mono text-xs">{shown.value}</code>
-              <p className="text-xs">{shown.note} Copied to your clipboard.</p>
-              <Button size="sm" variant="outline" onClick={() => setShown(null)}>I have saved it</Button>
+              <p className="text-xs">{shown.note} {copied ? "Copied to your clipboard." : "Copy the displayed value before leaving this organization."}</p>
+              <Button size="sm" variant="outline" onClick={() => void copySecret()}>Copy secret</Button>
+              <Button size="sm" variant="outline" onClick={() => { secretReview.current++; setShown(null); }}>I have saved it</Button>
             </AlertDescription>
           </Alert>
         )}
@@ -149,7 +166,7 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
               <Button size="sm" variant="destructive" disabled={busy || reasonTooShort} onClick={submitReason}>
                 Confirm
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => { setReasonFor(null); setReason(""); }}>Cancel</Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setReasonFor(null); setReason(""); }}>Cancel</Button>
             </div>
           </div>
         )}
@@ -207,6 +224,7 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
           <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             <Webhook className="h-3.5 w-3.5" />Webhook endpoints
           </p>
+          {subscriptions.isError && <QueryError what="webhook event subscriptions" error={subscriptions.error} onRetry={() => void subscriptions.refetch()} />}
           {(webhooks.isLoading) ? (
             <p className="text-sm text-muted-foreground">Loading webhook endpoints…</p>
           ) : webhooks.isError ? (
@@ -237,7 +255,7 @@ export function IntegrationRegisterCard({ organizationId }: { organizationId: st
                           size="sm"
                           variant={subscription.is_active ? "secondary" : "outline"}
                           className="h-6 px-2 font-mono text-[11px]"
-                          disabled={busy}
+                          disabled={busy || subscriptions.isLoading || subscriptions.isError}
                           title={subscription.is_active
                             ? `Stop sending ${subscription.event_type} to this endpoint`
                             : `Send ${subscription.event_type} to this endpoint again`}

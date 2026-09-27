@@ -60,7 +60,7 @@ async function listMedicationExceptions(facilityId: string): Promise<MedicationE
   // The workspace displays history and computes its open count from this same collection.
   const pageSize = 1000;
   const rows: MedicationException[] = [];
-  for (let from = 0; ; from += pageSize) {
+  for (let from = 0; ;) {
     const { data, error } = await supabase
       .from("medication_integration_exceptions")
       .select("*")
@@ -70,7 +70,8 @@ async function listMedicationExceptions(facilityId: string): Promise<MedicationE
       .range(from, from + pageSize - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
-    if (!data || data.length < pageSize) break;
+    if (!data?.length) break;
+    from += data.length;
   }
   return rows;
 }

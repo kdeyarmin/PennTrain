@@ -99,7 +99,9 @@ export function useNavigationWorkspace() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.setQueryData(["navigation_preferences", user?.id], data),
+    // A pending mutation may adopt a replacement account's observer options.
+    // The server receipt, rather than the latest render, owns the cache update.
+    onSuccess: (data) => queryClient.setQueryData(["navigation_preferences", data.profile_id], data),
   });
   const recordVisit = useMutation({
     mutationFn: async ({ path, label }: { path: string; label: string }) => {
@@ -107,7 +109,7 @@ export function useNavigationWorkspace() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => queryClient.setQueryData(["navigation_preferences", user?.id], data),
+    onSuccess: (data) => queryClient.setQueryData(["navigation_preferences", data.profile_id], data),
   });
   return {
     ...query,

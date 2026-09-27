@@ -577,6 +577,22 @@ export interface ListQuizAttemptsFilters {
   quizId?: string;
 }
 
+export function useSetQuizCorrectAnswer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ questionId, answerId }: { questionId: string; answerId: string }) => {
+      const { error } = await supabase.rpc("set_quiz_correct_answer", { p_question_id: questionId, p_answer_id: answerId });
+      if (error) throw error;
+    },
+    // A lost response can follow a committed selection. Reload the authoritative
+    // key before allowing a retry, including after an ambiguous failure.
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["quiz_answers"] }),
+      queryClient.invalidateQueries({ queryKey: ["courses", "versions"] }),
+    ]),
+  });
+}
+
 export function useListQuizAttempts(filters: ListQuizAttemptsFilters = {}) {
   return useQuery({
     queryKey: ["quiz_attempts", filters],

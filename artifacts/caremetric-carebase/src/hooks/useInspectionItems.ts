@@ -23,7 +23,7 @@ export function useListInspectionItems(filters: ListInspectionItemsFilters = {},
       // items from the readiness sweep.
       const pageSize = 1000;
       const rows: InspectionItem[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase.from("inspection_items").select("*").order("next_due_date").order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.itemKind) query = query.eq("item_kind", filters.itemKind);
@@ -32,7 +32,8 @@ export function useListInspectionItems(filters: ListInspectionItemsFilters = {},
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

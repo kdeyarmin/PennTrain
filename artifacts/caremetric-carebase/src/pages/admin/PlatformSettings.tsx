@@ -183,23 +183,26 @@ export default function PlatformSettings() {
   };
 
   const handleNumberBlur = (key: string, label: string, raw: string) => {
-    const value = parseInt(raw, 10);
+    if (isPending || isLoading || isError) return;
+    const value = Number(raw);
     const serverValue = settings?.find(s => s.key === key)?.value;
     const serverValueStr = typeof serverValue === "number" ? String(serverValue) : "0";
-    if (Number.isNaN(value)) {
+    if (!raw.trim() || !Number.isSafeInteger(value) || (key === "default_trial_days" && (value < 1 || value > 365))) {
+      toast({ title: `Invalid ${label}`, description: key === "default_trial_days" ? "Enter a whole number from 1 to 365 days." : "Enter a whole number.", variant: "destructive" });
       setNumberDrafts(prev => ({ ...prev, [key]: serverValueStr }));
       return;
     }
+    if (value === serverValue) return;
     updateSetting(
       { key, value },
       {
         onSuccess: () => {
           toast({ title: `${label} updated`, variant: "success" });
-          setNumberDrafts(prev => ({ ...prev, [key]: String(value) }));
+          setNumberDrafts(prev => prev[key] === raw ? { ...prev, [key]: String(value) } : prev);
         },
         onError: (e: Error) => {
           toast({ title: `Failed to update ${label}`, description: e.message, variant: "destructive" });
-          setNumberDrafts(prev => ({ ...prev, [key]: serverValueStr }));
+          setNumberDrafts(prev => prev[key] === raw ? { ...prev, [key]: serverValueStr } : prev);
         },
       },
     );
@@ -229,7 +232,9 @@ export default function PlatformSettings() {
           ) : (
             <Input
               type="number"
-              min="0"
+              min={setting.key === "default_trial_days" ? 1 : undefined}
+              max={setting.key === "default_trial_days" ? 365 : undefined}
+              step="1"
               value={numberDrafts[setting.key] ?? (typeof setting.value === "number" ? String(setting.value) : "0")}
               disabled={isPending}
               aria-label={config.label}

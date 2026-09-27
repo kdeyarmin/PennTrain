@@ -1,8 +1,9 @@
-import { useId, useEffect, useState } from "react";
+import { useId, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardList, MessageSquareText, Plus, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { careDateTimeInstant } from "@/lib/careFormDates";
 import {
   useAddComplaintCorrectiveAction,
   useAddComplaintInterview,
@@ -54,7 +55,8 @@ export default function ComplaintDetail() {
   const addInterview = useAddComplaintInterview();
   const addAction = useAddComplaintCorrectiveAction();
   const addMonitoring = useAddComplaintMonitoring();
-  const canManage = user?.role !== "auditor" && complaint.data?.status !== "closed";
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "") && complaint.data?.status !== "closed";
+  const saving = useRef(false);
   const [status, setStatus] = useState("received");
   const [acknowledgement, setAcknowledgement] = useState("");
   const [investigator, setInvestigator] = useState("none");
@@ -86,12 +88,18 @@ export default function ComplaintDetail() {
     setAppealOutcome(value.appeal_outcome ?? ""); setOmbudsmanAt(local(value.ombudsman_referral_at));
     setOmbudsmanReference(value.ombudsman_reference ?? ""); setMonitoringRequired(value.nonretaliation_monitoring_required);
     setMonitoringUntil(local(value.nonretaliation_monitoring_until));
-  }, [complaint.data]);
+  // Evidence mutations refetch the case. Keep the investigation draft until the case changes.
+  }, [complaint.data?.id]);
 
   if (complaint.isLoading) return <div className="h-80 animate-pulse rounded bg-muted" />;
   if (complaint.isError || !complaint.data) return <QueryError what="complaint case" error={complaint.error} onRetry={() => complaint.refetch()} />;
   const c = complaint.data;
-  const save = () => update.mutate({
+  const datesValid = [acknowledgement, writtenResponseDate, appealAt, ombudsmanAt, monitoringUntil]
+    .every(value => !value || careDateTimeInstant(value) !== null);
+  const save = () => {
+    if (!canManage || update.isPending || saving.current || !datesValid || reason.trim().length < 5 || (status === "closed" && !closureReady)) return;
+    saving.current = true;
+    update.mutate({
     id: c.id, status, acknowledgementDate: iso(acknowledgement),
     assignedInvestigatorProfileId: investigator === "none" ? undefined : investigator,
     investigationNotes: notes, findings, correctiveActionSummary: correctiveSummary,
@@ -100,9 +108,11 @@ export default function ComplaintDetail() {
     ombudsmanReference, nonretaliationMonitoringRequired: monitoringRequired,
     nonretaliationMonitoringUntil: iso(monitoringUntil), reason,
   }, {
+    onSettled: () => { saving.current = false; },
     onSuccess: () => { toast({ title: status === "closed" ? "Complaint closed with approval" : "Complaint case updated" }); setReason(""); },
     onError: (error: Error) => toast({ title: "Could not update complaint", description: error.message, variant: "destructive" }),
-  });
+    });
+  };
   // Activity load failure must not score as "no open actions" / monitoring satisfied — that is
   // ready-on-error for a database-enforced closure checklist.
   const activityReady = !activity.isError && activity.data !== undefined;
@@ -154,23 +164,23 @@ export default function ComplaintDetail() {
       </div>
 
       <Card><CardHeader><CardTitle>Investigation, response & closure</CardTitle><CardDescription>Auditors can review this record; only authorized managers can change it.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-status`}>Status</Label><Select disabled={!canManage} value={status} onValueChange={setStatus}><SelectTrigger id={`${__fieldIds}-status`}><SelectValue /></SelectTrigger><SelectContent>{COMPLAINT_STATUSES.map(value => <SelectItem key={value} value={value}>{humanizeComplaint(value)}</SelectItem>)}</SelectContent></Select></div>
-        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-acknowledgement-date`}>Acknowledgement date</Label><Input id={`${__fieldIds}-acknowledgement-date`} disabled={!canManage} type="datetime-local" value={acknowledgement} onChange={event => setAcknowledgement(event.target.value)} /></div>
-        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-assigned-investigator`}>Assigned investigator</Label><Select disabled={!canManage} value={investigator} onValueChange={setInvestigator}><SelectTrigger id={`${__fieldIds}-assigned-investigator`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Unassigned</SelectItem>{profiles.data?.filter(profile => profile.is_active && ["org_admin", "facility_manager"].includes(profile.role)).map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div>
-        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-investigation-notes`}>Investigation notes</Label><Textarea id={`${__fieldIds}-investigation-notes`} disabled={!canManage} className="min-h-24" value={notes} onChange={event => setNotes(event.target.value)} /></div>
-        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-findings`}>Findings</Label><Textarea id={`${__fieldIds}-findings`} disabled={!canManage} className="min-h-24" value={findings} onChange={event => setFindings(event.target.value)} /></div>
-        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-corrective-action-summary`}>Corrective-action summary</Label><Textarea id={`${__fieldIds}-corrective-action-summary`} disabled={!canManage} value={correctiveSummary} onChange={event => setCorrectiveSummary(event.target.value)} /></div>
-        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-written-response`}>Written response</Label><Textarea id={`${__fieldIds}-written-response`} disabled={!canManage} className="min-h-24" value={writtenResponse} onChange={event => setWrittenResponse(event.target.value)} /></div>
-        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-written-response-date`}>Written response date</Label><Input id={`${__fieldIds}-written-response-date`} disabled={!canManage} type="datetime-local" value={writtenResponseDate} onChange={event => setWrittenResponseDate(event.target.value)} /></div><div />
-        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-appeal-reconsideration-requested`}>Appeal / reconsideration requested</Label><Input id={`${__fieldIds}-appeal-reconsideration-requested`} disabled={!canManage} type="datetime-local" value={appealAt} onChange={event => setAppealAt(event.target.value)} /></div>
-        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-appeal-outcome`}>Appeal outcome</Label><Input id={`${__fieldIds}-appeal-outcome`} disabled={!canManage} value={appealOutcome} onChange={event => setAppealOutcome(event.target.value)} /></div>
-        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-appeal-or-reconsideration-details`}>Appeal or reconsideration details</Label><Textarea id={`${__fieldIds}-appeal-or-reconsideration-details`} disabled={!canManage} value={appealDetails} onChange={event => setAppealDetails(event.target.value)} /></div>
-        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-ombudsman-referral-date`}>Ombudsman referral date</Label><Input id={`${__fieldIds}-ombudsman-referral-date`} disabled={!canManage} type="datetime-local" value={ombudsmanAt} onChange={event => setOmbudsmanAt(event.target.value)} /></div>
-        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-ombudsman-reference`}>Ombudsman reference</Label><Input id={`${__fieldIds}-ombudsman-reference`} disabled={!canManage} value={ombudsmanReference} onChange={event => setOmbudsmanReference(event.target.value)} /></div>
-        <label className="flex items-center gap-2 text-sm sm:col-span-2"><Checkbox disabled={!canManage} checked={monitoringRequired} onCheckedChange={value => setMonitoringRequired(value === true)} />Nonretaliation monitoring required</label>
-        {monitoringRequired && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-monitor-through`}>Monitor through</Label><Input id={`${__fieldIds}-monitor-through`} disabled={!canManage} type="datetime-local" value={monitoringUntil} onChange={event => setMonitoringUntil(event.target.value)} /></div>}
-        {canManage && <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-reason-for-this-update`}>Reason for this update *</Label><Input id={`${__fieldIds}-reason-for-this-update`} value={reason} onChange={event => setReason(event.target.value)} placeholder="Document the decision or documentation added" /></div>}
-        {canManage && <div className="sm:col-span-2"><Button disabled={reason.trim().length < 5 || update.isPending || (status === "closed" && !closureReady)} onClick={save}>{update.isPending ? "Saving..." : status === "closed" ? "Approve closure" : "Save case update"}</Button></div>}
+        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-status`}>Status</Label><Select disabled={!canManage || update.isPending} value={status} onValueChange={setStatus}><SelectTrigger id={`${__fieldIds}-status`}><SelectValue /></SelectTrigger><SelectContent>{COMPLAINT_STATUSES.map(value => <SelectItem key={value} value={value}>{humanizeComplaint(value)}</SelectItem>)}</SelectContent></Select></div>
+        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-acknowledgement-date`}>Acknowledgement date</Label><Input id={`${__fieldIds}-acknowledgement-date`} disabled={!canManage || update.isPending} type="datetime-local" value={acknowledgement} onChange={event => setAcknowledgement(event.target.value)} /></div>
+        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-assigned-investigator`}>Assigned investigator</Label><Select disabled={!canManage || update.isPending} value={investigator} onValueChange={setInvestigator}><SelectTrigger id={`${__fieldIds}-assigned-investigator`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Unassigned</SelectItem>{profiles.data?.filter(profile => profile.is_active && ["org_admin", "facility_manager"].includes(profile.role)).map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.first_name} {profile.last_name}</SelectItem>)}</SelectContent></Select></div>
+        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-investigation-notes`}>Investigation notes</Label><Textarea id={`${__fieldIds}-investigation-notes`} disabled={!canManage || update.isPending} className="min-h-24" value={notes} onChange={event => setNotes(event.target.value)} /></div>
+        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-findings`}>Findings</Label><Textarea id={`${__fieldIds}-findings`} disabled={!canManage || update.isPending} className="min-h-24" value={findings} onChange={event => setFindings(event.target.value)} /></div>
+        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-corrective-action-summary`}>Corrective-action summary</Label><Textarea id={`${__fieldIds}-corrective-action-summary`} disabled={!canManage || update.isPending} value={correctiveSummary} onChange={event => setCorrectiveSummary(event.target.value)} /></div>
+        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-written-response`}>Written response</Label><Textarea id={`${__fieldIds}-written-response`} disabled={!canManage || update.isPending} className="min-h-24" value={writtenResponse} onChange={event => setWrittenResponse(event.target.value)} /></div>
+        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-written-response-date`}>Written response date</Label><Input id={`${__fieldIds}-written-response-date`} disabled={!canManage || update.isPending} type="datetime-local" value={writtenResponseDate} onChange={event => setWrittenResponseDate(event.target.value)} /></div><div />
+        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-appeal-reconsideration-requested`}>Appeal / reconsideration requested</Label><Input id={`${__fieldIds}-appeal-reconsideration-requested`} disabled={!canManage || update.isPending} type="datetime-local" value={appealAt} onChange={event => setAppealAt(event.target.value)} /></div>
+        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-appeal-outcome`}>Appeal outcome</Label><Input id={`${__fieldIds}-appeal-outcome`} disabled={!canManage || update.isPending} value={appealOutcome} onChange={event => setAppealOutcome(event.target.value)} /></div>
+        <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-appeal-or-reconsideration-details`}>Appeal or reconsideration details</Label><Textarea id={`${__fieldIds}-appeal-or-reconsideration-details`} disabled={!canManage || update.isPending} value={appealDetails} onChange={event => setAppealDetails(event.target.value)} /></div>
+        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-ombudsman-referral-date`}>Ombudsman referral date</Label><Input id={`${__fieldIds}-ombudsman-referral-date`} disabled={!canManage || update.isPending} type="datetime-local" value={ombudsmanAt} onChange={event => setOmbudsmanAt(event.target.value)} /></div>
+        <div className="space-y-1"><Label htmlFor={`${__fieldIds}-ombudsman-reference`}>Ombudsman reference</Label><Input id={`${__fieldIds}-ombudsman-reference`} disabled={!canManage || update.isPending} value={ombudsmanReference} onChange={event => setOmbudsmanReference(event.target.value)} /></div>
+        <label className="flex items-center gap-2 text-sm sm:col-span-2"><Checkbox disabled={!canManage || update.isPending} checked={monitoringRequired} onCheckedChange={value => setMonitoringRequired(value === true)} />Nonretaliation monitoring required</label>
+        {monitoringRequired && <div className="space-y-1"><Label htmlFor={`${__fieldIds}-monitor-through`}>Monitor through</Label><Input id={`${__fieldIds}-monitor-through`} disabled={!canManage || update.isPending} type="datetime-local" value={monitoringUntil} onChange={event => setMonitoringUntil(event.target.value)} /></div>}
+        {canManage && <div className="space-y-1 sm:col-span-2"><Label htmlFor={`${__fieldIds}-reason-for-this-update`}>Reason for this update *</Label><Input id={`${__fieldIds}-reason-for-this-update`} disabled={update.isPending} value={reason} onChange={event => setReason(event.target.value)} placeholder="Document the decision or documentation added" /></div>}
+        {canManage && <div className="sm:col-span-2"><Button disabled={!datesValid || reason.trim().length < 5 || update.isPending || (status === "closed" && !closureReady)} onClick={save}>{update.isPending ? "Saving..." : status === "closed" ? "Approve closure" : "Save case update"}</Button></div>}
       </CardContent></Card>
 
       <div className="grid gap-4 xl:grid-cols-3">

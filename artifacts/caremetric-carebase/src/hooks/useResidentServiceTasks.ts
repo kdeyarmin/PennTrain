@@ -53,12 +53,13 @@ export interface ServiceTaskQueueFilters {
 
 async function serviceRows<T>(page: (from: number, through: number) => PromiseLike<{ data: unknown; error: unknown }>) {
   const rows: T[] = [];
-  for (let from = 0; ; from += 1000) {
+  for (let from = 0; ;) {
     const { data, error } = await page(from, from + 999);
     if (error) throw error;
     const pageRows = (data ?? []) as T[];
     rows.push(...pageRows);
-    if (pageRows.length < 1000) return rows;
+    if (pageRows.length === 0) return rows;
+    from += pageRows.length;
   }
 }
 

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Role } from "@/lib/auth";
+import { useAuth, type Role } from "@/lib/auth";
 
 export interface WorkspaceSearchItem {
   kind: string;
@@ -25,9 +25,10 @@ export interface GlobalSearchResults {
 const EMPTY_RESULTS: GlobalSearchResults = { items: [], organizations: [], profiles: [], employees: [], residents: [], courses: [] };
 
 export function useGlobalSearch(query: string, role: Role | undefined) {
+  const { user } = useAuth();
   const trimmed = query.trim();
   return useQuery({
-    queryKey: ["global-search", trimmed, role],
+    queryKey: ["global-search", user?.id, user?.organizationId, trimmed, role],
     queryFn: async (): Promise<GlobalSearchResults> => {
       const { data, error } = await supabase.rpc("search_workspace", { p_query: trimmed });
       if (error) throw error;
@@ -41,8 +42,8 @@ export function useGlobalSearch(query: string, role: Role | undefined) {
         courses: Array.isArray(result.courses) ? result.courses : [],
       };
     },
-    enabled: trimmed.length >= 2 && !!role,
-    placeholderData: (previous) => previous ?? EMPTY_RESULTS,
+    enabled: trimmed.length >= 2 && !!role && !!user,
+    placeholderData: EMPTY_RESULTS,
     staleTime: 15_000,
   });
 }

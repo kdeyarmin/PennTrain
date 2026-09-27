@@ -77,14 +77,15 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
 }
 
 // Balances and FIFO aging consume the complete ledger, not a recent-activity sample. PostgREST
-// caps an ordinary select at 1000 rows, which otherwise drops older debits/credits from those totals.
+// caps ordinary selects (potentially below 1000), so only an empty page proves completion.
 async function financialRows<T>(page: (from: number, through: number) => PromiseLike<{ data: T[] | null; error: unknown }>) {
   const rows: T[] = [];
-  for (let from = 0; ; from += 1000) {
+  for (let from = 0; ;) {
     const { data, error } = await page(from, from + 999);
     if (error) throw error;
     rows.push(...(data ?? []));
-    if (!data || data.length < 1000) return { data: rows, error: null };
+    if (!data?.length) return { data: rows, error: null };
+    from += data.length;
   }
 }
 
@@ -265,8 +266,8 @@ const UNSETTLED_FUND_ACCOUNT_SCAN = 300;
  * Pages of UNSETTLED_FUND_ACCOUNT_SCAN to walk before giving up and reporting truncation.
  *
  * Bounds the work on a facility with a long settled history while still letting the walk pass a
- * large block of closed accounts, which a single page could not. Ten pages is 3,000 discharged or
- * deceased residents at one facility; past that the card says the list is incomplete rather than
+ * large block of closed accounts, which a single page could not. Ten pages reads up to 3,000
+ * discharged or deceased residents (fewer with a lower API cap); past that the card says the list is incomplete rather than
  * pretending it is not.
  */
 const UNSETTLED_FUND_ACCOUNT_MAX_PAGES = 10;
@@ -302,7 +303,7 @@ export function useUnsettledPersonalFundAccounts(facilityId?: string) {
       const rows: AccountRow[] = [];
       let scanExhausted = false;
       let pagesRead = 0;
-      for (let from = 0; pagesRead < UNSETTLED_FUND_ACCOUNT_MAX_PAGES; from += UNSETTLED_FUND_ACCOUNT_SCAN) {
+      for (let from = 0; pagesRead < UNSETTLED_FUND_ACCOUNT_MAX_PAGES;) {
         pagesRead += 1;
         const { data, error } = await supabase
           .from("resident_personal_fund_accounts")
@@ -332,7 +333,7 @@ export function useUnsettledPersonalFundAccounts(facilityId?: string) {
         }
         rows.push(...page.filter((row) => !closed.has(row.id)));
 
-        if (page.length < UNSETTLED_FUND_ACCOUNT_SCAN) { scanExhausted = true; break; }
+        from += page.length;
         // One more than the display limit is enough to know the list is truncated.
         if (rows.length > UNSETTLED_FUND_ACCOUNT_LIMIT) break;
       }

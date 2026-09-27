@@ -57,17 +57,18 @@ export function useComplianceInstances() {
       // rows are ordered oldest-first it dropped the newest/upcoming obligations, skewing the score.
       const pageSize = 1000;
       const all: ComplianceInstance[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         const { data, error } = await supabase
           .from("compliance_requirement_instances")
           .select("*")
           .order("due_date", { ascending: true })
           .order("id", { ascending: true })
-          .range(from, from + pageSize - 1);
+          .range(from, Math.min(from + pageSize, 50000) - 1);
         if (error) throw error;
         const batch = (data ?? []) as ComplianceInstance[];
         all.push(...batch);
-        if (batch.length < pageSize || all.length >= 50000) break;
+        if (batch.length === 0 || all.length >= 50000) break;
+        from += batch.length;
       }
       return all;
     },

@@ -1,4 +1,5 @@
 import { useId, lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { boundedSettled } from "@/lib/boundedSettled";
 import { useParams, useLocation } from "wouter";
 
 // Lazy: the acuity engine and its weight tables are only meaningful on this page, and the schedule
@@ -312,6 +313,7 @@ export default function ScheduleDetail() {
   const hasAutoFill = (assignments ?? []).some((a) => a.source === "auto_fill" && a.status === "scheduled");
 
   function openAddDialog(unitId: string | null, date: string) {
+    if (isAddingShifts) return;
     setAddForm({ shiftDefinitionId: activeShiftDefs[0]?.id ?? "", notes: "" });
     setAddEmployeeIds(new Set());
     setAddTarget({ unitId, date });
@@ -394,10 +396,11 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
     setEditTarget(a);
   }
 
-  // Applies the same shift to every selected employee in one batch via Promise.allSettled (so one
+  // Applies the same shift to every selected employee in a bounded settled batch (so one
   // employee's conflict doesn't block the rest), then reports a single summary toast -- mirrors
   // the bulk-assignment pattern used elsewhere in this app (e.g. CourseAssignments' Assign Training).
   async function handleAdd() {
+    if (isAddingShifts || !isDraft || eligibilityPreview.isLoading || eligibilityPreview.isError) return;
     if (!addTarget || !schedule || addEmployeeIds.size === 0 || !addForm.shiftDefinitionId) {
       toast({ title: "Pick at least one employee and a shift", variant: "destructive" });
       return;
@@ -419,8 +422,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
     };
 
     setIsAddingShifts(true);
-    const results = await Promise.allSettled(
-      employeeIds.map((employeeId) =>
+    const results = await boundedSettled(employeeIds, 4, (employeeId) =>
         createAssignment.mutateAsync({
           organization_id: schedule.organization_id,
           schedule_id: schedule.id,
@@ -435,9 +437,10 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           source: "manual",
           notes: addForm.notes.trim() || null,
         })
-      )
     );
     setIsAddingShifts(false);
+    const failedIds = employeeIds.filter((_, index) => results[index].status === "rejected");
+    setAddEmployeeIds(new Set(failedIds));
 
     if (employeeIds.length === 1) {
       const [only] = results;
@@ -456,10 +459,11 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
       title: failed === 0 ? "Shifts added" : succeeded === 0 ? "Couldn't add shifts" : "Shifts partially added",
       description:
         `${succeeded} of ${employeeIds.length} employees added successfully.`
-        + (failed > 0 ? ` ${failed} failed -- check for conflicting shifts.` : ""),
+        + (failed > 0 ? ` ${failed} remain selected for retry. ` + results.flatMap((result, index) => result.status === "rejected"
+          ? [`${eligibleCandidates.find(candidate => candidate.employeeId === employeeIds[index])?.employeeName ?? "Employee"}: ${describeFailure(result.reason)}`] : []).join("; ") : ""),
       variant: failed === 0 ? "success" : succeeded === 0 ? "destructive" : undefined,
     });
-    if (succeeded > 0) setAddTarget(null);
+    if (failed === 0) setAddTarget(null);
   }
 
   // Cycles a single shift's status without opening the full edit modal -- the common case is a
@@ -643,7 +647,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
           </Badge>
           {isDraft && (
             <>
-              <Button variant="outline" onClick={handleGenerate} disabled={generate.isPending}>
+              <Button variant="outline" onClick={handleGenerate} disabled={generate.isPending || isAddingShifts}>
                 <Sparkles className="h-4 w-4 mr-2" />
                 {generate.isPending ? "Filling..." : "Auto-Fill from Typical Patterns"}
               </Button>
@@ -671,7 +675,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
               </Button>
             </>
           )}
-          <Button onClick={handlePublishToggle} disabled={publish.isPending || unpublish.isPending}>
+          <Button onClick={handlePublishToggle} disabled={publish.isPending || unpublish.isPending || isAddingShifts}>
             {isDraft ? <Send className="h-4 w-4 mr-2" /> : <Undo2 className="h-4 w-4 mr-2" />}
             {isDraft ? "Publish" : "Move to Draft"}
           </Button>
@@ -1085,7 +1089,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
       </Card>
 
       {/* Add shift dialog */}
-      <Dialog open={!!addTarget} onOpenChange={(o) => !o && setAddTarget(null)}>
+      <Dialog open={!!addTarget} onOpenChange={(o) => { if (!o && !isAddingShifts) setAddTarget(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add Shift</DialogTitle>
@@ -1100,6 +1104,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                 <label className="flex items-center gap-2 px-2.5 py-1.5 text-xs border-b bg-muted/40 cursor-pointer">
                   <Checkbox
                     checked={allAddEmployeesSelected ? true : someAddEmployeesSelected ? "indeterminate" : false}
+                    disabled={isAddingShifts || eligibilityPreview.isLoading || eligibilityPreview.isError}
                     onCheckedChange={toggleSelectAllAddEmployees}
                     aria-label="Select all visible employees"
                   />
@@ -1120,7 +1125,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
                         <label className={`flex items-center gap-2 ${candidate.outcome === "blocked" ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}>
                         <Checkbox
                           checked={addEmployeeIds.has(candidate.employeeId)}
-                          disabled={candidate.outcome === "blocked"}
+                          disabled={candidate.outcome === "blocked" || isAddingShifts}
                           onCheckedChange={() => toggleAddEmployee(candidate.employeeId)}
                         />
                         <span className="flex-1 truncate">
@@ -1156,7 +1161,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${__fieldIds}-shift`}>Shift *</Label>
-              <Select value={addForm.shiftDefinitionId} onValueChange={(v) => setAddForm((f) => ({ ...f, shiftDefinitionId: v }))}>
+              <Select value={addForm.shiftDefinitionId} disabled={isAddingShifts} onValueChange={(v) => setAddForm((f) => ({ ...f, shiftDefinitionId: v }))}>
                 <SelectTrigger id={`${__fieldIds}-shift`}><SelectValue placeholder="Select shift" /></SelectTrigger>
                 <SelectContent>
                   {activeShiftDefs.map((s) => (
@@ -1169,12 +1174,12 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${__fieldIds}-notes`}>Notes</Label>
-              <Textarea id={`${__fieldIds}-notes`} rows={2} value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} />
+              <Textarea id={`${__fieldIds}-notes`} rows={2} value={addForm.notes} disabled={isAddingShifts} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddTarget(null)}>Cancel</Button>
-            <Button onClick={handleAdd} disabled={isAddingShifts || addEmployeeIds.size === 0}>
+            <Button variant="outline" disabled={isAddingShifts} onClick={() => { if (!isAddingShifts) setAddTarget(null); }}>Cancel</Button>
+            <Button onClick={handleAdd} disabled={isAddingShifts || addEmployeeIds.size === 0 || eligibilityPreview.isLoading || eligibilityPreview.isError}>
               {isAddingShifts
                 ? "Adding..."
                 : addEmployeeIds.size > 1

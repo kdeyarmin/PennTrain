@@ -161,7 +161,11 @@ function useRegisterMutation<TArgs, TResult>(run: (args: TArgs) => Promise<TResu
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: run,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["integration-register"] }),
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["integration-register"] }),
+      queryClient.invalidateQueries({ queryKey: ["integration-api-credentials"] }),
+      queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] }),
+    ]),
   });
 }
 
@@ -185,7 +189,7 @@ export function useRotateIntegrationCredential() {
     if (error) throw error;
     // The function returns a one-row TABLE, so PostgREST hands back an array.
     const row = (Array.isArray(data) ? data[0] : data) as { plaintext_key?: string; key_prefix?: string } | null;
-    if (!row?.plaintext_key) throw new Error("The rotation returned no key. Nothing was changed.");
+    if (!row?.plaintext_key) throw new Error("The rotation response contained no key. Refresh the credential register before deciding whether to rotate again.");
     return {
       label: `New API key (${row.key_prefix ?? "no prefix"})`,
       value: row.plaintext_key,
@@ -202,7 +206,7 @@ export function useRotateWebhookSecret() {
     if (error) throw error;
     const row = (Array.isArray(data) ? data[0] : data) as
       { plaintext_signing_secret?: string; secret_version?: number } | null;
-    if (!row?.plaintext_signing_secret) throw new Error("The rotation returned no secret. Nothing was changed.");
+    if (!row?.plaintext_signing_secret) throw new Error("The rotation response contained no secret. Refresh the endpoint register before deciding whether to rotate again.");
     return {
       label: `New signing secret (version ${row.secret_version ?? "?"})`,
       value: row.plaintext_signing_secret,

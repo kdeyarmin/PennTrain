@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({
   state: [] as unknown[], refs: [] as Array<{ current: unknown }>, deps: [] as Array<unknown[] | undefined>, effects: [] as Array<() => unknown>,
   cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
   profiles: [] as Record<string, unknown>[], deliveries: [] as Record<string, unknown>[], terms: [] as Record<string, unknown>[],
-  update: vi.fn(), resetMfa: vi.fn(), bulkRetry: vi.fn(), toast: vi.fn(), rpc: vi.fn(),
+  evidenceError: false, evidenceRetry: vi.fn(), update: vi.fn(), resetMfa: vi.fn(), bulkRetry: vi.fn(), toast: vi.fn(), rpc: vi.fn(),
 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(), useId: () => "target",
@@ -35,7 +35,7 @@ vi.mock("@/hooks/useNotificationReach", () => ({ useNotificationReach: () => ({ 
 vi.mock("@/hooks/useAdminNotificationDeliveries", () => ({
   useListNotificationDeliveries: () => ({ data: h.deliveries }), useOrganizationNameMap: () => ({ data: {} }),
   useBulkRetryNotificationDeliveries: () => ({ mutateAsync: h.bulkRetry }), useRetryNotificationDelivery: () => ({}),
-  useNotificationDeliveryOperations: () => ({}), useNotificationDeliveryEvidence: () => ({}), useNotificationTemplateLibrary: () => ({ data: [] }),
+  useNotificationDeliveryOperations: () => ({}), useNotificationDeliveryEvidence: () => ({ isError: h.evidenceError, error: new Error("Documentation unavailable"), refetch: h.evidenceRetry }), useNotificationTemplateLibrary: () => ({ data: [] }),
   usePreviewNotificationTemplate: () => ({}), useCreateNotificationTemplateVersion: () => ({}), useActivateNotificationTemplate: () => ({}),
   useSetNotificationSpendPolicy: () => ({}), useSetNotificationChannelPolicy: () => ({}), useAcknowledgeNotificationSpendAlert: () => ({}),
   useNotificationDeliveryHealth: () => ({}), usePreviewSavedNotificationTemplate: () => ({}),
@@ -61,7 +61,7 @@ function render(Page: () => ReactNode) {
 const click = (node: Node) => (node.props.onClick as (event: unknown) => unknown)({ preventDefault: vi.fn(), stopPropagation: vi.fn() });
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes; }); return { promise, resolve }; }
 beforeEach(() => {
-  vi.clearAllMocks(); h.state = []; h.refs = []; h.deps = [];
+  vi.clearAllMocks(); h.evidenceError = false; h.state = []; h.refs = []; h.deps = [];
   vi.stubGlobal("window", { location: { search: "" } });
   h.profiles = ["Alice", "Beth"].map((name, index) => ({ id: `user-${index}`, first_name: name, last_name: "Staff", email: `${name}@example.test`, role: "employee", is_active: true, sms_opt_in: false, preferred_notification_channel: "email" }));
   h.deliveries = ["a", "b", "c"].map(id => ({ id, recipient: `${id}@example.test`, status: "failed", final_outcome: "failed", delivery_type: "reminder", channel: "email", created_at: "2026-09-01T12:00:00Z" }));
@@ -118,4 +118,11 @@ describe("administration asynchronous target recovery", () => {
     expect(h.rpc).toHaveBeenCalledWith("manage_module_access_term", expect.objectContaining({ p_organization_id: "org", p_revoke_id: "term-a", p_reason: "End complimentary access" }));
     expect(h.rpc.mock.calls[0][1]).not.toHaveProperty("p_ends_at");
   });
+});
+
+it("surfaces notification evidence failures with a scoped retry", () => {
+  h.evidenceError = true;
+  click(render(NotificationDeliveries).find(node => Array.isArray(node.props.children) && node.props.children.includes("Documentation"))!);
+  (render(NotificationDeliveries).find(node => node.props.what === "delivery documentation")!.props.onRetry as () => void)();
+  expect(h.evidenceRetry).toHaveBeenCalledOnce();
 });

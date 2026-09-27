@@ -13,14 +13,15 @@ export function useListResidentDocuments(residentId: string | undefined) {
     queryFn: async ({ signal }) => {
       const pageSize = 1000;
       const rows: ResidentDocument[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         const { data, error } = await supabase
           .from("resident_documents").select("*").eq("resident_id", residentId!)
           .order("created_at", { ascending: false }).order("id", { ascending: true })
           .range(from, from + pageSize - 1).abortSignal(signal);
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) return rows;
+        if (!data?.length) return rows;
+        from += data.length;
       }
     },
     enabled: !!residentId,
@@ -175,12 +176,13 @@ export function useListPendingResidentDocumentDeletions(residentId: string | und
     queryKey: ["resident_document_deletions", user?.id, user?.organizationId, user?.role, user?.facilityId, residentId ?? "all"],
     queryFn: async ({ signal }) => {
       const rows: PendingResidentDocumentDeletion[] = [];
-      for (let from = 0; ; from += 500) {
+      for (let from = 0; ;) {
         const { data, error } = await supabase.rpc("list_pending_resident_document_deletions", residentId ? { p_resident_id: residentId } : {})
           .range(from, from + 499).abortSignal(signal);
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < 500) return rows;
+        if (!data?.length) return rows;
+        from += data.length;
       }
     },
     enabled: enabled && !isLoading && !!user?.isActive,

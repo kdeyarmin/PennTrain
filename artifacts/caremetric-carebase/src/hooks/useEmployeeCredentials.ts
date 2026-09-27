@@ -31,7 +31,7 @@ export function useListEmployeeCredentials(filters: ListEmployeeCredentialsFilte
       // rows from one page while repeating them on another.
       const pageSize = 1000;
       const rows: EmployeeCredential[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ; ) {
         let query = supabase.from("employee_credentials").select("*").order("expiration_date").order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (filters.employeeId) query = query.eq("employee_id", filters.employeeId);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
@@ -40,7 +40,8 @@ export function useListEmployeeCredentials(filters: ListEmployeeCredentialsFilte
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

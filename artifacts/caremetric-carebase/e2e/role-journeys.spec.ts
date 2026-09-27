@@ -210,6 +210,26 @@ test.describe("authenticated role journeys", () => {
         .filter((v) => v.impact === "critical");
       expect(critical, JSON.stringify(critical, null, 2)).toEqual([]);
 
+      if (role === "employee") {
+        await test.step("mobile search retains keyboard page navigation when record lookup fails", async () => {
+          await page.setViewportSize({ width: 390, height: 844 });
+          const searchEndpoint = "**/rest/v1/rpc/search_workspace";
+          await page.route(searchEndpoint, route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Record lookup temporarily unavailable" }) }));
+          try {
+            await page.getByRole("button", { name: "Open search", exact: true }).click();
+            const search = page.getByRole("combobox", { name: "Search pages, people, and your training", exact: true });
+            await search.fill("certificates");
+            await expect(page.getByText("Record search unavailable", { exact: true })).toBeVisible({ timeout: 15_000 });
+            await expect(page.getByRole("option", { name: /My certificates/ })).toBeVisible();
+            await search.press("ArrowDown");
+            await search.press("Enter");
+            await expect(page.getByRole("heading", { level: 1, name: "My Certificates", exact: true })).toBeVisible();
+            await expect(page.getByRole("listbox", { name: "Search results" })).toHaveCount(0);
+            await expectNoHorizontalOverflow(page);
+          } finally { await page.unroute(searchEndpoint); }
+        });
+      }
+
       if (role === "org_admin") {
         await test.step("changing employee routes discards the previous employee's draft", async () => {
           const { data: staff, error } = await admin.from("employees").insert([

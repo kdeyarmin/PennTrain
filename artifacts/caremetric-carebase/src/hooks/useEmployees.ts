@@ -50,7 +50,7 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
       // PostgREST's per-response cap. A unique tie-breaker keeps same-surname staff on one page.
       const pageSize = 1000;
       const rows: Employee[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase.from("employees").select("*").order("last_name")
           .order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
@@ -66,7 +66,8 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

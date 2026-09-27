@@ -26,7 +26,7 @@ export function useListCorrectiveActions(filters: ListCorrectiveActionsFilters =
       // drops actions from one page while repeating them on another.
       const pageSize = 1000;
       const rows: CorrectiveAction[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase.from("corrective_actions").select("*").order("due_date").order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (filters.incidentId) query = query.eq("incident_id", filters.incidentId);
         if (filters.inspectionEventId) query = query.eq("inspection_event_id", filters.inspectionEventId);
@@ -36,7 +36,8 @@ export function useListCorrectiveActions(filters: ListCorrectiveActionsFilters =
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

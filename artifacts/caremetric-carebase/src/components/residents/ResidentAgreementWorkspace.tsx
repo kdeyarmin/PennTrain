@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { Copy, FileCheck2, FileSignature, History, Link2, Plus, RefreshCw, Send, ShieldCheck } from "lucide-react";
 import type { ResidentDocument } from "@/hooks/useResidentDocuments";
 import {
@@ -14,7 +14,8 @@ import {
 } from "@/hooks/useResidentAgreements";
 import { useToast } from "@/hooks/use-toast";
 import { humanize } from "@/lib/utils";
-import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso, addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal, addFacilityCalendarDays, facilityDayBounds, facilityToday } from "@/lib/dateUtils";
+import { careDateTimeInstant } from "@/lib/careFormDates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,18 +86,21 @@ export function ResidentAgreementWorkspace({
   const [guestDays, setGuestDays] = useState("7");
   const [issuedLink, setIssuedLink] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState("email");
+  const publishing = useRef(false);
+  const responding = useRef(false);
+  const changeAgreementOpen = (open: boolean) => { if (!publishing.current && !publish.isPending) setAgreementOpen(open); };
+  const changeResponseOpen = (open: boolean) => { if (!responding.current && !record.isPending) setResponseOpen(open); };
 
   const versionsById = useMemo(() => new Map((query.data?.versions ?? []).map(version => [version.id, version])), [query.data?.versions]);
   const signaturesByVersion = (versionId: string) => (query.data?.signatures ?? []).filter(signature => signature.agreement_version_id === versionId);
   const activeVersions = (query.data?.agreements ?? []).map(agreement => versionsById.get(agreement.current_version_id ?? "")).filter(Boolean) as ResidentAgreementVersion[];
-  const actualSignedAt = (() => {
-    if (!responseForm.signedAt) return undefined;
-    try { return facilityDateTimeLocalToUtcIso(responseForm.signedAt); } catch { return undefined; }
-  })();
+  const agreementEffectiveAt = careDateTimeInstant(agreementForm.effectiveAt);
+  const actualSignedAt = careDateTimeInstant(responseForm.signedAt) ?? undefined;
   const wetImportError = responseForm.authenticationMethod === "wet_signature_import"
     ? wetSignatureEvidenceError(actualSignedAt, responseForm.signedDocumentId) : null;
 
   const openAmendment = (agreement: ResidentAgreement) => {
+    if (!canManage || publishing.current || publish.isPending) return;
     const version = versionsById.get(agreement.current_version_id ?? "");
     if (!version) return;
     setAgreementForm({
@@ -110,29 +114,42 @@ export function ResidentAgreementWorkspace({
   };
 
   const saveAgreement = () => {
+    if (!canManage || !agreementEffectiveAt || publishing.current || publish.isPending || !agreementForm.title.trim()
+      || agreementForm.contentText.trim().length < 10 || (!agreementForm.residentRequired && !agreementForm.designatedRequired)
+      || (agreementForm.agreementId && agreementForm.amendmentReason.trim().length < 5)) return;
+    publishing.current = true;
     const roles = [agreementForm.residentRequired ? "resident" : null, agreementForm.designatedRequired ? "designated_person" : null].filter(Boolean) as string[];
     publish.mutate({
       residentId, agreementId: agreementForm.agreementId || undefined,
       agreementType: agreementForm.agreementType, title: agreementForm.title,
       versionLabel: agreementForm.versionLabel, contentText: agreementForm.contentText,
-      effectiveAt: facilityDateTimeLocalToUtcIso(agreementForm.effectiveAt), requiredSignerRoles: roles,
+      effectiveAt: agreementEffectiveAt, requiredSignerRoles: roles,
       documentId: agreementForm.documentId === "none" ? undefined : agreementForm.documentId,
       amendmentReason: agreementForm.amendmentReason || undefined,
     }, {
+      onSettled: () => { publishing.current = false; },
       onSuccess: () => { setAgreementOpen(false); setAgreementForm(blankAgreement()); toast({ title: agreementForm.agreementId ? "Agreement amendment published" : "Resident agreement published" }); },
       onError: (error: Error) => toast({ title: "Couldn't publish agreement", description: error.message, variant: "destructive" }),
     });
   };
 
   const openResponse = (versionId: string) => {
+    if (!canManage || responding.current || record.isPending) return;
     setResponseForm({ ...blankResponse(), versionId });
     setResponseOpen(true);
   };
-  const saveResponse = () => record.mutate({ residentId, ...responseForm, signedAt: actualSignedAt,
+  const saveResponse = () => {
+    if (!canManage || responding.current || record.isPending || wetImportError || !responseForm.versionId
+      || responseForm.signerName.trim().length < 2 || responseForm.relationship.trim().length < 2
+      || responseForm.attestation.trim().length < 5 || (responseForm.outcome !== "signed" && responseForm.reason.trim().length < 5)) return;
+    responding.current = true;
+    record.mutate({ residentId, ...responseForm, signedAt: actualSignedAt,
     signedDocumentId: responseForm.signedDocumentId === "none" ? undefined : responseForm.signedDocumentId }, {
+    onSettled: () => { responding.current = false; },
     onSuccess: () => { setResponseOpen(false); setResponseForm(blankResponse()); toast({ title: "Agreement response recorded" }); },
     onError: (error: Error) => toast({ title: "Couldn't record response", description: error.message, variant: "destructive" }),
-  });
+    });
+  };
 
   const createLink = () => issueGrant.mutate({
     residentId,
@@ -155,7 +172,7 @@ export function ResidentAgreementWorkspace({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><CardTitle className="flex items-center gap-2"><FileSignature className="h-5 w-5" /> Resident agreements & e-signatures</CardTitle><CardDescription className="mt-1">Exact document versions, signer authority, refusals, witnesses, copy delivery, and amendments—not employee policy attestations.</CardDescription></div>
-          {canManage && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => { setGuestLabel(""); setGuestVersionIds([]); setGuestDays("7"); setGuestSignerRole("designated_person"); setShareOpen(true); }}><Link2 className="mr-2 h-4 w-4" />External link</Button><Button size="sm" onClick={() => { setAgreementForm(blankAgreement()); setAgreementOpen(true); }}><Plus className="mr-2 h-4 w-4" />New agreement</Button></div>}
+          {canManage && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => { setGuestLabel(""); setGuestVersionIds([]); setGuestDays("7"); setGuestSignerRole("designated_person"); setShareOpen(true); }}><Link2 className="mr-2 h-4 w-4" />External link</Button><Button size="sm" disabled={publish.isPending} onClick={() => { if (publishing.current) return; setAgreementForm(blankAgreement()); changeAgreementOpen(true); }}><Plus className="mr-2 h-4 w-4" />New agreement</Button></div>}
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -177,7 +194,7 @@ export function ResidentAgreementWorkspace({
         {!!query.data?.history.length && <details><summary className="cursor-pointer text-sm font-semibold"><History className="mr-2 inline h-4 w-4" />Agreement history</summary><div className="mt-3 space-y-2">{query.data.history.slice(0, 15).map(event => <div key={event.id} className="flex justify-between gap-3 border-b pb-2 text-xs"><div><p className="font-medium">{humanize(event.event_type)}</p><p className="text-muted-foreground">{event.summary}</p></div><span className="shrink-0 text-muted-foreground">{new Date(event.occurred_at).toLocaleString()}</span></div>)}</div></details>}
       </CardContent>
 
-      <Dialog open={agreementOpen} onOpenChange={setAgreementOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{agreementForm.agreementId ? "Publish agreement amendment" : "Publish resident agreement"}</DialogTitle><DialogDescription>The canonical text and optional resident document are hashed into an immutable version.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2">
+      <Dialog open={agreementOpen} onOpenChange={changeAgreementOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{agreementForm.agreementId ? "Publish agreement amendment" : "Publish resident agreement"}</DialogTitle><DialogDescription>The canonical text and optional resident document are hashed into an immutable version.</DialogDescription></DialogHeader><fieldset disabled={publish.isPending} className="grid gap-3 sm:grid-cols-2">
         <div><Label htmlFor={`${__fieldIds}-agreement-type`}>Agreement type</Label><Select disabled={!!agreementForm.agreementId} value={agreementForm.agreementType} onValueChange={value => setAgreementForm(current => ({ ...current, agreementType: value }))}><SelectTrigger id={`${__fieldIds}-agreement-type`}><SelectValue /></SelectTrigger><SelectContent>{RESIDENT_AGREEMENT_TYPES.map(type => <SelectItem key={type} value={type}>{humanize(type)}</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor={`${__fieldIds}-version-label`}>Version label</Label><Input id={`${__fieldIds}-version-label`} value={agreementForm.versionLabel} onChange={event => setAgreementForm(current => ({ ...current, versionLabel: event.target.value }))} /></div>
         <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-title`}>Title</Label><Input id={`${__fieldIds}-title`} value={agreementForm.title} onChange={event => setAgreementForm(current => ({ ...current, title: event.target.value }))} /></div>
@@ -186,9 +203,9 @@ export function ResidentAgreementWorkspace({
         <div><Label htmlFor={`${__fieldIds}-linked-resident-document`}>Linked resident document</Label><Select value={agreementForm.documentId} onValueChange={value => setAgreementForm(current => ({ ...current, documentId: value }))}><SelectTrigger id={`${__fieldIds}-linked-resident-document`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">No linked document</SelectItem>{documents.map(document => <SelectItem key={document.id} value={document.id}>{document.document_label ?? document.file_name}</SelectItem>)}</SelectContent></Select></div>
         <div className="sm:col-span-2"><Label id={`${__fieldIds}-required-signers`}>Required signers</Label><div role="group" aria-labelledby={`${__fieldIds}-required-signers`} className="mt-2 flex gap-5"><label className="flex items-center gap-2 text-sm"><Checkbox checked={agreementForm.residentRequired} onCheckedChange={checked => setAgreementForm(current => ({ ...current, residentRequired: checked === true }))} />Resident</label><label className="flex items-center gap-2 text-sm"><Checkbox checked={agreementForm.designatedRequired} onCheckedChange={checked => setAgreementForm(current => ({ ...current, designatedRequired: checked === true }))} />Designated person / legal representative</label></div></div>
         {agreementForm.agreementId && <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-amendment-reason`}>Amendment reason *</Label><Textarea id={`${__fieldIds}-amendment-reason`} value={agreementForm.amendmentReason} onChange={event => setAgreementForm(current => ({ ...current, amendmentReason: event.target.value }))} /></div>}
-      </div><DialogFooter><Button variant="outline" onClick={() => setAgreementOpen(false)}>Cancel</Button><Button disabled={publish.isPending || Number.isNaN(new Date(agreementForm.effectiveAt).getTime()) || !agreementForm.title.trim() || agreementForm.contentText.trim().length < 10 || (!agreementForm.residentRequired && !agreementForm.designatedRequired) || (!!agreementForm.agreementId && agreementForm.amendmentReason.trim().length < 5)} onClick={saveAgreement}>{publish.isPending ? "Publishing…" : "Publish immutable version"}</Button></DialogFooter></DialogContent></Dialog>
+      </fieldset><DialogFooter><Button disabled={publish.isPending} variant="outline" onClick={() => changeAgreementOpen(false)}>Cancel</Button><Button disabled={publish.isPending || !agreementEffectiveAt || !agreementForm.title.trim() || agreementForm.contentText.trim().length < 10 || (!agreementForm.residentRequired && !agreementForm.designatedRequired) || (!!agreementForm.agreementId && agreementForm.amendmentReason.trim().length < 5)} onClick={saveAgreement}>{publish.isPending ? "Publishing…" : "Publish immutable version"}</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={responseOpen} onOpenChange={setResponseOpen}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Record resident agreement response</DialogTitle><DialogDescription>Use this for staff-assisted signing, resident portal authentication, or imported wet-signature documentation.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2">
+      <Dialog open={responseOpen} onOpenChange={changeResponseOpen}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Record resident agreement response</DialogTitle><DialogDescription>Use this for staff-assisted signing, resident portal authentication, or imported wet-signature documentation.</DialogDescription></DialogHeader><fieldset disabled={record.isPending} className="grid gap-3 sm:grid-cols-2">
         <div><Label htmlFor={`${__fieldIds}-outcome`}>Outcome</Label><Select value={responseForm.outcome} onValueChange={value => setResponseForm(current => ({ ...current, outcome: value }))}><SelectTrigger id={`${__fieldIds}-outcome`}><SelectValue /></SelectTrigger><SelectContent>{OUTCOMES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor={`${__fieldIds}-authentication-method`}>Authentication method</Label><Select value={responseForm.authenticationMethod} onValueChange={value => setResponseForm(current => ({ ...current, authenticationMethod: value }))}><SelectTrigger id={`${__fieldIds}-authentication-method`}><SelectValue /></SelectTrigger><SelectContent>{["staff_session","resident_portal","wet_signature_import"].map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select></div>
         {responseForm.authenticationMethod === "wet_signature_import" && <>
@@ -205,7 +222,7 @@ export function ResidentAgreementWorkspace({
         {responseForm.outcome !== "signed" && <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-reason`}>Reason *</Label><Textarea id={`${__fieldIds}-reason`} value={responseForm.reason} onChange={event => setResponseForm(current => ({ ...current, reason: event.target.value }))} /></div>}
         <div><Label htmlFor={`${__fieldIds}-witness-name`}>Witness name</Label><Input id={`${__fieldIds}-witness-name`} value={responseForm.witnessName} onChange={event => setResponseForm(current => ({ ...current, witnessName: event.target.value }))} /></div>
         <div><Label htmlFor={`${__fieldIds}-witness-relationship`}>Witness relationship</Label><Input id={`${__fieldIds}-witness-relationship`} value={responseForm.witnessRelationship} onChange={event => setResponseForm(current => ({ ...current, witnessRelationship: event.target.value }))} /></div>
-      </div><DialogFooter><Button variant="outline" onClick={() => setResponseOpen(false)}>Cancel</Button><Button disabled={record.isPending || !!wetImportError || responseForm.signerName.trim().length < 2 || responseForm.relationship.trim().length < 2 || responseForm.attestation.trim().length < 5 || (responseForm.outcome !== "signed" && responseForm.reason.trim().length < 5)} onClick={saveResponse}>{record.isPending ? "Recording…" : "Record response"}</Button></DialogFooter></DialogContent></Dialog>
+      </fieldset><DialogFooter><Button disabled={record.isPending} variant="outline" onClick={() => changeResponseOpen(false)}>Cancel</Button><Button disabled={record.isPending || !!wetImportError || responseForm.signerName.trim().length < 2 || responseForm.relationship.trim().length < 2 || responseForm.attestation.trim().length < 5 || (responseForm.outcome !== "signed" && responseForm.reason.trim().length < 5)} onClick={saveResponse}>{record.isPending ? "Recording…" : "Record response"}</Button></DialogFooter></DialogContent></Dialog>
 
       <Dialog open={shareOpen} onOpenChange={(open) => {
         if (!open) {

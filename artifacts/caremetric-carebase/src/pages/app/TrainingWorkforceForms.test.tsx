@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   practicumRows: [] as Record<string, unknown>[], historicalEmployees: [] as Record<string, unknown>[],
   employeeRoster: vi.fn(), employeeLookup: vi.fn(), employeeLookupRetry: vi.fn(),
   employeeLookupError: false, employeeLookupLoading: false,
+  checklistError: false, checklistLoading: false, checklistRetry: vi.fn(),
 }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(),
   useId: () => "test", useMemo: (compute: () => unknown) => compute(), useRef: (value: unknown) => ({ current: value }), useEffect: () => {},
@@ -33,6 +34,11 @@ vi.mock("@/hooks/useEmployees", () => ({
     h.employeeLookup(ids);
     return { data: h.historicalEmployees, isError: h.employeeLookupError, error: h.employeeLookupError ? new Error("Lookup failed") : null, isLoading: h.employeeLookupLoading, refetch: h.employeeLookupRetry };
   },
+  useGetEmployee: () => ({ data: { id: "employee", facility_id: "facility-a", organization_id: "org" } }),
+}));
+vi.mock("@/hooks/useCompetencies", () => ({ useListCompetencyRecords: () => ({ data: [] }), useCreateCompetencyRecord: () => ({ mutate: h.save }),
+  useListCompetencyTemplates: () => ({ data: [{ id: "template", name: "Checklist" }] }), useListCompetencyRecordItems: () => ({ data: [] }),
+  useListCompetencyTemplateItems: () => ({ data: h.checklistLoading ? undefined : [{ id: "item", item_text: "Observed task" }], isLoading: h.checklistLoading, isError: h.checklistError, error: new Error("Checklist unavailable"), refetch: h.checklistRetry }),
 }));
 vi.mock("@/hooks/useEmployeeCredentials", () => ({ useListEmployeeCredentials: () => ({ data: [] }), useCreateEmployeeCredential: () => ({ mutate: h.save }), useUpdateEmployeeCredential: () => ({ mutate: h.save }), useDeleteEmployeeCredential: () => ({ mutate: vi.fn() }) }));
 vi.mock("@/hooks/useFacilityAssignments", () => ({ useAssignableFacilities: (facilities: unknown) => facilities }));
@@ -45,6 +51,7 @@ import TrainingTypes from "./TrainingTypes";
 import EmployeeCredentials from "./EmployeeCredentials";
 import TrainerClasses from "../trainer/TrainerClasses";
 import Practicums from "./Practicums";
+import CompetencyRecords from "./CompetencyRecords";
 
 type Element = ReactElement<Record<string, unknown>>;
 function nodes(node: ReactNode): Element[] {
@@ -71,7 +78,28 @@ function field(tree: ReactNode, id: string, value: string) {
 beforeEach(() => {
   h.state = []; h.index = 0; h.practicumRows = []; h.historicalEmployees = [];
   h.employeeLookupError = false; h.employeeLookupLoading = false;
+  h.checklistError = false; h.checklistLoading = false;
   vi.clearAllMocks();
+});
+
+describe("competency checklist recovery", () => {
+  function draft() {
+    render(CompetencyRecords);
+    h.state[5] = { employeeId: "employee", templateId: "template", evaluationDate: "2026-09-26", overallResult: "met", signNow: false };
+    return render(CompetencyRecords);
+  }
+  it("shows a retry after a failed checklist lookup and cannot save stale cached items", () => {
+    h.checklistError = true; const tree = draft();
+    const retry = nodes(tree).find(node => node.props.what === "evaluation checklist")!;
+    expect(retry).toBeDefined(); (retry.props.onRetry as () => void)(); expect(h.checklistRetry).toHaveBeenCalled();
+    click(tree, "Save Evaluation"); expect(h.save).not.toHaveBeenCalled();
+    h.checklistError = false; click(render(CompetencyRecords), "Save Evaluation");
+    expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ items: [{ template_item_id: "item", result: "met", notes: null }] }), expect.anything());
+  });
+  it("cannot save while checklist items are still loading", () => {
+    h.checklistLoading = true; const tree = draft(); click(tree, "Save Evaluation"); expect(h.save).not.toHaveBeenCalled();
+    expect(nodes(tree).find(node => node.props.onClick && text(node) === "Save Evaluation")?.props.disabled).toBe(true);
+  });
 });
 
 describe("schedule form recovery", () => {

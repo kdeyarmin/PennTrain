@@ -66,7 +66,7 @@ describe("complete change-of-condition queues", () => {
     expect(rows.filter((row) => row.status !== "closed")).toEqual([
       expect.objectContaining({ id: "event-1000", status: "follow_up_due" }),
     ]);
-    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999]]);
+    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999], [1001, 2000]]);
     for (const call of calls) {
       expect(call.order).toEqual(["follow_up_due_at", "id"]);
       expect(call.filters).toEqual([["organization_id", "org-a"], ["facility_id", "facility-a"]]);
@@ -78,7 +78,7 @@ describe("complete change-of-condition queues", () => {
       residentId: "resident-a", assignedProfileId: "caregiver-a", status: "monitoring", category: "fall",
     });
     await queryFn();
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     for (const call of calls) expect(call.filters).toEqual([
       ["resident_id", "resident-a"], ["status", "monitoring"],
       ["assigned_profile_id", "caregiver-a"], ["category", "fall"],

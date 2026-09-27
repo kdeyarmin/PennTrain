@@ -70,7 +70,7 @@ function providerObjectIds(event: FailedBillingEvent): string {
 }
 
 function FailedBillingEventsCard() {
-  const { data: events = [], isLoading, error } = useFailedBillingEvents();
+  const { data: events = [], isLoading, error, refetch } = useFailedBillingEvents();
   const retryEvent = useRetryFailedBillingEvent();
   const { toast } = useToast();
 
@@ -109,11 +109,7 @@ function FailedBillingEventsCard() {
       </CardHeader>
       <CardContent>
         {error ? (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Dead letters could not be loaded</AlertTitle>
-            <AlertDescription>{error instanceof Error ? error.message : String(error)}</AlertDescription>
-          </Alert>
+          <QueryError what="failed billing events" error={error} onRetry={() => void refetch()} />
         ) : isLoading ? (
           <div className="space-y-3">
             {[...Array(2)].map((_, index) => (
@@ -186,7 +182,10 @@ function rejectedUploads(recovery: SystemJobRecoveryState | undefined): number {
 
 export default function SystemJobs() {
   const { data: jobs = [], isLoading, isError, error, isFetching, refetch } = useSystemJobs();
-  const { data: recoveryRows = [] } = useSystemJobRecoveryState();
+  const recoveryQuery = useSystemJobRecoveryState();
+  const recoveryRows = recoveryQuery.data ?? [];
+  const recoveryUnknown = recoveryQuery.isLoading || recoveryQuery.isError;
+  const refreshJobs = () => Promise.all([refetch(), recoveryQuery.refetch()]);
   const runJob = useRunSystemJob();
   const cancelJob = useCancelSystemJob();
   const setKillSwitch = useSetSystemJobKillSwitch();
@@ -215,6 +214,7 @@ export default function SystemJobs() {
     isProd: import.meta.env.PROD,
     systemJobsStale: stale,
     systemJobsFailed: failed,
+    systemJobsKnown: !isLoading && !isError,
   });
   const failingReadiness = readinessChecks.filter((check) => check.status === "fail");
 
@@ -222,6 +222,8 @@ export default function SystemJobs() {
     window.prompt(`${action} ${displayName}. Enter an operator reason (at least 8 characters):`)?.trim();
 
   const handleRun = async (job: SystemJobStatus, replayRunId?: string) => {
+    const recovery = recoveryByJob.get(job.job_key);
+    if (recoveryUnknown || !recovery || recovery.kill_switch_enabled || isSystemJobActive(job.last_status) || runJob.isPending) return;
     const reason = askReason(replayRunId ? "Replay failed run for" : "Run", job.display_name);
     if (!reason || reason.length < 8) return;
     try {
@@ -275,7 +277,7 @@ export default function SystemJobs() {
             Freshness, outcomes, row counts, and recovery paths for scheduled and asynchronous work.
           </p>
         </div>
-        <Button variant="outline" onClick={() => void refetch()} disabled={isFetching}>
+        <Button variant="outline" onClick={() => void refreshJobs()} disabled={isFetching || recoveryQuery.isFetching}>
           <RefreshCw className={"mr-2 h-4 w-4 " + (isFetching ? "animate-spin" : "")} />
           Refresh
         </Button>
@@ -325,6 +327,7 @@ export default function SystemJobs() {
       </div>
 
       <FailedBillingEventsCard />
+      {recoveryQuery.isError && <QueryError what="system job recovery controls" error={recoveryQuery.error} onRetry={() => void refreshJobs()} />}
 
       <Card>
         <CardHeader>
@@ -332,7 +335,7 @@ export default function SystemJobs() {
         </CardHeader>
         <CardContent>
           {isError ? (
-            <QueryError what="system jobs" error={error as Error} onRetry={() => void refetch()} />
+            <QueryError what="system jobs" error={error as Error} onRetry={() => void refreshJobs()} />
           ) : isLoading ? (
             <div className="space-y-3">
               {[...Array(8)].map((_, index) => (
@@ -356,7 +359,7 @@ export default function SystemJobs() {
                 {jobs.map((job) => {
                   const recovery = recoveryByJob.get(job.job_key);
                   const isActive = isSystemJobActive(job.last_status);
-                  const actionsPending = runJob.isPending || cancelJob.isPending || setKillSwitch.isPending;
+                  const actionsPending = runJob.isPending || cancelJob.isPending || setKillSwitch.isPending || recoveryUnknown || !recovery;
                   return (
                   <TableRow key={job.job_key}>
                     <TableCell className="max-w-sm">
@@ -452,7 +455,7 @@ export default function SystemJobs() {
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={actionsPending || recovery?.kill_switch_enabled}
+                          disabled={actionsPending || isActive || recovery?.kill_switch_enabled}
                           onClick={() => void handleRun(job)}
                         >
                           <Play className="mr-1.5 h-3.5 w-3.5" />Run now
@@ -471,7 +474,7 @@ export default function SystemJobs() {
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={actionsPending || recovery.kill_switch_enabled}
+                          disabled={actionsPending || isActive || recovery.kill_switch_enabled}
                           onClick={() => void handleRun(job, recovery.latest_dead_letter_run_id!)}
                         >
                           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />Replay

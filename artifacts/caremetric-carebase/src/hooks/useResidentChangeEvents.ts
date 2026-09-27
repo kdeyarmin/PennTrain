@@ -86,7 +86,7 @@ export function useListResidentChangeEvents(filters: {
       // pages, using id to keep equal deadlines in a stable order across page boundaries.
       const pageSize = 1000;
       const rows: ResidentChangeEventWithRelations[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("resident_change_events")
           .select(CHANGE_EVENT_SELECT)
@@ -103,7 +103,8 @@ export function useListResidentChangeEvents(filters: {
         if (error) throw error;
         const batch = (data ?? []) as unknown as ResidentChangeEventWithRelations[];
         rows.push(...batch);
-        if (batch.length < pageSize) break;
+        if (batch.length === 0) break;
+        from += batch.length;
       }
       return rows;
     },

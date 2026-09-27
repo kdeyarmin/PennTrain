@@ -6,11 +6,12 @@ export type FacilitySiteReview = Tables<"facility_site_reviews">;
 export function useFacilitySiteReviews(facilityId: string) {
   return useQuery({ queryKey: ["facility-site-reviews", facilityId], enabled: !!facilityId, queryFn: async () => {
     const rows: FacilitySiteReview[] = [];
-    for (let from = 0; ; from += 1000) {
+    for (let from = 0; ;) {
       const { data, error } = await supabase.rpc("get_facility_site_reviews", { p_facility_id: facilityId, p_offset: from });
       if (error) throw error;
       rows.push(...(data ?? []));
-      if (!data || data.length < 1000) return rows;
+      if (!data?.length) return rows;
+      from += data.length;
     }
   } });
 }
@@ -45,11 +46,12 @@ export function useSiteSupportPlans(residentId?: string) {
 export function useSiteDrillRotation(facilityId: string, from: string) {
   return useQuery({ queryKey: ["site-drill-rotation", facilityId, from], enabled: !!facilityId, queryFn: async () => {
     const rows: Array<{ id: string; performed_date: string; result: string; evacuation_time_exceeded: boolean }> = [];
-    for (let offset = 0; ; offset += 1000) {
+    for (let offset = 0; ;) {
       const { data, error } = await supabase.from("inspection_events").select("id,performed_date,result,evacuation_time_exceeded,inspection_items!inner(facility_id,item_type)").eq("inspection_items.facility_id", facilityId).eq("inspection_items.item_type", "fire_drill_program").gte("performed_date", from).order("performed_date").order("id").range(offset, offset + 999);
       if (error) throw error;
       rows.push(...(data ?? []));
-      if (!data || data.length < 1000) return rows;
+      if (!data?.length) return rows;
+      offset += data.length;
     }
   } });
 }

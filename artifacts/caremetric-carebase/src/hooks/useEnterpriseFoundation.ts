@@ -146,10 +146,14 @@ export function useEnterpriseRpcCommand() {
       if (error) throw new Error(privilegedFailureMessage(error));
       return data;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["enterprise-foundation"],
-      });
+    onSuccess: async (_data, input) => {
+      await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
+      if (["issue_integration_api_credential", "create_integration_webhook_endpoint"].includes(input.rpc)) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["integration-register"] }),
+          queryClient.invalidateQueries({ queryKey: ["integration-api-credentials"] }),
+        ]);
+      }
     },
   });
 }

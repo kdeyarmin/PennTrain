@@ -68,7 +68,7 @@ export function useListWorkItems(filters: ListWorkItemsFilters = {}) {
     queryFn: async () => {
       const pageSize = 1000;
       const rows: WorkItemWithRelations[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("work_items")
           .select(WORK_ITEM_SELECT)
@@ -86,7 +86,8 @@ export function useListWorkItems(filters: ListWorkItemsFilters = {}) {
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...((data ?? []) as unknown as WorkItemWithRelations[]));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

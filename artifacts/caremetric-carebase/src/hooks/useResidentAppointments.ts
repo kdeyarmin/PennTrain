@@ -36,7 +36,7 @@ export function useResidentAppointments(residentId: string | undefined) {
     enabled: !!residentId,
     queryFn: async () => {
       const rows: AppointmentLike[] = [];
-      for (let from = 0; ; from += PAGE_SIZE) {
+      for (let from = 0; ;) {
         const { data, error } = await supabase
           .from("resident_appointments")
           .select(APPOINTMENT_COLUMNS)
@@ -47,7 +47,8 @@ export function useResidentAppointments(residentId: string | undefined) {
         if (error) throw error;
         const page = (data ?? []) as unknown as AppointmentLike[];
         rows.push(...page);
-        if (page.length < PAGE_SIZE) return rows;
+        if (page.length === 0) return rows;
+        from += page.length;
       }
     },
   });
@@ -69,7 +70,7 @@ export function useResidentAppointmentPreparation(appointmentIds: string[]) {
       const rows: PreparationRow[] = [];
       for (let index = 0; index < key.length; index += APPOINTMENT_ID_BATCH_SIZE) {
         const ids = key.slice(index, index + APPOINTMENT_ID_BATCH_SIZE);
-        for (let from = 0; ; from += PAGE_SIZE) {
+        for (let from = 0; ;) {
           const { data, error } = await supabase
             .from("resident_appointment_preparation_items")
             .select("id, appointment_id, item_kind, label, required, ready, ready_at, note")
@@ -81,7 +82,8 @@ export function useResidentAppointmentPreparation(appointmentIds: string[]) {
           if (error) throw error;
           const page = (data ?? []) as unknown as PreparationRow[];
           rows.push(...page);
-          if (page.length < PAGE_SIZE) break;
+          if (page.length === 0) break;
+          from += page.length;
         }
       }
       return rows;

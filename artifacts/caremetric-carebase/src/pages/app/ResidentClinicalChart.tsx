@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { Activity, AlertTriangle, ArrowLeft, DatabaseZap, HeartPulse, Pill, Plus, Share2, ShieldCheck, Stethoscope } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,7 +30,8 @@ import { ResidentCareDocumentation } from "@/components/residents/ResidentCareDo
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/lib/pageTitle";
-import { toFacilityDateTimeLocal, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { careDateTimeInstant } from "@/lib/careFormDates";
 import {
   OBSERVATION_CONFIG,
   OBSERVATION_ORDER,
@@ -103,10 +104,12 @@ export default function ResidentClinicalChart() {
   const [observedAt, setObservedAt] = useState(() => toFacilityDateTimeLocal());
   const [note, setNote] = useState("");
   const record = useRecordClinicalObservation();
+  const recordSaving = useRef(false);
 
   const [retracting, setRetracting] = useState<ClinicalObservation | null>(null);
   const [retractReason, setRetractReason] = useState("");
   const amend = useAmendClinicalObservation();
+  const retractionSaving = useRef(false);
   const queueWriteback = useQueueClinicalObservationWriteback();
   const setConsent = useSetResidentClinicalDataConsent();
   const [consentReason, setConsentReason] = useState("");
@@ -114,6 +117,7 @@ export default function ResidentClinicalChart() {
   const config = OBSERVATION_CONFIG[observationType];
   const isCustom = observationType === "custom";
   const formValues = { observationType, valueNumeric, valueSecondary, valueText, customLabel };
+  const observationInstant = careDateTimeInstant(observedAt);
 
   const chooseType = (next: ObservationType) => {
     setObservationType(next);
@@ -133,13 +137,14 @@ export default function ResidentClinicalChart() {
   };
 
   const submitObservation = async () => {
-    if (!id) return;
+    if (!id || !canChart || !resident.data || resident.isError || !observationInstant || record.isPending || recordSaving.current) return;
+    recordSaving.current = true;
     try {
       const values = parseObservationFormValues(formValues);
       await record.mutateAsync({
         residentId: id,
         observationType,
-        observedAt: facilityDateTimeLocalToUtcIso(observedAt),
+        observedAt: observationInstant,
         ...values,
         unit: unit.trim() || null,
         loincCode: config.loinc ?? null,
@@ -154,11 +159,22 @@ export default function ResidentClinicalChart() {
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
+    } finally {
+      recordSaving.current = false;
     }
+  };
+  const changeRecordOpen = (open: boolean) => {
+    if (recordSaving.current || record.isPending) return;
+    resetRecordForm(); setRecordOpen(open);
+  };
+  const closeRetraction = () => {
+    if (retractionSaving.current || amend.isPending) return;
+    setRetracting(null); setRetractReason("");
   };
 
   const submitRetraction = async () => {
-    if (!id || !retracting || retractReason.trim().length < 3) return;
+    if (!id || !canChart || !retracting || retractReason.trim().length < 3 || amend.isPending || retractionSaving.current) return;
+    retractionSaving.current = true;
     try {
       await amend.mutateAsync({
         residentId: id,
@@ -175,6 +191,8 @@ export default function ResidentClinicalChart() {
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
+    } finally {
+      retractionSaving.current = false;
     }
   };
 
@@ -198,7 +216,7 @@ export default function ResidentClinicalChart() {
           <p className="text-sm text-muted-foreground">Optional clinical workspace for observations and care notes. Required resident records remain available in the resident record.</p>
         </div>
         {canChart && (
-          <Button onClick={() => { resetRecordForm(); setRecordOpen(true); }}>
+          <Button disabled={record.isPending || !resident.data} onClick={() => changeRecordOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />Record observation
           </Button>
         )}
@@ -583,7 +601,7 @@ export default function ResidentClinicalChart() {
                             </Button>
                           </span>
                         )}
-                        <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { setRetracting(observation); setRetractReason(""); }}>
+                        <Button disabled={amend.isPending} size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { if (retractionSaving.current) return; setRetracting(observation); setRetractReason(""); }}>
                           <AlertTriangle className="mr-1 h-3.5 w-3.5" />Retract
                         </Button>
                       </div>
@@ -602,13 +620,13 @@ export default function ResidentClinicalChart() {
         )}
       </Tabs>
 
-      <Dialog open={recordOpen} onOpenChange={(open) => { setRecordOpen(open); if (!open) resetRecordForm(); }}>
+      <Dialog open={recordOpen} onOpenChange={changeRecordOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Record observation</DialogTitle>
             <DialogDescription>Capture a structured vital sign or observation. The abnormal flag is derived automatically.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <fieldset disabled={record.isPending} className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor={`${__fieldIds}-observation-type`}>Observation type</Label>
               <Select value={observationType} onValueChange={(value) => chooseType(value as ObservationType)}>
@@ -650,16 +668,17 @@ export default function ResidentClinicalChart() {
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="obs-observed-at">Observed at</Label>
               <Input id="obs-observed-at" type="datetime-local" value={observedAt} onChange={(event) => setObservedAt(event.target.value)} />
+              {!observationInstant && <p className="text-sm text-destructive">Enter a valid Pennsylvania date and time.</p>}
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="obs-note">Note</Label>
               <Textarea id="obs-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional context" />
             </div>
-          </div>
+          </fieldset>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRecordOpen(false)}>Cancel</Button>
+            <Button disabled={record.isPending} variant="outline" onClick={() => changeRecordOpen(false)}>Cancel</Button>
             <Button
-              disabled={record.isPending || !hasObservationFormValue(formValues)}
+              disabled={record.isPending || !observationInstant || !hasObservationFormValue(formValues)}
               onClick={() => void submitObservation()}
             >
               {record.isPending ? "Saving…" : "Record"}
@@ -668,7 +687,7 @@ export default function ResidentClinicalChart() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!retracting} onOpenChange={(open) => { if (!open) { setRetracting(null); setRetractReason(""); } }}>
+      <Dialog open={!!retracting} onOpenChange={(open) => { if (!open) closeRetraction(); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Retract observation</DialogTitle>
@@ -679,10 +698,10 @@ export default function ResidentClinicalChart() {
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="retract-reason">Reason</Label>
-            <Textarea id="retract-reason" value={retractReason} onChange={(event) => setRetractReason(event.target.value)} placeholder="Why is this observation being retracted?" />
+            <Textarea disabled={amend.isPending} id="retract-reason" value={retractReason} onChange={(event) => setRetractReason(event.target.value)} placeholder="Why is this observation being retracted?" />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setRetracting(null); setRetractReason(""); }}>Cancel</Button>
+            <Button disabled={amend.isPending} variant="outline" onClick={closeRetraction}>Cancel</Button>
             <Button variant="destructive" disabled={amend.isPending || retractReason.trim().length < 3} onClick={() => void submitRetraction()}>
               {amend.isPending ? "Saving…" : "Retract"}
             </Button>

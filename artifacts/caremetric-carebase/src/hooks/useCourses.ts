@@ -342,21 +342,6 @@ export function useCreateCourseBlock() {
   });
 }
 
-export function useUpdateCourseBlock() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...payload }: CourseBlockUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("course_blocks").update(payload).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] });
-      queryClient.invalidateQueries({ queryKey: ["courses", "versions", data.course_version_id, "publish-issues"] });
-    },
-  });
-}
-
 export function useDeleteCourseBlock() {
   const queryClient = useQueryClient();
   return useMutation({

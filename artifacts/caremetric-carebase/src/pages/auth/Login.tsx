@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch, Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 export default function Login() {
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   usePageMeta({ ...MARKETING_ROUTE_META["/login"], path: "/login" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,6 +34,7 @@ export default function Login() {
       return data;
     },
     onSuccess: () => {
+      if (!active.current) return;
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       toast({
         title: "Login successful",
@@ -44,6 +47,7 @@ export default function Login() {
       setLocation(postLoginPath);
     },
     onError: (error: Error) => {
+      if (!active.current) return;
       toast({
         variant: "destructive",
         title: "Login failed",
@@ -71,6 +75,7 @@ export default function Login() {
     // at all, and the shape of the failure -- success with nothing happening -- is why it reads as
     // the button being broken rather than as a bug worth reporting.
     onSuccess: (data) => {
+      if (!active.current) return;
       if (data?.url) {
         window.location.href = data.url;
         return;
@@ -82,6 +87,7 @@ export default function Login() {
       });
     },
     onError: (error: Error) => {
+      if (!active.current) return;
       toast({
         variant: "destructive",
         title: "Enterprise sign-in unavailable",
@@ -92,6 +98,7 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (loginMutation.isPending || ssoMutation.isPending) return;
     if (!email || !password) {
       toast({
         variant: "destructive",
@@ -137,7 +144,7 @@ export default function Login() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={loginMutation.isPending}
+                  disabled={loginMutation.isPending || ssoMutation.isPending}
                   className="h-10"
                   required
                 />
@@ -154,12 +161,12 @@ export default function Login() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={loginMutation.isPending}
+                  disabled={loginMutation.isPending || ssoMutation.isPending}
                   className="h-10"
                   required
                 />
               </div>
-              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={loginMutation.isPending}>
+              <Button type="submit" className="w-full h-10 font-medium shadow-sm" disabled={loginMutation.isPending || ssoMutation.isPending}>
                 {loginMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -16,6 +16,7 @@ export interface DeploymentReadinessEnv {
   isProd?: boolean;
   systemJobsStale?: number;
   systemJobsFailed?: number;
+  systemJobsKnown?: boolean;
 }
 
 function present(value: string | undefined): boolean {
@@ -75,8 +76,8 @@ export function deploymentReadinessChecks(env: DeploymentReadinessEnv): Deployme
     {
       id: "system-job-health",
       label: "System job freshness",
-      status: stale > 0 || failed > 0 ? "fail" : "pass",
-      detail: stale > 0 || failed > 0 ? `${stale} stale and ${failed} failed/partial job(s) need operator review.` : "No stale or failed system jobs are currently reported by the control plane.",
+      status: env.systemJobsKnown === false ? "warning" : stale > 0 || failed > 0 ? "fail" : "pass",
+      detail: env.systemJobsKnown === false ? "System job health has not been confirmed. Load or retry the control-plane status before relying on this check." : stale > 0 || failed > 0 ? `${stale} stale and ${failed} failed job(s) need operator review.` : "No stale or failed system jobs are currently reported by the control plane.",
     },
   ];
 }

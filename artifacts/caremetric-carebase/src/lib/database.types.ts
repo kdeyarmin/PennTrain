@@ -45512,6 +45512,10 @@ export type Database = {
         }
         Returns: string
       }
+      set_quiz_correct_answer: {
+        Args: { p_answer_id: string; p_question_id: string }
+        Returns: undefined
+      }
       set_release_flag: {
         Args: {
           p_expires_at?: string
@@ -45933,6 +45937,16 @@ export type Database = {
           p_work_item_id: string
         }
         Returns: string
+      }
+      swap_training_item_order: {
+        Args: {
+          p_first_id: string
+          p_first_sort_order: number
+          p_resource: string
+          p_second_id: string
+          p_second_sort_order: number
+        }
+        Returns: undefined
       }
       sync_offline_change_observation_draft: {
         Args: {

@@ -1,4 +1,5 @@
 import { boundedSettled } from "@/lib/boundedSettled";
+import { useTrainingItemOrder } from "@/hooks/useTrainingItemOrder";
 import { PlanAuthoringTools } from "@/components/training/PlanAuthoringTools";
 import { FacilityTrainingStarterKits } from "@/components/training/TrainingStarterKits";
 import { TrainingAssignmentRules } from "@/components/training/TrainingAssignmentRules";
@@ -283,6 +284,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
 
   const { mutate: addItem, isPending: addingItem } = useAddTrainingPlanItem();
   const { mutateAsync: updateItem, isPending: updatingItem } = useUpdateTrainingPlanItem();
+  const { mutateAsync: reorderItem } = useTrainingItemOrder("training_plan_items");
   const { mutate: removeItem, isPending: removingItem } = useRemoveTrainingPlanItem();
 
   const [showAddItem, setShowAddItem] = useState(false);
@@ -330,16 +332,14 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
   };
 
   const moveItem = async (index: number, direction: -1 | 1) => {
+    if (reorderingId !== null || !canManage) return;
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= sortedItems.length) return;
     const current = sortedItems[index];
     const swapWith = sortedItems[targetIndex];
     setReorderingId(current.id);
     try {
-      await Promise.all([
-        updateItem({ id: current.id, trainingPlanId: plan.id, sort_order: swapWith.sort_order }),
-        updateItem({ id: swapWith.id, trainingPlanId: plan.id, sort_order: current.sort_order }),
-      ]);
+      await reorderItem({ first: current, second: swapWith });
     } catch (e) {
       toast({ title: "Failed to reorder", description: (e as Error).message, variant: "destructive" });
     } finally {

@@ -82,12 +82,12 @@ describe("resident document deletion preserves retained evidence", () => {
     const ranges: number[] = [];
     mocks.rpc.mockImplementation(() => ({ range: (from: number) => ({ abortSignal: () => {
       ranges.push(from);
-      return Promise.resolve({ data: Array.from({ length: from === 0 ? 500 : 1 }, (_, i) => ({ ...receipt, document_id: `${from + i}` })), error: null });
+      return Promise.resolve({ data: Array.from({ length: from === 0 ? 500 : from === 500 ? 1 : 0 }, (_, i) => ({ ...receipt, document_id: `${from + i}` })), error: null });
     } }) }));
     useListPendingResidentDocumentDeletions("resident", true);
     const rows = await mocks.useQuery.mock.calls.at(-1)![0].queryFn({ signal: new AbortController().signal });
     expect(rows).toHaveLength(501);
-    expect(ranges).toEqual([0, 500]);
+    expect(ranges).toEqual([0, 500, 501]);
   });
 
   it("separates pending filenames immediately when actor, tenant, role, or facility changes", () => {
