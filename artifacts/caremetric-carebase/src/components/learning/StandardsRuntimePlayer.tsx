@@ -296,6 +296,13 @@ export function StandardsRuntimePlayer({
 
   return (
     <div className="space-y-3 rounded-lg border bg-muted/10 p-4">
+      {priorCompletion.isError && (
+        <QueryError
+          what="previous package completion"
+          error={priorCompletion.error}
+          onRetry={() => void priorCompletion.refetch()}
+        />
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm font-medium">

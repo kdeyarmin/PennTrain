@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +67,12 @@ export default function OfflineCourse() {
   const removeOffline = useRemoveOfflineCourse();
   const [stepIndex, setStepIndex] = useState(0);
   const [resumedAssignmentId, setResumedAssignmentId] = useState<string | null>(null);
+  const initialCheckpointFor = useRef<string | null>(null);
+  const checkpointOwner = useRef({ assignmentId, active: true });
+  useEffect(() => {
+    checkpointOwner.current = { assignmentId, active: true };
+    return () => { checkpointOwner.current.active = false; };
+  }, [assignmentId]);
   // `navigator.onLine` read straight into JSX is a one-shot value: it is not reactive, so nothing
   // re-renders when the device reconnects. On this page in particular that is the whole workflow --
   // an employee finishes a course on a bus, walks back into the building, and the "Sync N%
@@ -109,6 +115,21 @@ export default function OfflineCourse() {
     setStepIndex(approxIndex);
     setResumedAssignmentId(assignmentId);
   }, [assignmentId, blocks.length, progress.isLoading, progress.isError, progress.data?.percentComplete, resumedAssignmentId]);
+
+  useEffect(() => {
+    if (!bundle || !record || !blocks.length || resumedAssignmentId !== assignmentId
+      || progress.isLoading || progress.isError || progress.data || initialCheckpointFor.current === assignmentId) return;
+    initialCheckpointFor.current = assignmentId;
+    // Reading lesson one is already engagement. Saving only on Next loses that lesson and
+    // starts the seat clock after it, or never creates a checkpoint if the learner closes here.
+    void queueProgress.mutateAsync({
+      assignmentId, percentComplete: Math.round(100 / blocks.length),
+      baseVersion: bundle.assignment.serverBaseVersion, lastBlockId: blocks[0].id,
+    }).catch(error => {
+      if (checkpointOwner.current.active && checkpointOwner.current.assignmentId === assignmentId) toast({ title: "Progress could not be saved on this device",
+        description: error instanceof Error ? error.message : "Use Save checkpoint to retry before leaving this page.", variant: "destructive" });
+    });
+  }, [assignmentId, bundle, record, blocks, resumedAssignmentId, progress.isLoading, progress.isError, progress.data, queueProgress.mutateAsync, toast]);
 
   const recordProgress = async (nextIndex: number) => {
     if (!bundle || !blocks.length) return;

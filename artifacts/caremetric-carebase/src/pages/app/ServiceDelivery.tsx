@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BellRing,
@@ -33,6 +33,7 @@ import {
   type ServiceTaskAlertWithRelations,
 } from "@/hooks/useResidentServiceTasks";
 import { facilityDayBounds, facilityToday } from "@/lib/dateUtils";
+import { isCareCalendarDate } from "@/lib/careFormDates";
 import { LogChangeOfConditionDialog } from "@/components/residents/LogChangeOfConditionDialog";
 import { ServiceExceptionFollowUpDialog, isServiceException } from "@/components/residents/ServiceExceptionFollowUpDialog";
 import { QueryError } from "@/components/QueryState";
@@ -100,6 +101,8 @@ function RequirementDialog({
   const __fieldIds = useId();
   const { toast } = useToast();
   const update = useUpdateResidentServiceRequirement();
+  const submitting = useRef(false);
+  const close = () => { if (!submitting.current && !update.isPending) onClose(); };
   const [frequency, setFrequency] = useState(requirement?.frequency ?? "daily");
   const [frequencyDetail, setFrequencyDetail] = useState(requirement?.frequency_detail ?? "");
   const [start, setStart] = useState(requirement?.time_window_start?.slice(0, 5) ?? "09:00");
@@ -109,9 +112,12 @@ function RequirementDialog({
   const [twoStaff, setTwoStaff] = useState(requirement?.requires_two_staff ?? false);
   const [documentationMode, setDocumentationMode] = useState(requirement?.documentation_mode ?? "every_task");
   const [expiresOn, setExpiresOn] = useState(requirement?.expires_on ?? "");
+  const invalidExpiry = !!expiresOn && (!isCareCalendarDate(expiresOn) || (!!requirement && expiresOn < requirement.effective_from));
+  const canSave = !!requirement && !!instructions.trim() && !!role.trim() && !!start && !!end && end > start && !invalidExpiry;
 
   const save = () => {
-    if (!requirement) return;
+    if (!requirement || !canSave || submitting.current || update.isPending) return;
+    submitting.current = true;
     update.mutate({
       requirementId: requirement.id,
       frequency,
@@ -130,11 +136,12 @@ function RequirementDialog({
         onClose();
       },
       onError: (error: Error) => toast({ title: "Couldn't update requirement", description: error.message, variant: "destructive" }),
+      onSettled: () => { submitting.current = false; },
     });
   };
 
   return (
-    <Dialog open={!!requirement} onOpenChange={open => !open && onClose()}>
+    <Dialog open={!!requirement} onOpenChange={open => !open && close()}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Configure {requirement?.service_name}</DialogTitle>
@@ -142,7 +149,7 @@ function RequirementDialog({
             Changes supersede only future task instances. Completed and exception records remain tied to plan v{requirement?.source_plan_version}.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <fieldset disabled={update.isPending} className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor={`${__fieldIds}-frequency`}>Frequency</Label>
             <Select value={frequency} onValueChange={setFrequency}>
@@ -166,7 +173,8 @@ function RequirementDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${__fieldIds}-expires`}>Expires</Label>
-            <Input id={`${__fieldIds}-expires`} type="date" value={expiresOn} onChange={event => setExpiresOn(event.target.value)} />
+            <Input id={`${__fieldIds}-expires`} type="date" min={requirement?.effective_from} value={expiresOn} onChange={event => setExpiresOn(event.target.value)} aria-invalid={invalidExpiry} />
+            {invalidExpiry && <p className="text-xs text-destructive">Enter a valid date on or after the requirement starts.</p>}
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor={`${__fieldIds}-special-instructions`}>Special instructions</Label>
@@ -186,10 +194,10 @@ function RequirementDialog({
               </SelectContent>
             </Select>
           </div>
-        </div>
+        </fieldset>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={update.isPending || !instructions.trim() || !role.trim() || end <= start}>
+          <Button variant="outline" disabled={update.isPending} onClick={close}>Cancel</Button>
+          <Button onClick={save} disabled={update.isPending || !canSave}>
             {update.isPending ? "Saving..." : "Save and regenerate future tasks"}
           </Button>
         </DialogFooter>
@@ -204,19 +212,21 @@ function RuleRow({ rule }: { rule: ServiceExceptionRule }) {
   const update = useUpsertServiceExceptionRule();
   const [threshold, setThreshold] = useState(String(rule.threshold_count));
   const [lookback, setLookback] = useState(String(rule.lookback_days));
+  const validNumbers = Number.isSafeInteger(Number(threshold)) && Number(threshold) >= 1 && Number(threshold) <= 100
+    && Number.isSafeInteger(Number(lookback)) && Number(lookback) >= 1 && Number(lookback) <= 90;
   return (
     <div className="grid items-end gap-2 rounded-md border p-3 md:grid-cols-[1fr_110px_110px_170px_auto]">
       <div>
         <p className="font-medium capitalize">{rule.exception_status.replace(/_/g, " ")}</p>
         <p className="text-xs text-muted-foreground">Route to {rule.action_target.replace(/_/g, " ")}</p>
       </div>
-      <div className="space-y-1"><Label htmlFor={`${__fieldIds}-occurrences`} className="text-xs">Occurrences</Label><Input id={`${__fieldIds}-occurrences`} type="number" min={1} value={threshold} onChange={event => setThreshold(event.target.value)} /></div>
-      <div className="space-y-1"><Label htmlFor={`${__fieldIds}-lookback-days`} className="text-xs">Lookback days</Label><Input id={`${__fieldIds}-lookback-days`} type="number" min={1} value={lookback} onChange={event => setLookback(event.target.value)} /></div>
+      <div className="space-y-1"><Label htmlFor={`${__fieldIds}-occurrences`} className="text-xs">Occurrences (1–100)</Label><Input id={`${__fieldIds}-occurrences`} type="number" min={1} max={100} step={1} value={threshold} onChange={event => setThreshold(event.target.value)} /></div>
+      <div className="space-y-1"><Label htmlFor={`${__fieldIds}-lookback-days`} className="text-xs">Lookback days (1–90)</Label><Input id={`${__fieldIds}-lookback-days`} type="number" min={1} max={90} step={1} value={lookback} onChange={event => setLookback(event.target.value)} /></div>
       <Badge variant="outline" className="h-9 justify-center">{rule.is_active ? "Active" : "Disabled"}</Badge>
       <Button
         size="sm"
         variant="outline"
-        disabled={update.isPending}
+        disabled={update.isPending || !validNumbers}
         onClick={() => update.mutate({
           facilityId: rule.facility_id,
           exceptionStatus: rule.exception_status,
@@ -256,13 +266,17 @@ export default function ServiceDelivery() {
   const [note, setNote] = useState("");
   const [supervisorNotified, setSupervisorNotified] = useState(false);
   const [secondEmployeeId, setSecondEmployeeId] = useState("");
-  const bounds = dayBounds(date);
+  const outcomeGeneration = useRef(0);
+  const followUpGeneration = useRef(0);
+  useEffect(() => () => { followUpGeneration.current += 1; }, []);
+  const closeFollowUp = () => { followUpGeneration.current += 1; setFollowUpTask(null); };
+  const bounds = isCareCalendarDate(date) ? dayBounds(date) : null;
 
   const queue = useResidentServiceTaskQueue({
-    ...bounds,
+    ...(bounds ?? { from: "", through: "" }),
     facilityId: facilityId === "all" ? undefined : facilityId,
     status: status === "all" ? undefined : status,
-  });
+  }, { enabled: !!bounds });
   const requirements = useListResidentServiceRequirements({
     organizationId,
     facilityId: facilityId === "all" ? undefined : facilityId,
@@ -295,6 +309,7 @@ export default function ServiceDelivery() {
   const exceptions = filteredTasks.filter(task => ["resident_refused", "resident_unavailable", "not_completed"].includes(task.status)).length;
 
   const closeOutcome = () => {
+    outcomeGeneration.current += 1;
     setSelectedTask(null);
     setOutcome("completed");
     setNote("");
@@ -304,6 +319,7 @@ export default function ServiceDelivery() {
 
   const submitOutcome = () => {
     if (!selectedTask) return;
+    const generation = outcomeGeneration.current;
     recordTask.mutate({
       taskId: selectedTask.id,
       status: outcome,
@@ -313,7 +329,7 @@ export default function ServiceDelivery() {
     }, {
       onSuccess: () => {
         toast({ title: "Service outcome recorded", description: "The original support-plan version remains attached to this record." });
-        closeOutcome();
+        if (generation === outcomeGeneration.current) closeOutcome();
       },
       onError: (error: Error) => toast({ title: "Couldn't record service", description: error.message, variant: "destructive" }),
     });
@@ -322,7 +338,9 @@ export default function ServiceDelivery() {
   const taskRows = (
     <Card>
       <CardContent className="pt-6">
-        {queue.isError ? (
+        {!bounds ? (
+          <p role="alert" className="py-6 text-sm text-destructive">Choose a valid service date to load the task queue.</p>
+        ) : queue.isError ? (
           <QueryError what="resident service tasks" error={queue.error} onRetry={() => queue.refetch()} />
         ) : queue.isLoading ? (
           <div className="space-y-2">{[...Array(5)].map((_, index) => <div key={index} className="h-20 animate-pulse rounded bg-muted" />)}</div>
@@ -382,7 +400,7 @@ export default function ServiceDelivery() {
                     </Select>
                   )}
                   {!isAuditor && task.status === "scheduled" && (
-                    <Button onClick={() => setSelectedTask(task)}>
+                    <Button onClick={() => { closeOutcome(); setSelectedTask(task); }}>
                       <CalendarCheck className="mr-2 h-4 w-4" /> Record
                     </Button>
                   )}
@@ -391,7 +409,7 @@ export default function ServiceDelivery() {
                       {/* Self-reported at documentation time -- context, not a substitute for a
                           tracked item, so it does not suppress the button. */}
                       {task.supervisor_notified && <Badge variant="secondary">Told supervisor</Badge>}
-                      <Button variant="outline" onClick={() => setFollowUpTask(task)}>
+                      <Button variant="outline" onClick={() => { followUpGeneration.current += 1; setFollowUpTask(task); }}>
                         <BellRing className="mr-2 h-4 w-4" /> Supervisor follow-up
                       </Button>
                     </>
@@ -428,16 +446,16 @@ export default function ServiceDelivery() {
       </Alert>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="flex items-center gap-3 pt-6"><Clock3 className="h-8 w-8 text-blue-600" /><div><p className="text-2xl font-bold">{queue.isLoading || queue.isError ? "—" : scheduled}</p><p className="text-sm text-muted-foreground">Scheduled</p></div></CardContent></Card>
-        <Card><CardContent className="flex items-center gap-3 pt-6"><CheckCircle2 className="h-8 w-8 text-emerald-600" /><div><p className="text-2xl font-bold">{queue.isLoading || queue.isError ? "—" : completed}</p><p className="text-sm text-muted-foreground">Completed</p></div></CardContent></Card>
-        <Card><CardContent className="flex items-center gap-3 pt-6"><AlertTriangle className="h-8 w-8 text-amber-600" /><div><p className="text-2xl font-bold">{queue.isLoading || queue.isError ? "—" : exceptions}</p><p className="text-sm text-muted-foreground">Exceptions</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-3 pt-6"><Clock3 className="h-8 w-8 text-blue-600" /><div><p className="text-2xl font-bold">{!bounds || queue.isLoading || queue.isError ? "—" : scheduled}</p><p className="text-sm text-muted-foreground">Scheduled</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-3 pt-6"><CheckCircle2 className="h-8 w-8 text-emerald-600" /><div><p className="text-2xl font-bold">{!bounds || queue.isLoading || queue.isError ? "—" : completed}</p><p className="text-sm text-muted-foreground">Completed</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-3 pt-6"><AlertTriangle className="h-8 w-8 text-amber-600" /><div><p className="text-2xl font-bold">{!bounds || queue.isLoading || queue.isError ? "—" : exceptions}</p><p className="text-sm text-muted-foreground">Exceptions</p></div></CardContent></Card>
       </div>
 
       <Card>
         <CardContent className="grid gap-2 pt-6 sm:grid-cols-2 xl:grid-cols-4">
-          <Input type="date" value={date} onChange={event => setDate(event.target.value)} aria-label="Service date" />
+          <Input type="date" value={date} onChange={event => { closeOutcome(); closeFollowUp(); setDate(event.target.value); }} aria-label="Service date" aria-invalid={!bounds} />
           {!isEmployee && (
-            <Select value={facilityId} onValueChange={setFacilityId}>
+            <Select value={facilityId} onValueChange={value => { closeOutcome(); setSelectedRequirement(null); closeFollowUp(); setChangeReviewAlert(null); setFacilityId(value); }}>
               <SelectTrigger aria-label="Facility"><SelectValue placeholder="All facilities" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All facilities</SelectItem>
@@ -593,25 +611,30 @@ export default function ServiceDelivery() {
         says. A two-staff transfer silently becoming a one-person task is the shape of that.
       */}
       <RequirementDialog key={selectedRequirement?.id ?? "none"} requirement={selectedRequirement} onClose={() => setSelectedRequirement(null)} />
-      <ServiceExceptionFollowUpDialog
+      <ServiceExceptionFollowUpDialog key={followUpTask?.id ?? "none"}
         open={!!followUpTask}
         taskName={followUpTask?.service_name ?? "service"}
         residentName={followUpTask?.resident_name ?? "the resident"}
         existingNote={followUpTask?.note ?? null}
         pending={followUpExceptionRpc.isPending}
-        onOpenChange={open => !open && setFollowUpTask(null)}
+        onOpenChange={open => !open && closeFollowUp()}
         onConfirm={async reason => {
-          if (!followUpTask) return;
+          if (!followUpTask) return false;
+          const generation = followUpGeneration.current;
           try {
             await followUpExceptionRpc.mutateAsync({ taskId: followUpTask.id, reason });
+            if (generation !== followUpGeneration.current) return false;
             toast({ title: "Supervisor follow-up raised", description: "It is in the shared work queue." });
-            setFollowUpTask(null);
+            closeFollowUp();
+            return true;
           } catch (error) {
+            if (generation !== followUpGeneration.current) return false;
             toast({
               title: "Couldn't raise the follow-up",
               description: error instanceof Error ? error.message : String(error),
               variant: "destructive",
             });
+            return false;
           }
         }}
       />

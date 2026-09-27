@@ -17,6 +17,7 @@ import {
   SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES,
 } from "@/hooks/useSupportTickets";
 import { useAuth } from "@/lib/auth";
+import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { viewablePathForRole } from "@/lib/appDomains";
 import {
   buildCentralHelpUrl,
@@ -393,8 +394,10 @@ function JobAidesTab({ pinnedArticleId }: { pinnedArticleId?: string }) {
 
 
 function GlossaryTab() {
+  const { user } = useAuth();
+  const { enabledModules } = useProductModuleAccess();
   const [query, setQuery] = useState("");
-  const entries = useMemo(() => searchCarebaseGlossary(query), [query]);
+  const entries = useMemo(() => searchCarebaseGlossary(query, { role: user?.role, enabledModules }), [query, user?.role, enabledModules]);
 
   return (
     <div className="space-y-4">
@@ -521,7 +524,11 @@ function SupportTab({ base }: { base: string }) {
       },
       {
         onSuccess: (ticket) => {
-          toast({ title: "Ticket submitted", description: "Our team will respond soon." });
+          toast(ticket.attachmentWarning ? {
+            title: "Ticket submitted; attachment needs retry",
+            description: `${ticket.attachmentWarning} Your message was saved. Add the file in a reply to this ticket.`,
+            variant: "destructive",
+          } : { title: "Ticket submitted", description: "Our team will respond soon." });
           setShowForm(false);
           resetTicketForm();
           setLocation(`${base}/help/tickets/${ticket.id}`);

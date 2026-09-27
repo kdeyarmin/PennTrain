@@ -1,3 +1,4 @@
+import { DocumentDeletionQueue } from "@/components/documents/DocumentDeletionQueue";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { useAuth, type Role } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { QueryError } from "@/components/QueryState";
 import { FileText, Upload, Trash2, Download, Files, UserRound } from "lucide-react";
+import { errorText } from "@/lib/errorText";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { canUploadTrainingDocumentType, canUploadTrainingDocuments } from "@/lib/policyPermissions";
 import { ResidentDocumentDeletionQueue } from "@/components/residents/ResidentDocumentDeletionQueue";
@@ -67,10 +69,12 @@ export default function Documents() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const { data: facilities } = useListFacilities();
-  const { data: employees } = useListEmployees({
+  const facilitiesQuery = useListFacilities();
+  const { data: facilities } = facilitiesQuery;
+  const employeesQuery = useListEmployees({
     facilityId: uploadFacility || undefined,
   });
+  const { data: employees } = employeesQuery;
   // Scoped to the read-side Facility filter below (not uploadFacility above, which scopes the
   // upload form's own employee picker) -- narrows as that filter narrows, same as the document
   // list itself.
@@ -84,6 +88,9 @@ export default function Documents() {
   const {
     data: documentsPage,
     isLoading,
+    isSuccess: documentsSuccess,
+    isFetching: documentsFetching,
+    isPlaceholderData: documentsPlaceholder,
     isError: documentsError,
     error: documentsErrorDetail,
     refetch: refetchDocuments,
@@ -97,6 +104,7 @@ export default function Documents() {
   const rows = documentsPage?.rows ?? [];
   const total = documentsPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const documentsReady = documentsSuccess && !documentsError && !isLoading && !documentsFetching && !documentsPlaceholder;
 
   const uploadDocument = useUploadDocument();
   const getSignedUrl = useDocumentSignedUrl();
@@ -118,6 +126,17 @@ export default function Documents() {
     () => new Map(rows.map((d) => [d.id, d])),
     [rows],
   );
+
+  // Metadata can be gone even when byte cleanup rejects. Only a confirmed page
+  // refresh can prune those selections; unavailable/placeholder lists retain retries.
+  useEffect(() => {
+    if (!documentsReady || !documentsPage) return;
+    const visible = new Set(documentsPage.rows.map(document => document.id));
+    setSelectedIds(previous => {
+      const remaining = new Set([...previous].filter(id => visible.has(id)));
+      return remaining.size === previous.size ? previous : remaining;
+    });
+  }, [documentsReady, documentsPage]);
 
   const allPageSelected = rows.length > 0 && rows.every((d) => selectedIds.has(d.id));
   const somePageSelected = rows.some((d) => selectedIds.has(d.id));
@@ -149,7 +168,11 @@ export default function Documents() {
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
+    if (files.length === 0 || uploadingBatch || uploadDocument.isPending) return;
+    if (facilitiesQuery.isError || employeesQuery.isError) {
+      toast({ title: "Upload context unavailable", description: "Retry the facility and employee lists before uploading.", variant: "destructive" });
+      return;
+    }
     if (!uploadFacility) {
       toast({ title: "Select a facility first", variant: "destructive" });
       return;
@@ -180,6 +203,7 @@ export default function Documents() {
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.length - succeeded;
+    const firstFailure = results.find(result => result.status === "rejected");
     toast({
       title:
         failed === 0
@@ -191,7 +215,7 @@ export default function Documents() {
             : "Upload partially completed",
       description:
         failed > 0
-          ? `${succeeded} of ${results.length} file${results.length === 1 ? "" : "s"} uploaded. ${failed} failed.`
+          ? `${succeeded} of ${results.length} file${results.length === 1 ? "" : "s"} uploaded. ${failed} failed.${firstFailure?.status === "rejected" ? ` ${errorText(firstFailure.reason)}` : ""}`
           : undefined,
       variant: failed === 0 ? undefined : succeeded === 0 ? "destructive" : undefined,
     });
@@ -200,7 +224,7 @@ export default function Documents() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteDoc) return;
+    if (!deleteDoc || deleteDocument.isPending || bulkDeletePending) return;
     try {
       await deleteDocument.mutateAsync(deleteDoc);
       toast({ title: "Document deleted" });
@@ -209,18 +233,28 @@ export default function Documents() {
         next.delete(deleteDoc.id);
         return next;
       });
-    } catch {
-      toast({ title: "Delete failed", variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Delete failed", description: errorText(error), variant: "destructive" });
     } finally {
-      setDeleteDoc(null);
+      setDeleteDoc(current => current?.id === deleteDoc.id ? null : current);
     }
   };
 
   const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0 || bulkDeletePending || deleteDocument.isPending) return;
+    if (!documentsReady) {
+      toast({ title: "Reload documents before deleting", description: "Wait for the document list to finish loading or retry its failed request.", variant: "destructive" });
+      return;
+    }
     const docs = Array.from(selectedIds)
       .map((id) => rowById.get(id))
       .filter((d): d is TrainingDocumentWithEmployee => !!d);
+    if (docs.length === 0) {
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+      toast({ title: "No selected documents remain in this view", description: "Check Pending file deletions for files that still need cleanup." });
+      return;
+    }
 
     setBulkDeletePending(true);
     const results = await Promise.allSettled(
@@ -231,6 +265,7 @@ export default function Documents() {
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.length - succeeded;
+    const firstFailure = results.find(result => result.status === "rejected");
     toast({
       title:
         failed === 0
@@ -240,12 +275,13 @@ export default function Documents() {
             : "Bulk delete partially completed",
       description:
         failed > 0
-          ? `${succeeded} of ${results.length} deleted. ${failed} failed.`
+          ? `${succeeded} of ${results.length} deleted. ${failed} failed.${firstFailure?.status === "rejected" ? ` ${errorText(firstFailure.reason)}` : ""}`
           : undefined,
       variant: failed === 0 ? undefined : succeeded === 0 ? "destructive" : undefined,
     });
 
-    if (succeeded > 0) setSelectedIds(new Set());
+    const deleted = new Set(docs.filter((_, index) => results[index].status === "fulfilled").map(doc => doc.id));
+    setSelectedIds(previous => new Set([...previous].filter(id => !deleted.has(id))));
   };
 
   const handleDownload = async (doc: TrainingDocument) => {
@@ -266,6 +302,7 @@ export default function Documents() {
 
   return (
     <div className="space-y-6">
+      <DocumentDeletionQueue />
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Documents</h1>
         <p className="text-muted-foreground">
@@ -286,10 +323,12 @@ export default function Documents() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {facilitiesQuery.isError && <QueryError what="upload facilities" error={facilitiesQuery.error} onRetry={() => void facilitiesQuery.refetch()} />}
+          {employeesQuery.isError && <QueryError what="upload employees" error={employeesQuery.error} onRetry={() => void employeesQuery.refetch()} />}
           <div className="flex flex-wrap gap-3 items-end">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Facility</label>
-              <Select value={uploadFacility} onValueChange={setUploadFacility}>
+              <Select value={uploadFacility} onValueChange={value => { setUploadFacility(value); setUploadEmployee("none"); }} disabled={uploading}>
                 <SelectTrigger className="w-52" aria-label="Upload facility">
                   <SelectValue placeholder="Select facility" />
                 </SelectTrigger>
@@ -302,7 +341,7 @@ export default function Documents() {
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Employee (optional)</label>
-              <Select value={uploadEmployee} onValueChange={setUploadEmployee}>
+              <Select value={uploadEmployee} onValueChange={setUploadEmployee} disabled={uploading || employeesQuery.isLoading || employeesQuery.isError}>
                 <SelectTrigger className="w-52" aria-label="Upload employee">
                   <SelectValue placeholder="Select employee" />
                 </SelectTrigger>
@@ -316,7 +355,7 @@ export default function Documents() {
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Document Type</label>
-              <Select value={uploadDocType} onValueChange={setUploadDocType}>
+              <Select value={uploadDocType} onValueChange={setUploadDocType} disabled={uploading}>
                 <SelectTrigger className="w-48" aria-label="Upload document type">
                   <SelectValue />
                 </SelectTrigger>
@@ -337,7 +376,7 @@ export default function Documents() {
               </Select>
             </div>
             <Button
-              disabled={uploading || !uploadFacility}
+              disabled={uploading || !uploadFacility || facilitiesQuery.isLoading || facilitiesQuery.isError || employeesQuery.isLoading || employeesQuery.isError}
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="mr-2 h-4 w-4" />
@@ -365,7 +404,7 @@ export default function Documents() {
             size="sm"
             variant="destructive"
             onClick={() => setConfirmBulkDelete(true)}
-            disabled={bulkDeletePending}
+            disabled={bulkDeletePending || deleteDocument.isPending || !documentsReady}
           >
             <Trash2 className="mr-1.5 h-3.5 w-3.5" />
             {bulkDeletePending ? "Deleting..." : "Delete Selected"}
@@ -535,7 +574,7 @@ export default function Documents() {
             <AlertDialogCancel disabled={bulkDeletePending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleBulkDelete}
-              disabled={bulkDeletePending}
+              disabled={bulkDeletePending || deleteDocument.isPending || !documentsReady}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {bulkDeletePending ? "Deleting..." : "Delete Selected"}

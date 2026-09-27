@@ -140,7 +140,8 @@ export default function RegulatoryCopilot() {
     const assignedIds = new Set((myAssignments ?? []).map((assignment) => assignment.facility_id));
     return (facilities ?? []).filter((facility) => assignedIds.has(facility.id));
   }, [facilities, isFacilityManager, myAssignments]);
-  const activeFacilityId = facilityId || selectableFacilities[0]?.id || "";
+  const activeFacilityId = selectableFacilities.some(facility => facility.id === facilityId)
+    ? facilityId : selectableFacilities[0]?.id || "";
   // Both are facility-scoped context for the question below, and both apply their facilityId filter
   // only `if` truthy -- so before the facility list resolves, an ungated read is org-wide rather
   // than empty, and the employee picker briefly offers staff from facilities this question is not
@@ -153,6 +154,11 @@ export default function RegulatoryCopilot() {
   const history = useComplianceCopilotHistory(activeFacilityId || undefined);
   const dispositions = useCopilotDispositions(activeFacilityId || undefined);
   const ask = useAskComplianceCopilot();
+  const requestGeneration = useRef(0);
+  const [answer, setAnswer] = useState<{ scope: string; facilityId: string; result: CopilotResultData } | null>(null);
+  const answerScope = JSON.stringify([user?.id, activeFacilityId, intent, question.trim(),
+    employeeId, violationId, citationQuery.trim(), asOfDate]);
+  const result = answer?.scope === answerScope ? answer.result : null;
   const createActionDraft = useCreateCopilotActionDraft();
   const recordDisposition = useRecordCopilotDisposition(activeFacilityId || undefined);
   const selectedIntent = INTENTS.find((option) => option.value === intent)!;
@@ -164,12 +170,26 @@ export default function RegulatoryCopilot() {
     if (skipNextIntentSync.current) { skipNextIntentSync.current = false; return; }
     setQuestion(selectedIntent.question);
   }, [selectedIntent.question]);
+  useEffect(() => {
+    requestGeneration.current++;
+    setAnswer(null);
+    ask.reset();
+    return () => { requestGeneration.current++; };
+  }, [answerScope]);
+  useEffect(() => {
+    setEmployeeId("");
+    setViolationId("");
+  }, [activeFacilityId]);
   const needsContext = (intent === "employee_blocked" && !employeeId)
     || (intent === "draft_plan_of_correction" && !violationId)
     || (intent === "citation_evidence" && citationQuery.trim().length < 2);
-  const evidenceById = useMemo(() => new Map((ask.data?.evidenceUsed ?? []).map((item) => [item.id, item])), [ask.data]);
+  const evidenceById = useMemo(() => new Map((result?.evidenceUsed ?? []).map((item) => [item.id, item])), [result]);
 
-  const submit = () => ask.mutate({
+  const submit = () => {
+    if (!activeFacilityId || needsContext || contextFailure || question.trim().length < 3 || ask.isPending) return;
+    const generation = ++requestGeneration.current;
+    setAnswer(null);
+    ask.mutate({
     facilityId: activeFacilityId,
     intent,
     question: question.trim(),
@@ -178,8 +198,14 @@ export default function RegulatoryCopilot() {
     citationQuery: intent === "citation_evidence" ? citationQuery.trim() : undefined,
     asOfDate,
   }, {
-    onError: (error: Error) => toast({ title: "Compliance copilot could not answer", description: error.message, variant: "destructive" }),
-  });
+    onSuccess: (result) => {
+      if (generation === requestGeneration.current) setAnswer({ scope: answerScope, facilityId: activeFacilityId, result });
+    },
+    onError: (error: Error) => {
+      if (generation === requestGeneration.current) toast({ title: "Compliance copilot could not answer", description: error.message, variant: "destructive" });
+    },
+    });
+  };
 
   // Same hazard the facility-scoping comment above describes: if the context these
   // pickers are built from fails to load, the copilot answers from a narrower world
@@ -252,27 +278,28 @@ export default function RegulatoryCopilot() {
               {intent === "draft_plan_of_correction" && <div className="space-y-2 md:col-span-2"><Label htmlFor={`${__fieldIds}-verified-finding-violation`}>Verified finding / violation</Label><Select value={violationId} onValueChange={setViolationId}><SelectTrigger id={`${__fieldIds}-verified-finding-violation`}><SelectValue placeholder="Select violation" /></SelectTrigger><SelectContent>{(violations ?? []).map((violation) => <SelectItem key={violation.id} value={violation.id}>{violation.citation_ref ?? "Unnumbered finding"} — {violation.description.slice(0, 90)}</SelectItem>)}</SelectContent></Select></div>}
               {intent === "citation_evidence" && <div className="space-y-2 md:col-span-2"><Label htmlFor={`${__fieldIds}-citation-or-regulatory-topic`}>Citation or regulatory topic</Label><Input id={`${__fieldIds}-citation-or-regulatory-topic`} value={citationQuery} onChange={(event) => setCitationQuery(event.target.value)} placeholder="Example: 2600.227 or resident support plan" /></div>}
               <div className="space-y-2 md:col-span-2"><Label htmlFor={`${__fieldIds}-question`}>Question</Label><Textarea id={`${__fieldIds}-question`} rows={4} value={question} maxLength={2000} onChange={(event) => setQuestion(event.target.value)} /></div>
-              <div className="md:col-span-2"><Button onClick={submit} disabled={!activeFacilityId || needsContext || question.trim().length < 3 || ask.isPending}>{ask.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Grounding and validating…</> : <><Sparkles className="mr-2 h-4 w-4" />Generate grounded response</>}</Button></div>
+              <div className="md:col-span-2"><Button onClick={submit} disabled={!activeFacilityId || needsContext || !!contextFailure || question.trim().length < 3 || ask.isPending}>{ask.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Grounding and validating…</> : <><Sparkles className="mr-2 h-4 w-4" />Generate grounded response</>}</Button></div>
             </CardContent>
           </Card>
 
-          {ask.data && <CopilotResult
-            result={ask.data}
+          {result && <CopilotResult
+            result={result}
             disposition={<CopilotDispositionControl
-              runId={ask.data.runId}
-              current={latestDisposition.get(ask.data.runId)}
+              key={result.runId}
+              runId={result.runId}
+              current={latestDisposition.get(result.runId)}
               canRecord={canDisposition}
               mutation={recordDisposition}
             />}
             evidenceById={evidenceById}
-            canCreateDraft={["org_admin", "facility_manager"].includes(user?.role ?? "") && ask.data.response.recommended_next_steps.length > 0}
+            canCreateDraft={["org_admin", "facility_manager"].includes(user?.role ?? "") && result.response.recommended_next_steps.length > 0}
             creatingDraft={createActionDraft.isPending}
             onCreateDraft={() => createActionDraft.mutate({
-              facilityId: activeFacilityId,
-              intent: ask.data!.intent,
-              title: `Copilot follow-up: ${INTENTS.find((item) => item.value === ask.data!.intent)?.label ?? "compliance review"}`,
-              sourceResponseId: ask.data!.runId,
-              actions: ask.data!.response.recommended_next_steps.map((step) => ({ title: step, description: "Human-approved follow-up from a citation-backed CareBase response.", priority: "normal", dueDays: 7 })),
+              facilityId: answer!.facilityId,
+              intent: result.intent,
+              title: `Copilot follow-up: ${INTENTS.find((item) => item.value === result.intent)?.label ?? "compliance review"}`,
+              sourceResponseId: result.runId,
+              actions: result.response.recommended_next_steps.map((step) => ({ title: step, description: "Proposed follow-up from a citation-backed CareBase response; human approval is required before work is created.", priority: "normal", dueDays: 7 })),
             }, {
               onSuccess: () => toast({ title: "Governed action draft created", description: "Review and approve it in the CareBase Value Center before work is created." }),
               onError: (error) => toast({ title: "Action draft could not be created", description: error.message, variant: "destructive" }),

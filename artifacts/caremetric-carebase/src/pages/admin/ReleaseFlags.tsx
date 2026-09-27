@@ -42,6 +42,7 @@ function flagBadge(mode: string, enabled: boolean) {
 function EvaluatedState({ featureKey }: { featureKey: string }) {
   const release = useFeatureReleaseActive(featureKey);
   if (release.isLoading) return <span className="text-xs text-muted-foreground">checking…</span>;
+  if (release.isError) return <span role="alert" className="text-xs text-destructive">Unavailable</span>;
   return (
     <Badge variant="outline" className={release.isActive ? "border-emerald-500 text-emerald-700 dark:text-emerald-500" : undefined}>
       {release.isActive ? "Active for you" : "Off for you"}
@@ -88,8 +89,8 @@ export default function ReleaseFlags() {
     return set;
   }, [killsQ.data]);
 
-  const anyError = flagsQ.isError || defsQ.isError;
-  const firstError = (flagsQ.error as Error | null) ?? (defsQ.error as Error | null);
+  const anyError = flagsQ.isError || defsQ.isError || killsQ.isError;
+  const firstError = (flagsQ.error as Error | null) ?? (defsQ.error as Error | null) ?? (killsQ.error as Error | null);
 
   const handleSetFlag = async (featureKey: string, mode: "global" | "off"): Promise<boolean> => {
     if (flagReason.trim().length < 8) {
@@ -171,6 +172,7 @@ export default function ReleaseFlags() {
           onRetry={() => {
             void flagsQ.refetch();
             void defsQ.refetch();
+            void killsQ.refetch();
           }}
         />
       ) : null}
@@ -287,7 +289,7 @@ export default function ReleaseFlags() {
                     <Button
                       size="sm"
                       variant={killSet.has(flag.feature_key) ? "default" : "destructive"}
-                      disabled={!!busyKey}
+                      disabled={!!busyKey || killsQ.isLoading || killsQ.isError}
                       onClick={() => void handleKill(flag.feature_key, !killSet.has(flag.feature_key))}
                     >
                       {killSet.has(flag.feature_key) ? "Clear kill" : "Kill"}

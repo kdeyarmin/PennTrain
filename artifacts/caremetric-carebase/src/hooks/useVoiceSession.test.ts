@@ -92,6 +92,18 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("voice session setup lifecycle", () => {
+  it.each([false, true])("stops capture immediately without a gateway acknowledgment (send failure: %s)", async sendFails => {
+    const session = useVoiceSession("facility-a");
+    await session.start();
+    sockets[0].readyState = FakeSocket.OPEN;
+    if (sendFails) sockets[0].send.mockImplementationOnce(() => { throw new Error("Connection lost"); });
+    expect(() => session.stop()).not.toThrow();
+    expect(mocks.stopTrack).toHaveBeenCalledOnce();
+    expect(mocks.closeAudio).toHaveBeenCalledOnce();
+    expect(sockets[0].close).toHaveBeenCalledOnce();
+    expect(sockets[0].onmessage).toBeNull();
+    expect(mocks.states[0]).toBe("ended");
+  });
   it("does not request microphone access after unmount during the auth lookup", async () => {
     const pending = deferred<{ data: { session: { access_token: string } }; error: null }>();
     mocks.getSession.mockReturnValue(pending.promise);

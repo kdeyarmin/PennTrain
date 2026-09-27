@@ -3,7 +3,9 @@ import {
   isExpired, isObservationExpired, isUnsyncedDraftOverdue, listServiceDraftEntries,
   purgeExpiredServiceDrafts, readAllServiceDrafts, readAllServiceDraftsWithFailures,
   readServiceDraft, saveServiceDraft, UNSYNCED_PURGE_AFTER_MS,
+  readAllObservationDrafts, readObservationDraft, saveObservationDraft,
 } from "./offlineServiceDraftCache";
+import type { OfflineObservationDraft } from "./offlineObservationDraftSafety";
 import type { DraftListEntry, ObservationDraftListEntry } from "./offlineServiceDraftCache";
 import type {
   OfflineChangeObservationDraft, OfflineServiceDraft, OfflineUnscheduledServiceDraft,
@@ -203,6 +205,95 @@ function draft(overrides: Partial<OfflineServiceDraft> = {}): OfflineServiceDraf
     ...overrides,
   };
 }
+
+function nativeObservation(draftId: string, residentId: string): OfflineObservationDraft {
+  return {
+    draftId, residentId, residentDisplayLabel: "Resident · Room 12", organizationId: "org-1", profileId: "profile-1",
+    observationType: "blood_pressure", observedAt: "2026-08-03T09:00:00.000Z",
+    valueNumeric: 120, valueSecondary: 80, valueText: null, unit: "mm[Hg]", customLabel: null, loincCode: "85354-9", note: null,
+    idempotencyKey: `idem-${draftId}`, createdAt: "2026-08-03T09:00:01.000Z", updatedAt: "2026-08-03T09:00:01.000Z",
+    syncState: "draft", lastSyncOutcome: null, lastSyncError: null,
+  };
+}
+
+describe("retained offline drafts after reopening with confirmed facility scope", () => {
+  const identity = { organizationId: "org-1", profileId: "profile-1", role: "employee" };
+  let fake: ReturnType<typeof fakeIndexedDB>;
+  beforeEach(async () => { fake = fakeIndexedDB(); vi.stubGlobal("indexedDB", fake.stub); await fake.seedDeviceKey(); });
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+
+  it("removes only excluded service drafts on the first confirmed read, with no prior provider baseline", async () => {
+    await saveServiceDraft(draft({ draftId: "allowed", facilityId: "home" }));
+    await saveServiceDraft(draft({ draftId: "revoked", facilityId: "secondary" }));
+    const records = await readAllServiceDrafts(identity, { facilityIds: ["home"], isCurrent: () => true });
+    expect(records.map(record => record.draftId)).toEqual(["allowed"]);
+    expect(fake.draftStoreHas("allowed")).toBe(true); expect(fake.draftStoreHas("revoked")).toBe(false);
+  });
+  it("preserves service and observation records when authorization is unknown", async () => {
+    await saveServiceDraft(draft()); await saveObservationDraft(nativeObservation("reading", "resident"));
+    expect(await readAllServiceDrafts(identity)).toHaveLength(1);
+    expect(await readAllObservationDrafts(identity)).toHaveLength(1);
+    const scope = { facilityIds: ["home"], isCurrent: () => true, canReadResident: async () => null };
+    expect(await readAllObservationDrafts(identity, scope)).toHaveLength(1);
+    expect(await readObservationDraft("reading", identity)).toBeDefined();
+  });
+  it("checks legacy observations by current resident access, retains allowed readings and deduplicates residents", async () => {
+    await saveObservationDraft(nativeObservation("allowed-1", "resident-allowed"));
+    await saveObservationDraft(nativeObservation("allowed-2", "resident-allowed"));
+    await saveObservationDraft(nativeObservation("revoked", "resident-revoked"));
+    const canReadResident = vi.fn(async (id: string) => id === "resident-allowed");
+    const records = await readAllObservationDrafts(identity, { facilityIds: ["home"], isCurrent: () => true, canReadResident });
+    expect(records.map(record => record.draftId)).toEqual(["allowed-1", "allowed-2"]);
+    expect(canReadResident).toHaveBeenCalledTimes(2);
+    expect(await readObservationDraft("revoked", identity)).toBeUndefined();
+    expect(await readObservationDraft("allowed-1", identity)).toBeDefined();
+  });
+  it("does not delete newly authorized service data using a delayed obsolete scope", async () => {
+    await saveServiceDraft(draft({ draftId: "site-b", facilityId: "B" }));
+    let current = true; let resume!: () => void; let started!: () => void;
+    const paused = new Promise<void>(resolve => { resume = resolve; });
+    const decrypting = new Promise<void>(resolve => { started = resolve; });
+    const originalDecrypt = crypto.subtle.decrypt.bind(crypto.subtle);
+    vi.spyOn(crypto.subtle, "decrypt").mockImplementationOnce(async (...args) => { const value = await originalDecrypt(...args); started(); await paused; return value; });
+    const reading = readAllServiceDrafts(identity, { facilityIds: ["A"], isCurrent: () => current });
+    await decrypting; current = false; resume();
+    await expect(reading).rejects.toMatchObject({ name: "AbortError" });
+    expect(fake.draftStoreHas("site-b")).toBe(true);
+    expect(await readAllServiceDrafts(identity, { facilityIds: ["A", "B"], isCurrent: () => true })).toHaveLength(1);
+  });
+  it("shares one authorization time budget across residents and preserves remaining unknown notes", async () => {
+    for (const id of ["first", "second", "third"]) await saveObservationDraft(nativeObservation(id, id));
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    let started!: () => void;
+    const requested = new Promise<void>(resolve => { started = resolve; });
+    const canReadResident = vi.fn((id: string, timeoutMs = 5_000): Promise<boolean | null> => {
+      started();
+      return new Promise(resolve => setTimeout(() => resolve(id === "first" ? true : null), id === "first" ? 4_000 : timeoutMs));
+    });
+    const reading = readAllObservationDrafts(identity, { facilityIds: ["home"], isCurrent: () => true, canReadResident });
+    await requested;
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(canReadResident).toHaveBeenNthCalledWith(2, "second", 1_000);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect((await reading).map(record => record.draftId)).toEqual(["first", "second", "third"]);
+    expect(canReadResident).toHaveBeenCalledTimes(2); // third stays unknown after the shared deadline
+    expect(await readObservationDraft("third", identity)).toBeDefined();
+  });
+  it("does not prune observations or return old results after identity changes during the authorization request", async () => {
+    await saveObservationDraft(nativeObservation("reading", "resident"));
+    let current = true; let resolve!: (value: boolean) => void; let started!: () => void;
+    const pending = new Promise<boolean>(done => { resolve = done; });
+    const requested = new Promise<void>(done => { started = done; });
+    const reading = readAllObservationDrafts(identity, { facilityIds: ["home"], isCurrent: () => current, canReadResident: () => { started(); return pending; } });
+    await requested; current = false; resolve(false);
+    await expect(reading).rejects.toMatchObject({ name: "AbortError" });
+    expect(await readObservationDraft("reading", identity)).toBeDefined();
+  });
+  it("does not claim reconciliation succeeded when deletion fails to commit", async () => {
+    await saveServiceDraft(draft({ facilityId: "revoked" })); fake.forceNextWriteAbort(true);
+    await expect(readAllServiceDrafts(identity, { facilityIds: [], isCurrent: () => true })).rejects.toThrow("commit");
+  });
+});
 
 describe("saveServiceDraft transaction safety", () => {
   let fake: ReturnType<typeof fakeIndexedDB>;

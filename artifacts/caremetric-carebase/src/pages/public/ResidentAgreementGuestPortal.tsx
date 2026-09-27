@@ -1,4 +1,4 @@
-import { useId, useEffect, useState } from "react";
+import { useId, useEffect, useRef, useState } from "react";
 import { useParams } from "wouter";
 import { CheckCircle2, FileSignature, Fingerprint, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 import {
@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { clearStoredPublicAccessToken, consumePublicAccessToken, publicGuestRetryMessage, publicGuestWorkspaceError } from "@/lib/publicAccessToken";
 import { useToast } from "@/hooks/use-toast";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
@@ -51,6 +51,13 @@ export default function ResidentAgreementGuestPortal() {
   const [acceptedLocally, setAcceptedLocally] = useState(false);
   const [selected, setSelected] = useState<Agreement | null>(null);
   const [response, setResponse] = useState(blankResponse);
+  const activeReview = useRef(0);
+  const selectAgreement = (agreement: Agreement | null) => {
+    activeReview.current += 1;
+    respond.reset();
+    setSelected(agreement);
+    setResponse(blankResponse(agreement?.signerRole ?? workspace.data?.signerRole));
+  };
 
   const acceptTerms = () => token && accept.mutate(token, {
     onSuccess: () => setAcceptedLocally(true),
@@ -62,38 +69,28 @@ export default function ResidentAgreementGuestPortal() {
   });
   const submit = () => {
     if (!token || !selected) return;
+    const review = activeReview.current;
     respond.mutate({ token, versionId: selected.versionId, ...response }, {
       onSuccess: () => {
-        setSelected(null);
-        setResponse(blankResponse(workspace.data?.signerRole));
+        if (review !== activeReview.current) return;
+        selectAgreement(null);
         toast({ title: "Response recorded" });
       },
-      onError: (error) => toast({
-        title: "Could not submit response",
-        description: error instanceof Error ? error.message : String(error),
-        variant: "destructive",
-      }),
+      onError: (error) => {
+        if (review !== activeReview.current) return;
+        toast({ title: "Could not submit response", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      },
     });
   };
-  // Every failure from the workspace RPC uses errcode 42501 (invalid, revoked,
-  // expired, AND terms-pending), so branching on the code alone showed the terms
-  // card for expired/revoked links too. The RPC now raises a dedicated message
-  // when the only problem is pending terms -- branch on that. (supabase-js
-  // resolves failed RPCs with a plain error object, not an Error instance.)
-  const rawWorkspaceError = workspace.error as { message?: unknown } | null;
-  const workspaceErrorMessage = typeof rawWorkspaceError?.message === "string" ? rawWorkspaceError.message : "";
+  const guestError = publicGuestWorkspaceError(workspace.error);
   const needsTerms =
     !acceptedLocally &&
-    workspace.isError && /terms acceptance required/i.test(workspaceErrorMessage);
+    workspace.isError && guestError === "terms_required";
 
-  // A coded server error other than the 42501 terms gate (or a 42501 that
-  // persists after terms were accepted) means the token itself was rejected --
-  // expired, revoked, or invalid. Drop the stored copy so it is not replayed.
-  // Uncoded (network) failures never clear.
-  const workspaceErrorCode = (workspace.error as { code?: unknown } | null)?.code;
+  // A throttle or temporarily inactive facility does not revoke the grant.
   const serverRejected =
-    workspace.isError && typeof workspaceErrorCode === "string" &&
-    (workspaceErrorCode !== "42501" || acceptedLocally);
+    workspace.isError && !workspace.isFetching && guestError === "token_rejected";
+  const canRetry = workspace.isError && !serverRejected && !needsTerms;
   useEffect(() => {
     if (serverRejected) clearStoredPublicAccessToken(SESSION_TOKEN_KEY);
   }, [serverRejected]);
@@ -106,11 +103,11 @@ export default function ResidentAgreementGuestPortal() {
       // refetching but still holds the pre-accept error -- show a spinner rather
       // than flashing "link unavailable" at a guest who just accepted.
       ? <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin" /></div>
-    : workspace.isError || !workspace.data ? <Alert variant="destructive"><AlertTitle>Agreement link unavailable</AlertTitle><AlertDescription>This link is invalid, expired, revoked, or has not accepted the current terms.</AlertDescription></Alert>
-    : <><Card><CardHeader><CardTitle>{workspace.data.residentName} agreements</CardTitle><CardDescription>Access for {workspace.data.guestLabel} is bound to the {humanize(workspace.data.signerRole)} signer role and expires {new Date(workspace.data.expiresAt).toLocaleString()}.</CardDescription></CardHeader><CardContent className="space-y-4">{workspace.data.agreements.map(agreement => <div key={agreement.versionId} className="rounded-lg border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{agreement.title}</p><p className="text-xs text-muted-foreground">{humanize(agreement.agreementType)} · Version {agreement.versionLabel} · effective {new Date(agreement.effectiveAt).toLocaleDateString()}</p></div>{agreement.responded ? <Badge className="bg-emerald-100 text-emerald-900"><CheckCircle2 className="mr-1 h-3 w-3" />Response recorded</Badge> : <Button size="sm" onClick={() => { setSelected(agreement); setResponse(blankResponse(agreement.signerRole)); }}><FileSignature className="mr-2 h-4 w-4" />Sign</Button>}</div><div className="mt-4 whitespace-pre-wrap rounded-md bg-muted/50 p-4 text-sm">{agreement.contentText}</div>{agreement.documentLabel && <p className="mt-2 text-xs text-muted-foreground">Linked source document: {agreement.documentLabel}</p>}<p className="mt-2 break-all font-mono text-[11px] text-muted-foreground"><Fingerprint className="mr-1 inline h-3 w-3" />SHA-256 {agreement.contentSha256}</p><p className="mt-1 text-xs text-muted-foreground">Authorized signer role: {humanize(agreement.signerRole)}</p></div>)}</CardContent></Card><p className="text-center text-xs text-muted-foreground">CareBase resident e-signature · Terms {workspace.data.termsVersion}</p></>}
+    : workspace.isError || !workspace.data ? <Alert variant="destructive"><AlertTitle>Agreement link unavailable</AlertTitle><AlertDescription>{canRetry ? publicGuestRetryMessage(guestError) : "This link is invalid, expired, revoked, or has not accepted the current terms."}{canRetry && <Button className="mt-3" variant="outline" onClick={() => void workspace.refetch()}>Try again</Button>}</AlertDescription></Alert>
+    : <><Card><CardHeader><CardTitle>{workspace.data.residentName} agreements</CardTitle><CardDescription>Access for {workspace.data.guestLabel} is bound to the {humanize(workspace.data.signerRole)} signer role and expires {new Date(workspace.data.expiresAt).toLocaleString()}.</CardDescription></CardHeader><CardContent className="space-y-4">{workspace.data.agreements.map(agreement => <div key={agreement.versionId} className="rounded-lg border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{agreement.title}</p><p className="text-xs text-muted-foreground">{humanize(agreement.agreementType)} · Version {agreement.versionLabel} · effective {new Date(agreement.effectiveAt).toLocaleDateString()}</p></div>{agreement.responded ? <Badge className="bg-emerald-100 text-emerald-900"><CheckCircle2 className="mr-1 h-3 w-3" />Response recorded</Badge> : <Button size="sm" onClick={() => selectAgreement(agreement)}><FileSignature className="mr-2 h-4 w-4" />Sign</Button>}</div><div className="mt-4 whitespace-pre-wrap rounded-md bg-muted/50 p-4 text-sm">{agreement.contentText}</div>{agreement.documentLabel && <p className="mt-2 text-xs text-muted-foreground">Linked source document: {agreement.documentLabel}</p>}<p className="mt-2 break-all font-mono text-[11px] text-muted-foreground"><Fingerprint className="mr-1 inline h-3 w-3" />SHA-256 {agreement.contentSha256}</p><p className="mt-1 text-xs text-muted-foreground">Authorized signer role: {humanize(agreement.signerRole)}</p></div>)}</CardContent></Card><p className="text-center text-xs text-muted-foreground">CareBase resident e-signature · Terms {workspace.data.termsVersion}</p></>}
   </div>
 
-  <Dialog open={!!selected} onOpenChange={open => !open && setSelected(null)}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Respond to {selected?.title}</DialogTitle><DialogDescription>Your response will be permanently bound to version {selected?.versionLabel} and its displayed content digest.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2">
+  <Dialog open={!!selected} onOpenChange={open => !open && selectAgreement(null)}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Respond to {selected?.title}</DialogTitle><DialogDescription>Your response will be permanently bound to version {selected?.versionLabel} and its displayed content digest.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2">
     <div><Label htmlFor={`${__fieldIds}-response`}>Response</Label><Input id={`${__fieldIds}-response`} readOnly value="Sign electronically" /></div>
     <div><Label htmlFor={`${__fieldIds}-signer-role`}>Signer role</Label><Input id={`${__fieldIds}-signer-role`} readOnly value={humanize(response.signerRole)} /></div>
     <div><Label htmlFor={`${__fieldIds}-full-legal-name`}>Full legal name *</Label><Input id={`${__fieldIds}-full-legal-name`} value={response.signerName} onChange={event => setResponse(current => ({ ...current, signerName: event.target.value }))} /></div>
@@ -121,6 +118,6 @@ export default function ResidentAgreementGuestPortal() {
     <div><Label htmlFor={`${__fieldIds}-witness-relationship`}>Witness relationship</Label><Input id={`${__fieldIds}-witness-relationship`} value={response.witnessRelationship} onChange={event => setResponse(current => ({ ...current, witnessRelationship: event.target.value }))} /></div>
     <Alert className="sm:col-span-2"><Fingerprint className="h-4 w-4" /><AlertTitle>Authentication documentation</AlertTitle><AlertDescription>This response uses the accepted expiring link as its authentication method. Device documentation is hashed before storage; raw device text is not retained.</AlertDescription></Alert>
     {respond.isError && <p className="text-sm text-destructive sm:col-span-2">{respond.error.message}</p>}
-  </div><DialogFooter><Button variant="outline" onClick={() => setSelected(null)}>Cancel</Button><Button disabled={respond.isPending || response.signerName.trim().length < 2 || response.relationship.trim().length < 2 || response.attestation.trim().length < 5} onClick={submit}>{respond.isPending ? "Recording…" : "Sign electronically"}</Button></DialogFooter></DialogContent></Dialog>
+  </div><DialogFooter><Button variant="outline" onClick={() => selectAgreement(null)}>Cancel</Button><Button disabled={respond.isPending || response.signerName.trim().length < 2 || response.relationship.trim().length < 2 || response.attestation.trim().length < 5} onClick={submit}>{respond.isPending ? "Recording…" : "Sign electronically"}</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }

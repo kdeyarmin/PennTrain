@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -63,17 +63,20 @@ export function EditResidentCareProfileDialog({
 }) {
   const { toast } = useToast();
   const save = useSaveResidentCareProfile();
+  const submitting = useRef(false);
+  const close = (next: boolean) => { if (!submitting.current && !save.isPending) onOpenChange(next); };
   const [form, setForm] = useState<FormState>(() => toFormState(current));
 
   // Re-seed only when the dialog opens, so a background refetch cannot wipe in-progress edits.
   useEffect(() => {
     if (open) setForm(toFormState(current));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, residentId]);
 
-  const handleSave = async () => {
-    try {
-      await save.mutateAsync({
+  const handleSave = () => {
+    if (submitting.current || save.isPending || !open) return;
+    submitting.current = true;
+    save.mutate({
         residentId,
         profile: {
           level_of_care: form.level_of_care,
@@ -88,20 +91,22 @@ export function EditResidentCareProfileDialog({
           mobility_summary: form.mobility_summary.trim() || null,
           supervision_requirements: form.supervision_requirements.trim() || null,
         },
-      });
+      }, {
+      onSuccess: () => {
       toast({ title: "Care header updated", description: "Recorded as a care-header review on this resident." });
       onOpenChange(false);
-    } catch (error) {
+      }, onError: (error: Error) => {
       toast({
         title: "Could not update the care header",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
-    }
+      }, onSettled: () => { submitting.current = false; },
+    });
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit care header</DialogTitle>
@@ -111,11 +116,11 @@ export function EditResidentCareProfileDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 py-2 sm:grid-cols-2">
+        <fieldset disabled={save.isPending} className="grid gap-3 py-2 sm:grid-cols-2">
           {CODED_FIELDS.map((field) => (
             <div key={field.key} className="space-y-1">
               <Label className="text-xs" htmlFor={`care-${field.key}`}>{field.label}</Label>
-              <Select value={form[field.key]} onValueChange={(value) => setForm((prev) => ({ ...prev, [field.key]: value }))}>
+              <Select disabled={save.isPending} value={form[field.key]} onValueChange={(value) => setForm((prev) => ({ ...prev, [field.key]: value }))}>
                 <SelectTrigger id={`care-${field.key}`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(field.options).map(([value, label]) => (
@@ -161,10 +166,10 @@ export function EditResidentCareProfileDialog({
               placeholder="Surfaces under Cognition in the header."
             />
           </div>
-        </div>
+        </fieldset>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={save.isPending}>Cancel</Button>
+          <Button variant="outline" onClick={() => close(false)} disabled={save.isPending}>Cancel</Button>
           <Button onClick={handleSave} disabled={save.isPending}>
             {save.isPending ? "Saving..." : "Save care header"}
           </Button>

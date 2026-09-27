@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, ClipboardCheck, Printer, Target } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -38,7 +38,8 @@ import { QueryError } from "@/components/QueryState";
 // field opened on 01:30 the NEXT day, and submitting it recorded a QAPI meeting as held in the
 // future, on the wrong date. Reading back was already local (`new Date(held)`), so the round
 // trip disagreed with itself.
-import { addFacilityCalendarDays, facilityDateTimeLocalToUtcIso, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { careDateTimeInstant } from "@/lib/careFormDates";
 import type { Json } from "@/lib/database.types";
 
 const human = (v: string) =>
@@ -51,7 +52,7 @@ export default function QapiProjectDetail() {
     project = useGetQapiProject(id),
     activity = useQapiProjectActivity(id),
     profiles = useListProfiles({
-      organizationId: user?.organizationId ?? undefined,
+      organizationId: project.data?.organization_id ?? user?.organizationId ?? undefined,
     }),
     update = useUpdateQapiPlan(),
     addAction = useAddQapiAction(),
@@ -85,6 +86,12 @@ export default function QapiProjectDetail() {
     [attendees, setAttendees] = useState(""),
     [meetingNotes, setMeetingNotes] = useState("");
   const [team, setTeam] = useState<Json>([]);
+  const submitting = useRef(new Set<string>());
+  const begin = (kind: string, pending: boolean) => {
+    if (!canManage || pending || submitting.current.has(kind)) return false;
+    submitting.current.add(kind);
+    return true;
+  };
   // Hydrate the plan form from the loaded project.
   //
   // Without this the fields sat at their hardcoded initial values no matter which project was
@@ -128,14 +135,13 @@ export default function QapiProjectDetail() {
   // line under the control says what is still missing when they are not.
   const closureEvidenceMissing = [
     root.trim().length >= 10 ? null : "a root-cause analysis",
-    (activity.data?.actions.length ?? 0) > 0 ? null : "at least one action item",
-    (activity.data?.measurements.length ?? 0) > 0 ? null : "at least one measurement",
+    !activity.isError && (activity.data?.actions.length ?? 0) > 0 ? null : "at least one action item",
+    !activity.isError && (activity.data?.measurements.length ?? 0) > 0 ? null : "at least one measurement",
     effectiveness.trim().length >= 5 ? null : "an effectiveness determination",
   ].filter((value): value is string => value !== null);
   const statusOptions = ["proposed", "active", "monitoring", "pending_closure", "closed", "canceled"]
     .filter((value) => {
-      // The project's own status is always offered: leaving the Select on the value the project
-      // already has must never be a refused submission.
+      // Keep the stored status visible even when the server requires a review before saving it.
       if (value === p.status) return true;
       if (value === "closed") return p.status === "pending_closure";
       if (value === "pending_closure") return closureEvidenceMissing.length === 0;
@@ -147,7 +153,15 @@ export default function QapiProjectDetail() {
       : closureEvidenceMissing.length > 0
         ? `Moving to Pending Closure needs ${closureEvidenceMissing.join(", ")}. Closing needs a completed pending-closure review.`
         : "Closing needs a completed pending-closure review — move to Pending Closure first.";
-  const save = () =>
+  const actionDue = careDateTimeInstant(aDue);
+  const meetingHeld = careDateTimeInstant(held);
+  const validMeasurement = num.trim() !== "" && Number.isFinite(Number(num))
+    && (!den.trim() || Number.isFinite(Number(den)));
+  const canSave = reason.trim().length >= 5 && statusOptions.includes(status)
+    && (status !== "pending_closure" || closureEvidenceMissing.length === 0)
+    && (status !== "closed" || p.status === "pending_closure");
+  const save = () => {
+    if (!canSave || !begin("plan", update.isPending)) return;
     update.mutate(
       {
         id: p.id,
@@ -167,6 +181,7 @@ export default function QapiProjectDetail() {
         reason,
       },
       {
+        onSettled: () => submitting.current.delete("plan"),
         onSuccess: () => toast({ title: "QAPI plan updated" }),
         onError: (e: Error) =>
           toast({
@@ -176,6 +191,7 @@ export default function QapiProjectDetail() {
           }),
       },
     );
+  };
   return (
     <div className="space-y-6 print:p-0">
       <div className="flex flex-wrap justify-between gap-3">
@@ -240,7 +256,7 @@ export default function QapiProjectDetail() {
             effectiveness, and sustainment.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
+        <CardContent><fieldset disabled={update.isPending} className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1">
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger aria-label="Project status">
@@ -315,10 +331,10 @@ export default function QapiProjectDetail() {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
-          <Button className="md:col-span-2" onClick={save}>
+          <Button className="md:col-span-2" disabled={update.isPending || !canSave} onClick={save}>
             Save plan / transition
           </Button>
-        </CardContent>
+        </fieldset></CardContent>
       </Card>
       )}
       <div className="grid gap-6 xl:grid-cols-2">
@@ -344,7 +360,7 @@ export default function QapiProjectDetail() {
             ))
             )}
             {canManage && (
-            <div className="space-y-2 print:hidden">
+            <fieldset disabled={addAction.isPending} className="space-y-2 print:hidden">
               <Input
                 placeholder="Action title"
                 value={aTitle}
@@ -360,7 +376,7 @@ export default function QapiProjectDetail() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {profiles.data?.map((x) => (
+                  {profiles.data?.filter(x => x.is_active).map((x) => (
                     <SelectItem key={x.id} value={x.id}>
                       {x.first_name} {x.last_name}
                     </SelectItem>
@@ -373,8 +389,9 @@ export default function QapiProjectDetail() {
                 onChange={(e) => setADue(e.target.value)}
               />
               <Button
-                disabled={!aTitle || !aDue}
-                onClick={() =>
+                disabled={addAction.isPending || !aTitle.trim() || !aOwner || !actionDue}
+                onClick={() => {
+                  if (!aTitle.trim() || !aOwner || !actionDue || !begin("action", addAction.isPending)) return;
                   addAction.mutate(
                     {
                       id: p.id,
@@ -382,9 +399,10 @@ export default function QapiProjectDetail() {
                       description: aDesc,
                       type: "systemic",
                       owner: aOwner,
-                      due: facilityDateTimeLocalToUtcIso(aDue),
+                      due: actionDue,
                     },
                     {
+                      onSettled: () => submitting.current.delete("action"),
                       onSuccess: () => {
                         toast({ title: "Action added" });
                         setATitle("");
@@ -395,13 +413,13 @@ export default function QapiProjectDetail() {
                       onError: (e: Error) =>
                         toast({ title: "Could not add action", description: e.message, variant: "destructive" }),
                     },
-                  )
-                }
+                  );
+                }}
               >
                 <ClipboardCheck className="mr-2 h-4 w-4" />
                 Add owned action
               </Button>
-            </div>
+            </fieldset>
             )}
           </CardContent>
         </Card>
@@ -425,7 +443,7 @@ export default function QapiProjectDetail() {
             ))
             )}
             {canManage && (
-            <div className="grid gap-2 sm:grid-cols-2 print:hidden">
+            <fieldset disabled={measure.isPending} className="grid gap-2 sm:grid-cols-2 print:hidden">
               <Input
                 type="number"
                 placeholder="Numerator"
@@ -450,8 +468,9 @@ export default function QapiProjectDetail() {
               />
               <Button
                 className="sm:col-span-2"
-                disabled={!num}
-                onClick={() =>
+                disabled={measure.isPending || !validMeasurement}
+                onClick={() => {
+                  if (!validMeasurement || !begin("measurement", measure.isPending)) return;
                   measure.mutate(
                     {
                       id: p.id,
@@ -463,6 +482,7 @@ export default function QapiProjectDetail() {
                       sample: mSample,
                     },
                     {
+                      onSettled: () => submitting.current.delete("measurement"),
                       onSuccess: () => {
                         toast({ title: "Measurement recorded" });
                         setNum("");
@@ -473,13 +493,13 @@ export default function QapiProjectDetail() {
                       onError: (e: Error) =>
                         toast({ title: "Could not record measurement", description: e.message, variant: "destructive" }),
                     },
-                  )
-                }
+                  );
+                }}
               >
                 <Target className="mr-2 h-4 w-4" />
                 Record measurement
               </Button>
-            </div>
+            </fieldset>
             )}
           </CardContent>
         </Card>
@@ -502,7 +522,7 @@ export default function QapiProjectDetail() {
           ))
           )}
           {canManage && (
-          <div className="grid gap-2 md:grid-cols-2 print:hidden">
+          <fieldset disabled={meeting.isPending} className="grid gap-2 md:grid-cols-2 print:hidden">
             <Input
               type="datetime-local"
               value={held}
@@ -521,18 +541,20 @@ export default function QapiProjectDetail() {
             />
             <Button
               className="md:col-span-2"
-              disabled={!attendees || !meetingNotes || !held}
-              onClick={() =>
+              disabled={meeting.isPending || !attendees.trim() || !meetingNotes.trim() || !meetingHeld}
+              onClick={() => {
+                if (!attendees.trim() || !meetingNotes.trim() || !meetingHeld || !begin("meeting", meeting.isPending)) return;
                 meeting.mutate(
                   {
                     id: p.id,
-                    held: facilityDateTimeLocalToUtcIso(held),
+                    held: meetingHeld,
                     attendees,
                     notes: meetingNotes,
                     barriers,
                     adjustments,
                   },
                     {
+                      onSettled: () => submitting.current.delete("meeting"),
                       onSuccess: () => {
                         toast({ title: "Meeting note added" });
                         setAttendees("");
@@ -542,12 +564,12 @@ export default function QapiProjectDetail() {
                       onError: (e: Error) =>
                         toast({ title: "Could not add meeting note", description: e.message, variant: "destructive" }),
                     },
-                )
-              }
+                );
+              }}
             >
               Add meeting note
             </Button>
-          </div>
+          </fieldset>
           )}
         </CardContent>
       </Card>

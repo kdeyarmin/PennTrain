@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   AlertTriangle,
@@ -21,7 +21,7 @@ import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
 import { useListProfiles } from "@/hooks/useProfiles";
 import {
-  useAddEmergencyInventoryItem,
+  useSaveEmergencyInventoryItem,
   useAddEmergencyResource,
   useAddEmergencyStaffAssignment,
   useEmergencyEvents,
@@ -29,7 +29,9 @@ import {
   usePublishEmergencyPlanVersion,
   useStartEmergencyEvent,
   useUpsertResidentEvacuationProfile,
+  type EmergencyInventoryItem,
 } from "@/hooks/useEmergencyOperations";
+import { emergencyInventoryStatus } from "@/lib/emergencyInventory";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,6 +73,7 @@ export default function EmergencyOperations() {
   const facilities = useListFacilities({ organizationId });
   const [facilityId, setFacilityId] = useState("");
   const [dialog, setDialog] = useState<DialogName>(null);
+  useEffect(() => { setDialog(null); }, [facilityId, organizationId]);
   const readiness = useEmergencyReadiness(facilityId);
   const events = useEmergencyEvents({ organizationId, facilityId: facilityId || undefined });
   const employees = useListEmployees({ organizationId, facilityId, status: "active" }, { enabled: Boolean(facilityId) });
@@ -80,7 +83,7 @@ export default function EmergencyOperations() {
   const startEvent = useStartEmergencyEvent();
   const upsertProfile = useUpsertResidentEvacuationProfile();
   const addResource = useAddEmergencyResource();
-  const addInventory = useAddEmergencyInventoryItem();
+  const saveInventory = useSaveEmergencyInventoryItem();
   const addAssignment = useAddEmergencyStaffAssignment();
 
   const [planTitle, setPlanTitle] = useState("All-Hazards Emergency Plan");
@@ -127,6 +130,7 @@ export default function EmergencyOperations() {
   const [expirationDate, setExpirationDate] = useState("");
   const [inventoryStatus, setInventoryStatus] = useState("ready");
   const [inventoryLocation, setInventoryLocation] = useState("");
+  const [editingInventory, setEditingInventory] = useState<EmergencyInventoryItem | null>(null);
 
   const [employeeId, setEmployeeId] = useState("");
   const [emergencyRole, setEmergencyRole] = useState("resident_accountability");
@@ -140,7 +144,7 @@ export default function EmergencyOperations() {
   );
   const missingProfiles = (readiness.data?.residents ?? []).filter((resident) => !profileByResident.has(resident.id));
   const lowInventory = (readiness.data?.inventory ?? []).filter(
-    (item) => item.status !== "ready" || Number(item.quantity) < Number(item.minimum_quantity),
+    (item) => emergencyInventoryStatus(item) !== "ready",
   );
   const relocationSites = (readiness.data?.resources ?? []).filter(
     (resource) => resource.resource_type === "relocation_site" && resource.is_active,
@@ -192,6 +196,7 @@ export default function EmergencyOperations() {
       setContractReference("");
       setAvailabilityNotes("");
     } else if (name === "inventory") {
+      setEditingInventory(null);
       setInventoryType("water");
       setItemName("");
       setQuantity("");
@@ -303,9 +308,18 @@ export default function EmergencyOperations() {
       },
     );
 
+  const openInventory = (item: EmergencyInventoryItem) => {
+    setEditingInventory(item);
+    setInventoryType(item.inventory_type); setItemName(item.item_name);
+    setQuantity(String(item.quantity)); setUnit(item.unit);
+    setMinimumQuantity(String(item.minimum_quantity)); setExpirationDate(item.expiration_date ?? "");
+    setInventoryStatus(item.status); setInventoryLocation(item.location ?? "");
+    setDialog("inventory");
+  };
   const submitInventory = () =>
-    organizationId && addInventory.mutate(
+    organizationId && saveInventory.mutate(
       {
+        id: editingInventory?.id,
         organizationId,
         facilityId,
         inventoryType,
@@ -316,7 +330,7 @@ export default function EmergencyOperations() {
         expirationDate: expirationDate || undefined,
         status: inventoryStatus,
         location: inventoryLocation,
-        notes: "",
+        notes: editingInventory?.notes ?? "",
         checkedBy: user?.id,
       },
       {
@@ -325,7 +339,7 @@ export default function EmergencyOperations() {
           setDialog(null);
           setItemName("");
         },
-        onError: mutationError("Could not add emergency inventory"),
+        onError: mutationError("Could not save emergency inventory"),
       },
     );
 
@@ -520,7 +534,7 @@ export default function EmergencyOperations() {
                   <CardHeader><CardTitle className="flex items-center gap-2"><Fuel className="h-5 w-5" /> Supplies & fuel</CardTitle><CardDescription>Food, water, generator fuel, medication continuity, and emergency inventory.</CardDescription></CardHeader>
                   <CardContent className="space-y-2">
                     {readiness.data?.inventory.map((item) => (
-                      <div key={item.id} className="rounded border p-3 text-sm"><div className="flex justify-between gap-2"><p className="font-medium">{item.item_name}</p><Badge variant={item.status === "ready" ? "outline" : "destructive"}>{human(item.status)}</Badge></div><p>{String(item.quantity)} {item.unit} · minimum {String(item.minimum_quantity)}</p><p className="text-muted-foreground">{item.location || "Location not recorded"}</p></div>
+                      <div key={item.id} className="rounded border p-3 text-sm"><div className="flex justify-between gap-2"><p className="font-medium">{item.item_name}</p><Badge variant={emergencyInventoryStatus(item) === "ready" ? "outline" : "destructive"}>{human(emergencyInventoryStatus(item))}</Badge></div><p>{String(item.quantity)} {item.unit} · minimum {String(item.minimum_quantity)}</p><p className="text-muted-foreground">{item.location || "Location not recorded"}{item.expiration_date ? ` · Expires ${item.expiration_date}` : ""}</p>{canManage && <Button variant="outline" size="sm" className="mt-2" onClick={() => openInventory(item)}>Update inventory</Button>}</div>
                     ))}
                     {canManage && <Button className="w-full" variant="outline" onClick={() => openDialog("inventory")}><Plus className="mr-2 h-4 w-4" /> Add inventory</Button>}
                   </CardContent>
@@ -596,7 +610,7 @@ export default function EmergencyOperations() {
       </Dialog>
 
       <Dialog open={dialog === "inventory"} onOpenChange={(open) => !open && setDialog(null)}>
-        <DialogContent><DialogHeader><DialogTitle>Add emergency inventory</DialogTitle></DialogHeader>
+        <DialogContent><DialogHeader><DialogTitle>{editingInventory ? "Update emergency inventory" : "Add emergency inventory"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <Select value={inventoryType} onValueChange={setInventoryType}><SelectTrigger aria-label="Inventory type"><SelectValue /></SelectTrigger><SelectContent>{["food","water","generator_fuel","medication_continuity","batteries","first_aid","sanitation","other"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Input placeholder="Item name" value={itemName} onChange={(event) => setItemName(event.target.value)} />
@@ -607,7 +621,7 @@ export default function EmergencyOperations() {
             <Select value={inventoryStatus} onValueChange={setInventoryStatus}><SelectTrigger aria-label="Inventory status"><SelectValue /></SelectTrigger><SelectContent>{["ready","low","expired","unavailable"].map((value) => <SelectItem key={value} value={value}>{human(value)}</SelectItem>)}</SelectContent></Select>
             <Input placeholder="Storage location" value={inventoryLocation} onChange={(event) => setInventoryLocation(event.target.value)} />
           </div>
-          <DialogFooter><Button onClick={submitInventory} disabled={!itemName || !quantity || !unit || addInventory.isPending}>Add inventory</Button></DialogFooter>
+          <DialogFooter><Button onClick={submitInventory} disabled={!itemName.trim() || !quantity || !unit.trim() || saveInventory.isPending}>{editingInventory ? "Save inventory" : "Add inventory"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

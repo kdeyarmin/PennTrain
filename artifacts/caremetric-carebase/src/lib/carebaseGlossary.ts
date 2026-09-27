@@ -142,13 +142,26 @@ export const CAREBASE_GLOSSARY_TERMS: CarebaseGlossaryTerm[] = [
   },
 ];
 
-export function searchCarebaseGlossary(query: string): CarebaseGlossaryTerm[] {
+export function searchCarebaseGlossary(
+  query: string,
+  access?: { role: Role | undefined; enabledModules: ReadonlySet<ProductModuleId> },
+): CarebaseGlossaryTerm[] {
   const normalized = query.trim().toLowerCase();
-  if (!normalized) return CAREBASE_GLOSSARY_TERMS;
-
-  return CAREBASE_GLOSSARY_TERMS.filter((entry) => {
+  const entries = CAREBASE_GLOSSARY_TERMS.filter((entry) => {
+    if (!normalized) return true;
     const routeText = entry.relatedRoutes.map((route) => `${route.label} ${route.href}`).join(" ");
     return [entry.term, entry.category, entry.definition, routeText]
       .some((value) => value.toLowerCase().includes(normalized));
   });
+  if (!access) return entries;
+  return entries.map((entry) => ({
+    ...entry,
+    relatedRoutes: entry.relatedRoutes.flatMap((route) => {
+      const href = viewablePathForRole(route.href, access.role, access.enabledModules);
+      return href ? [{ ...route, href }] : [];
+    }),
+  }));
 }
+import type { Role } from "@/lib/auth";
+import type { ProductModuleId } from "@/lib/productModules";
+import { viewablePathForRole } from "@/lib/appDomains";

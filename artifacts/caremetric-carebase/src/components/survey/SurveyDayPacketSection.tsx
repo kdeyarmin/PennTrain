@@ -129,23 +129,29 @@ function GuestGrantList({
   );
 }
 
-export default function SurveyDayPacketSection({
+export default function SurveyDayPacketSection(props: SurveyDayPacketProps) {
+  return <SurveyDayPacketWorkspace key={`${props.facilityId}:${props.sessionId}:${props.pinnedBinderJobId}`} {...props} />;
+}
+
+interface SurveyDayPacketProps {
+  sessionId: string;
+  facilityId: string;
+  pinnedBinderJobId: string;
+  pinnedBinder: SurveyEvidencePacketJob;
+  readOnly: boolean;
+}
+
+function SurveyDayPacketWorkspace({
   sessionId,
   facilityId,
   pinnedBinderJobId,
   pinnedBinder,
   readOnly,
-}: {
-  sessionId: string;
-  facilityId: string;
-  pinnedBinderJobId: string;
-  pinnedBinder: SurveyEvidencePacketJob;
+}: SurveyDayPacketProps) {
   /**
    * Auditors reach Survey Day read-only (and a closed session is read-only for everyone). Every
    * mutation below is refused server-side by assert_phase5_manager, so the controls are not offered.
    */
-  readOnly: boolean;
-}) {
   const { toast } = useToast();
   const packetItems = useSurveyEvidencePacketItems({
     surveyDaySessionId: sessionId,
@@ -167,7 +173,7 @@ export default function SurveyDayPacketSection({
   const [packetCitation, setPacketCitation] = useState("");
   const [assembledManifest, setAssembledManifest] = useState<Record<string, unknown> | null>(null);
   const [guestLabel, setGuestLabel] = useState("Surveyor packet access");
-  const [lastGuestLink, setLastGuestLink] = useState<string | null>(null);
+  const [lastGuestLink, setLastGuestLink] = useState<{ packetExportId: string; url: string } | null>(null);
 
   const packetManifest = surveyEvidencePacketManifest(pinnedBinder);
   const latestExport = (packetExports.data ?? [])[0] ?? null;
@@ -317,22 +323,20 @@ export default function SurveyDayPacketSection({
             variant="secondary"
             disabled={packagePacket.isPending || packetItems.isLoading || packetItems.isError || (packetItems.data?.length ?? 0) === 0}
             onClick={() => {
-              void packagePacket
-                .mutateAsync({
+              packagePacket
+                .mutate({
                   surveyDaySessionId: sessionId,
                   binderExportJobId: pinnedBinderJobId,
                   facilityId,
-                })
-                .then((result) => {
+                }, { onSuccess: (result) => {
                   toast({
                     title: "Survey packet packaged",
                     description: `${result.itemCount} item(s) · ${(result.byteSize / 1024).toFixed(0)} KB`,
                   });
                   if (result.downloadUrl) openDocumentUrl(result.downloadUrl);
-                })
-                .catch((e: unknown) => {
+                }, onError: (e: unknown) => {
                   toast({ title: "Package failed", description: errorText(e), variant: "destructive" });
-                });
+                } });
             }}
           >
             Package zip
@@ -378,7 +382,7 @@ export default function SurveyDayPacketSection({
                       // where the token can be used, so a raw token left surveyors with a
                       // credential and no door. The guest page moves it into tab-scoped
                       // storage and scrubs the URL on first open.
-                      setLastGuestLink(absoluteAppUrl(`/survey-packet-access/${grant.token}`));
+                      setLastGuestLink({ packetExportId: latestExport.id, url: absoluteAppUrl(`/survey-packet-access/${grant.token}`) });
                       toast({
                         title: "Guest grant issued",
                         description: "Copy the link now — it is shown once.",
@@ -393,9 +397,9 @@ export default function SurveyDayPacketSection({
               </Button>
             </div>
             )}
-            {lastGuestLink && (
+            {lastGuestLink?.packetExportId === latestExport.id && (
               <p className="break-all rounded bg-amber-50 p-2 font-mono text-[11px] text-amber-800">
-                Surveyor link (copy now): {lastGuestLink}
+                Surveyor link (copy now): {lastGuestLink.url}
               </p>
             )}
             <GuestGrantList

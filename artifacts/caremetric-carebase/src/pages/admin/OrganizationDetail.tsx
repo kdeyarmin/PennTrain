@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { facilityTypeBadgeClass, facilityTypeLabel } from "@/lib/facilityTypes";
 import { QueryError } from "@/components/QueryState";
+import { organizationReactivationNotice } from "@/lib/organizationSuspension";
 
 export default function OrganizationDetail() {
   const [, params] = useRoute("/admin/organizations/:id");
@@ -143,7 +144,7 @@ export default function OrganizationDetail() {
     setSuspension(
       { id, suspended: false },
       {
-        onSuccess: () => toast({ title: "Organization reactivated", description: "Access has been restored, and billing is back on the state its subscription implies." }),
+        onSuccess: (organization) => toast(organizationReactivationNotice(organization?.subscription_status)),
         onError: (e: Error) => toast({ title: "Failed to reactivate organization", description: e.message, variant: "destructive" }),
       },
     );

@@ -148,7 +148,7 @@ export default function SurveyDay() {
       ) : session.isError ? (
         <QueryError what="the Survey Day session" error={session.error as Error} onRetry={() => session.refetch()} />
       ) : session.data ? (
-        <Workspace sessionId={session.data.id} facilityId={activeFacilityId} facilityName={activeFacility?.name ?? "Facility"} canManage={canManage} />
+        <Workspace key={`${activeFacilityId}:${session.data.id}`} sessionId={session.data.id} facilityId={activeFacilityId} facilityName={activeFacility?.name ?? "Facility"} canManage={canManage} />
       ) : canManage ? (
         <ActivationCard
           facilityId={activeFacilityId}

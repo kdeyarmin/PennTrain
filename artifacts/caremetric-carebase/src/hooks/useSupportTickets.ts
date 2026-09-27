@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { storageSafeFileName } from "@/lib/storagePaths";
+import { hasDefinitivePostgresWriteRejection } from "@/lib/postgresWriteOutcome";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
 import { containsFilterValue } from "@/lib/utils";
 
@@ -43,7 +44,7 @@ export function useListSupportTickets(filters: ListSupportTicketsFilters = {}) {
       // views do not silently drop older tickets once the table grows past max-rows.
       const pageSize = 1000;
       const rows: Tables<"support_tickets">[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("support_tickets")
           .select("*")
@@ -64,7 +65,8 @@ export function useListSupportTickets(filters: ListSupportTicketsFilters = {}) {
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },
@@ -111,6 +113,20 @@ async function uploadTicketAttachment(organizationId: string, ticketId: string, 
   };
 }
 
+async function readSavedAttachment(ticketId: string, path: string) {
+  try {
+    const { data, error } = await supabase.from("support_ticket_messages").select("*")
+      .eq("ticket_id", ticketId).eq("attachment_bucket", ATTACHMENT_BUCKET).eq("attachment_path", path).maybeSingle();
+    if (error) throw error;
+    return data;
+  } catch {
+    // A timeout may hide a committed message/link. Never delete bytes while their ownership is unknown.
+    throw new Error("Could not confirm whether the attachment was saved. The uploaded file was retained; refresh the conversation before retrying.");
+  }
+}
+
+const UNKNOWN_ATTACHMENT_OUTCOME = "Could not confirm whether the attachment was saved. The uploaded file was retained; refresh the conversation before retrying.";
+
 // The ticket and its first message go in together, through one SECURITY DEFINER RPC.
 //
 // They used to be two inserts wrapped in a try/catch whose catch deleted the ticket -- and
@@ -137,29 +153,42 @@ export function useCreateSupportTicket() {
       if (ticketError) throw ticketError;
       if (!ticket) throw new Error("Support ticket was not created");
 
+      let attachmentWarning: string | null = null;
       if (file) {
-        const attachment = await uploadTicketAttachment(organizationId, ticket.id, file);
-        const { error: attachError } = await supabase.rpc("attach_file_to_support_ticket_message", {
-          p_ticket_id: ticket.id,
-          p_bucket: attachment.attachment_bucket,
-          p_path: attachment.attachment_path,
-          p_name: attachment.attachment_name,
-          p_type: attachment.attachment_type,
-          p_size: attachment.attachment_size,
-        });
-        if (attachError) {
-          // The object is orphaned unless it is removed here: nothing references it, and the
-          // bucket has no sweeper. A failure to remove it is reported alongside, not swallowed.
-          const { error: cleanupError } = await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
-          throw new Error(
-            cleanupError
-              ? `Ticket created, but the file could not be attached: ${attachError.message} (and the uploaded file could not be removed: ${cleanupError.message})`
-              : `Ticket created, but the file could not be attached: ${attachError.message}`,
-          );
+        try {
+          const attachment = await uploadTicketAttachment(organizationId, ticket.id, file);
+          const { error: attachError } = await supabase.rpc("attach_file_to_support_ticket_message", {
+            p_ticket_id: ticket.id,
+            p_bucket: attachment.attachment_bucket,
+            p_path: attachment.attachment_path,
+            p_name: attachment.attachment_name,
+            p_type: attachment.attachment_type,
+            p_size: attachment.attachment_size,
+          });
+          if (attachError) {
+            const saved = await readSavedAttachment(ticket.id, attachment.attachment_path);
+            if (saved) return { ...ticket, attachmentWarning: null };
+            if (!hasDefinitivePostgresWriteRejection(attachError)) throw new Error(UNKNOWN_ATTACHMENT_OUTCOME);
+            // The object is orphaned unless it is removed here: nothing references it, and the
+            // bucket has no sweeper. A failure to remove it is reported alongside, not swallowed.
+            const { error: cleanupError } = await supabase.storage.from(ATTACHMENT_BUCKET).remove([attachment.attachment_path]);
+            throw new Error(
+              cleanupError
+                ? `Ticket created, but the file could not be attached: ${attachError.message} (and the uploaded file could not be removed: ${cleanupError.message})`
+                : `Ticket created, but the file could not be attached: ${attachError.message}`,
+            );
+          }
+        } catch (error) {
+          // Creation has already committed. Keep the successful ticket id and refresh the
+          // queue; reporting the whole operation as failed leaves the form open and makes
+          // a retry create a duplicate ticket instead of retrying only the missing file.
+          attachmentWarning = error instanceof Error ? error.message
+            : error && typeof error === "object" && "message" in error ? String(error.message)
+            : "The file could not be uploaded.";
         }
       }
 
-      return ticket;
+      return { ...ticket, attachmentWarning };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["support_tickets"] }),
   });
@@ -169,13 +198,16 @@ export function useListSupportTicketMessages(ticketId: string | undefined) {
   return useQuery({
     queryKey: ["support_tickets", "messages", ticketId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("support_ticket_messages")
-        .select("*")
-        .eq("ticket_id", ticketId!)
-        .order("created_at");
-      if (error) throw error;
-      return data;
+      const messages: SupportTicketMessage[] = [];
+      for (let from = 0; ;) {
+        const { data, error } = await supabase.from("support_ticket_messages").select("*")
+          .eq("ticket_id", ticketId!).order("created_at").order("id").range(from, from + 999);
+        if (error) throw error;
+        if (!data?.length) break;
+        messages.push(...data);
+        from += data.length;
+      }
+      return messages;
     },
     enabled: !!ticketId,
     refetchInterval: 20_000,
@@ -206,6 +238,9 @@ export function useSendSupportTicketMessage() {
         .single();
       if (error) {
         if ("attachment_path" in attachment && typeof attachment.attachment_path === "string") {
+          const saved = await readSavedAttachment(ticketId, attachment.attachment_path);
+          if (saved) return saved;
+          if (!hasDefinitivePostgresWriteRejection(error)) throw new Error(UNKNOWN_ATTACHMENT_OUTCOME);
           const { error: cleanupError } = await supabase.storage
             .from(ATTACHMENT_BUCKET)
             .remove([attachment.attachment_path]);

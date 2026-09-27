@@ -43,22 +43,28 @@ const GRANTS_KEY = ["enterprise-foundation", "access-grants"] as const;
 export function useStandingEnterpriseGrants() {
   return useQuery({
     queryKey: GRANTS_KEY,
-    queryFn: async (): Promise<StandingGrant[]> => {
-      const { data, error } = await supabase
-        .from("enterprise_access_grants")
-        .select(
-          "id, effective_from, effective_to, source, reason," +
-            " role_templates(name)," +
-            // The FK is named explicitly because `enterprise_scope_memberships` reaches `profiles`
-            // twice -- `profile_id` (who holds the access) and `created_by` (who set it up). Left
-            // ambiguous, PostgREST refuses the whole query with a 300.
-            " enterprise_scope_memberships(scope_type," +
-            " profiles!enterprise_scope_memberships_profile_id_fkey(first_name, last_name, email))",
-        )
-        .is("effective_to", null)
-        .order("effective_from", { ascending: false });
-      if (error) throw error;
-      return ((data ?? []) as unknown as GrantJoinRow[]).map((row) => {
+    queryFn: async ({ signal }): Promise<StandingGrant[]> => {
+      const rows: GrantJoinRow[] = [];
+      for (let from = 0; ; ) {
+        const { data, error } = await supabase
+          .from("enterprise_access_grants")
+          .select(
+            "id, effective_from, effective_to, source, reason," +
+              " role_templates(name)," +
+              // The FK is named explicitly because `enterprise_scope_memberships` reaches `profiles`
+              // twice -- `profile_id` (who holds the access) and `created_by` (who set it up). Left
+              // ambiguous, PostgREST refuses the whole query with a 300.
+              " enterprise_scope_memberships(scope_type," +
+              " profiles!enterprise_scope_memberships_profile_id_fkey(first_name, last_name, email))",
+          )
+          .is("effective_to", null)
+          .order("effective_from", { ascending: false }).order("id")
+          .range(from, from + 999).abortSignal(signal);
+        if (error) throw error;
+        if (!data?.length) break;
+        rows.push(...data as unknown as GrantJoinRow[]); from += data.length;
+      }
+      return rows.map((row) => {
         const holder = row.enterprise_scope_memberships?.profiles;
         const name = [holder?.first_name, holder?.last_name].filter(Boolean).join(" ").trim();
         return {

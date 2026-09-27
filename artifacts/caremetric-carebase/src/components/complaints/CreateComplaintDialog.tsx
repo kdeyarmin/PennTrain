@@ -1,8 +1,10 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { careDateTimeInstant } from "@/lib/careFormDates";
+import { QueryError } from "@/components/QueryState";
 import { useCreateComplaint } from "@/hooks/useComplaints";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListProfiles } from "@/hooks/useProfiles";
@@ -35,6 +37,7 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const create = useCreateComplaint();
+  const submitting = useRef(false);
   const facilities = useListFacilities({ organizationId });
   const profiles = useListProfiles({ organizationId });
   const [facilityId, setFacilityId] = useState("");
@@ -62,9 +65,7 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
     } else if (complainantType === "anonymous") setComplainantType("resident");
   };
   const toggleReportable = (value: string, checked: boolean) => setReportable(current => checked ? [...current, value] : current.filter(item => item !== value));
-  const close = (next: boolean) => {
-    onOpenChange(next);
-    if (!next) {
+  const reset = () => {
       // Reset EVERY field, not just the text ones -- a stale facility/category/risk/
       // investigator carrying over to the next open risks filing a complaint against
       // the wrong facility without the user noticing.
@@ -72,11 +73,19 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
       setComplainantType("resident"); setName(""); setContact(""); setAnonymous(false);
       setResidentId("none"); setCategory("service"); setDescription(""); setRisk("none");
       setImmediateAction(""); setInvestigator(user?.id ?? "none"); setReportable([]);
-    }
   };
-  const submit = () => create.mutate({
+  const close = (next: boolean) => {
+    if (submitting.current || create.isPending) return;
+    onOpenChange(next);
+    if (!next) reset();
+  };
+  const receivedAt = careDateTimeInstant(dateReceived);
+  const submit = () => {
+    if (!valid || submitting.current || create.isPending) return;
+    submitting.current = true;
+    create.mutate({
     facilityId,
-    dateReceived: facilityDateTimeLocalToUtcIso(dateReceived),
+    dateReceived: receivedAt!,
     methodReceived: method,
     complainantType,
     complainantName: name.trim() || undefined,
@@ -95,14 +104,20 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
         title: reportable.length ? "Complaint and linked incident created" : "Complaint case created",
         description: reportable.length ? "Reportability indicators started the incident workflow automatically." : "The complaint is ready for acknowledgement and investigation.",
       });
-      close(false);
+      reset(); onOpenChange(false);
       // In-app navigation: a document reload dropped the toast above and ignored BASE_PATH.
       navigate(`/app/complaints/${id}`);
     },
     onError: (error: Error) => toast({ title: "Could not create complaint", description: error.message, variant: "destructive" }),
-  });
+    onSettled: () => { submitting.current = false; },
+  }); };
   const requiresImmediateAction = risk === "high" || risk === "imminent";
-  const valid = facilityId && dateReceived && description.trim().length >= 10
+  const referenceError = facilities.isError || profiles.isError || (!!facilityId && residents.isError);
+  const valid = ["org_admin", "facility_manager", "platform_admin"].includes(user?.role ?? "")
+    && !referenceError && !facilities.isLoading && facilities.data?.some(item => item.id === facilityId)
+    && (residentId === "none" || (!residents.isLoading && residents.data?.some(item => item.id === residentId && item.facility_id === facilityId)))
+    && (investigator === "none" || (!profiles.isLoading && profiles.data?.some(item => item.id === investigator && item.is_active && ["org_admin", "facility_manager"].includes(item.role))))
+    && receivedAt && description.trim().length >= 10
     && (anonymous || name.trim().length >= 2)
     && (!requiresImmediateAction || immediateAction.trim().length >= 5);
 
@@ -113,7 +128,8 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
           <DialogTitle>New complaint or grievance</DialogTitle>
           <DialogDescription>Use this workflow for concerns that are not necessarily reportable incidents. Safety indicators still trigger incident handling.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-2 sm:grid-cols-2">
+        {referenceError && <QueryError error={new Error("Could not load complaint choices.")} onRetry={() => { void facilities.refetch(); void profiles.refetch(); if (facilityId) void residents.refetch(); }} />}
+        <fieldset disabled={create.isPending} className="grid gap-4 py-2 sm:grid-cols-2">
           <div className="space-y-1"><Label htmlFor={`${__fieldIds}-facility`}>Facility *</Label><Select value={facilityId} onValueChange={value => { setFacilityId(value); setResidentId("none"); }}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{facilities.data?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-1"><Label htmlFor={`${__fieldIds}-date-received`}>Date received *</Label><Input id={`${__fieldIds}-date-received`} type="datetime-local" value={dateReceived} onChange={event => setDateReceived(event.target.value)} /></div>
           <div className="space-y-1"><Label htmlFor={`${__fieldIds}-method-received`}>Method received *</Label><Select value={method} onValueChange={setMethod}><SelectTrigger id={`${__fieldIds}-method-received`}><SelectValue /></SelectTrigger><SelectContent>{METHODS.map(value => <SelectItem key={value} value={value}>{humanizeComplaint(value)}</SelectItem>)}</SelectContent></Select></div>
@@ -132,8 +148,8 @@ export function CreateComplaintDialog({ open, onOpenChange, organizationId }: {
             <div className="grid gap-2 sm:grid-cols-2">{REPORTABLE.map(value => <label key={value} className="flex items-center gap-2 rounded border p-2 text-sm"><Checkbox checked={reportable.includes(value)} onCheckedChange={checked => toggleReportable(value, checked === true)} />{humanizeComplaint(value)}</label>)}</div>
           </div>
           {reportable.length > 0 && <Alert variant="destructive" className="sm:col-span-2"><AlertTriangle className="h-4 w-4" /><AlertTitle>Incident workflow will start automatically</AlertTitle><AlertDescription>A linked reportable incident will be created in the same transaction. Human review of required external reporting remains part of the incident workflow.</AlertDescription></Alert>}
-        </div>
-        <DialogFooter><Button variant="outline" onClick={() => close(false)}>Cancel</Button><Button disabled={!valid || create.isPending} onClick={submit}>{create.isPending ? "Creating..." : "Create complaint case"}</Button></DialogFooter>
+        </fieldset>
+        <DialogFooter><Button variant="outline" disabled={create.isPending} onClick={() => close(false)}>Cancel</Button><Button disabled={!valid || create.isPending} onClick={submit}>{create.isPending ? "Creating..." : "Create complaint case"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

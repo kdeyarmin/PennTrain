@@ -53,6 +53,8 @@ export default function CertificationAttemptSection({
   const [decisionReason, setDecisionReason] = useState("");
   const [typedName, setTypedName] = useState("");
   const [evidenceDrafts, setEvidenceDrafts] = useState<Record<string, string>>({});
+  const [signing, setSigning] = useState(false);
+  const busy = start.isPending || record.isPending || submit.isPending || approve.isPending || signing;
 
   // The one attempt an assessor can act on. More than one open attempt per checklist version is
   // refused by the server, so "the open one" is well-defined.
@@ -69,6 +71,7 @@ export default function CertificationAttemptSection({
   );
 
   const startAttempt = async () => {
+    if (busy) return;
     try {
       await start.mutateAsync({ certificationVersionId: versionId });
       toast({ title: "Observation started" });
@@ -85,7 +88,7 @@ export default function CertificationAttemptSection({
   const recordItem = async (
     checklistItemId: string, result: AttemptResult, evidenceRequired: boolean, signatureRequired: boolean,
   ) => {
-    if (!openAttempt) return;
+    if (!openAttempt || busy) return;
     const note = (evidenceDrafts[checklistItemId] ?? "").trim();
     try {
       await record.mutateAsync({
@@ -109,7 +112,7 @@ export default function CertificationAttemptSection({
   };
 
   const submitAttempt = async () => {
-    if (!openAttempt) return;
+    if (!openAttempt || busy) return;
     try {
       await submit.mutateAsync(openAttempt.id);
       toast({ title: "Observation submitted", description: "It is now awaiting a decision." });
@@ -123,7 +126,8 @@ export default function CertificationAttemptSection({
   };
 
   const decide = async (decision: "passed" | "failed") => {
-    if (!openAttempt) return;
+    if (!openAttempt || busy) return;
+    setSigning(true);
     try {
       const signature = await signatureDigest(
         `${typedName.trim()}|${openAttempt.id}|${decision}|${decisionReason.trim()}`,
@@ -145,6 +149,8 @@ export default function CertificationAttemptSection({
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
+    } finally {
+      setSigning(false);
     }
   };
 
@@ -183,7 +189,7 @@ export default function CertificationAttemptSection({
                   ))}
                 </SelectContent>
               </Select>
-              <Button disabled={!versionId || start.isPending || versions.isError || versions.isLoading} onClick={() => void startAttempt()}>
+              <Button disabled={!versionId || busy || versions.isError || versions.isLoading} onClick={() => void startAttempt()}>
                 {start.isPending ? "Starting…" : "Start observation"}
               </Button>
             </div>
@@ -237,7 +243,7 @@ export default function CertificationAttemptSection({
                             <Button
                               key={result} size="sm"
                               variant={recorded?.result === result ? "default" : "outline"}
-                              disabled={record.isPending}
+                              disabled={busy}
                               onClick={() => void recordItem(item.id, result, item.evidence_required, item.signature_required)}
                             >
                               {result === "not_applicable" ? "N/A" : result.replace(/_/gu, " ")}
@@ -252,6 +258,7 @@ export default function CertificationAttemptSection({
                         aria-label={`Evidence for ${item.prompt}`}
                         placeholder="What you observed — required before this item counts as complete"
                         value={evidenceDrafts[item.id] ?? ""}
+                        disabled={busy}
                         onChange={(event) => setEvidenceDrafts((prev) => ({ ...prev, [item.id]: event.target.value }))}
                       />
                     )}
@@ -274,7 +281,7 @@ export default function CertificationAttemptSection({
             {openAttempt.status === "in_progress" && (
               <Button
                 variant="outline" size="sm"
-                disabled={checklist.isError || checklist.isLoading || outstanding.length > 0 || submit.isPending}
+                disabled={checklist.isError || checklist.isLoading || outstanding.length > 0 || busy}
                 title={
                   checklist.isError || checklist.isLoading
                     ? "Load the checklist before submitting."
@@ -301,6 +308,7 @@ export default function CertificationAttemptSection({
                 <Label htmlFor="decision-reason">Reason</Label>
                 <Textarea
                   id="decision-reason" rows={2} value={decisionReason}
+                  disabled={busy}
                   onChange={(event) => setDecisionReason(event.target.value)}
                   placeholder="Observed a full medication pass without prompting."
                 />
@@ -309,6 +317,7 @@ export default function CertificationAttemptSection({
                 <Label htmlFor="decision-signature">Sign by typing your name</Label>
                 <Input
                   id="decision-signature" value={typedName}
+                  disabled={busy}
                   onChange={(event) => setTypedName(event.target.value)}
                 />
               </div>
@@ -316,7 +325,7 @@ export default function CertificationAttemptSection({
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  disabled={Boolean(issue) || checklist.isError || checklist.isLoading || outstanding.length > 0 || approve.isPending}
+                  disabled={Boolean(issue) || checklist.isError || checklist.isLoading || outstanding.length > 0 || busy}
                   title={
                     checklist.isError || checklist.isLoading
                       ? "Load the checklist before deciding."
@@ -330,7 +339,7 @@ export default function CertificationAttemptSection({
                 </Button>
                 <Button
                   size="sm" variant="outline"
-                  disabled={Boolean(issue) || checklist.isError || checklist.isLoading || outstanding.length > 0 || approve.isPending}
+                  disabled={Boolean(issue) || checklist.isError || checklist.isLoading || outstanding.length > 0 || busy}
                   onClick={() => void decide("failed")}
                 >
                   Fail

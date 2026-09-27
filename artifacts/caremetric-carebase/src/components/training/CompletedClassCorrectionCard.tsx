@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileWarning } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,11 @@ export default function CompletedClassCorrectionCard({
   const { toast } = useToast();
   const correctClass = useCorrectCompletedTrainingClass();
   const correctAttendee = useCorrectCompletedClassAttendee();
+  const submitting = useRef(false);
+  const mounted = useRef(true);
+  const [pending, setPending] = useState(false);
+  const busy = pending || Boolean(correctClass.isPending || correctAttendee.isPending);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const [open, setOpen] = useState(false);
   const [nextName, setNextName] = useState(className);
@@ -63,25 +68,35 @@ export default function CompletedClassCorrectionCard({
   const hasPatch = Object.keys(patch).length > 0;
 
   const submitClass = async () => {
+    if (submitting.current || !hasPatch || classReasonIssue) return;
+    submitting.current = true;
+    setPending(true);
     try {
       await correctClass.mutateAsync({ classId, patch, reason: classReason.trim() });
+      if (!mounted.current) return;
       toast({ title: "Class corrected", description: "The correction and its reason are on the audit trail." });
       setClassReason("");
     } catch (error) {
-      toast({
+      if (mounted.current) toast({
         title: "Could not correct the class",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
+    } finally {
+      submitting.current = false;
+      if (mounted.current) setPending(false);
     }
   };
 
   const submitAttendee = async () => {
-    if (!employeeId) return;
+    if (submitting.current || !employeeId || attendeeReasonIssue) return;
+    submitting.current = true;
+    setPending(true);
     try {
       const changed = await correctAttendee.mutateAsync({
         classId, employeeId, action, attended, reason: attendeeReason.trim(),
       });
+      if (!mounted.current) return;
       toast({
         title: changed ? "Attendance corrected" : "Nothing to correct",
         description: changed
@@ -90,11 +105,14 @@ export default function CompletedClassCorrectionCard({
       });
       setAttendeeReason("");
     } catch (error) {
-      toast({
+      if (mounted.current) toast({
         title: "Could not correct the attendance",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
+    } finally {
+      submitting.current = false;
+      if (mounted.current) setPending(false);
     }
   };
 
@@ -111,7 +129,7 @@ export default function CompletedClassCorrectionCard({
               mistake in it — every correction stores who made it and why.
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setOpen((value) => !value)}>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => setOpen((value) => !value)}>
             {open ? "Close" : "Open corrections"}
           </Button>
         </div>
@@ -119,6 +137,7 @@ export default function CompletedClassCorrectionCard({
 
       {open && (
         <CardContent className="space-y-6">
+          <fieldset disabled={busy} className="space-y-6">
           <div className="space-y-3">
             <p className="text-sm font-medium">Class details</p>
             <p className="text-xs text-muted-foreground">
@@ -151,7 +170,7 @@ export default function CompletedClassCorrectionCard({
             </div>
             <Button
               size="sm"
-              disabled={!hasPatch || Boolean(classReasonIssue) || correctClass.isPending}
+              disabled={!hasPatch || Boolean(classReasonIssue) || busy}
               title={hasPatch ? undefined : "Change a field above first."}
               onClick={() => void submitClass()}
             >
@@ -168,7 +187,7 @@ export default function CompletedClassCorrectionCard({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="correct-attendee">Employee</Label>
-                <Select value={employeeId} onValueChange={setEmployeeId}>
+                <Select disabled={busy} value={employeeId} onValueChange={setEmployeeId}>
                   <SelectTrigger id="correct-attendee"><SelectValue placeholder="Select an attendee" /></SelectTrigger>
                   <SelectContent>
                     {attendees.map((attendee) => (
@@ -181,7 +200,7 @@ export default function CompletedClassCorrectionCard({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="correct-attendee-action">Correction</Label>
-                <Select value={action} onValueChange={(value) => setAction(value as typeof action)}>
+                <Select disabled={busy} value={action} onValueChange={(value) => setAction(value as typeof action)}>
                   <SelectTrigger id="correct-attendee-action"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="upsert">Set attendance</SelectItem>
@@ -207,7 +226,7 @@ export default function CompletedClassCorrectionCard({
             </div>
             <Button
               size="sm"
-              disabled={!employeeId || Boolean(attendeeReasonIssue) || correctAttendee.isPending}
+              disabled={!employeeId || Boolean(attendeeReasonIssue) || busy}
               onClick={() => void submitAttendee()}
             >
               {correctAttendee.isPending ? "Correcting…" : "Correct attendance"}
@@ -217,6 +236,7 @@ export default function CompletedClassCorrectionCard({
               characters — a correction nobody explained is indistinguishable from a mistake.
             </p>
           </div>
+          </fieldset>
         </CardContent>
       )}
     </Card>

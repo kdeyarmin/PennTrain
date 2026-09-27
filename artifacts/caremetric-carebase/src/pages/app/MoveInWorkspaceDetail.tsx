@@ -63,8 +63,15 @@ function taskReady(task: MoveInTaskWithOwner): boolean {
 }
 
 export default function MoveInWorkspaceDetail() {
-  const __fieldIds = useId();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  // Guest links and task/document selections belong to one workspace and reviewer.
+  // Remount before another record renders, also isolating late mutation callbacks.
+  return <MoveInWorkspaceRecord key={JSON.stringify([id, user?.id, user?.organizationId, user?.role])} id={id} />;
+}
+
+function MoveInWorkspaceRecord({ id }: { id: string | undefined }) {
+  const __fieldIds = useId();
   // Router navigation, not window.location: the app can be served under a base path
   // (BASE_URL), and a hard reload also drops the SPA state for no reason.
   const [, navigate] = useLocation();

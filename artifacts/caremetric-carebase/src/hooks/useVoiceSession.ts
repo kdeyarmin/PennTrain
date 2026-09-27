@@ -330,12 +330,10 @@ export function useVoiceSession(facilityId: string) {
   const stop = useCallback(() => {
     const ws = resources.current.ws;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "end" }));
-      // The gateway answers with a closed frame; finish() runs from there
-      // (or from onclose if the socket drops first).
-    } else {
-      finish("user_ended");
+      try { ws.send(JSON.stringify({ type: "end" })); } catch { /* Closing transport must not retain the microphone. */ }
     }
+    // Local consent ends immediately, even if the gateway never acknowledges.
+    finish("user_ended");
   }, [finish]);
 
   // Unmount / facility switch: drop any live session AND reset the UI

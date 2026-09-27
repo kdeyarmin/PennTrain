@@ -16,7 +16,7 @@ export interface PolicyLifecycleAttestation {
 }
 
 export interface PolicyLifecycleSummary {
-  state: "needs_version" | "draft_review" | "ready_for_campaign" | "in_progress" | "complete" | "overdue";
+  state: "needs_version" | "draft_review" | "ready_for_campaign" | "needs_assignments" | "in_progress" | "complete" | "overdue";
   label: string;
   nextStep: string;
   draftVersions: number;
@@ -107,6 +107,19 @@ export function summarizePolicyLifecycle({
       state: "in_progress",
       label: "Campaign in progress",
       nextStep: "Monitor pending attestations and send reminders before the due date.",
+      draftVersions,
+      campaigns: currentCampaigns.length,
+      pendingAttestations,
+      overdueAttestations,
+      attestedCount,
+    };
+  }
+  const assignedCampaignIds = new Set(scopedAttestations.map((a) => a.campaign_id));
+  if (currentCampaigns.some((campaign) => !assignedCampaignIds.has(campaign.id))) {
+    return {
+      state: "needs_assignments",
+      label: "Campaign needs assignments",
+      nextStep: "Assign employees to campaigns with no recipients, or review their targeting rules.",
       draftVersions,
       campaigns: currentCampaigns.length,
       pendingAttestations,

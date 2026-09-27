@@ -1,3 +1,4 @@
+import { DocumentDeletionQueue } from "@/components/documents/DocumentDeletionQueue";
 import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearch } from "wouter";
 import { useCreateViolation, type Violation, type ViolationInsert } from "@/hooks/useViolations";
@@ -208,6 +209,7 @@ export default function Violations() {
 
   return (
     <div className="space-y-6">
+      <DocumentDeletionQueue kind="violation" />
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Violations &amp; Plans of Correction</h1>

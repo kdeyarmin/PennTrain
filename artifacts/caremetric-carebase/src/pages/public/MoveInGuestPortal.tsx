@@ -1,4 +1,4 @@
-import { useId, useEffect, useState } from "react";
+import { useId, useEffect, useRef, useState } from "react";
 import { useParams } from "wouter";
 import { CheckCircle2, FileSignature, Loader2, LockKeyhole } from "lucide-react";
 import {
@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { clearStoredPublicAccessToken, consumePublicAccessToken } from "@/lib/publicAccessToken";
+import { clearStoredPublicAccessToken, consumePublicAccessToken, publicGuestRetryMessage, publicGuestWorkspaceError } from "@/lib/publicAccessToken";
 import { useToast } from "@/hooks/use-toast";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
@@ -44,6 +44,15 @@ export default function MoveInGuestPortal() {
   const [signerName, setSignerName] = useState("");
   const [relationship, setRelationship] = useState("");
   const [attestation, setAttestation] = useState("");
+  const activeReview = useRef(0);
+  const selectTask = (id: string) => {
+    activeReview.current += 1;
+    sign.reset();
+    setTaskId(id);
+    setSignerName("");
+    setRelationship("");
+    setAttestation("");
+  };
 
   const acceptTerms = () => {
     if (!token) return;
@@ -59,39 +68,28 @@ export default function MoveInGuestPortal() {
 
   const signTask = () => {
     if (!token || !taskId) return;
+    const review = activeReview.current;
     sign.mutate({ token, taskId, signerName, relationship, attestation }, {
       onSuccess: () => {
-        setTaskId("");
-        setSignerName("");
-        setRelationship("");
-        setAttestation("");
+        if (review !== activeReview.current) return;
+        selectTask("");
         toast({ title: "Signature recorded" });
       },
-      onError: (error) => toast({
-        title: "Could not record signature",
-        description: error instanceof Error ? error.message : String(error),
-        variant: "destructive",
-      }),
+      onError: (error) => {
+        if (review !== activeReview.current) return;
+        toast({ title: "Could not record signature", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      },
     });
   };
 
-  // The workspace RPC distinguishes "grant is fine but terms not yet accepted" (a
-  // dedicated error message) from invalid/revoked/expired links (generic denial).
-  // Only the former may show the terms card -- otherwise an expired or revoked link
-  // would invite the guest to "accept terms" and then fail confusingly.
-  // NOTE: supabase-js resolves failed RPCs with a PLAIN error object (not an Error
-  // instance) and the hook throws it as-is, so an instanceof Error check would
-  // never match -- read .message off whatever was thrown.
-  const rawWorkspaceError = workspace.error as { message?: unknown } | null;
-  const workspaceErrorMessage = typeof rawWorkspaceError?.message === "string" ? rawWorkspaceError.message : "";
-  const needsTerms = !acceptedLocally && workspace.isError && /terms acceptance required/i.test(workspaceErrorMessage);
+  const guestError = publicGuestWorkspaceError(workspace.error);
+  const needsTerms = !acceptedLocally && workspace.isError && guestError === "terms_required";
 
-  // Once terms were accepted in this tab, a persisting coded error is the server
-  // rejecting the token itself (revoked/expired) -- drop the stored copy so it is
-  // not replayed on the next visit. Uncoded (network) failures never clear.
+  // Terms, throttles, and temporary account suspension all share code 42501
+  // with revoked links. Only the explicit grant rejection clears the token.
   const serverRejected =
-    acceptedLocally && workspace.isError &&
-    typeof (workspace.error as { code?: unknown } | null)?.code === "string";
+    workspace.isError && !workspace.isFetching && guestError === "token_rejected";
+  const canRetry = workspace.isError && !serverRejected && !needsTerms;
   useEffect(() => {
     if (serverRejected) clearStoredPublicAccessToken(SESSION_TOKEN_KEY);
   }, [serverRejected]);
@@ -122,7 +120,7 @@ export default function MoveInGuestPortal() {
           // than flashing "Guest link unavailable" at a guest who just accepted.
           <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin" /></div>
         ) : workspace.isError || !workspace.data ? (
-          <Alert variant="destructive"><AlertTitle>Guest link unavailable</AlertTitle><AlertDescription>This link is invalid, expired, revoked, or has not accepted the current terms.</AlertDescription></Alert>
+          <Alert variant="destructive"><AlertTitle>Guest link unavailable</AlertTitle><AlertDescription>{canRetry ? publicGuestRetryMessage(guestError) : "This link is invalid, expired, revoked, or has not accepted the current terms."}{canRetry && <Button className="mt-3" variant="outline" onClick={() => void workspace.refetch()}>Try again</Button>}</AlertDescription></Alert>
         ) : (
           <>
             <Card>
@@ -143,12 +141,7 @@ export default function MoveInGuestPortal() {
                     {task.signed ? (
                       <Badge className="bg-emerald-100 text-emerald-900"><CheckCircle2 className="mr-1 h-3 w-3" />Signed</Badge>
                     ) : task.requiresSignature ? (
-                      <Button size="sm" onClick={() => {
-                        setSignerName("");
-                        setRelationship("");
-                        setAttestation("");
-                        setTaskId(task.id);
-                      }}>Review and sign</Button>
+                      <Button size="sm" onClick={() => selectTask(task.id)}>Review and sign</Button>
                     ) : (
                       <Badge variant="outline">{task.state.replace(/_/g, " ")}</Badge>
                     )}
@@ -162,12 +155,7 @@ export default function MoveInGuestPortal() {
       </div>
 
       <Dialog open={!!taskId} onOpenChange={open => {
-        if (!open) {
-          setTaskId("");
-          setSignerName("");
-          setRelationship("");
-          setAttestation("");
-        }
+        if (!open) selectTask("");
       }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Electronic signature</DialogTitle><DialogDescription>Your name, relationship, timestamp, authentication method, and attestation become part of the admission record.</DialogDescription></DialogHeader>
@@ -177,7 +165,7 @@ export default function MoveInGuestPortal() {
             <div className="space-y-1"><Label htmlFor={`${__fieldIds}-attestation`}>Attestation *</Label><Textarea id={`${__fieldIds}-attestation`} value={attestation} onChange={event => setAttestation(event.target.value)} placeholder="I reviewed and agree to this admission item..." /></div>
             {sign.isError && <p className="text-sm text-destructive">{sign.error.message}</p>}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => { setTaskId(""); setSignerName(""); setRelationship(""); setAttestation(""); }}>Cancel</Button><Button disabled={signerName.trim().length < 2 || relationship.trim().length < 2 || attestation.trim().length < 5 || sign.isPending} onClick={signTask}>{sign.isPending ? "Signing..." : "Sign electronically"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => selectTask("")}>Cancel</Button><Button disabled={signerName.trim().length < 2 || relationship.trim().length < 2 || attestation.trim().length < 5 || sign.isPending} onClick={signTask}>{sign.isPending ? "Signing..." : "Sign electronically"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

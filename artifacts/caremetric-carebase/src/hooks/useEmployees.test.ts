@@ -60,7 +60,7 @@ describe("complete employee roster queries", () => {
     const rows = await querySpec().queryFn() as Array<{ id: string }>;
     expect(rows).toHaveLength(1005);
     expect(rows.at(-1)?.id).toBe("employee-1004");
-    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999]]);
+    expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999], [1005, 2004]]);
     for (const call of calls) {
       expect(call.order).toEqual(["last_name", "id"]);
       expect(call.filters).toContainEqual(["organization_id", "org-a"]);

@@ -2,7 +2,7 @@ import { useId, useEffect, useMemo, useState } from "react";
 import { formatDateForDisplay, facilityYear } from "@/lib/dateUtils";
 import { usePaginatedPracticums, useCreatePracticum, useUpdatePracticum, type Practicum, type PracticumInsert } from "@/hooks/usePracticums";
 import { useListFacilities } from "@/hooks/useFacilities";
-import { useListEmployees } from "@/hooks/useEmployees";
+import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -117,6 +117,7 @@ export default function Practicums() {
   const [facilityId, setFacilityId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const currentYear = facilityYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -124,10 +125,10 @@ export default function Practicums() {
 
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [facilityId, status]);
+  useEffect(() => { setPage(1); }, [facilityId, status, selectedYear]);
   const { data: practicumsPage, isLoading, isError, error, refetch } = usePaginatedPracticums({
     facilityId: facilityId && facilityId !== "all" ? facilityId : undefined,
-    year: currentYear,
+    year: selectedYear,
     status: status && status !== "all" ? status : undefined,
     page,
     pageSize: PAGE_SIZE,
@@ -137,8 +138,8 @@ export default function Practicums() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const { data: facilities } = useListFacilities();
-  // Active staff only; push the page's facility filter into the query so selecting a site does
-  // not download every other facility's roster just to resolve names / populate the create dialog.
+  // Active staff only for new records and observer selections. Historical records may belong
+  // to staff who have since left; resolve those names by the visible record IDs separately.
   const { data: employeesAll } = useListEmployees({
     status: "active",
     facilityId: facilityId !== "all" ? facilityId : undefined,
@@ -147,6 +148,11 @@ export default function Practicums() {
   // medications are relevant here -- mirrors this page's pre-existing employee filter.
   const employees = useMemo(() => employeesAll?.filter(e => e.administers_medications), [employeesAll]);
   const employeeMap = useMemo(() => new Map((employeesAll ?? []).map(e => [e.id, e])), [employeesAll]);
+  const recordEmployees = useListEmployeesByIds(practicums.map(p => p.employee_id));
+  const recordEmployeeMap = useMemo(
+    () => new Map([...employeeMap, ...(recordEmployees.data ?? []).map(e => [e.id, e] as const)]),
+    [employeeMap, recordEmployees.data],
+  );
   // "Qualified observer" roster for the window observer pickers: a designated trainer, or someone
   // already administering medications themselves (able to verify a peer's technique/MAR review).
   const qualifiedObservers = useMemo(
@@ -155,7 +161,11 @@ export default function Practicums() {
   );
   const facilityNameById = useMemo(() => new Map((facilities ?? []).map(f => [f.id, f.name])), [facilities]);
 
-  const getEmployee = (id: string) => employeeMap.get(id);
+  const employeeName = (id: string) => {
+    const employee = recordEmployeeMap.get(id);
+    if (employee) return `${employee.first_name} ${employee.last_name}`;
+    return recordEmployees.isLoading ? "Loading employee…" : `Employee #${id}`;
+  };
 
   const createPracticum = useCreatePracticum();
   const updatePracticum = useUpdatePracticum();
@@ -172,7 +182,7 @@ export default function Practicums() {
 
   const openCreateDialog = () => {
     setEditingPracticum(null);
-    setForm(emptyPracticumForm(currentYear));
+    setForm(emptyPracticumForm(selectedYear));
     setDialogOpen(true);
   };
 
@@ -191,13 +201,13 @@ export default function Practicums() {
 
   const handleSave = async () => {
     const yearNum = Number(form.practicumYear);
-    if (!form.practicumYear.trim() || !Number.isInteger(yearNum)) {
-      toast({ title: "Enter a valid practicum year", variant: "destructive" });
+    if (!form.practicumYear.trim() || !Number.isInteger(yearNum) || yearNum < 2000 || yearNum > 2100) {
+      toast({ title: "Enter a practicum year from 2000 through 2100", variant: "destructive" });
       return;
     }
     const reminderDaysNum = form.reminderDays.trim() ? Number(form.reminderDays) : 30;
-    if (!Number.isFinite(reminderDaysNum) || reminderDaysNum < 0) {
-      toast({ title: "Reminder window must be a non-negative number of days", variant: "destructive" });
+    if (!Number.isSafeInteger(reminderDaysNum) || reminderDaysNum < 0) {
+      toast({ title: "Reminder window must be a non-negative whole number of days", variant: "destructive" });
       return;
     }
 
@@ -263,6 +273,7 @@ export default function Practicums() {
         await createPracticum.mutateAsync(payload);
         toast({ title: "Practicum recorded" });
       }
+      setSelectedYear(yearNum);
       closeDialog();
     } catch (err) {
       toast({
@@ -278,7 +289,7 @@ export default function Practicums() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Annual Practicums</h1>
-          <p className="text-muted-foreground">Track {currentYear} annual medication administration practicums.</p>
+          <p className="text-muted-foreground">Track annual medication administration practicums and review prior years.</p>
         </div>
         {canManage && (
           <Button onClick={openCreateDialog}>
@@ -288,6 +299,12 @@ export default function Practicums() {
       </div>
 
       <div className="flex flex-wrap gap-3">
+        <Select value={String(selectedYear)} onValueChange={value => setSelectedYear(Number(value))}>
+          <SelectTrigger className="w-32" aria-label="Practicum year"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {Array.from({ length: 101 }, (_, index) => 2100 - index).map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={facilityId} onValueChange={setFacilityId}>
           <SelectTrigger className="w-full sm:w-52" aria-label="Facility">
             <SelectValue placeholder="All Facilities" />
@@ -315,7 +332,7 @@ export default function Practicums() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{currentYear} Practicum Status</CardTitle>
+          <CardTitle>{selectedYear} Practicum Status</CardTitle>
         </CardHeader>
         <CardContent>
           {isError ? (
@@ -326,9 +343,11 @@ export default function Practicums() {
             </div>
           ) : (
             <div className="space-y-4">
+            {recordEmployees.isError && practicums.length > 0 && (
+              <QueryError what="employee names for these practicum records" error={recordEmployees.error} onRetry={() => recordEmployees.refetch()} />
+            )}
             <div className="space-y-2">
               {practicums.map(p => {
-                const emp = getEmployee(p.employee_id);
                 return (
                   <div
                     key={p.id}
@@ -341,7 +360,7 @@ export default function Practicums() {
                       </div>
                       <div>
                         <p className="font-medium text-sm">
-                          {emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${p.employee_id}`}
+                          {employeeName(p.employee_id)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {p.completion_date ? `Completed: ${formatDateForDisplay(p.completion_date)}` : `Due: ${p.due_date ? formatDateForDisplay(p.due_date) : "N/A"}`}
@@ -397,10 +416,7 @@ export default function Practicums() {
           <div className="space-y-4">
             {editingPracticum ? (
               <div className="text-sm text-muted-foreground">
-                {(() => {
-                  const emp = employeeMap.get(editingPracticum.employee_id);
-                  return emp ? `${emp.first_name} ${emp.last_name}` : `Employee #${editingPracticum.employee_id}`;
-                })()}
+                {employeeName(editingPracticum.employee_id)}
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -423,6 +439,7 @@ export default function Practicums() {
                 <Label htmlFor={`${__fieldIds}-practicum-year`} className="text-[13px]">Practicum Year *</Label>
                 <Input id={`${__fieldIds}-practicum-year`}
                   type="number" min="2000" max="2100" className="h-9"
+                  disabled={!!editingPracticum}
                   value={form.practicumYear}
                   onChange={e => setForm(f => ({ ...f, practicumYear: e.target.value }))}
                 />

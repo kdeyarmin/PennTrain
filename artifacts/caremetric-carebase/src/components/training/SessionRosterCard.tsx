@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
+import { useListEmployeesByIds } from "@/hooks/useEmployees";
 import { errorText } from "@/lib/errorText";
 import { signatureDigest } from "@/lib/certificationAttempt";
 import {
@@ -55,6 +56,8 @@ export function SessionRosterCard({
   employeesLoading = false,
   employeesError = false,
   employeeName,
+  disabled = false,
+  onBusyChange,
 }: {
   classId: string;
   classStatus: string | null | undefined;
@@ -74,6 +77,9 @@ export function SessionRosterCard({
   employeesLoading?: boolean;
   employeesError?: boolean;
   employeeName: (employeeId: string) => string;
+  /** Coordinate writes with the legacy walk-in roster and class completion controls. */
+  disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { toast } = useToast();
   const registrations = useTrainingSessionRegistrations(classId);
@@ -89,8 +95,19 @@ export function SessionRosterCard({
   const [approving, setApproving] = useState(false);
   const [approveReason, setApproveReason] = useState("");
   const [registering, setRegistering] = useState("");
+  const [signing, setSigning] = useState(false);
+  const sessionBusy = signing || record.isPending || approve.isPending || register.isPending;
+  const busy = disabled || sessionBusy;
+  useEffect(() => { onBusyChange?.(!!sessionBusy); }, [sessionBusy, onBusyChange]);
 
   const rows = registrations.data ?? [];
+  // Registration evidence survives staff deactivation; the active registration picker
+  // cannot be used as the sole source of historical attendee names.
+  const registeredEmployees = useListEmployeesByIds(rows.map(row => row.employee_id));
+  const registeredNames = useMemo(() => new Map((registeredEmployees.data ?? []).map(employee =>
+    [employee.id, `${employee.first_name} ${employee.last_name}`],
+  )), [registeredEmployees.data]);
+  const registeredEmployeeName = (employeeId: string) => registeredNames.get(employeeId) ?? employeeName(employeeId);
   // Only these two states can be approved; the server refuses anything else outright. Registration
   // is gated on exactly the same two states, by the same function.
   const canApprove = classStatus === "scheduled" || classStatus === "in_progress";
@@ -179,6 +196,7 @@ export function SessionRosterCard({
   const draftSeatTimeInvalid = seatTimeRequired && (draftSeatMinutes === null || draftSeatMinutes <= 0);
 
   const submitAttendance = async (row: TrainingSessionRegistration) => {
+    if (busy || !canApprove || typedName.trim().length < 2) return;
     if (draftSeatTimeInvalid) {
       toast({
         title: "Check-out must be after check-in",
@@ -195,10 +213,12 @@ export function SessionRosterCard({
     // `attended` is the only status the server demands a signature for, but recording one for every
     // status keeps the evidence row uniform and costs nothing.
     const attestation = `${typedName.trim()}|${row.id}|${status}|${checkInAt}|${checkOutAt}`;
-    const attendee = await signatureDigest(attestation);
-    const recorder = await signatureDigest(`recorder|${attestation}`);
-    record.mutate(
-      {
+    setSigning(true);
+    onBusyChange?.(true);
+    try {
+      const attendee = await signatureDigest(attestation);
+      const recorder = await signatureDigest(`recorder|${attestation}`);
+      await record.mutateAsync({
         registrationId: row.id,
         attendanceStatus: status,
         checkInAt,
@@ -206,21 +226,14 @@ export function SessionRosterCard({
         attendeeSignatureSha256: attendee,
         recorderSignatureSha256: recorder,
         evidence: { attestedName: typedName.trim() },
-      },
-      {
-        onSuccess: () => {
-          setOpenRow(null);
-          setTypedName("");
-          toast({
-            title: "Attendance recorded",
-            description: seatTimeRequired
-              ? `${formatSeatMinutes(draftSeatMinutes)} of seat time.`
-              : "No seat time recorded for a no-show.",
-          });
-        },
-        onError: (error) => toast({ title: "Attendance refused", description: errorText(error), variant: "destructive" }),
-      },
-    );
+      });
+      setOpenRow(null);
+      setTypedName("");
+      toast({ title: "Attendance recorded", description: seatTimeRequired
+        ? `${formatSeatMinutes(draftSeatMinutes)} of seat time.` : "No seat time recorded for a no-show." });
+    } catch (error) {
+      toast({ title: "Attendance refused", description: errorText(error), variant: "destructive" });
+    } finally { setSigning(false); }
   };
 
   if (registrations.isLoading) return <Skeleton className="h-32" />;
@@ -255,6 +268,7 @@ export function SessionRosterCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {registeredEmployees.isError && rows.length > 0 && <QueryError what="registered employee names" error={registeredEmployees.error} onRetry={() => void registeredEmployees.refetch()} />}
         <div className="space-y-2 rounded border p-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Label htmlFor="register-employee" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -267,7 +281,7 @@ export function SessionRosterCard({
             )}
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <Select value={registering} onValueChange={setRegistering} disabled={!canApprove || employeesLoading || employeesError}>
+            <Select value={registering} onValueChange={setRegistering} disabled={busy || !canApprove || employeesLoading || employeesError}>
               <SelectTrigger id="register-employee" className="sm:w-72">
                 <SelectValue placeholder={
                   employeesLoading
@@ -295,7 +309,7 @@ export function SessionRosterCard({
             </Select>
             <Button
               size="sm"
-              disabled={register.isPending || !registering || !canApprove}
+              disabled={busy || !registering || !canApprove || employeesLoading || employeesError || !registrable.some(employee => employee.id === registering)}
               title={canApprove ? undefined : `A ${classStatus ?? "class"} session is not open for registration.`}
               onClick={() => register.mutate({ classId, employeeId: registering }, {
                 onSuccess: (receipt) => {
@@ -337,7 +351,7 @@ export function SessionRosterCard({
           return (
             <div key={row.id} className="space-y-2 rounded border p-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium">{employeeName(row.employee_id)}</span>
+                <span className="text-sm font-medium">{registeredEmployeeName(row.employee_id)}</span>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{row.registration_status}</Badge>
                   {row.waitlist_position != null && (
@@ -346,7 +360,7 @@ export function SessionRosterCard({
                   {signed
                     ? <Badge variant="secondary">signed</Badge>
                     : openRow !== row.id && (
-                      <Button size="sm" variant="outline" onClick={() => openAttendance(row.id)}>
+                      <Button size="sm" variant="outline" disabled={busy || !canApprove} onClick={() => openAttendance(row.id)}>
                         Record attendance
                       </Button>
                     )}
@@ -354,7 +368,7 @@ export function SessionRosterCard({
               </div>
 
               {openRow === row.id && (
-                <div className="space-y-2 rounded bg-muted/40 p-2">
+                <fieldset disabled={busy || !canApprove} className="space-y-2 rounded bg-muted/40 p-2">
                   <div className="space-y-1">
                     <Label htmlFor={`att-status-${row.id}`}>Attendance</Label>
                     <Select value={status} onValueChange={setStatus}>
@@ -420,14 +434,14 @@ export function SessionRosterCard({
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      disabled={record.isPending || typedName.trim().length < 2 || draftSeatTimeInvalid}
+                      disabled={busy || !canApprove || typedName.trim().length < 2 || draftSeatTimeInvalid}
                       onClick={() => void submitAttendance(row)}
                     >
                       {record.isPending ? "Recording…" : "Sign and record"}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setOpenRow(null)}>Cancel</Button>
                   </div>
-                </div>
+                </fieldset>
               )}
             </div>
           );
@@ -493,7 +507,7 @@ export function SessionRosterCard({
                       const registration = rows.find((r) => r.id === row.registrationId);
                       return (
                         <li key={row.registrationId}>
-                          {registration ? employeeName(registration.employee_id) : row.registrationId.slice(0, 8)}
+                          {registration ? registeredEmployeeName(registration.employee_id) : row.registrationId.slice(0, 8)}
                           {" · "}
                           {row.issue === "unrecorded"
                             ? "no check-in/check-out recorded"
@@ -528,14 +542,14 @@ export function SessionRosterCard({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={!canApprove}
+                disabled={busy || !canApprove}
                 title={canApprove ? undefined : `A ${classStatus ?? "class"} session cannot be approved.`}
                 onClick={() => { setApproving(true); setApproveReason(""); }}
               >
                 <CheckCircle2 className="mr-1 h-4 w-4" />Approve completion
               </Button>
             ) : (
-              <div className="space-y-2">
+              <fieldset disabled={busy || !canApprove} className="space-y-2">
                 <Label htmlFor="approve-reason">Why this session is complete</Label>
                 <Input
                   id="approve-reason"
@@ -546,7 +560,7 @@ export function SessionRosterCard({
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    disabled={approve.isPending || approveReason.trim().length < MIN_REASON}
+                    disabled={busy || !canApprove || approveReason.trim().length < MIN_REASON}
                     onClick={() => approve.mutate({ reason: approveReason.trim() }, {
                       onSuccess: () => { setApproving(false); toast({ title: "Session completion approved", description: "Training records were created for the attendees." }); },
                       onError: (error) => toast({ title: "Approval refused", description: errorText(error), variant: "destructive" }),
@@ -556,7 +570,7 @@ export function SessionRosterCard({
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setApproving(false)}>Cancel</Button>
                 </div>
-              </div>
+              </fieldset>
             )}
           </div>
         )}

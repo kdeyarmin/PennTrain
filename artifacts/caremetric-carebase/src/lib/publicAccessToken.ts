@@ -1,5 +1,46 @@
 import { appPath } from "./appUrl";
 
+// Keep a supplied grant usable for this document when browser storage is blocked
+// or full. This fallback is never persisted and disappears on a full reload.
+const unavailableStorageTokens = new Map<string, string>();
+
+export function publicGuestWorkspaceError(error: unknown): "terms_required" | "token_rejected" | "rate_limited" | "facility_inactive" | "retryable" {
+  const detail = error as { code?: unknown; message?: unknown } | null;
+  if (detail?.code !== "42501" || typeof detail.message !== "string") return "retryable";
+  // The guest RPCs deliberately share one HTTP/SQL error code for these distinct
+  // outcomes. Only an explicit grant denial means a stored token should be lost.
+  if (/^(Move-in guest|Resident agreement) terms acceptance required$/i.test(detail.message)) return "terms_required";
+  if (/^(Move-in guest|Resident agreement) access denied$/i.test(detail.message)) return "token_rejected";
+  if (/^Too many (requests|invalid access attempts) from this connection\./i.test(detail.message)) return "rate_limited";
+  if (/^This facility's account is not active\./i.test(detail.message)) return "facility_inactive";
+  return "retryable";
+}
+
+export function publicGuestRetryMessage(state: ReturnType<typeof publicGuestWorkspaceError>): string {
+  if (state === "rate_limited") return "Too many requests from this connection. Wait a minute, then try again.";
+  if (state === "facility_inactive") return "This facility's account is not active. Please contact the facility directly.";
+  return "We could not load this link right now. Please try again.";
+}
+
+export function storePublicAccessToken(storageKey: string, token: string): void {
+  try {
+    sessionStorage.setItem(storageKey, token);
+    unavailableStorageTokens.delete(storageKey);
+  } catch {
+    unavailableStorageTokens.set(storageKey, token);
+  }
+}
+
+export function readPublicAccessToken(storageKey: string): string {
+  // A failed write must take precedence over an older stored credential.
+  if (unavailableStorageTokens.has(storageKey)) return unavailableStorageTokens.get(storageKey)!;
+  try {
+    return sessionStorage.getItem(storageKey)?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export interface PublicAccessFlow {
   name: string;
   tokenPath: string;
@@ -51,7 +92,7 @@ export function consumePublicAccessToken(
 ): string {
   const supplied = routeToken?.trim() ?? "";
   if (supplied) {
-    sessionStorage.setItem(storageKey, supplied);
+    storePublicAccessToken(storageKey, supplied);
     const current = new URL(window.location.href);
     // appPath, not the bare cleanPath: under a BASE_PATH deploy the tokenized
     // URL is /train/evidence-access/<token>, and rewriting to /evidence-access
@@ -59,7 +100,7 @@ export function consumePublicAccessToken(
     window.history.replaceState(null, "", `${appPath(cleanPath)}${current.search}${current.hash}`);
     return supplied;
   }
-  return sessionStorage.getItem(storageKey)?.trim() ?? "";
+  return readPublicAccessToken(storageKey);
 }
 
 /**
@@ -75,7 +116,9 @@ export function clearStoredPublicAccessToken(storageKey: string | null): void {
   if (!storageKey) return;
   try {
     sessionStorage.removeItem(storageKey);
+    unavailableStorageTokens.delete(storageKey);
   } catch {
-    // sessionStorage unavailable (private browsing/quota) -- nothing was stored.
+    // Also suppress an older persisted credential if browser removal is blocked.
+    unavailableStorageTokens.set(storageKey, "");
   }
 }

@@ -1,4 +1,5 @@
 import { boundedSettled } from "@/lib/boundedSettled";
+import { useTrainingItemOrder } from "@/hooks/useTrainingItemOrder";
 import { PlanAuthoringTools } from "@/components/training/PlanAuthoringTools";
 import { FacilityTrainingStarterKits } from "@/components/training/TrainingStarterKits";
 import { TrainingAssignmentRules } from "@/components/training/TrainingAssignmentRules";
@@ -21,7 +22,7 @@ import {
 } from "@/hooks/useTrainingPlans";
 import { useListCourses } from "@/hooks/useCourses";
 import { useListTrainingTypes } from "@/hooks/useTrainingTypes";
-import { useListEmployees } from "@/hooks/useEmployees";
+import { useListEmployees, useListEmployeesByIds } from "@/hooks/useEmployees";
 import { useListCourseAssignments, type CourseAssignment } from "@/hooks/useCourseAssignments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -203,9 +204,10 @@ export function ApplyPlanDialog({ plan, open, onClose }: { plan: TrainingPlan; o
 // the plan that created it -- previously nothing surfaced that link, so an
 // admin had no way to see who's on a plan or how far along they are.
 // ---------------------------------------------------------------------------
-function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
+export function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
   const { data: assignments, isLoading, isError, error, refetch } = useListCourseAssignments({ trainingPlanId: plan.id });
-  const { data: employees } = useListEmployees({ status: "active" });
+  const employeeQuery = useListEmployeesByIds((assignments ?? []).map(assignment => assignment.employee_id));
+  const employees = employeeQuery.data;
   const { data: courses } = useListCourses();
 
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -239,6 +241,7 @@ function PlanProgressSection({ plan }: { plan: TrainingPlan }) {
 
   return (
     <div className="space-y-2">
+      {employeeQuery.isError && <QueryError what="plan participant names" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />}
       {[...byEmployee.entries()].map(([employeeId, rows]) => {
         const employee = employeeById.get(employeeId);
         const completed = rows.filter((r) => r.status === "completed").length;
@@ -281,6 +284,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
 
   const { mutate: addItem, isPending: addingItem } = useAddTrainingPlanItem();
   const { mutateAsync: updateItem, isPending: updatingItem } = useUpdateTrainingPlanItem();
+  const { mutateAsync: reorderItem } = useTrainingItemOrder("training_plan_items");
   const { mutate: removeItem, isPending: removingItem } = useRemoveTrainingPlanItem();
 
   const [showAddItem, setShowAddItem] = useState(false);
@@ -328,16 +332,14 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
   };
 
   const moveItem = async (index: number, direction: -1 | 1) => {
+    if (reorderingId !== null || !canManage) return;
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= sortedItems.length) return;
     const current = sortedItems[index];
     const swapWith = sortedItems[targetIndex];
     setReorderingId(current.id);
     try {
-      await Promise.all([
-        updateItem({ id: current.id, trainingPlanId: plan.id, sort_order: swapWith.sort_order }),
-        updateItem({ id: swapWith.id, trainingPlanId: plan.id, sort_order: current.sort_order }),
-      ]);
+      await reorderItem({ first: current, second: swapWith });
     } catch (e) {
       toast({ title: "Failed to reorder", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -352,7 +354,7 @@ function TrainingPlanItemsPanel({ plan, canManage }: { plan: TrainingPlan; canMa
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-sm font-semibold text-foreground">Plan Items</h3>
         <div className="flex flex-wrap items-center gap-2">
-          {canManage && <PlanAuthoringTools plan={plan} items={items ?? []} />}
+          {canManage && <PlanAuthoringTools plan={plan} items={items ?? []} itemsReady={!isLoading && !isError} />}
           {canManage && (
             <Button size="sm" variant="outline" onClick={() => setShowApplyDialog(true)}>
               <UserPlus className="mr-2 h-3.5 w-3.5" /> Apply to Employee(s)

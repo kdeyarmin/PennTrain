@@ -3,6 +3,14 @@ import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 
 export type MedicationSource = Tables<"medication_integration_sources">;
+export type MedicationSourceStatus = "setup_required" | "active" | "paused" | "disabled" | "error";
+
+export function medicationSourceEditorStatus(source: Pick<MedicationSource, "status"> | null): MedicationSourceStatus {
+  // Opening a settings form must never start a connection or clear a failed sync on its own.
+  const status = source?.status;
+  return status === "active" || status === "paused" || status === "disabled" || status === "error"
+    ? status : "setup_required";
+}
 export type MedicationException = Tables<"medication_integration_exceptions">;
 /** The eMAR rows minus their source digest, which nothing renders. */
 type WithoutSourceDigest<T> = Omit<T, "raw_record_sha256">;
@@ -52,7 +60,7 @@ async function listMedicationExceptions(facilityId: string): Promise<MedicationE
   // The workspace displays history and computes its open count from this same collection.
   const pageSize = 1000;
   const rows: MedicationException[] = [];
-  for (let from = 0; ; from += pageSize) {
+  for (let from = 0; ;) {
     const { data, error } = await supabase
       .from("medication_integration_exceptions")
       .select("*")
@@ -62,7 +70,8 @@ async function listMedicationExceptions(facilityId: string): Promise<MedicationE
       .range(from, from + pageSize - 1);
     if (error) throw error;
     rows.push(...(data ?? []));
-    if (!data || data.length < pageSize) break;
+    if (!data?.length) break;
+    from += data.length;
   }
   return rows;
 }
@@ -141,8 +150,14 @@ export function useSaveMedicationIntegrationSource() {
       externalFacilityId: string;
       credentialId?: string;
       freshnessThresholdMinutes: number;
-      status: "setup_required" | "active" | "paused" | "disabled";
+      status: MedicationSourceStatus;
     }) => {
+      if (!Number.isInteger(input.freshnessThresholdMinutes) || input.freshnessThresholdMinutes < 5 || input.freshnessThresholdMinutes > 1440) {
+        throw new Error("Freshness target must be a whole number of minutes from 5 to 1440.");
+      }
+      if (input.status === "active" && !input.credentialId) {
+        throw new Error("An active source requires a medication integration credential.");
+      }
       const { data, error } = await supabase.rpc("save_medication_integration_source", {
         ...(input.sourceId ? { p_source_id: input.sourceId } : {}),
         p_facility_id: input.facilityId,

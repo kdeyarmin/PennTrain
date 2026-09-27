@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   assignment: {} as Record<string, unknown>, blocks: [] as Array<Record<string, unknown>>,
   progress: {} as Record<string, unknown>, progressFetching: false, progressFetchedAfterMount: true,
   quizAttempts: [] as Array<Record<string, unknown>>,
+  employeeQuery: {} as Record<string, unknown>, quizRead: vi.fn(),
 }));
 
 vi.mock("react", async (original) => ({
@@ -45,7 +46,7 @@ vi.mock("wouter", () => ({ useParams: () => ({ assignmentId: h.routeId }), useLo
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({}) }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "profile-a", role: "employee" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
-vi.mock("@/hooks/useEmployees", () => ({ useGetEmployeeByProfileId: () => ({ data: { id: "employee-a" } }) }));
+vi.mock("@/hooks/useEmployees", () => ({ useGetEmployeeByProfileId: () => h.employeeQuery }));
 vi.mock("@/hooks/useCourses", () => ({
   useGetCourse: () => ({ data: { title: "Course", estimated_duration_minutes: 5 } }),
   useListCourseBlocks: () => ({ data: h.blocks }),
@@ -61,7 +62,7 @@ vi.mock("@/hooks/useCourseAssignments", () => ({
 }));
 vi.mock("@/hooks/useQuizzes", () => ({
   useGetQuizByBlockId: (blockId: string | undefined) => ({ data: blockId === "quiz-block" ? { id: "quiz-a" } : undefined }),
-  useListQuizAttempts: () => ({ data: h.quizAttempts }),
+  useListQuizAttempts: (...args: unknown[]) => { h.quizRead(...args); return { data: h.quizAttempts }; },
 }));
 vi.mock("@/hooks/useLearningRuntime", () => ({ useAssignmentPackageCompleted: () => ({ data: false }) }));
 vi.mock("@/hooks/useDocuments", () => ({ useGetDocument: () => ({}), useDocumentSignedUrl: () => ({}) }));
@@ -142,6 +143,7 @@ beforeEach(() => {
   h.refreshCompletion.mockReset();
   h.feedback.mockReset();
   h.navigate.mockReset(); h.progressFetching = false; h.progressFetchedAfterMount = true; h.quizAttempts = [];
+  h.employeeQuery = { data: { id: "employee-a" }, isLoading: false, isError: false }; h.quizRead.mockReset();
   h.verifyCompletion.mockReset().mockResolvedValue(false);
   h.assignment = { id: "assignment-a", employee_id: "employee-a", course_id: "course-a", course_version_id: "version-a", status: "in_progress" };
   h.refetch.mockReset().mockImplementation(async () => ({ data: h.assignment, isSuccess: true, isError: false, error: null }));
@@ -152,6 +154,28 @@ beforeEach(() => {
     setTimeout: vi.fn(() => 1), clearTimeout: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
   });
   vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+});
+
+describe("personal course attempt scope", () => {
+  it("queries only the signed-in employee's own assignment history", () => {
+    render(); expect(h.quizRead).toHaveBeenLastCalledWith({ assignmentId: "assignment-a", employeeId: "employee-a" }, { enabled: true });
+  });
+  it.each(["loading", "failed", "foreign assignment"])("does not enable quiz history with %s ownership", state => {
+    if (state === "loading") h.employeeQuery = { data: undefined, isLoading: true };
+    else if (state === "failed") h.employeeQuery = { data: { id: "employee-a" }, isError: true };
+    else h.assignment.employee_id = "employee-b";
+    render(); expect(h.quizRead.mock.calls.at(-1)?.[1]).toEqual({ enabled: false });
+  });
+  it("does not unlock the course using a cached pass from another employee or assignment", () => {
+    prepareQuizStep();
+    h.quizAttempts = [
+      { assignment_id: "assignment-a", employee_id: "peer", quiz_id: "quiz-a", passed: true, score_percent: 100 },
+      { assignment_id: "other-assignment", employee_id: "employee-a", quiz_id: "quiz-a", passed: true, score_percent: 100 },
+    ];
+    expect(completeButton(render()).props.disabled).toBe(true);
+    h.quizAttempts = [...h.quizAttempts, { assignment_id: "assignment-a", employee_id: "employee-a", quiz_id: "quiz-a", passed: true, score_percent: 100 }];
+    expect(completeButton(render()).props.disabled).toBe(false);
+  });
 });
 
 describe("completion timing feedback", () => {
@@ -278,7 +302,7 @@ describe("quiz navigation and progress restoration", () => {
       learning_tools: { notes: { "text-block": "Saved lesson note" } },
       video_state: { "video-block": { maxWatched: 2, completedAt: "2026-09-15T12:00:00Z" } },
     });
-    h.quizAttempts = [{ quiz_id: "quiz-a", passed: true, score_percent: 100 }];
+    h.quizAttempts = [{ assignment_id: "assignment-a", employee_id: "employee-a", quiz_id: "quiz-a", passed: true, score_percent: 100 }];
     expect(completeButton(render()).props.disabled).toBe(false);
     expect(h.complete).not.toHaveBeenCalled();
   });

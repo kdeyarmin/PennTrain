@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, FileScan, RefreshCw, XCircle } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +75,11 @@ export function CredentialRenewalInbox({
   }, [submissions.data, submissions.isFetching, submissions.isError, page, pageCount]);
   const queue = useCredentialRenewalQueueSummary();
   const review = useReviewCredentialRenewal();
+  const submitting = useRef(false);
+  const mounted = useRef(true);
+  const [pending, setPending] = useState(false);
+  const busy = pending || review.isPending;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [selected, setSelected] = useState<CredentialRenewalSubmission | null>(null);
   const [decision, setDecision] = useState<"approve" | "reject">("approve");
   const [reason, setReason] = useState("");
@@ -95,6 +100,7 @@ export function CredentialRenewalInbox({
   };
 
   const openReview = (row: CredentialRenewalSubmission, nextDecision: "approve" | "reject") => {
+    if (submitting.current || busy) return;
     setSelected(row);
     setDecision(nextDecision);
     setReason("");
@@ -111,7 +117,7 @@ export function CredentialRenewalInbox({
   };
 
   const submitReview = async () => {
-    if (!selected || reason.trim().length < 5) return;
+    if (submitting.current || busy || !selected || reason.trim().length < 5) return;
     if (user?.id && selected.submitted_by && user.id === selected.submitted_by) {
       toast({
         title: "Independent reviewer required",
@@ -120,6 +126,8 @@ export function CredentialRenewalInbox({
       });
       return;
     }
+    submitting.current = true;
+    setPending(true);
     try {
       await review.mutateAsync({
         submissionId: selected.id,
@@ -135,17 +143,21 @@ export function CredentialRenewalInbox({
             }
           : {},
       });
+      if (!mounted.current) return;
       toast({
         title: decision === "approve" ? "Renewal approved" : "Renewal rejected",
         description: "The governed decision was recorded and compliance was updated only on approval.",
       });
       setSelected(null);
     } catch (error) {
-      toast({
+      if (mounted.current) toast({
         title: "Review blocked",
         description: error instanceof Error ? error.message : "Unable to record the decision",
         variant: "destructive",
       });
+    } finally {
+      submitting.current = false;
+      if (mounted.current) setPending(false);
     }
   };
 
@@ -275,13 +287,13 @@ export function CredentialRenewalInbox({
                     </div>
                     {row.status === "needs_review" && (
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" disabled={!canReview || review.isPending} onClick={() => openReview(row, "approve")}>
+                        <Button size="sm" disabled={!canReview || busy} onClick={() => openReview(row, "approve")}>
                           <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
                         </Button>
                         <Button
                           size="sm"
                           variant="destructive"
-                          disabled={!canReview || review.isPending}
+                          disabled={!canReview || busy}
                           onClick={() => openReview(row, "reject")}
                         >
                           <XCircle className="mr-2 h-4 w-4" /> Reject
@@ -317,7 +329,7 @@ export function CredentialRenewalInbox({
         </CardContent>
       </Card>
 
-      <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null); }}>
+      <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open && !submitting.current && !busy) setSelected(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{decision === "approve" ? "Approve credential renewal" : "Reject credential renewal"}</DialogTitle>
@@ -325,6 +337,7 @@ export function CredentialRenewalInbox({
               Independent human decision only. Extraction fields are suggestions and never write compliance by themselves.
             </DialogDescription>
           </DialogHeader>
+          <fieldset disabled={busy} className="space-y-3">
           {decision === "approve" && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
@@ -358,13 +371,14 @@ export function CredentialRenewalInbox({
               placeholder="Documentation-backed reason for this independent decision"
             />
           </div>
+          </fieldset>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelected(null)}>Cancel</Button>
+            <Button variant="outline" disabled={busy} onClick={() => { if (!submitting.current) setSelected(null); }}>Cancel</Button>
             <Button
               variant={decision === "approve" ? "default" : "destructive"}
               disabled={
                 reason.trim().length < 5
-                || review.isPending
+                || busy
                 || (decision === "approve" && (!issuingAuthority.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(expirationDate)))
               }
               onClick={() => void submitReview()}

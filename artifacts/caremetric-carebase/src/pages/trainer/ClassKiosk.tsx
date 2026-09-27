@@ -12,8 +12,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { markExplicitPasswordSignIn, useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { signInWithPassword, useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 const PIN_PAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"];
@@ -40,8 +39,7 @@ export default function ClassKiosk() {
     if (!user?.email || !exitPassword) return;
     setExiting(true);
     try {
-      markExplicitPasswordSignIn();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await signInWithPassword({
         email: user.email,
         password: exitPassword,
       });

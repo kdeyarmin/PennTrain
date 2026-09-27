@@ -271,10 +271,11 @@ export function useAddEmergencyResource() {
   });
 }
 
-export function useAddEmergencyInventoryItem() {
+export function useSaveEmergencyInventoryItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
+      id?: string;
       organizationId: string;
       facilityId: string;
       inventoryType: string;
@@ -288,15 +289,16 @@ export function useAddEmergencyInventoryItem() {
       notes: string;
       checkedBy?: string;
     }) => {
-      const { data, error } = await supabase
-        .from("emergency_inventory_items")
-        .insert({
-          organization_id: input.organizationId,
-          facility_id: input.facilityId,
+      if (!input.itemName.trim() || !input.unit.trim()
+        || !Number.isFinite(input.quantity) || input.quantity < 0
+        || !Number.isFinite(input.minimumQuantity) || input.minimumQuantity < 0) {
+        throw new Error("Enter an item name, unit, and non-negative quantities.");
+      }
+      const payload = {
           inventory_type: input.inventoryType,
-          item_name: input.itemName,
+          item_name: input.itemName.trim(),
           quantity: input.quantity,
-          unit: input.unit,
+          unit: input.unit.trim(),
           minimum_quantity: input.minimumQuantity,
           expiration_date: input.expirationDate || null,
           status: input.status,
@@ -304,9 +306,11 @@ export function useAddEmergencyInventoryItem() {
           notes: input.notes || null,
           checked_by: input.checkedBy || null,
           checked_at: new Date().toISOString(),
-        })
-        .select("*")
-        .single();
+      };
+      const query = input.id
+        ? supabase.from("emergency_inventory_items").update(payload).eq("id", input.id).eq("facility_id", input.facilityId).eq("organization_id", input.organizationId)
+        : supabase.from("emergency_inventory_items").insert({ ...payload, organization_id: input.organizationId, facility_id: input.facilityId });
+      const { data, error } = await query.select("*").single();
       if (error) throw error;
       return data;
     },

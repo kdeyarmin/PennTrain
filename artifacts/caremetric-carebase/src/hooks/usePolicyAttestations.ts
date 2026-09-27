@@ -18,12 +18,18 @@ export function useListPolicyAttestationCampaigns(filters: ListPolicyAttestation
   return useQuery({
     queryKey: ["policy_attestation_campaigns", filters],
     queryFn: async () => {
-      let query = supabase.from("policy_attestation_campaigns").select("*").order("created_at", { ascending: false });
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      if (filters.policyDocumentId) query = query.eq("policy_document_id", filters.policyDocumentId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const rows: PolicyAttestationCampaign[] = [];
+      for (let from = 0; ; ) {
+        let query = supabase.from("policy_attestation_campaigns").select("*")
+          .order("created_at", { ascending: false }).order("id").range(from, from + 999);
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        if (filters.policyDocumentId) query = query.eq("policy_document_id", filters.policyDocumentId);
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data);
+        from += data.length;
+      }
     },
   });
 }
@@ -80,7 +86,7 @@ export function useListPolicyAttestations(filters: ListPolicyAttestationsFilters
       // overdue attestations this loop exists to find.
       const pageSize = 1000;
       const rows: PolicyAttestation[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ; ) {
         let query = supabase
           .from("policy_attestations")
           .select("*")
@@ -93,8 +99,9 @@ export function useListPolicyAttestations(filters: ListPolicyAttestationsFilters
         if (filters.status) query = query.eq("status", filters.status);
         const { data, error } = await query;
         if (error) throw error;
-        rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        rows.push(...data);
+        from += data.length;
       }
       return rows;
     },

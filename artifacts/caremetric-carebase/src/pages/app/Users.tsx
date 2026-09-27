@@ -1,4 +1,4 @@
-import { useId, useEffect, useState } from "react";
+import { useId, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { trainingAdministratorFromSearch } from "@/lib/trainingOnboarding";
 import {
@@ -126,6 +126,7 @@ export default function Users() {
   });
 
   const [editProfile, setEditProfile] = useState<Profile | null>(null);
+  const editRequest = useRef(0);
   const [editForm, setEditForm] = useState<EditFormData>({
     firstName: "", lastName: "", phone: "", smsOptIn: false,
     preferredNotificationChannel: "email",
@@ -134,6 +135,7 @@ export default function Users() {
   const [impersonateProfile, setImpersonateProfile] = useState<Profile | null>(null);
   const [impersonateReason, setImpersonateReason] = useState("");
   const [resetMfaProfile, setResetMfaProfile] = useState<Profile | null>(null);
+  const resetMfaRequest = useRef(0);
   const [resetMfaReason, setResetMfaReason] = useState("");
   // Set when a privileged action is refused because the administrator SESSION has been open past
   // the privileged window -- distinct from "you need a second factor", which MfaPolicyGate already
@@ -339,6 +341,7 @@ export default function Users() {
   const openEdit = (e: React.MouseEvent, p: Profile) => {
     e.preventDefault();
     e.stopPropagation();
+    editRequest.current++;
     setEditProfile(p);
     setEditForm({
       firstName: p.first_name,
@@ -353,6 +356,7 @@ export default function Users() {
 
   const handleEditSubmit = () => {
     if (!editProfile) return;
+    const request = editRequest.current;
     if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
       toast({ title: "First and last name are required", variant: "destructive" });
       return;
@@ -375,7 +379,7 @@ export default function Users() {
         preferred_notification_channel: editForm.preferredNotificationChannel,
       },
       {
-        onSuccess: () => { toast({ title: "User updated" }); setEditProfile(null); },
+        onSuccess: () => { toast({ title: "User updated" }); if (request === editRequest.current) setEditProfile(null); },
         onError: (e: Error) => toast({ title: "Failed to update user", description: e.message, variant: "destructive" }),
       },
     );
@@ -454,6 +458,7 @@ export default function Users() {
   const openResetMfa = (e: React.MouseEvent, p: Profile) => {
     e.preventDefault();
     e.stopPropagation();
+    resetMfaRequest.current++;
     setResetMfaProfile(p);
     setResetMfaReason("");
   };
@@ -461,11 +466,12 @@ export default function Users() {
   const handleConfirmResetMfa = () => {
     if (!resetMfaProfile) return;
     const target = resetMfaProfile;
+    const request = resetMfaRequest.current;
     resetUserMfa(
       { userId: target.id, reason: resetMfaReason.trim() },
       {
         onSuccess: (result) => {
-          setResetMfaProfile(null);
+          if (request === resetMfaRequest.current) setResetMfaProfile(null);
           toast({
             title: result.removed_factor_ids?.length
               ? `Removed ${result.removed_factor_ids.length} factor(s) for ${target.first_name} ${target.last_name}`

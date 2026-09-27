@@ -117,7 +117,7 @@ test.describe("reviewed facility starter kits and assignment rules", () => {
       await expect(preview).toContainText("Matching Caregiver");
       await expect(preview).not.toContainText("Other Department");
       await preview.getByRole("checkbox", { name: "Select up to 100 pending matches", exact: true }).check();
-      await preview.getByRole("button", { name: "Confirm plan for 1 employees", exact: true }).click();
+      await preview.getByRole("button", { name: "Confirm plan for 1 employee", exact: true }).click();
       // A substring check for "0 pending matches" also matches the unchanged
       // "Select up to 100 pending matches" checkbox while the apply RPC is pending.
       await expect(preview.getByText(/^0 pending matches · 1 already enrolled · Due /)).toBeVisible();

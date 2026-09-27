@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { facilityDateTimeLocalToUtcIso, facilityToday, addFacilityCalendarDays, facilityDayBounds } from "@/lib/dateUtils";
 import { Link } from "wouter";
@@ -1123,7 +1123,7 @@ function BillingOverrideCommand() {
   );
 }
 
-function IntegrationProvisioningCommand() {
+export function IntegrationProvisioningCommand() {
   const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1133,19 +1133,29 @@ function IntegrationProvisioningCommand() {
   const [name, setName] = useState("");
   const [scopesOrEvents, setScopesOrEvents] = useState("events:read");
   const [destinationUrl, setDestinationUrl] = useState("");
-  const [issuedSecret, setIssuedSecret] = useState<EnterpriseJson | null>(null);
+  const [issuedSecret, setIssuedSecret] = useState<{ scope: string; value: EnterpriseJson } | null>(null);
+  const secretScope = JSON.stringify([organizationId.trim(), kind]);
+  const secretRequest = useRef(0);
+  useEffect(() => {
+    secretRequest.current++;
+    setIssuedSecret(null);
+    return () => { secretRequest.current++; };
+  }, [secretScope]);
 
   const submit = async () => {
+    if (command.isPending) return;
     const values = scopesOrEvents.split(",").map((value) => value.trim()).filter(Boolean);
     if (!organizationId || !name.trim() || values.length === 0 || (kind === "webhook" && !destinationUrl)) {
       toast({ title: "Complete every required integration field", variant: "destructive" });
       return;
     }
+    const request = ++secretRequest.current;
     try {
+      setIssuedSecret(null);
       const result = await command.mutateAsync(kind === "api" ? {
         rpc: "issue_integration_api_credential",
         args: {
-          p_organization_id: organizationId,
+          p_organization_id: organizationId.trim(),
           p_name: name.trim(),
           p_scopes: values,
           p_expires_at: facilityDayBounds(addFacilityCalendarDays(facilityToday(), 90)).through,
@@ -1154,16 +1164,18 @@ function IntegrationProvisioningCommand() {
       } : {
         rpc: "create_integration_webhook_endpoint",
         args: {
-          p_organization_id: organizationId,
+          p_organization_id: organizationId.trim(),
           p_name: name.trim(),
           p_destination_url: destinationUrl,
           p_event_types: values,
           p_description: "Created from the enterprise foundation control plane",
         },
       });
-      setIssuedSecret(result as EnterpriseJson);
+      if (request !== secretRequest.current) return;
+      setIssuedSecret({ scope: secretScope, value: result as EnterpriseJson });
       toast({ title: kind === "api" ? "API credential issued" : "Webhook endpoint created" });
     } catch (error) {
+      if (request !== secretRequest.current) return;
       setIssuedSecret(null);
       toast({ title: "Integration provisioning blocked", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
     }
@@ -1202,11 +1214,11 @@ function IntegrationProvisioningCommand() {
           <Label htmlFor="phase2-scopes-events">{kind === "api" ? "Scopes" : "Event types"} (comma separated)</Label>
           <Input id="phase2-scopes-events" value={scopesOrEvents} onChange={(event) => setScopesOrEvents(event.target.value)} />
         </div>
-        {issuedSecret !== null ? (
+        {issuedSecret?.scope === secretScope ? (
           <Alert className="md:col-span-2">
             <KeyRound className="h-4 w-4" />
             <AlertTitle>Copy this secret now</AlertTitle>
-            <AlertDescription><JsonValue value={issuedSecret} /></AlertDescription>
+            <AlertDescription><JsonValue value={issuedSecret.value} /></AlertDescription>
           </Alert>
         ) : null}
         <div className="md:col-span-2">
@@ -1218,7 +1230,7 @@ function IntegrationProvisioningCommand() {
         same organization field: type an organization once, then issue or take back. Until this
         landed, everything above was a one-way door -- issue a credential, create an endpoint, and
         no supported way to revoke, rotate or switch either off. */}
-    {organizationId.trim() && <IntegrationRegisterCard organizationId={organizationId.trim()} />}
+    {organizationId.trim() && <IntegrationRegisterCard key={organizationId.trim()} organizationId={organizationId.trim()} />}
     </>
   );
 }

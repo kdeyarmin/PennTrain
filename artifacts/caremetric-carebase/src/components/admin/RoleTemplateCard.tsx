@@ -9,7 +9,9 @@
  * restated in the client -- only the server knows the caller's effective permissions. Its 42501 is
  * surfaced verbatim rather than guessed at.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { useListOrganizations } from "@/hooks/useOrganizations";
 import { Loader2, ShieldPlus } from "lucide-react";
 import {
   usePermissionDefinitions,
@@ -32,7 +34,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-export function RoleTemplateCard({ organizationId }: { organizationId: string | null }) {
+export function RoleTemplateCard({ organizationId: assignedOrganizationId }: { organizationId: string | null }) {
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === "platform_admin";
+  const organizations = useListOrganizations(isPlatformAdmin);
+  const [chosenOrganizationId, setChosenOrganizationId] = useState(assignedOrganizationId ?? "");
+  const organizationId = isPlatformAdmin ? chosenOrganizationId || null : assignedOrganizationId;
   const templates = useEnterpriseRoleTemplates();
   const permissions = usePermissionDefinitions();
   const upsert = useUpsertEnterpriseRoleTemplate();
@@ -42,19 +49,29 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const editor = useRef(0);
+  const draft = useRef(0);
+  const scope = JSON.stringify([user?.id, user?.role, organizationId]);
+  const previousScope = useRef(scope);
+  useEffect(() => () => { editor.current += 1; }, []);
   const existingPermissions = useRoleTemplatePermissions(editingId ?? undefined);
 
   const rows = templates.data ?? [];
-  const custom = rows.filter((template) => !template.is_system_managed);
+  const custom = rows.filter((template) => !template.is_system_managed && template.organization_id === organizationId);
   const issues = roleTemplateIssues({ code, name, description, permissionKeys: selected });
 
   const reset = () => {
+    editor.current += 1; draft.current += 1; setLoadedFor(null);
     setEditingId(null); setName(""); setCode(""); setDescription(""); setSelected([]);
   };
+  const scopeChanged = previousScope.current !== scope;
+  if (scopeChanged) { previousScope.current = scope; reset(); }
 
   const startEdit = (templateId: string) => {
     const template = rows.find((row) => row.id === templateId);
-    if (!template) return;
+    if (!template || template.organization_id !== organizationId) return;
+    editor.current += 1; draft.current += 1; setLoadedFor(null);
     setEditingId(templateId);
     setName(template.name);
     setCode(template.code);
@@ -65,12 +82,14 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
   // The template's current permissions arrive after the edit begins -- the query only enables once
   // editingId is set. Tracking which template the loaded set belongs to keeps a slow response for
   // one template from overwriting a selection the administrator has already started on another.
-  const [loadedFor, setLoadedFor] = useState<string | null>(null);
-  if (editingId && existingPermissions.data && loadedFor !== editingId) {
+  if (!scopeChanged && editingId && existingPermissions.isSuccess && !existingPermissions.isFetching && !existingPermissions.isPlaceholderData && loadedFor !== editingId) {
     setLoadedFor(editingId);
     setSelected(existingPermissions.data);
   }
   if (!editingId && loadedFor !== null) setLoadedFor(null);
+  const permissionSetReady = !editingId || (loadedFor === editingId && existingPermissions.isSuccess
+    && !existingPermissions.isFetching && !existingPermissions.isPlaceholderData);
+  const permissionsReady = permissions.isSuccess && !permissions.isFetching && permissionSetReady;
 
   return (
     <Card>
@@ -82,6 +101,16 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {isPlatformAdmin && <div className="space-y-1.5">
+          <Label htmlFor="role-template-organization">Organization</Label>
+          <select id="role-template-organization" className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            value={chosenOrganizationId} disabled={!organizations.isSuccess || organizations.isFetching}
+            onChange={event => setChosenOrganizationId(event.target.value)}>
+            <option value="">Choose an organization</option>
+            {organizations.data?.map(organization => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+          </select>
+          {organizations.isError && <QueryError what="role template organizations" error={organizations.error} onRetry={() => void organizations.refetch()} />}
+        </div>}
         {templates.isError && (
           <QueryError what="role templates" error={templates.error} onRetry={() => void templates.refetch()} />
         )}
@@ -112,6 +141,7 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
               id="role-template-name"
               value={name}
               onChange={(event) => {
+                draft.current += 1;
                 setName(event.target.value);
                 // Only while creating: changing a saved template's code would orphan anything
                 // referencing it by code.
@@ -122,7 +152,7 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="role-template-code">Code</Label>
-            <Input id="role-template-code" value={code} onChange={(event) => setCode(event.target.value)} placeholder="regional-clinical-lead" />
+            <Input id="role-template-code" value={code} onChange={(event) => { draft.current += 1; setCode(event.target.value); }} placeholder="regional-clinical-lead" />
           </div>
           <div className="space-y-1.5 md:col-span-2">
             <Label htmlFor="role-template-description">Description</Label>
@@ -130,7 +160,7 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
               id="role-template-description"
               rows={2}
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              onChange={(event) => { draft.current += 1; setDescription(event.target.value); }}
               placeholder="What this role is for, in the words somebody approving a grant would use"
             />
           </div>
@@ -139,6 +169,16 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
             {/* Heads a checkbox group rather than one control, so it labels the group by id
                 instead of pointing htmlFor at an arbitrary member of it. */}
             <Label id="role-template-permissions-label">Permissions</Label>
+            {permissions.isError && <QueryError what="permission definitions" error={permissions.error} onRetry={() => void permissions.refetch()} />}
+            {editingId && existingPermissions.isError && <QueryError what="role template permissions" error={existingPermissions.error} onRetry={() => void existingPermissions.refetch()} />}
+            {editingId && existingPermissions.isFetching && <p className="text-xs text-muted-foreground">Loading saved permissions…</p>}
+            {permissions.isSuccess && selected.filter(key => !permissions.data.some(permission => permission.permission_key === key)).map(key => (
+              <div key={key} className="flex items-center gap-2 text-sm">
+                <span>Unavailable permission: {key}. Remove it before saving this role.</span>
+                <Button size="sm" variant="outline" disabled={!permissionsReady} aria-label={`Remove unavailable permission ${key}`}
+                  onClick={() => { draft.current += 1; setSelected(current => current.filter(value => value !== key)); }}>Remove</Button>
+              </div>
+            ))}
             <div
               role="group"
               aria-labelledby="role-template-permissions-label"
@@ -149,11 +189,12 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
                 <label key={permission.permission_key} className="flex items-start gap-2 text-sm">
                   <Checkbox
                     checked={selected.includes(permission.permission_key)}
-                    onCheckedChange={(checked) => setSelected((prev) => (
+                    disabled={!permissionsReady}
+                    onCheckedChange={(checked) => { if (!permissionsReady) return; draft.current += 1; setSelected((prev) => (
                       checked === true
                         ? [...prev, permission.permission_key]
                         : prev.filter((key) => key !== permission.permission_key)
-                    ))}
+                    )); }}
                   />
                   <span className="min-w-0">
                     <span className="font-medium">{permission.permission_key}</span>
@@ -173,11 +214,13 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
             {issues.map((issue) => <p key={issue} className="text-xs text-muted-foreground">{issue}</p>)}
             <div className="flex flex-wrap gap-2">
               <Button
-                disabled={!organizationId || issues.length > 0 || upsert.isPending}
+                disabled={!organizationId || !permissionsReady || issues.length > 0 || upsert.isPending}
                 onClick={async () => {
-                  if (!organizationId) return;
+                  if (!organizationId || !permissionsReady || issues.length || upsert.isPending) return;
+                  const submittedEditor = editor.current;
+                  const submittedDraft = draft.current;
                   try {
-                    await upsert.mutateAsync({
+                    const savedId = await upsert.mutateAsync({
                       organizationId,
                       code: code.trim().toLowerCase(),
                       name: name.trim(),
@@ -185,9 +228,12 @@ export function RoleTemplateCard({ organizationId }: { organizationId: string | 
                       permissionKeys: selected,
                       roleTemplateId: editingId,
                     });
+                    if (editor.current !== submittedEditor) return;
                     toast({ title: editingId ? "Role template updated" : "Role template created" });
-                    reset();
+                    if (draft.current === submittedDraft) reset();
+                    else if (!editingId) { setEditingId(savedId); setLoadedFor(savedId); }
                   } catch (error) {
+                    if (editor.current !== submittedEditor) return;
                     toast({
                       title: "Role template blocked",
                       description: error instanceof Error ? error.message : String(error),

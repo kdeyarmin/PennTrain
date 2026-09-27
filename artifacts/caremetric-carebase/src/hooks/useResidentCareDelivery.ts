@@ -333,6 +333,7 @@ export function useStartHospitalTransfer() {
       // start_hospital_transfer sets residents.status = 'hospital_leave', inserts a shift-report
       // handoff entry and an assessment review: every surface reading those rows refreshes.
       queryClient.invalidateQueries({ queryKey: ["residents"] });
+      queryClient.invalidateQueries({ queryKey: ["occupancy-board"] });
       queryClient.invalidateQueries({ queryKey: ["resident-care-header", input.residentId] });
       queryClient.invalidateQueries({ queryKey: ["resident-360", input.residentId] });
       queryClient.invalidateQueries({ queryKey: ["resident-timeline", input.residentId] });

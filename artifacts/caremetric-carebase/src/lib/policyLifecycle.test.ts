@@ -2,6 +2,24 @@ import { describe, expect, it } from "vitest";
 import { summarizePolicyLifecycle } from "./policyLifecycle";
 
 describe("summarizePolicyLifecycle", () => {
+  it("requires recipients before a campaign can be considered current", () => {
+    const input = {
+      currentVersionId: "v1",
+      versions: [{ id: "v1", status: "published" }],
+      campaigns: [{ id: "c1", due_date: null, policy_document_version_id: "v1" }],
+      attestations: [],
+      today: "2026-09-26",
+    };
+    expect(summarizePolicyLifecycle(input).state).toBe("needs_assignments");
+    const signed = [{ campaign_id: "c1", status: "attested", due_date: null }];
+    expect(summarizePolicyLifecycle({ ...input, attestations: signed }).state).toBe("complete");
+    expect(summarizePolicyLifecycle({
+      ...input,
+      campaigns: [...input.campaigns, { id: "c2", due_date: null, policy_document_version_id: "v1" }],
+      attestations: signed,
+    }).state).toBe("needs_assignments");
+  });
+
   it("recommends the next policy lifecycle step", () => {
     expect(summarizePolicyLifecycle({ currentVersionId: null, versions: [], campaigns: [], attestations: [], today: "2026-07-10" }).state).toBe("needs_version");
     expect(summarizePolicyLifecycle({

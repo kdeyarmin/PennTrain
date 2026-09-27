@@ -209,6 +209,120 @@ test.describe("authenticated role journeys", () => {
       const critical = (await new AxeBuilder({ page }).analyze()).violations
         .filter((v) => v.impact === "critical");
       expect(critical, JSON.stringify(critical, null, 2)).toEqual([]);
+
+      if (role === "employee") {
+        await test.step("mobile search retains keyboard page navigation when record lookup fails", async () => {
+          await page.setViewportSize({ width: 390, height: 844 });
+          const searchEndpoint = "**/rest/v1/rpc/search_workspace";
+          await page.route(searchEndpoint, route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Record lookup temporarily unavailable" }) }));
+          try {
+            await page.getByRole("button", { name: "Open search", exact: true }).click();
+            const search = page.getByRole("combobox", { name: "Search pages, people, and your training", exact: true });
+            await search.fill("certificates");
+            await expect(page.getByText("Record search unavailable", { exact: true })).toBeVisible({ timeout: 15_000 });
+            await expect(page.getByRole("option", { name: /My certificates/ })).toBeVisible();
+            await search.press("ArrowDown");
+            await search.press("Enter");
+            await expect(page.getByRole("heading", { level: 1, name: "My Certificates", exact: true })).toBeVisible();
+            await expect(page.getByRole("listbox", { name: "Search results" })).toHaveCount(0);
+            await expectNoHorizontalOverflow(page);
+          } finally { await page.unroute(searchEndpoint); }
+        });
+      }
+
+      if (role === "org_admin") {
+        await test.step("qualification autosaves preserve other fields through authenticated PostgREST upserts", async () => {
+          await gotoAppRoute(page, "/app/administrator-qualification");
+          await page.getByLabel("Administrator", { exact: true }).click();
+          await page.getByRole("option", { name: /Organization administrator/ }).click();
+          const saveField = async (field: string, value: unknown, change: () => Promise<unknown>) => {
+            const [response] = await Promise.all([
+              page.waitForResponse(response => response.url().includes("/rest/v1/administrator_profiles?")
+                && response.request().method() === "POST"
+                && response.request().postDataJSON()?.[field] === value),
+              change(),
+            ]);
+            expect(response.ok()).toBe(true);
+            expect(Object.keys(response.request().postDataJSON()).sort()).toEqual([field, "organization_id", "profile_id"].sort());
+            return response;
+          };
+          const firstSave = await saveField("qualification_path", "hundred_hour_course", async () => {
+            await page.getByLabel("Qualification Path", { exact: true }).click();
+            await page.getByRole("option", { name: "100-Hour Administrator Course", exact: true }).click();
+          });
+          // Observe through the same MFA-verified browser session. This table intentionally
+          // has no service-role SELECT grant; setup credentials are not its read authority.
+          const authorization = await firstSave.request().headerValue("authorization");
+          if (!authorization) throw new Error("The qualification save did not include its authenticated session.");
+          const qualificationReader = createClient(supabaseUrl, anonKey, {
+            auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+            global: { headers: { Authorization: authorization } },
+          });
+          await saveField("hundred_hour_course_provider", "Journey provider", async () => {
+            await page.getByLabel("Training Course Provider", { exact: true }).fill("Journey provider");
+            await page.getByLabel("Training Course Provider", { exact: true }).press("Tab");
+          });
+          await saveField("hundred_hour_course_completed_date", "2026-09-01", async () => {
+            const completedDate = page.getByLabel("Training Course Completed Date", { exact: true });
+            await completedDate.fill("2026-09-01");
+            // Tab can move between a native date input's segments without firing onBlur.
+            await completedDate.blur();
+            await expect(completedDate).not.toBeFocused();
+          });
+          const saved = await qualificationReader.from("administrator_profiles").select("hundred_hour_course_provider,hundred_hour_course_completed_date")
+            .eq("profile_id", account.id).eq("organization_id", organizationId).single();
+          expect(saved.error).toBeNull();
+          expect(saved.data).toEqual({ hundred_hour_course_provider: "Journey provider", hundred_hour_course_completed_date: "2026-09-01" });
+          const competencyPassed = page.getByRole("checkbox", { name: "Competency test passed", exact: true });
+          await expect(competencyPassed).not.toBeChecked();
+          // The controlled state changes after the save response, not during the click.
+          await saveField("competency_test_passed", true, () => competencyPassed.click());
+          await expect(competencyPassed).toBeChecked();
+          await saveField("competency_test_passed", false, () => competencyPassed.click());
+          await expect(competencyPassed).not.toBeChecked();
+          await saveField("hundred_hour_course_provider", null, async () => {
+            await page.getByLabel("Training Course Provider", { exact: true }).fill("");
+            await page.getByLabel("Training Course Provider", { exact: true }).press("Tab");
+          });
+          const cleared = await qualificationReader.from("administrator_profiles").select("hundred_hour_course_provider,hundred_hour_course_completed_date,competency_test_passed")
+            .eq("profile_id", account.id).eq("organization_id", organizationId).single();
+          expect(cleared.error).toBeNull();
+          expect(cleared.data).toEqual({ hundred_hour_course_provider: null, hundred_hour_course_completed_date: "2026-09-01", competency_test_passed: false });
+        });
+        await test.step("changing employee routes discards the previous employee's draft", async () => {
+          const { data: staff, error } = await admin.from("employees").insert([
+            { organization_id: organizationId, facility_id: facilityId, first_name: "RouteAlpha", last_name: "Staff", status: "active", job_title: "Caregiver" },
+            { organization_id: organizationId, facility_id: facilityId, first_name: "RouteBeta", last_name: "Staff", status: "active", job_title: "Caregiver" },
+          ]).select("id,first_name");
+          if (error) throw error;
+          const first = staff!.find(employee => employee.first_name === "RouteAlpha")!;
+          const second = staff!.find(employee => employee.first_name === "RouteBeta")!;
+          await gotoAppRoute(page, `/app/employees/${first.id}`);
+          await expect(page.getByRole("heading", { level: 1, name: "RouteAlpha Staff", exact: true })).toBeVisible();
+          await page.getByRole("button", { name: "Edit", exact: true }).click();
+          const editDialog = page.getByRole("dialog", { name: "Edit Employee", exact: true });
+          await editDialog.getByLabel("First Name", { exact: false }).fill("Unsaved Alpha Draft");
+
+          // Auth re-announces the current session when the browser tab becomes visible.
+          // Wait for its profile refresh so this checks the completed event, not the old frame.
+          await Promise.all([
+            page.waitForResponse(response => response.url().includes("/rest/v1/profiles?")
+              && response.request().method() === "GET" && response.status() === 200),
+            page.evaluate(() => window.dispatchEvent(new Event("visibilitychange"))),
+          ]);
+          await expect(editDialog).toBeVisible();
+          await expect(editDialog.getByLabel("First Name", { exact: false })).toHaveValue("Unsaved Alpha Draft");
+
+          // Exercise client-side route reuse, which a full page.goto reload would conceal.
+          await page.evaluate(path => window.history.pushState(null, "", path), `/app/employees/${second.id}`);
+          await expect(page.getByRole("heading", { level: 1, name: "RouteBeta Staff", exact: true })).toBeVisible();
+          await expect(editDialog).not.toBeVisible();
+          await page.getByRole("button", { name: "Edit", exact: true }).click();
+          await expect(editDialog.getByLabel("First Name", { exact: false })).toHaveValue("RouteBeta");
+          await editDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+        });
+      }
+
     });
   }
 });

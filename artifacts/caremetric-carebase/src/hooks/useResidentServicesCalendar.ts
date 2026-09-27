@@ -17,6 +17,7 @@ export interface ResidentServiceCalendarEventView extends ResidentServiceCalenda
 }
 
 export interface CalendarFilters {
+  organizationId?: string;
   facilityId?: string;
   from: string;
   through: string;
@@ -31,36 +32,47 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["qapi"] });
 }
 
-export function useResidentServicesCalendar(filters: CalendarFilters) {
+export function useResidentServicesCalendar(filters: CalendarFilters, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["resident-services-calendar", "events", filters],
-    queryFn: async () => {
-      let query = supabase.from("resident_service_calendar_events").select(`
-        *,
-        resident:residents(id,first_name,last_name,room),
-        vehicle:facility_transport_vehicles(id,label,vehicle_type,license_plate,wheelchair_accessible),
-        staff:resident_service_calendar_event_staff(*,employee:employees(id,first_name,last_name,job_title)),
-        follow_ups:resident_service_calendar_follow_ups(*)
-      `).gte("starts_at", filters.from).lt("starts_at", filters.through).order("starts_at");
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.residentId) query = query.eq("resident_id", filters.residentId);
-      if (filters.eventType) query = query.eq("event_type", filters.eventType);
-      if (filters.status) query = query.eq("status", filters.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as unknown as ResidentServiceCalendarEventView[];
+    queryFn: async ({ signal }) => {
+      const rows: ResidentServiceCalendarEventView[] = [];
+      for (;;) {
+        let query = supabase.from("resident_service_calendar_events").select(`
+          *,
+          resident:residents(id,first_name,last_name,room),
+          vehicle:facility_transport_vehicles(id,label,vehicle_type,license_plate,wheelchair_accessible),
+          staff:resident_service_calendar_event_staff(*,employee:employees(id,first_name,last_name,job_title)),
+          follow_ups:resident_service_calendar_follow_ups(*)
+        `).gte("starts_at", filters.from).lt("starts_at", filters.through).order("starts_at").order("id").abortSignal(signal);
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.residentId) query = query.eq("resident_id", filters.residentId);
+        if (filters.eventType) query = query.eq("event_type", filters.eventType);
+        if (filters.status) query = query.eq("status", filters.status);
+        const { data, error } = await query.range(rows.length, rows.length + 999);
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data as unknown as ResidentServiceCalendarEventView[]);
+      }
     },
+    enabled: options.enabled ?? true,
   });
 }
 
 export function useFacilityTransportVehicles(facilityId?: string) {
   return useQuery({
     queryKey: ["resident-services-calendar", "vehicles", facilityId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("facility_transport_vehicles")
-        .select("*").eq("facility_id", facilityId!).order("label");
-      if (error) throw error;
-      return data;
+    queryFn: async ({ signal }) => {
+      const rows: FacilityTransportVehicle[] = [];
+      for (;;) {
+        const { data, error } = await supabase.from("facility_transport_vehicles")
+          .select("*").eq("facility_id", facilityId!).order("label").order("id")
+          .range(rows.length, rows.length + 999).abortSignal(signal);
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data);
+      }
     },
     enabled: !!facilityId,
   });

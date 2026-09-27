@@ -758,8 +758,25 @@ test.describe("role-aware release journeys", () => {
     const draft = page.getByRole("dialog", { name: "New Policy Document" });
     await draft.getByLabel("Title", { exact: true }).fill("Unsaved policy verification regression");
     await draft.getByLabel("Description (optional)").fill("Preserve this unsaved description through password and TOTP.");
-    // Force only this operation's freshness response to expire. Authentication,
+    // Expire this operation's freshness and fail the first lock connection. The retry,
     // server lock/unlock, password and TOTP still use the real disposable backend.
+    let lockAttempts = 0;
+    await page.route("**/rest/v1/rpc/record_idle_session_lock", async route => {
+      lockAttempts += 1;
+      if (lockAttempts === 1) {
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Temporary connection failure" }) });
+      } else await route.continue();
+    });
+    let unlockAttempts = 0;
+    await page.route("**/rest/v1/rpc/record_idle_session_unlock", async route => {
+      unlockAttempts += 1;
+      const response = await route.fetch();
+      if (unlockAttempts === 1 && response.ok()) {
+        // The write committed, but its acknowledgement was lost. The same receipt must be
+        // safely replayable after another factor verification without duplicating the audit.
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Unlock acknowledgement lost" }) });
+      } else await route.fulfill({ response });
+    });
     let requireRenewal = true;
     await page.route("**/rest/v1/rpc/identity_assurance_is_current", async route => {
       const args = route.request().postDataJSON() as { p_operation?: string } | null;
@@ -772,6 +789,7 @@ test.describe("role-aware release journeys", () => {
     await expect(draft.getByRole("button", { name: "Create", exact: true })).toBeDisabled();
     await verifyIdentity.click();
     const passwordDialog = page.getByRole("dialog", { name: "Verify your identity", exact: true });
+    await expect(page.getByText("Session lock could not be confirmed", { exact: true })).toBeVisible();
     await passwordDialog.getByLabel("Password", { exact: true }).fill(account.password);
     await expect(passwordDialog.getByLabel("Password", { exact: true })).toBeFocused();
     await passwordDialog.getByRole("button", { name: "Unlock session", exact: true }).click();
@@ -779,11 +797,17 @@ test.describe("role-aware release journeys", () => {
     await factorDialog.getByLabel("6-digit code").fill(totpCode(orgAdminMfaSecret));
     requireRenewal = false;
     await factorDialog.getByRole("button", { name: "Verify and continue", exact: true }).click();
+    await expect(page.getByText("Verification failed", { exact: true })).toBeVisible();
+    await expect(factorDialog).toBeVisible();
+    await factorDialog.getByLabel("6-digit code").fill(totpCode(orgAdminMfaSecret));
+    await factorDialog.getByRole("button", { name: "Verify and continue", exact: true }).click();
     await expect(factorDialog).toBeHidden({ timeout: 20_000 });
     await expect(draft).toBeVisible();
     await expect(draft.getByLabel("Title", { exact: true })).toHaveValue("Unsaved policy verification regression");
     await expect(draft.getByLabel("Description (optional)")).toHaveValue("Preserve this unsaved description through password and TOTP.");
     await expect(draft.getByRole("button", { name: "Create", exact: true })).toBeEnabled();
+    expect(lockAttempts).toBe(2);
+    expect(unlockAttempts).toBe(2);
     expect(new URL(page.url()).pathname).toBe("/app/policy-documents");
   });
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,12 @@ export function BreakGlassCard() {
   const [expiresAt, setExpiresAt] = useState(defaultExpiry());
   const [revoking, setRevoking] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
+  const draft = useRef(0);
+  const confirmation = useRef(0);
+  const scope = JSON.stringify([user?.id, user?.organizationId, user?.role]);
+  const previousScope = useRef(scope);
+  if (previousScope.current !== scope) { previousScope.current = scope; draft.current += 1; confirmation.current += 1; setOpening(false); setRevoking(null); }
+  useEffect(() => () => { draft.current += 1; confirmation.current += 1; }, []);
 
   const expiry = (() => {
     if (!expiresAt) return null;
@@ -109,6 +115,7 @@ export function BreakGlassCard() {
       <CardContent className="space-y-4">
         {!opening && (
           <Button variant="outline" size="sm" onClick={() => {
+            draft.current += 1;
             setOpening(true); setTargetProfileId(""); setRequestedBy(""); setReason(""); setTicket(""); setExpiresAt(defaultExpiry());
           }}>
             Record a break-glass authorization
@@ -119,11 +126,11 @@ export function BreakGlassCard() {
           <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
             <div className="space-y-1.5">
               <Label htmlFor="bg-target">Profile the access is for</Label>
-              <Input id="bg-target" value={targetProfileId} onChange={(e) => setTargetProfileId(e.target.value)} placeholder="Profile UUID" />
+              <Input id="bg-target" value={targetProfileId} onChange={(e) => { draft.current += 1; setTargetProfileId(e.target.value); }} placeholder="Profile UUID" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bg-requester">Requested by</Label>
-              <Input id="bg-requester" value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Profile UUID of whoever asked for it" />
+              <Input id="bg-requester" value={requestedBy} onChange={(e) => { draft.current += 1; setRequestedBy(e.target.value); }} placeholder="Profile UUID of whoever asked for it" />
               {approverIsRequester ? (
                 <p className="text-xs text-destructive">
                   You are approving this, so you cannot also be the one who requested it. Break-glass
@@ -138,18 +145,18 @@ export function BreakGlassCard() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bg-ticket">Ticket reference</Label>
-              <Input id="bg-ticket" value={ticket} onChange={(e) => setTicket(e.target.value)} placeholder="INC-2043" />
+              <Input id="bg-ticket" value={ticket} onChange={(e) => { draft.current += 1; setTicket(e.target.value); }} placeholder="INC-2043" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bg-reason">Why this access is needed now</Label>
-              <Textarea id="bg-reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
+              <Textarea id="bg-reason" rows={2} value={reason} onChange={(e) => { draft.current += 1; setReason(e.target.value); }} />
               {reason.trim().length < MIN_REASON && (
                 <p className="text-xs text-muted-foreground">At least {MIN_REASON} characters.</p>
               )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bg-expiry">Expires</Label>
-              <Input id="bg-expiry" type="datetime-local" className="sm:w-64" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+              <Input id="bg-expiry" type="datetime-local" className="sm:w-64" value={expiresAt} onChange={(e) => { draft.current += 1; setExpiresAt(e.target.value); }} />
               {expiryPast && <p className="text-xs text-destructive">It has to expire in the future.</p>}
               {expiryTooFar && (
                 <p className="text-xs text-destructive">
@@ -161,20 +168,20 @@ export function BreakGlassCard() {
               <Button
                 size="sm" variant="destructive"
                 disabled={grant.isPending || !canGrant || !user?.id}
-                onClick={() => grant.mutate({
+                onClick={() => { const request = draft.current; grant.mutate({
                   targetProfileId: targetProfileId.trim(),
                   requestedBy: requestedBy.trim(),
                   reason: reason.trim(),
                   ticketReference: ticket.trim(),
                   expiresAt: facilityDateTimeLocalToUtcIso(expiresAt),
                 }, {
-                  onSuccess: () => { setOpening(false); toast({ title: "Break-glass authorization recorded", description: "Now grant the access itself, and end it by the expiry you set." }); },
-                  onError: (error) => toast({ title: "Could not record the authorization", description: errorText(error), variant: "destructive" }),
-                })}
+                  onSuccess: () => { if (request !== draft.current) return; setOpening(false); toast({ title: "Break-glass authorization recorded", description: "Now grant the access itself, and end it by the expiry you set." }); },
+                  onError: (error) => { if (request === draft.current) toast({ title: "Could not record the authorization", description: errorText(error), variant: "destructive" }); },
+                }); }}
               >
                 {grant.isPending ? "Recording…" : "Record authorization"}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setOpening(false)}>Cancel</Button>
+              <Button size="sm" variant="ghost" onClick={() => { draft.current += 1; setOpening(false); }}>Cancel</Button>
             </div>
           </div>
         )}
@@ -198,7 +205,7 @@ export function BreakGlassCard() {
                       {active ? "active" : event.revoked_at ? "revoked" : "expired"}
                     </Badge>
                     {active && revoking !== event.id && (
-                      <Button size="sm" variant="outline" onClick={() => { setRevoking(event.id); setRevokeReason(""); }}>
+                      <Button size="sm" variant="outline" onClick={() => { confirmation.current += 1; setRevoking(event.id); setRevokeReason(""); }}>
                         Close now
                       </Button>
                     )}
@@ -224,14 +231,14 @@ export function BreakGlassCard() {
                       <Button
                         size="sm" variant="destructive"
                         disabled={revoke.isPending || revokeReason.trim().length < MIN_REASON}
-                        onClick={() => revoke.mutate({ eventId: event.id, reason: revokeReason.trim() }, {
-                          onSuccess: () => { setRevoking(null); toast({ title: "Break-glass authorization closed" }); },
-                          onError: (error) => toast({ title: "Revoke blocked", description: errorText(error), variant: "destructive" }),
-                        })}
+                        onClick={() => { const request = confirmation.current; revoke.mutate({ eventId: event.id, reason: revokeReason.trim() }, {
+                          onSuccess: () => { if (request !== confirmation.current) return; setRevoking(null); toast({ title: "Break-glass authorization closed" }); },
+                          onError: (error) => { if (request === confirmation.current) toast({ title: "Revoke blocked", description: errorText(error), variant: "destructive" }); },
+                        }); }}
                       >
                         Confirm revoke
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setRevoking(null)}>Cancel</Button>
+                      <Button size="sm" variant="ghost" onClick={() => { confirmation.current += 1; setRevoking(null); }}>Cancel</Button>
                     </div>
                   </div>
                 )}

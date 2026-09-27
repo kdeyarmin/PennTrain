@@ -1,4 +1,6 @@
 import { useId, useEffect, useState } from "react";
+import { parseQuizSettingsInput } from "@/lib/quizAuthoring";
+import { useTrainingItemOrder } from "@/hooks/useTrainingItemOrder";
 import { useQuery } from '@tanstack/react-query';
 import { loadGovernedDraftSource } from '@/lib/governedLearningDraft';
 import { NativeGovernedDraftEditor } from '@/components/learning/NativeGovernedDraftEditor';
@@ -22,7 +24,7 @@ import { ArrowLeft, ArrowUp, ArrowDown, ListChecks, Pencil, Plus, Trash2, Lock }
 import {
   useGetQuiz, useUpdateQuiz,
   useListQuizQuestions, useCreateQuizQuestion, useUpdateQuizQuestion, useDeleteQuizQuestion,
-  useQuizAnswersByQuestionIds, useCreateQuizAnswer, useUpdateQuizAnswer, useDeleteQuizAnswer,
+  useQuizAnswersByQuestionIds, useCreateQuizAnswer, useUpdateQuizAnswer, useDeleteQuizAnswer, useSetQuizCorrectAnswer,
   useQuizQuestionStats,
   type QuizQuestionWithExplanation, type QuizAnswer, type QuestionStats,
 } from "@/hooks/useQuizzes";
@@ -69,7 +71,7 @@ function AnswerRow({
 }) {
   const { toast } = useToast();
   const [text, setText] = useState(answer.answer_text);
-  const { mutate: updateAnswer } = useUpdateQuizAnswer();
+  const { mutate: updateAnswer, isPending: savingText } = useUpdateQuizAnswer();
 
   useEffect(() => setText(answer.answer_text), [answer.answer_text]);
 
@@ -104,7 +106,7 @@ function AnswerRow({
       )}
       <Input
         value={text}
-        disabled={locked}
+        disabled={locked || savingText}
         onChange={(e) => setText(e.target.value)}
         onBlur={commitText}
         className="h-8 text-sm"
@@ -169,8 +171,10 @@ function QuestionCard({
 }) {
   const { toast } = useToast();
   const { mutate: createAnswer, isPending: creatingAnswer } = useCreateQuizAnswer();
-  const { mutate: updateAnswer } = useUpdateQuizAnswer();
-  const { mutate: deleteAnswer } = useDeleteQuizAnswer();
+  const { mutate: updateAnswer, isPending: updatingAnswer } = useUpdateQuizAnswer();
+  const { mutate: deleteAnswer, isPending: deletingAnswer } = useDeleteQuizAnswer();
+  const { mutate: setCorrectAnswer, isPending: settingCorrectAnswer } = useSetQuizCorrectAnswer();
+  const answersBusy = creatingAnswer || updatingAnswer || deletingAnswer || settingCorrectAnswer;
 
   const handleAddAnswer = () => {
     const nextSort = (answers?.reduce((max, a) => Math.max(max, a.sort_order), -1) ?? -1) + 1;
@@ -187,16 +191,9 @@ function QuestionCard({
   };
 
   const handleMarkCorrect = (answer: QuizAnswer) => {
-    for (const a of answers ?? []) {
-      if (a.id !== answer.id && a.is_correct) {
-        updateAnswer(
-          { id: a.id, is_correct: false },
-          { onError: (e: Error) => toast({ title: "Failed to update answer", description: e.message, variant: "destructive" }) },
-        );
-      }
-    }
-    updateAnswer(
-      { id: answer.id, is_correct: true },
+    if (locked || answersBusy || answersLoading || answersError) return;
+    setCorrectAnswer(
+      { questionId: question.id, answerId: answer.id },
       { onError: (e: Error) => toast({ title: "Failed to update answer", description: e.message, variant: "destructive" }) },
     );
   };
@@ -265,7 +262,7 @@ function QuestionCard({
                 key={a.id}
                 answer={a}
                 questionType={question.question_type}
-                locked={locked}
+                locked={locked || answersBusy}
                 onMarkCorrect={() => handleMarkCorrect(a)}
                 onToggleCorrect={(checked) => handleToggleCorrect(a, checked)}
                 onDelete={() => handleDeleteAnswer(a)}
@@ -274,7 +271,7 @@ function QuestionCard({
           </div>
         )}
         {!locked && (
-          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={handleAddAnswer} disabled={creatingAnswer}>
+          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={handleAddAnswer} disabled={answersBusy || answersLoading || answersError}>
             <Plus className="h-3 w-3 mr-1" /> Add answer choice
           </Button>
         )}
@@ -326,31 +323,14 @@ export default function QuizBuilder() {
       toast({ title: "Quiz title is required", variant: "destructive" });
       return;
     }
-    // `Number("")` is 0, and 0 is finite -- so the previous `Number.isFinite(...)` guard caught
-    // "abc" but waved an EMPTY field straight through as a 0% passing score, which
-    // quizzes_passing_score_check (`between 0 and 100`) accepts without complaint. Clearing the
-    // field to retype it and hitting Save made every subsequent attempt a pass, on a quiz whose
-    // result backs a training certification. Blank means "leave it alone"; anything present has to
-    // be a real number in range, and is rejected loudly rather than coerced.
-    const rawPassingScore = quizForm.passingScore.trim();
-    const passingScore = Number(rawPassingScore);
-    if (rawPassingScore && (!Number.isFinite(passingScore) || passingScore < 0 || passingScore > 100)) {
-      toast({ title: "Passing score must be a number between 0 and 100", variant: "destructive" });
-      return;
-    }
-    const rawMaxAttempts = quizForm.maxAttempts.trim();
-    const maxAttempts = Number(rawMaxAttempts);
-    if (rawMaxAttempts && (!Number.isInteger(maxAttempts) || maxAttempts < 1)) {
-      toast({ title: "Attempt limit must be a whole number of 1 or more", variant: "destructive" });
-      return;
-    }
+    let settings;
+    try { settings = parseQuizSettingsInput(quizForm.passingScore, quizForm.maxAttempts, quiz.passing_score_percent); }
+    catch (error) { toast({ title: (error as Error).message, variant: "destructive" }); return; }
     updateQuiz(
       {
         id: quiz.id,
         title: quizForm.title.trim(),
-        passing_score_percent: rawPassingScore ? passingScore : quiz.passing_score_percent,
-        // Blank is a real choice here (unlimited attempts), unlike the score above.
-        max_attempts: rawMaxAttempts ? maxAttempts : null,
+        ...settings,
       },
       {
         onSuccess: () => { toast({ title: "Quiz updated" }); setShowEditQuiz(false); },
@@ -364,27 +344,22 @@ export default function QuizBuilder() {
   const [editingQuestion, setEditingQuestion] = useState<QuizQuestionWithExplanation | null>(null);
   const [questionForm, setQuestionForm] = useState<QuestionFormState>(EMPTY_QUESTION_FORM);
   const { mutate: createQuestion, isPending: creatingQuestion } = useCreateQuizQuestion();
-  const { mutate: updateQuestion, mutateAsync: updateQuestionAsync, isPending: updatingQuestion } = useUpdateQuizQuestion();
+  const { mutate: updateQuestion, isPending: updatingQuestion } = useUpdateQuizQuestion();
+  const { mutateAsync: reorderQuestion } = useTrainingItemOrder("quiz_questions");
   const { mutate: deleteQuestion, isPending: deletingQuestion } = useDeleteQuizQuestion();
   const [questionPendingDelete, setQuestionPendingDelete] = useState<QuizQuestionWithExplanation | null>(null);
 
-  // --- Question reordering (sort_order swap with the adjacent question) ---
-  // Mirrors CompetencyTemplates.tsx's ManageItemsDialog.handleMove: two concurrent mutateAsync
-  // calls swapping sort_order, with a busy-state guard so a second click can't race an in-flight
-  // swap.
+  // Swap adjacent positions in one transaction, including stale-order checks.
   const [reorderingQuestions, setReorderingQuestions] = useState(false);
 
   const handleMoveQuestion = async (index: number, direction: -1 | 1) => {
-    if (!questions) return;
+    if (!questions || reorderingQuestions || isLocked) return;
     const target = questions[index];
     const neighbor = questions[index + direction];
     if (!target || !neighbor) return;
     setReorderingQuestions(true);
     try {
-      await Promise.all([
-        updateQuestionAsync({ id: target.id, sort_order: neighbor.sort_order }),
-        updateQuestionAsync({ id: neighbor.id, sort_order: target.sort_order }),
-      ]);
+      await reorderQuestion({ first: target, second: neighbor });
     } catch (e) {
       toast({ title: "Failed to reorder questions", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -416,13 +391,17 @@ export default function QuizBuilder() {
       return;
     }
     const points = Number(questionForm.points);
+    if (!Number.isSafeInteger(points) || points < 1 || points > 2147483647) {
+      toast({ title: "Points must be a whole number between 1 and 2147483647", variant: "destructive" });
+      return;
+    }
     if (editingQuestion) {
       updateQuestion(
         {
           id: editingQuestion.id,
           question_text: questionForm.question_text.trim(),
           question_type: questionForm.question_type,
-          points: Number.isFinite(points) && points > 0 ? points : 1,
+          points,
           explanation: questionForm.explanation.trim() || null,
         },
         {
@@ -438,7 +417,7 @@ export default function QuizBuilder() {
           organization_id: quiz.organization_id,
           question_text: questionForm.question_text.trim(),
           question_type: questionForm.question_type,
-          points: Number.isFinite(points) && points > 0 ? points : 1,
+          points,
           explanation: questionForm.explanation.trim() || null,
           sort_order: nextSort,
         },

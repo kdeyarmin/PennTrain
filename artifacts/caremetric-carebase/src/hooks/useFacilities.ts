@@ -13,12 +13,19 @@ export interface ListFacilitiesFilters {
 export function useListFacilities(filters: ListFacilitiesFilters = {}, enabled = true) {
   return useQuery({
     queryKey: ["facilities", filters],
-    queryFn: async () => {
-      let query = supabase.from("facilities").select("*").order("name");
-      if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+    queryFn: async ({ signal }) => {
+      const rows: Facility[] = [];
+      for (let from = 0; ;) {
+        let query = supabase.from("facilities").select("*").order("name").order("id")
+          .range(from, from + 999).abortSignal(signal);
+        if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!data?.length) break;
+        rows.push(...data);
+        from += data.length;
+      }
+      return rows;
     },
     enabled,
   });

@@ -1,4 +1,4 @@
-import { useId, useEffect, useState } from "react";
+import { useId, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useMyProfile, useUpdateProfile } from "@/hooks/useProfiles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,11 @@ export default function NotificationSettings() {
   const { mutate: updateProfile, isPending: saving } = useUpdateProfile();
   const [pushActive, setPushActive] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [pushChecking, setPushChecking] = useState(true);
+  const [pushStatusError, setPushStatusError] = useState<Error | null>(null);
+  const [pushCheckRevision, setPushCheckRevision] = useState(0);
+  const pushRequest = useRef(0);
+  const pushOperation = useRef<AbortController | null>(null);
   const pushPermission = getPushPermissionState();
 
   const [form, setForm] = useState<ContactFormData>({
@@ -58,34 +63,59 @@ export default function NotificationSettings() {
   }, [profile, hydratedProfileId]);
 
   useEffect(() => {
-    void hasActiveWebPushSubscription().then(setPushActive).catch(() => setPushActive(false));
-  }, []);
+    const request = ++pushRequest.current;
+    pushOperation.current?.abort();
+    const operation = new AbortController();
+    pushOperation.current = operation;
+    setPushActive(false);
+    setPushBusy(false);
+    setPushChecking(true);
+    setPushStatusError(null);
+    void hasActiveWebPushSubscription(operation.signal).then(active => {
+      if (request === pushRequest.current) setPushActive(active);
+    }).catch((error: unknown) => {
+      if (request === pushRequest.current) setPushStatusError(error instanceof Error ? error : new Error("Browser notification status could not be checked."));
+    }).finally(() => { if (request === pushRequest.current) setPushChecking(false); });
+    return () => { pushRequest.current++; pushOperation.current?.abort(); };
+  }, [user?.id, pushCheckRevision]);
 
   const handleEnablePush = async () => {
+    if (pushBusy || pushChecking || pushStatusError) return;
+    const request = ++pushRequest.current;
+    pushOperation.current?.abort();
+    const operation = new AbortController();
+    pushOperation.current = operation;
     setPushBusy(true);
     try {
-      await enableWebPush();
+      await enableWebPush(operation.signal);
+      if (request !== pushRequest.current) return;
       setPushActive(true);
       setForm((current) => ({ ...current, preferredNotificationChannel: "web_push" }));
       toast({ title: "Browser notifications enabled", description: "Save changes to make web push your preferred channel." });
     } catch (e) {
-      toast({ title: "Could not enable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      if (request === pushRequest.current) toast({ title: "Could not enable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
-      setPushBusy(false);
+      if (request === pushRequest.current) setPushBusy(false);
     }
   };
 
   const handleDisablePush = async () => {
+    if (pushBusy || pushChecking || pushStatusError) return;
+    const request = ++pushRequest.current;
+    pushOperation.current?.abort();
+    const operation = new AbortController();
+    pushOperation.current = operation;
     setPushBusy(true);
     try {
-      await disableWebPush();
+      await disableWebPush(operation.signal);
+      if (request !== pushRequest.current) return;
       setPushActive(false);
       setForm((current) => ({ ...current, preferredNotificationChannel: current.preferredNotificationChannel === "web_push" ? "email" : current.preferredNotificationChannel }));
       toast({ title: "Browser notifications disabled", description: "Choose email or SMS and save your preferences." });
     } catch (e) {
-      toast({ title: "Could not disable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      if (request === pushRequest.current) toast({ title: "Could not disable browser notifications", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
-      setPushBusy(false);
+      if (request === pushRequest.current) setPushBusy(false);
     }
   };
 
@@ -294,19 +324,20 @@ export default function NotificationSettings() {
                     Compliance-critical expiry alerts can still use your organization's approved email and SMS paths.
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Status: {pushPermission === "unsupported" ? "not supported by this browser" : pushActive ? "enabled on this browser" : pushPermission === "denied" ? "blocked in browser settings" : "not enabled"}.
+                    Status: {pushPermission === "unsupported" ? "not supported by this browser" : pushChecking ? "checking this browser" : pushStatusError ? "could not be confirmed" : pushActive ? "enabled on this browser" : pushPermission === "denied" ? "blocked in browser settings" : "not enabled"}.
                   </p>
                 </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={pushBusy || pushPermission === "unsupported" || (!pushActive && pushPermission === "denied")}
+                  disabled={pushBusy || pushChecking || !!pushStatusError || pushPermission === "unsupported" || (!pushActive && pushPermission === "denied")}
                   onClick={() => void (pushActive ? handleDisablePush() : handleEnablePush())}
                 >
                   {pushBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {pushActive ? "Disable" : "Enable"}
                 </Button>
+                {pushStatusError && <QueryError what="browser notification status" error={pushStatusError} onRetry={() => setPushCheckRevision(revision => revision + 1)} />}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`${__fieldIds}-preferred-notification-channel`} className="text-[13px]">Preferred notification channel</Label>

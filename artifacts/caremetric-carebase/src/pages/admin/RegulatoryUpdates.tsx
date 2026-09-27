@@ -1,4 +1,5 @@
-import { lazy, Suspense, useId, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useRef, useState, type SetStateAction } from "react";
+import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -128,14 +129,28 @@ const STATUS_BADGE_VARIANT: Record<RegulatoryUpdateStatus, "default" | "outline"
 
 export default function RegulatoryUpdates() {
   const __fieldIds = useId();
+  const { user } = useAuth();
   const { toast } = useToast();
   const { data, isLoading, isError, error, refetch } = useAdminRegulatoryUpdates();
   const updates = data ?? [];
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [deleteTarget, setDeleteTarget] = useState<AdminRegulatoryUpdate | null>(null);
+  const [form, setFormState] = useState<FormState>(EMPTY_FORM);
+  const [deleteTarget, setDeleteTargetState] = useState<AdminRegulatoryUpdate | null>(null);
+  const editor = useRef(0);
+  const draft = useRef(0);
+  const confirmation = useRef(0);
+  const setForm = (next: SetStateAction<FormState>) => { draft.current += 1; setFormState(next); };
+  const closeEditor = () => { editor.current += 1; setDialogOpen(false); };
+  const setDeleteTarget = (next: AdminRegulatoryUpdate | null) => { confirmation.current += 1; setDeleteTargetState(next); };
+  const identity = JSON.stringify([user?.id, user?.role, user?.organizationId]);
+  const scope = useRef(identity);
+  if (scope.current !== identity) {
+    scope.current = identity;
+    closeEditor(); setDeleteTarget(null); setForm(EMPTY_FORM); setEditingId(null);
+  }
+  useEffect(() => () => { editor.current += 1; confirmation.current += 1; }, []);
   // Only auto-derive the slug from the title while creating a new entry and the editor hasn't
   // typed a custom slug, so editing an existing entry never silently rewrites its stable slug.
   const [slugTouched, setSlugTouched] = useState(false);
@@ -145,6 +160,7 @@ export default function RegulatoryUpdates() {
   const { mutate: deleteUpdate, isPending: deleting } = useDeleteRegulatoryUpdate();
 
   const openNew = () => {
+    editor.current += 1;
     setEditingId(null);
     setForm(EMPTY_FORM);
     setSlugTouched(false);
@@ -152,6 +168,7 @@ export default function RegulatoryUpdates() {
   };
 
   const openEdit = (u: AdminRegulatoryUpdate) => {
+    editor.current += 1;
     setEditingId(u.id);
     setForm(updateToForm(u));
     setSlugTouched(true);
@@ -176,6 +193,9 @@ export default function RegulatoryUpdates() {
   };
 
   const handleSave = () => {
+    if (creating || updating) return;
+    const submittedEditor = editor.current;
+    const submittedDraft = draft.current;
     const input = formToInput(form);
     if (!input.slug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.slug)) {
       toast({ title: "Can't save", description: "Slug must be lowercase letters, numbers, and hyphens.", variant: "destructive" });
@@ -189,28 +209,39 @@ export default function RegulatoryUpdates() {
       toast({ title: "Can't save", description: "A summary is required.", variant: "destructive" });
       return;
     }
+    const saved = (update: AdminRegulatoryUpdate, title: string) => {
+      if (editor.current !== submittedEditor) return;
+      setEditingId(update.id);
+      setFormState(current => ({ ...current, publishedAt: update.published_at ?? current.publishedAt }));
+      toast({ title });
+      if (draft.current === submittedDraft) closeEditor();
+    };
+    const failed = (e: Error, title: string) => {
+      if (editor.current === submittedEditor) toast({ title, description: e.message, variant: "destructive" });
+    };
 
     if (editingId) {
       updateUpdate(
         { id: editingId, input },
         {
-          onSuccess: () => { toast({ title: "Update saved" }); setDialogOpen(false); },
-          onError: (e: Error) => toast({ title: "Failed to save", description: e.message, variant: "destructive" }),
+          onSuccess: (update) => saved(update, "Update saved"),
+          onError: (e: Error) => failed(e, "Failed to save"),
         },
       );
     } else {
       createUpdate(input, {
-        onSuccess: () => { toast({ title: "Update created" }); setDialogOpen(false); },
-        onError: (e: Error) => toast({ title: "Failed to create", description: e.message, variant: "destructive" }),
+        onSuccess: (update) => saved(update, "Update created"),
+        onError: (e: Error) => failed(e, "Failed to create"),
       });
     }
   };
 
   const handleDelete = () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || deleting) return;
+    const submittedConfirmation = confirmation.current;
     deleteUpdate(deleteTarget.id, {
-      onSuccess: () => { toast({ title: "Update deleted" }); setDeleteTarget(null); },
-      onError: (e: Error) => toast({ title: "Failed to delete", description: e.message, variant: "destructive" }),
+      onSuccess: () => { if (confirmation.current !== submittedConfirmation) return; toast({ title: "Update deleted" }); setDeleteTarget(null); },
+      onError: (e: Error) => { if (confirmation.current === submittedConfirmation) toast({ title: "Failed to delete", description: e.message, variant: "destructive" }); },
     });
   };
 
@@ -280,7 +311,7 @@ export default function RegulatoryUpdates() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(next) => { if (!next) closeEditor(); }}>
         <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit" : "New"} regulatory update</DialogTitle>
@@ -383,7 +414,7 @@ export default function RegulatoryUpdates() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={closeEditor}>Cancel</Button>
             <Button onClick={handleSave} disabled={creating || updating}>
               {editingId ? "Save changes" : "Create update"}
             </Button>
@@ -402,7 +433,7 @@ export default function RegulatoryUpdates() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={(event) => { event.preventDefault(); handleDelete(); }} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

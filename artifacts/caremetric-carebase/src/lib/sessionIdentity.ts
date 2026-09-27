@@ -36,6 +36,8 @@ export interface SessionIdentity {
    * facility. The distinction is load-bearing -- see the comparison below.
    */
   facilityId?: string | null;
+  /** Resolved effective assignment set; undefined while loading or temporarily inaccessible. */
+  authorizedFacilityIds?: readonly string[];
 }
 
 export function signedInIdentityChanged(
@@ -68,6 +70,12 @@ export function signedInIdentityChanged(
   // no-employee-row is a real, comparable value.
   if (previous.facilityId !== undefined && current.facilityId !== undefined
     && previous.facilityId !== current.facilityId) return true;
+
+  if (previous.authorizedFacilityIds !== undefined && current.authorizedFacilityIds !== undefined) {
+    const before = [...new Set(previous.authorizedFacilityIds)].sort();
+    const after = [...new Set(current.authorizedFacilityIds)].sort();
+    if (before.length !== after.length || before.some((id, index) => id !== after[index])) return true;
+  }
 
   return false;
 }

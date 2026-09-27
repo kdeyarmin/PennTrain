@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useTrainingItemOrder } from "@/hooks/useTrainingItemOrder";
 import {
   useListCompetencyTemplates,
   useCreateCompetencyTemplate,
@@ -6,7 +7,6 @@ import {
   useDeleteCompetencyTemplate,
   useListCompetencyTemplateItems,
   useAddCompetencyTemplateItem,
-  useUpdateCompetencyTemplateItem,
   useRemoveCompetencyTemplateItem,
   type CompetencyTemplate,
   type CompetencyTemplateItem,
@@ -39,8 +39,7 @@ const EMPTY_FORM: TemplateFormData = { name: "", description: "" };
 // TrainingPlans.tsx's plan-items panel is this app's other ordered sub-item
 // list (training_plan_items, also keyed by sort_order) -- this mirrors its
 // convention: up/down buttons (no drag-and-drop dependency in this codebase)
-// that swap sort_order with the neighboring row via mutateAsync + Promise.all,
-// with a busy-state guard so a second click can't race an in-flight swap.
+// that swap positions with the neighboring row in one database transaction.
 // ---------------------------------------------------------------------------
 // `canEdit` mirrors competency_template_items_insert/_update/_delete: an organization-owned template
 // and an org_admin or trainer caller. System templates (organization_id null) and the other roles
@@ -53,7 +52,7 @@ function ManageItemsDialog({ template, onClose, canEdit }: { template: Competenc
 
   const { data: items, isLoading, isError, error, refetch } = useListCompetencyTemplateItems(template?.id);
   const { mutate: addItem, isPending: adding } = useAddCompetencyTemplateItem();
-  const { mutateAsync: updateItem } = useUpdateCompetencyTemplateItem();
+  const { mutateAsync: reorderItem } = useTrainingItemOrder("competency_template_items");
   const { mutate: removeItem, isPending: removing } = useRemoveCompetencyTemplateItem();
 
   const sortedItems = items ?? [];
@@ -71,15 +70,13 @@ function ManageItemsDialog({ template, onClose, canEdit }: { template: Competenc
   };
 
   const handleMove = async (index: number, direction: -1 | 1) => {
+    if (reordering || !canEdit) return;
     const target = sortedItems[index];
     const neighbor = sortedItems[index + direction];
     if (!target || !neighbor) return;
     setReordering(true);
     try {
-      await Promise.all([
-        updateItem({ id: target.id, sort_order: neighbor.sort_order }),
-        updateItem({ id: neighbor.id, sort_order: target.sort_order }),
-      ]);
+      await reorderItem({ first: target, second: neighbor });
     } catch (e) {
       toast({ title: "Failed to reorder items", description: (e as Error).message, variant: "destructive" });
     } finally {

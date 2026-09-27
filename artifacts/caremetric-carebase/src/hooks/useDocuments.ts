@@ -1,8 +1,10 @@
+import { deleteDocumentWithReceipt } from "@/lib/documentDeletion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { rangeFor } from "@/lib/utils";
 import type { PaginatedResult } from "@/lib/dataTable";
+import { hasDefinitivePostgresWriteRejection } from "@/lib/postgresWriteOutcome";
 import { storageSafeFileName } from "@/lib/storagePaths";
 
 export type TrainingDocument = Tables<"training_documents">;
@@ -36,7 +38,7 @@ export function useListDocuments(filters: ListDocumentsFilters = {}, enabled = t
       // Employee and course document lists likewise need the complete scoped collection.
       const pageSize = 1000;
       const rows: TrainingDocumentWithEmployee[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("training_documents")
           .select("*, employees(id, first_name, last_name)")
@@ -57,7 +59,8 @@ export function useListDocuments(filters: ListDocumentsFilters = {}, enabled = t
         if (error) throw error;
         const batch = (data ?? []) as unknown as TrainingDocumentWithEmployee[];
         rows.push(...batch);
-        if (batch.length < pageSize) break;
+        if (batch.length === 0) break;
+        from += batch.length;
       }
       return rows;
     },
@@ -155,6 +158,18 @@ export function useUploadDocument() {
         .select()
         .single();
       if (error) {
+        // A lost response may conceal a committed metadata row. An empty read is not proof
+        // an in-flight insert cannot commit later; retain uncertain bytes for reconciliation.
+        const unknown = new Error("The document save could not be confirmed. The uploaded file was retained; refresh the document list before retrying.");
+        let saved: TrainingDocument | null;
+        try {
+          const result = await supabase.from("training_documents").select("*")
+            .eq("organization_id", organizationId).eq("storage_bucket", bucket).eq("storage_path", path).maybeSingle();
+          if (result.error) throw result.error;
+          saved = result.data;
+        } catch { throw unknown; }
+        if (saved) return saved;
+        if (!hasDefinitivePostgresWriteRejection(error)) throw unknown;
         const { error: cleanupError } = await supabase.storage.from(bucket).remove([path]);
         if (cleanupError) {
           throw new Error(`${error.message} (also failed to remove uploaded file: ${cleanupError.message})`);
@@ -180,14 +195,10 @@ export function useDocumentSignedUrl() {
 export function useDeleteDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (doc: TrainingDocument) => {
-      // Storage returns { error } rather than throwing. Deleting metadata first would leave an
-      // undiscoverable orphan file in the private bucket whenever remove fails.
-      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
-      if (storageError) throw new Error(storageError.message);
-      const { error } = await supabase.from("training_documents").delete().eq("id", doc.id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["documents"] }),
+    mutationFn: (doc: TrainingDocument) => deleteDocumentWithReceipt("training", doc.id),
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["documents"] }),
+      queryClient.invalidateQueries({ queryKey: ["document_deletions"] }),
+    ]),
   });
 }

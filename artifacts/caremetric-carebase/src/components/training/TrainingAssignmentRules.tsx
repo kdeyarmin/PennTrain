@@ -62,9 +62,10 @@ function RuleEditor({ plan, rule }: { plan: TrainingPlan; rule: AssignmentRule |
       {!result.employees.length && <p className="text-sm">No active staff match this rule yet.</p>}
       <Button size="sm" disabled={busy || !result.can_apply || !selected.length} onClick={async () => { try {
         const applied = await apply.mutateAsync({ planId: plan.id, fingerprint: result.fingerprint, employeeIds: selected });
-        toast({ title: `${applied.reduce((total, row) => total + row.result.assigned, 0)} assignments created`, description: "Review any existing-assignment conflicts below. Dates on individual assignments were preserved." });
+        const assignedCount = applied.reduce((total, row) => total + row.result.assigned, 0);
+        toast({ title: `${assignedCount} assignment${assignedCount === 1 ? "" : "s"} created`, description: "Review any existing-assignment conflicts below. Dates on individual assignments were preserved." });
         setSelected([]); setApproveAutomatic(false); await preview.mutateAsync(plan.id);
-      } catch { /* Stale previews are visible and must be refreshed. */ } }}>{apply.isPending ? "Applying…" : `Confirm plan for ${selected.length} employees`}</Button>
+      } catch { /* Stale previews are visible and must be refreshed. */ } }}>{apply.isPending ? "Applying…" : `Confirm plan for ${selected.length} employee${selected.length === 1 ? "" : "s"}`}</Button>
       {apply.data?.some(row => row.result.conflicts?.length) && <div role="status" className="text-sm"><p>Existing assignments need review in plan progress:</p><ul className="list-disc pl-5">{apply.data.flatMap(row => (row.result.conflicts ?? []).map((conflict, index) => <li key={`${row.employee_id}-${index}`}>{result.employees.find(e => e.id === row.employee_id)?.first_name} {result.employees.find(e => e.id === row.employee_id)?.last_name}: {conflict.title} — existing deadline {formatDateForDisplay(conflict.due_date)} preserved.</li>))}</ul></div>}
       <div className="border-t pt-3 space-y-2">
         <p className="font-medium text-sm">Optional automatic assignments</p>

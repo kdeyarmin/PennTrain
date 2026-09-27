@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,7 +105,12 @@ export default function HelpContent() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<ArticleFormState>(EMPTY_FORM);
+  const [form, setFormState] = useState<ArticleFormState>(EMPTY_FORM);
+  const draft = useRef(0);
+  const editor = useRef(0);
+  const setForm = (next: ArticleFormState) => { draft.current += 1; setFormState(next); };
+  const closeEditor = () => { draft.current += 1; editor.current += 1; setDialogOpen(false); };
+  useEffect(() => () => { draft.current += 1; editor.current += 1; }, []);
   const [deleteTarget, setDeleteTarget] = useState<HelpArticle | null>(null);
 
   const { mutate: createArticle, isPending: creating } = useCreateHelpArticle();
@@ -113,18 +118,23 @@ export default function HelpContent() {
   const { mutate: deleteArticle, isPending: deleting } = useDeleteHelpArticle();
 
   const openNew = () => {
+    editor.current += 1;
     setEditingId(null);
     setForm({ ...EMPTY_FORM, articleType: tab });
     setDialogOpen(true);
   };
 
   const openEdit = (a: HelpArticle) => {
+    editor.current += 1;
     setEditingId(a.id);
     setForm(articleToForm(a));
     setDialogOpen(true);
   };
 
   const handleSave = () => {
+    if (creating || updating) return;
+    const submittedDraft = draft.current;
+    const submittedEditor = editor.current;
     if (!form.category.trim() || !form.title.trim()) {
       toast({ title: "Can't save", description: "Category and title are required.", variant: "destructive" });
       return;
@@ -157,7 +167,7 @@ export default function HelpContent() {
           content: content as unknown as Json,
         },
         {
-          onSuccess: () => { toast({ title: "Article updated" }); setDialogOpen(false); },
+          onSuccess: () => { toast({ title: "Article updated" }); if (draft.current === submittedDraft) closeEditor(); },
           onError: (e: Error) => toast({ title: "Failed to update article", description: e.message, variant: "destructive" }),
         }
       );
@@ -173,7 +183,12 @@ export default function HelpContent() {
           created_by: user?.id ?? null,
         },
         {
-          onSuccess: () => { toast({ title: "Article created" }); setDialogOpen(false); },
+          onSuccess: (article) => {
+            toast({ title: "Article created" });
+            if (editor.current !== submittedEditor) return;
+            setEditingId(article.id);
+            if (draft.current === submittedDraft) closeEditor();
+          },
           onError: (e: Error) => toast({ title: "Failed to create article", description: e.message, variant: "destructive" }),
         }
       );
@@ -183,7 +198,7 @@ export default function HelpContent() {
   const handleDelete = () => {
     if (!deleteTarget) return;
     deleteArticle(deleteTarget.id, {
-      onSuccess: () => { toast({ title: "Article deleted" }); setDeleteTarget(null); },
+      onSuccess: () => { toast({ title: "Article deleted" }); setDeleteTarget((current) => current?.id === deleteTarget.id ? null : current); },
       onError: (e: Error) => toast({ title: "Failed to delete article", description: e.message, variant: "destructive" }),
     });
   };
@@ -253,7 +268,7 @@ export default function HelpContent() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) closeEditor(); }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
@@ -318,7 +333,7 @@ export default function HelpContent() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={closeEditor}>Cancel</Button>
             <Button onClick={handleSave} disabled={creating || updating}>
               {editingId ? "Save Changes" : "Create Article"}
             </Button>

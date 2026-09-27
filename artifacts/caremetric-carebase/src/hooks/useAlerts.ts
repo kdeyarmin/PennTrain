@@ -60,7 +60,7 @@ export function useListAlerts(filters: ListAlertsFilters = {}) {
     queryFn: async () => {
       const pageSize = 1000;
       const rows: Alert[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("alerts")
           .select("*")
@@ -74,7 +74,8 @@ export function useListAlerts(filters: ListAlertsFilters = {}) {
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

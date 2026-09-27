@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { storageSafeFileName } from "@/lib/storagePaths";
+import { recoverUploadedWrite } from "@/lib/uploadWriteRecovery";
 import type { Tables } from "@/lib/database.types";
 import type { PaginatedResult } from "@/lib/dataTable";
 
@@ -68,7 +69,7 @@ export function useListWorkItems(filters: ListWorkItemsFilters = {}) {
     queryFn: async () => {
       const pageSize = 1000;
       const rows: WorkItemWithRelations[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("work_items")
           .select(WORK_ITEM_SELECT)
@@ -86,7 +87,8 @@ export function useListWorkItems(filters: ListWorkItemsFilters = {}) {
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...((data ?? []) as unknown as WorkItemWithRelations[]));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },
@@ -469,8 +471,13 @@ export function useUploadWorkItemEvidence() {
         p_linked_record_id: null,
       } as never);
       if (error) {
-        await supabase.storage.from("work-item-evidence").remove([path]);
-        throw error;
+        const saved = await recoverUploadedWrite<WorkItemEvidence>({ error,
+          read: () => supabase.from("work_item_evidence").select("*")
+            .eq("organization_id", workItem.organization_id).eq("work_item_id", workItem.id)
+            .eq("storage_bucket", "work-item-evidence").eq("storage_path", path).maybeSingle(),
+          remove: () => supabase.storage.from("work-item-evidence").remove([path]),
+        });
+        return saved.id;
       }
       return data;
     },

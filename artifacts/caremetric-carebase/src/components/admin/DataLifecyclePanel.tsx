@@ -1,4 +1,5 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import {
   useAuditExportManifest,
   useCreateAuditLegalHold,
@@ -24,6 +25,7 @@ import { Archive, Play, Scale } from "lucide-react";
 import { facilityDateRangeBounds } from "@/lib/dateUtils";
 
 export function DataLifecyclePanel() {
+  const { user } = useAuth();
   const __fieldIds = useId();
   const { toast } = useToast();
   const statusQ = useDataLifecycleStatus();
@@ -49,6 +51,12 @@ export function DataLifecyclePanel() {
   const [archiveTo, setArchiveTo] = useState("");
   const [archiveOrgId, setArchiveOrgId] = useState("all");
   const [plannedBatchId, setPlannedBatchId] = useState<string | null>(null);
+  const archiveReview = useRef(0);
+  const actor = JSON.stringify([user?.id, user?.organizationId, user?.role]);
+  const previousActor = useRef(actor);
+  if (previousActor.current !== actor) { previousActor.current = actor; archiveReview.current += 1; setPlannedBatchId(null); }
+  useEffect(() => () => { archiveReview.current += 1; }, []);
+  const changeArchive = (update: () => void) => { archiveReview.current += 1; setPlannedBatchId(null); update(); };
 
   const facilitiesForOrg = useMemo(
     () => (facilitiesQ.data ?? []).filter((f) => !orgId || f.organization_id === orgId),
@@ -61,10 +69,16 @@ export function DataLifecyclePanel() {
 
   // Date inputs are facility calendar days. Bound with Pennsylvania midnight instants —
   // UTC `T00:00Z` / `T23:59Z` cut the PA evening off the "To" day.
+  let archiveDateIssue = "";
   const archiveRange = archiveFrom && archiveTo
     ? (() => {
-        const bounds = facilityDateRangeBounds(archiveFrom, archiveTo);
-        return { from: bounds.from, to: bounds.through };
+        try {
+          const bounds = facilityDateRangeBounds(archiveFrom, archiveTo);
+          return { from: bounds.from, to: bounds.through };
+        } catch {
+          archiveDateIssue = "Enter valid archive dates with a four-digit year.";
+          return null;
+        }
       })()
     : null;
   const archiveScopeOrgId = archiveOrgId === "all" ? null : archiveOrgId;
@@ -80,7 +94,8 @@ export function DataLifecyclePanel() {
   const holdWarning = legalHoldWarning(activeHolds.length, archiveScopeOrgId !== null);
 
   const handlePlanArchive = async () => {
-    if (!archiveRange) return;
+    if (!archiveRange || archiveIssues.length || busy || !manifestQ.isSuccess || manifestQ.isFetching || !manifestQ.data) return;
+    const request = archiveReview.current;
     try {
       setBusy(true);
       const batchId = await planArchive.mutateAsync({
@@ -88,9 +103,11 @@ export function DataLifecyclePanel() {
         to: archiveRange.to,
         organizationId: archiveScopeOrgId,
       });
+      if (request !== archiveReview.current) return;
       setPlannedBatchId(batchId);
-      toast({ title: "Archive batch planned", description: `${manifestQ.data?.rowCount ?? 0} rows frozen for export.` });
+      toast({ title: "Archive batch planned", description: "The selected date range has been recorded for export." });
     } catch (e) {
+      if (request !== archiveReview.current) return;
       toast({ title: "Could not plan the archive", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setBusy(false);
@@ -271,15 +288,15 @@ export function DataLifecyclePanel() {
         <CardContent className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor={`${__fieldIds}-archive-from`}>From</Label>
-            <Input id={`${__fieldIds}-archive-from`} type="date" value={archiveFrom} onChange={(e) => setArchiveFrom(e.target.value)} />
+            <Input id={`${__fieldIds}-archive-from`} type="date" value={archiveFrom} onChange={(e) => changeArchive(() => setArchiveFrom(e.target.value))} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={`${__fieldIds}-archive-to`}>To</Label>
-            <Input id={`${__fieldIds}-archive-to`} type="date" value={archiveTo} onChange={(e) => setArchiveTo(e.target.value)} />
+            <Input id={`${__fieldIds}-archive-to`} type="date" value={archiveTo} onChange={(e) => changeArchive(() => setArchiveTo(e.target.value))} />
           </div>
           <div className="space-y-1.5 md:col-span-2">
             <Label htmlFor={`${__fieldIds}-archive-org`}>Scope</Label>
-            <Select value={archiveOrgId} onValueChange={setArchiveOrgId}>
+            <Select value={archiveOrgId} onValueChange={value => changeArchive(() => setArchiveOrgId(value))}>
               <SelectTrigger id={`${__fieldIds}-archive-org`}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Every organization (platform-wide)</SelectItem>
@@ -288,6 +305,8 @@ export function DataLifecyclePanel() {
             </Select>
           </div>
           <div className="md:col-span-2 space-y-2">
+            {archiveDateIssue && <p role="alert" className="text-sm text-destructive">{archiveDateIssue}</p>}
+            {manifestQ.isError && <QueryError what="audit archive manifest" error={manifestQ.error} onRetry={() => void manifestQ.refetch()} />}
             {manifestQ.data && (
               <p className="text-sm">
                 {manifestQ.data.rowCount.toLocaleString()} audit rows · manifest {shortDigest(manifestQ.data.sha256)}
@@ -304,7 +323,7 @@ export function DataLifecyclePanel() {
               // archivePlanIssues is handed a null rowCount and cannot report an empty range, and
               // plan_audit_archive records a zero-row batch rather than refusing one. Clicking
               // during the count is exactly how the empty batch this form guards against gets made.
-              disabled={busy || archiveIssues.length > 0 || planArchive.isPending || !manifestQ.data}
+              disabled={busy || archiveIssues.length > 0 || planArchive.isPending || !manifestQ.isSuccess || manifestQ.isFetching || !manifestQ.data}
               onClick={() => void handlePlanArchive()}
             >
               <Archive className="mr-2 h-4 w-4" />Plan archive batch

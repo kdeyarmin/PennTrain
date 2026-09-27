@@ -44,7 +44,8 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
 
   const backHref = `/me/courses/${assignmentId}`;
 
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   const {
     data: assignment,
     isLoading: assignmentLoading,
@@ -56,6 +57,8 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
   const { data: quiz, isLoading: quizLoading, isError: quizError } = useGetQuiz(quizId);
   const { data: questions, isLoading: questionsLoading, isError: questionsError } = useListQuizQuestions(quizId);
   const { data: choices, isLoading: choicesLoading, isError: choicesError } = useQuizAnswerChoices(quizId);
+  const attemptsReady = !!employee && !!assignment && assignment.id === assignmentId && assignment.employee_id === employee.id
+    && !employeeLoading && !employeeQuery.isError && !assignmentLoading && !assignmentError;
   const {
     data: attempts,
     isLoading: attemptsLoading,
@@ -65,14 +68,14 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
   } = useListQuizAttempts({
     assignmentId,
     employeeId: employee?.id,
-  });
+    quizId,
+  }, { enabled: attemptsReady });
 
-  // All attempts this employee has made at THIS quiz (useListQuizAttempts only
-  // filters by assignmentId/employeeId, so quiz_id is narrowed client-side).
+  // Guard cached rows before adopting an attempt or requesting its saved answers.
   // The list is already ordered started_at desc, so filtering preserves order.
   const attemptsForQuiz = useMemo(
-    () => (attempts ?? []).filter((a) => a.quiz_id === quizId),
-    [attempts, quizId],
+    () => attemptsReady ? (attempts ?? []).filter((a) => a.assignment_id === assignmentId && a.employee_id === employee?.id && a.quiz_id === quizId) : [],
+    [attempts, attemptsReady, assignmentId, employee?.id, quizId],
   );
   const inProgressAttempt = attemptsForQuiz.find((a) => a.submitted_at === null);
   const gradedAttempts = attemptsForQuiz.filter((a) => a.submitted_at !== null);
@@ -96,7 +99,7 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
   // The attempt currently being worked on in THIS session: either an
   // in-progress attempt resumed from the server, or one just started here.
   const [newAttemptId, setNewAttemptId] = useState<string | null>(null);
-  const activeAttemptId = newAttemptId ?? inProgressAttempt?.id ?? null;
+  const activeAttemptId = attemptsReady ? newAttemptId ?? inProgressAttempt?.id ?? null : null;
 
   const activeAttemptQuery = useGetQuizAttempt(activeAttemptId ?? undefined);
   const { data: activeAttempt } = activeAttemptQuery;
@@ -205,6 +208,10 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
         <div className="h-64 bg-muted animate-pulse rounded" />
       </div>
     );
+  }
+
+  if (employeeQuery.isError) {
+    return <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />;
   }
 
   if (!employee) {

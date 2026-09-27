@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { CalendarDays, Clock, MapPin, RefreshCw, Repeat2, Umbrella } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
@@ -48,7 +48,8 @@ export default function MySchedule() {
   const __fieldIds = useId();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   const workspace = useMyShiftWorkspace();
   const submitTimeOff = useSubmitTimeOffRequest();
   const claimShift = useClaimOpenShift();
@@ -65,6 +66,28 @@ export default function MySchedule() {
   const [swapTargetId, setSwapTargetId] = useState("");
   const [swapReason, setSwapReason] = useState("");
   const candidates = useShiftSwapCandidates(swapAssignmentId);
+  const submitting = useRef(false);
+  const mounted = useRef(true);
+  const [requestPending, setRequestPending] = useState(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const busy = requestPending || Boolean(submitTimeOff.isPending || requestSwap.isPending || cancelSwap.isPending || cancelTimeOff.isPending || claimShift.isPending);
+  const candidateReady = !candidates.isLoading && !candidates.isFetching && !candidates.isError
+    && Boolean(candidates.data?.some(candidate => candidate.assignment_id === swapTargetId));
+
+  async function performRequest<T>(request: () => Promise<T>, success: (result: T) => void, errorTitle: string) {
+    if (submitting.current) return;
+    submitting.current = true;
+    setRequestPending(true);
+    try {
+      const result = await request();
+      if (mounted.current) success(result);
+    } catch (error) {
+      if (mounted.current) toast({ title: errorTitle, description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    } finally {
+      submitting.current = false;
+      if (mounted.current) setRequestPending(false);
+    }
+  }
 
   // The workspace payload caps upcomingShifts at 7 rows (get_my_shift_workspace), which is fine
   // for the shift-summary surfaces it was built for but silently truncates a full schedule. This
@@ -111,36 +134,29 @@ export default function MySchedule() {
     : null;
 
   const submitTimeOffRequest = async () => {
-    if (!employee?.id || !facilityId || !timeOffDraft) return;
-    try {
+    if (!employee?.id || !facilityId || !timeOffDraft || employeeQuery.isError || workspace.isError || timeOffWindowError || timeOffDraft.reason.trim().length < 5) return;
+    await performRequest(async () => {
       const requestWindow = normalizeTimeOffRequestWindow(timeOffDraft.startsAt, timeOffDraft.endsAt);
-      await submitTimeOff.mutateAsync({
+      return submitTimeOff.mutateAsync({
         employeeId: employee.id,
         facilityId,
         startsAt: requestWindow.startsAtIso,
         endsAt: requestWindow.endsAtIso,
         reason: timeOffDraft.reason.trim(),
       });
+    }, () => {
       setTimeOffDraft(null);
       toast({ title: "Time-off request submitted", description: "Your manager can now review it in the workforce queue." });
-    } catch (error) {
-      toast({ title: "Could not submit request", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
-    }
+    }, "Could not submit request");
   };
 
   const submitWithdrawal = async (requestId: string) => {
-    try {
-      await cancelSwap.mutateAsync({ requestId, reason: withdrawReason.trim() });
+    if (withdrawReason.trim().length < 5) return;
+    await performRequest(() => cancelSwap.mutateAsync({ requestId, reason: withdrawReason.trim() }), () => {
       setWithdrawingId(null);
       setWithdrawReason("");
       toast({ title: "Swap request withdrawn", description: "It has left your manager's queue." });
-    } catch (error) {
-      toast({
-        title: "Could not withdraw the request",
-        description: error instanceof Error ? error.message : String(error),
-        variant: "destructive",
-      });
-    }
+    }, "Could not withdraw the request");
   };
 
   // The mirror image of submitWithdrawal above, for the other self-service request. Both RPCs are
@@ -148,40 +164,29 @@ export default function MySchedule() {
   // and demand a reason of at least five characters -- so the same rules are enforced here, and the
   // control only appears on a pending request.
   const submitTimeOffCancellation = async (requestId: string) => {
-    try {
-      await cancelTimeOff.mutateAsync({ requestId, reason: timeOffCancelReason.trim() });
+    if (timeOffCancelReason.trim().length < 5) return;
+    await performRequest(() => cancelTimeOff.mutateAsync({ requestId, reason: timeOffCancelReason.trim() }), () => {
       setCancelingTimeOffId(null);
       setTimeOffCancelReason("");
       toast({ title: "Time-off request withdrawn", description: "It has left your manager's queue." });
-    } catch (error) {
-      toast({
-        title: "Could not withdraw the request",
-        description: error instanceof Error ? error.message : String(error),
-        variant: "destructive",
-      });
-    }
+    }, "Could not withdraw the request");
   };
 
   const submitSwapRequest = async () => {
-    if (!swapAssignmentId || !swapTargetId || swapReason.trim().length < 5) return;
-    try {
-      await requestSwap.mutateAsync({ requesterAssignmentId: swapAssignmentId, targetAssignmentId: swapTargetId, reason: swapReason.trim() });
+    if (!swapAssignmentId || !candidateReady || !selectedShift || shiftsError || swapReason.trim().length < 5) return;
+    await performRequest(() => requestSwap.mutateAsync({ requesterAssignmentId: swapAssignmentId, targetAssignmentId: swapTargetId, reason: swapReason.trim() }), () => {
       setSwapAssignmentId(null);
       setSwapTargetId("");
       setSwapReason("");
       toast({ title: "Shift-swap request submitted", description: "A manager will recheck both employees' eligibility before approval." });
-    } catch (error) {
-      toast({ title: "Could not request swap", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
-    }
+    }, "Could not request swap");
   };
 
   const handleClaim = async (opportunityId: string) => {
-    try {
-      const result = await claimShift.mutateAsync(opportunityId) as { claim_status?: string } | undefined;
+    await performRequest(() => claimShift.mutateAsync(opportunityId), value => {
+      const result = value as { claim_status?: string } | undefined;
       toast({ title: "Open-shift request recorded", description: result?.claim_status ? `Status: ${result.claim_status.replace(/_/g, " ")}.` : "Check your schedule for the result." });
-    } catch (error) {
-      toast({ title: "Open shift unavailable", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
-    }
+    }, "Open shift unavailable");
   };
 
   return (
@@ -193,13 +198,14 @@ export default function MySchedule() {
         </div>
         <Button
           onClick={() => setTimeOffDraft({ startsAt: "", endsAt: "", reason: "" })}
-          disabled={!employee?.id || !facilityId}
+          disabled={busy || !employee?.id || !facilityId || employeeQuery.isError || workspace.isError}
         >
           <Umbrella className="mr-2 h-4 w-4" />Request time off
         </Button>
       </div>
 
       {shiftsError ? <QueryError what="your shifts" error={shiftsErrorDetail} onRetry={() => refetchShifts()} /> : null}
+      {mySwaps.isError ? <QueryError what="your shift swap requests" error={mySwaps.error} onRetry={() => void mySwaps.refetch()} /> : null}
       {workspace.isError ? <QueryError what="your schedule" error={workspace.error} onRetry={() => workspace.refetch()} /> : null}
 
       <Card>
@@ -208,8 +214,10 @@ export default function MySchedule() {
           <CardDescription>Only published shifts are shown. Swap candidates are limited to your facility and remain subject to manager approval.</CardDescription>
         </CardHeader>
         <CardContent>
-          {shiftsError ? null : isLoading ? (
+          {employeeQuery.isError ? <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} /> : shiftsError ? null : isLoading ? (
             <div className="space-y-2">{[...Array(4)].map((_, index) => <div key={index} className="h-20 animate-pulse rounded bg-muted" />)}</div>
+          ) : !employee ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No employee profile is linked to your account. Contact your facility manager.</p>
           ) : upcoming.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No upcoming shifts published yet.</p>
           ) : (
@@ -228,7 +236,7 @@ export default function MySchedule() {
                   <div className="flex items-center gap-2">
                     <StatusBadge status={shift.status} />
                     {(["scheduled", "confirmed"] as string[]).includes(shift.status) ? (
-                      <Button variant="outline" size="sm" onClick={() => { setSwapAssignmentId(shift.id); setSwapTargetId(""); setSwapReason(""); }}>
+                      <Button variant="outline" size="sm" disabled={busy} onClick={() => { setSwapAssignmentId(shift.id); setSwapTargetId(""); setSwapReason(""); }}>
                         <Repeat2 className="mr-2 h-4 w-4" />Request swap
                       </Button>
                     ) : null}
@@ -267,6 +275,7 @@ export default function MySchedule() {
                   {withdrawingId !== swap.id && (
                     <Button
                       variant="outline" size="sm"
+                      disabled={busy}
                       onClick={() => { setWithdrawingId(String(swap.id)); setWithdrawReason(""); }}
                     >
                       Withdraw
@@ -279,19 +288,19 @@ export default function MySchedule() {
                       Why you are withdrawing
                     </Label>
                     <Textarea
-                      id={`${__fieldIds}-withdraw-${String(swap.id)}`} rows={2}
+                      id={`${__fieldIds}-withdraw-${String(swap.id)}`} rows={2} disabled={busy}
                       value={withdrawReason} onChange={(event) => setWithdrawReason(event.target.value)}
                       placeholder="Found cover another way."
                     />
                     <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        disabled={withdrawReason.trim().length < 5 || cancelSwap.isPending}
+                        disabled={withdrawReason.trim().length < 5 || busy}
                         onClick={() => void submitWithdrawal(String(swap.id))}
                       >
                         {cancelSwap.isPending ? "Withdrawing…" : "Confirm withdrawal"}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setWithdrawingId(null)}>Cancel</Button>
+                      <Button variant="ghost" size="sm" disabled={busy} onClick={() => setWithdrawingId(null)}>Cancel</Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       At least five characters — the reason is kept on the request.
@@ -312,7 +321,7 @@ export default function MySchedule() {
             {workspace.isError ? null : workspace.isLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : openOffers.length === 0 ? <p className="text-sm text-muted-foreground">No open shifts are available.</p> : openOffers.map((offer) => (
               <div key={String(offer.id)} className="flex items-center justify-between gap-3 rounded-lg border p-3">
                 <div className="text-sm"><p className="font-medium">{formatDateLabel(String(offer.shift_date), { month: "short", day: "numeric" })}</p><p className="text-muted-foreground">{formatTimeLabel(String(offer.start_time))}–{formatTimeLabel(String(offer.end_time))}</p></div>
-                <Button size="sm" onClick={() => void handleClaim(String(offer.id))} disabled={claimShift.isPending}>Claim</Button>
+                <Button size="sm" onClick={() => void handleClaim(String(offer.id))} disabled={busy}>Claim</Button>
               </div>
             ))}
           </CardContent>
@@ -337,6 +346,7 @@ export default function MySchedule() {
                     {request.status === "pending" && cancelingTimeOffId !== request.id && (
                       <Button
                         variant="outline" size="sm"
+                        disabled={busy}
                         onClick={() => { setCancelingTimeOffId(String(request.id)); setTimeOffCancelReason(""); }}
                       >
                         Withdraw
@@ -350,19 +360,19 @@ export default function MySchedule() {
                       Why you are withdrawing
                     </Label>
                     <Textarea
-                      id={`${__fieldIds}-timeoff-withdraw-${String(request.id)}`} rows={2}
+                      id={`${__fieldIds}-timeoff-withdraw-${String(request.id)}`} rows={2} disabled={busy}
                       value={timeOffCancelReason} onChange={(event) => setTimeOffCancelReason(event.target.value)}
                       placeholder="Plans changed; I can work after all."
                     />
                     <div className="flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        disabled={timeOffCancelReason.trim().length < 5 || cancelTimeOff.isPending}
+                        disabled={timeOffCancelReason.trim().length < 5 || busy}
                         onClick={() => void submitTimeOffCancellation(String(request.id))}
                       >
                         {cancelTimeOff.isPending ? "Withdrawing…" : "Confirm withdrawal"}
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setCancelingTimeOffId(null)}>Cancel</Button>
+                      <Button variant="ghost" size="sm" disabled={busy} onClick={() => setCancelingTimeOffId(null)}>Cancel</Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       At least five characters — the reason is kept on the request.
@@ -375,27 +385,27 @@ export default function MySchedule() {
         </Card>
       </div>
 
-      <Dialog open={Boolean(timeOffDraft)} onOpenChange={(open) => !open && setTimeOffDraft(null)}>
+      <Dialog open={Boolean(timeOffDraft)} onOpenChange={(open) => !open && !submitting.current && setTimeOffDraft(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Request time off</DialogTitle><DialogDescription>Enter the full unavailable period. Submitting does not approve the request or remove a published assignment.</DialogDescription></DialogHeader>
-          <div className="grid gap-4 py-2">
+          <fieldset disabled={busy} className="grid gap-4 py-2">
             <div className="space-y-2"><Label htmlFor="time-off-start">Starts</Label><Input id="time-off-start" type="datetime-local" value={timeOffDraft?.startsAt ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, startsAt: event.target.value } : draft)} /></div>
             <div className="space-y-2"><Label htmlFor="time-off-end">Ends</Label><Input id="time-off-end" type="datetime-local" value={timeOffDraft?.endsAt ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, endsAt: event.target.value } : draft)} /></div>
             {timeOffWindowError ? <p className="text-sm text-destructive">{timeOffWindowError}</p> : null}
             <div className="space-y-2"><Label htmlFor="time-off-reason">Reason</Label><Textarea id="time-off-reason" value={timeOffDraft?.reason ?? ""} onChange={(event) => setTimeOffDraft((draft) => draft ? { ...draft, reason: event.target.value } : draft)} maxLength={1000} /></div>
-          </div>
-          <DialogFooter><Button variant="outline" onClick={() => setTimeOffDraft(null)}>Cancel</Button><Button onClick={() => void submitTimeOffRequest()} disabled={!timeOffDraft?.startsAt || !timeOffDraft.endsAt || Boolean(timeOffWindowError) || timeOffDraft.reason.trim().length < 5 || submitTimeOff.isPending}>Submit request</Button></DialogFooter>
+          </fieldset>
+          <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setTimeOffDraft(null)}>Cancel</Button><Button onClick={() => void submitTimeOffRequest()} disabled={!timeOffDraft?.startsAt || !timeOffDraft.endsAt || Boolean(timeOffWindowError) || timeOffDraft.reason.trim().length < 5 || busy}>Submit request</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(swapAssignmentId)} onOpenChange={(open) => !open && setSwapAssignmentId(null)}>
+      <Dialog open={Boolean(swapAssignmentId)} onOpenChange={(open) => !open && !submitting.current && setSwapAssignmentId(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Request a shift swap</DialogTitle><DialogDescription>Your shift {selectedShift ? `on ${formatDateLabel(selectedShift.shift_date, { month: "short", day: "numeric" })}` : ""} will remain assigned until a manager approves the swap after rechecking both employees.</DialogDescription></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2"><Label htmlFor={`${__fieldIds}-swap-with`}>Swap with</Label><Select value={swapTargetId} onValueChange={setSwapTargetId}><SelectTrigger id={`${__fieldIds}-swap-with`}><SelectValue placeholder={candidates.isLoading ? "Loading eligible options..." : "Select a coworker's shift"} /></SelectTrigger><SelectContent>{(candidates.data ?? []).map((candidate) => <SelectItem key={candidate.assignment_id} value={candidate.assignment_id}>{candidate.employee_name} · {formatDateLabel(candidate.shift_date, { month: "short", day: "numeric" })} · {formatTimeLabel(candidate.start_time)}–{formatTimeLabel(candidate.end_time)}</SelectItem>)}</SelectContent></Select>{candidates.isError ? <p className="text-sm text-destructive">{candidates.error instanceof Error ? candidates.error.message : "Could not load candidates."}</p> : null}{!candidates.isLoading && !candidates.isError && (candidates.data?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground">No candidate shifts are currently available at this facility.</p> : null}</div>
+          <fieldset disabled={busy} className="space-y-4 py-2">
+            <div className="space-y-2"><Label htmlFor={`${__fieldIds}-swap-with`}>Swap with</Label><Select disabled={busy || candidates.isLoading || candidates.isFetching || candidates.isError} value={swapTargetId} onValueChange={setSwapTargetId}><SelectTrigger id={`${__fieldIds}-swap-with`}><SelectValue placeholder={candidates.isLoading ? "Loading eligible options..." : "Select a coworker's shift"} /></SelectTrigger><SelectContent>{(candidates.data ?? []).map((candidate) => <SelectItem key={candidate.assignment_id} value={candidate.assignment_id}>{candidate.employee_name} · {formatDateLabel(candidate.shift_date, { month: "short", day: "numeric" })} · {formatTimeLabel(candidate.start_time)}–{formatTimeLabel(candidate.end_time)}</SelectItem>)}</SelectContent></Select>{candidates.isError ? <QueryError what="shift swap candidates" error={candidates.error} onRetry={() => void candidates.refetch()} /> : null}{!candidates.isLoading && !candidates.isError && (candidates.data?.length ?? 0) === 0 ? <p className="text-sm text-muted-foreground">No candidate shifts are currently available at this facility.</p> : null}</div>
             <div className="space-y-2"><Label htmlFor="swap-reason">Reason</Label><Textarea id="swap-reason" value={swapReason} onChange={(event) => setSwapReason(event.target.value)} maxLength={1000} /></div>
-          </div>
-          <DialogFooter><Button variant="outline" onClick={() => setSwapAssignmentId(null)}>Cancel</Button><Button onClick={() => void submitSwapRequest()} disabled={!swapTargetId || swapReason.trim().length < 5 || requestSwap.isPending}>Submit swap</Button></DialogFooter>
+          </fieldset>
+          <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setSwapAssignmentId(null)}>Cancel</Button><Button onClick={() => void submitSwapRequest()} disabled={!candidateReady || !selectedShift || shiftsError || swapReason.trim().length < 5 || busy}>Submit swap</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

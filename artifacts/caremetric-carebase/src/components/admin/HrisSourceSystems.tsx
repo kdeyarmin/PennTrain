@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,10 +38,17 @@ import {
  * credentials or a vendor client here would be inventing an integration, not shipping one.
  */
 export function HrisSourceSystems({ organizationId }: { organizationId: string | null }) {
+  return <SourceSystemsEditor key={organizationId ?? "no-org"} organizationId={organizationId} />;
+}
+function SourceSystemsEditor({ organizationId }: { organizationId: string | null }) {
   const fieldIds = useId();
   const { toast } = useToast();
   const sources = useHrisSourceSystems(organizationId);
   const create = useCreateHrisSourceSystem();
+  const submitting = useRef(false), mounted = useRef(true);
+  const [pending, setPending] = useState(false);
+  const busy = pending || create.isPending;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const [sourceKey, setSourceKey] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -52,9 +59,11 @@ export function HrisSourceSystems({ organizationId }: { organizationId: string |
   const rows = sources.data ?? [];
 
   const submit = async () => {
-    if (!organizationId) return;
+    if (!organizationId || issues.length || busy || submitting.current) return;
+    submitting.current = true; setPending(true);
     try {
       await create.mutateAsync({ organizationId, sourceKey, displayName, providerType, importMode });
+      if (!mounted.current) return;
       setSourceKey("");
       setDisplayName("");
       toast({
@@ -62,7 +71,10 @@ export function HrisSourceSystems({ organizationId }: { organizationId: string |
         description: "It is available to Start an import run. Rows arrive when its adapter stages them.",
       });
     } catch (error) {
-      toast({ title: "Source could not be registered", description: errorText(error), variant: "destructive" });
+      if (mounted.current) toast({ title: "Source registration could not be confirmed", description: `${errorText(error)} Review the refreshed source list before retrying.`, variant: "destructive" });
+    } finally {
+      submitting.current = false;
+      if (mounted.current) setPending(false);
     }
   };
 
@@ -103,7 +115,7 @@ export function HrisSourceSystems({ organizationId }: { organizationId: string |
           </ul>
         )}
 
-        <div className="grid gap-4 border-t pt-4 md:grid-cols-2">
+        <fieldset disabled={busy} className="grid gap-4 border-t pt-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor={`${fieldIds}-key`}>Source key</Label>
             <Input
@@ -124,7 +136,7 @@ export function HrisSourceSystems({ organizationId }: { organizationId: string |
           </div>
           <div className="space-y-2">
             <Label htmlFor={`${fieldIds}-provider`}>How the adapter delivers</Label>
-            <Select value={providerType} onValueChange={setProviderType}>
+            <Select value={providerType} onValueChange={setProviderType} disabled={busy}>
               <SelectTrigger id={`${fieldIds}-provider`}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {HRIS_PROVIDER_TYPES.map((option) => (
@@ -135,7 +147,7 @@ export function HrisSourceSystems({ organizationId }: { organizationId: string |
           </div>
           <div className="space-y-2">
             <Label htmlFor={`${fieldIds}-mode`}>Import mode</Label>
-            <Select value={importMode} onValueChange={(value) => setImportMode(value === "full" ? "full" : "delta")}>
+            <Select value={importMode} onValueChange={(value) => setImportMode(value === "full" ? "full" : "delta")} disabled={busy}>
               <SelectTrigger id={`${fieldIds}-mode`}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="delta">Delta — changes since the last cursor</SelectItem>
@@ -149,11 +161,11 @@ export function HrisSourceSystems({ organizationId }: { organizationId: string |
               New sources are registered in <span className="font-medium">pilot</span> status, which is
               what the run-start picker accepts.
             </p>
-            <Button disabled={issues.length > 0 || create.isPending} onClick={() => void submit()}>
+            <Button disabled={issues.length > 0 || busy} onClick={() => void submit()}>
               Register source system
             </Button>
           </div>
-        </div>
+        </fieldset>
       </CardContent>
     </Card>
   );

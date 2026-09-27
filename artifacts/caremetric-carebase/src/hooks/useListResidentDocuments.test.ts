@@ -41,7 +41,7 @@ it("keeps an older resident form visible beyond the first 1,000 documents with t
   const rows = await run(signal);
   expect(rows.at(-1)).toEqual({ id: "document-1000", resident_id: "resident-a" });
   expect(rows).toHaveLength(1001);
-  expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999]]);
+  expect(calls.map((call) => call.range)).toEqual([[0, 999], [1000, 1999], [1001, 2000]]);
   for (const call of calls) {
     expect(call.filters).toEqual([["resident_id", "resident-a"]]);
     expect(call.order).toEqual([["created_at", { ascending: false }], ["id", { ascending: true }]]);

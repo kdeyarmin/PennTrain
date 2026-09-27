@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { facilityDateTimeLocalToUtcIso, toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { toFacilityDateTimeLocal } from "@/lib/dateUtils";
+import { careDateTimeInstant } from "@/lib/careFormDates";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,15 @@ function useCompleteHospitalReturn(residentId: string) {
       queryClient.invalidateQueries({ queryKey: ["resident-timeline", residentId] });
       queryClient.invalidateQueries({ queryKey: ["resident-assessment-reviews", residentId] });
       queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      // Returning restores the census and makes scheduled care visible again.
+      queryClient.invalidateQueries({ queryKey: ["residents"] });
+      queryClient.invalidateQueries({ queryKey: ["occupancy-board"] });
+      queryClient.invalidateQueries({ queryKey: ["resident-360", residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["resident-care-delivery"] });
+      queryClient.invalidateQueries({ queryKey: ["shift-report-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
     },
   });
 }
@@ -91,7 +101,7 @@ const ORDER_OPTIONS = [
   { value: "not_applicable", label: "No new or changed orders" },
 ];
 
-/** `datetime-local` wants facility wall-clock with no zone; pair with facilityDateTimeLocalToUtcIso. */
+/** `datetime-local` wants facility wall-clock with no zone. */
 function localNowForInput(): string {
   return toFacilityDateTimeLocal();
 }
@@ -141,23 +151,17 @@ export default function RecordHospitalReturnDialog({
   const assessmentReviewRequired = overrides.assessment ?? suggestion.assessmentReviewRequired;
   const supportPlanReviewRequired = overrides.plan ?? suggestion.supportPlanReviewRequired;
 
-  const returnedAt = (() => {
-    if (!returnTime) return null;
-    try {
-      return new Date(facilityDateTimeLocalToUtcIso(returnTime));
-    } catch {
-      return null;
-    }
-  })();
+  const returnInstant = careDateTimeInstant(returnTime);
+  const returnedAt = returnInstant ? new Date(returnInstant) : null;
   const departedAt = new Date(transferTime);
   const returnBeforeDeparture = Boolean(returnedAt && returnedAt.getTime() < departedAt.getTime());
 
   const submit = async () => {
-    if (!returnTime) return;
+    if (!returnInstant || returnBeforeDeparture) return;
     try {
       await complete.mutateAsync({
         episodeId,
-        returnTime: facilityDateTimeLocalToUtcIso(returnTime),
+        returnTime: returnInstant,
         dischargeDocumentId: dischargeDocumentId || undefined,
         changedOrderAckStatus: orderStatus,
         medicationReconciliationStatus: medicationStatus,
@@ -201,7 +205,9 @@ export default function RecordHospitalReturnDialog({
             <Input
               id="return-time" type="datetime-local" value={returnTime}
               onChange={(e) => setReturnTime(e.target.value)}
+              aria-invalid={Boolean(returnTime && !returnInstant)}
             />
+            {returnTime && !returnInstant && <p className="text-xs text-destructive">Enter a valid Pennsylvania date and time.</p>}
             {returnBeforeDeparture && (
               <p className="text-xs text-destructive">
                 The return cannot be before the transfer. The server refuses this too.
@@ -302,7 +308,7 @@ export default function RecordHospitalReturnDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
             onClick={() => void submit()}
-            disabled={!returnTime || returnBeforeDeparture || complete.isPending}
+            disabled={!returnInstant || returnBeforeDeparture || complete.isPending}
           >
             {complete.isPending ? "Recording…" : "Record return"}
           </Button>

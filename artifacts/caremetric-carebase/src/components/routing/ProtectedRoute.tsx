@@ -4,12 +4,14 @@ import { Loader2 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { KioskLayout } from "@/components/layout/KioskLayout";
 import { useAuth } from "@/lib/auth";
+import { useViewingOrg } from "@/lib/viewingOrg";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { loginPathWithNext } from "@/lib/loginRedirect";
 import { usePlatformStatus } from "@/hooks/usePlatformSettings";
 import { shouldBlockForMaintenance } from "@/lib/maintenanceMode";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
 import { facilityTypeLabel, hasAnyFacilityType } from "@/lib/facilityTypes";
+import { PublicAccessRoute } from "./PublicAccessRoute";
 export type UserRole = "platform_admin" | "org_admin" | "facility_manager" | "trainer" | "employee" | "auditor";
 
 export function FullPageLoading({ label = "Loading CareMetric" }: { label?: string }) {
@@ -36,7 +38,7 @@ export function MaintenanceGatedRoute({ component: Component }: { component: Com
   if (shouldBlockForMaintenance(platformStatus?.maintenanceMode, undefined)) {
     return <MaintenanceGate showSignOut={false} />;
   }
-  return <Component />;
+  return <PublicAccessRoute component={Component} />;
 }
 
 // The end of the facility-type gate, for the case where there is nowhere left to send someone.
@@ -85,6 +87,7 @@ export function ProtectedRoute({
   requireFacilityTypes?: readonly string[];
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
+  const { viewingOrgId } = useViewingOrg();
   const moduleAccess = useProductModuleAccess();
   const { facilityTypes, isLoading: facilityTypesLoading, isError: facilityTypesError } = useVisibleFacilityTypes();
   // Shares the cached ["platform-status"] query that MaintenanceBanner already runs, so this
@@ -175,7 +178,11 @@ export function ProtectedRoute({
     }
   }
 
-  const content = <Component />;
+  // Wouter reuses a matched route when only its resource parameter changes. Reset
+  // page-local drafts, protected reads and action targets for the new resource or
+  // reviewer, while preserving the shell and same-page query/hash tab state.
+  const pageIdentity = JSON.stringify([currentPath, user?.id, user?.organizationId, user?.role, viewingOrgId]);
+  const content = <Component key={pageIdentity} />;
   return chrome === "kiosk"
     ? <KioskLayout>{content}</KioskLayout>
     : <MainLayout>{content}</MainLayout>;

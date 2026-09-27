@@ -8,17 +8,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { TrainingRosterRow } from "@/hooks/useTrainingProgress";
 
-export function TrainingAssignmentExemption({ row }: { row: TrainingRosterRow }) {
+export function TrainingAssignmentExemption({ row, trainingYear }: { row: TrainingRosterRow; trainingYear?: number }) {
+  const year = trainingYear ?? row.exemption_year ?? Number(facilityToday().slice(0, 4));
+  return <ExemptionEditor key={`${row.employee_id}:${year}`} row={row} initialYear={year} />;
+}
+
+function ExemptionEditor({ row, initialYear }: { row: TrainingRosterRow; initialYear: number }) {
   const [open, setOpen] = useState(false);
-  const [year, setYear] = useState(String(row.exemption_year ?? Number(facilityToday().slice(0, 4))));
-  const [reason, setReason] = useState(row.exemption_reason || "");
+  const [year, setYear] = useState(String(initialYear));
+  const [reason, setReason] = useState(row.exemption_year === initialYear ? row.exemption_reason || "" : "");
   const client = useQueryClient();
   const mutation = useMutation({ mutationFn: async (remove: boolean) => {
     const { error } = await supabase.rpc("set_training_assignment_exemption", { p_employee_id: row.employee_id,
       p_training_year: Number(year), p_reason: remove ? null! : reason.trim() });
     if (error) throw error;
   }, onSuccess: async () => { await client.invalidateQueries({ queryKey: ["course_assignments", "training-roster"] }); setOpen(false); } });
-  return <><Button size="sm" variant="ghost" onClick={() => { mutation.reset(); setOpen(true); }}>{row.exemption_reason ? "Review assignment exemption" : "Record assignment exemption"}</Button>
+  return <><Button size="sm" variant="ghost" onClick={() => {
+    mutation.reset(); setYear(String(initialYear));
+    setReason(row.exemption_year === initialYear ? row.exemption_reason || "" : ""); setOpen(true);
+  }}>{row.exemption_reason ? "Review assignment exemption" : "Record assignment exemption"}</Button>
     <Dialog open={open} onOpenChange={value => { if (!mutation.isPending) setOpen(value); }}><DialogContent><DialogHeader>
       <DialogTitle>Assignment exemption for {row.student}</DialogTitle>
       <DialogDescription>Record why this employee needs no assigned courses for a specific year. Existing required courses still count. This decision does not waive qualifications, evidence, or regulatory requirements; its reason and author are audited.</DialogDescription>

@@ -8,7 +8,8 @@
  * The list shows open grants only. Closed ones are history and belong in the audit trail, not in a
  * screen whose purpose is deciding what access should still exist.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { KeyRound, Loader2 } from "lucide-react";
 import { useEndEnterpriseRoleGrant, useStandingEnterpriseGrants } from "@/hooks/useEnterpriseAccessGrants";
 import { endGrantIssues, grantAgeLabel } from "@/lib/enterpriseAccessGrants";
@@ -21,11 +22,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 export function StandingGrantsCard() {
+  const { user } = useAuth();
   const grants = useStandingEnterpriseGrants();
   const endGrant = useEndEnterpriseRoleGrant();
   const { toast } = useToast();
   const [openId, setOpenId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const confirmation = useRef(0);
+  const scope = JSON.stringify([user?.id, user?.organizationId, user?.role]);
+  const previousScope = useRef(scope);
+  if (previousScope.current !== scope) { previousScope.current = scope; confirmation.current += 1; setOpenId(null); setReason(""); }
+  useEffect(() => () => { confirmation.current += 1; }, []);
 
   const rows = grants.data ?? [];
   const now = new Date();
@@ -72,7 +79,7 @@ export function StandingGrantsCard() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => { setOpenId(open ? null : grant.id); setReason(""); }}
+                    onClick={() => { confirmation.current += 1; setOpenId(open ? null : grant.id); setReason(""); }}
                   >
                     {open ? "Cancel" : "End grant"}
                   </Button>
@@ -96,12 +103,15 @@ export function StandingGrantsCard() {
                     size="sm"
                     disabled={issues.length > 0 || endGrant.isPending}
                     onClick={async () => {
+                      const request = confirmation.current;
                       try {
                         await endGrant.mutateAsync({ grantId: grant.id, reason });
+                        if (request !== confirmation.current) return;
                         toast({ title: "Grant ended", description: `${grant.holderName} no longer holds ${grant.roleTemplateName}.` });
                         setOpenId(null);
                         setReason("");
                       } catch (error) {
+                        if (request !== confirmation.current) return;
                         toast({
                           title: "Ending the grant was blocked",
                           description: error instanceof Error ? error.message : String(error),

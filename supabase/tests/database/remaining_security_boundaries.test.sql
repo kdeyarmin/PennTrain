@@ -1,5 +1,5 @@
 begin;
-select plan(32);
+select plan(37);
 
 select results_eq(
   $$ select count(*)::integer from pg_policies
@@ -81,6 +81,12 @@ insert into public.employees(
 ) values
   ('71000000-0000-4000-8000-000000000031','71000000-0000-4000-8000-000000000001','71000000-0000-4000-8000-000000000011','71000000-0000-4000-8000-000000000023','Worker','A','security-worker-a@test.local','Aide','active'),
   ('71000000-0000-4000-8000-000000000032','71000000-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000012','71000000-0000-4000-8000-000000000024','Worker','B','security-worker-b@test.local','Aide','active');
+
+-- Existing files let the later registration cases exercise canonical scope
+-- stamping and rejection of a foreign-tenant alias, rather than missing bytes.
+insert into storage.objects(bucket_id, name, owner_id) values
+  ('credential-documents', '71000000-0000-4000-8000-000000000001/71000000-0000-4000-8000-000000000011/clearance.pdf', '71000000-0000-4000-8000-000000000021'),
+  ('credential-documents', '71000000-0000-4000-8000-000000000002/71000000-0000-4000-8000-000000000012/foreign.pdf', '71000000-0000-4000-8000-000000000024');
 
 create or replace function pg_temp.act_as(p_id uuid, p_session text default 'session-1')
 returns void language plpgsql as $$
@@ -244,8 +250,32 @@ select results_eq(
   $$ values ('facility_manager'::text) $$,
   'authorization resumes after a fresh-session unlock'
 );
+select lives_ok(
+  $$ select public.record_idle_session_unlock((select id from recorded_security_lock)) $$,
+  'retrying a lost unlock receipt succeeds without repeating the mutation'
+);
+select throws_ok(
+  $$ select public.record_idle_session_unlock(null) $$,
+  '42501', null, 'a missing lock id is not a completed unlock receipt'
+);
+select pg_temp.act_as('71000000-0000-4000-8000-000000000021','session-1');
+select throws_ok(
+  $$ select public.record_idle_session_unlock((select id from recorded_security_lock)) $$,
+  '42501', null, 'the originally locked bearer cannot replay a completed unlock'
+);
+select pg_temp.act_as('71000000-0000-4000-8000-000000000024','other-session');
+select throws_ok(
+  $$ select public.record_idle_session_unlock((select id from recorded_security_lock)) $$,
+  '42501', null, 'another account cannot replay a completed unlock'
+);
 
 reset role;
+select is(
+  (select count(*)::integer from public.audit_logs
+   where entity_type = 'auth_session' and entity_id = (select id::text from recorded_security_lock)
+     and action = 'soft_unlocked'),
+  1, 'unlock recovery preserves exactly one audit event'
+);
 select ok(
   pg_get_functiondef('public.checkin_via_token(text)'::regprocedure) like '%current_profile_active%'
   and pg_get_functiondef('public.checkin_via_token(text)'::regprocedure) like '%status = ''active''%',

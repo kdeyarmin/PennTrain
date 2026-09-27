@@ -67,7 +67,7 @@ export default function ResidentAssessmentFormEditor() {
 
   const { data: resident } = useGetResident(residentId);
   const { data: facilities } = useListFacilities();
-  const { data: form, isLoading, isError, error, refetch } = useGetResidentAssessmentForm(formId);
+  const { data: form, isLoading, isError, error, refetch } = useGetResidentAssessmentForm(formId, residentId);
   const { data: residentDocuments } = useListResidentDocuments(residentId);
   const saveDraft = useSaveResidentAssessmentFormDraft();
   const finalize = useFinalizeResidentAssessmentForm();
@@ -101,7 +101,13 @@ export default function ResidentAssessmentFormEditor() {
   // `lastSave` keeps the rejection of the latest attempt so a failed autosave blocks finalization
   // instead of being swallowed by the chain's continue-after-failure latch.
   const lastSave = useRef(Promise.resolve());
-  const isReadOnly = !canManage || form?.status === "finalized";
+  const [draftAction, setDraftAction] = useState<"summary" | "finalize" | null>(null);
+  const draftActionRef = useRef<typeof draftAction>(null);
+  const isReadOnly = !canManage || form?.status === "finalized" || draftAction !== null;
+  const finishDraftAction = () => {
+    draftActionRef.current = null;
+    setDraftAction(null);
+  };
 
   const enqueueSave = (payload: { id: string; content: ResidentAssessmentFormContent }) => {
     const run = lastSave.current
@@ -224,9 +230,9 @@ export default function ResidentAssessmentFormEditor() {
   }, [form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (next: ResidentAssessmentFormContent) => {
+    if (!canManage || form?.status === "finalized" || draftActionRef.current || !formId) return;
     contentRef.current = next;
     setContent(next);
-    if (isReadOnly || !formId) return;
     pendingSave.current = { id: formId, content: next };
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
@@ -252,7 +258,7 @@ export default function ResidentAssessmentFormEditor() {
     () => () => {
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
-        if (pendingSave.current) void enqueueSave(pendingSave.current);
+        flushPendingAutosave();
       }
     },
     [],
@@ -305,12 +311,15 @@ export default function ResidentAssessmentFormEditor() {
   };
 
   const handleGenerateWellnessSummary = async () => {
-    if (!formId || !content) return;
+    if (!formId || !content || isReadOnly || draftActionRef.current) return;
+    draftActionRef.current = "summary";
+    setDraftAction("summary");
     const runGeneration = () =>
       generateSummary.mutate(formId, {
         onSuccess: ({ summary, suggested_additions, follow_up_questions }) => {
           const latestContent = contentRef.current;
           if (!latestContent) return;
+          finishDraftAction();
           update({ ...latestContent, summary: { overallWellness: summary } });
           setAiSummaryAssist({
             suggestedAdditions: suggested_additions,
@@ -324,25 +333,21 @@ export default function ResidentAssessmentFormEditor() {
             description: e.message,
             variant: "destructive",
           }),
+        onSettled: finishDraftAction,
       });
 
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
-    if (pendingSave.current) {
-      const pending = pendingSave.current;
-      pendingSave.current = null;
-      try {
-        await saveDraft.mutateAsync(pending);
-      } catch (e) {
-        toast({
-          title: "Failed to save latest changes before generating",
-          description: e instanceof Error ? e.message : String(e),
-          variant: "destructive",
-        });
-        return;
-      }
+    try {
+      // Use the same queue as autosave/finalize: a direct write here could complete after a newer
+      // autosave, overwrite it, and make the summary read the wrong snapshot.
+      await awaitPendingAutosave();
+    } catch (e) {
+      finishDraftAction();
+      toast({
+        title: "Failed to save latest changes before generating",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+      return;
     }
     runGeneration();
   };
@@ -502,13 +507,16 @@ ${text}` : text;
   );
 
   const handleFinalize = async () => {
-    if (!formId || !content) return;
+    if (!formId || !content || isReadOnly || draftActionRef.current) return;
+    draftActionRef.current = "finalize";
+    setDraftAction("finalize");
     // finalize_resident_assessment_form() doesn't take content as an argument -- it finalizes
     // whatever's already persisted. Flush any debounce timer and wait for in-flight autosaves so
     // the locked version matches what's on screen, not a stale one that finished writing later.
     try {
       await awaitPendingAutosave();
     } catch (e) {
+      finishDraftAction();
       toast({
         title: "Failed to save latest changes before finalizing",
         description: e instanceof Error ? e.message : String(e),
@@ -522,6 +530,12 @@ ${text}` : text;
         description: "This is a reference copy. Attach the signed, DHS-prescribed form on the resident's page to complete the compliance record.",
       }),
       onError: (e: Error) => toast({ title: "Failed to finalize", description: e.message, variant: "destructive" }),
+      // PDF creation can fail after the database has already locked the form. Keep fields locked
+      // until the detail has refreshed so a partial success never reopens a finalized draft.
+      onSettled: async () => {
+        await refetch();
+        finishDraftAction();
+      },
     });
   };
 
@@ -656,12 +670,12 @@ ${text}` : text;
             </p>
           </div>
         </div>
-        {!isReadOnly && (
+        {canManage && form.status !== "finalized" && (
           <Button
             onClick={handleFinalize}
-            disabled={finalize.isPending || saveDraft.isPending}
+            disabled={draftAction !== null || finalize.isPending || saveDraft.isPending}
           >
-            {finalize.isPending || saveDraft.isPending
+            {draftAction === "finalize" || finalize.isPending
               ? "Finalizing..."
               : `Finalize ${formLabel}`}
           </Button>
@@ -692,6 +706,9 @@ ${text}` : text;
         requirement. Documents like the {formLabel} have to be on the state-approved form, no exception:
         attach the signed DHS-prescribed form on the resident's page to mark the item complete.
       </p>
+      {draftAction === "summary" && (
+        <p role="status" className="text-sm text-muted-foreground">Saving changes and drafting the wellness summary…</p>
+      )}
       {!isReadOnly && (
         <Alert className="border-primary/30 bg-primary/[0.03] [&>svg]:text-primary">
           <Wand2 className="h-4 w-4" />

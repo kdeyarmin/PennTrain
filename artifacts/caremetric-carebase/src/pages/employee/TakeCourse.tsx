@@ -169,7 +169,8 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   const backHref = "/me/courses";
   const backLabel = "Back to My Training";
 
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   const {
     data: assignment,
     isLoading: assignmentLoading,
@@ -194,7 +195,9 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
     error: progressErrorDetail,
     refetch: refetchProgress,
   } = useGetCourseProgress(assignmentId);
-  const { data: quizAttempts } = useListQuizAttempts({ assignmentId });
+  const ownsAssignment = !!assignment && !!employee && assignment.id === assignmentId && assignment.employee_id === employee.id;
+  const attemptsReady = ownsAssignment && !employeeLoading && !employeeQuery.isError && !assignmentLoading && !assignmentError;
+  const { data: quizAttempts } = useListQuizAttempts({ assignmentId, employeeId: employee?.id }, { enabled: attemptsReady });
   const packageCompleted = useAssignmentPackageCompleted(assignmentId);
   const progressWriter = useMemo(() => createCourseProgressWriter(), [assignmentId]);
   const [completionPending, setCompletionPending] = useState(false);
@@ -205,7 +208,6 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
-  const ownsAssignment = !!assignment && !!employee && assignment.employee_id === employee.id;
   const completionEvidenceLocked = assignment?.status === "completed";
   const [completionClock, setCompletionClock] = useState(Date.now);
   const completionWaitSeconds = course && progress?.assignment_id === assignmentId && progressFetchedAfterMount && !progressError
@@ -505,8 +507,8 @@ useEffect(() => {
   };
 
   const attemptsForCurrentQuiz = useMemo(
-    () => (quizAttempts ?? []).filter(a => a.quiz_id === currentQuiz?.id),
-    [quizAttempts, currentQuiz?.id],
+    () => attemptsReady ? (quizAttempts ?? []).filter(a => a.assignment_id === assignmentId && a.employee_id === employee?.id && a.quiz_id === currentQuiz?.id) : [],
+    [quizAttempts, attemptsReady, assignmentId, employee?.id, currentQuiz?.id],
   );
   const currentQuizPassed = attemptsForCurrentQuiz.some(a => a.passed === true);
   const bestScore = attemptsForCurrentQuiz.reduce<number | null>((best, a) => {

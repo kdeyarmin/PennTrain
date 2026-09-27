@@ -29,7 +29,7 @@ export function useListIncidents(filters: ListIncidentsFilters = {}, options: { 
       // dropping incidents from one page and repeating them on another.
       const pageSize = 1000;
       const rows: Incident[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase.from("incidents").select("*").order("occurred_at", { ascending: false }).order("id", { ascending: false }).range(from, from + pageSize - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.residentId) query = query.eq("resident_id", filters.residentId);
@@ -39,7 +39,8 @@ export function useListIncidents(filters: ListIncidentsFilters = {}, options: { 
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

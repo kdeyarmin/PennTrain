@@ -270,6 +270,12 @@ select ok(
   'generated work order carries assignment, parts, and schedule linkage'
 );
 
+-- API uploads persist the object before registering its document metadata.
+insert into storage.objects(bucket_id, name, owner_id) values (
+  'maintenance-documents',
+  '61000000-0000-4000-8000-000000000001/61000000-0000-4000-8000-000000000011/work/after.jpg',
+  '61000000-0000-4000-8000-000000000101'
+);
 insert into public.maintenance_documents(
   id, organization_id, facility_id, work_order_id, document_type,
   storage_path, file_name, file_type, file_size

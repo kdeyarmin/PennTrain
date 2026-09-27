@@ -61,13 +61,13 @@ export function useListAllResidentComplianceItems(
       // bulk-import-training-records (G24.2); the truncation is never an error, only a short list.
       const pageSize = 1000;
       const all: ResidentComplianceItemSummary[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("resident_compliance_items")
           .select("id,resident_id,facility_id,item_type,due_date,status,completed_date,triggered_by_item_id,renewal_interval_days")
           .order("due_date")
           .order("id")
-          .range(from, from + pageSize - 1);
+          .range(from, Math.min(from + pageSize, 50000) - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
         if (filters.status?.length) query = query.in("status", filters.status);
         if (filters.itemType) query = query.eq("item_type", filters.itemType);
@@ -75,7 +75,8 @@ export function useListAllResidentComplianceItems(
         if (error) throw error;
         const batch = (data ?? []) as ResidentComplianceItemSummary[];
         all.push(...batch);
-        if (batch.length < pageSize || all.length >= 50000) break;
+        if (batch.length === 0 || all.length >= 50000) break;
+        from += batch.length;
       }
       return all;
     },

@@ -55,7 +55,7 @@ export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {},
       // under-count this loop exists to prevent.
       const pageSize = 1000;
       const rows: TrainingRecord[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase.from("employee_training_records").select("*").order("due_date").order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (sortedEmployeeIds && sortedEmployeeIds.length > 0) {
           query = query.in("employee_id", sortedEmployeeIds);
@@ -76,7 +76,8 @@ export function useListTrainingRecords(filters: ListTrainingRecordsFilters = {},
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

@@ -18,3 +18,7 @@ d3f81bd91acb577a13d9d5f74c65ea091e20077c:supabase/functions/_shared/marketingEma
 # fingerprints cover only the two reviewed test fixtures, not files or scanner rules.
 527eb4a42f4c28bac4d1da316fe9bcb345c1acc9:supabase/functions/_shared/webPush.test.ts:generic-api-key:12
 527eb4a42f4c28bac4d1da316fe9bcb345c1acc9:supabase/functions/push-subscriptions/handler.test.ts:generic-api-key:12
+
+# Audit prose about MFA enrollment and verification/removal was mistaken for an API key.
+# The wording is corrected; this exact immutable-history fingerprint contains no credential.
+77c3c4fc012801478dcc37d804fbaf3458afe54f:docs/audits/2026-09-26-comprehensive-workflow-review.md:generic-api-key:95

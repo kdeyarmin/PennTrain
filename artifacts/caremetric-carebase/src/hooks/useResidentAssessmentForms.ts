@@ -34,15 +34,18 @@ export function useListResidentAssessmentForms(residentId: string | undefined) {
   });
 }
 
-export function useGetResidentAssessmentForm(formId: string | undefined) {
+export function useGetResidentAssessmentForm(formId: string | undefined, residentId: string | undefined) {
   return useQuery({
-    queryKey: ["resident_assessment_forms", "detail", formId],
+    queryKey: ["resident_assessment_forms", "detail", formId, residentId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("resident_assessment_forms").select("*").eq("id", formId!).single();
+      // Both IDs come from the route. A form accessible under RLS can still belong to a different
+      // resident; displaying it under this resident's header could chart their autofill into the
+      // wrong record. Keep the relationship in the query and cache identity.
+      const { data, error } = await supabase.from("resident_assessment_forms").select("*").eq("id", formId!).eq("resident_id", residentId!).single();
       if (error) throw error;
       return data as unknown as ResidentAssessmentForm;
     },
-    enabled: !!formId,
+    enabled: !!formId && !!residentId,
   });
 }
 

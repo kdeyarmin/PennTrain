@@ -46,7 +46,7 @@ export function useListShiftAssignments(filters: ListShiftAssignmentsFilters = {
       // from another.
       const pageSize = 1000;
       const rows: ShiftAssignmentWithDetails[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase
           .from("shift_assignments")
           .select(WITH_DETAILS_SELECT)
@@ -62,7 +62,8 @@ export function useListShiftAssignments(filters: ListShiftAssignmentsFilters = {
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...((data ?? []) as unknown as ShiftAssignmentWithDetails[]));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

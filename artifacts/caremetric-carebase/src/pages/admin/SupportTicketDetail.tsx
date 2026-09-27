@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
+import { useSupportReplyDraft } from "@/hooks/useSupportReplyDraft";
 import { useProfileNameMap } from "@/hooks/useProfiles";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,8 +50,7 @@ export default function SupportTicketDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [reply, setReply] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const { reply, setReply, file, setFile, onSubmitted } = useSupportReplyDraft(id);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: ticket, isLoading, isError, error, refetch } = useGetSupportTicket(id);
@@ -69,14 +69,11 @@ export default function SupportTicketDetail() {
   const { mutate: updateTicket } = useUpdateSupportTicket();
 
   const handleSend = () => {
-    if (!id || !user || !ticket || !reply.trim()) return;
+    if (!id || !user || !ticket || ticket.id !== id || !reply.trim() || sending || messagesError) return;
     sendMessage(
       { ticketId: id, organizationId: ticket.organization_id, senderId: user.id, body: reply.trim(), file: file ?? undefined },
       {
-        onSuccess: () => {
-          setReply("");
-          setFile(null);
-        },
+        onSuccess: onSubmitted(),
         onError: (e: Error) => toast({ title: "Failed to send reply", description: e.message, variant: "destructive" }),
       }
     );
@@ -204,7 +201,7 @@ export default function SupportTicketDetail() {
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ""; }}
               />
             </div>
             <div className="flex justify-end">

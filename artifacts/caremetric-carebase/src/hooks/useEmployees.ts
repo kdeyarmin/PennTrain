@@ -50,7 +50,7 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
       // PostgREST's per-response cap. A unique tie-breaker keeps same-surname staff on one page.
       const pageSize = 1000;
       const rows: Employee[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         let query = supabase.from("employees").select("*").order("last_name")
           .order("id", { ascending: true }).range(from, from + pageSize - 1);
         if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
@@ -66,7 +66,8 @@ export function useListEmployees(filters: ListEmployeesFilters = {}, options: { 
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },
@@ -83,16 +84,22 @@ export function useListEmployeesByIds(ids: string[]) {
   const sortedIds = [...new Set(ids.filter(Boolean))].sort();
   return useQuery({
     queryKey: ["employees", "by-ids", sortedIds],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (sortedIds.length === 0) return [] as Employee[];
-      // Certificate history can reference a large roster. Bound URLs and stay below the API
-      // row cap; each primary key matches at most one row, and RLS still applies to every batch.
+      // Bound URLs independently of the server's response cap. Even a 200-ID chunk may
+      // span multiple responses; RLS still applies to every page of the targeted lookup.
       const rows: Employee[] = [];
       for (let offset = 0; offset < sortedIds.length; offset += 200) {
-        const { data, error } = await supabase.from("employees").select("*")
-          .in("id", sortedIds.slice(offset, offset + 200)).order("last_name").order("id");
-        if (error) throw error;
-        rows.push(...(data ?? []));
+        const chunk = sortedIds.slice(offset, offset + 200);
+        for (let from = 0; ;) {
+          const { data, error } = await supabase.from("employees").select("*")
+            .in("id", chunk).order("last_name").order("id")
+            .range(from, from + 199).abortSignal(signal);
+          if (error) throw error;
+          if (!data?.length) break;
+          rows.push(...data);
+          from += data.length;
+        }
       }
       return rows.sort((a, b) => a.last_name.localeCompare(b.last_name) || a.id.localeCompare(b.id));
     },

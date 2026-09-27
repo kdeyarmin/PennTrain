@@ -11,19 +11,7 @@ import { Button } from "@/components/ui/button";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, Upload } from "lucide-react";
-
-const CREDENTIAL_TYPE_LABELS: Record<string, string> = {
-  act34_criminal_history: "Act 34 Criminal History Clearance",
-  act73_fbi_fingerprint: "Act 73 FBI Fingerprint Clearance",
-  act33_child_abuse: "Act 33 Child Abuse Clearance",
-  rn_license: "RN License",
-  lpn_license: "LPN License",
-  nurse_aide_registry: "Nurse Aide Registry Status",
-  tb_screening: "TB Screening (facility policy)",
-  immunization: "Immunization",
-  i9_employment_eligibility: "I-9 Employment Eligibility",
-  other: "Other",
-};
+import { CREDENTIAL_TYPE_LABELS } from "@/lib/credentialLabels";
 
 function credentialTitle(c: EmployeeCredential): string {
   return c.credential_label || CREDENTIAL_TYPE_LABELS[c.credential_type] || c.credential_type.replace(/_/g, " ");
@@ -32,7 +20,8 @@ function credentialTitle(c: EmployeeCredential): string {
 export default function MyCredentials() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   const {
     data: credentials,
     isLoading: credentialsLoading,
@@ -109,12 +98,16 @@ export default function MyCredentials() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {credentialsError ? (
+          {employeeQuery.isError ? (
+            <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />
+          ) : credentialsError ? (
             <QueryError what="your credentials" error={credentialsErrorDetail} onRetry={() => refetchCredentials()} />
           ) : isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
             </div>
+          ) : !employee ? (
+            <p className="text-muted-foreground text-sm text-center py-8">No employee profile is linked to your account. Contact your facility manager.</p>
           ) : !credentials?.length ? (
             <p className="text-muted-foreground text-sm text-center py-8">No credentials on file yet.</p>
           ) : (
@@ -144,7 +137,7 @@ export default function MyCredentials() {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={busyId === c.id}
+                      disabled={busyId !== null}
                       onClick={() => fileRefs.current[c.id]?.click()}
                     >
                       <Upload className="mr-1.5 h-3.5 w-3.5" />

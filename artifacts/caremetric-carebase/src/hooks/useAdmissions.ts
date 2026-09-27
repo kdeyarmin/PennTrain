@@ -55,6 +55,7 @@ export interface MoveInTaskWithOwner extends MoveInTask {
 
 function invalidateAdmissions(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["admissions"] });
+  queryClient.invalidateQueries({ queryKey: ["occupancy-board"] });
   queryClient.invalidateQueries({ queryKey: ["residents"] });
   queryClient.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
   queryClient.invalidateQueries({ queryKey: ["work-items"] });
@@ -327,6 +328,7 @@ export function useCreateRoomWithBeds() {
       queryClient.invalidateQueries({ queryKey: ["admissions", "beds"] });
       // create_room_with_beds inserts facility_buildings for a new building name.
       queryClient.invalidateQueries({ queryKey: ["facility-buildings"] });
+      queryClient.invalidateQueries({ queryKey: ["occupancy-board"] });
     },
   });
 }
@@ -349,7 +351,10 @@ export function useSetBedAvailability() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admissions", "beds"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admissions", "beds"] });
+      queryClient.invalidateQueries({ queryKey: ["occupancy-board"] });
+    },
   });
 }
 
@@ -605,6 +610,13 @@ export function useTransitionResidentCensus() {
       // previous state until something else happens to refetch it.
       queryClient.invalidateQueries({ queryKey: ["resident-care-header", variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ["resident_regulatory_actions"] });
+      // Queue eligibility and resident summaries depend on the current census status.
+      queryClient.invalidateQueries({ queryKey: ["resident-360", variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-timeline", variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ["resident-service-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["resident-care-delivery"] });
+      queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
     },
   });
 }

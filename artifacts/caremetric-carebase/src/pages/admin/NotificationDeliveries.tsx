@@ -107,11 +107,12 @@ export default function NotificationDeliveries() {
   });
   const { data: orgNameMap } = useOrganizationNameMap();
   const { data: operations, isLoading: operationsLoading, isError: operationsError } = useNotificationDeliveryOperations();
-  const { data: evidence, isLoading: evidenceLoading } = useNotificationDeliveryEvidence(evidenceDeliveryId);
-  const { data: templates = [] } = useNotificationTemplateLibrary();
+  const { data: evidence, isLoading: evidenceLoading, isError: evidenceError, error: evidenceErrorDetail, refetch: refetchEvidence } = useNotificationDeliveryEvidence(evidenceDeliveryId);
+  const templateLibrary = useNotificationTemplateLibrary();
+  const { data: templates = [] } = templateLibrary;
   const { mutate: retryDelivery, isPending: retrying } = useRetryNotificationDelivery();
   const { mutateAsync: bulkRetry, isPending: bulkRetrying } = useBulkRetryNotificationDeliveries();
-  const { mutateAsync: previewTemplate, data: templatePreview, isPending: previewing } = usePreviewNotificationTemplate();
+  const { mutateAsync: previewTemplate, data: templatePreview, variables: previewedDraft, isPending: previewing } = usePreviewNotificationTemplate();
   const { mutateAsync: createTemplate, isPending: savingTemplate } = useCreateNotificationTemplateVersion();
   const { mutateAsync: activateTemplate, isPending: activatingTemplate } = useActivateNotificationTemplate();
   const { mutateAsync: setSpendPolicy, isPending: savingSpendPolicy } = useSetNotificationSpendPolicy();
@@ -253,7 +254,11 @@ export default function NotificationDeliveries() {
     const results = await bulkRetry(ids);
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     const failedCount = results.length - succeeded;
-    setSelectedIds(new Set());
+    setSelectedIds(current => {
+      const remaining = new Set(current);
+      results.forEach((result, index) => { if (result.status === "fulfilled") remaining.delete(ids[index]); });
+      return remaining;
+    });
     if (failedCount === 0) {
       toast({ title: `${succeeded} deliver${succeeded === 1 ? "y" : "ies"} queued for retry`, variant: "success" });
     } else if (succeeded === 0) {
@@ -672,7 +677,7 @@ export default function NotificationDeliveries() {
             <Button variant="ghost" size="sm" onClick={() => setEvidenceDeliveryId(null)}>Close</Button>
           </CardHeader>
           <CardContent>
-            {evidenceLoading ? (
+            {evidenceError ? <QueryError what="delivery documentation" error={evidenceErrorDetail} onRetry={() => void refetchEvidence()} /> : evidenceLoading ? (
               <div className="h-24 rounded-md bg-muted animate-pulse" />
             ) : evidence ? (
               <div className="space-y-5">
@@ -749,13 +754,13 @@ export default function NotificationDeliveries() {
               <Button variant="outline" onClick={handlePreviewTemplate} disabled={previewing}>{previewing ? "Previewing..." : "Preview"}</Button>
               <Button onClick={handleSaveTemplate} disabled={savingTemplate}>{savingTemplate ? "Activating..." : "Save and activate version"}</Button>
             </div>
-            {templatePreview && (
+            {templatePreview && !previewing && previewedDraft?.subjectTemplate === templateSubject && previewedDraft?.bodyTemplate === templateBody && (
               <div className="rounded-md border bg-muted/30 p-3 text-sm">
                 <p className="font-medium">{templatePreview.subject}</p>
                 <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{templatePreview.body}</p>
               </div>
             )}
-            <div className="max-h-64 overflow-auto rounded-md border">
+            {templateLibrary.isError ? <QueryError what="notification template library" error={templateLibrary.error} onRetry={() => void templateLibrary.refetch()} /> : templateLibrary.isLoading ? <p>Loading notification templates…</p> : <div className="max-h-64 overflow-auto rounded-md border">
               <Table>
                 <TableHeader><TableRow><TableHead>Template</TableHead><TableHead>Scope</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
                 <TableBody>
@@ -770,7 +775,7 @@ export default function NotificationDeliveries() {
                           {template.status !== "active" && <Button size="sm" variant="ghost" disabled={activatingTemplate} onClick={() => handleActivateTemplate(template.id)}>Activate</Button>}
                         </TableCell>
                       </TableRow>
-                      {previewedTemplateId === template.id && savedTemplatePreview && (
+                      {previewedTemplateId === template.id && !previewingSaved && savedTemplatePreview?.templateId === template.id && (
                         <TableRow>
                           <TableCell colSpan={4} className="bg-muted/30 text-sm">
                             <p className="font-medium">{savedTemplatePreview.subject}</p>
@@ -783,7 +788,7 @@ export default function NotificationDeliveries() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </div>}
           </CardContent>
         </Card>
 

@@ -217,6 +217,61 @@ Deno.test("pinned webhook timeout is an absolute request deadline", async () => 
   if (Date.now() - started > 500) throw new Error("Absolute timeout exceeded its bounded allowance");
 });
 
+Deno.test("pinned webhook completes framed responses without waiting for the peer to close", async () => {
+  for (const [raw, expectedStatus, expectedBody] of [
+    ["HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nok", 200, "ok"],
+    ["HTTP/1.1 204 No Content\r\nConnection: keep-alive\r\n\r\n", 204, ""],
+    ["HTTP/1.1 103 Early Hints\r\nLink: </style.css>\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok", 200, "ok"],
+    ["HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n✓", 200, "✓"],
+  ] as const) {
+    let reads = 0;
+    let closed = false;
+    const connector = async () => ({
+      write: async (bytes: Uint8Array) => bytes.length,
+      read: async (buffer: Uint8Array) => {
+        if (reads++) throw new Error("Complete response should not wait for another read");
+        const bytes = new TextEncoder().encode(raw);
+        buffer.set(bytes);
+        return bytes.length;
+      },
+      close: () => { closed = true; },
+    });
+    const response = await phase2PinnedWebhookRequest("https://hooks.example.test/events", {}, ["8.8.8.8"], connector);
+    assertEquals(response.status, expectedStatus);
+    assertEquals(await response.text(), expectedBody);
+    assertEquals(closed, true);
+  }
+});
+
+Deno.test("pinned webhook waits through split informational headers and rejects incomplete bodies", async () => {
+  for (const chunks of [
+    ["HTTP/1.1 100 Continue\r\n\r\n", "HTTP/1.1 202 Accepted\r\nContent-Length: 2\r\n\r\n", "ok"],
+    ["HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nshort"],
+  ]) {
+    let index = 0;
+    const connector = async () => ({
+      write: async (bytes: Uint8Array) => bytes.length,
+      read: async (buffer: Uint8Array) => {
+        if (index >= chunks.length) return null;
+        const bytes = new TextEncoder().encode(chunks[index++]);
+        buffer.set(bytes);
+        return bytes.length;
+      },
+      close: () => {},
+    });
+    if (chunks.length === 1) {
+      let rejected = false;
+      try { await phase2PinnedWebhookRequest("https://hooks.example.test/events", {}, ["8.8.8.8"], connector); }
+      catch (error) { rejected = error instanceof Error && error.message === "Incomplete webhook HTTP response"; }
+      assertEquals(rejected, true);
+    } else {
+      const response = await phase2PinnedWebhookRequest("https://hooks.example.test/events", {}, ["8.8.8.8"], connector);
+      assertEquals(response.status, 202);
+      assertEquals(await response.text(), "ok");
+    }
+  }
+});
+
 Deno.test("claimed deliveries are interleaved across tenants", () => {
   const rows = [
     { organization_id: "a", id: 1 },
@@ -226,4 +281,48 @@ Deno.test("claimed deliveries are interleaved across tenants", () => {
     { organization_id: "b", id: 5 },
   ];
   assertEquals(phase2RoundRobinByTenant(rows).map((row) => row.id), [1, 4, 2, 5, 3]);
+});
+
+function cappedResponseFixture(raw: string) {
+  const bytes = new TextEncoder().encode(raw);
+  let offset = 0;
+  let closed = false;
+  return {
+    closed: () => closed,
+    connector: async () => ({
+      write: async (bytes: Uint8Array) => bytes.length,
+      read: async (buffer: Uint8Array) => {
+        if (offset === bytes.length) throw new Error("A complete framed response must not read again");
+        const count = Math.min(buffer.length, bytes.length - offset);
+        buffer.set(bytes.subarray(offset, offset + count)); offset += count; return count;
+      },
+      close: () => { closed = true; },
+    }),
+  };
+}
+
+const RESPONSE_CAP = 96 * 1024;
+const responseHeader = (length: number) => `HTTP/1.1 200 OK\r\nContent-Length: ${length}\r\n\r\n`;
+// The decimal length's digit count is stable at this boundary.
+const boundaryBodyLength = RESPONSE_CAP - responseHeader(RESPONSE_CAP).length;
+for (const declaredLength of [1_000_000, boundaryBodyLength + 1]) {
+  Deno.test(`pinned webhook refuses incomplete Content-Length ${declaredLength} at its response cap`, async () => {
+    const head = responseHeader(declaredLength);
+    const fixture = cappedResponseFixture(head + "x".repeat(RESPONSE_CAP - head.length));
+    let rejected = false;
+    try { await phase2PinnedWebhookRequest("https://hooks.example.test/events", {}, ["8.8.8.8"], fixture.connector); }
+    catch (error) { rejected = error instanceof Error && error.message === "Incomplete webhook HTTP response"; }
+    assertEquals(rejected, true);
+    assertEquals(fixture.closed(), true);
+  });
+}
+
+Deno.test("pinned webhook accepts a complete response exactly at its wire cap and bounds the diagnostic body", async () => {
+  const raw = responseHeader(boundaryBodyLength) + "x".repeat(boundaryBodyLength);
+  assertEquals(raw.length, RESPONSE_CAP);
+  const fixture = cappedResponseFixture(raw);
+  const response = await phase2PinnedWebhookRequest("https://hooks.example.test/events", {}, ["8.8.8.8"], fixture.connector);
+  assertEquals(response.ok, true);
+  assertEquals((await response.text()).length, 64 * 1024);
+  assertEquals(fixture.closed(), true);
 });

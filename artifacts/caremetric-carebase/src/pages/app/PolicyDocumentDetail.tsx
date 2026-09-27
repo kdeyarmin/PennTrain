@@ -194,10 +194,17 @@ function VersionsTab({ documentId, currentVersionId }: { documentId: string; cur
  * panel on a page already restricted to policy administrators, which is the same boundary the
  * questions were authored behind.
  */
-function CampaignQuestions({ campaignId }: { campaignId: string }) {
-  const questions = useListCampaignQuestions(campaignId);
+export function CampaignQuestions({ campaignId }: { campaignId: string }) {
+  const { user } = useAuth();
+  const canReadQuestions = canWritePolicyDocuments(user?.role);
+  const questions = useListCampaignQuestions(canReadQuestions ? campaignId : undefined);
   const rows = questions.data ?? [];
 
+  // Auditors can inspect campaigns but cannot read this answer-key table. An empty RLS result
+  // for a reader does not mean the campaign has no knowledge check.
+  if (!canReadQuestions) {
+    return <p className="mt-3 text-xs text-muted-foreground">Knowledge-check questions and answer keys are available to policy administrators.</p>;
+  }
   if (questions.isLoading) return <div className="mt-3 h-10 animate-pulse rounded bg-muted" />;
   if (questions.isError) {
     return (
@@ -248,12 +255,13 @@ function CampaignQuestions({ campaignId }: { campaignId: string }) {
   );
 }
 
-function AssignCampaignDialog({
+export function AssignCampaignDialog({
   campaignId, policyDocumentVersionId, dueDate, open, onClose,
 }: {
   campaignId: string; policyDocumentVersionId: string; dueDate: string | null; open: boolean; onClose: () => void;
 }) {
   const { toast } = useToast();
+  const assurance = usePolicyWriteAssurance();
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
@@ -269,10 +277,10 @@ function AssignCampaignDialog({
 
   const toggle = (id: string) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
-  const handleClose = () => { setSelectedIds([]); setSearch(""); onClose(); };
+  const handleClose = () => { if (assigning) return; setSelectedIds([]); setSearch(""); onClose(); };
 
   const handleAssign = async () => {
-    if (!selectedIds.length) return;
+    if (!selectedIds.length || assigning || !assurance.canWrite) return;
     setAssigning(true);
     const targets = selectedIds.filter((id) => employeeById.has(id));
     const settled = await Promise.allSettled(
@@ -290,17 +298,18 @@ function AssignCampaignDialog({
     );
     setAssigning(false);
 
-    let created = 0, alreadyAssigned = 0, failed = 0;
-    settled.forEach((r) => {
+    let created = 0, alreadyAssigned = 0;
+    const failedIds: string[] = [];
+    settled.forEach((r, index) => {
       if (r.status === "fulfilled") { created++; return; }
       // Postgres unique_violation on (campaign_id, employee_id) -- this employee already has
       // an attestation for this campaign. Not a real failure, just a no-op worth tallying
       // separately so the toast doesn't read as "assignment broke" when it's just a re-run.
-      const message = r.reason instanceof Error ? r.reason.message : String(r.reason);
-      if (message.includes("policy_attestations_campaign_employee_uk") || message.includes("duplicate key")) {
+      const message = r.reason && typeof r.reason.message === "string" ? r.reason.message : String(r.reason);
+      if (message.includes("policy_attestations_campaign_employee_uk")) {
         alreadyAssigned++;
       } else {
-        failed++;
+        failedIds.push(targets[index]);
       }
     });
 
@@ -308,11 +317,15 @@ function AssignCampaignDialog({
       title: `Assigned to ${created} employee${created === 1 ? "" : "s"}`,
       description: [
         alreadyAssigned > 0 ? `${alreadyAssigned} already assigned` : null,
-        failed > 0 ? `${failed} failed` : null,
+        failedIds.length > 0 ? `${failedIds.length} failed. Their selections are kept so you can retry.` : null,
       ].filter(Boolean).join(", ") || undefined,
-      variant: failed > 0 ? "destructive" : undefined,
+      variant: failedIds.length > 0 ? "destructive" : undefined,
     });
-    handleClose();
+    if (failedIds.length > 0) {
+      setSelectedIds(failedIds);
+    } else {
+      handleClose();
+    }
   };
 
   return (
@@ -337,7 +350,7 @@ function AssignCampaignDialog({
             <div className="divide-y">
               {filtered.map((emp) => (
                 <label key={emp.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer">
-                  <Checkbox checked={selectedIds.includes(emp.id)} onCheckedChange={() => toggle(emp.id)} />
+                  <Checkbox checked={selectedIds.includes(emp.id)} onCheckedChange={() => toggle(emp.id)} disabled={assigning} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{emp.first_name} {emp.last_name}</p>
                     <p className="text-xs text-muted-foreground truncate">{emp.job_title ?? "—"}</p>
@@ -349,8 +362,8 @@ function AssignCampaignDialog({
         </div>
         <PolicyWriteAssurance />
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleAssign} disabled={!selectedIds.length || assigning}>
+          <Button variant="outline" onClick={handleClose} disabled={assigning}>Cancel</Button>
+          <Button onClick={handleAssign} disabled={!assurance.canWrite || !selectedIds.length || assigning}>
             {assigning ? "Assigning..." : `Assign to ${selectedIds.length} Employee${selectedIds.length !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>

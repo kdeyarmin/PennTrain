@@ -49,6 +49,7 @@ import { Link, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { buildTrainingClassesIcs } from "@/lib/calendarExport";
 import { downloadTextFile } from "@/lib/browserDownload";
+import { trainingFormNumber } from "@/lib/trainingFormNumbers";
 
 /**
  * Facility-filter value for "sessions that belong to no single facility".
@@ -178,6 +179,13 @@ export default function TrainerClasses() {
       toast({ title: "Please fill required fields", variant: "destructive" });
       return;
     }
+    let durationHours: number;
+    try {
+      durationHours = trainingFormNumber(form.durationHours, "Class duration", { min: 0, exclusiveMin: true })!;
+    } catch (error) {
+      toast({ title: (error as Error).message, variant: "destructive" });
+      return;
+    }
     if (!isTrainer && !form.instructorProfileId) {
       toast({ title: "Select who's running this session", variant: "destructive" });
       return;
@@ -194,7 +202,7 @@ export default function TrainerClasses() {
         class_date: form.classDate,
         facility_id: form.facilityId && form.facilityId !== "none" ? form.facilityId : null,
         location: form.location.trim() || null,
-        duration_hours: Number(form.durationHours) || 1,
+        duration_hours: durationHours,
         notes: form.notes.trim() || null,
         organization_id: user.organizationId,
         trainer_profile_id: isTrainer ? user.id : form.instructorProfileId,

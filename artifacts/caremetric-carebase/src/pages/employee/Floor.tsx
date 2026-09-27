@@ -238,7 +238,7 @@ export default function Floor() {
       )}
 
       {documenting && (
-        <DocumentCareDialog
+        <DocumentCareDialog key={documenting.id}
           open={!!documenting}
           onOpenChange={(open) => !open && setDocumenting(null)}
           task={{
@@ -260,7 +260,7 @@ export default function Floor() {
       )}
 
       {unscheduledFor && (
-        <UnscheduledServiceDialog
+        <UnscheduledServiceDialog key={`${unscheduledFor.facility_id}:${unscheduledFor.resident_id}`}
           open={!!unscheduledFor}
           onOpenChange={(open) => !open && setUnscheduledFor(null)}
           residentId={unscheduledFor.resident_id}

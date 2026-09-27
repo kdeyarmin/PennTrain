@@ -1,4 +1,6 @@
 import { useUploadLearningPackage } from "@/hooks/useLearningPackageIngestion";
+import { parseQuizSettingsInput } from "@/lib/quizAuthoring";
+import { useTrainingItemOrder } from "@/hooks/useTrainingItemOrder";
 import { NativeLearningPackagePanel } from "@/components/learning/NativeLearningPackagePanel";
 import { useId, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams, Link, useLocation } from "wouter";
@@ -8,7 +10,7 @@ import { QueryError } from "@/components/QueryState";
 import {
   useGetCourse, useUpdateCourse,
   useListCourseVersions, useCreateCourseVersion, useCloneCourseVersion, usePublishCourseVersion, useUnpublishCourse,
-  useListCourseBlocks, useCreateCourseBlock, useUpdateCourseBlock, useDeleteCourseBlock,
+  useListCourseBlocks, useCreateCourseBlock, useDeleteCourseBlock,
   canEnrollInCourse, getCourseVersionPublishIssues, isCourseVersionLearnerReady, useCourseVersionPublishIssues,
   type CourseVersion, type CourseBlock, type CourseBlockInsert,
 } from "@/hooks/useCourses";
@@ -369,26 +371,21 @@ export default function CourseDetail() {
   const [showAddBlock, setShowAddBlock] = useState(false);
   const [blockForm, setBlockForm] = useState<BlockFormState>(EMPTY_BLOCK_FORM);
   const { mutate: createBlock, isPending: creatingBlock } = useCreateCourseBlock();
-  const { mutateAsync: updateBlockAsync } = useUpdateCourseBlock();
+  const { mutateAsync: reorderBlock } = useTrainingItemOrder("course_blocks");
   const { mutate: deleteBlock, isPending: deletingBlock } = useDeleteCourseBlock();
   const [blockPendingDelete, setBlockPendingDelete] = useState<CourseBlock | null>(null);
 
-  // Reorders a block by swapping its sort_order with the adjacent block -- mirrors
-  // CompetencyTemplates.tsx's ManageItemsDialog.handleMove (two concurrent mutateAsync calls,
-  // with a busy-state guard so a second click can't race an in-flight swap).
+  // Swap adjacent positions atomically so a failed write cannot leave half a move.
   const [reorderingBlocks, setReorderingBlocks] = useState(false);
 
   const handleMoveBlock = async (index: number, direction: -1 | 1) => {
-    if (!blocks) return;
+    if (!blocks || reorderingBlocks) return;
     const target = blocks[index];
     const neighbor = blocks[index + direction];
     if (!target || !neighbor) return;
     setReorderingBlocks(true);
     try {
-      await Promise.all([
-        updateBlockAsync({ id: target.id, sort_order: neighbor.sort_order }),
-        updateBlockAsync({ id: neighbor.id, sort_order: target.sort_order }),
-      ]);
+      await reorderBlock({ first: target, second: neighbor });
     } catch (e) {
       toast({ title: "Failed to reorder blocks", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -493,14 +490,15 @@ export default function CourseDetail() {
       toast({ title: "Quiz title is required", variant: "destructive" });
       return;
     }
-    const passingScore = Number(quizForm.passingScore);
+    let settings;
+    try { settings = parseQuizSettingsInput(quizForm.passingScore, quizForm.maxAttempts); }
+    catch (error) { toast({ title: (error as Error).message, variant: "destructive" }); return; }
     createQuiz(
       {
         course_block_id: quizPromptBlock.id,
         organization_id: course.organization_id,
         title: quizForm.title.trim(),
-        passing_score_percent: Number.isFinite(passingScore) ? passingScore : 80,
-        max_attempts: quizForm.maxAttempts.trim() ? Number(quizForm.maxAttempts) : null,
+        ...settings,
       },
       {
         onSuccess: () => { toast({ title: "Quiz created" }); setQuizPromptBlock(null); },

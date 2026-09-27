@@ -190,7 +190,8 @@ export default function CompetencyRecords() {
     employeeId: employeeFilter !== "all" ? employeeFilter : undefined,
     templateId: templateFilter !== "all" ? templateFilter : undefined,
   });
-  const { data: templateItems } = useListCompetencyTemplateItems(form.templateId || undefined);
+  const templateItemsQuery = useListCompetencyTemplateItems(form.templateId || undefined);
+  const { data: templateItems } = templateItemsQuery;
   const { data: selectedFormEmployee } = useGetEmployee(form.employeeId || undefined);
 
   const { mutate: createRecord, isPending: creating } = useCreateCompetencyRecord();
@@ -241,6 +242,10 @@ export default function CompetencyRecords() {
   const handleSubmit = () => {
     if (!form.employeeId || !form.templateId || !form.evaluationDate) {
       toast({ title: "Employee, template, and evaluation date are required", variant: "destructive" });
+      return;
+    }
+    if (templateItemsQuery.isLoading || templateItemsQuery.isError) {
+      toast({ title: "Load the checklist before saving this evaluation", variant: "destructive" });
       return;
     }
     const employee = formEmployee
@@ -478,7 +483,9 @@ export default function CompetencyRecords() {
             {form.templateId && (
               <div className="space-y-2" role="group" aria-labelledby={`${__fieldIds}-checklist`}>
                 <Label id={`${__fieldIds}-checklist`} className="text-[13px]">Checklist</Label>
-                {!templateItems ? (
+                {templateItemsQuery.isError ? (
+                  <QueryError what="evaluation checklist" error={templateItemsQuery.error} onRetry={() => void templateItemsQuery.refetch()} />
+                ) : !templateItems ? (
                   <div className="space-y-2">
                     {[...Array(2)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
                   </div>
@@ -529,7 +536,7 @@ export default function CompetencyRecords() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={creating} className="shadow-sm">
+            <Button onClick={handleSubmit} disabled={creating || templateItemsQuery.isLoading || templateItemsQuery.isError} className="shadow-sm">
               {creating ? "Saving..." : "Save Evaluation"}
             </Button>
           </DialogFooter>

@@ -6,6 +6,8 @@ const ENV: Record<string, string> = {
   WEB_PUSH_VAPID_PUBLIC_KEY: "public", WEB_PUSH_VAPID_PRIVATE_KEY: "private",
 };
 const endpoint = "https://fcm.googleapis.com/fcm/send/subscription-token";
+const endpointHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint))),
+  byte => byte.toString(16).padStart(2, "0")).join("");
 // Deterministic test-only P-256 generator point and 16-byte auth secret.
 const keys = {
   p256dh: "BGsX0fLhLEJH-Lzm5WOkQPJ3A32BLeszoPShOUXYmMKWT-NC4v4af5uO5-tKfA-eFivOM1drMV7Oy7ZAaDe_UfU",
@@ -14,7 +16,7 @@ const keys = {
     .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""),
 };
 
-function fixture(assurance: unknown = true, error: { code: string } | null = null, env = ENV) {
+function fixture(assurance: unknown = true, error: { code: string } | null = null, env = ENV, stored: Record<string, unknown> | null = null) {
   const effects: string[] = [];
   const caller = {
     auth: { getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }) },
@@ -29,6 +31,16 @@ function fixture(assurance: unknown = true, error: { code: string } | null = nul
     },
   };
   const admin = { from: (table: string) => ({
+    select: () => {
+      effects.push(`${table}:select`);
+      const filters: Array<[string, unknown]> = [];
+      const query = {
+        eq: (key: string, value: unknown) => { filters.push([key, value]); return query; },
+        is: (key: string, value: unknown) => { filters.push([key, value]); return query; },
+        maybeSingle: async () => ({ data: stored && filters.every(([key, value]) => stored[key] === value) ? stored : null, error: null }),
+      };
+      return query;
+    },
     upsert: async (row: Record<string, unknown>) => {
       effects.push(`${table}:upsert`);
       assertEquals(row.profile_id, "user-1");
@@ -51,6 +63,25 @@ function fixture(assurance: unknown = true, error: { code: string } | null = nul
     getEnv: (name) => env[name],
   });
   return { handler, effects };
+}
+
+for (const [name, stored, expected] of [
+  ["current profile", { profile_id: "user-1", organization_id: "org-1", disabled_at: null, expiration_time: null }, true],
+  ["another profile", { profile_id: "user-2", organization_id: "org-1", disabled_at: null }, false],
+  ["another organization", { profile_id: "user-1", organization_id: "org-2", disabled_at: null }, false],
+  ["disabled", { profile_id: "user-1", organization_id: "org-1", disabled_at: "2026-01-01" }, false],
+  ["expired", { profile_id: "user-1", organization_id: "org-1", disabled_at: null, expiration_time: "2020-01-01T00:00:00Z" }, false],
+  ["different endpoint", { profile_id: "user-1", organization_id: "org-1", disabled_at: null, endpoint_hash: "different-hash" }, false],
+] as const) {
+  Deno.test(`push status checks scoped subscription: ${name}`, async () => {
+    const { handler, effects } = fixture(true, null, ENV, { endpoint_hash: endpointHash, ...stored });
+    const response = await handler(new Request("https://function.test", {
+      method: "POST", headers: { Authorization: "Bearer user-jwt" }, body: JSON.stringify({ action: "status", endpoint }),
+    }));
+    assertEquals(response.status, 200);
+    assertEquals(await response.json(), { active: expected });
+    assertEquals(effects, ["push_subscriptions:select"]);
+  });
 }
 
 Deno.test("push availability and registration require both VAPID keys while removal stays usable", async () => {

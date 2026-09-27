@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { formatDateForDisplay, facilityYear } from "@/lib/dateUtils";
 import { useAuth } from "@/lib/auth";
@@ -49,7 +49,7 @@ const reasonLabel: Record<string, string> = {
   expired: "Expired",
 };
 
-function EnrollCohortDialog({
+export function EnrollCohortDialog({
   open,
   onOpenChange,
   facility,
@@ -66,19 +66,12 @@ function EnrollCohortDialog({
     enrollableOnly: true,
   });
   const [classId, setClassId] = useState<string>("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(facility?.candidates.map(candidate => candidate.employeeId)));
   const [results, setResults] = useState<
     Array<{ employeeId: string; success: boolean; status?: string; waitlistPosition?: number | null; error?: string }>
   >([]);
 
   const candidates = facility?.candidates ?? [];
-
-  useEffect(() => {
-    if (!open || !facility) return;
-    setClassId("");
-    setResults([]);
-    setSelected(new Set(facility.candidates.map((c) => c.employeeId)));
-  }, [open, facility]);
 
   const toggle = (employeeId: string) => {
     setSelected((prev) => {
@@ -90,13 +83,19 @@ function EnrollCohortDialog({
   };
 
   const submit = async () => {
-    if (!classId || selected.size === 0) return;
+    if (!classId || selected.size === 0 || enroll.isPending || classes.isError || classes.isLoading) return;
+    if (!(classes.data ?? []).some(row => row.id === classId)) {
+      setClassId("");
+      toast({ title: "Choose an available class", description: "The selected class is no longer available for enrollment.", variant: "destructive" });
+      return;
+    }
     try {
       const outcome = await enroll.mutateAsync({
         classId,
         employeeIds: [...selected],
       });
       setResults(outcome);
+      setSelected(new Set(outcome.filter(row => !row.success).map(row => row.employeeId)));
       const summary = summarizeEnrollmentResults(outcome);
       toast({
         title: "Cohort enrollment finished",
@@ -115,7 +114,7 @@ function EnrollCohortDialog({
   const selectedClass = (classes.data ?? []).find((row) => row.id === classId);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={value => { if (!enroll.isPending) onOpenChange(value); }}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Enroll retraining cohort</DialogTitle>
@@ -143,7 +142,7 @@ function EnrollCohortDialog({
                   first, then return here to enroll the cohort.
                 </div>
               ) : (
-                <Select value={classId} onValueChange={setClassId}>
+                <Select value={classId} disabled={enroll.isPending} onValueChange={value => { setClassId(value); setResults([]); }}>
                   <SelectTrigger aria-label="Class">
                     <SelectValue placeholder="Choose a class" />
                   </SelectTrigger>
@@ -171,11 +170,12 @@ function EnrollCohortDialog({
                     type="button"
                     size="sm"
                     variant="ghost"
+                    disabled={enroll.isPending}
                     onClick={() => setSelected(new Set(candidates.map((c) => c.employeeId)))}
                   >
                     Select all
                   </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                  <Button type="button" size="sm" variant="ghost" disabled={enroll.isPending} onClick={() => setSelected(new Set())}>
                     Clear
                   </Button>
                 </div>
@@ -190,6 +190,7 @@ function EnrollCohortDialog({
                       className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted/40"
                     >
                       <Checkbox
+                        disabled={enroll.isPending}
                         checked={selected.has(candidate.employeeId)}
                         onCheckedChange={() => toggle(candidate.employeeId)}
                         className="mt-0.5"
@@ -231,11 +232,11 @@ function EnrollCohortDialog({
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={enroll.isPending} onClick={() => onOpenChange(false)}>
             Close
           </Button>
           <Button
-            disabled={!classId || selected.size === 0 || enroll.isPending}
+            disabled={!classId || selected.size === 0 || enroll.isPending || classes.isError || classes.isLoading}
             onClick={() => void submit()}
           >
             {enroll.isPending ? "Enrolling…" : `Enroll ${selected.size} staff`}
@@ -257,14 +258,14 @@ export default function RetrainingMonitor() {
   const { data: practicums, isLoading: practicumsLoading } = practicumsQuery;
   // A failed fetch must not read as "No facilities found" or as a compliant
   // facility list computed from empty employees/practicums.
-  const primaryQueries = [facilitiesQuery, employeesQuery, practicumsQuery];
-  const primaryError = primaryQueries.find((query) => query.isError);
-
   const hasOrgWideVisibility = !user?.role || ORG_WIDE_VISIBILITY_ROLES.has(user.role);
-  const { data: myAssignments, isLoading: assignmentsLoading } = useListMyFacilityAssignments(
+  const assignmentsQuery = useListMyFacilityAssignments(
     user?.id,
     !hasOrgWideVisibility,
   );
+  const { data: myAssignments, isLoading: assignmentsLoading } = assignmentsQuery;
+  const primaryQueries = [facilitiesQuery, employeesQuery, practicumsQuery, ...(!hasOrgWideVisibility ? [assignmentsQuery] : [])];
+  const primaryError = primaryQueries.find((query) => query.isError);
   const assignedFacilityIds = useMemo(
     () => new Set((myAssignments ?? []).map((a) => a.facility_id)),
     [myAssignments],
@@ -503,6 +504,7 @@ export default function RetrainingMonitor() {
       )}
 
       <EnrollCohortDialog
+        key={enrollFacility?.facilityId ?? "closed"}
         open={Boolean(enrollFacility)}
         onOpenChange={(open) => !open && setEnrollFacility(null)}
         facility={enrollFacility}

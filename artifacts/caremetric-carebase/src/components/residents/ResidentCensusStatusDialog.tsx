@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -84,6 +84,8 @@ export function ResidentCensusStatusDialog({
 }) {
   const { toast } = useToast();
   const transitionCensus = useTransitionResidentCensus();
+  const submitting = useRef(false);
+  const close = (next: boolean) => { if (!submitting.current && !transitionCensus.isPending) onOpenChange(next); };
   const [target, setTarget] = useState("");
   const [reason, setReason] = useState("");
 
@@ -91,7 +93,7 @@ export function ResidentCensusStatusDialog({
     if (!open) return;
     setTarget("");
     setReason("");
-  }, [open]);
+  }, [open, residentId]);
 
   const isReserved = currentStatus === "reserved";
   // An unknown current status offers nothing rather than everything: a state this file has not
@@ -105,7 +107,8 @@ export function ResidentCensusStatusDialog({
   });
 
   const submit = () => {
-    if (!target || reason.trim().length < CENSUS_REASON_MIN_LENGTH) return;
+    if (!open || submitting.current || transitionCensus.isPending || !options.includes(target as typeof CENSUS_TARGET_STATUSES[number]) || reason.trim().length < CENSUS_REASON_MIN_LENGTH) return;
+    submitting.current = true;
     transitionCensus.mutate(
       { residentId, targetStatus: target, reason: reason.trim() },
       {
@@ -113,6 +116,7 @@ export function ResidentCensusStatusDialog({
           toast({ title: "Census updated", description: `${residentName} is now ${humanize(target).toLowerCase()}.` });
           onOpenChange(false);
         },
+        onSettled: () => { submitting.current = false; },
         // A refused transition (RLS, a bed that moved underneath, a state the RPC will not accept)
         // has to say so. The control this replaced had no error path at all: the Select showed the
         // new value until the next refetch quietly snapped it back, and silence reads as success on
@@ -127,7 +131,7 @@ export function ResidentCensusStatusDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Change resident status</DialogTitle>
@@ -145,7 +149,7 @@ export function ResidentCensusStatusDialog({
 
           <div className="space-y-1.5">
             <Label htmlFor="census-target">New status</Label>
-            <Select value={target} onValueChange={setTarget}>
+            <Select disabled={transitionCensus.isPending} value={target} onValueChange={setTarget}>
               <SelectTrigger id="census-target" aria-label="New resident status">
                 <SelectValue placeholder="Select a status" />
               </SelectTrigger>
@@ -166,6 +170,7 @@ export function ResidentCensusStatusDialog({
             <Label htmlFor="census-reason">Reason</Label>
             <Textarea
               id="census-reason"
+              disabled={transitionCensus.isPending}
               rows={3}
               value={reason}
               onChange={(event) => setReason(event.target.value)}
@@ -178,10 +183,10 @@ export function ResidentCensusStatusDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" disabled={transitionCensus.isPending} onClick={() => close(false)}>Cancel</Button>
           <Button
             onClick={submit}
-            disabled={!target || reason.trim().length < CENSUS_REASON_MIN_LENGTH || transitionCensus.isPending}
+            disabled={!options.includes(target as typeof CENSUS_TARGET_STATUSES[number]) || reason.trim().length < CENSUS_REASON_MIN_LENGTH || transitionCensus.isPending}
           >
             {transitionCensus.isPending ? "Recording..." : "Record status change"}
           </Button>

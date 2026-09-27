@@ -1,7 +1,9 @@
+import { deleteDocumentWithReceipt } from "@/lib/documentDeletion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import { storageSafeFileName } from "@/lib/storagePaths";
+import { hasDefinitivePostgresWriteRejection } from "@/lib/postgresWriteOutcome";
 
 export type CredentialDocument = Tables<"employee_credential_documents">;
 
@@ -60,7 +62,21 @@ export function useUploadCredentialDocument() {
         .select()
         .single();
       if (error) {
-        await supabase.storage.from("credential-documents").remove([path]);
+        // The metadata may have committed even when its response was lost.
+        // Never destroy referenced evidence while that outcome is unknown.
+        const unknown = new Error("The credential document save could not be confirmed. The uploaded file was retained; refresh the credential documents before retrying.");
+        let saved: CredentialDocument | null;
+        try {
+          const result = await supabase.from("employee_credential_documents").select("*")
+            .eq("organization_id", organizationId).eq("credential_id", credentialId)
+            .eq("storage_bucket", "credential-documents").eq("storage_path", path).maybeSingle();
+          if (result.error) throw result.error;
+          saved = result.data;
+        } catch { throw unknown; }
+        if (saved) return saved;
+        if (!hasDefinitivePostgresWriteRejection(error)) throw unknown;
+        const { error: cleanupError } = await supabase.storage.from("credential-documents").remove([path]);
+        if (cleanupError) throw new Error(`${error.message} (also failed to remove uploaded file: ${cleanupError.message})`);
         throw error;
       }
       return data;
@@ -91,12 +107,10 @@ export function useCredentialDocumentSignedUrl() {
 export function useDeleteCredentialDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (doc: CredentialDocument) => {
-      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
-      if (storageError) throw storageError;
-      const { error } = await supabase.from("employee_credential_documents").delete().eq("id", doc.id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["credential_documents"] }),
+    mutationFn: (doc: CredentialDocument) => deleteDocumentWithReceipt("credential", doc.id),
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["credential_documents"] }),
+      queryClient.invalidateQueries({ queryKey: ["document_deletions"] }),
+    ]),
   });
 }

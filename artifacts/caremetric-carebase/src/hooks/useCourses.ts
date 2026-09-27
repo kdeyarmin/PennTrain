@@ -307,7 +307,7 @@ export function useListCourseBlocks(courseVersionId: string | undefined) {
         .from("course_blocks")
         .select("*")
         .eq("course_version_id", courseVersionId!)
-        .order("sort_order");
+        .order("sort_order").order("id", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -332,21 +332,6 @@ export function useCreateCourseBlock() {
   return useMutation({
     mutationFn: async (payload: CourseBlockInsert) => {
       const { data, error } = await supabase.from("course_blocks").insert(payload).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["course_blocks", data.course_version_id] });
-      queryClient.invalidateQueries({ queryKey: ["courses", "versions", data.course_version_id, "publish-issues"] });
-    },
-  });
-}
-
-export function useUpdateCourseBlock() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...payload }: CourseBlockUpdate & { id: string }) => {
-      const { data, error } = await supabase.from("course_blocks").update(payload).eq("id", id).select().single();
       if (error) throw error;
       return data;
     },

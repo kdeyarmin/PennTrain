@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
@@ -13,8 +13,10 @@ import {
   STORAGE_KEY as IMPERSONATION_STORAGE_KEY, CHANGE_EVENT as IMPERSONATION_CHANGE_EVENT,
   useStopImpersonation,
 } from "@/hooks/useImpersonation";
-import { wipeOfflineServiceDrafts } from "@/lib/offlineServiceDraftCache";
+import { wipeOfflineServiceDrafts, type OfflineFloorFacilityScope } from "@/lib/offlineServiceDraftCache";
 import { signedInIdentityChanged, type SessionIdentity } from "@/lib/sessionIdentity";
+import { canReadOfflineObservationResident, hasAssignedFacilityScope, loadSessionFacilityScope, loadSessionPrimaryFacility } from "@/lib/sessionFacilityScope";
+import { readRecoveryGrant, recoveryGrantMatchesSession } from "@/lib/recoveryGrant";
 import {
   isOfflineServiceDraftIdentityPending, shouldWipeOfflineServiceDraftData,
   type OfflineServiceDraftIdentitySnapshot,
@@ -42,6 +44,8 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   hasRole: (...roles: Role[]) => boolean;
+  /** Confirmed employee scope for retained offline care reads; absent when not yet known. */
+  offlineFacilityScope?: OfflineFloorFacilityScope;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -98,7 +102,7 @@ export function hasRole(user: AuthUser | null, ...roles: Role[]): boolean {
 // into localStorage, keyed to the recovery session's user id, makes it visible everywhere the
 // underlying session is visible -- including a DIFFERENT tab that receives the very same SIGNED_IN
 // event via supabase-js's own cross-tab BroadcastChannel relay (that tab's own module-level
-// `pendingImplicitGrantType` below reflects THAT tab's own URL, not the tab that actually opened
+// `pendingRecoveryGrant` below reflects THAT tab's own URL, not the tab that actually opened
 // the recovery/invite link, so it can't be relied on there -- the shared marker is what makes that
 // tab recognize the session correctly too). A JSON *array* of user ids, not a single value: two
 // different accounts' recovery/invite links opened concurrently in two tabs must not clobber each
@@ -147,7 +151,9 @@ function clearRecoverySession(userId: string | undefined) {
 // resolveIsRecoverySession below recognize the session that actually corresponds to an invite
 // redirect, even though by the time any event fires the hash itself is already gone.
 //
-// Consumed on the FIRST session-bearing check this tab makes, not tied to a specific event name.
+// Consumed on the first MATCHING session-bearing check, not tied to a specific event name.
+// Matching the exact token matters: a refused link can leave a different, ordinary session in
+// storage, and merely seeing type=invite/recovery must never mark that session as the link's.
 // GoTrue always fires an INITIAL_SESSION event -- already carrying the freshly-established session
 // -- strictly before the "real" SIGNED_IN/PASSWORD_RECOVERY notification it schedules a tick later
 // for a URL-hash grant. Gating the read/clear on `event === "SIGNED_IN"` specifically would leave
@@ -157,47 +163,45 @@ function clearRecoverySession(userId: string | undefined) {
 // deferred SIGNED_IN event arrives a tick later to correct it. Resolving through this single
 // function on every event (see resolveIsRecoverySession) closes that window: isRecoverySession is
 // derived atomically alongside `session` for every event, including the first one.
-let pendingImplicitGrantType: string | null = new URLSearchParams(
-  window.location.hash.replace(/^#/, ""),
-).get("type");
+let pendingRecoveryGrant = readRecoveryGrant(window.location.hash);
 
 // Single source of truth for "is this session a not-yet-confirmed recovery/invite session."
 // Called for every session this tab observes (the initial getSession() read, and every
 // onAuthStateChange event except SIGNED_OUT) so it's reached regardless of which specific event
 // first carries the session, and regardless of whether that event was raised by an implicit-grant
 // URL this tab itself loaded or relayed from another tab via supabase-js's cross-tab broadcast.
-function resolveIsRecoverySession(session: Session | null): boolean {
-  if (session && (pendingImplicitGrantType === "invite" || pendingImplicitGrantType === "recovery")) {
-    pendingImplicitGrantType = null;
+function resolveIsRecoverySession(session: Session | null, isPasswordRecoveryEvent = false): boolean {
+  if (session && (isPasswordRecoveryEvent || recoveryGrantMatchesSession(pendingRecoveryGrant, session))) {
+    pendingRecoveryGrant = null;
     markRecoverySession(session.user.id);
     return true;
   }
   return isKnownRecoverySession(session);
 }
 
-// Codex review finding: if a visitor opens a reset/invite link and then closes the tab (rather
-// than navigating away within the app, which is what runs ResetPassword.tsx's own abandonment
-// signOut()), the marker set above is never cleared -- it isn't tied to a timeout or to the
-// specific link/token, only to the account's user id. The next time that SAME account signs in for
-// real with their actual password, isKnownRecoverySession would still match and incorrectly keep
-// isAuthenticated false, with no obvious way for the user to recover short of clearing storage.
-//
-// Login.tsx/Signup.tsx/Demo.tsx -- the only three places this app calls signInWithPassword --
-// call markExplicitPasswordSignIn() immediately before doing so. Successfully authenticating with
-// a password is the strongest possible proof this is a real login for that account, regardless of
-// what any stale marker says, so the very next SIGNED_IN event (auth-js fires it synchronously as
-// part of signInWithPassword's own call chain, before the caller's `await` resumes -- never
-// INITIAL_SESSION, which only fires once on initial client load, not on a later interactive call)
-// clears that account's marker rather than trusting it. The short expiry is just a backstop for a
-// failed sign-in attempt (wrong password: no SIGNED_IN fires at all, so nothing consumes the flag)
-// so a stale "expect a real login" flag can't linger indefinitely and wrongly bless some unrelated
-// later SIGNED_IN in the same tab.
-let explicitPasswordSignInExpiresAt = 0;
-export function markExplicitPasswordSignIn() {
-  explicitPasswordSignInExpiresAt = Date.now() + 15_000;
+// Only a successful password response can retire this account's recovery marker. A time
+// window before sign-in also accepted unrelated cross-tab SIGNED_IN events after a failed
+// password. Subscribers compare the exact returned session before updating current UI state.
+const passwordSignInListeners = new Set<(session: Session) => void>();
+export async function signInWithPassword(credentials: Parameters<typeof supabase.auth.signInWithPassword>[0]) {
+  const unlockMarker = idleUnlockSignInExpiresAt;
+  const attempt = Symbol("password-attempt");
+  // The short window only arms the next request. Once started, preserve that attempt through
+  // slow connections until its response settles; a newer password request replaces it.
+  pendingIdleUnlockAttempt = Date.now() < unlockMarker ? attempt : null;
+  try {
+    const result = await supabase.auth.signInWithPassword(credentials);
+    if (!result.error && result.data.session) {
+      for (const listener of passwordSignInListeners) listener(result.data.session);
+    }
+    return result;
+  } finally {
+    if (pendingIdleUnlockAttempt === attempt) pendingIdleUnlockAttempt = null;
+    if (idleUnlockSignInExpiresAt === unlockMarker) idleUnlockSignInExpiresAt = 0;
+  }
 }
 
-// The same one-shot idiom, for the one sign-in that is not a change of identity.
+// Preserve the in-place password step of an idle unlock for its current account.
 //
 // IdleSessionLock unlocks with a real signInWithPassword, which mints a new session and fires
 // SIGNED_IN -- and SIGNED_IN clears the whole react-query cache. Both session gates then fall back
@@ -206,6 +210,7 @@ export function markExplicitPasswordSignIn() {
 // current page". Nothing about that clear was needed: the account is the same account, which is
 // why the handler additionally checks the user id below rather than trusting this flag alone.
 let idleUnlockSignInExpiresAt = 0;
+let pendingIdleUnlockAttempt: symbol | null = null;
 export function markIdleUnlockSignIn() {
   idleUnlockSignInExpiresAt = Date.now() + 15_000;
 }
@@ -233,42 +238,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Separate from the offline-draft snapshot above: that one answers "may this identity hold
   // drafts" and carries no facility, this one answers "is the cache populated for someone else".
   const lastCacheIdentityRef = useRef<SessionIdentity | null>(null);
+  const offlineScopeIdentityRef = useRef({ key: "", generation: 0 });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    let active = true;
+    let observedAuthEvent = false;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active || observedAuthEvent) return;
+      if (error) throw error;
+      const recoverySession = resolveIsRecoverySession(data.session);
       lastSessionRef.current = data.session;
       setSession(data.session);
-      setIsRecoverySession(resolveIsRecoverySession(data.session));
+      setIsRecoverySession(recoverySession);
       setSessionLoading(false);
+    }).catch(() => {
+      if (!active || observedAuthEvent) return;
+      setSessionLoading(false);
+      toast({
+        variant: "destructive",
+        title: "Couldn't restore your session",
+        description: "Sign in again to continue.",
+      });
     });
 
-    // Every event resolves isRecoverySession through resolveIsRecoverySession -- which also
-    // handles PASSWORD_RECOVERY (the `recovery` implicit-grant type resolves through the same
-    // pendingImplicitGrantType snapshot as `invite` does) and a relayed SIGNED_IN from another tab
-    // (its fallback to the shared, cross-tab RECOVERY_SESSION_KEY marker catches that
-    // automatically) -- except two events with their own explicit handling: SIGNED_OUT always
-    // clears the marker (nothing to resolve, there's no session left), and a SIGNED_IN that
-    // immediately followed markExplicitPasswordSignIn() is a just-confirmed real password login,
-    // which overrides and clears even a stale, never-cleaned-up marker for this exact account (see
-    // that function's own comment for why a marker can go stale in the first place).
+    const confirmPasswordSession = (confirmed: Session) => {
+      if (!active || confirmed.user.id !== lastSessionRef.current?.user.id
+        || confirmed.access_token !== lastSessionRef.current?.access_token) return;
+      pendingRecoveryGrant = null;
+      clearRecoverySession(confirmed.user.id);
+      setIsRecoverySession(false);
+    };
+    passwordSignInListeners.add(confirmPasswordSession);
+
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      // Only ever consumed here, on SIGNED_IN specifically -- never reset on some other,
-      // unrelated event in between, for the same reason pendingImplicitGrantType above is only
-      // consumed when actually checked: an earlier fix that cleared a similar one-shot flag
-      // unconditionally on every event let an unrelated event consume it before the one it was
-      // meant to gate ever arrived.
-      const isConfirmedPasswordSignIn =
-        event === "SIGNED_IN" && !!nextSession && Date.now() < explicitPasswordSignInExpiresAt;
+      if (!active) return;
+      observedAuthEvent = true;
+      if (event === "SIGNED_OUT" || nextSession?.user.id !== lastSessionRef.current?.user.id) {
+        // Cancel captured draft access before React renders the replacement account. A generation
+        // also keeps an A -> B -> A transition from reactivating A's earlier asynchronous read.
+        offlineScopeIdentityRef.current = { key: "", generation: offlineScopeIdentityRef.current.generation + 1 };
+      }
+      // Auth re-announces SIGNED_IN when a tab becomes visible, even when its session is
+      // unchanged. Clearing then unmounts the security gates and discards the page's drafts.
+      // Compare the token as well as the account: a new password session must still clear.
+      const isRepeatedSession = !!nextSession
+        && nextSession.user.id === lastSessionRef.current?.user.id
+        && nextSession.access_token === lastSessionRef.current?.access_token;
       // Same account, same tab, one continuous piece of work: an idle-lock unlock. The user id
       // check is the real guard -- the marker alone would let any SIGNED_IN inside the window keep
       // another account's cached data on screen.
       const isIdleUnlockSignIn =
         event === "SIGNED_IN" && !!nextSession
-        && Date.now() < idleUnlockSignInExpiresAt
+        && (pendingIdleUnlockAttempt !== null || Date.now() < idleUnlockSignInExpiresAt)
         && nextSession.user.id === lastSessionRef.current?.user.id;
-      if (event === "SIGNED_IN") {
-        explicitPasswordSignInExpiresAt = 0;
+      if ((event === "SIGNED_IN" && !isRepeatedSession) || event === "SIGNED_OUT") {
         idleUnlockSignInExpiresAt = 0;
+        pendingIdleUnlockAttempt = null;
       }
 
       if (event === "SIGNED_OUT") {
@@ -293,26 +318,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // originSession into a local const BEFORE calling signOut, so clearing the record here
         // cannot take the tokens they are about to restore from.
         void clearLocalSessionState();
-      } else if (isConfirmedPasswordSignIn) {
-        clearRecoverySession(nextSession.user.id);
-        setIsRecoverySession(false);
       } else {
-        setIsRecoverySession(resolveIsRecoverySession(nextSession));
+        setIsRecoverySession(resolveIsRecoverySession(nextSession, event === "PASSWORD_RECOVERY"));
       }
       lastSessionRef.current = nextSession;
       setSession(nextSession);
-      if (event === "SIGNED_IN" && !isIdleUnlockSignIn) {
+      setSessionLoading(false);
+      if (event === "SIGNED_IN" && !isIdleUnlockSignIn && !isRepeatedSession) {
         void clearSupabaseRuntimeCache();
         queryClient.clear();
       } else {
-        // An idle unlock lands here with the token refreshes, which is what it is for cache
-        // purposes: the identity did not change, so nothing cached under it belongs to anyone else.
+        // Recheck authorization scope without discarding work for an unchanged session.
+        // Facility membership lives separately from the profile and can change mid-session.
         queryClient.invalidateQueries({ queryKey: ["profile"] });
+        queryClient.invalidateQueries({ queryKey: ["profile-facility"] });
       }
     });
 
-    return () => subscription.subscription.unsubscribe();
-  }, [queryClient]);
+    return () => {
+      active = false;
+      offlineScopeIdentityRef.current = { key: "", generation: offlineScopeIdentityRef.current.generation + 1 };
+      passwordSignInListeners.delete(confirmPasswordSession);
+      subscription.subscription.unsubscribe();
+    };
+  }, [queryClient, toast]);
 
   const {
     data: profile,
@@ -352,16 +381,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // not-a-change.
   const { data: facilityId } = useQuery({
     queryKey: ["profile-facility", profile?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("facility_id")
-        .eq("profile_id", profile!.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data?.facility_id ?? null;
-    },
+    queryFn: () => loadSessionPrimaryFacility(profile!.id),
     enabled: !!profile?.id,
+  });
+
+  // Keep the public primary-facility value above unchanged. Secondary employee assignments and
+  // manager/trainer profile assignments also change access, without changing that primary value.
+  // The shared prefix is refreshed by auth events and by successful MFA/idle-lock verification.
+  const { data: authorizedFacilityIds } = useQuery({
+    queryKey: ["profile-facility", "scope", profile?.id, profile?.organization_id, profile?.role],
+    queryFn: () => loadSessionFacilityScope(profile!),
+    enabled: !!profile?.id && hasAssignedFacilityScope(profile.role),
   });
 
   const user: AuthUser | null = profile
@@ -376,6 +406,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         facilityId,
       }
     : null;
+
+  const previousScopeIdentity = lastCacheIdentityRef.current;
+  const lastKnownFacilities = previousScopeIdentity?.profileId === user?.id
+    && previousScopeIdentity?.organizationId === user?.organizationId
+    && previousScopeIdentity?.role === user?.role
+    ? previousScopeIdentity?.authorizedFacilityIds : undefined;
+  const offlineFacilityIds = user?.role === "employee"
+    ? authorizedFacilityIds ?? lastKnownFacilities : undefined;
+  const offlineScopeIdentity = JSON.stringify([user?.id, user?.organizationId, user?.role, offlineFacilityIds]);
+  if (offlineScopeIdentityRef.current.key !== offlineScopeIdentity) {
+    offlineScopeIdentityRef.current = { key: offlineScopeIdentity, generation: offlineScopeIdentityRef.current.generation + 1 };
+  }
+  const offlineScopeGeneration = offlineScopeIdentityRef.current.generation;
+  const offlineFacilityScope = useMemo<OfflineFloorFacilityScope | undefined>(() => offlineFacilityIds === undefined ? undefined : ({
+    facilityIds: offlineFacilityIds,
+    isCurrent: () => offlineScopeIdentityRef.current.generation === offlineScopeGeneration,
+    canReadResident: canReadOfflineObservationResident,
+  }), [offlineScopeIdentity, offlineScopeGeneration]);
 
   // Offline service-documentation drafts (BACKLOG.md E5) are bound to one signed-in employee
   // identity. Logout is handled immediately in the SIGNED_IN/SIGNED_OUT effect above; this covers
@@ -404,9 +452,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           active: user.isActive, facilityId: user.facilityId,
         }
       : null;
-    if (shouldWipeOfflineServiceDraftData(lastOfflineServiceDraftIdentityRef.current, current)) {
-      void wipeOfflineServiceDrafts();
-    }
+    const wipeForIdentity = shouldWipeOfflineServiceDraftData(lastOfflineServiceDraftIdentityRef.current, current);
     // BACKLOG.md open question 6. Wiping the offline drafts was only half of it: every OTHER
     // identity transition in this file also calls queryClient.clear(), and this one -- the transition
     // where the session survives -- did not. A cached query whose key does not itself carry the
@@ -423,10 +469,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // bearer-authorized for its full TTL regardless of what RLS would now say. Clearing the cache
     // stops the app re-serving it, which is the whole of what a client can do about that.
     const previousIdentity = lastCacheIdentityRef.current;
-    const currentCacheIdentity = current
+    const currentCacheIdentity: SessionIdentity | null = current
       ? { profileId: current.profileId, organizationId: current.organizationId,
-          role: current.role, facilityId: user?.facilityId }
+          role: current.role, facilityId: user?.facilityId,
+          authorizedFacilityIds: authorizedFacilityIds ?? undefined }
       : null;
+    // An unavailable read (including a server idle lock) must neither revoke access nor erase
+    // the last resolved comparison baseline. A real identity replacement must not inherit it.
+    if (previousIdentity && currentCacheIdentity
+      && previousIdentity.profileId === currentCacheIdentity.profileId
+      && previousIdentity.organizationId === currentCacheIdentity.organizationId
+      && previousIdentity.role === currentCacheIdentity.role
+      && currentCacheIdentity.authorizedFacilityIds === undefined) {
+      currentCacheIdentity.authorizedFacilityIds = previousIdentity.authorizedFacilityIds;
+    }
+    // Scope-only revocation is reconciled per draft at read/sync time, including after a reload;
+    // it must preserve allowed care documentation. Real identity changes still retire the store.
+    if (wipeForIdentity) void wipeOfflineServiceDrafts();
     lastCacheIdentityRef.current = currentCacheIdentity;
     lastOfflineServiceDraftIdentityRef.current = current
       ? {
@@ -435,11 +494,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       : null;
     if (signedInIdentityChanged(previousIdentity, currentCacheIdentity)) {
+      void clearSupabaseRuntimeCache();
       queryClient.clear();
     }
     // facilityId is in the dependency list, not merely in the comparison: without it this effect
     // would never re-run on a transfer, so the predicate would never be asked.
-  }, [user?.id, user?.organizationId, user?.role, user?.isActive, user?.facilityId, session, queryClient]);
+  }, [user?.id, user?.organizationId, user?.role, user?.isActive, user?.facilityId, authorizedFacilityIds, session, queryClient]);
 
   useEffect(() => {
     if (!isLoading && !session && !isError) {
@@ -506,7 +566,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, isAuthenticated, hasRole: (...roles) => hasRole(user, ...roles) }}
+      value={{ user, isLoading, isAuthenticated, offlineFacilityScope, hasRole: (...roles) => hasRole(user, ...roles) }}
     >
       {children}
     </AuthContext.Provider>

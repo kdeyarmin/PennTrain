@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
-import QRCode from "qrcode";
 import { Award, Download, ExternalLink, QrCode, ShieldCheck, ShieldX } from "lucide-react";
 import { usePublicTrainingPassport } from "@/hooks/useProductExperience";
 import { Button } from "@/components/ui/button";
@@ -8,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoMark, BrandName } from "@/components/brand/Logo";
 import { QueryError } from "@/components/QueryState";
+import { QrCodeImage } from "@/components/QrCodeImage";
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
@@ -19,11 +18,6 @@ export default function TrainingPassport() {
   usePageMeta({ ...MARKETING_ROUTE_META["/passport"], path: "/passport" });
   const { slug } = useParams<{ slug: string }>();
   const passport = usePublicTrainingPassport(slug);
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  useEffect(() => {
-    if (!slug) return;
-    void QRCode.toDataURL(absoluteAppUrl(`/passport/${slug}`), { width: 220, margin: 1 }).then(setQrCode);
-  }, [slug]);
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 print:bg-white">
@@ -44,7 +38,15 @@ export default function TrainingPassport() {
                   to make and the compliance model never asserted (BACKLOG.md J74, Train). What is
                   printed now is the recorded compliance credit, over the certificates that actually
                   carry one, and nothing at all for the ones that do not. */}
-              <CardHeader><div className="flex flex-wrap items-start justify-between gap-4"><div><Badge className="mb-3"><ShieldCheck className="mr-1 h-3.5 w-3.5" />Verified transcript</Badge><CardTitle className="text-3xl">{passport.data.employeeName}</CardTitle><p className="mt-1 text-muted-foreground">{passport.data.certificateCount} certificate{passport.data.certificateCount === 1 ? "" : "s"}{passport.data.creditedCertificateCount > 0 ? ` · ${passport.data.totalCreditHours} training hours credited across ${passport.data.creditedCertificateCount} of them` : ""}</p></div>{qrCode && <div className="text-center"><img src={qrCode} alt="QR code for this training passport" className="h-32 w-32" /><p className="flex items-center justify-center gap-1 text-xs text-muted-foreground"><QrCode className="h-3 w-3" />Scan to verify</p></div>}</div></CardHeader>
+              <CardHeader>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div><Badge className="mb-3"><ShieldCheck className="mr-1 h-3.5 w-3.5" />Verified transcript</Badge><CardTitle className="text-3xl">{passport.data.employeeName}</CardTitle><p className="mt-1 text-muted-foreground">{passport.data.certificateCount} certificate{passport.data.certificateCount === 1 ? "" : "s"}{passport.data.creditedCertificateCount > 0 ? ` · ${passport.data.totalCreditHours} training hours credited across ${passport.data.creditedCertificateCount} of them` : ""}</p></div>
+                  <div className="text-center">
+                    <QrCodeImage key={slug} value={absoluteAppUrl(`/passport/${slug}`)} alt="QR code for this training passport" size={128} className="h-32 w-32" />
+                    <a href={absoluteAppUrl(`/passport/${slug}`)} className="flex items-center justify-center gap-1 text-xs text-muted-foreground underline"><QrCode className="h-3 w-3" />Scan or open to verify</a>
+                  </div>
+                </div>
+              </CardHeader>
             </Card>
             <p className="text-xs text-muted-foreground">Each entry is a course completion recorded in CareMetric CareBase and verifiable at the link beside it. Hours shown are the compliance credit recorded for that completion; CareMetric is not a continuing-education accrediting body and this transcript makes no CE claim.</p>
             <div className="space-y-3">{passport.data.certificates.map((certificate) => (

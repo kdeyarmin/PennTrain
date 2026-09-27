@@ -76,6 +76,19 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["care-level-review"] });
 }
 
+// Balances and FIFO aging consume the complete ledger, not a recent-activity sample. PostgREST
+// caps ordinary selects (potentially below 1000), so only an empty page proves completion.
+async function financialRows<T>(page: (from: number, through: number) => PromiseLike<{ data: T[] | null; error: unknown }>) {
+  const rows: T[] = [];
+  for (let from = 0; ;) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data?.length) return { data: rows, error: null };
+    from += data.length;
+  }
+}
+
 export function useResidentFinancialWorkspace(residentId?: string) {
   return useQuery({
     queryKey: ["resident-financial-operations", "workspace", residentId],
@@ -106,17 +119,19 @@ export function useResidentFinancialWorkspace(residentId?: string) {
           .select("*")
           .eq("resident_id", id)
           .order("version_number", { ascending: false }),
-        supabase
+        financialRows((from, through) => supabase
           .from("resident_financial_transactions")
           .select("*")
           .eq("resident_id", id)
           .order("effective_on", { ascending: false })
-          .order("posted_at", { ascending: false }),
-        supabase
+          .order("posted_at", { ascending: false })
+          .order("id", { ascending: false }).range(from, through)),
+        financialRows((from, through) => supabase
           .from("resident_financial_statements")
           .select("*")
           .eq("resident_id", id)
-          .order("period_end", { ascending: false }),
+          .order("period_end", { ascending: false })
+          .order("id", { ascending: false }).range(from, through)),
         supabase
           .from("resident_personal_fund_accounts")
           .select("*")
@@ -132,7 +147,7 @@ export function useResidentFinancialWorkspace(residentId?: string) {
           .select("*")
           .eq("resident_id", id)
           .maybeSingle(),
-        supabase
+        financialRows((from, through) => supabase
           .from("resident_personal_fund_transactions")
           .select(
             `
@@ -143,7 +158,8 @@ export function useResidentFinancialWorkspace(residentId?: string) {
           )
           .eq("resident_id", id)
           .order("transaction_at", { ascending: false })
-          .order("posted_at", { ascending: false }),
+          .order("posted_at", { ascending: false })
+          .order("id", { ascending: false }).range(from, through)),
         supabase
           .from("resident_personal_fund_reconciliations")
           .select("*")
@@ -250,8 +266,8 @@ const UNSETTLED_FUND_ACCOUNT_SCAN = 300;
  * Pages of UNSETTLED_FUND_ACCOUNT_SCAN to walk before giving up and reporting truncation.
  *
  * Bounds the work on a facility with a long settled history while still letting the walk pass a
- * large block of closed accounts, which a single page could not. Ten pages is 3,000 discharged or
- * deceased residents at one facility; past that the card says the list is incomplete rather than
+ * large block of closed accounts, which a single page could not. Ten pages reads up to 3,000
+ * discharged or deceased residents (fewer with a lower API cap); past that the card says the list is incomplete rather than
  * pretending it is not.
  */
 const UNSETTLED_FUND_ACCOUNT_MAX_PAGES = 10;
@@ -287,7 +303,7 @@ export function useUnsettledPersonalFundAccounts(facilityId?: string) {
       const rows: AccountRow[] = [];
       let scanExhausted = false;
       let pagesRead = 0;
-      for (let from = 0; pagesRead < UNSETTLED_FUND_ACCOUNT_MAX_PAGES; from += UNSETTLED_FUND_ACCOUNT_SCAN) {
+      for (let from = 0; pagesRead < UNSETTLED_FUND_ACCOUNT_MAX_PAGES;) {
         pagesRead += 1;
         const { data, error } = await supabase
           .from("resident_personal_fund_accounts")
@@ -317,7 +333,7 @@ export function useUnsettledPersonalFundAccounts(facilityId?: string) {
         }
         rows.push(...page.filter((row) => !closed.has(row.id)));
 
-        if (page.length < UNSETTLED_FUND_ACCOUNT_SCAN) { scanExhausted = true; break; }
+        from += page.length;
         // One more than the display limit is enough to know the list is truncated.
         if (rows.length > UNSETTLED_FUND_ACCOUNT_LIMIT) break;
       }

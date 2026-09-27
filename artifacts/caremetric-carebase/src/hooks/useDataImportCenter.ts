@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import type { Tables } from "@/lib/database.types";
 import { escapeLikePattern } from "@/lib/utils";
 import {
   canUploadImportDomain,
@@ -72,9 +73,20 @@ export function useImportJobRows(jobId: string | null) {
   return useQuery({
     queryKey: ["data-import-rows", jobId], enabled: Boolean(jobId),
     queryFn: async () => {
-      const { data, error } = await supabase.from("data_import_rows").select("row_number,source_row,errors,warnings,status").eq("job_id", jobId!).order("row_number");
-      if (error) throw error;
-      return data;
+      // The diagnostic download needs every receipt, including errors beyond PostgREST's
+      // response cap. Advance by the returned row number so even a lower server cap cannot
+      // silently truncate a large import or skip records between requests.
+      const rows: Pick<Tables<"data_import_rows">, "row_number" | "source_row" | "errors" | "warnings" | "status">[] = [];
+      let afterRow = -1;
+      for (;;) {
+        const { data, error } = await supabase.from("data_import_rows")
+          .select("row_number,source_row,errors,warnings,status")
+          .eq("job_id", jobId!).gt("row_number", afterRow).order("row_number").limit(1000);
+        if (error) throw error;
+        if (!data?.length) return rows;
+        rows.push(...data);
+        afterRow = data[data.length - 1].row_number;
+      }
     },
   });
 }

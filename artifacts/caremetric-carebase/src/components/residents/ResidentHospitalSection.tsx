@@ -53,6 +53,11 @@ function useCompleteReconciliation(residentId: string) {
       queryClient.invalidateQueries({ queryKey: ["hospital-episodes", residentId] });
       queryClient.invalidateQueries({ queryKey: ["resident-care-header", residentId] });
       queryClient.invalidateQueries({ queryKey: ["resident-timeline", residentId] });
+      // Closing reconciliation also closes its follow-up work item.
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["resident-360", residentId] });
+      queryClient.invalidateQueries({ queryKey: ["daily-operations-command-center"] });
+      queryClient.invalidateQueries({ queryKey: ["my-shift-workspace"] });
     },
   });
 }

@@ -4,6 +4,7 @@ import type { Tables } from "@/lib/database.types";
 import { useAuth } from "@/lib/auth";
 import { describeFunctionError } from "./useResidentAssessmentForms";
 import { storageSafeFileName } from "@/lib/storagePaths";
+import { hasDefinitivePostgresWriteRejection } from "@/lib/postgresWriteOutcome";
 
 export type ResidentDocument = Tables<"resident_documents">;
 
@@ -13,14 +14,15 @@ export function useListResidentDocuments(residentId: string | undefined) {
     queryFn: async ({ signal }) => {
       const pageSize = 1000;
       const rows: ResidentDocument[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ;) {
         const { data, error } = await supabase
           .from("resident_documents").select("*").eq("resident_id", residentId!)
           .order("created_at", { ascending: false }).order("id", { ascending: true })
           .range(from, from + pageSize - 1).abortSignal(signal);
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) return rows;
+        if (!data?.length) return rows;
+        from += data.length;
       }
     },
     enabled: !!residentId,
@@ -78,7 +80,25 @@ export function useUploadResidentDocument() {
         .select()
         .single();
       if (error) {
-        await supabase.storage.from("resident-documents").remove([path]);
+        // An error response can arrive after the metadata committed. Reconcile this
+        // exact upload before cleanup; an empty read cannot disprove a late commit.
+        const unknown = new Error("The document save could not be confirmed. The uploaded file was retained; refresh the document list before retrying.");
+        let saved: ResidentDocument | null;
+        try {
+          const result = await supabase.from("resident_documents").select("*")
+            .eq("organization_id", organizationId).eq("resident_id", residentId)
+            .eq("storage_bucket", "resident-documents").eq("storage_path", path).maybeSingle();
+          if (result.error) throw result.error;
+          saved = result.data;
+        } catch { throw unknown; }
+        if (saved) return saved;
+        if (!hasDefinitivePostgresWriteRejection(error)) throw unknown;
+        try {
+          const { error: cleanupError } = await supabase.storage.from("resident-documents").remove([path]);
+          if (cleanupError) throw cleanupError;
+        } catch {
+          throw new Error(`${error.message} (the uploaded file could not be removed; refresh the document list before retrying)`);
+        }
         throw error;
       }
       return data;
@@ -175,12 +195,13 @@ export function useListPendingResidentDocumentDeletions(residentId: string | und
     queryKey: ["resident_document_deletions", user?.id, user?.organizationId, user?.role, user?.facilityId, residentId ?? "all"],
     queryFn: async ({ signal }) => {
       const rows: PendingResidentDocumentDeletion[] = [];
-      for (let from = 0; ; from += 500) {
+      for (let from = 0; ;) {
         const { data, error } = await supabase.rpc("list_pending_resident_document_deletions", residentId ? { p_resident_id: residentId } : {})
           .range(from, from + 499).abortSignal(signal);
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < 500) return rows;
+        if (!data?.length) return rows;
+        from += data.length;
       }
     },
     enabled: enabled && !isLoading && !!user?.isActive,

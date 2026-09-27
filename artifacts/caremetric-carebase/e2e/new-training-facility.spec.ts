@@ -210,7 +210,7 @@ test.describe("new training facility administrator", () => {
       await expect(reportRow).toContainText(fixture.facility.name);
       await expect(reportRow).toContainText("0%");
       await expect(reportRow).toContainText("Not issued");
-      await expect(report.getByText("0 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
+      await expect(report.getByText("0 completed / 1 non-canceled enrollment", { exact: false })).toBeVisible();
       await page.getByRole("tab", { name: "Dashboard", exact: true }).click();
     });
 
@@ -323,9 +323,13 @@ test.describe("new training facility administrator", () => {
         await learnerPage.goto("/me/courses");
         await expect(learnerPage.getByText("1 / 1 required courses completed", { exact: true })).toBeVisible();
         await learnerPage.getByRole("button", { name: "Optional", exact: true }).click();
+        await expect(learnerPage.getByRole("button", { name: "Optional", exact: true })).toHaveAttribute("aria-pressed", "true");
+        await expect(learnerPage.getByRole("button", { name: "Required", exact: true })).toHaveAttribute("aria-pressed", "false");
+        await expect(learnerPage.getByRole("heading", { name: "Your optional learning (1)", exact: true })).toBeVisible();
         await expect(learnerPage.getByText(fixture.electiveTitle, { exact: true })).toBeVisible();
         await expect(learnerPage.getByText("You chose this course", { exact: true })).toBeVisible();
-        await learnerPage.screenshot({ path: "test-results/training-learner-mobile.png", fullPage: true });
+        await expectNoHorizontalOverflow(learnerPage);
+        await learnerPage.screenshot({ path: "test-results/training-learner-mobile.png", fullPage: true, animations: "disabled" });
       } finally { await learnerContext.close(); }
       const secondDevice = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
       secondDevice.setDefaultTimeout(15_000);
@@ -443,7 +447,7 @@ test.describe("new training facility administrator", () => {
       const reportRow = report.getByRole("row").filter({ hasText: fixture.courseTitle });
       await expect(reportRow).toContainText("100%");
       await expect(reportRow.getByRole("button", { name: "Open certificate", exact: true })).toBeVisible();
-      await expect(report.getByText("1 completed / 1 non-canceled enrollments", { exact: false })).toBeVisible();
+      await expect(report.getByText("1 completed / 1 non-canceled enrollment", { exact: false })).toBeVisible();
       const csvDownload = page.waitForEvent("download");
       await report.getByRole("button", { name: "Export all matching enrollments (CSV)", exact: true }).click();
       const csv = await csvDownload;
@@ -481,7 +485,7 @@ test.describe("new training facility administrator", () => {
       const printed = await page.evaluate(() =>
         (window as Window & { trainingPrintSnapshot?: { text: string; rows: string[][]; html: string; head: string } }).trainingPrintSnapshot!,
       );
-      expect(printed.text).toContain("1 enrollments; 1 distinct students; 1 completed / 1 non-canceled; 1 issued certificates");
+      expect(printed.text).toContain("1 enrollment; 1 distinct student; 1 completed / 1 non-canceled; 1 issued certificate");
       expect(printed.rows[0]).toEqual(expect.arrayContaining(["Everly Newlearner", fixture.facility.name]));
       const printedRow = printed.rows[0].join(" ");
       expect(printedRow).toContain(fixture.courseTitle);
@@ -490,7 +494,11 @@ test.describe("new training facility administrator", () => {
       expect(printedRow).toContain("Completed:");
       expect(printed.text).not.toContain("Aspen other facility");
 
-      await report.screenshot({ path: "test-results/new-training-facility-report.png" });
+      // The report scrolls inside main; a tall element capture has transparent
+      // off-viewport regions in WebKit. Capture the visible report controls.
+      await report.getByRole("heading", { name: "Enrollment, completion & certificates", exact: true })
+        .evaluate(heading => heading.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" }));
+      await page.screenshot({ path: "test-results/new-training-facility-report.png", fullPage: false, animations: "disabled" });
       const printEvidence = await page.context().newPage();
       try {
         await printEvidence.emulateMedia({ media: "print" });

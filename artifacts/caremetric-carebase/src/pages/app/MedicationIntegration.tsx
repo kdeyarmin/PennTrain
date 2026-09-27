@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, DatabaseZap, RefreshCw, Settings2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,8 @@ import {
   type MedicationIngestionActivity,
   type MedicationIntegrationWorkspace,
   type MedicationSource,
+  type MedicationSourceStatus,
+  medicationSourceEditorStatus,
   useAssignMedicationIntegrationException,
   useMedicationIntegration,
   useResidentExternalMedications,
@@ -130,18 +132,26 @@ export default function MedicationIntegration() {
   // all moved to the new one. Ignore any selection absent from the current list rather than
   // trusting local state to have been reset; while the list is loading nothing is in scope, which
   // gates the queries off instead of running them against a stale facility.
-  const scopedFacilities = facilities.data ?? [];
+  const scopedFacilities = facilities.isError || facilities.isLoading ? []
+    : (facilities.data ?? []).filter(facility => !scopeOrgId || facility.organization_id === scopeOrgId);
   const selectionInScope = scopedFacilities.some((facility) => facility.id === selectedFacilityId);
+  const contextFacilityInScope = scopedFacilities.some((facility) => facility.id === residentContext.facilityId);
   const facilityId = (selectionInScope ? selectedFacilityId : "")
-    || residentContext.facilityId || scopedFacilities[0]?.id || "";
+    || (contextFacilityInScope ? residentContext.facilityId : "") || scopedFacilities[0]?.id || "";
   const selectedFacilityOrgId = useMemo(
     () => (facilities.data ?? []).find((facility) => facility.id === facilityId)?.organization_id ?? null,
     [facilities.data, facilityId],
   );
   const workspace = useMedicationIntegration(facilityId || undefined);
+  const linkedResident = residentContext.linkedResident;
+  // A URL resident can outlive a viewed-organization or facility change. Verify its actual
+  // facility before reading or displaying its clinical record in the replacement workspace.
+  const residentId = !linkedResident.isError && !linkedResident.isLoading
+    && linkedResident.data?.id === residentContext.residentId
+    && linkedResident.data?.facility_id === facilityId ? residentContext.residentId : "";
   // Content only when a resident is chosen, and then through the reader that logs the access.
   const residentMedications = useResidentExternalMedications(
-    residentContext.residentId || undefined,
+    residentId || undefined,
     "eMAR integration review",
   );
   // Gated on the facility being known. `useListResidents` applies its facility filter only `if`
@@ -158,6 +168,8 @@ export default function MedicationIntegration() {
   const [externalFacilityId, setExternalFacilityId] = useState("");
   const [credentialId, setCredentialId] = useState("");
   const [freshnessMinutes, setFreshnessMinutes] = useState("60");
+  const [editingSource, setEditingSource] = useState<MedicationSource | null>(null);
+  const [sourceStatus, setSourceStatus] = useState<MedicationSourceStatus>("setup_required");
   const saveSource = useSaveMedicationIntegrationSource();
   const [selectedException, setSelectedException] = useState<MedicationException | null>(null);
   const [resolutionStatus, setResolutionStatus] = useState<"acknowledged" | "resolved" | "dismissed">("acknowledged");
@@ -178,6 +190,27 @@ export default function MedicationIntegration() {
   const [exceptionDueAt, setExceptionDueAt] = useState(() => `${addFacilityCalendarDays(facilityToday(), 1)}T09:00`);
   const { toast } = useToast();
 
+  // Closing an editor when its facility changes prevents a pending edit from being saved against
+  // a different tenant or leaving an exception from the previous facility in the current dialog.
+  useEffect(() => { setSourceDialogOpen(false); setSelectedException(null); }, [facilityId]);
+
+  const openSource = (source: MedicationSource | null) => {
+    setEditingSource(source);
+    setSourceName(source?.name ?? "");
+    setVendorName(source?.vendor_name ?? "");
+    setExternalFacilityId(source?.external_facility_id ?? "");
+    setCredentialId(source?.credential_id ?? "");
+    setFreshnessMinutes(String(source?.freshness_threshold_minutes ?? 60));
+    setSourceStatus(medicationSourceEditorStatus(source));
+    setSourceDialogOpen(true);
+  };
+  const freshnessValid = Number.isInteger(Number(freshnessMinutes)) && Number(freshnessMinutes) >= 5 && Number(freshnessMinutes) <= 1440;
+  const credentialAvailable = !credentialId || medicationCredentials.some((credential) => credential.id === credentialId);
+  const sourceValid = !!facilityId && sourceName.trim().length >= 2 && sourceName.trim().length <= 120
+    && vendorName.trim().length >= 2 && vendorName.trim().length <= 120
+    && externalFacilityId.trim().length >= 1 && externalFacilityId.trim().length <= 200
+    && freshnessValid && credentialAvailable && (sourceStatus !== "active" || !!credentialId);
+
   const unboundCredentialValue = "__unbound__";
 
   const data: MedicationIntegrationWorkspace = workspace.data ?? {
@@ -188,27 +221,28 @@ export default function MedicationIntegration() {
       lastOrderAt: null, lastAdministrationAt: null, residents: [],
     },
   };
-  const displayedOrders = residentMedications.data?.orders ?? [];
-  const displayedAdministrations = residentMedications.data?.administrations ?? [];
+  const displayedOrders = residentId ? residentMedications.data?.orders ?? [] : [];
+  const displayedAdministrations = residentId ? residentMedications.data?.administrations ?? [] : [];
   const openExceptions = data.exceptions.filter((item) => !["resolved", "dismissed"].includes(item.status));
-  const activeOrderCount = residentContext.residentId
+  const activeOrderCount = residentId
     ? displayedOrders.filter((item) => item.order_status === "active").length
     : data.activity.orderActiveTotal;
-  const nonRoutineCount = residentContext.residentId
+  const nonRoutineCount = residentId
     ? displayedAdministrations.filter((item) => item.administration_status !== "administered").length
     : data.activity.nonRoutineTotal;
 
   const submitSource = async () => {
-    if (!facilityId) return;
+    if (!sourceValid || (editingSource && editingSource.facility_id !== facilityId)) return;
     try {
       await saveSource.mutateAsync({
+        sourceId: editingSource?.id,
         facilityId,
         name: sourceName.trim(),
         vendorName: vendorName.trim(),
         externalFacilityId: externalFacilityId.trim(),
         credentialId: credentialId.trim() || undefined,
         freshnessThresholdMinutes: Number(freshnessMinutes),
-        status: credentialId.trim() ? "active" : "setup_required",
+        status: sourceStatus,
       });
       setSourceDialogOpen(false);
       setSourceName(""); setVendorName(""); setExternalFacilityId(""); setCredentialId(""); setFreshnessMinutes("60");
@@ -244,23 +278,27 @@ export default function MedicationIntegration() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><h1 className="text-2xl font-bold tracking-tight">Medication Integration</h1><p className="text-muted-foreground">Monitor read-only eMAR synchronization, resident matching, and non-routine administration documentation.</p></div>
-        <div className="flex gap-2"><Button variant="outline" onClick={() => void workspace.refetch()} disabled={workspace.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${workspace.isFetching ? "animate-spin" : ""}`} />Refresh</Button>{canManage && <Button onClick={() => { setSourceName(""); setVendorName(""); setExternalFacilityId(""); setCredentialId(""); setFreshnessMinutes("60"); setSourceDialogOpen(true); }}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}</div>
+        <div className="flex gap-2"><Button variant="outline" onClick={() => void workspace.refetch()} disabled={workspace.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${workspace.isFetching ? "animate-spin" : ""}`} />Refresh</Button>{canManage && <Button disabled={!facilityId} onClick={() => openSource(null)}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}</div>
       </div>
 
       <Alert><DatabaseZap className="h-4 w-4" /><AlertTitle>External clinical source of truth</AlertTitle><AlertDescription>CareBase displays normalized records received from a connected eMAR. Medication orders and administrations cannot be prescribed, changed, or back-entered here. Confirm clinical details and correct discrepancies in the source eMAR.</AlertDescription></Alert>
 
-      <Card><CardContent className="p-4"><div className="max-w-sm space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={facilityId} onValueChange={(value) => { setSelectedFacilityId(value); residentContext.setFacilityId(value); }}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select>{residentContext.residentId && <p className="text-xs text-muted-foreground">Showing medication documentation for {residentNames.get(residentContext.residentId) ?? "the selected resident"}. Change facility to clear this resident filter.</p>}</div></CardContent></Card>
+      <Card><CardContent className="p-4"><div className="max-w-sm space-y-2"><Label htmlFor={`${__fieldIds}-facility`}>Facility</Label><Select value={facilityId} onValueChange={(value) => { setSelectedFacilityId(value); residentContext.setFacilityId(value); }}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger><SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select>{residentId && <p className="text-xs text-muted-foreground">Showing medication documentation for {residentNames.get(residentId) ?? "the selected resident"}. Change facility to clear this resident filter.</p>}</div></CardContent></Card>
 
       {workspace.isError ? <QueryError what="medication integration" error={workspace.error} onRetry={() => workspace.refetch()} /> : workspace.isLoading ? <QueryLoading what="medication integration" /> : (
         <>
           <div className="grid gap-4 md:grid-cols-3"><Card><CardHeader className="pb-2"><CardDescription>Open sync exceptions</CardDescription><CardTitle className="text-3xl">{openExceptions.length}</CardTitle></CardHeader></Card><Card><CardHeader className="pb-2"><CardDescription>Active external orders</CardDescription><CardTitle className="text-3xl">{activeOrderCount}</CardTitle></CardHeader></Card><Card><CardHeader className="pb-2"><CardDescription>Non-routine administrations</CardDescription><CardTitle className="text-3xl">{nonRoutineCount}</CardTitle></CardHeader></Card></div>
 
-          <div className="grid gap-4 lg:grid-cols-2">{data.sources.length === 0 ? <Card className="lg:col-span-2"><CardContent className="py-10 text-center"><DatabaseZap className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><p className="font-medium">No eMAR source configured</p><p className="text-sm text-muted-foreground">{canManage ? "Create a source, then bind it to an integration credential carrying the medications:write scope." : "A facility administrator must configure an eMAR source."}</p></CardContent></Card> : data.sources.map((source) => { const freshness = sourceFreshness(source); return <Card key={source.id} className={freshness.stale || source.status === "error" ? "border-destructive/60" : ""}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle>{source.name}</CardTitle><CardDescription>{source.vendor_name} · External facility {source.external_facility_id}</CardDescription></div><Badge variant={source.status === "active" ? "outline" : source.status === "error" ? "destructive" : "secondary"}>{human(source.status)}</Badge></div></CardHeader><CardContent className="space-y-2 text-sm"><p className="flex items-center gap-2">{freshness.stale ? <AlertTriangle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}Last complete sync: {freshness.label}</p><p className="text-muted-foreground">Freshness target: {source.freshness_threshold_minutes} minutes</p>{source.last_error_message && <p className="text-destructive">{source.last_error_message}</p>}{!source.credential_id && <p className="text-amber-700">Setup required: bind a medications:write integration credential.</p>}</CardContent></Card>; })}</div>
+          <div className="grid gap-4 lg:grid-cols-2">{data.sources.length === 0 ? <Card className="lg:col-span-2"><CardContent className="py-10 text-center"><DatabaseZap className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><p className="font-medium">No eMAR source configured</p><p className="text-sm text-muted-foreground">{canManage ? "Create a source, then bind it to an integration credential carrying the medications:write scope." : "A facility administrator must configure an eMAR source."}</p></CardContent></Card> : data.sources.map((source) => { const freshness = sourceFreshness(source); return <Card key={source.id} className={freshness.stale || source.status === "error" ? "border-destructive/60" : ""}><CardHeader><div className="flex items-start justify-between gap-3"><div><CardTitle>{source.name}</CardTitle><CardDescription>{source.vendor_name} · External facility {source.external_facility_id}</CardDescription></div><Badge variant={source.status === "active" ? "outline" : source.status === "error" ? "destructive" : "secondary"}>{human(source.status)}</Badge></div></CardHeader><CardContent className="space-y-2 text-sm"><p className="flex items-center gap-2">{freshness.stale ? <AlertTriangle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}Last complete sync: {freshness.label}</p><p className="text-muted-foreground">Freshness target: {source.freshness_threshold_minutes} minutes</p>{source.last_error_message && <p className="text-destructive">{source.last_error_message}</p>}{!source.credential_id && <p className="text-amber-700">Setup required: bind an integration credential.</p>}{canManage && <Button variant="outline" size="sm" onClick={() => openSource(source)}>Edit source</Button>}</CardContent></Card>; })}</div>
 
           <Tabs defaultValue="exceptions"><TabsList><TabsTrigger value="exceptions">Exceptions ({openExceptions.length})</TabsTrigger><TabsTrigger value="orders">External orders</TabsTrigger><TabsTrigger value="administrations">Administration documentation</TabsTrigger></TabsList>
             <TabsContent value="exceptions" className="space-y-3">{data.exceptions.length === 0 ? <Card><CardContent className="py-10 text-center"><CheckCircle2 className="mx-auto mb-2 h-7 w-7 text-emerald-600" /><p>No integration exceptions recorded.</p></CardContent></Card> : data.exceptions.map((item) => <Card key={item.id}><CardContent className="flex flex-wrap items-start justify-between gap-4 p-4"><div><div className="mb-1 flex flex-wrap gap-2"><Badge variant={item.severity === "urgent" ? "destructive" : "outline"}>{human(item.severity)}</Badge><Badge variant="secondary">{human(item.status)}</Badge></div><p className="font-medium">{human(item.exception_type)}</p><p className="text-sm text-muted-foreground">{item.summary}</p>{item.external_resident_id && <p className="mt-1 text-xs text-muted-foreground">External resident ID: {item.external_resident_id}</p>}</div>{canManage && !["resolved", "dismissed"].includes(item.status) && <Button size="sm" variant="outline" onClick={() => { setSelectedException(item); setResolutionStatus("acknowledged"); setResolutionNote(""); setMappingResidentId(""); setExceptionOwnerId(""); setExceptionDueAt(`${addFacilityCalendarDays(facilityToday(), 1)}T09:00`); }}>Review</Button>}</CardContent></Card>)}</TabsContent>
             <TabsContent value="orders" className="space-y-3">
-              {!residentContext.residentId ? (
+              {residentContext.residentId && linkedResident.isLoading ? (
+                <QueryLoading what="selected resident" />
+              ) : residentContext.residentId && linkedResident.isError ? (
+                <QueryError what="selected resident" error={linkedResident.error} onRetry={() => void linkedResident.refetch()} />
+              ) : !residentId ? (
                 <MedicationActivityView activity={data.activity} residentNames={residentNames} />
               ) : residentMedications.isLoading ? (
                 <QueryLoading what="external orders" />
@@ -271,7 +309,11 @@ export default function MedicationIntegration() {
               ) : displayedOrders.map((order) => <Card key={order.id}><CardContent className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium">{order.medication_display}</p><p className="text-sm text-muted-foreground">{residentNames.get(order.resident_id) ?? "Scoped resident"}</p>{order.directions && <p className="mt-2 text-sm">{order.directions}</p>}{order.schedule_display && <p className="text-sm text-muted-foreground">{order.schedule_display}</p>}</div><Badge variant="outline">{human(order.order_status)}</Badge></div><p className="mt-2 text-xs text-muted-foreground">Source updated {new Date(order.source_updated_at).toLocaleString()}</p></CardContent></Card>)}
             </TabsContent>
             <TabsContent value="administrations" className="space-y-3">
-              {!residentContext.residentId ? (
+              {residentContext.residentId && linkedResident.isLoading ? (
+                <QueryLoading what="selected resident" />
+              ) : residentContext.residentId && linkedResident.isError ? (
+                <QueryError what="selected resident" error={linkedResident.error} onRetry={() => void linkedResident.refetch()} />
+              ) : !residentId ? (
                 <MedicationActivityView activity={data.activity} residentNames={residentNames} />
               ) : residentMedications.isLoading ? (
                 <QueryLoading what="administration documentation" />
@@ -285,7 +327,7 @@ export default function MedicationIntegration() {
         </>
       )}
 
-      <Dialog open={sourceDialogOpen} onOpenChange={setSourceDialogOpen}><DialogContent><DialogHeader><DialogTitle>Configure medication source</DialogTitle><DialogDescription>Pick an organization credential carrying the <strong>medications:write</strong> scope &mdash; the only scope <code>save_medication_integration_source</code> accepts; a commands:write key is refused even though the command inbox honors it. Leave it unbound to save a setup-required source.</DialogDescription></DialogHeader><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="med-source-name">Connection name</Label><Input id="med-source-name" value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Main campus eMAR" /></div><div className="space-y-2"><Label htmlFor="med-vendor">Vendor</Label><Input id="med-vendor" value={vendorName} onChange={(event) => setVendorName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="med-external-facility">External facility ID</Label><Input id="med-external-facility" value={externalFacilityId} onChange={(event) => setExternalFacilityId(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="med-freshness">Freshness target (minutes)</Label><Input id="med-freshness" type="number" min="5" max="1440" value={freshnessMinutes} onChange={(event) => setFreshnessMinutes(event.target.value)} /></div><div className="space-y-2 sm:col-span-2"><Label htmlFor={`${__fieldIds}-integration-credential`}>Integration credential</Label><Select value={credentialId || unboundCredentialValue} onValueChange={(value) => setCredentialId(value === unboundCredentialValue ? "" : value)}><SelectTrigger id={`${__fieldIds}-integration-credential`} aria-label="Integration credential"><SelectValue placeholder="Select a credential" /></SelectTrigger><SelectContent><SelectItem value={unboundCredentialValue}>Leave unbound (setup required)</SelectItem>{medicationCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.name} · {credential.key_prefix}… · {credential.scopes.join(", ")}</SelectItem>)}</SelectContent></Select>{credentials.isError ? <p className="text-xs text-destructive">Credentials could not be loaded. Try again or ask an organization administrator.</p> : credentials.isLoading ? <p className="text-xs text-muted-foreground">Loading credentials…</p> : medicationCredentials.length === 0 ? <p className="text-xs text-muted-foreground">No active credential in this organization carries medications:write. An organization administrator can issue one from the <Link href="/app/value-center" className="underline">Value Center</Link>.</p> : null}</div></div><DialogFooter><Button variant="outline" onClick={() => setSourceDialogOpen(false)}>Cancel</Button><Button disabled={saveSource.isPending || sourceName.trim().length < 2 || vendorName.trim().length < 2 || externalFacilityId.trim().length < 1} onClick={() => void submitSource()}>{saveSource.isPending ? "Saving…" : "Save source"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={sourceDialogOpen} onOpenChange={setSourceDialogOpen}><DialogContent><DialogHeader><DialogTitle>{editingSource ? "Edit medication source" : "Configure medication source"}</DialogTitle><DialogDescription>Bind an active medication integration credential to receive records from your eMAR. Choose Active to resume a paused or failed connection. Pause or disable a connection to stop new imports; previously received records remain available.</DialogDescription></DialogHeader><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="med-source-name">Connection name</Label><Input id="med-source-name" value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Main campus eMAR" /></div><div className="space-y-2"><Label htmlFor="med-vendor">Vendor</Label><Input id="med-vendor" value={vendorName} onChange={(event) => setVendorName(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="med-external-facility">External facility ID</Label><Input id="med-external-facility" value={externalFacilityId} onChange={(event) => setExternalFacilityId(event.target.value)} /></div><div className="space-y-2"><Label htmlFor="med-freshness">Freshness target (minutes)</Label><Input id="med-freshness" type="number" min="5" max="1440" value={freshnessMinutes} onChange={(event) => setFreshnessMinutes(event.target.value)} /></div><div className="space-y-2 sm:col-span-2"><Label htmlFor={`${__fieldIds}-integration-credential`}>Integration credential</Label><Select value={credentialId || unboundCredentialValue} onValueChange={(value) => { const next = value === unboundCredentialValue ? "" : value; setCredentialId(next); if (sourceStatus === "active" && !next) setSourceStatus("setup_required"); }}><SelectTrigger id={`${__fieldIds}-integration-credential`} aria-label="Integration credential"><SelectValue placeholder="Select a credential" /></SelectTrigger><SelectContent><SelectItem value={unboundCredentialValue}>Leave unbound (setup required)</SelectItem>{credentialId && !credentialAvailable && <SelectItem value={credentialId} disabled>Current credential unavailable — select a replacement</SelectItem>}{medicationCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.name} · {credential.key_prefix}… · {credential.scopes.join(", ")}</SelectItem>)}</SelectContent></Select>{credentials.isError ? <p className="text-xs text-destructive">Credentials could not be loaded. Try again or ask an organization administrator.</p> : credentials.isLoading ? <p className="text-xs text-muted-foreground">Loading credentials…</p> : medicationCredentials.length === 0 ? <p className="text-xs text-muted-foreground">No active credential in this organization carries medications:write. An organization administrator can issue one from the <Link href="/app/value-center" className="underline">Value Center</Link>.</p> : null}</div></div><div className="space-y-2"><Label htmlFor={`${__fieldIds}-source-status`}>Connection status</Label><Select value={sourceStatus} onValueChange={(value) => setSourceStatus(value as typeof sourceStatus)}><SelectTrigger id={`${__fieldIds}-source-status`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="setup_required">Setup required</SelectItem><SelectItem value="active" disabled={!credentialId}>Active</SelectItem><SelectItem value="paused">Paused</SelectItem><SelectItem value="disabled">Disabled</SelectItem>{editingSource?.status === "error" && <SelectItem value="error">Error — review before reactivating</SelectItem>}</SelectContent></Select>{!freshnessValid && <p className="text-sm text-destructive">Enter a whole number of minutes from 5 to 1440.</p>}</div><DialogFooter><Button variant="outline" onClick={() => setSourceDialogOpen(false)}>Cancel</Button><Button disabled={saveSource.isPending || !sourceValid} onClick={() => void submitSource()}>{saveSource.isPending ? "Saving…" : "Save source"}</Button></DialogFooter></DialogContent></Dialog>
 
       <Dialog open={!!selectedException} onOpenChange={(open) => !open && setSelectedException(null)}>
         <DialogContent><DialogHeader><DialogTitle>Review medication integration exception</DialogTitle><DialogDescription>Assign an accountable owner and SLA-backed work item, or record the operational disposition. Clinical correction remains in the external eMAR.</DialogDescription></DialogHeader>

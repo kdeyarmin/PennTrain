@@ -1,5 +1,5 @@
 import { FhirWritebackSettings } from "@/components/facilities/FhirWritebackSettings";
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState, useEffect, useRef } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, DatabaseZap, Link2, RefreshCw, Settings2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -41,15 +41,12 @@ function sourceFreshness(source: FhirSource) {
 }
 
 export default function FhirIntegration() {
-  const __fieldIds = useId();
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
-  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   // A platform admin has no organizationId of their own, so keying off it alone left both the
   // facility list and the credential list permanently empty -- and with the free-form credential-id
   // input gone, that meant the only source they could create was an unbound `setup_required` one.
   const scopeOrgId = viewingOrgId ?? user?.organizationId ?? undefined;
-  const unboundCredentialValue = "__unbound__";
   const facilities = useListFacilities({ organizationId: scopeOrgId });
   const residentContext = useResidentNavigationContext();
   const [selectedFacilityId, setSelectedFacilityId] = useState("");
@@ -62,7 +59,26 @@ export default function FhirIntegration() {
   const scopedFacilities = facilities.data ?? [];
   const selectionInScope = scopedFacilities.some((facility) => facility.id === selectedFacilityId);
   const facilityId = (selectionInScope ? selectedFacilityId : "")
-    || residentContext.facilityId || scopedFacilities[0]?.id || "";
+    || (scopedFacilities.some(facility => facility.id === residentContext.facilityId) ? residentContext.facilityId : "") || scopedFacilities[0]?.id || "";
+  return <FhirFacilityWorkspace key={`${user?.id}:${scopeOrgId}:${facilityId}`} facilityId={facilityId} facilities={facilities}
+    scopeOrgId={scopeOrgId} onFacilityChange={value => { setSelectedFacilityId(value); residentContext.setFacilityId(value); }} />;
+}
+
+export function FhirFacilityWorkspace({ facilityId, facilities, scopeOrgId, onFacilityChange }: {
+  facilityId: string;
+  facilities: ReturnType<typeof useListFacilities>;
+  scopeOrgId: string | undefined;
+  onFacilityChange: (id: string) => void;
+}) {
+  const __fieldIds = useId();
+  const unboundCredentialValue = "__unbound__";
+  const { user } = useAuth();
+  const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const sourceReview = useRef(0);
+  const mappingReview = useRef(0);
+  const exceptionReview = useRef(0);
   // Credentials belong to whichever organization owns the facility being configured, which for a
   // platform admin is not necessarily the viewing org.
   const selectedFacilityOrgId = useMemo(
@@ -129,7 +145,8 @@ export default function FhirIntegration() {
   const openExceptions = data.exceptions.filter((item) => !["resolved", "dismissed"].includes(item.status));
 
   const submitSource = async () => {
-    if (!facilityId) return;
+    if (!facilityId || !canManage || saveSource.isPending) return;
+    const request = sourceReview.current;
     try {
       await saveSource.mutateAsync({
         facilityId,
@@ -141,15 +158,18 @@ export default function FhirIntegration() {
         freshnessThresholdMinutes: Number(freshnessMinutes),
         status: credentialId.trim() ? "active" : "setup_required",
       });
+      if (!mounted.current || request !== sourceReview.current) return;
       setSourceDialogOpen(false);
       setSourceName(""); setVendorName(""); setExternalFacilityId(""); setFhirBaseUrl(""); setCredentialId(""); setFreshnessMinutes("60");
       toast({ title: "FHIR source saved" });
     } catch (error) {
+      if (!mounted.current || request !== sourceReview.current) return;
       toast({ title: "Source could not be saved", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
   };
 
   const openMapping = (exception: FhirException) => {
+    mappingReview.current++;
     setMappingException(exception);
     setMappingSourceId(exception.source_id);
     setMappingResidentId("");
@@ -157,7 +177,8 @@ export default function FhirIntegration() {
   };
 
   const submitMapping = async () => {
-    if (!mappingSourceId || !mappingResidentId || !mappingFhirPatientId.trim()) return;
+    if (!canManage || mapPatient.isPending || !mappingSourceId || !mappingResidentId || !mappingFhirPatientId.trim()) return;
+    const request = mappingReview.current;
     try {
       await mapPatient.mutateAsync({
         facilityId,
@@ -165,20 +186,25 @@ export default function FhirIntegration() {
         residentId: mappingResidentId,
         fhirPatientId: mappingFhirPatientId.trim(),
       });
+      if (!mounted.current || request !== mappingReview.current) return;
       setMappingException(null);
       toast({ title: "FHIR patient mapped to resident" });
     } catch (error) {
+      if (!mounted.current || request !== mappingReview.current) return;
       toast({ title: "Patient could not be mapped", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
   };
 
   const submitResolution = async () => {
-    if (!selectedException || resolutionNote.trim().length < 5) return;
+    if (!canManage || resolveException.isPending || !selectedException || resolutionNote.trim().length < 5) return;
+    const request = exceptionReview.current;
     try {
       await resolveException.mutateAsync({ exceptionId: selectedException.id, facilityId, status: resolutionStatus, note: resolutionNote.trim() });
+      if (!mounted.current || request !== exceptionReview.current) return;
       setSelectedException(null); setResolutionNote("");
       toast({ title: "Integration exception updated" });
     } catch (error) {
+      if (!mounted.current || request !== exceptionReview.current) return;
       toast({ title: "Exception could not be updated", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
   };
@@ -194,7 +220,7 @@ export default function FhirIntegration() {
           <Button variant="outline" onClick={() => void workspace.refetch()} disabled={workspace.isFetching}>
             <RefreshCw className={`mr-2 h-4 w-4 ${workspace.isFetching ? "animate-spin" : ""}`} />Refresh
           </Button>
-          {canManage && <Button onClick={() => { setSourceName(""); setVendorName(""); setExternalFacilityId(""); setFhirBaseUrl(""); setCredentialId(""); setFreshnessMinutes("60"); setSourceDialogOpen(true); }}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}
+          {canManage && <Button onClick={() => { sourceReview.current++; setSourceName(""); setVendorName(""); setExternalFacilityId(""); setFhirBaseUrl(""); setCredentialId(""); setFreshnessMinutes("60"); setSourceDialogOpen(true); }}><Settings2 className="mr-2 h-4 w-4" />Configure source</Button>}
         </div>
       </div>
 
@@ -224,7 +250,7 @@ export default function FhirIntegration() {
         <CardContent className="p-4">
           <div className="max-w-sm space-y-2">
             <Label htmlFor={`${__fieldIds}-facility`}>Facility</Label>
-            <Select value={facilityId} onValueChange={(value) => { setSelectedFacilityId(value); residentContext.setFacilityId(value); }}>
+            <Select value={facilityId} onValueChange={onFacilityChange}>
               <SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Select facility" /></SelectTrigger>
               <SelectContent>{facilities.data?.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -289,7 +315,7 @@ export default function FhirIntegration() {
                   {canManage && !["resolved", "dismissed"].includes(item.status) && (
                     <div className="flex gap-2">
                       {item.exception_type === "unmatched_patient" && <Button size="sm" variant="outline" onClick={() => openMapping(item)}><Link2 className="mr-1 h-3.5 w-3.5" />Map patient</Button>}
-                      <Button size="sm" variant="outline" onClick={() => { setSelectedException(item); setResolutionStatus("acknowledged"); setResolutionNote(""); }}>Review</Button>
+                      <Button size="sm" variant="outline" onClick={() => { exceptionReview.current++; setSelectedException(item); setResolutionStatus("acknowledged"); setResolutionNote(""); }}>Review</Button>
                     </div>
                   )}
                 </CardContent></Card>
@@ -348,7 +374,7 @@ export default function FhirIntegration() {
         </>
       )}
 
-      <Dialog open={sourceDialogOpen} onOpenChange={setSourceDialogOpen}>
+      <Dialog open={sourceDialogOpen} onOpenChange={open => { sourceReview.current++; setSourceDialogOpen(open); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Configure FHIR source</DialogTitle><DialogDescription>The credential must belong to this organization and carry the <strong>commands:write</strong> scope &mdash; the only scope <code>save_fhir_integration_source</code> accepts. It authenticates the EHR calling <em>into</em> CareBase; it is not used for outbound write-back. Leave it blank to save a setup-required source.</DialogDescription></DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -360,13 +386,13 @@ export default function FhirIntegration() {
             <div className="space-y-2 sm:col-span-2"><Label htmlFor={`${__fieldIds}-integration-credential`}>Integration credential</Label><Select value={credentialId || unboundCredentialValue} onValueChange={(value) => setCredentialId(value === unboundCredentialValue ? "" : value)}><SelectTrigger id={`${__fieldIds}-integration-credential`} aria-label="Integration credential"><SelectValue placeholder="Select a credential" /></SelectTrigger><SelectContent><SelectItem value={unboundCredentialValue}>Leave unbound (setup required)</SelectItem>{commandCredentials.map((credential) => <SelectItem key={credential.id} value={credential.id}>{credential.name} · {credential.key_prefix}… · {credential.scopes.join(", ")}</SelectItem>)}</SelectContent></Select>{credentials.isError ? <p className="text-xs text-destructive">Credentials could not be loaded.</p> : credentials.isLoading ? <p className="text-xs text-muted-foreground">Loading credentials…</p> : commandCredentials.length === 0 ? <p className="text-xs text-muted-foreground">No active credential in this organization carries commands:write. Issue one from the <Link href="/app/value-center" className="underline">Value Center</Link>.</p> : null}</div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSourceDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { sourceReview.current++; setSourceDialogOpen(false); }}>Cancel</Button>
             <Button disabled={saveSource.isPending || sourceName.trim().length < 2 || vendorName.trim().length < 2 || externalFacilityId.trim().length < 1} onClick={() => void submitSource()}>{saveSource.isPending ? "Saving…" : "Save source"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!mappingException} onOpenChange={(open) => !open && setMappingException(null)}>
+      <Dialog open={!!mappingException} onOpenChange={open => { if (!open) { mappingReview.current++; setMappingException(null); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Map FHIR patient to resident</DialogTitle><DialogDescription>Matching stays a deliberate human step. Confirm the external FHIR patient identifier corresponds to this resident.</DialogDescription></DialogHeader>
           <div className="space-y-4">
@@ -379,13 +405,13 @@ export default function FhirIntegration() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMappingException(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { mappingReview.current++; setMappingException(null); }}>Cancel</Button>
             <Button disabled={mapPatient.isPending || !mappingResidentId || mappingFhirPatientId.trim().length < 1} onClick={() => void submitMapping()}>{mapPatient.isPending ? "Mapping…" : "Map patient"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedException} onOpenChange={(open) => !open && setSelectedException(null)}>
+      <Dialog open={!!selectedException} onOpenChange={open => { if (!open) { exceptionReview.current++; setSelectedException(null); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Review FHIR integration exception</DialogTitle><DialogDescription>Record the operational disposition. Clinical correction remains in the external source system.</DialogDescription></DialogHeader>
           <div className="space-y-4">
@@ -398,7 +424,7 @@ export default function FhirIntegration() {
             <div className="space-y-2"><Label htmlFor="fhir-resolution-note">Resolution note</Label><Textarea id="fhir-resolution-note" value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedException(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { exceptionReview.current++; setSelectedException(null); }}>Cancel</Button>
             <Button disabled={resolveException.isPending || resolutionNote.trim().length < 5} onClick={() => void submitResolution()}>{resolveException.isPending ? "Saving…" : "Save disposition"}</Button>
           </DialogFooter>
         </DialogContent>

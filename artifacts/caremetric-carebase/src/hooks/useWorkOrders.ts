@@ -1,5 +1,7 @@
+import { deleteDocumentWithReceipt } from "@/lib/documentDeletion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { hasDefinitivePostgresWriteRejection } from "@/lib/postgresWriteOutcome";
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/database.types";
 
 export type WorkOrder = Tables<"work_orders">;
@@ -20,15 +22,24 @@ export function useListWorkOrders(filters: WorkOrderFilters = {}) {
   return useQuery({
     queryKey: ["work_orders", filters],
     queryFn: async () => {
-      let query = supabase.from("work_orders").select("*").order("created_at", { ascending: false });
-      if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
-      if (filters.status) query = query.eq("status", filters.status);
-      if (filters.priority) query = query.eq("priority", filters.priority);
-      if (filters.inspectionItemId) query = query.eq("inspection_item_id", filters.inspectionItemId);
-      if (filters.sourceInspectionEventId) query = query.eq("source_inspection_event_id", filters.sourceInspectionEventId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      // The dashboard derives its open/overdue queue from this collection. A single API page
+      // silently omitted older unresolved repairs once enough newer orders had accumulated.
+      const pageSize = 1000;
+      const rows: WorkOrder[] = [];
+      for (let from = 0; ;) {
+        let query = supabase.from("work_orders").select("*").order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, from + pageSize - 1);
+        if (filters.facilityId) query = query.eq("facility_id", filters.facilityId);
+        if (filters.status) query = query.eq("status", filters.status);
+        if (filters.priority) query = query.eq("priority", filters.priority);
+        if (filters.inspectionItemId) query = query.eq("inspection_item_id", filters.inspectionItemId);
+        if (filters.sourceInspectionEventId) query = query.eq("source_inspection_event_id", filters.sourceInspectionEventId);
+        const { data, error } = await query;
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if (!data?.length) break;
+        from += data.length;
+      }
+      return rows;
     },
   });
 }
@@ -332,7 +343,20 @@ export function useUploadMaintenanceDocument() {
         document_label: input.documentLabel ?? null,
       }).select().single();
       if (error) {
-        await supabase.storage.from("maintenance-documents").remove([path]);
+        // A lost response can conceal committed metadata. Keep the bytes until the
+        // server both rejects the write definitively and confirms its absence.
+        const unknown = new Error("The document save could not be confirmed. The uploaded file was retained; refresh the document list before retrying.");
+        let saved: MaintenanceDocument | null;
+        try {
+          const result = await supabase.from("maintenance_documents").select("*")
+            .eq("organization_id", input.organizationId).eq("storage_bucket", "maintenance-documents").eq("storage_path", path).maybeSingle();
+          if (result.error) throw result.error;
+          saved = result.data;
+        } catch { throw unknown; }
+        if (saved) return saved;
+        if (!hasDefinitivePostgresWriteRejection(error)) throw unknown;
+        const { error: cleanupError } = await supabase.storage.from("maintenance-documents").remove([path]);
+        if (cleanupError) throw new Error(`${error.message} (also failed to remove uploaded file: ${cleanupError.message})`);
         throw error;
       }
       return data;
@@ -356,12 +380,10 @@ export function useMaintenanceDocumentSignedUrl() {
 export function useDeleteMaintenanceDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (doc: MaintenanceDocument) => {
-      const { error: storageError } = await supabase.storage.from(doc.storage_bucket).remove([doc.storage_path]);
-      if (storageError) throw storageError;
-      const { error } = await supabase.from("maintenance_documents").delete().eq("id", doc.id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["maintenance_documents"] }),
+    mutationFn: (doc: MaintenanceDocument) => deleteDocumentWithReceipt("maintenance", doc.id),
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["maintenance_documents"] }),
+      queryClient.invalidateQueries({ queryKey: ["document_deletions"] }),
+    ]),
   });
 }

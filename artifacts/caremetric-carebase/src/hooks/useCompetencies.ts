@@ -85,7 +85,7 @@ export function useListCompetencyTemplateItems(templateId: string | undefined) {
         .from("competency_template_items")
         .select("*")
         .eq("template_id", templateId!)
-        .order("sort_order");
+        .order("sort_order").order("id", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -98,23 +98,6 @@ export function useAddCompetencyTemplateItem() {
   return useMutation({
     mutationFn: async (payload: CompetencyTemplateItemInsert) => {
       const { data, error } = await supabase.from("competency_template_items").insert(payload).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => queryClient.invalidateQueries({ queryKey: ["competency_template_items", data.template_id] }),
-  });
-}
-
-// Used for both inline text edits and the up/down reorder controls (which just
-// swap two rows' sort_order). Not part of the named type-alias list the rest of
-// this file exports, so it's typed inline off TablesUpdate the same way
-// useCourses.ts's useUpdateCourseVersion does for a field that has no dedicated
-// alias.
-export function useUpdateCompetencyTemplateItem() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, ...payload }: TablesUpdate<"competency_template_items"> & { id: string }) => {
-      const { data, error } = await supabase.from("competency_template_items").update(payload).eq("id", id).select().single();
       if (error) throw error;
       return data;
     },
@@ -184,7 +167,7 @@ export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters =
       // another.
       const pageSize = 1000;
       const rows: CompetencyRecord[] = [];
-      for (let from = 0; ; from += pageSize) {
+      for (let from = 0; ; ) {
         let query = supabase
           .from("competency_records")
           .select("*")
@@ -197,7 +180,8 @@ export function useListCompetencyRecords(filters: ListCompetencyRecordsFilters =
         const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
-        if (!data || data.length < pageSize) break;
+        if (!data?.length) break;
+        from += data.length;
       }
       return rows;
     },

@@ -2,6 +2,7 @@
 // training status, unsupervised-duty clearance, employment status, and any active restrictions into
 // a single verdict with a plain-language "why". Pure and unit-tested; consumed by the employee page.
 import { facilityDaysUntil, formatDateForDisplay } from "@/lib/dateUtils";
+import { CREDENTIAL_TYPE_LABELS } from "@/lib/credentialLabels";
 
 export type ReadinessStatus =
   | "ready"
@@ -74,8 +75,13 @@ export function readinessBadgeClass(status: string): string {
   return (STATUS_META as Record<string, { badgeClass: string }>)[status]?.badgeClass ?? STATUS_META.incomplete.badgeClass;
 }
 
+function requirementDisplayLabel(label: string): string {
+  // Preserve the original labels for requirement matching; translate known codes
+  // only when explaining the verdict. Custom labels retain their exact wording.
+  return Object.hasOwn(CREDENTIAL_TYPE_LABELS, label) ? CREDENTIAL_TYPE_LABELS[label] : label;
+}
 function credLabel(c: ReadinessCredentialLike): string {
-  return (c.label && c.label.trim()) || "A credential/clearance";
+  return requirementDisplayLabel((c.label && c.label.trim()) || "A credential/clearance");
 }
 function trainLabel(t: ReadinessTrainingLike): string {
   return (t.label && t.label.trim()) || "A training requirement";
@@ -143,7 +149,7 @@ export function computeEmployeeReadiness(input: ReadinessInput, today: Date = ne
     const reasons: string[] = [];
     for (const c of missingCreds) reasons.push(`${credLabel(c)} is missing.`);
     for (const t of missingTraining) reasons.push(`${trainLabel(t)} is missing.`);
-    for (const req of missingRequired) reasons.push(`Required "${req}" has no record on file.`);
+    for (const req of missingRequired) reasons.push(`Required "${requirementDisplayLabel(req)}" has no record on file.`);
     return verdict("incomplete", reasons);
   }
 

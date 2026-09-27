@@ -64,13 +64,20 @@ function grantState(grant: EvidenceGuestGrant): { label: string; className: stri
 }
 
 export default function EvidenceCollectionDetail() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  // One-time guest tokens and pending revoke/withdraw targets belong to the
+  // collection and reviewer that opened them, including delayed mutation results.
+  return <EvidenceCollectionRecord key={JSON.stringify([id, user?.id, user?.organizationId, user?.role])} id={id} />;
+}
+
+function EvidenceCollectionRecord({ id }: { id: string | undefined }) {
   // Every labelled control on this page derives its id from here. Six were hardcoded --
   // "guest-label", "revoke-reason", "withdraw-reason" and friends -- which are generic enough
   // to collide with anything else mounted at the same time, and a duplicate id sends the label's
   // click and the screen reader's announcement to whichever element the document reached first.
   // The file already computed this prefix for one field; now it is used for all of them.
   const __fieldIds = useId();
-  const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
 

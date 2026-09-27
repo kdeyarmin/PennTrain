@@ -1,14 +1,13 @@
 import { useMemo, useState } from "react";
-import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 
 import { Link } from "wouter";
-import { Activity, AlertTriangle, ClipboardCheck, HeartPulse, Hospital, PackageCheck, RefreshCw, Stethoscope } from "lucide-react";
+import { Activity, AlertTriangle, ClipboardCheck, HeartPulse, Hospital, RefreshCw, Stethoscope } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListResidents } from "@/hooks/useResidents";
 import { useResidentNavigationContext } from "@/hooks/useResidentNavigationContext";
-import { useResidentCareAnalytics, useRegisterResidentDmeItem, useScheduleResidentAppointment, useStartHospitalTransfer } from "@/hooks/useResidentCareDelivery";
+import { useResidentCareAnalytics } from "@/hooks/useResidentCareDelivery";
 import { DmeRegisterCard } from "@/components/residents/DmeRegisterCard";
 import { QueryError } from "@/components/QueryState";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { ResidentCareActionForms } from "@/components/residents/ResidentCareActionForms";
 import { addDaysIso, todayIso } from "@/lib/scheduleDates";
 
 function dateDaysAgo(days: number) {
@@ -49,54 +47,21 @@ export default function ResidentCareDelivery() {
   const canManage = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
   const { viewingOrgId } = useViewingOrg();
   const selectedOrgId = viewingOrgId ?? user?.organizationId ?? null;
-  const { toast } = useToast();
   const facilities = useListFacilities({ organizationId: selectedOrgId ?? undefined }, Boolean(selectedOrgId));
   const { facilityId, residentId, setFacilityId, setResidentId } = useResidentNavigationContext();
   const [from, setFrom] = useState(dateDaysAgo(30));
   const [through, setThrough] = useState(dateDaysAgo(0));
-  const effectiveFacilityId = facilityId || facilities.data?.[0]?.id || "";
+  const effectiveFacilityId = facilityId
+    ? facilities.data?.find(facility => facility.id === facilityId)?.id ?? ""
+    : facilities.data?.[0]?.id ?? "";
   const residents = useListResidents({ facilityId: effectiveFacilityId, status: "active" }, { enabled: Boolean(effectiveFacilityId) });
   const analytics = useResidentCareAnalytics({ facilityId: effectiveFacilityId, from, through });
-  const dme = useRegisterResidentDmeItem();
-  const appointment = useScheduleResidentAppointment();
-  const transfer = useStartHospitalTransfer();
 
   const serviceCompletionPct = useMemo(() => {
     const numerator = analytics.data?.serviceCompletion.numerator ?? 0;
     const denominator = analytics.data?.serviceCompletion.denominator ?? 0;
     return denominator > 0 ? `${Math.round((numerator / denominator) * 100)}%` : "N/A";
   }, [analytics.data]);
-
-  const [equipmentType, setEquipmentType] = useState("walker");
-  const [appointmentDate, setAppointmentDate] = useState("");
-  const [appointmentLocation, setAppointmentLocation] = useState("");
-  const [transferReason, setTransferReason] = useState("");
-  const [transferDestination, setTransferDestination] = useState("");
-
-  // The resident the user actually chose -- no `|| residents.data?.[0]?.id` fallback.
-  //
-  // This value feeds nothing but the three write actions below, and two of them (appointment,
-  // hospital transfer) render no resident picker at all. Falling back to the first active resident
-  // meant a user who had not chosen anyone could file a hospital-transfer episode or a provider
-  // appointment against whoever happened to sort first, with nothing on screen naming them. Both
-  // cards now carry the same picker the DME card has, and the buttons stay disabled until a
-  // resident is picked.
-  const selectedResidentId = residentId || "";
-
-  // Mutations here were passing only onSuccess, so a server rejection produced no toast and no
-  // visible change -- indistinguishable from a click that did not register.
-  const reportError = (title: string) => (error: Error) =>
-    toast({ title, description: error.message, variant: "destructive" as const });
-
-  const residentPicker = (id: string) => (
-    <>
-      <Label htmlFor={id}>Resident</Label>
-      <Select value={selectedResidentId} onValueChange={setResidentId}>
-        <SelectTrigger id={id}><SelectValue placeholder="Select resident" /></SelectTrigger>
-        <SelectContent>{residents.data?.map(r => <SelectItem key={r.id} value={r.id}>{r.last_name}, {r.first_name}</SelectItem>)}</SelectContent>
-      </Select>
-    </>
-  );
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -161,36 +126,15 @@ export default function ResidentCareDelivery() {
             </Card>
           ) : (
           <>
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><PackageCheck className="h-5 w-5" />Register DME</CardTitle><CardDescription>Preserves assignment history and repair/inspection documentation.</CardDescription></CardHeader>
-            <CardContent className="space-y-3">
-              {residentPicker("dme-resident")}
-              <Label htmlFor="equipment">Equipment type</Label>
-              <Select value={equipmentType} onValueChange={setEquipmentType}><SelectTrigger id="equipment"><SelectValue /></SelectTrigger><SelectContent>{["walker","wheelchair","hospital_bed","oxygen_equipment","lift","specialty_mattress","shower_equipment","adaptive_device","other"].map(type => <SelectItem key={type} value={type}>{type.replace(/_/g, " ")}</SelectItem>)}</SelectContent></Select>
-              <Button className="w-full" disabled={!effectiveFacilityId || !selectedResidentId || dme.isPending} onClick={() => dme.mutate({ facilityId: effectiveFacilityId, residentId: selectedResidentId, equipmentType }, { onSuccess: () => toast({ title: "DME item registered" }), onError: reportError("Couldn't register DME") })}>Register DME</Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" />Schedule appointment</CardTitle><CardDescription>Checks transportation conflicts and creates resident timeline data.</CardDescription></CardHeader>
-            <CardContent className="space-y-3">
-              {residentPicker("appointment-resident")}
-              <Label htmlFor="appointment-location">Location</Label><Input id="appointment-location" value={appointmentLocation} onChange={event => setAppointmentLocation(event.target.value)} placeholder="Provider office or telehealth" />
-              <Label htmlFor="appointment-date">Date and time</Label><Input id="appointment-date" type="datetime-local" value={appointmentDate} onChange={event => setAppointmentDate(event.target.value)} />
-              <Button className="w-full" disabled={!selectedResidentId || !appointmentLocation || !appointmentDate || appointment.isPending} onClick={() => appointment.mutate({ residentId: selectedResidentId, appointmentType: "provider", location: appointmentLocation, startsAt: facilityDateTimeLocalToUtcIso(appointmentDate) }, { onSuccess: () => toast({ title: "Appointment scheduled" }), onError: reportError("Couldn't schedule the appointment") })}>Schedule appointment</Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><Hospital className="h-5 w-5" />Hospital transfer out</CardTitle><CardDescription>Creates one traceable transfer episode for out-of-building status and return follow-up.</CardDescription></CardHeader>
-            <CardContent className="space-y-3">
-              {residentPicker("transfer-resident")}
-              <Label htmlFor="transfer-destination">Destination</Label><Input id="transfer-destination" value={transferDestination} onChange={event => setTransferDestination(event.target.value)} placeholder="Hospital or emergency department" />
-              <Label htmlFor="transfer-reason">Reason</Label><Textarea id="transfer-reason" value={transferReason} onChange={event => setTransferReason(event.target.value)} placeholder="Observed reason for transfer, not a diagnosis" />
-              <Button className="w-full" disabled={!selectedResidentId || !transferDestination || transferReason.length < 5 || transfer.isPending} onClick={() => transfer.mutate({ residentId: selectedResidentId, destination: transferDestination, reason: transferReason, transferTime: new Date().toISOString(), transportMethod: "staff_recorded" }, { onSuccess: () => toast({ title: "Transfer episode started" }), onError: reportError("Couldn't start the transfer episode") })}>Start transfer</Button>
-            </CardContent>
-          </Card>
-
+          {residents.isError && <div className="xl:col-span-3"><QueryError what="active residents" error={residents.error} onRetry={() => residents.refetch()} /></div>}
+          <ResidentCareActionForms
+            key={JSON.stringify([effectiveFacilityId, residentId])}
+            facilityId={effectiveFacilityId}
+            residentId={residentId}
+            residents={residents.data ?? []}
+            residentsReady={!residents.isLoading && !residents.isError && !!residents.data}
+            onResidentChange={setResidentId}
+          />
           <div className="xl:col-span-3">
             <DmeRegisterCard facilityId={effectiveFacilityId || undefined} residents={residents.data ?? []} />
           </div>

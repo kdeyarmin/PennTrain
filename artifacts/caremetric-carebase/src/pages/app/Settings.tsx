@@ -21,6 +21,7 @@ import { useGetOrganization, useUpdateOrganization } from "@/hooks/useOrganizati
 import { useNotificationReach } from "@/hooks/useNotificationReach";
 import { useIdentitySecurityPolicy, useSetPrivilegedSessionWindow } from "@/hooks/useIdentitySecurityPolicy";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { replaceOrganizationLogo } from "@/lib/organizationLogo";
 
 const DEFAULT_WARNING_DAYS = 90;
 const LOGO_BUCKET = "org-branding";
@@ -96,14 +97,24 @@ export default function Settings() {
   const [logoPath, setLogoPath] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+  const hydratedOrganizationId = useRef<string | null>(null);
+  const formDirty = useRef(false);
+  const formRevision = useRef(0);
 
   useEffect(() => {
     if (identityPolicy.data) setPrivilegedWindowInput(String(identityPolicy.data.maxPrivilegedSessionMinutes));
   }, [identityPolicy.data]);
 
   useEffect(() => {
-    if (settings) {
-      setForm({
+    const organizationId = user?.organizationId;
+    if (!organizationId || isLoading || isError || (settings && settings.organization_id !== organizationId)) return;
+    if (hydratedOrganizationId.current !== organizationId) {
+      hydratedOrganizationId.current = organizationId;
+      formDirty.current = false;
+      formRevision.current++;
+    }
+    if (!formDirty.current) {
+      setForm(settings ? {
         emailNotificationsEnabled: settings.email_notifications_enabled,
         smsNotificationsEnabled: settings.sms_notifications_enabled,
         webPushNotificationsEnabled: settings.web_push_notifications_enabled,
@@ -111,13 +122,10 @@ export default function Settings() {
         idleTimeoutMinutes: String(settings.idle_timeout_minutes ?? 30),
         kioskIdleTimeoutMinutes: String(settings.kiosk_idle_timeout_minutes ?? 5),
         hiddenNavigationSections: settings.hidden_navigation_sections ?? [],
-      });
-      setLogoPath(settings.branding_logo_path ?? null);
-    } else {
-      setForm(EMPTY_FORM);
-      setLogoPath(null);
+      } : EMPTY_FORM);
     }
-  }, [settings]);
+    setLogoPath(settings?.branding_logo_path ?? null);
+  }, [settings, user?.organizationId, isLoading, isError]);
 
   useEffect(() => {
     if (!logoPath) {
@@ -125,6 +133,7 @@ export default function Settings() {
       return;
     }
     let cancelled = false;
+    setLogoUrl(null);
     supabase.storage
       .from(LOGO_BUCKET)
       .createSignedUrl(logoPath, 3600)
@@ -136,8 +145,11 @@ export default function Settings() {
     };
   }, [logoPath]);
 
-  const field = <K extends keyof SettingsFormData>(key: K, value: SettingsFormData[K]) =>
+  const field = <K extends keyof SettingsFormData>(key: K, value: SettingsFormData[K]) => {
+    formDirty.current = true;
+    formRevision.current++;
     setForm(f => ({ ...f, [key]: value }));
+  };
 
   const handleLogoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -147,42 +159,21 @@ export default function Settings() {
       return;
     }
 
-    const ext = file.name.split(".").pop() ?? "png";
-    const path = `${user.organizationId}/logo.${ext}`;
+    if (logoUploading || !canManage || isLoading || isError) return;
+    const organizationId = user.organizationId;
     const previousPath = logoPath;
     setLogoUploading(true);
     try {
-      const { error: uploadError } = await supabase.storage
-        .from(LOGO_BUCKET)
-        .upload(path, file, { upsert: true });
-      if (uploadError) throw uploadError;
-
-      try {
-        await upsertSettingsAsync({ organization_id: user.organizationId, branding_logo_path: path });
-      } catch (saveError) {
-        // Settings never pointed at the new object -- remove it when it is a different key than
-        // the prior logo so a failed save does not leave an orphan (png vs jpg) or a UI that
-        // shows a path the DB does not store.
-        if (path !== previousPath) {
-          const { error: cleanupError } = await supabase.storage.from(LOGO_BUCKET).remove([path]);
-          if (cleanupError) {
-            throw new Error(
-              `${saveError instanceof Error ? saveError.message : "Failed to save logo path"} (also failed to remove uploaded file: ${cleanupError.message})`,
-            );
-          }
-        }
-        throw saveError;
-      }
-
-      setLogoPath(path);
-      toast({ title: "Logo uploaded" });
+      const result = await replaceOrganizationLogo({
+        file, organizationId, previousPath,
+        savePointer: (path) => upsertSettingsAsync({ organization_id: organizationId, branding_logo_path: path }),
+      });
+      if (hydratedOrganizationId.current === organizationId) setLogoPath(result.path);
+      toast({ title: "Logo uploaded", description: result.cleanupWarning ?? undefined });
     } catch (err) {
       toast({
         title: "Logo upload failed",
-        description:
-          err instanceof Error
-            ? `${err.message} (the "org-branding" storage bucket may not exist yet)`
-            : "The \"org-branding\" storage bucket may not exist yet.",
+        description: err && typeof err === "object" && "message" in err ? String(err.message) : "Could not save the organization logo. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -192,23 +183,37 @@ export default function Settings() {
   };
 
   const handleSave = () => {
-    if (!user?.organizationId) return;
-    const parsedDays = parseInt(form.defaultWarningDays, 10);
-    const idleTimeoutMinutes = parseInt(form.idleTimeoutMinutes, 10);
-    const kioskIdleTimeoutMinutes = parseInt(form.kioskIdleTimeoutMinutes, 10);
+    if (!user?.organizationId || !canManage || isLoading || isError || hydratedOrganizationId.current !== user.organizationId) return;
+    const parsedDays = Number(form.defaultWarningDays);
+    const idleTimeoutMinutes = Number(form.idleTimeoutMinutes);
+    const kioskIdleTimeoutMinutes = Number(form.kioskIdleTimeoutMinutes);
+    for (const [name, value, min, max] of [
+      ["Warning days", parsedDays, 1, 365],
+      ["Standard idle timeout", idleTimeoutMinutes, 5, 480],
+      ["Kiosk idle timeout", kioskIdleTimeoutMinutes, 1, 60],
+    ] as const) {
+      if (!Number.isInteger(value) || value < min || value > max) {
+        toast({ title: `${name} must be a whole number from ${min} to ${max}`, variant: "destructive" });
+        return;
+      }
+    }
+    const revision = formRevision.current;
     upsertSettings(
       {
         organization_id: user.organizationId,
         email_notifications_enabled: form.emailNotificationsEnabled,
         sms_notifications_enabled: form.smsNotificationsEnabled,
         web_push_notifications_enabled: form.webPushNotificationsEnabled,
-        default_warning_days: { default: Number.isFinite(parsedDays) ? parsedDays : DEFAULT_WARNING_DAYS },
-        idle_timeout_minutes: Number.isFinite(idleTimeoutMinutes) ? idleTimeoutMinutes : 30,
-        kiosk_idle_timeout_minutes: Number.isFinite(kioskIdleTimeoutMinutes) ? kioskIdleTimeoutMinutes : 5,
+        default_warning_days: { default: parsedDays },
+        idle_timeout_minutes: idleTimeoutMinutes,
+        kiosk_idle_timeout_minutes: kioskIdleTimeoutMinutes,
         hidden_navigation_sections: form.hiddenNavigationSections,
       },
       {
-        onSuccess: () => toast({ title: "Settings saved" }),
+        onSuccess: () => {
+          if (revision === formRevision.current) formDirty.current = false;
+          toast({ title: "Settings saved" });
+        },
         onError: (err: Error) => toast({ title: "Failed to save settings", description: err.message, variant: "destructive" }),
       },
     );
@@ -222,7 +227,7 @@ export default function Settings() {
           <p className="text-muted-foreground">Manage organization and facility settings</p>
         </div>
         {canManage && (
-          <Button onClick={handleSave} disabled={saving || isLoading} className="shadow-sm">
+          <Button onClick={handleSave} disabled={saving || isLoading || isError || hydratedOrganizationId.current !== user?.organizationId} className="shadow-sm">
             {saving ? "Saving..." : "Save Changes"}
           </Button>
         )}
@@ -721,7 +726,11 @@ export default function Settings() {
                   has already deleted; the click ended in a storage error. An expired archive now
                   says so and offers no download.
                 */}
-                <Button disabled={exports.request.isPending || exports.data?.some(organizationExportIsInFlight)} onClick={() => exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) })}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
+                <Button disabled={exports.isLoading || exports.isError || exports.request.isPending || exports.data?.some(organizationExportIsInFlight)} onClick={() => {
+                  if (exports.isLoading || exports.isError || exports.request.isPending || exports.data?.some(organizationExportIsInFlight)) return;
+                  exports.request.mutate(undefined, { onSuccess: () => toast({ title: "Organization export queued" }), onError: (error: Error) => toast({ title: "Export could not be queued", description: error.message, variant: "destructive" }) });
+                }}><Database className="mr-2 h-4 w-4" />Request complete export</Button>
+                {exports.isLoading ? <QueryLoading what="export history" /> : exports.isError ? <QueryError what="organization export history" error={exports.error} onRetry={() => void exports.refetch()} /> : <p className="text-xs text-muted-foreground">{exports.data?.length ? "Showing up to 10 most recent export requests." : "No organization exports have been requested."}</p>}
                 {exports.data?.some(organizationExportIsInFlight) && (
                   <p className="text-xs text-muted-foreground">An export is already in progress or waiting to be retried; a new one can be requested once it settles.</p>
                 )}

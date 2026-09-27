@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,12 +52,34 @@ export function ReleaseCohortMembershipCard() {
   const [expiresAt, setExpiresAt] = useState("");
   const [removing, setRemoving] = useState<OrganizationCohortMembership | null>(null);
   const [removeReason, setRemoveReason] = useState("");
+  const assignmentRevision = useRef(0);
 
   const cohortName = (id: string) =>
     cohorts.data?.find((cohort) => cohort.id === id)?.name ?? id.slice(0, 8);
 
   const canAssign = organizationId.trim() && cohortId && featureKey.trim()
     && reason.trim().length >= MIN_ASSIGN_REASON;
+
+  const handleAssign = () => {
+    if (!canAssign || assign.isPending || cohorts.isError || cohorts.isLoading) return;
+    try {
+      const expiration = expiresAt ? facilityDateTimeLocalToUtcIso(`${expiresAt}T23:59`) : undefined;
+      const submittedRevision = assignmentRevision.current;
+      assign.mutate({
+        organizationId: organizationId.trim(), cohortId, featureKey: featureKey.trim(), reason: reason.trim(), expiresAt: expiration,
+      }, {
+        onSuccess: () => {
+          // Inputs remain editable during the request. A saved reason is consumed only when
+          // this is still the submitted draft, including after a target is changed and restored.
+          if (assignmentRevision.current === submittedRevision) setReason("");
+          toast({ title: "Organization added to the cohort" });
+        },
+        onError: error => toast({ title: "Assignment blocked", description: errorText(error), variant: "destructive" }),
+      });
+    } catch (error) {
+      toast({ title: "Invalid cohort expiration", description: errorText(error), variant: "destructive" });
+    }
+  };
 
   return (
     <Card>
@@ -74,11 +96,11 @@ export function ReleaseCohortMembershipCard() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="cohort-org">Organization</Label>
-            <Input id="cohort-org" value={organizationId} onChange={(e) => setOrganizationId(e.target.value)} placeholder="Organization UUID" />
+            <Input id="cohort-org" value={organizationId} onChange={(e) => { assignmentRevision.current += 1; setOrganizationId(e.target.value); }} placeholder="Organization UUID" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="cohort-pick">Cohort</Label>
-            <Select value={cohortId} onValueChange={setCohortId}>
+            <Select value={cohortId} onValueChange={(value) => { assignmentRevision.current += 1; setCohortId(value); }}>
               <SelectTrigger id="cohort-pick"><SelectValue placeholder="Pick a cohort" /></SelectTrigger>
               <SelectContent>
                 {cohorts.isLoading ? (
@@ -99,30 +121,21 @@ export function ReleaseCohortMembershipCard() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="cohort-feature">Feature key</Label>
-            <Input id="cohort-feature" value={featureKey} onChange={(e) => setFeatureKey(e.target.value)} placeholder="resident_appointments" />
+            <Input id="cohort-feature" value={featureKey} onChange={(e) => { assignmentRevision.current += 1; setFeatureKey(e.target.value); }} placeholder="resident_appointments" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="cohort-expiry">Expires (optional)</Label>
-            <Input id="cohort-expiry" type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+            <Input id="cohort-expiry" type="date" value={expiresAt} onChange={(e) => { assignmentRevision.current += 1; setExpiresAt(e.target.value); }} />
           </div>
           <div className="space-y-1 sm:col-span-2">
             <Label htmlFor="cohort-reason">Reason</Label>
-            <Input id="cohort-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Early access agreed with the operator for the appointments pilot." />
+            <Input id="cohort-reason" value={reason} onChange={(e) => { assignmentRevision.current += 1; setReason(e.target.value); }} placeholder="Early access agreed with the operator for the appointments pilot." />
           </div>
         </div>
         <Button
           size="sm"
-          disabled={assign.isPending || !canAssign}
-          onClick={() => assign.mutate({
-            organizationId: organizationId.trim(),
-            cohortId,
-            featureKey: featureKey.trim(),
-            reason: reason.trim(),
-            expiresAt: expiresAt ? facilityDateTimeLocalToUtcIso(`${expiresAt}T23:59`) : undefined,
-          }, {
-            onSuccess: () => { setReason(""); toast({ title: "Organization added to the cohort" }); },
-            onError: (error) => toast({ title: "Assignment blocked", description: errorText(error), variant: "destructive" }),
-          })}
+          disabled={assign.isPending || !canAssign || cohorts.isError || cohorts.isLoading}
+          onClick={handleAssign}
         >
           {assign.isPending ? "Assigning…" : "Add to cohort"}
         </Button>
@@ -174,7 +187,7 @@ export function ReleaseCohortMembershipCard() {
                         featureKey: membership.feature_key,
                         reason: removeReason.trim(),
                       }, {
-                        onSuccess: () => { setRemoving(null); toast({ title: "Organization removed from the cohort" }); },
+                        onSuccess: () => { setRemoving(current => current?.id === membership.id ? null : current); toast({ title: "Organization removed from the cohort" }); },
                         onError: (error) => toast({ title: "Removal blocked", description: errorText(error), variant: "destructive" }),
                       })}
                     >

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { facilityDateTimeLocalToUtcIso } from "@/lib/dateUtils";
 
 import { Link } from "wouter";
@@ -390,6 +390,14 @@ export default function AdmissionOperations() {
   const [censusResidentId, setCensusResidentId] = useState("");
   const [censusTarget, setCensusTarget] = useState("temporarily_out");
   const [censusReason, setCensusReason] = useState("");
+  const censusDraftSession = useRef(0);
+  const censusSubmitting = useRef(false);
+  const changeFacility = (value: string) => {
+    censusDraftSession.current += 1;
+    setFacilityId(value); setCensusResidentId(""); setCensusReason("");
+    setSelectedProspect(null); setShowProspect(false); setShowRoom(false);
+  };
+  useEffect(() => { changeFacility("all"); }, [organizationId]);
 
   const { data: facilities } = useListFacilities({ organizationId });
   const prospects = useListAdmissionProspects({ organizationId, facilityId: facilityId === "all" ? undefined : facilityId });
@@ -403,8 +411,9 @@ export default function AdmissionOperations() {
   // to the organization's own facilities, which the facility list already is.
   const orgFacilityIds = useMemo(() => new Set((facilities ?? []).map(facility => facility.id)), [facilities]);
   const scopedResidentRows = useMemo(
-    () => (residents.data ?? []).filter(resident => orgFacilityIds.has(resident.facility_id)),
-    [residents.data, orgFacilityIds],
+    () => (residents.data ?? []).filter(resident => orgFacilityIds.has(resident.facility_id)
+      && (facilityId === "all" || resident.facility_id === facilityId)),
+    [residents.data, orgFacilityIds, facilityId],
   );
   const censusEvents = useListCensusEvents({ organizationId, facilityId: facilityId === "all" ? undefined : facilityId });
   const createSource = useCreateReferralSource();
@@ -465,6 +474,22 @@ export default function AdmissionOperations() {
     resident => resident.id === censusResidentId
       && (resident.status === "discharged" || resident.status === "deceased"),
   );
+  const canSubmitCensus = canManage && !residents.isError && !residents.isLoading
+    && !beds.isError && !beds.isLoading && censusSelectableResidents.some(resident => resident.id === censusResidentId)
+    && censusTargetOptions.includes(censusTarget) && censusReason.trim().length >= 3 && !transitionCensus.isPending;
+  const submitCensus = () => {
+    if (!canSubmitCensus || censusSubmitting.current) return;
+    censusSubmitting.current = true;
+    const draftSession = censusDraftSession.current;
+    transitionCensus.mutate({ residentId: censusResidentId, targetStatus: censusTarget, reason: censusReason }, {
+      onSuccess: () => {
+        toast({ title: "Census updated" });
+        if (draftSession === censusDraftSession.current) setCensusReason("");
+      },
+      onSettled: () => { censusSubmitting.current = false; },
+      onError: (error: Error) => toast({ title: "Couldn't update census", description: error.message, variant: "destructive" }),
+    });
+  };
   const openWorkspaces = (workspaces.data ?? []).filter(workspace => ["active", "ready"].includes(workspace.state));
   const activeResidents = scopedResidentRows.filter(resident => resident.status === "active");
   const occupiedBeds = (beds.data ?? []).filter(bed => bed.status === "occupied").length;
@@ -513,7 +538,7 @@ export default function AdmissionOperations() {
           })) satisfies ProspectLike[]}
         />
       </Suspense>
-      <Card><CardContent className="grid gap-2 pt-6 sm:grid-cols-3"><Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger aria-label="Facility"><SelectValue placeholder="All facilities" /></SelectTrigger><SelectContent><SelectItem value="all">All facilities</SelectItem>{facilities?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select><Select value={stage} onValueChange={setStage}><SelectTrigger aria-label="Pipeline stage"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active pipeline</SelectItem><SelectItem value="all">All stages</SelectItem>{STAGES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search prospect or referral source" /></CardContent></Card>
+      <Card><CardContent className="grid gap-2 pt-6 sm:grid-cols-3"><Select value={facilityId} onValueChange={changeFacility}><SelectTrigger aria-label="Facility"><SelectValue placeholder="All facilities" /></SelectTrigger><SelectContent><SelectItem value="all">All facilities</SelectItem>{facilities?.map(facility => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}</SelectContent></Select><Select value={stage} onValueChange={setStage}><SelectTrigger aria-label="Pipeline stage"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active pipeline</SelectItem><SelectItem value="all">All stages</SelectItem>{STAGES.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search prospect or referral source" /></CardContent></Card>
 
       {(prospects.isError || beds.isError || workspaces.isError || residents.isError || censusEvents.isError) && (
         <QueryError
@@ -557,7 +582,7 @@ export default function AdmissionOperations() {
         <TabsContent value="census" className="mt-4">
           <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
             <Card><CardHeader><CardTitle>Current census</CardTitle><CardDescription>Admitted, temporarily out, hospital leave, discharged, and deceased states.</CardDescription></CardHeader><CardContent className="space-y-3">{residents.isLoading ? <p className="py-6 text-center text-sm text-muted-foreground">Loading census…</p> : residents.isError ? <QueryError what="current census" error={residents.error} onRetry={() => residents.refetch()} /> : !scopedResidentRows.length ? <p className="py-6 text-center text-sm text-muted-foreground">No residents in this view.</p> : scopedResidentRows.map(resident => <div key={resident.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3"><div><p className="font-medium">{resident.first_name} {resident.last_name}</p><p className="text-xs text-muted-foreground">Room {resident.room ?? "—"}</p></div><Badge variant="outline">{humanize(resident.status)}</Badge></div>)}</CardContent></Card>
-            <Card><CardHeader><CardTitle>Census and transfer history</CardTitle><CardDescription>Append-only admission, leave, return, transfer, discharge, and death events.</CardDescription></CardHeader><CardContent className="space-y-3">{canManage && <div className="grid gap-2 border-b pb-4 sm:grid-cols-2"><Select value={censusResidentId} onValueChange={value => { setCensusResidentId(value); const picked = censusSelectableResidents.find(resident => resident.id === value); if (picked && (picked.status === "discharged" || picked.status === "deceased")) setCensusTarget(picked.status); }}><SelectTrigger aria-label="Census resident"><SelectValue placeholder="Select resident" /></SelectTrigger><SelectContent>{censusSelectableResidents.map(resident => <SelectItem key={resident.id} value={resident.id}>{resident.first_name} {resident.last_name}{resident.status === "discharged" || resident.status === "deceased" ? ` · ${humanize(resident.status)}, bed still occupied` : ""}</SelectItem>)}</SelectContent></Select><Select value={censusTarget} onValueChange={setCensusTarget}><SelectTrigger aria-label="Census target status"><SelectValue /></SelectTrigger><SelectContent>{censusTargetOptions.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>{censusRepairResident && <p className="text-xs text-muted-foreground sm:col-span-2">{censusRepairResident.first_name} {censusRepairResident.last_name} is already {humanize(censusRepairResident.status).toLowerCase()} but still holds a bed. Recording the same status again releases it and writes the census event that was missed.</p>}<Input className="sm:col-span-2" value={censusReason} onChange={event => setCensusReason(event.target.value)} placeholder="Reason for census change" /><Button className="sm:col-span-2" disabled={!censusResidentId || censusReason.trim().length < 3 || transitionCensus.isPending} onClick={() => transitionCensus.mutate({ residentId: censusResidentId, targetStatus: censusTarget, reason: censusReason }, { onSuccess: () => { toast({ title: "Census updated" }); setCensusReason(""); }, onError: (error: Error) => toast({ title: "Couldn't update census", description: error.message, variant: "destructive" }) })}><RefreshCw className="mr-2 h-4 w-4" />Record census change</Button></div>}{censusEvents.isLoading ? <p className="text-sm text-muted-foreground">Loading census history…</p> : censusEvents.isError ? <QueryError what="census history" error={censusEvents.error} onRetry={() => censusEvents.refetch()} /> : !(censusEvents.data ?? []).length ? <p className="text-sm text-muted-foreground">No census events recorded yet.</p> : (censusEvents.data ?? []).slice(0, 30).map(event => <div key={event.id} className="flex justify-between gap-3 border-b pb-2 text-sm"><div><p className="font-medium">{event.resident?.first_name} {event.resident?.last_name} · {humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{event.reason ?? `${humanize(event.prior_status ?? "")} → ${humanize(event.resulting_status)}`}</p></div><span className="shrink-0 text-xs text-muted-foreground">{new Date(event.effective_at).toLocaleString()}</span></div>)}</CardContent></Card>
+            <Card><CardHeader><CardTitle>Census and transfer history</CardTitle><CardDescription>Append-only admission, leave, return, transfer, discharge, and death events.</CardDescription></CardHeader><CardContent className="space-y-3">{canManage && <div className="grid gap-2 border-b pb-4 sm:grid-cols-2"><Select value={censusResidentId} onValueChange={value => { censusDraftSession.current += 1; setCensusReason(""); setCensusResidentId(value); const picked = censusSelectableResidents.find(resident => resident.id === value); if (picked && (picked.status === "discharged" || picked.status === "deceased")) setCensusTarget(picked.status); }}><SelectTrigger aria-label="Census resident"><SelectValue placeholder="Select resident" /></SelectTrigger><SelectContent>{censusSelectableResidents.map(resident => <SelectItem key={resident.id} value={resident.id}>{resident.first_name} {resident.last_name}{resident.status === "discharged" || resident.status === "deceased" ? ` · ${humanize(resident.status)}, bed still occupied` : ""}</SelectItem>)}</SelectContent></Select><Select disabled={transitionCensus.isPending} value={censusTarget} onValueChange={setCensusTarget}><SelectTrigger aria-label="Census target status"><SelectValue /></SelectTrigger><SelectContent>{censusTargetOptions.map(value => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>{censusRepairResident && <p className="text-xs text-muted-foreground sm:col-span-2">{censusRepairResident.first_name} {censusRepairResident.last_name} is already {humanize(censusRepairResident.status).toLowerCase()} but still holds a bed. Recording the same status again releases it and writes the census event that was missed.</p>}<Input className="sm:col-span-2" disabled={transitionCensus.isPending} value={censusReason} onChange={event => setCensusReason(event.target.value)} placeholder="Reason for census change" /><Button className="sm:col-span-2" disabled={!canSubmitCensus} onClick={submitCensus}><RefreshCw className="mr-2 h-4 w-4" />Record census change</Button></div>}{censusEvents.isLoading ? <p className="text-sm text-muted-foreground">Loading census history…</p> : censusEvents.isError ? <QueryError what="census history" error={censusEvents.error} onRetry={() => censusEvents.refetch()} /> : !(censusEvents.data ?? []).length ? <p className="text-sm text-muted-foreground">No census events recorded yet.</p> : (censusEvents.data ?? []).slice(0, 30).map(event => <div key={event.id} className="flex justify-between gap-3 border-b pb-2 text-sm"><div><p className="font-medium">{event.resident?.first_name} {event.resident?.last_name} · {humanize(event.event_type)}</p><p className="text-xs text-muted-foreground">{event.reason ?? `${humanize(event.prior_status ?? "")} → ${humanize(event.resulting_status)}`}</p></div><span className="shrink-0 text-xs text-muted-foreground">{new Date(event.effective_at).toLocaleString()}</span></div>)}</CardContent></Card>
           </div>
         </TabsContent>
       </Tabs>

@@ -7,7 +7,7 @@
  * repository. So the "Exceptions" tile counted work with no next step, whether or not somebody had
  * ticked the box.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -42,14 +42,16 @@ export function ServiceExceptionFollowUpDialog({
   open: boolean;
   pending: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (reason: string) => Promise<void> | void;
+  onConfirm: (reason: string) => Promise<boolean> | boolean;
 }) {
   const [reason, setReason] = useState("");
+  const submitting = useRef(false);
+  const close = (next: boolean) => { if (submitting.current || pending) return; if (!next) setReason(""); onOpenChange(next); };
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => { if (!next) setReason(""); onOpenChange(next); }}
+      onOpenChange={close}
     >
       <DialogContent>
         <DialogHeader>
@@ -68,6 +70,7 @@ export function ServiceExceptionFollowUpDialog({
           <Label htmlFor="service-exception-reason">What the supervisor needs to know</Label>
           <Textarea
             id="service-exception-reason"
+            disabled={pending}
             rows={3}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
@@ -78,10 +81,14 @@ export function ServiceExceptionFollowUpDialog({
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => { setReason(""); onOpenChange(false); }} disabled={pending}>Cancel</Button>
+          <Button variant="outline" onClick={() => close(false)} disabled={pending}>Cancel</Button>
           <Button
             disabled={pending}
-            onClick={async () => { await onConfirm(reason.trim()); setReason(""); }}
+            onClick={async () => {
+              if (submitting.current || pending) return;
+              submitting.current = true;
+              try { if (await onConfirm(reason.trim())) setReason(""); } finally { submitting.current = false; }
+            }}
           >
             Raise follow-up
           </Button>

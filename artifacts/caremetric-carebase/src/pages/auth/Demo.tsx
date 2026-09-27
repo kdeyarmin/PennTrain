@@ -16,13 +16,12 @@ import { DemoRequestForm } from "@/components/auth/DemoRequestForm";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { useToast } from "@/hooks/use-toast";
-import { markExplicitPasswordSignIn } from "@/lib/auth";
+import { signInWithPassword } from "@/lib/auth";
 import {
   parseDemoAccounts,
   type DemoAccount,
   type PublicDemoRole,
 } from "@/lib/demoAccounts";
-import { supabase } from "@/lib/supabase";
 import { usePageMeta } from "@/lib/usePageMeta";
 
 interface DemoRolePresentation {
@@ -62,8 +61,7 @@ export default function Demo() {
 
   const loginMutation = useMutation({
     mutationFn: async (account: DemoAccount) => {
-      markExplicitPasswordSignIn();
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await signInWithPassword({
         email: account.email,
         password: account.password,
       });

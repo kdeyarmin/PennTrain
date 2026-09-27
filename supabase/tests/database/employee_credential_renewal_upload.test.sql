@@ -79,6 +79,12 @@ $$;
 -- ---------------------------------------------------------------------------------------
 select pg_temp.act_as('3b000000-0000-4000-8000-000000000101');
 
+-- Upload both objects first so the metadata assertions reach their intended
+-- own-credential/colleague authorization boundary, not a missing-file guard.
+insert into storage.objects(bucket_id, name, owner_id) values
+  ('credential-documents', '3b000000-0000-4000-8000-000000000001/3b000000-0000-4000-8000-000000000011/doc-a.pdf', '3b000000-0000-4000-8000-000000000101'),
+  ('credential-documents', '3b000000-0000-4000-8000-000000000001/3b000000-0000-4000-8000-000000000011/doc-b.pdf', '3b000000-0000-4000-8000-000000000101');
+
 select lives_ok(
   $$ insert into public.employee_credential_documents(
        organization_id, facility_id, employee_id, credential_id,

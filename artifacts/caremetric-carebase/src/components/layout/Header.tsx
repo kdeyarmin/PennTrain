@@ -5,17 +5,11 @@ import { useListOrganizations } from "@/hooks/useOrganizations";
 import { isHelpRoute, LAST_VISITED_ROUTE_KEY } from "@/hooks/useHelpArticles";
 import { useFeatureReleaseActive } from "@/hooks/useFeatureRelease";
 import { useProductChangelog } from "@/hooks/useProductExperience";
-import {
-  useListNotifications,
-  useUnreadNotificationCount,
-  useMarkNotificationRead,
-  useMarkAllNotificationsRead,
-  type Notification,
-} from "@/hooks/useNotifications";
+import { NotificationsMenu } from "./NotificationsMenu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { LogOut, Bell, Building2, CheckCheck, Menu, HelpCircle, ChevronDown, Search, Sparkles, Megaphone, ShieldCheck, PlusCircle, ExternalLink } from "lucide-react";
+import { LogOut, Bell, Building2, Menu, HelpCircle, ChevronDown, Search, Sparkles, Megaphone, ShieldCheck, PlusCircle, ExternalLink } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -138,92 +132,6 @@ function ViewingOrgSelector() {
         </div>
       )}
     </div>
-  );
-}
-
-function NotificationsMenu() {
-  const [, setLocation] = useLocation();
-  const { user } = useAuth();
-  const moduleAccess = useProductModuleAccess();
-  const { data: notifications, isLoading, isError, refetch: refetchNotifications } = useListNotifications();
-  const { data: unreadCount } = useUnreadNotificationCount();
-  const { mutate: markRead } = useMarkNotificationRead();
-  const { mutate: markAllRead, isPending: markingAllRead } = useMarkAllNotificationsRead();
-
-  const handleSelect = (notification: Notification) => {
-    if (!notification.read_at) markRead(notification.id);
-    if (notification.link) {
-      const destination = safePathForRole(notification.link, user?.role, moduleAccess.enabledModules);
-      if (destination) setLocation(destination);
-    }
-  };
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
-          aria-label={unreadCount ? `Notifications (${unreadCount} unread)` : "Notifications"}
-        >
-          <Bell className="h-[18px] w-[18px]" />
-          {!!unreadCount && (
-            <Badge className="absolute -top-1 -right-1 h-4 min-w-4 px-1 justify-center text-[10px] leading-none">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </Badge>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-80" align="end" forceMount>
-        <div className="flex items-center justify-between px-2 py-1.5">
-          <DropdownMenuLabel className="p-0 text-sm font-semibold">Notifications</DropdownMenuLabel>
-          {!!unreadCount && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-auto py-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-              disabled={markingAllRead}
-              onClick={(e) => { e.stopPropagation(); markAllRead(); }}
-            >
-              <CheckCheck className="mr-1 h-3 w-3" /> Mark all read
-            </Button>
-          )}
-        </div>
-        <DropdownMenuSeparator />
-        <div className="max-h-96 overflow-y-auto">
-          {isLoading ? (
-            <p className="px-3 py-4 text-xs text-muted-foreground text-center">Loading...</p>
-          ) : isError ? (
-            <p className="px-3 py-4 text-xs text-destructive text-center">
-              Couldn't load notifications.{" "}
-              <button type="button" className="underline" onClick={() => void refetchNotifications()}>
-                Retry
-              </button>
-            </p>
-          ) : !notifications || notifications.length === 0 ? (
-            <p className="px-3 py-6 text-xs text-muted-foreground text-center">You're all caught up.</p>
-          ) : (
-            notifications.map((n) => (
-              <DropdownMenuItem
-                key={n.id}
-                className="flex flex-col items-start gap-0.5 whitespace-normal py-2.5 px-3 cursor-pointer"
-                onClick={() => handleSelect(n)}
-              >
-                <div className="flex items-center gap-2 w-full">
-                  {!n.read_at && <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" aria-hidden="true" />}
-                  <span className={`text-sm ${n.read_at ? "text-muted-foreground" : "font-medium"}`}>{n.title}</span>
-                </div>
-                {n.body && <p className="text-xs text-muted-foreground line-clamp-2 pl-3.5">{n.body}</p>}
-                <p className="text-[11px] text-muted-foreground/70 pl-3.5">
-                  {new Date(n.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </p>
-              </DropdownMenuItem>
-            ))
-          )}
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
@@ -394,7 +302,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        <NotificationsMenu />
+        <NotificationsMenu key={`${user?.id}:${user?.organizationId}:${user?.role}`} />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

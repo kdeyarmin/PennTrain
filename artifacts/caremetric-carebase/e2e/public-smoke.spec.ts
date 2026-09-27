@@ -54,9 +54,20 @@ test.describe("public release smoke journeys", () => {
           await region.focus();
           await expect(region).toBeFocused();
           const initialLeft = await region.evaluate((element) => element.scrollLeft);
+          // Native keyboard scrolling animates even with reduced-motion page content.
+          // Reversing as soon as the first nonzero frame appears can be coalesced with the
+          // previous key on Windows Chromium. Observe each completed scroll before reversing.
+          const rightFinished = region.evaluate((element) => new Promise<void>((resolve) => {
+            element.addEventListener("scrollend", () => resolve(), { once: true });
+          }));
           await page.keyboard.press("ArrowRight");
+          await rightFinished;
           await expect.poll(() => region.evaluate((element) => element.scrollLeft)).toBeGreaterThan(initialLeft);
+          const leftFinished = region.evaluate((element) => new Promise<void>((resolve) => {
+            element.addEventListener("scrollend", () => resolve(), { once: true });
+          }));
           await page.keyboard.press("ArrowLeft");
+          await leftFinished;
           await expect.poll(() => region.evaluate((element) => element.scrollLeft)).toBe(initialLeft);
           // Confirm the table remains in normal sequential keyboard navigation.
           // Tabbing into a wide table can scroll its links into view, so check

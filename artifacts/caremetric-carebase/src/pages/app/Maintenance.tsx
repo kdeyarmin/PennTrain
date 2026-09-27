@@ -1,9 +1,11 @@
-import { useId, useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { DocumentDeletionQueue } from "@/components/documents/DocumentDeletionQueue";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useSearch } from "wouter";
 import { AlertTriangle, CalendarClock, Plus, RefreshCw, Search, ShieldAlert, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { humanize } from "@/lib/utils";
-import { facilityToday, facilityDateTimeLocalToUtcIso} from "@/lib/dateUtils";
+import { careDateTimeInstant, isCareCalendarDate } from "@/lib/careFormDates";
+import { facilityToday } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListEmployees } from "@/hooks/useEmployees";
@@ -63,6 +65,17 @@ export default function Maintenance() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const locationSearch = useSearch();
+  const scope = useRef({ active: true, search: locationSearch, generation: 0 });
+  if (scope.current.search !== locationSearch) {
+    scope.current.search = locationSearch;
+    scope.current.generation += 1;
+  }
+  const generation = scope.current.generation;
+  useEffect(() => { scope.current.active = true; return () => { scope.current.active = false; }; }, []);
+  const isCurrent = () => scope.current.active && scope.current.generation === generation;
+  const consumedQr = useRef<string | null>(null);
+  const creatingRef = useRef(false);
   const canManage = ["platform_admin", "org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
   const canConfigure = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
 
@@ -77,9 +90,11 @@ export default function Maintenance() {
   const [locationForm, setLocationForm] = useState({ facilityId: "", label: "", roomNumber: "", detail: "" });
 
   const selectedFacility = facilityId === "all" ? undefined : facilityId;
-  const { data: facilities } = useListFacilities();
+  const facilitiesQuery = useListFacilities();
+  const { data: facilities } = facilitiesQuery;
   const { data: employees } = useListEmployees({ status: "active" });
-  const { data: assets } = useListInspectionItems({ isActive: true });
+  const assetsQuery = useListInspectionItems({ isActive: true });
+  const { data: assets } = assetsQuery;
   // Keep the complete RLS-scoped location set available to create dialogs. The dashboard tab
   // applies its own facility filter below; otherwise choosing a different facility inside a
   // dialog after filtering the page would incorrectly show no locations for that facility.
@@ -100,6 +115,10 @@ export default function Maintenance() {
   const createSchedule = useCreatePreventiveMaintenanceSchedule();
   const updateSchedule = useUpdatePreventiveMaintenanceSchedule();
   const generateDue = useGenerateDuePreventiveMaintenance();
+  const creating = creatingRef.current || createOrder.isPending || createLocation.isPending || createSchedule.isPending;
+  const lookupError = facilitiesQuery.isError ? facilitiesQuery.error : assetsQuery.isError ? assetsQuery.error : locationsError ? locationsErrorDetail : null;
+  const lookupsPending = facilitiesQuery.isLoading || assetsQuery.isLoading || locationsLoading;
+  const canCreate = !creating && !lookupError && !lookupsPending;
 
   const facilityById = useMemo(() => new Map((facilities ?? []).map((f) => [f.id, f])), [facilities]);
   const employeeById = useMemo(() => new Map((employees ?? []).map((e) => [e.id, e])), [employees]);
@@ -107,18 +126,18 @@ export default function Maintenance() {
   const locationById = useMemo(() => new Map((locations ?? []).map((l) => [l.id, l])), [locations]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    // create_work_order admits org_admin / facility_manager / trainer; the QR deep link used to
-    // open an enabled dialog for an auditor whose submit could only fail.
-    if (!canManage || params.get("action") !== "add") return;
-    const assetId = params.get("assetId");
-    const locationId = params.get("locationId");
-    const asset = (assets ?? []).find((item) => item.id === assetId);
-    const location = (locations ?? []).find((item) => item.id === locationId);
-    if (asset) setOrderForm((form) => ({ ...form, facilityId: asset.facility_id, assetId: asset.id, locationId: "none", locationDetail: asset.location_detail ?? "" }));
-    if (location) setOrderForm((form) => ({ ...form, facilityId: location.facility_id, assetId: "none", locationId: location.id, roomNumber: location.room_number ?? "", locationDetail: location.location_detail ?? "" }));
-    if (asset || location) setShowOrder(true);
-  }, [assets, locations, canManage]);
+    const params = new URLSearchParams(locationSearch);
+    if (!canManage || params.get("action") !== "add") { consumedQr.current = null; return; }
+    if (!canCreate || consumedQr.current === locationSearch) return;
+    const asset = (assets ?? []).find((item) => item.id === params.get("assetId"));
+    const location = (locations ?? []).find((item) => item.id === params.get("locationId"));
+    if (!asset && !location) return;
+    consumedQr.current = locationSearch;
+    setOrderForm(location
+      ? { ...emptyOrder, facilityId: location.facility_id, locationId: location.id, roomNumber: location.room_number ?? "", locationDetail: location.location_detail ?? "" }
+      : { ...emptyOrder, facilityId: asset!.facility_id, assetId: asset!.id, locationDetail: asset!.location_detail ?? "" });
+    setShowOrder(true);
+  }, [assets, locations, canManage, canCreate, locationSearch]);
 
   useEffect(() => {
     if (facilities?.length !== 1) return;
@@ -140,11 +159,24 @@ export default function Maintenance() {
   const overdueCount = allOrders.filter((o) => OPEN_STATUSES.has(o.status) && o.target_completion_at && new Date(o.target_completion_at) < new Date()).length;
   const verificationCount = allOrders.filter((o) => o.status === "pending_verification").length;
 
+  const validLinks = (form: { facilityId: string; assetId: string; locationId: string }) =>
+    (form.assetId === "none" || assetById.get(form.assetId)?.facility_id === form.facilityId)
+    && (form.locationId === "none" || locationById.get(form.locationId)?.facility_id === form.facilityId);
+  const validCost = (value: number | null) => value === null || (Number.isFinite(value) && value >= 0 && value <= 9999999999.99
+    && Math.abs(value * 100 - Math.round(value * 100)) < 0.000001);
+
   const submitOrder = () => {
-    if (!orderForm.facilityId || orderForm.description.trim().length < 3) {
+    if (!canCreate || creatingRef.current) return;
+    if (!facilityById.has(orderForm.facilityId) || orderForm.description.trim().length < 3) {
       toast({ title: "Facility and problem description are required", variant: "destructive" });
       return;
     }
+    const target = orderForm.target ? careDateTimeInstant(orderForm.target) : null;
+    const estimatedCost = orderForm.estimatedCost.trim() ? Number(orderForm.estimatedCost) : null;
+    if (orderForm.target && !target) { toast({ title: "Enter a valid Pennsylvania target date and time", variant: "destructive" }); return; }
+    if (!validCost(estimatedCost)) { toast({ title: "Estimated cost must be a nonnegative amount with at most two decimal places", variant: "destructive" }); return; }
+    if (!validLinks(orderForm)) { toast({ title: "Choose an asset or location in the selected facility", variant: "destructive" }); return; }
+    creatingRef.current = true;
     createOrder.mutate({
       facilityId: orderForm.facilityId,
       problemDescription: orderForm.description.trim(),
@@ -157,19 +189,22 @@ export default function Maintenance() {
       temporaryProtectiveAction: orderForm.protectiveAction || null,
       assignedEmployeeId: orderForm.employeeId === "none" ? null : orderForm.employeeId,
       externalVendor: orderForm.vendor || null,
-      targetCompletionAt: orderForm.target ? facilityDateTimeLocalToUtcIso(orderForm.target) : null,
+      targetCompletionAt: target,
       partsNeeded: orderForm.parts || null,
-      estimatedCost: orderForm.estimatedCost ? Number(orderForm.estimatedCost) : null,
+      estimatedCost,
       residentImpact: orderForm.residentImpact || null,
     }, {
-      onSuccess: (id) => { setShowOrder(false); setOrderForm(emptyOrder); navigate(`/app/maintenance/${id}`); },
-      onError: (error: Error) => toast({ title: "Could not create work order", description: error.message, variant: "destructive" }),
+      onSettled: () => { creatingRef.current = false; },
+      onSuccess: (id) => { if (!isCurrent()) return; setShowOrder(false); setOrderForm(emptyOrder); navigate(`/app/maintenance/${id}`); },
+      onError: (error: Error) => { if (isCurrent()) toast({ title: "Could not create work order", description: error.message, variant: "destructive" }); },
     });
   };
 
   const submitLocation = () => {
+    if (!canCreate || creatingRef.current) return;
     const facility = facilityById.get(locationForm.facilityId);
     if (!facility || !locationForm.label.trim()) return;
+    creatingRef.current = true;
     createLocation.mutate({
       organization_id: facility.organization_id,
       facility_id: facility.id,
@@ -177,17 +212,30 @@ export default function Maintenance() {
       room_number: locationForm.roomNumber || null,
       location_detail: locationForm.detail || null,
     }, {
-      onSuccess: () => { setShowLocation(false); setLocationForm({ facilityId: "", label: "", roomNumber: "", detail: "" }); toast({ title: "Maintenance location created" }); },
-      onError: (error: Error) => toast({ title: "Could not create location", description: error.message, variant: "destructive" }),
+      onSettled: () => { creatingRef.current = false; },
+      onSuccess: () => { if (!isCurrent()) return; setShowLocation(false); setLocationForm({ facilityId: "", label: "", roomNumber: "", detail: "" }); toast({ title: "Maintenance location created" }); },
+      onError: (error: Error) => { if (isCurrent()) toast({ title: "Could not create location", description: error.message, variant: "destructive" }); },
     });
   };
 
   const submitSchedule = () => {
+    if (!canCreate || creatingRef.current) return;
     const facility = facilityById.get(scheduleForm.facilityId);
     if (!facility || !scheduleForm.title.trim() || !scheduleForm.description.trim() || (scheduleForm.assetId === "none" && scheduleForm.locationId === "none")) {
       toast({ title: "Facility, asset/location, title, and instructions are required", variant: "destructive" });
       return;
     }
+    const frequencyInterval = Number(scheduleForm.frequencyInterval);
+    const duration = scheduleForm.durationMinutes.trim() ? Number(scheduleForm.durationMinutes) : null;
+    const estimatedCost = scheduleForm.estimatedCost.trim() ? Number(scheduleForm.estimatedCost) : null;
+    if (!scheduleForm.frequencyInterval.trim() || !Number.isInteger(frequencyInterval) || frequencyInterval < 1 || frequencyInterval > 365) {
+      toast({ title: "Repeat interval must be a whole number from 1 to 365", variant: "destructive" }); return;
+    }
+    if (!isCareCalendarDate(scheduleForm.nextDueDate)) { toast({ title: "Choose a valid next due date", variant: "destructive" }); return; }
+    if (duration !== null && (!Number.isInteger(duration) || duration < 0 || duration > 2147483647)) { toast({ title: "Duration must be a nonnegative whole number of minutes", variant: "destructive" }); return; }
+    if (!validCost(estimatedCost)) { toast({ title: "Estimated cost must be a nonnegative amount with at most two decimal places", variant: "destructive" }); return; }
+    if (!validLinks(scheduleForm)) { toast({ title: "Choose an asset or location in the selected facility", variant: "destructive" }); return; }
+    creatingRef.current = true;
     createSchedule.mutate({
       organization_id: facility.organization_id,
       facility_id: facility.id,
@@ -196,22 +244,24 @@ export default function Maintenance() {
       title: scheduleForm.title.trim(),
       description: scheduleForm.description.trim(),
       frequency_unit: scheduleForm.frequencyUnit,
-      frequency_interval: Number(scheduleForm.frequencyInterval) || 1,
+      frequency_interval: frequencyInterval,
       next_due_date: scheduleForm.nextDueDate,
       default_priority: scheduleForm.priority,
       assigned_employee_id: scheduleForm.employeeId === "none" ? null : scheduleForm.employeeId,
       external_vendor: scheduleForm.vendor || null,
-      estimated_duration_minutes: scheduleForm.durationMinutes ? Number(scheduleForm.durationMinutes) : null,
-      estimated_cost: scheduleForm.estimatedCost ? Number(scheduleForm.estimatedCost) : null,
+      estimated_duration_minutes: duration,
+      estimated_cost: estimatedCost,
       parts_needed: scheduleForm.parts || null,
       created_by_profile_id: user?.id ?? null,
     }, {
-      onSuccess: () => { setShowSchedule(false); setScheduleForm(emptySchedule()); toast({ title: "Preventive-maintenance schedule created" }); },
-      onError: (error: Error) => toast({ title: "Could not create schedule", description: error.message, variant: "destructive" }),
+      onSettled: () => { creatingRef.current = false; },
+      onSuccess: () => { if (!isCurrent()) return; setShowSchedule(false); setScheduleForm(emptySchedule()); toast({ title: "Preventive-maintenance schedule created" }); },
+      onError: (error: Error) => { if (isCurrent()) toast({ title: "Could not create schedule", description: error.message, variant: "destructive" }); },
     });
   };
 
   const openOrderDialog = () => {
+    if (!canCreate || creatingRef.current) return;
     const next = { ...emptyOrder };
     if (facilities?.length === 1) next.facilityId = facilities[0].id;
     setOrderForm(next);
@@ -219,12 +269,14 @@ export default function Maintenance() {
   };
 
   const openLocationDialog = () => {
+    if (!canCreate || creatingRef.current) return;
     const next = { facilityId: facilities?.length === 1 ? facilities[0].id : "", label: "", roomNumber: "", detail: "" };
     setLocationForm(next);
     setShowLocation(true);
   };
 
   const openScheduleDialog = () => {
+    if (!canCreate || creatingRef.current) return;
     const next = { ...emptySchedule() };
     if (facilities?.length === 1) next.facilityId = facilities[0].id;
     setScheduleForm(next);
@@ -233,12 +285,13 @@ export default function Maintenance() {
 
   return (
     <div className="space-y-6">
+      <DocumentDeletionQueue kind="maintenance" />
       <div className="page-header flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1>Maintenance &amp; Work Orders</h1>
           <p>Control environmental repairs from report through supervisor verification, with QR labels and recurring preventive maintenance.</p>
         </div>
-        {canManage && <Button onClick={openOrderDialog}><Plus className="mr-2 h-4 w-4" /> New work order</Button>}
+        {canManage && <Button onClick={openOrderDialog} disabled={!canCreate}><Plus className="mr-2 h-4 w-4" /> New work order</Button>}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -248,6 +301,7 @@ export default function Maintenance() {
         <Card><CardContent className="pt-5"><CalendarClock className="h-5 w-5 text-primary" /><p className="mt-2 text-2xl font-bold">{schedulesLoading || schedulesError ? "—" : (schedules ?? []).filter((s) => s.is_active).length}</p><p className="text-sm text-muted-foreground">Active PM schedules</p></CardContent></Card>
       </div>
 
+      {lookupError && <QueryError what="maintenance form options" error={lookupError} onRetry={() => void Promise.all([facilitiesQuery.refetch(), assetsQuery.refetch(), refetchLocations()])} />}
       <Tabs defaultValue="orders" className="space-y-4">
         <TabsList><TabsTrigger value="orders">Work orders</TabsTrigger><TabsTrigger value="preventive">Preventive maintenance</TabsTrigger><TabsTrigger value="locations">Room QR labels</TabsTrigger></TabsList>
         <TabsContent value="orders" className="space-y-4">
@@ -271,7 +325,7 @@ export default function Maintenance() {
         <TabsContent value="preventive" className="space-y-4">
           <div className="flex flex-wrap justify-between gap-2">
             <p className="text-sm text-muted-foreground">Due schedules generate one open work order at a time and advance to their next recurring due date.</p>
-            {canConfigure && <div className="flex gap-2"><Button variant="outline" onClick={() => generateDue.mutate(undefined, { onSuccess: (count) => toast({ title: `${count} due work order${count === 1 ? "" : "s"} generated` }), onError: (error: Error) => toast({ title: "Generation failed", description: error.message, variant: "destructive" }) })} disabled={generateDue.isPending}><RefreshCw className="mr-2 h-4 w-4" /> Generate due</Button><Button onClick={openScheduleDialog}><Plus className="mr-2 h-4 w-4" /> Add schedule</Button></div>}
+            {canConfigure && <div className="flex gap-2"><Button variant="outline" onClick={() => generateDue.mutate(undefined, { onSuccess: (count) => toast({ title: `${count} due work order${count === 1 ? "" : "s"} generated` }), onError: (error: Error) => toast({ title: "Generation failed", description: error.message, variant: "destructive" }) })} disabled={generateDue.isPending || updateSchedule.isPending}><RefreshCw className="mr-2 h-4 w-4" /> Generate due</Button><Button onClick={openScheduleDialog} disabled={!canCreate}><Plus className="mr-2 h-4 w-4" /> Add schedule</Button></div>}
           </div>
           {schedulesError ? (
             <div className="premium-card p-6"><QueryError what="preventive-maintenance schedules" error={schedulesErrorDetail} onRetry={() => void refetchSchedules()} /></div>
@@ -281,13 +335,13 @@ export default function Maintenance() {
           <div className="grid gap-3">{(schedules ?? []).map((schedule) => {
             const asset = schedule.inspection_item_id ? assetById.get(schedule.inspection_item_id) : undefined;
             const location = schedule.maintenance_location_id ? locationById.get(schedule.maintenance_location_id) : undefined;
-            return <Card key={schedule.id}><CardContent className="flex flex-wrap items-center justify-between gap-4 pt-5"><div><div className="flex items-center gap-2"><p className="font-semibold">{schedule.title}</p><Badge variant={schedule.is_active ? "outline" : "secondary"}>{schedule.is_active ? "Active" : "Paused"}</Badge></div><p className="text-sm text-muted-foreground">{asset?.label ?? location?.label ?? "Maintenance location"} · Every {schedule.frequency_interval} {schedule.frequency_unit}{schedule.frequency_interval === 1 ? "" : "s"}</p><p className="mt-1 text-sm">Next due {schedule.next_due_date}</p></div>{canConfigure && <Button variant="outline" size="sm" onClick={() => updateSchedule.mutate({ id: schedule.id, is_active: !schedule.is_active }, { onSuccess: () => toast({ title: schedule.is_active ? "Schedule paused" : "Schedule resumed" }), onError: (error: Error) => toast({ title: "Could not update schedule", description: error.message, variant: "destructive" }) })}>{schedule.is_active ? "Pause" : "Resume"}</Button>}</CardContent></Card>;
+            return <Card key={schedule.id}><CardContent className="flex flex-wrap items-center justify-between gap-4 pt-5"><div><div className="flex items-center gap-2"><p className="font-semibold">{schedule.title}</p><Badge variant={schedule.is_active ? "outline" : "secondary"}>{schedule.is_active ? "Active" : "Paused"}</Badge></div><p className="text-sm text-muted-foreground">{asset?.label ?? location?.label ?? "Maintenance location"} · Every {schedule.frequency_interval} {schedule.frequency_unit}{schedule.frequency_interval === 1 ? "" : "s"}</p><p className="mt-1 text-sm">Next due {schedule.next_due_date}</p></div>{canConfigure && <Button variant="outline" size="sm" disabled={updateSchedule.isPending || generateDue.isPending} onClick={() => updateSchedule.mutate({ id: schedule.id, is_active: !schedule.is_active }, { onSuccess: () => toast({ title: schedule.is_active ? "Schedule paused" : "Schedule resumed" }), onError: (error: Error) => toast({ title: "Could not update schedule", description: error.message, variant: "destructive" }) })}>{schedule.is_active ? "Pause" : "Resume"}</Button>}</CardContent></Card>;
           })}{!schedules?.length && <div className="premium-card py-16 text-center text-sm text-muted-foreground">No preventive-maintenance schedules yet.</div>}</div>
           )}
         </TabsContent>
 
         <TabsContent value="locations" className="space-y-4">
-          <div className="flex justify-between gap-2"><p className="text-sm text-muted-foreground">Create durable QR labels for rooms and shared environmental locations.</p>{canConfigure && <Button onClick={openLocationDialog}><Plus className="mr-2 h-4 w-4" /> Add location</Button>}</div>
+          <div className="flex justify-between gap-2"><p className="text-sm text-muted-foreground">Create durable QR labels for rooms and shared environmental locations.</p>{canConfigure && <Button onClick={openLocationDialog} disabled={!canCreate}><Plus className="mr-2 h-4 w-4" /> Add location</Button>}</div>
           {locationsError ? (
             <div className="premium-card p-6"><QueryError what="maintenance locations" error={locationsErrorDetail} onRetry={() => void refetchLocations()} /></div>
           ) : locationsLoading ? (
@@ -298,8 +352,8 @@ export default function Maintenance() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={showOrder} onOpenChange={(open) => { if (!open) { setShowOrder(false); setOrderForm(emptyOrder); } else setShowOrder(true); }}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto"><DialogHeader><DialogTitle>New environmental work order</DialogTitle></DialogHeader><div className="grid gap-4 py-2 sm:grid-cols-2">
-        <div><Label htmlFor={`${__fieldIds}-facility`}>Facility *</Label><Select value={orderForm.facilityId} onValueChange={(value) => setOrderForm({ ...orderForm, facilityId: value, assetId: "none", locationId: "none" })}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Choose facility" /></SelectTrigger><SelectContent>{facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent></Select></div>
+      <Dialog open={showOrder} onOpenChange={(open) => { if (creating || creatingRef.current) return; if (!open) { setShowOrder(false); setOrderForm(emptyOrder); } else setShowOrder(true); }}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto"><DialogHeader><DialogTitle>New environmental work order</DialogTitle></DialogHeader><fieldset disabled={creating} className="grid gap-4 py-2 sm:grid-cols-2">
+        <div><Label htmlFor={`${__fieldIds}-facility`}>Facility *</Label><Select value={orderForm.facilityId} onValueChange={(value) => setOrderForm({ ...orderForm, facilityId: value, assetId: "none", locationId: "none", employeeId: "none" })}><SelectTrigger id={`${__fieldIds}-facility`}><SelectValue placeholder="Choose facility" /></SelectTrigger><SelectContent>{facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor={`${__fieldIds}-asset-equipment`}>Asset / equipment</Label><Select value={orderForm.assetId} onValueChange={(value) => setOrderForm({ ...orderForm, assetId: value, locationId: value === "none" ? orderForm.locationId : "none" })}><SelectTrigger id={`${__fieldIds}-asset-equipment`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">No linked asset</SelectItem>{assets?.filter((a) => !orderForm.facilityId || a.facility_id === orderForm.facilityId).map((a) => <SelectItem key={a.id} value={a.id}>{a.label}</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor={`${__fieldIds}-room-qr-location`}>Room / QR location</Label><Select value={orderForm.locationId} onValueChange={(value) => setOrderForm({ ...orderForm, locationId: value, assetId: value === "none" ? orderForm.assetId : "none" })}><SelectTrigger id={`${__fieldIds}-room-qr-location`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">No linked room</SelectItem>{locations?.filter((l) => !orderForm.facilityId || l.facility_id === orderForm.facilityId).map((l) => <SelectItem key={l.id} value={l.id}>{l.label}</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor={`${__fieldIds}-room-number`}>Room number</Label><Input id={`${__fieldIds}-room-number`} value={orderForm.roomNumber} onChange={(e) => setOrderForm({ ...orderForm, roomNumber: e.target.value })} /></div>
@@ -314,11 +368,11 @@ export default function Maintenance() {
         <div><Label htmlFor={`${__fieldIds}-parts-needed`}>Parts needed</Label><Input id={`${__fieldIds}-parts-needed`} value={orderForm.parts} onChange={(e) => setOrderForm({ ...orderForm, parts: e.target.value })} /></div>
         <div><Label htmlFor={`${__fieldIds}-location-detail`}>Location detail</Label><Input id={`${__fieldIds}-location-detail`} value={orderForm.locationDetail} onChange={(e) => setOrderForm({ ...orderForm, locationDetail: e.target.value })} /></div>
         <div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-resident-impact`}>Resident impact</Label><Textarea id={`${__fieldIds}-resident-impact`} value={orderForm.residentImpact} onChange={(e) => setOrderForm({ ...orderForm, residentImpact: e.target.value })} placeholder="Access, noise, relocation, service interruption, or no resident impact" /></div>
-      </div><DialogFooter><Button variant="outline" onClick={() => setShowOrder(false)}>Cancel</Button><Button onClick={submitOrder} disabled={createOrder.isPending}>{createOrder.isPending ? "Creating…" : "Create work order"}</Button></DialogFooter></DialogContent></Dialog>
+      </fieldset><DialogFooter><Button variant="outline" disabled={creating} onClick={() => { if (!creating && !creatingRef.current) setShowOrder(false); }}>Cancel</Button><Button onClick={submitOrder} disabled={!canCreate}>{createOrder.isPending ? "Creating…" : "Create work order"}</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={showLocation} onOpenChange={(open) => { if (!open) { setShowLocation(false); setLocationForm({ facilityId: "", label: "", roomNumber: "", detail: "" }); } else setShowLocation(true); }}><DialogContent><DialogHeader><DialogTitle>Add room or maintenance location</DialogTitle></DialogHeader><div className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-facility-2`}>Facility *</Label><Select value={locationForm.facilityId} onValueChange={(value) => setLocationForm({ ...locationForm, facilityId: value })}><SelectTrigger id={`${__fieldIds}-facility-2`}><SelectValue /></SelectTrigger><SelectContent>{facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-location-label`}>Location label *</Label><Input id={`${__fieldIds}-location-label`} value={locationForm.label} onChange={(e) => setLocationForm({ ...locationForm, label: e.target.value })} placeholder="East hallway bathroom" /></div><div><Label htmlFor={`${__fieldIds}-room-number-2`}>Room number</Label><Input id={`${__fieldIds}-room-number-2`} value={locationForm.roomNumber} onChange={(e) => setLocationForm({ ...locationForm, roomNumber: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-location-detail-2`}>Location detail</Label><Textarea id={`${__fieldIds}-location-detail-2`} value={locationForm.detail} onChange={(e) => setLocationForm({ ...locationForm, detail: e.target.value })} /></div></div><DialogFooter><Button variant="outline" onClick={() => setShowLocation(false)}>Cancel</Button><Button onClick={submitLocation} disabled={createLocation.isPending}>Create QR location</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={showLocation} onOpenChange={(open) => { if (creating || creatingRef.current) return; if (!open) { setShowLocation(false); setLocationForm({ facilityId: "", label: "", roomNumber: "", detail: "" }); } else setShowLocation(true); }}><DialogContent><DialogHeader><DialogTitle>Add room or maintenance location</DialogTitle></DialogHeader><fieldset disabled={creating} className="space-y-4 py-2"><div><Label htmlFor={`${__fieldIds}-facility-2`}>Facility *</Label><Select value={locationForm.facilityId} onValueChange={(value) => setLocationForm({ ...locationForm, facilityId: value })}><SelectTrigger id={`${__fieldIds}-facility-2`}><SelectValue /></SelectTrigger><SelectContent>{facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-location-label`}>Location label *</Label><Input id={`${__fieldIds}-location-label`} value={locationForm.label} onChange={(e) => setLocationForm({ ...locationForm, label: e.target.value })} placeholder="East hallway bathroom" /></div><div><Label htmlFor={`${__fieldIds}-room-number-2`}>Room number</Label><Input id={`${__fieldIds}-room-number-2`} value={locationForm.roomNumber} onChange={(e) => setLocationForm({ ...locationForm, roomNumber: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-location-detail-2`}>Location detail</Label><Textarea id={`${__fieldIds}-location-detail-2`} value={locationForm.detail} onChange={(e) => setLocationForm({ ...locationForm, detail: e.target.value })} /></div></fieldset><DialogFooter><Button variant="outline" disabled={creating} onClick={() => { if (!creating && !creatingRef.current) setShowLocation(false); }}>Cancel</Button><Button onClick={submitLocation} disabled={!canCreate}>Create QR location</Button></DialogFooter></DialogContent></Dialog>
 
-      <Dialog open={showSchedule} onOpenChange={(open) => { if (!open) { setShowSchedule(false); setScheduleForm(emptySchedule()); } else setShowSchedule(true); }}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto"><DialogHeader><DialogTitle>Add preventive-maintenance schedule</DialogTitle></DialogHeader><div className="grid gap-4 py-2 sm:grid-cols-2"><div><Label htmlFor={`${__fieldIds}-facility-3`}>Facility *</Label><Select value={scheduleForm.facilityId} onValueChange={(value) => setScheduleForm({ ...scheduleForm, facilityId: value, assetId: "none", locationId: "none" })}><SelectTrigger id={`${__fieldIds}-facility-3`}><SelectValue /></SelectTrigger><SelectContent>{facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-asset`}>Asset</Label><Select value={scheduleForm.assetId} onValueChange={(value) => setScheduleForm({ ...scheduleForm, assetId: value, locationId: value === "none" ? scheduleForm.locationId : "none" })}><SelectTrigger id={`${__fieldIds}-asset`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Use a room instead</SelectItem>{assets?.filter((a) => a.facility_id === scheduleForm.facilityId).map((a) => <SelectItem key={a.id} value={a.id}>{a.label}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-room-location`}>Room / location</Label><Select value={scheduleForm.locationId} onValueChange={(value) => setScheduleForm({ ...scheduleForm, locationId: value, assetId: value === "none" ? scheduleForm.assetId : "none" })}><SelectTrigger id={`${__fieldIds}-room-location`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Use an asset instead</SelectItem>{locations?.filter((l) => l.facility_id === scheduleForm.facilityId).map((l) => <SelectItem key={l.id} value={l.id}>{l.label}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-title`}>Title *</Label><Input id={`${__fieldIds}-title`} value={scheduleForm.title} onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-maintenance-instructions`}>Maintenance instructions *</Label><Textarea id={`${__fieldIds}-maintenance-instructions`} value={scheduleForm.description} onChange={(e) => setScheduleForm({ ...scheduleForm, description: e.target.value })} /></div><div><Label id={`${__fieldIds}-repeat-every`}>Repeat every</Label><div role="group" aria-labelledby={`${__fieldIds}-repeat-every`} className="flex gap-2"><Input type="number" min="1" value={scheduleForm.frequencyInterval} onChange={(e) => setScheduleForm({ ...scheduleForm, frequencyInterval: e.target.value })} /><Select value={scheduleForm.frequencyUnit} onValueChange={(value) => setScheduleForm({ ...scheduleForm, frequencyUnit: value })}><SelectTrigger aria-label="Frequency unit"><SelectValue /></SelectTrigger><SelectContent>{["day","week","month","year"].map((v) => <SelectItem key={v} value={v}>{humanize(v)}</SelectItem>)}</SelectContent></Select></div></div><div><Label htmlFor={`${__fieldIds}-next-due-date`}>Next due date</Label><Input id={`${__fieldIds}-next-due-date`} type="date" value={scheduleForm.nextDueDate} onChange={(e) => setScheduleForm({ ...scheduleForm, nextDueDate: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-default-priority`}>Default priority</Label><Select value={scheduleForm.priority} onValueChange={(value) => setScheduleForm({ ...scheduleForm, priority: value })}><SelectTrigger id={`${__fieldIds}-default-priority`}><SelectValue /></SelectTrigger><SelectContent>{["routine","urgent","emergency"].map((v) => <SelectItem key={v} value={v}>{humanize(v)}</SelectItem>)}</SelectContent></Select></div><div><EmployeeSearchSelect label="Assigned employee" value={scheduleForm.employeeId === "none" ? "" : scheduleForm.employeeId} onValueChange={(id) => setScheduleForm({ ...scheduleForm, employeeId: id || "none" })} facilityId={scheduleForm.facilityId || undefined} allowEmpty emptyLabel="Unassigned" emptyValue="none" /></div><div><Label htmlFor={`${__fieldIds}-external-vendor-2`}>External vendor</Label><Input id={`${__fieldIds}-external-vendor-2`} value={scheduleForm.vendor} onChange={(e) => setScheduleForm({ ...scheduleForm, vendor: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-estimated-duration-minutes`}>Estimated duration (minutes)</Label><Input id={`${__fieldIds}-estimated-duration-minutes`} type="number" min="0" value={scheduleForm.durationMinutes} onChange={(e) => setScheduleForm({ ...scheduleForm, durationMinutes: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-estimated-cost-2`}>Estimated cost</Label><Input id={`${__fieldIds}-estimated-cost-2`} type="number" min="0" step="0.01" value={scheduleForm.estimatedCost} onChange={(e) => setScheduleForm({ ...scheduleForm, estimatedCost: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-parts-supplies`}>Parts / supplies</Label><Input id={`${__fieldIds}-parts-supplies`} value={scheduleForm.parts} onChange={(e) => setScheduleForm({ ...scheduleForm, parts: e.target.value })} /></div></div><DialogFooter><Button variant="outline" onClick={() => setShowSchedule(false)}>Cancel</Button><Button onClick={submitSchedule} disabled={createSchedule.isPending}>Save schedule</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={showSchedule} onOpenChange={(open) => { if (creating || creatingRef.current) return; if (!open) { setShowSchedule(false); setScheduleForm(emptySchedule()); } else setShowSchedule(true); }}><DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto"><DialogHeader><DialogTitle>Add preventive-maintenance schedule</DialogTitle></DialogHeader><fieldset disabled={creating} className="grid gap-4 py-2 sm:grid-cols-2"><div><Label htmlFor={`${__fieldIds}-facility-3`}>Facility *</Label><Select value={scheduleForm.facilityId} onValueChange={(value) => setScheduleForm({ ...scheduleForm, facilityId: value, assetId: "none", locationId: "none", employeeId: "none" })}><SelectTrigger id={`${__fieldIds}-facility-3`}><SelectValue /></SelectTrigger><SelectContent>{facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-asset`}>Asset</Label><Select value={scheduleForm.assetId} onValueChange={(value) => setScheduleForm({ ...scheduleForm, assetId: value, locationId: value === "none" ? scheduleForm.locationId : "none" })}><SelectTrigger id={`${__fieldIds}-asset`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Use a room instead</SelectItem>{assets?.filter((a) => a.facility_id === scheduleForm.facilityId).map((a) => <SelectItem key={a.id} value={a.id}>{a.label}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-room-location`}>Room / location</Label><Select value={scheduleForm.locationId} onValueChange={(value) => setScheduleForm({ ...scheduleForm, locationId: value, assetId: value === "none" ? scheduleForm.assetId : "none" })}><SelectTrigger id={`${__fieldIds}-room-location`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Use an asset instead</SelectItem>{locations?.filter((l) => l.facility_id === scheduleForm.facilityId).map((l) => <SelectItem key={l.id} value={l.id}>{l.label}</SelectItem>)}</SelectContent></Select></div><div><Label htmlFor={`${__fieldIds}-title`}>Title *</Label><Input id={`${__fieldIds}-title`} value={scheduleForm.title} onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })} /></div><div className="sm:col-span-2"><Label htmlFor={`${__fieldIds}-maintenance-instructions`}>Maintenance instructions *</Label><Textarea id={`${__fieldIds}-maintenance-instructions`} value={scheduleForm.description} onChange={(e) => setScheduleForm({ ...scheduleForm, description: e.target.value })} /></div><div><Label id={`${__fieldIds}-repeat-every`}>Repeat every</Label><div role="group" aria-labelledby={`${__fieldIds}-repeat-every`} className="flex gap-2"><Input type="number" min="1" value={scheduleForm.frequencyInterval} onChange={(e) => setScheduleForm({ ...scheduleForm, frequencyInterval: e.target.value })} /><Select value={scheduleForm.frequencyUnit} onValueChange={(value) => setScheduleForm({ ...scheduleForm, frequencyUnit: value })}><SelectTrigger aria-label="Frequency unit"><SelectValue /></SelectTrigger><SelectContent>{["day","week","month","year"].map((v) => <SelectItem key={v} value={v}>{humanize(v)}</SelectItem>)}</SelectContent></Select></div></div><div><Label htmlFor={`${__fieldIds}-next-due-date`}>Next due date</Label><Input id={`${__fieldIds}-next-due-date`} type="date" value={scheduleForm.nextDueDate} onChange={(e) => setScheduleForm({ ...scheduleForm, nextDueDate: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-default-priority`}>Default priority</Label><Select value={scheduleForm.priority} onValueChange={(value) => setScheduleForm({ ...scheduleForm, priority: value })}><SelectTrigger id={`${__fieldIds}-default-priority`}><SelectValue /></SelectTrigger><SelectContent>{["routine","urgent","emergency"].map((v) => <SelectItem key={v} value={v}>{humanize(v)}</SelectItem>)}</SelectContent></Select></div><div><EmployeeSearchSelect label="Assigned employee" value={scheduleForm.employeeId === "none" ? "" : scheduleForm.employeeId} onValueChange={(id) => setScheduleForm({ ...scheduleForm, employeeId: id || "none" })} facilityId={scheduleForm.facilityId || undefined} allowEmpty emptyLabel="Unassigned" emptyValue="none" /></div><div><Label htmlFor={`${__fieldIds}-external-vendor-2`}>External vendor</Label><Input id={`${__fieldIds}-external-vendor-2`} value={scheduleForm.vendor} onChange={(e) => setScheduleForm({ ...scheduleForm, vendor: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-estimated-duration-minutes`}>Estimated duration (minutes)</Label><Input id={`${__fieldIds}-estimated-duration-minutes`} type="number" min="0" value={scheduleForm.durationMinutes} onChange={(e) => setScheduleForm({ ...scheduleForm, durationMinutes: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-estimated-cost-2`}>Estimated cost</Label><Input id={`${__fieldIds}-estimated-cost-2`} type="number" min="0" step="0.01" value={scheduleForm.estimatedCost} onChange={(e) => setScheduleForm({ ...scheduleForm, estimatedCost: e.target.value })} /></div><div><Label htmlFor={`${__fieldIds}-parts-supplies`}>Parts / supplies</Label><Input id={`${__fieldIds}-parts-supplies`} value={scheduleForm.parts} onChange={(e) => setScheduleForm({ ...scheduleForm, parts: e.target.value })} /></div></fieldset><DialogFooter><Button variant="outline" disabled={creating} onClick={() => { if (!creating && !creatingRef.current) setShowSchedule(false); }}>Cancel</Button><Button onClick={submitSchedule} disabled={!canCreate}>Save schedule</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }

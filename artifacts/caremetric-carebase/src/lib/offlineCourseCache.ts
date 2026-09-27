@@ -179,30 +179,55 @@ export async function getOfflineProgressCheckpoint(assignmentId: string): Promis
   return request(db.transaction(PROGRESS_STORE).objectStore(PROGRESS_STORE).get(assignmentId));
 }
 
+async function updateOfflineCheckpoint(
+  assignmentId: string,
+  update: (existing: OfflineProgressCheckpoint | undefined) => OfflineProgressCheckpoint,
+): Promise<OfflineProgressCheckpoint> {
+  const db = await openDatabase();
+  // One transaction serializes both lesson saves and sync receipts across tabs. Separate
+  // read/write transactions can reuse a sequence or overwrite newer progress with an old receipt.
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PROGRESS_STORE, "readwrite");
+    const store = transaction.objectStore(PROGRESS_STORE);
+    let checkpoint: OfflineProgressCheckpoint;
+    transaction.oncomplete = () => resolve(checkpoint);
+    transaction.onerror = () => reject(transaction.error ?? new Error("Offline checkpoint could not be saved"));
+    transaction.onabort = () => reject(transaction.error ?? new Error("Offline checkpoint save was canceled"));
+    const read = store.get(assignmentId);
+    read.onsuccess = () => {
+      try {
+        checkpoint = update(read.result as OfflineProgressCheckpoint | undefined);
+        store.put(checkpoint);
+      } catch (error) {
+        transaction.abort();
+        reject(error);
+      }
+    };
+  });
+}
+
 export async function queueOfflineProgress(input: {
   assignmentId: string;
   percentComplete: number;
   baseVersion: number;
   lastBlockId?: string | null;
 }) {
-  const db = await openDatabase();
-  const existing = await request(db.transaction(PROGRESS_STORE).objectStore(PROGRESS_STORE).get(input.assignmentId)) as OfflineProgressCheckpoint | undefined;
-  const percentComplete = Math.min(100, Math.max(0, Math.round(input.percentComplete)));
-  if (existing && existing.percentComplete >= percentComplete) return existing;
-  const checkpoint: OfflineProgressCheckpoint = {
-    assignmentId: input.assignmentId,
-    percentComplete,
-    syncedPercent: existing?.syncedPercent ?? 0,
-    baseVersion: existing?.baseVersion ?? input.baseVersion,
-    clientSequence: (existing?.clientSequence ?? 0) + 1,
-    idempotencyKey: crypto.randomUUID(),
-    occurredAt: new Date().toISOString(),
-    // The first checkpoint is the start of study on this device; every later one keeps it.
-    startedAt: existing?.startedAt ?? new Date().toISOString(),
-    lastBlockId: input.lastBlockId ?? existing?.lastBlockId,
-  };
-  await request(db.transaction(PROGRESS_STORE, "readwrite").objectStore(PROGRESS_STORE).put(checkpoint));
-  return checkpoint;
+  return updateOfflineCheckpoint(input.assignmentId, existing => {
+    const percentComplete = Math.min(100, Math.max(0, Math.round(input.percentComplete)));
+    if (existing && existing.percentComplete >= percentComplete) return existing;
+    return {
+      assignmentId: input.assignmentId,
+      percentComplete,
+      syncedPercent: existing?.syncedPercent ?? 0,
+      baseVersion: existing?.baseVersion ?? input.baseVersion,
+      clientSequence: (existing?.clientSequence ?? 0) + 1,
+      idempotencyKey: crypto.randomUUID(),
+      occurredAt: new Date().toISOString(),
+      // The first checkpoint is the start of study on this device; every later one keeps it.
+      startedAt: existing?.startedAt ?? new Date().toISOString(),
+      lastBlockId: input.lastBlockId ?? existing?.lastBlockId,
+    };
+  });
 }
 
 export async function markOfflineProgressAttempt(
@@ -211,28 +236,30 @@ export async function markOfflineProgressAttempt(
   serverVersion: number,
   sentPercent: number,
 ) {
-  const db = await openDatabase();
-  const existing = await request(db.transaction(PROGRESS_STORE).objectStore(PROGRESS_STORE).get(assignmentId)) as OfflineProgressCheckpoint | undefined;
-  if (!existing) throw new Error("Offline progress checkpoint is unavailable");
-  const applied = outcome === "applied" || outcome === "duplicate";
-  // Only the percent that was actually sent is synced; progress queued while the
-  // request was in flight still needs its own sync. A conflict means the server
-  // moved past our base version, so the pending percent must retry as a fresh
-  // action against the server's version rather than replay the rejected receipt —
-  // and the conflict receipt already consumed this (device, sequence) in the
-  // append-only receipt ledger, so the retry needs a new sequence too.
-  const conflicted = outcome === "conflict" && existing.percentComplete > existing.syncedPercent;
-  const checkpoint: OfflineProgressCheckpoint = {
-    ...existing,
-    syncedPercent: applied ? Math.max(existing.syncedPercent, sentPercent) : existing.syncedPercent,
-    baseVersion: applied || conflicted ? serverVersion : existing.baseVersion,
-    clientSequence: conflicted ? existing.clientSequence + 1 : existing.clientSequence,
-    idempotencyKey: conflicted ? crypto.randomUUID() : existing.idempotencyKey,
-    lastOutcome: outcome,
-    lastAttemptedAt: new Date().toISOString(),
-  };
-  await request(db.transaction(PROGRESS_STORE, "readwrite").objectStore(PROGRESS_STORE).put(checkpoint));
-  return checkpoint;
+  return updateOfflineCheckpoint(assignmentId, existing => {
+    if (!existing) throw new Error("Offline progress checkpoint is unavailable");
+    // A conflict replay from another tab can arrive after its retry succeeded. Preserve
+    // the current result and pending action when this percent/version is already resolved.
+    // Rejection and device revocation stay authoritative even without a progress-version change.
+    if (outcome === "conflict" && sentPercent <= existing.syncedPercent && serverVersion <= existing.baseVersion) return existing;
+    const applied = outcome === "applied" || outcome === "duplicate";
+    // Only the percent that was actually sent is synced; progress queued while the
+    // request was in flight still needs its own sync. A conflict means the server
+    // moved past our base version, so the pending percent must retry as a fresh
+    // action against the server's version rather than replay the rejected receipt —
+    // and the conflict receipt already consumed this (device, sequence) in the
+    // append-only receipt ledger, so the retry needs a new sequence too.
+    const conflicted = outcome === "conflict" && existing.percentComplete > existing.syncedPercent;
+    return {
+      ...existing,
+      syncedPercent: applied ? Math.max(existing.syncedPercent, sentPercent) : existing.syncedPercent,
+      baseVersion: applied || conflicted ? Math.max(existing.baseVersion, serverVersion) : existing.baseVersion,
+      clientSequence: conflicted ? existing.clientSequence + 1 : existing.clientSequence,
+      idempotencyKey: conflicted ? crypto.randomUUID() : existing.idempotencyKey,
+      lastOutcome: outcome,
+      lastAttemptedAt: new Date().toISOString(),
+    };
+  });
 }
 
 export async function wipeOfflineLearning() {

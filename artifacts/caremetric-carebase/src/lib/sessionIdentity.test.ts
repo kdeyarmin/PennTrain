@@ -90,3 +90,21 @@ describe("facility scope", () => {
     expect(signedInIdentityChanged(at(null), at(null))).toBe(false);
   });
 });
+
+describe("effective assigned facility scope", () => {
+  const at = (authorizedFacilityIds?: readonly string[]): SessionIdentity => ({ ...aide, facilityId: "home", authorizedFacilityIds });
+  it("clears for a secondary-site revocation while the primary facility stays unchanged", () => {
+    expect(signedInIdentityChanged(at(["home", "second"]), at(["home"]))).toBe(true);
+  });
+  it("clears when the last assignment is removed or a new one is granted", () => {
+    expect(signedInIdentityChanged(at(["home"]), at([]))).toBe(true);
+    expect(signedInIdentityChanged(at([]), at(["second"]))).toBe(true);
+  });
+  it("compares sets independently of order and duplicate primary assignment rows", () => {
+    expect(signedInIdentityChanged(at(["home", "second", "home"]), at(["second", "home"]))).toBe(false);
+  });
+  it("treats unresolved scope as unknown, not an empty assignment set", () => {
+    expect(signedInIdentityChanged(at(), at(["home"]))).toBe(false);
+    expect(signedInIdentityChanged(at(["home"]), at())).toBe(false);
+  });
+});

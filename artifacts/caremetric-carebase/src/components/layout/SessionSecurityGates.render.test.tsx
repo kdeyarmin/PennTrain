@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ useQuery: vi.fn(), location: "/app/users", sig
 vi.mock("@tanstack/react-query", () => ({ useQuery: mocks.useQuery, useQueryClient: () => ({}) }));
 vi.mock("@/lib/auth", () => ({
   useSignOut: () => mocks.signOut, useAuth: () => ({ user: null }),
-  markExplicitPasswordSignIn: vi.fn(), markIdleUnlockSignIn: vi.fn(),
+  signInWithPassword: vi.fn(), markIdleUnlockSignIn: vi.fn(),
 }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: vi.fn() } }));
 vi.mock("@/hooks/useOrganizationSettings", () => ({ useGetOrganizationSettings: () => ({ data: null }) }));
