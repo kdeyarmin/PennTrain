@@ -123,7 +123,7 @@ export default function ResidentChangeSignalsSection({
   residentHref: string;
 }) {
   const serviceExceptions = useResidentServiceExceptions(residentId);
-  const unscheduled = useResidentUnscheduledServices(residentId, 50);
+  const unscheduled = useResidentUnscheduledServices(residentId);
   const changeEvents = useListResidentChangeEvents({ residentId });
   const incidents = useListIncidents({ residentId });
   const { meals, weights, hospital } = useDetectionSupplements(residentId);
