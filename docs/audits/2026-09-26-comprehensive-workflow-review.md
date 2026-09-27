@@ -6,7 +6,7 @@ This is dated review evidence for `790555ffaf2d6097e82567af32b377b7640d7c66` plu
 
 The review covers the CareBase and standalone Train entry points, six application roles, public and guest entry points, shared data hooks, server routes, Supabase handlers, and the voice gateway. It combines source tracing, existing database and browser journeys, contract and reachability checks, targeted regression tests, and build validation. Changes preserve the existing server authorization model and product boundaries.
 
-The [route inventory](2026-09-26-route-inventory.csv) records all 279 route declarations across the two entry points, representing 217 distinct paths, with components, declared role gates and facility gates. The continued repository checks enumerate 1,020 exported hooks, 687 functions granted to authenticated callers, and 1,045 public database functions. Hook reachability has no allowlisted orphan hooks. Those checks verify wiring and contract consistency; they do not replace behavioral tests.
+The [route inventory](2026-09-26-route-inventory.csv) records all 279 route declarations across the two entry points, representing 217 distinct paths, with components, declared role gates and facility gates. The continued repository checks enumerate 1,021 exported hooks, 687 functions granted to authenticated callers, and 1,045 public database functions. Hook reachability has no allowlisted orphan hooks. Those checks verify wiring and contract consistency; they do not replace behavioral tests.
 
 ## Workflow coverage
 
@@ -173,6 +173,12 @@ Eligibility explanations also retained an old verdict under changed employee/fac
 The final dependency review completed the shared facility reader with unchanged organization filters/enablement, stable name/ID order, cancellation and actual-count pagination. Three new regressions and 47 related facility/helper/queue cases pass; root independently reviewed the implementation. This closes the same truncated-choice failure in the calendar, queue and eligibility selectors. Repeated source passes and independent reviews have now closed every confirmed finding from this follow-up, recorded as WF55–WF75 alongside the earlier 54 groups. No further actionable issue was identified in those closing passes.
 
 Integration evidence before the final source freeze includes a passing workspace typecheck and production app build, and an earlier full snapshot of 3,832 application tests plus 271 native-server tests. A later application snapshot had one five-second timeout in the existing 10,000-row export test while a build ran concurrently; its unchanged ten-case suite passed immediately in isolation. The complete `check:all` and fresh disposable database/browser pipeline are required on the frozen revision; the PR's attached checks and updated validation summary are the authority for that final result.
+
+## PR-review follow-up — September 27
+
+The full follow-up passed at `ea9388657f7c589d6c06066d76610806992aa5e2` in [CI 36325192419](https://github.com/kdeyarmin/PennTrain/actions/runs/36325192419): 3,954 application tests, 744 Edge tests, 112 gateway tests, 271 native-server tests, 64 script tests, 7,479 database assertions and 141 applicable browser cases. Only the three documented project-specific browser skips occurred; no failures, retries or flaky results were reported. Both application builds, the complete database/Storage/concurrency checks, and the final report/certificate artifact inspection passed.
+
+The requested fresh Copilot and Codex reviews also prompted another independent peer pass. That pass reproduced a same-organization HRIS race: a delayed run-creation response could replace a newer selected run and its decision draft. A monotonic selection revision now retires obsolete success/error feedback, including an A-to-B-to-A selection sequence, while preserving normal creation and its idempotency key. Four delayed-response regressions failed before the fix; those and the unchanged-selection case pass with the related 93-test workforce selection. An independent patch review and a separate 30-test HRIS selection are clear. The updated branch still requires its own complete CI gate and external-review outcome, recorded in the PR's final validation summary.
 
 ## Validation boundaries
 

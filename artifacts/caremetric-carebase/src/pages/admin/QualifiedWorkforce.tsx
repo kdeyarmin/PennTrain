@@ -60,7 +60,7 @@ function MetricPanel({ title, description, values }: { title: string; descriptio
  * there was no way to obtain the ID they required.
  */
 function StartImportRunCard(
-  { onStarted, organizationId }: { onStarted: (runId: string) => void; organizationId: string | null },
+  { onStarted, organizationId, isCurrentSelection }: { onStarted: (runId: string) => void; organizationId: string | null; isCurrentSelection: () => boolean },
 ) {
   // Scoped for the same reason the card above it is: a platform admin can read every tenant's
   // sources, so an unscoped picker offered this run's source from a list spanning all customers.
@@ -139,11 +139,11 @@ function StartImportRunCard(
               submitting.current = true; setPending(true);
               try {
                 const runId = await create.mutateAsync({ sourceSystemId, requestId: requestId.trim() });
-                if (!mounted.current) return;
+                if (!mounted.current || !isCurrentSelection()) return;
                 onStarted(runId);
                 toast({ title: "Import run started", description: "Its ID is filled in below." });
               } catch (error) {
-                if (mounted.current) toast({
+                if (mounted.current && isCurrentSelection()) toast({
                   title: "Import run blocked",
                   description: error instanceof Error ? error.message : "Unknown error",
                   variant: "destructive",
@@ -177,6 +177,11 @@ function HrisCommands() {
 
 function HrisWorkspace({ sourceOrgId }: { sourceOrgId: string | null }) {
   const [runId, setRunId] = useState("");
+  const selectionRevision = useRef(0);
+  const renderedRevision = selectionRevision.current;
+  // A run created in the background must not replace a newer deliberate selection,
+  // including a user leaving a run and returning to it before the response arrives.
+  const isCurrentSelection = () => selectionRevision.current === renderedRevision;
   const runs = useHrisImportRuns(sourceOrgId);
   const selectedRun = runs.data?.find(run => run.id === runId);
   return (
@@ -185,7 +190,7 @@ function HrisWorkspace({ sourceOrgId }: { sourceOrgId: string | null }) {
           the product could register one -- so this tab opened on an empty picker and a disabled
           button for every tenant (RELEASE_READINESS_PLAN 4.3, imports D2). */}
       <HrisSourceSystems organizationId={sourceOrgId} />
-      <StartImportRunCard onStarted={setRunId} organizationId={sourceOrgId} />
+      <StartImportRunCard onStarted={setRunId} organizationId={sourceOrgId} isCurrentSelection={isCurrentSelection} />
       <div className="space-y-2 lg:col-span-2">
         <Label htmlFor="phase3-run">Import run</Label>
         {runs.isLoading ? (
@@ -193,7 +198,7 @@ function HrisWorkspace({ sourceOrgId }: { sourceOrgId: string | null }) {
         ) : runs.isError ? (
           <QueryError what="HRIS import runs" error={runs.error} onRetry={() => void runs.refetch()} />
         ) : (runs.data ?? []).length > 0 ? (
-          <Select value={runId} onValueChange={setRunId}>
+          <Select value={runId} onValueChange={value => { selectionRevision.current += 1; setRunId(value); }}>
             <SelectTrigger id="phase3-run"><SelectValue placeholder="Choose a run" /></SelectTrigger>
             <SelectContent>
               {(runs.data ?? []).map((run) => (

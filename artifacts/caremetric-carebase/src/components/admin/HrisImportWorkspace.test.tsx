@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ state: [] as any[], refs: [] as any[], cursor: 0, refCursor: 0, effects: [] as Array<() => void | (() => void)>, sources: {} as any, runs: {} as any, org: "org-A", createRun: vi.fn(), createSource: vi.fn(), started: vi.fn(), toast: vi.fn() }));
-vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useId: () => "test", useState: (initial: unknown) => { const i = h.cursor++; if (!(i in h.state)) h.state[i] = initial; return [h.state[i], (next: unknown) => { h.state[i] = typeof next === "function" ? next(h.state[i]) : next; }]; }, useRef: (initial: unknown) => { const i = h.refCursor++; return h.refs[i] ?? (h.refs[i] = { current: initial }); }, useEffect: (effect: () => void | (() => void)) => { h.effects.push(effect); } }));
+vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useId: () => "test", useState: (initial: unknown) => { const state = h.state, i = h.cursor++; if (!(i in state)) state[i] = initial; return [state[i], (next: unknown) => { state[i] = typeof next === "function" ? next(state[i]) : next; }]; }, useRef: (initial: unknown) => { const i = h.refCursor++; return h.refs[i] ?? (h.refs[i] = { current: initial }); }, useEffect: (effect: () => void | (() => void)) => { h.effects.push(effect); } }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("@/hooks/useHrisImportRuns", async original => ({ ...await original<typeof import("@/hooks/useHrisImportRuns")>(), useHrisSourceSystems: () => h.sources, useHrisImportRuns: () => h.runs, useCreateHrisImportRun: () => ({ mutateAsync: h.createRun, isPending: false }), useCreateHrisSourceSystem: () => ({ mutateAsync: h.createSource, isPending: false }) }));
@@ -18,7 +18,7 @@ function invoke(node: Element) { return (node.type as (props: any) => Element)(n
 function resetHooks() { h.cursor = 0; h.refCursor = 0; h.effects = []; }
 function workspace() { return invoke(component(QualifiedWorkforce(), "HrisCommands")); }
 let startComponent: Element;
-function renderStart() { resetHooks(); return invoke({ ...startComponent, props: { organizationId: h.org, onStarted: h.started } }); }
+function renderStart() { resetHooks(); return invoke({ ...startComponent, props: { ...startComponent.props, organizationId: h.org, onStarted: h.started } }); }
 function renderSource() { resetHooks(); return invoke(HrisSourceSystems({ organizationId: h.org })); }
 function button(tree: ReactNode, label: string) { return nodes(tree).find(n => typeof n.props.onClick === "function" && text(n).trim() === label)!; }
 function field(tree: ReactNode, id: string) { return nodes(tree).find(n => n.props.id === id)!; }
@@ -32,6 +32,34 @@ beforeEach(() => {
   startComponent = component(invoke(workspace()), "StartImportRunCard"); h.state = []; h.refs = []; resetHooks();
 });
 describe("HRIS source and run capture", () => {
+  it("selects a created run when the user has not replaced the selection", async () => {
+    startDraft(); h.createRun.mockResolvedValueOnce("new-run"); await button(renderStart(), "Start run").props.onClick();
+    expect(h.started).toHaveBeenCalledExactlyOnceWith("new-run"); expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Import run started" }));
+  });
+  it.each([
+    ["success", ["run-B"]], ["failure", ["run-B"]],
+    ["success", ["run-B", "run-A"]], ["failure", ["run-B", "run-A"]],
+  ] as const)("preserves a newer same-organization run selection after delayed start %s through %j", async (outcome, selections) => {
+    h.runs.data.push({ id: "run-B", status: "validated" });
+    const outer = workspace(), parent = { state: [] as any[], refs: [] as any[] }, starter = { state: [] as any[], refs: [] as any[] };
+    const renderParent = () => { h.state = parent.state; h.refs = parent.refs; resetHooks(); return invoke(outer); };
+    const pickRun = (id: string) => nodes(renderParent()).find(n => n.props.onValueChange)!.props.onValueChange(id);
+    pickRun("run-A"); const start = component(renderParent(), "StartImportRunCard");
+    const renderCard = () => { h.state = starter.state; h.refs = starter.refs; resetHooks(); return invoke(start); };
+    nodes(renderCard()).find(n => n.props.onValueChange)!.props.onValueChange("source");
+    field(renderCard(), "phase3-request").props.onChange({ target: { value: "new-extract" } });
+    const pending = deferred(); h.createRun.mockReturnValue(pending.promise);
+    const task = button(renderCard(), "Start run").props.onClick();
+    for (const selection of selections) pickRun(selection);
+    const chosenActions = component(renderParent(), "HrisImportActions");
+    expect(chosenActions.props.run.id).toBe(selections.at(-1));
+    if (outcome === "success") pending.resolve("new-run"); else pending.reject(new Error("Old start failed"));
+    await task;
+    const settledActions = component(renderParent(), "HrisImportActions");
+    expect(settledActions?.props.run.id).toBe(chosenActions.props.run.id);
+    expect(settledActions?.type).toBe(chosenActions.type);
+    expect(h.toast).not.toHaveBeenCalled();
+  });
   it("isolates the full import workspace when the viewed organization changes", () => { const first = workspace(); h.org = "org-B"; const second = workspace(); expect(first.key).not.toBe(second.key); });
   it("does not make arbitrary or missing runs actionable", () => {
     const outer = workspace(); resetHooks(); let tree = invoke(outer);
