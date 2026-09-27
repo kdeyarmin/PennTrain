@@ -16,7 +16,8 @@ import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
 import {
   useApproveIncidentInvestigation, useDetermineIncidentReportability,
-  useIncidentFollowThrough, useSaveIncidentInvestigationStep,
+  useIncidentFollowThrough, useRecordIncidentSupportPlanReview,
+  useSaveIncidentInvestigationStep,
   useSetIncidentQapiConsideration,
 } from "@/hooks/useIncidentFollowThrough";
 import { useListQapiProjects } from "@/hooks/useQapi";
@@ -385,6 +386,74 @@ function QapiConsiderationDialog({
   );
 }
 
+/**
+ * The support-plan decision the checklist already named and nothing could record.
+ *
+ * A plan created after the incident is still a revision, and that stage completes on its own.
+ * This is the other answer: the plan that already existed was read and left unchanged. The
+ * server keeps the note, the person, and which plan was reviewed, and it refuses a second one.
+ */
+function SupportPlanReviewDialog({
+  open, onOpenChange, incidentId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  incidentId: string;
+}) {
+  const { toast } = useToast();
+  const record = useRecordIncidentSupportPlanReview(incidentId);
+  const [rationale, setRationale] = useState("");
+  const canSubmit = rationale.trim().length >= 10;
+
+  const submit = async () => {
+    try {
+      await record.mutateAsync({ rationale: rationale.trim() });
+      toast({ title: "Recorded that the support plan needs no change" });
+      onOpenChange(false);
+    } catch (error) {
+      toast({
+        title: "Could not record the support-plan review",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Support plan review</DialogTitle>
+          <DialogDescription>
+            The plan already in place still fits this event. Say why, so the file shows it was
+            read. If the plan needs to change, revise it instead of recording no change — and if
+            none existed before the incident, create one.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="support-plan-review-rationale">Why the support plan needs no change</Label>
+          <Textarea
+            id="support-plan-review-rationale"
+            rows={3}
+            value={rationale}
+            onChange={(event) => setRationale(event.target.value)}
+            placeholder="The current plan already covers the chair alarm and transfers. This fall does not change it."
+          />
+          <p className="text-xs text-muted-foreground">
+            At least 10 characters. Kept with the incident, and not rewritten once it is recorded.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button disabled={!canSubmit || record.isPending} onClick={() => void submit()}>
+            {record.isPending ? "Recording…" : "Record no change"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function IncidentFollowThroughSection({
   incidentId, canManage, facilityId,
 }: {
@@ -404,6 +473,7 @@ export default function IncidentFollowThroughSection({
   const [approveOpen, setApproveOpen] = useState(false);
   const [approveNote, setApproveNote] = useState("");
   const [qapiOpen, setQapiOpen] = useState(false);
+  const [supportPlanOpen, setSupportPlanOpen] = useState(false);
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (isError) {
@@ -421,6 +491,7 @@ export default function IncidentFollowThroughSection({
     correctiveActions: data.corrective_actions ?? [],
     assessmentReviewFinalized: data.assessment_review_finalized,
     supportPlanRevisedAfterIncident: data.support_plan_revised_after_incident,
+    supportPlanReviewedNoChange: data.support_plan_reviewed_no_change,
     now,
   });
 
@@ -439,6 +510,8 @@ export default function IncidentFollowThroughSection({
         return { label: stage.key === "investigation" && !incident.pathway_key ? "Choose pathway" : "Record", run: () => (stage.key === "investigation" ? setPathwayOpen(true) : setStepOpen(true)) };
       case "reportability_review":
         return { label: "Determine", run: () => setReportabilityOpen(true) };
+      case "support_plan_review":
+        return { label: "No change", run: () => setSupportPlanOpen(true) };
       case "qapi_consideration":
         return { label: "Decide", run: () => setQapiOpen(true) };
       default:
@@ -534,6 +607,15 @@ export default function IncidentFollowThroughSection({
             </div>
           )}
 
+          {data.support_plan_review_rationale && (
+            <div className="rounded-md border bg-muted/40 p-2 text-xs">
+              <p className="font-medium uppercase tracking-wide text-muted-foreground">
+                Support plan reviewed, no change
+              </p>
+              <p className="mt-0.5">{data.support_plan_review_rationale}</p>
+            </div>
+          )}
+
           {canManage && (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button
@@ -587,6 +669,12 @@ export default function IncidentFollowThroughSection({
         facilityId={facilityId}
         current={incident.qapi_consideration}
         currentProjectId={incident.qapi_project_id}
+      />
+      <SupportPlanReviewDialog
+        key={supportPlanOpen ? "support-plan-open" : "support-plan-closed"}
+        open={supportPlanOpen}
+        onOpenChange={setSupportPlanOpen}
+        incidentId={incidentId}
       />
       {/*
         Re-keyed on open so the textareas seed from the incident as it is NOW, not as it was when

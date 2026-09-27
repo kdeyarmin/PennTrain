@@ -347,6 +347,12 @@ describe("resident review stages", () => {
     expect(statusOf(stages, "assessment_review")).toBe("complete");
     expect(statusOf(stages, "support_plan_review")).toBe("complete");
   });
+
+  it("completes the support-plan stage when the plan was reviewed and left unchanged", () => {
+    const stages = buildIncidentStages(input({ supportPlanReviewedNoChange: true }));
+    expect(statusOf(stages, "support_plan_review")).toBe("complete");
+    expect(stages.find((stage) => stage.key === "support_plan_review")?.outstanding).toBeNull();
+  });
 });
 
 describe("QAPI consideration", () => {
