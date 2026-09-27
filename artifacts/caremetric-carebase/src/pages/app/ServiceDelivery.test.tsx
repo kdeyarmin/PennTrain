@@ -17,7 +17,10 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/hooks/useFacilities", () => ({ useListFacilities: () => ({ data: [{ id: "facility", name: "Facility" }] }) }));
 vi.mock("@/hooks/useEmployees", () => ({ useListEmployees: () => ({ data: [] }) }));
 vi.mock("@/components/residents/LogChangeOfConditionDialog", () => ({ LogChangeOfConditionDialog: "section" }));
-vi.mock("@/components/residents/ServiceExceptionFollowUpDialog", () => ({ ServiceExceptionFollowUpDialog: "follow-up-dialog", isServiceException: (status: string) => status === "resident_refused" }));
+vi.mock("@/components/residents/ServiceExceptionFollowUpDialog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/residents/ServiceExceptionFollowUpDialog")>();
+  return { ...actual, ServiceExceptionFollowUpDialog: "follow-up-dialog" };
+});
 vi.mock("@/hooks/useResidentServiceTasks", () => ({
   useResidentServiceTaskQueue: h.queue,
   useListResidentServiceRequirements: () => ({ data: [] }), useListServiceTaskAlerts: () => ({ data: [] }),
@@ -56,6 +59,29 @@ beforeEach(() => {
   h.queue.mockReturnValue({ data: ["a", "b"].map(id => ({ id, resident_name: `Resident ${id}`, service_name: `Service ${id}`, status: "scheduled", facility_id: "facility", facility_name: "Facility", scheduled_start: "2026-09-26T13:00:00Z", scheduled_end: "2026-09-26T14:00:00Z" })) });
 });
 afterEach(() => h.cleanups.splice(0).forEach(fn => fn()));
+function directTexts(node: Node | undefined): string[] {
+  const children = node?.props?.children;
+  const list = Array.isArray(children) ? children : children == null ? [] : [children];
+  return list.map((child) => content(child as ReactNode).trim());
+}
+
+function cardValue(label: string) {
+  const card = nodes(render()).find((node) => {
+    const texts = directTexts(node);
+    return texts.includes(label) && texts.some((text) => /^\d+$/.test(text));
+  });
+  return directTexts(card).find((text) => /^\d+$/.test(text));
+}
+
+describe("service day totals", () => {
+  it("counts a late delivery as an exception and as completed care", () => {
+    h.queue.mockReturnValue({ data: [{ id: "late", resident_name: "Ada", service_name: "Bath", status: "completed_late", facility_id: "facility", facility_name: "Facility", scheduled_start: "2026-09-26T13:00:00Z", scheduled_end: "2026-09-26T14:00:00Z" }] });
+    expect(cardValue("Exceptions")).toBe("1");
+    expect(cardValue("Completed")).toBe("1");
+    expect(cardValue("Scheduled")).toBe("0");
+  });
+});
+
 describe("service task editing", () => {
   it("locks a submitted requirement and retains its draft for one retry after failure", () => {
     const dialog = nodes(render()).find(node => typeof node.type === "function" && node.type.name === "RequirementDialog")!;
