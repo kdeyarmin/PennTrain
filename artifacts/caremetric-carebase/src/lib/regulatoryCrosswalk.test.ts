@@ -92,6 +92,27 @@ describe("regulatory crosswalk", () => {
     expect(site?.nextDueDate).toBe("2026-12-01");
   });
 
+  it("reads a clearance as overdue on the earlier facility policy date", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      credentials: [{ status: "expired", expiration_date: "2027-01-01", policy_renewal_due_date: "2026-07-01" }],
+    }, "org_admin");
+    const training = rows.find((row) => row.id === "staff-training");
+    expect(training?.gapCount).toBe(1);
+    expect(training?.status).toBe("overdue");
+    expect(training?.nextDueDate).toBe("2026-07-01");
+  });
+
+  it("schedules a due-soon clearance on the policy date, not the later document expiration", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      credentials: [{ status: "due_soon", expiration_date: "2028-06-01", policy_renewal_due_date: "2026-09-01" }],
+    }, "org_admin");
+    const training = rows.find((row) => row.id === "staff-training");
+    expect(training?.status).toBe("needs_attention");
+    expect(training?.nextDueDate).toBe("2026-09-01");
+  });
+
   it("keeps auditor access read-only", () => {
     expect(canManageRegulatoryCrosswalk("auditor")).toBe(false);
     expect(baseRows().every((row) => row.canEdit === false)).toBe(true);

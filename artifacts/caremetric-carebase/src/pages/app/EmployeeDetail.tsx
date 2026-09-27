@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { computeEmployeeReadiness } from "@/lib/employeeReadiness";
+import { credentialDeadlineLine } from "@/lib/credentialDeadlines";
 import { JobChecklist, type JobChecklistStep } from "@/components/checklists/JobChecklist";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -182,7 +183,7 @@ export default function EmployeeDetail() {
     return computeEmployeeReadiness({
       clearedForUnsupervisedDuty: employee.cleared_for_unsupervised_duty,
       employmentStatus: employee.status,
-      credentials: (credentials ?? []).map((c) => ({ label: c.credential_label ?? c.credential_type, status: c.status, expiration_date: c.expiration_date })),
+      credentials: (credentials ?? []).map((c) => ({ label: c.credential_label ?? c.credential_type, status: c.status, expiration_date: c.expiration_date, policy_renewal_due_date: c.policy_renewal_due_date })),
       training: (trainingRecords ?? []).map((r) => ({ label: typeName.get(r.training_type_id), status: r.status })),
       requiredItems: requiredItems ?? [],
     });
@@ -931,7 +932,7 @@ export default function EmployeeDetail() {
                         <div>
                           <p className="font-medium text-sm">{c.credential_label || c.credential_type.replace(/_/g, " ")}</p>
                           <p className="text-xs text-muted-foreground">
-                            {c.expiration_date ? `Expires ${c.expiration_date}` : "No expiration on file"}
+                            {credentialDeadlineLine(c)}
                           </p>
                         </div>
                         <StatusBadge status={c.status} type="training" />

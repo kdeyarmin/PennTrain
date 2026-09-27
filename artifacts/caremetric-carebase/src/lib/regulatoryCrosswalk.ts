@@ -1,5 +1,6 @@
 import type { Role } from "@/lib/auth";
 import type { ActiveRegulatoryRule } from "@/hooks/useRegulatoryRules";
+import { credentialGoverningDate } from "@/lib/credentialDeadlines";
 
 export type FacilityProgram = "PCH" | "ALR";
 export type CrosswalkEvidenceSource =
@@ -26,7 +27,7 @@ export interface RegulatoryObligation {
 export interface CrosswalkEvidenceInput {
   today: string;
   trainingRecords?: Array<{ status?: string | null; due_date?: string | null }>;
-  credentials?: Array<{ status?: string | null; expiration_date?: string | null }>;
+  credentials?: Array<{ status?: string | null; expiration_date?: string | null; policy_renewal_due_date?: string | null }>;
   residentItems?: Array<{ status?: string | null; due_date?: string | null; item_type?: string | null }>;
   incidents?: Array<{ status?: string | null; final_report_submitted_at?: string | null; occurred_at?: string | null }>;
   correctiveActions?: Array<{ status?: string | null; due_date?: string | null }>;
@@ -177,7 +178,16 @@ function statusIs(status: string | null | undefined, values: string[]) {
 function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvidenceInput): Pick<RegulatoryCrosswalkRow, "status" | "nextDueDate" | "evidenceCount" | "gapCount"> {
   const today = input.today;
   if (obligation.evidenceSource === "training") {
-    const records = [...(input.trainingRecords ?? []), ...(input.credentials ?? [])];
+    // A clearance is due on the earlier of its document expiration and the facility renewal policy.
+    // Reading only expiration_date left a past policy date as "needs attention" with the later
+    // document date, or with no date at all when the document has no expiration.
+    const records = [
+      ...(input.trainingRecords ?? []).map((record) => ({ status: record.status, due_date: record.due_date ?? null })),
+      ...(input.credentials ?? []).map((credential) => ({
+        status: credential.status,
+        due_date: credentialGoverningDate(credential),
+      })),
+    ];
     const gaps = records.filter((record) => statusIs(record.status, ["expired", "missing", "overdue", "due_soon"]) || isOverdue(recordDate(record), today));
     return summarize(records.length, gaps.length, dueDates(records), today, dueDates(gaps));
   }

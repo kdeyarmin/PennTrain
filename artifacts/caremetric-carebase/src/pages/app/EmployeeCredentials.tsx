@@ -17,6 +17,7 @@ import { useAssignableFacilities } from "@/hooks/useFacilityAssignments";
 import { facilityScopedErrorText } from "@/lib/rlsErrors";
 import { useUrlState } from "@/hooks/useUrlState";
 import { summarizeCredentialAnalytics } from "@/lib/credentialAnalytics";
+import { credentialDeadlineLine, credentialGoverningDate } from "@/lib/credentialDeadlines";
 import { Button } from "@/components/ui/button";
 import { QueryError } from "@/components/QueryState";
 import { Input } from "@/components/ui/input";
@@ -268,6 +269,7 @@ export default function EmployeeCredentials() {
       credential_label: c.credential_label,
       status: c.status,
       expiration_date: c.expiration_date,
+      policy_renewal_due_date: c.policy_renewal_due_date,
       warning_days: c.warning_days,
       last_verified_date: c.last_verified_date,
     })),
@@ -277,7 +279,7 @@ export default function EmployeeCredentials() {
   const topRiskCredentials = credentialSummary.topRiskCredentialIds
     .map((id) => credentialById.get(id))
     .filter((c): c is EmployeeCredential => !!c);
-  const sorted = [...allCredentials].sort((a, b) => (a.expiration_date ?? "9999").localeCompare(b.expiration_date ?? "9999"));
+  const sorted = [...allCredentials].sort((a, b) => (credentialGoverningDate(a) ?? "9999").localeCompare(credentialGoverningDate(b) ?? "9999") || a.id.localeCompare(b.id));
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -434,7 +436,7 @@ export default function EmployeeCredentials() {
                     <StatusBadge status={credential.status} type="training" />
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{credential.credential_label || credentialTypeLabel(credential.credential_type)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Expiration: {credential.expiration_date ?? "No expiration"} · Last verified: {credential.last_verified_date ?? "Not recorded"}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{credentialDeadlineLine(credential)} · Last verified: {credential.last_verified_date ?? "Not recorded"}</p>
                 </button>
               );
             })}

@@ -31,6 +31,7 @@ import {
   type TrainingDueRow,
 } from "../_shared/voiceTools.ts";
 import { paToday } from "../_shared/paDay.ts";
+import { credentialDeadlineWindowFilter, credentialsInGoverningWindow } from "../_shared/credentialGoverningDate.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 const ALLOWED_ROLES = ["platform_admin", "org_admin", "facility_manager", "auditor"];
@@ -275,18 +276,11 @@ Deno.serve(async (req: Request) => {
         // arbitrary page. The limited pages only feed topItems — the SPOKEN
         // counts come from the exact head counts alongside, so the agent
         // never states a truncated page size as a total.
-        const [training, credentials, residentItems, trainingCount, credentialsCount, residentItemsCount] = await Promise.all([
+        const [training, residentItems, trainingCount, residentItemsCount, credentialsDue] = await Promise.all([
           callerClient.from("employee_training_records")
             .select("status,due_date")
             .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through)
             .order("due_date", { ascending: true }).limit(DEADLINE_ROW_LIMIT),
-          // credential_label is deliberately not selected: it is free text that
-          // can carry a person's name, and summarizeDeadlines only speaks the
-          // constrained credential_type.
-          callerClient.from("employee_credentials")
-            .select("credential_type,status,expiration_date")
-            .eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through)
-            .order("expiration_date", { ascending: true }).limit(DEADLINE_ROW_LIMIT),
           callerClient.from("resident_compliance_items")
             .select("item_type,status,due_date")
             .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through)
@@ -294,14 +288,30 @@ Deno.serve(async (req: Request) => {
           callerClient.from("employee_training_records")
             .select("*", { count: "exact", head: true })
             .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through),
-          callerClient.from("employee_credentials")
-            .select("*", { count: "exact", head: true })
-            .eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through),
           callerClient.from("resident_compliance_items")
             .select("*", { count: "exact", head: true })
             .eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through),
+          // Either column can be the earlier date. Page the wide match, then keep
+          // only rows whose governing date is inside the window, so a later
+          // document expiration cannot hide or inflate a facility renewal.
+          (async () => {
+            const matched: CredentialRow[] = [];
+            for (let from = 0; ;) {
+              const page = await callerClient.from("employee_credentials")
+                .select("credential_type,status,expiration_date,policy_renewal_due_date")
+                .eq("facility_id", facilityId)
+                .or(credentialDeadlineWindowFilter(asOf, through))
+                .order("id", { ascending: true })
+                .range(from, from + 999);
+              if (page.error) throw new Error(`deadline query: ${page.error.message}`);
+              const data = (page.data ?? []) as CredentialRow[];
+              matched.push(...data);
+              if (data.length < 1000) return credentialsInGoverningWindow(matched, asOf, through);
+              from += data.length;
+            }
+          })(),
         ]);
-        for (const result of [training, credentials, residentItems, trainingCount, credentialsCount, residentItemsCount]) {
+        for (const result of [training, residentItems, trainingCount, residentItemsCount]) {
           if (result.error) throw new Error(`deadline query: ${result.error.message}`);
         }
         if (!await recordVoiceToolAudit(adminClient!, {
@@ -309,7 +319,7 @@ Deno.serve(async (req: Request) => {
           detail: {
             days,
             trainingDue: trainingCount.count,
-            credentialsExpiring: credentialsCount.count,
+            credentialsExpiring: credentialsDue.length,
             residentItemsDue: residentItemsCount.count,
           },
         })) {
@@ -320,11 +330,11 @@ Deno.serve(async (req: Request) => {
           result: summarizeDeadlines(
             days,
             (training.data ?? []) as TrainingDueRow[],
-            (credentials.data ?? []) as CredentialRow[],
+            credentialsDue,
             (residentItems.data ?? []) as ResidentItemRow[],
             {
               trainingDue: trainingCount.count,
-              credentialsExpiring: credentialsCount.count,
+              credentialsExpiring: credentialsDue.length,
               residentItemsDue: residentItemsCount.count,
             },
           ),

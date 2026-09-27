@@ -237,6 +237,23 @@ Deno.test("summarizeDeadlines never speaks credential_label and degrades to a ge
   assertEquals(JSON.stringify(result).includes("Smith"), false);
 });
 
+Deno.test("summarizeDeadlines speaks the earlier facility policy date", () => {
+  const result = summarizeDeadlines(
+    30,
+    [],
+    [
+      { credential_type: "tb_screening", status: "due_soon", expiration_date: "2028-01-01", policy_renewal_due_date: "2026-07-20" },
+      { credential_type: "act34_criminal_history", status: "due_soon", expiration_date: null, policy_renewal_due_date: "2026-07-21" },
+    ],
+    [],
+  );
+  assertEquals(result.topItems, [
+    { kind: "credential", label: "tb screening expiring", dueOn: "2026-07-20" },
+    { kind: "credential", label: "act34 criminal history expiring", dueOn: "2026-07-21" },
+  ]);
+  assertEquals(JSON.stringify(result).includes("2028"), false);
+});
+
 Deno.test("summarizeDeadlines speaks the exact totals, not the row-page sizes", () => {
   // A facility with 250 training records due only pages DEADLINE_ROW_LIMIT
   // rows; the exact head-count totals must win over the page lengths.
