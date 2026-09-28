@@ -220,7 +220,7 @@ export default function RegulatoryCrosswalk() {
             <SelectTrigger aria-label="Documentation source"><SelectValue placeholder="Documentation source" /></SelectTrigger>
             <SelectContent><SelectItem value="all">All sources</SelectItem>{Object.entries(SOURCE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
           </Select>
-          <Input value={citation} onChange={(event) => setCitation(event.target.value)} placeholder="Citation or requirement" />
+          <Input value={citation} onChange={(event) => setCitation(event.target.value)} placeholder="Citation or requirement" aria-label="Search citations or requirements" />
         </CardContent>
       </Card>
 

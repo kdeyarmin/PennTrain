@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGetInspectionItemByQrToken } from "@/hooks/useInspectionItems";
 import { useGetMaintenanceLocationByQrToken } from "@/hooks/useWorkOrders";
 import { useAuth } from "@/lib/auth";
+import { QueryError } from "@/components/QueryState";
 
 export default function MaintenanceScan() {
   const { kind, token } = useParams<{ kind: "asset" | "location"; token: string }>();
@@ -24,7 +25,8 @@ export default function MaintenanceScan() {
     : [location.data?.room_number, location.data?.location_detail].filter(Boolean).join(" · ");
 
   if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-  if (isError || !recordId || !label) {
+  if (isError) return <div className="mx-auto max-w-lg space-y-4"><QueryError what="this maintenance QR code" error={isAsset ? asset.error : location.error} onRetry={() => void (isAsset ? asset.refetch() : location.refetch())} /><Button asChild variant="outline"><Link href="/app/maintenance">Open maintenance</Link></Button></div>;
+  if (!recordId || !label) {
     return (
       <Card className="mx-auto max-w-lg">
         <CardContent className="flex flex-col items-center gap-3 py-10 text-center">

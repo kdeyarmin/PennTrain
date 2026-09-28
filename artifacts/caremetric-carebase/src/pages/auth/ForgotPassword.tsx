@@ -67,12 +67,12 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden">
+    <main className="min-h-screen w-full flex items-center justify-center relative overflow-hidden py-8">
       <AuthBackground />
 
       <div className="w-full max-w-[420px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
-          <LogoMark className="h-20 w-20" />
+          <Link href="/" aria-label="CareMetric home"><LogoMark className="h-20 w-20" /></Link>
           <div className="space-y-1.5">
             <h1 className="text-[28px] font-bold tracking-tight" style={{ color: BRAND_BLUE }}>
               <BrandName />
@@ -113,12 +113,12 @@ export default function ForgotPassword() {
                     <Mail className="mr-2 h-4 w-4" />
                     Try a different email
                   </Button>
-                  <Link href="/login">
-                    <Button variant="ghost" className="w-full" type="button">
+                  <Button asChild variant="ghost" className="w-full">
+                    <Link href="/login">
                       <ArrowLeft className="mr-2 h-4 w-4" />
                       Back to sign in
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -128,6 +128,8 @@ export default function ForgotPassword() {
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -149,12 +151,12 @@ export default function ForgotPassword() {
                     </>
                   )}
                 </Button>
-                <Link href="/login">
-                  <Button variant="ghost" className="w-full" type="button">
+                <Button asChild variant="ghost" className="w-full">
+                  <Link href="/login">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to sign in
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </form>
             )}
           </CardContent>
@@ -164,6 +166,6 @@ export default function ForgotPassword() {
           55 Pa. Code Chapters 2600 &amp; 2800 Compliance Platform
         </p>
       </div>
-    </div>
+    </main>
   );
 }

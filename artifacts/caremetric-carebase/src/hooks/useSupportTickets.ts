@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { storageSafeFileName } from "@/lib/storagePaths";
 import { hasDefinitivePostgresWriteRejection } from "@/lib/postgresWriteOutcome";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
-import { containsFilterValue } from "@/lib/utils";
+import { containsFilterValue, escapeLikePattern } from "@/lib/utils";
 
 export type SupportTicket = Tables<"support_tickets">;
 export type SupportTicketUpdate = TablesUpdate<"support_tickets">;
@@ -25,6 +25,10 @@ export interface ListSupportTicketsFilters {
   status?: string;
   organizationId?: string;
   search?: string;
+  category?: string;
+  subjectPrefix?: string;
+  /** Match subject text after subjectPrefix, excluding category and the prefix itself. */
+  subjectSearch?: string;
 }
 
 // RLS (support_tickets_select) already scopes this to "my own tickets" for every
@@ -57,6 +61,10 @@ export function useListSupportTickets(filters: ListSupportTicketsFilters = {}) {
           .range(from, from + pageSize - 1);
         if (filters.status) query = query.eq("status", filters.status);
         if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
+        if (filters.category) query = query.eq("category", filters.category);
+        if (filters.subjectPrefix) query = query.like("subject", `${escapeLikePattern(filters.subjectPrefix)}%`);
+        const subjectSearch = filters.subjectSearch?.trim();
+        if (subjectSearch) query = query.ilike("subject", `${escapeLikePattern(filters.subjectPrefix ?? "")}%${escapeLikePattern(subjectSearch)}%`);
         const search = filters.search?.trim();
         if (search) {
           const like = containsFilterValue(search);

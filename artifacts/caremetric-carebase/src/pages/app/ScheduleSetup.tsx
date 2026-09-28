@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { Link } from "wouter";
+import { useUrlState } from "@/hooks/useUrlState";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import {
@@ -39,14 +40,15 @@ import { formatTimeLabel, WEEKDAY_LABELS } from "@/lib/scheduleDates";
 import { isSpecialCareUnit } from "@/lib/specialCareCompliance";
 import { QueryError } from "@/components/QueryState";
 
+const SETUP_FILTERS = { facilityId: "" };
+
 export default function ScheduleSetup() {
   const __fieldIds = useId();
-  const [, navigate] = useLocation();
   const { user } = useAuth();
   const facilitiesQuery = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const { data: facilities } = facilitiesQuery;
-  const [facilityId, setFacilityId] = useState<string>("");
-  const activeFacilityId = facilityId || facilities?.[0]?.id || "";
+  const [{ facilityId }, setFilters] = useUrlState(SETUP_FILTERS);
+  const activeFacilityId = (facilityId ? facilities?.find(facility => facility.id === facilityId) : facilities?.[0])?.id || "";
 
   return (
     <div className="space-y-6">
@@ -60,9 +62,11 @@ export default function ScheduleSetup() {
         />
       )}
       <div>
-        <Button variant="ghost" size="sm" className="mb-1 -ml-2" onClick={() => navigate("/app/schedule")}>
+        <Button asChild variant="ghost" size="sm" className="mb-1 -ml-2">
+          <Link href={`/app/schedule${activeFacilityId ? `?facilityId=${encodeURIComponent(activeFacilityId)}` : ""}`}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back to Schedules
+          </Link>
         </Button>
         <h1 className="text-2xl font-bold tracking-tight">Scheduling Setup</h1>
         <p className="text-muted-foreground">
@@ -70,9 +74,9 @@ export default function ScheduleSetup() {
         </p>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Label htmlFor={`${__fieldIds}-facility`} className="text-sm text-muted-foreground shrink-0">Facility</Label>
-        <Select value={activeFacilityId} onValueChange={setFacilityId}>
+        <Select value={activeFacilityId} onValueChange={value => setFilters({ facilityId: value })}>
           <SelectTrigger id={`${__fieldIds}-facility`} className="w-64">
             <SelectValue placeholder="Select a facility" />
           </SelectTrigger>
@@ -114,7 +118,7 @@ export default function ScheduleSetup() {
       {!activeFacilityId && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Select a facility to manage its units, shift types, and typical patterns.
+            {facilitiesQuery.isLoading ? "Loading your facilities…" : facilityId ? "The linked facility is unavailable. Choose an available facility above." : "Select a facility to manage its units, shift types, and typical patterns."}
           </CardContent>
         </Card>
       )}

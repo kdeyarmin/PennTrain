@@ -25,6 +25,7 @@ vi.mock("react", async original => ({
 
 vi.mock("wouter", () => ({ Link: "a" }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "operator", role: "platform_admin", organizationId: h.org } }) }));
+vi.mock("@/hooks/useGovernedRecordOptions", () => ({ useAvailableGovernedRecord: () => true }));
 vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/hooks/usePlatformSettings", () => ({ useListPlatformSettings: () => ({ data: h.settings }), useUpdatePlatformSetting: () => ({ mutate: h.update }) }));
@@ -67,7 +68,7 @@ function render(Page: () => ReactNode) {
 }
 const click = (node: Node) => (node.props.onClick as () => unknown)();
 const textMatches = (node: Node, text: string) => node.props.children === text || Array.isArray(node.props.children) && node.props.children.some(child => typeof child === "string" && child.trim() === text);
-const change = (Page: () => ReactNode, id: string, value: string) => (render(Page).find(node => node.props.id === id)!.props.onChange as (event: unknown) => void)({ target: { value } });
+const change = (Page: () => ReactNode, id: string, value: string) => { const node = render(Page).find(node => node.props.id === id)!; if (node.props.onValueChange) (node.props.onValueChange as (value: string) => void)(value); else (node.props.onChange as (event: unknown) => void)({ target: { value } }); };
 const unmount = () => { h.cleanups.forEach(cleanup => { if (typeof cleanup === "function") cleanup(); }); h.cleanups = []; };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(yes => { resolve = yes; }); return { promise, resolve }; }
 beforeEach(() => {

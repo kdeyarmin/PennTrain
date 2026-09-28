@@ -198,9 +198,9 @@ export default function MyAttestations() {
                       ? "text-amber-600 font-medium"
                       : "";
                 return (
-                <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
+                <div key={a.id} className="flex flex-col gap-3 p-3 rounded-lg border sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{titleFor(a)}</p>
+                    <p className="font-medium text-sm break-words">{titleFor(a)}</p>
                     <p className={`text-xs ${dueTone || "text-muted-foreground"}`}>
                       {a.status === "attested"
                         ? `Attested ${fmtDate(facilityDateOf(a.attested_at))}`
@@ -209,7 +209,7 @@ export default function MyAttestations() {
                           : `Due ${fmtDate(a.due_date)}${dueDistance ? ` · ${dueDistance}` : ""}`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <AttestationBadge attestation={a} />
                     <Button variant={actionable ? "default" : "outline"} onClick={() => openReview(a)}>
                       {actionable ? "Review & Attest" : "View"}
@@ -254,7 +254,10 @@ export default function MyAttestations() {
               </a>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Document unavailable.</p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">The document could not be opened. Retry, or ask your facility administrator to check the policy document.</p>
+              {reviewing && <Button variant="outline" onClick={() => void openReview(reviewing)}>Retry document</Button>}
+            </div>
           )}
 
           {reviewing && isActionable(reviewing) && (

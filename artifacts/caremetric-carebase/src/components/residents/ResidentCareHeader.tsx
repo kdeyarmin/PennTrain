@@ -29,7 +29,7 @@ const TONE_CLASS: Record<CareHeaderTone, string> = {
 
 const TONE_TEXT: Record<CareHeaderTone, string> = {
   neutral: "",
-  attention: "text-amber-700 dark:text-amber-500",
+  attention: "text-amber-700",
   critical: "text-destructive",
 };
 
@@ -144,7 +144,7 @@ export function ResidentCareHeaderPanel({
                   className={hospitalStateTone(data.hospital.state) === "critical"
                     ? "border-destructive text-destructive"
                     : hospitalStateTone(data.hospital.state) === "attention"
-                      ? "border-amber-500 text-amber-700 dark:text-amber-500"
+                      ? "border-amber-500 text-amber-700"
                       : undefined}
                 >
                   {hospitalStateLabel(data.hospital.state)}
@@ -182,7 +182,7 @@ export function ResidentCareHeaderPanel({
         </div>
 
         {isCareProfileStale(data.care.asOf) && (
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-500">
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             {data.care.asOf
               ? `Care header last reviewed ${formatDateOnly(facilityDateOf(data.care.asOf))} — confirm it still matches the resident.`

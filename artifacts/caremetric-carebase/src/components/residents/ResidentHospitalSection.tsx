@@ -188,8 +188,8 @@ export default function ResidentHospitalSection({
             </div>
             {state.applicable && (
               state.complete
-                ? <Badge variant="outline" className="border-emerald-600 text-emerald-700 dark:text-emerald-500">Reconciled</Badge>
-                : <Badge variant="outline" className={state.overdue ? "border-destructive text-destructive" : "border-amber-500 text-amber-700 dark:text-amber-500"}>
+                ? <Badge variant="outline" className="border-emerald-600 text-emerald-700">Reconciled</Badge>
+                : <Badge variant="outline" className={state.overdue ? "border-destructive text-destructive" : "border-amber-500 text-amber-700"}>
                   {state.overdue
                     ? `Overdue by ${Math.abs(state.hoursRemaining ?? 0)}h`
                     : `${state.hoursRemaining ?? 0}h remaining`}

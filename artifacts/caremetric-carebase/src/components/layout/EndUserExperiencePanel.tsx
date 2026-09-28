@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { AlertCircle, BadgeCheck, CalendarClock, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Compass, Gauge, HelpCircle, Info, Lightbulb, ListChecks, RefreshCw, Rocket, ShieldCheck, Smartphone, Sparkles, Star, Wifi } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { BadgeCheck, CalendarClock, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Compass, Gauge, Info, ListChecks, RefreshCw, Rocket, ShieldCheck, Smartphone, Sparkles, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { canViewPath, commandActionsForRole, searchPages } from "@/lib/appDomains";
+import { canViewPath, commandActionsForRole } from "@/lib/appDomains";
 import { useAuth, type Role } from "@/lib/auth";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
@@ -69,11 +68,11 @@ function experiencePanelCollapsedKey(userId: string): string {
 }
 
 function loadExperiencePanelCollapsed(userId: string | undefined): boolean {
-  if (!userId) return false;
+  if (!userId) return true;
   try {
-    return window.localStorage.getItem(experiencePanelCollapsedKey(userId)) === "true";
+    return window.localStorage.getItem(experiencePanelCollapsedKey(userId)) !== "false";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -91,6 +90,7 @@ export function EndUserExperiencePanel() {
   const moduleAccess = useProductModuleAccess();
   const navigation = useNavigationWorkspace();
   const [collapsed, setCollapsed] = useState(() => loadExperiencePanelCollapsed(user?.id));
+  useEffect(() => setCollapsed(loadExperiencePanelCollapsed(user?.id)), [user?.id]);
 
   const trainingOnly = moduleAccess.enabledModules.has("train") && [...moduleAccess.enabledModules].every(module => module === "core" || module === "train");
   const locationPath = location.split(/[?#]/, 1)[0];
@@ -127,14 +127,8 @@ export function EndUserExperiencePanel() {
 
   // Training has its own saved setup checklist and next-course guidance. The general
   // workspace panel would push those primary actions below the first phone screen.
-  if (!user || (trainingOnly && user.role !== "platform_admin") || cards.length === 0) return null;
-
-  const explainers = [
-    { label: "What to do next", icon: Lightbulb },
-    { label: "Why you see it", icon: HelpCircle },
-    { label: "Mobile friendly", icon: Smartphone },
-  ];
-  const relatedPages = searchPages(locationPath.split("/").filter(Boolean).at(-1) ?? "today", user.role, moduleAccess.enabledModules).slice(0, 3);
+  const isWorkspaceHome = ["/app", "/app/today", "/admin", "/trainer", "/me"].includes(locationPath.replace(/\/$/, ""));
+  if (!user || !isWorkspaceHome || (trainingOnly && user.role !== "platform_admin") || cards.length === 0) return null;
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -145,12 +139,8 @@ export function EndUserExperiencePanel() {
   return (
     <section className="mb-5 space-y-3" aria-label="Personalized workflow guidance">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/40 px-3 py-2 text-xs text-foreground">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="gap-1"><Star className="h-3 w-3" /> Personalized workspace</Badge>
-          {!collapsed && explainers.map((item) => <span key={item.label} className="inline-flex items-center gap-1"><item.icon className="h-3.5 w-3.5" />{item.label}</span>)}
-        </div>
+        <h2 className="font-medium">Quick start &amp; recent pages</h2>
         <div className="flex items-center gap-2">
-          {!collapsed && <span className="inline-flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />AI/automation outputs stay in human review until accepted.</span>}
           <Button
             type="button"
             variant="ghost"
@@ -185,12 +175,6 @@ export function EndUserExperiencePanel() {
               </Card>
             ))}
           </div>
-          {!!relatedPages.length && (
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Related:</span>
-              {relatedPages.map((page) => <Button key={page.path} asChild variant="ghost" size="sm" className="h-7 px-2"><Link href={page.path}>{page.label}</Link></Button>)}
-            </div>
-          )}
         </div>
       )}
     </section>

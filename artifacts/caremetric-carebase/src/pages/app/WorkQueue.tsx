@@ -117,7 +117,7 @@ export default function WorkQueue() {
   // create_deduplicated_work_item runs through assert_phase5_manager, which admits these three.
   // Offering the button to anyone else would produce a 42501 at submit rather than a hidden control.
   const canCreateWork = ["platform_admin", "org_admin", "facility_manager"].includes(user?.role ?? "");
-  const facilityScope = effectiveScope === "facility" && filters.facilityId !== "all" ? filters.facilityId : undefined;
+  const facilityScope = presentation.showFacilityFilter && filters.facilityId !== "all" ? filters.facilityId : undefined;
   const ownerScope = effectiveScope === "mine" ? user?.id : undefined;
   // In "My work" scope the queue is already pinned to the current user, so the owner dropdown is
   // meaningless there -- ignore it (and hide it below). Sending both ownerProfileId=<me> and a
@@ -169,6 +169,16 @@ export default function WorkQueue() {
   const total = workItems.data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const detailBase = workQueuePathForRole(user?.role);
+  const hasFilters = Object.entries(URL_DEFAULTS).some(([key, value]) => key !== "scope" && key !== "page" && filters[key as keyof typeof filters] !== value);
+  const resetFilters = () => {
+    setSearchInput("");
+    setFilters({ ...URL_DEFAULTS, scope: effectiveScope });
+  };
+  useEffect(() => {
+    if (workItems.data && !workItems.isFetching && !workItems.isPlaceholderData && !workItems.isError && page > totalPages) {
+      setFilters({ page: String(totalPages) });
+    }
+  }, [workItems.data, workItems.isFetching, workItems.isPlaceholderData, workItems.isError, page, totalPages, setFilters]);
 
   return (
     <div className="space-y-6">
@@ -191,6 +201,7 @@ export default function WorkQueue() {
             <Button
               size="sm"
               variant={effectiveScope === "mine" ? "default" : "ghost"}
+              aria-pressed={effectiveScope === "mine"}
               onClick={() => setFilters({ scope: "mine", page: "1" })}
             >
               My work
@@ -198,6 +209,7 @@ export default function WorkQueue() {
             <Button
               size="sm"
               variant={effectiveScope === "facility" ? "default" : "ghost"}
+              aria-pressed={effectiveScope === "facility"}
               onClick={() => setFilters({ scope: "facility", page: "1" })}
             >
               Facility
@@ -206,6 +218,7 @@ export default function WorkQueue() {
               <Button
                 size="sm"
                 variant={effectiveScope === "organization" ? "default" : "ghost"}
+                aria-pressed={effectiveScope === "organization"}
                 onClick={() => setFilters({ scope: "organization", page: "1" })}
               >
                 Organization
@@ -216,7 +229,7 @@ export default function WorkQueue() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: "Open", value: summary.open, icon: Clock3, className: "text-blue-600" },
           { label: "Overdue", value: summary.overdue, icon: AlertTriangle, className: "text-red-600" },
@@ -224,7 +237,7 @@ export default function WorkQueue() {
           { label: "Pending approval", value: summary.pendingApproval, icon: CheckCircle2, className: "text-purple-600" },
         ].map(metric => (
           <Card key={metric.label}>
-            <CardContent className="flex items-center gap-3 pt-6">
+            <CardContent className="flex items-center gap-3 p-4">
               <metric.icon className={`h-7 w-7 ${metric.className}`} />
               <div>
                 <p className="text-2xl font-bold">{summaryQuery.isLoading || summaryQuery.isError ? "—" : metric.value}</p>
@@ -316,6 +329,7 @@ export default function WorkQueue() {
             )}
           </div>
 
+          {hasFilters && <Button variant="ghost" size="sm" onClick={resetFilters}>Clear filters</Button>}
           {workItems.isError ? (
             <QueryError what="operational work" error={workItems.error as Error} onRetry={() => workItems.refetch()} />
           ) : workItems.isLoading ? (
@@ -332,7 +346,27 @@ export default function WorkQueue() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="space-y-3 md:hidden">
+                {rows.map(item => (
+                  <article key={item.id} className="space-y-3 rounded-lg border p-4">
+                    <Link href={`${detailBase}/${item.id}`} className="block break-words font-semibold text-primary underline-offset-4 hover:underline">
+                      {item.title}
+                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className={PRIORITY_CLASS[item.priority]}>{WORK_ITEM_PRIORITY_LABELS[item.priority] ?? item.priority}</Badge>
+                      <Badge variant="outline" className={STATE_CLASS[item.state]}>{WORK_ITEM_STATE_LABELS[item.state] ?? item.state}</Badge>
+                      {item.escalated_at && <Badge variant="destructive">Escalated</Badge>}
+                    </div>
+                    <dl className="space-y-1 text-sm">
+                      <div className={isWorkItemOverdue(item, now) ? "font-medium text-red-700" : "text-muted-foreground"}><dt className="inline">{isWorkItemOverdue(item, now) ? "Overdue: " : "Due: "}</dt><dd className="inline">{formatDueDate(item.due_at)}</dd></div>
+                      {presentation.showFacilityColumn && <div><dt className="inline text-muted-foreground">Facility: </dt><dd className="inline">{item.facility?.name ?? "—"}</dd></div>}
+                      {presentation.showSourceColumn && <div><dt className="inline text-muted-foreground">Source: </dt><dd className="inline">{workItemSourceLabel(item.source_type)}</dd></div>}
+                      {presentation.showOwnerColumn && <div><dt className="inline text-muted-foreground">Owner: </dt><dd className="inline">{item.owner ? `${item.owner.first_name} ${item.owner.last_name}` : "Unassigned"}</dd></div>}
+                    </dl>
+                  </article>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="data-table min-w-[980px]">
                   <thead>
                     <tr>
@@ -352,7 +386,7 @@ export default function WorkQueue() {
                       return (
                         <tr key={item.id}>
                           <td>
-                            <p className="max-w-[280px] truncate font-medium">{item.title}</p>
+                            <Link href={`${detailBase}/${item.id}`} className="block max-w-[280px] whitespace-normal font-medium text-primary underline-offset-4 hover:underline">{item.title}</Link>
                             {item.escalated_at && <p className="text-xs text-red-600">Escalated</p>}
                           </td>
                           {presentation.showFacilityColumn && <td className="text-sm">{item.facility?.name ?? "—"}</td>}

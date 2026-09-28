@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useListAuditLogsPaginated } from "@/hooks/useAuditLogs";
 import { useListOrganizations } from "@/hooks/useOrganizations";
@@ -80,7 +80,7 @@ export default function AuditLog() {
   const page = Math.max(1, Number(filters.page) || 1);
   const hasActiveFilters = entityTypeFilter !== ENTITY_TYPE_ALL || orgFilter !== ORG_ALL || !!dateFrom || !!dateTo;
 
-  const { data: logsPage, isLoading, isError, error, refetch } = useListAuditLogsPaginated({
+  const { data: logsPage, isLoading, isFetching, isPlaceholderData, isError, error, refetch } = useListAuditLogsPaginated({
     entityType: entityTypeFilter !== ENTITY_TYPE_ALL ? entityTypeFilter : undefined,
     organizationId: isPlatformAdmin && orgFilter !== ORG_ALL ? orgFilter : undefined,
     dateFrom: dateFrom || undefined,
@@ -91,6 +91,9 @@ export default function AuditLog() {
   const logs = logsPage?.rows ?? [];
   const totalCount = logsPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  useEffect(() => {
+    if (logsPage && !isFetching && !isPlaceholderData && !isError && page > totalPages) setFilters({ page: String(totalPages) });
+  }, [logsPage, isFetching, isPlaceholderData, isError, page, totalPages, setFilters]);
 
   const { data: entityTypeOptions } = useEntityTypeOptions();
   const { data: profileNameMap } = useProfileNameMap(
@@ -295,17 +298,18 @@ export default function AuditLog() {
                   <p className="font-medium text-muted-foreground">
                     {hasActiveFilters ? "No audit log entries match these filters" : "No audit log entries yet"}
                   </p>
-                  <p className="text-sm text-muted-foreground/60 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     {hasActiveFilters
                       ? "Try widening the entity type, organization, or date range."
                       : "Activity will be recorded here as changes are made."}
                   </p>
+                  {hasActiveFilters && <Button variant="outline" className="mt-3" onClick={() => setFilters(AUDIT_LOG_FILTER_DEFAULTS)}>Clear filters</Button>}
                 </div>
               )}
             </div>
           )}
           {!isLoading && logs.length > 0 && (
-            <div className="flex items-center justify-between pt-4 mt-2 border-t border-border/60">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-2 border-t border-border/60">
               <p className="text-[13px] text-muted-foreground">
                 Showing <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</span> of {totalCount}
               </p>

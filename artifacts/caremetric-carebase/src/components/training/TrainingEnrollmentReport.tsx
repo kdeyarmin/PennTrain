@@ -10,6 +10,7 @@ import { useListEmployees } from "@/hooks/useEmployees";
 import { useListTrainingPlans } from "@/hooks/useTrainingPlans";
 import { useSetAssignmentRequirement } from "@/hooks/useTrainingProgress";
 import { useAuth } from "@/lib/auth";
+import { canViewPath } from "@/lib/appDomains";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,7 +136,7 @@ function Report({ organizationId, facilityId, employeeId }: { organizationId: st
       <Button variant="outline" onClick={() => change({ status: "completed", purpose: "all", deadline: "all", dateBasis: "completed" })}>Completion register</Button>
       <Button variant="outline" onClick={() => change({ status: "all", purpose: "required", deadline: "overdue", dateBasis: "due", dateFrom: "", dateThrough: "" })}>Overdue required work</Button>
       <Button variant="outline" onClick={() => change({ status: "all", purpose: "optional", deadline: "all", dateBasis: "assigned", dateFrom: "", dateThrough: "" })}>Optional learning</Button>
-      {filters.facilityId && filters.employeeId && <Button asChild variant="outline"><Link href={`/app/train?facilityId=${filters.facilityId}&employeeId=${filters.employeeId}&tab=certificates`}>Print employee certificates</Link></Button>}
+      {filters.facilityId && filters.employeeId && canViewPath("/app/train", user?.role) && <Button asChild variant="outline"><Link href={`/app/train?facilityId=${filters.facilityId}&employeeId=${filters.employeeId}&tab=certificates`}>Print employee certificates</Link></Button>}
     </div>
     <fieldset disabled={exporting} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {!facilityId && <label className="text-sm">Report facility<select className={selectClass} value={filters.facilityId || ""} onChange={event => change({ facilityId: event.target.value || undefined, employeeId: undefined, planId: undefined, department: undefined })}><option value="">All accessible facilities</option>{facilities.data?.map(facility => <option key={facility.id} value={facility.id}>{facility.name}</option>)}</select></label>}

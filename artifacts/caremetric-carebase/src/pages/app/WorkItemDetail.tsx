@@ -59,6 +59,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { GovernedRecordPicker } from "@/components/GovernedRecordPicker";
+import { useGovernedRecordOptions } from "@/hooks/useGovernedRecordOptions";
 
 function formatTimestamp(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "—";
@@ -107,11 +109,20 @@ export default function WorkItemDetail() {
   const [dependencyType, setDependencyType] = useState("blocks");
   const [evidenceType, setEvidenceType] = useState("");
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
-  const [linkedRecordType, setLinkedRecordType] = useState("");
+  const [linkedRecordType, setLinkedRecordType] = useState<"incident" | "complaint" | "work_item" | "other">("incident");
+  const [linkedEvidenceType, setLinkedEvidenceType] = useState("");
+  const [otherRecordType, setOtherRecordType] = useState("");
+  const [otherEvidenceType, setOtherEvidenceType] = useState("");
   const [linkedRecordId, setLinkedRecordId] = useState("");
   const [effectivenessResult, setEffectivenessResult] = useState("");
 
   const work = query.data;
+  useEffect(() => {
+    setLinkedRecordId("");
+    setLinkedEvidenceType("");
+    setEvidenceType("");
+    setEvidenceFile(null);
+  }, [work?.id]);
   useEffect(() => {
     if (!work) return;
     setOwnerId(work.owner_profile_id);
@@ -125,9 +136,15 @@ export default function WorkItemDetail() {
   const canContribute = isManager || isOwner;
   const backPath = workQueuePathForRole(user?.role);
   const sourcePath = work ? viewablePathForRole(sourceRouteForWorkItem(work) ?? "", user?.role) : null;
+  const linkedRecords = useGovernedRecordOptions(linkedRecordType === "other" ? "incident" : linkedRecordType, canContribute && linkedRecordType !== "other" ? work?.organization_id : undefined, work?.facility_id);
+  const linkedRecordReady = linkedRecordType === "other"
+    ? otherRecordType.trim().length >= 2 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(linkedRecordId)
+    : !linkedRecords.isError && !linkedRecords.isLoading && linkedRecordId !== work?.id && !!linkedRecords.data?.some(record => record.id === linkedRecordId);
+  const linkedDocumentationType = linkedEvidenceType === "__other__" ? otherEvidenceType.trim() : linkedEvidenceType;
   const activityReady = !activity.isLoading && !activity.isError && activity.data !== undefined;
   const isWatching = activity.data?.watchers.some(watcher => watcher.profile_id === user?.id) ?? false;
   const requiredEvidence = work?.template?.required_evidence_types ?? [];
+  const documentationTypes = [...new Set([...requiredEvidence, "supporting_document", "photograph", "completion_record"])];
   const submittedEvidenceTypes = new Set(activity.data?.evidence.map(evidence => evidence.evidence_type));
   const missingEvidence = activityReady ? requiredEvidence.filter(type => !submittedEvidenceTypes.has(type)) : requiredEvidence;
   const blockingDependencies = activityReady
@@ -301,10 +318,10 @@ export default function WorkItemDetail() {
               ) : activity.data?.evidence.length ? (
                 <div className="divide-y rounded-md border">
                   {activity.data.evidence.map(evidence => (
-                    <div key={evidence.id} className="flex items-center justify-between gap-3 p-3 text-sm">
+                    <div key={evidence.id} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm">
                       <div>
                         <p className="font-medium">{evidence.evidence_type.replace(/_/g, " ")}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="break-all text-xs text-muted-foreground">
                           {evidence.storage_path?.split("/").at(-1) ?? `${evidence.linked_record_type} record`} · {formatTimestamp(evidence.created_at)}
                         </p>
                       </div>
@@ -334,39 +351,51 @@ export default function WorkItemDetail() {
                     <Select value={evidenceType} onValueChange={setEvidenceType}>
                       <SelectTrigger id={`${__fieldIds}-upload-documentation`}><SelectValue placeholder="Documentation type" /></SelectTrigger>
                       <SelectContent>
-                        {requiredEvidence.map(type => <SelectItem key={type} value={type}>{type.replace(/_/g, " ")}</SelectItem>)}
-                        <SelectItem value="supporting_document">Supporting document</SelectItem>
-                        <SelectItem value="photograph">Photograph</SelectItem>
-                        <SelectItem value="completion_record">Completion record</SelectItem>
+                        {documentationTypes.map(type => <SelectItem key={type} value={type}>{type.replace(/_/g, " ")}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Input type="file" onChange={event => setEvidenceFile(event.target.files?.[0] ?? null)} />
+                    <Input type="file" aria-label="Documentation file" onChange={event => setEvidenceFile(event.target.files?.[0] ?? null)} />
                     <Button onClick={handleEvidenceUpload} disabled={!evidenceFile || !evidenceType || uploadEvidence.isPending}>
                       <FileUp className="mr-2 h-4 w-4" /> {uploadEvidence.isPending ? "Uploading..." : "Upload"}
                     </Button>
                   </div>
                   <div className="space-y-3">
                     <Label htmlFor={`${__fieldIds}-link-governed-record`}>Link governed record</Label>
-                    <Input id={`${__fieldIds}-link-governed-record`} value={linkedRecordType} onChange={event => setLinkedRecordType(event.target.value)} placeholder="Record type, e.g. incident" />
-                    <Input value={linkedRecordId} onChange={event => setLinkedRecordId(event.target.value)} placeholder="Record UUID" />
-                    <Input value={evidenceType} onChange={event => setEvidenceType(event.target.value)} placeholder="Documentation type" />
+                    <Select value={linkedRecordType} onValueChange={value => { setLinkedRecordType(value as typeof linkedRecordType); setLinkedRecordId(""); }}>
+                      <SelectTrigger id={`${__fieldIds}-link-governed-record`}><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="incident">Incident</SelectItem><SelectItem value="complaint">Complaint</SelectItem><SelectItem value="work_item">Work item</SelectItem><SelectItem value="other">Another record type (advanced)</SelectItem></SelectContent>
+                    </Select>
+                    {linkedRecordType !== "other" ? <GovernedRecordPicker key={`${work.id}-${linkedRecordType}`} id={`${__fieldIds}-linked-record`} label="Record" kind={linkedRecordType} value={linkedRecordId} onValueChange={setLinkedRecordId} organizationId={work.organization_id} facilityId={work.facility_id} /> : <div className="space-y-2 rounded-md border p-3">
+                      <p className="text-xs text-muted-foreground">For record types without a searchable directory. Enter the type and reference from the source record.</p>
+                      <Label htmlFor={`${__fieldIds}-other-record-type`}>Record type</Label><Input id={`${__fieldIds}-other-record-type`} value={otherRecordType} onChange={event => setOtherRecordType(event.target.value)} placeholder="Record type from the source" />
+                      <Label htmlFor={`${__fieldIds}-other-record-id`}>Record reference (UUID)</Label><Input id={`${__fieldIds}-other-record-id`} value={linkedRecordId} onChange={event => setLinkedRecordId(event.target.value.trim())} />
+                    </div>}
+                    <p className="text-xs text-muted-foreground">Link documentation for this facility, or upload a file.</p>
+                    {linkedRecordId === work.id && <p className="text-sm text-destructive">Choose another work item; this item cannot document itself.</p>}
+                    <Label htmlFor={`${__fieldIds}-linked-documentation-type`}>Linked documentation type</Label>
+                    <Select value={linkedEvidenceType} onValueChange={setLinkedEvidenceType}>
+                      <SelectTrigger id={`${__fieldIds}-linked-documentation-type`}><SelectValue placeholder="Choose documentation type" /></SelectTrigger>
+                      <SelectContent>{documentationTypes.map(type => <SelectItem key={type} value={type}>{type.replace(/_/g, " ")}</SelectItem>)}<SelectItem value="__other__">Another documentation type</SelectItem></SelectContent>
+                    </Select>
+                    {linkedEvidenceType === "__other__" && <Input aria-label="Custom documentation type" value={otherEvidenceType} onChange={event => setOtherEvidenceType(event.target.value)} placeholder="Documentation type from the source" />}
                     <Button
                       variant="outline"
-                      disabled={!linkedRecordType.trim() || !linkedRecordId || !evidenceType.trim() || submitLinkedEvidence.isPending}
-                      onClick={() => submitLinkedEvidence.mutate({
+                      disabled={!linkedRecordReady || linkedDocumentationType.length < 2 || submitLinkedEvidence.isPending}
+                      onClick={() => {
+                        if (!linkedRecordReady || linkedDocumentationType.length < 2) return;
+                        submitLinkedEvidence.mutate({
                         workItemId: work.id,
-                        evidenceType: evidenceType.trim(),
-                        linkedRecordType: linkedRecordType.trim(),
+                        evidenceType: linkedDocumentationType,
+                        linkedRecordType: linkedRecordType === "other" ? otherRecordType.trim() : linkedRecordType,
                         linkedRecordId,
                       }, {
                         onSuccess: () => {
                           toast({ title: "Record linked as documentation" });
-                          setLinkedRecordType("");
                           setLinkedRecordId("");
-                          setEvidenceType("");
+                          setLinkedEvidenceType("");
                         },
                         onError: notifyError("Couldn't link documentation"),
-                      })}
+                      }); }}
                     >
                       <Link2 className="mr-2 h-4 w-4" /> Link record
                     </Button>
@@ -391,9 +420,9 @@ export default function WorkItemDetail() {
                   {activity.data.dependencies.map(dependency => (
                     <div key={dependency.id} className="flex items-center justify-between rounded-md border p-3 text-sm">
                       <div>
-                        <Link href={`${backPath}/${dependency.dependency?.id}`} className="font-medium hover:underline">
-                          {dependency.dependency?.title ?? "Unavailable work item"}
-                        </Link>
+                        {dependency.dependency ? <Link href={`${backPath}/${dependency.dependency.id}`} className="font-medium hover:underline">
+                          {dependency.dependency.title}
+                        </Link> : <span className="text-muted-foreground">Unavailable work item</span>}
                         <p className="text-xs text-muted-foreground">
                           {dependency.dependency_type.replace(/_/g, " ")} · {WORK_ITEM_STATE_LABELS[dependency.dependency?.state ?? ""] ?? dependency.dependency?.state}
                         </p>
@@ -461,7 +490,7 @@ export default function WorkItemDetail() {
             <CardContent className="space-y-4">
               {canContribute && (
                 <div className="space-y-2">
-                  <Textarea value={comment} onChange={event => setComment(event.target.value)} placeholder="Add a progress note, blocker, or handoff..." />
+                  <Textarea aria-label="Progress note, blocker, or handoff" value={comment} onChange={event => setComment(event.target.value)} placeholder="Add a progress note, blocker, or handoff..." />
                   <Button
                     disabled={!comment.trim() || addComment.isPending}
                     onClick={() => addComment.mutate({ workItemId: work.id, body: comment.trim() }, {
@@ -627,6 +656,7 @@ export default function WorkItemDetail() {
                 <Textarea
                   value={transitionReason}
                   onChange={event => setTransitionReason(event.target.value)}
+                  aria-label="Reason for status or approval decision"
                   placeholder="Reason for this decision (required)"
                 />
                 {targetState && (

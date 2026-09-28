@@ -10,9 +10,9 @@ import {
 import { humanize } from "@/lib/utils";
 
 const KIND_STYLE: Record<PlanChangeKind, { label: string; className: string }> = {
-  added: { label: "Added", className: "border-emerald-500 text-emerald-700 dark:text-emerald-500" },
+  added: { label: "Added", className: "border-emerald-500 text-emerald-700" },
   removed: { label: "Removed", className: "border-destructive text-destructive" },
-  modified: { label: "Changed", className: "border-amber-500 text-amber-700 dark:text-amber-500" },
+  modified: { label: "Changed", className: "border-amber-500 text-amber-700" },
   unchanged: { label: "Unchanged", className: "text-muted-foreground" },
 };
 

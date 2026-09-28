@@ -300,7 +300,7 @@ function RevisionRow({
   const review = useReviewGovernedRevision();
   const publish = usePublishGovernedRevision();
   const [reason, setReason] = useState("");
-  const step = nextStep(revision.state);
+  const step = user?.role === "platform_admin" ? nextStep(revision.state) : "none";
   const blocker = stepBlocker(
     {
       id: revision.id,
@@ -446,6 +446,8 @@ function RevisionRow({
 }
 
 export function GovernedContentRevisionsPanel() {
+  const { user } = useAuth();
+  const canManageCourses = user?.role === "platform_admin";
   const assets = useGovernedContentAssets();
   const [assetId, setAssetId] = useState("");
   const revisions = useGovernedContentRevisions(assetId || undefined);
@@ -463,10 +465,11 @@ export function GovernedContentRevisionsPanel() {
     <div className="space-y-4">
       <Alert>
         <ShieldCheck className="h-4 w-4" />
-        <AlertTitle>Four steps, and never fewer than two people</AlertTitle>
+        <AlertTitle>{canManageCourses ? "Four steps, and never fewer than two people" : "Course review history"}</AlertTitle>
         <AlertDescription>
-          An author snapshots a version, a second person reviews it, and a third step publishes it — the
-          server refuses an author who tries to review or publish their own work.
+          {canManageCourses
+            ? "An author snapshots a version, a second person reviews it, and a third step publishes it — the server refuses an author who tries to review or publish their own work."
+            : "The super admin manages course content and publication. You can view review history here, enroll students in existing courses, and recommend new courses from the course catalog."}
         </AlertDescription>
       </Alert>
 
@@ -474,11 +477,11 @@ export function GovernedContentRevisionsPanel() {
         <QueryError what="governed assets" error={assets.error} onRetry={() => void assets.refetch()} />
       )}
 
-      <RegisterAssetCard governedSourceIds={governedSourceIds} />
+      {canManageCourses && <RegisterAssetCard governedSourceIds={governedSourceIds} />}
 
       {!assets.isLoading && !assets.isError && rows.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          No course is under governed publication control yet. Register one above to start.
+          {canManageCourses ? "No course is under governed publication control yet. Register one above to start." : "No course review history is available yet."}
         </p>
       )}
 
@@ -518,7 +521,7 @@ export function GovernedContentRevisionsPanel() {
         </Card>
       )}
 
-      {selected && <AuthorRevisionCard key={selected.id} assetId={selected.id} sourceCourseId={selected.source_id} />}
+      {canManageCourses && selected && <AuthorRevisionCard key={selected.id} assetId={selected.id} sourceCourseId={selected.source_id} />}
     </div>
   );
 }

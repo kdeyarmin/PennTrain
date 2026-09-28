@@ -74,6 +74,38 @@ beforeEach(() => {
 });
 
 describe("organization settings recovery", () => {
+  it("links each visible settings shortcut to a focusable section and saves from the page bottom", () => {
+    const tree = settingsTree();
+    const shortcuts = tree.filter(node => typeof node.props.href === "string" && node.props.href.startsWith("#settings-"));
+    expect(shortcuts.length).toBeGreaterThan(5);
+    for (const shortcut of shortcuts) {
+      const target = tree.find(node => node.props.id === (shortcut.props.href as string).slice(1));
+      expect(target?.props.tabIndex).toBe(-1);
+    }
+    field("admin-default-warning-days", "60");
+    const saves = settingsTree().filter(node => node.props.children === "Save Changes");
+    expect(saves).toHaveLength(2);
+    click(saves[1]);
+    expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ default_warning_days: { default: 60 } }), expect.any(Object));
+  });
+
+  it("shows saved legacy sections under their current names and can restore them", () => {
+    h.settings = { ...freshSettings(), hidden_navigation_sections: ["Competency & Qualifications", "Credentialing & Screening", "Residents"] };
+    const showCredentials = settingsTree().find(node => node.props["aria-label"] === "Show Credentials")!;
+    expect(showCredentials.props.checked).toBe(false);
+    expect(settingsTree().find(node => node.props["aria-label"] === "Show Residents & care")!.props.checked).toBe(false);
+    (showCredentials.props.onCheckedChange as (visible: boolean) => void)(true);
+    click(settingsTree().find(node => node.props.children === "Save Changes")!);
+    expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ hidden_navigation_sections: ["Residents & care"] }), expect.any(Object));
+  });
+
+  it("saves newly hidden sections using the names the sidebar renders", () => {
+    const hideTraining = settingsTree().find(node => node.props["aria-label"] === "Hide Training")!;
+    (hideTraining.props.onCheckedChange as (visible: boolean) => void)(false);
+    click(settingsTree().find(node => node.props.children === "Save Changes")!);
+    expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ hidden_navigation_sections: ["Training"] }), expect.any(Object));
+  });
+
   it("refuses saves after a load failure instead of persisting defaults", () => {
     h.settings = {}; h.settingsError = true;
     const button = settingsTree().find(node => node.props.children === "Save Changes")!;

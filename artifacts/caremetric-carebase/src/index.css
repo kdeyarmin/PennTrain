@@ -82,6 +82,7 @@
 }
 
 :root {
+  color-scheme: only light;
   --background: 220 20% 97%;
   --foreground: 224 71% 4%;
 
@@ -148,13 +149,13 @@
   --mkt-accent: #59b2ff;
   --mkt-accent-soft: #b9e4ff;
 
-  --sidebar: 222 47% 11%;
-  --sidebar-foreground: 220 14% 96%;
-  --sidebar-border: 217 25% 20%;
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 222 47% 11%;
+  --sidebar-border: 220 13% 91%;
   --sidebar-primary: 221 83% 53%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 217 30% 22%;
-  --sidebar-accent-foreground: 220 14% 96%;
+  --sidebar-accent: 221 83% 96%;
+  --sidebar-accent-foreground: 221 83% 35%;
   --sidebar-ring: 221 83% 53%;
 
   --radius: 0.625rem;

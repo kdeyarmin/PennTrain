@@ -190,7 +190,7 @@ export default function MyCourses() {
 
       <nav className="flex flex-wrap gap-3" aria-label="Learning navigation"><Button asChild variant={libraryView ? "outline" : "default"}><Link href="/me/courses">My Learning</Link></Button><Button asChild variant={libraryView ? "default" : "outline"}><Link href="/me/courses?view=library">Course Library</Link></Button><Button asChild variant="outline"><Link href="/me/certificates">My Certificates</Link></Button></nav>
       {!libraryView && <TrainingWelcome />}
-      {!libraryView && !isLoading && !assignmentsError && !requiredAssignments.isError && <Card><CardHeader><CardTitle>{nextRequired ? "Your next required course" : required.length ? "Required learning progress" : "Welcome to your learning account"}</CardTitle></CardHeader><CardContent className="space-y-2">
+      {!libraryView && !isLoading && !employeeQuery.isError && !assignmentsError && !requiredAssignments.isError && <Card><CardHeader><CardTitle>{nextRequired ? "Your next required course" : required.length ? "Required learning progress" : "Welcome to your learning account"}</CardTitle></CardHeader><CardContent className="space-y-2">
         <p>{required.filter(a => a.status === "completed").length} / {required.length} required courses completed</p>
         {nextRequired ? <><p className="font-semibold">{documentDisplayName({ title: courseById.get(nextRequired.course_id)?.title, fallback: "Assigned course" })}</p><p>{nextRequired.due_date ? `Due ${formatDateForDisplay(nextRequired.due_date)} · ${formatDueDistance(nextRequired.due_date)}` : "No deadline set"}</p><Button asChild><Link href={`/me/courses/${nextRequired.id}`}>{actionLabel(nextRequired.status)} required course</Link></Button></> : <p>{required.length ? "Review your history below or explore the Course Library." : "Your facility has not assigned required courses yet. You can explore the Course Library while you wait."}</p>}
       </CardContent></Card>}
@@ -211,10 +211,15 @@ export default function MyCourses() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="assigned">Assigned</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="overdue">Overdue</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem><SelectItem value="paused">Paused</SelectItem><SelectItem value="canceled">Canceled</SelectItem>
+              {learningTab === "history" ? <>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="canceled">Canceled</SelectItem>
+              </> : <>
+                <SelectItem value="assigned">Assigned</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="paused">Paused</SelectItem>
+              </>}
             </SelectContent>
           </Select>
 

@@ -167,7 +167,7 @@ export default function EmergencyEventDetail() {
   );
 
   if (eventQuery.isLoading) return <p>Loading emergency command…</p>;
-  if (eventQuery.isError || !event) return <QueryError what="emergency event" error={eventQuery.error} />;
+  if (eventQuery.isError || !event) return <div className="space-y-4"><Button asChild variant="outline"><Link href="/app/emergency">Back to emergency operations</Link></Button><QueryError what="emergency event" error={eventQuery.error} onRetry={() => void eventQuery.refetch()} /></div>;
 
   const mutationError = (title: string) => (error: Error) =>
     toast({ title, description: error.message, variant: "destructive" });

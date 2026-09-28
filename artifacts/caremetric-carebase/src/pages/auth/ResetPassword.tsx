@@ -177,7 +177,7 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden">
+    <main className="min-h-screen w-full flex items-center justify-center relative overflow-hidden py-8">
       <AuthBackground />
 
       <div className="w-full max-w-[420px] space-y-8 relative z-10 px-4">
@@ -212,9 +212,7 @@ export default function ResetPassword() {
                 <p className="text-sm text-muted-foreground">
                   Request a new link and try again.
                 </p>
-                <Link href="/forgot-password">
-                  <Button className="w-full">Request a new link</Button>
-                </Link>
+                <Button asChild className="w-full"><Link href="/forgot-password">Request a new link</Link></Button>
               </div>
             ) : done ? (
               <div className="text-center py-4 space-y-4">
@@ -223,12 +221,12 @@ export default function ResetPassword() {
                     <CheckCircle2 className="h-8 w-8 text-green-600" />
                   </div>
                 </div>
-                <Link href="/login">
-                  <Button className="w-full">
+                <Button asChild className="w-full">
+                  <Link href="/login">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Sign in and continue
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -237,6 +235,7 @@ export default function ResetPassword() {
                   <Input
                     id="password"
                     type="password"
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={submitting}
@@ -250,6 +249,7 @@ export default function ResetPassword() {
                   <Input
                     id="confirmPassword"
                     type="password"
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={submitting}
@@ -280,6 +280,6 @@ export default function ResetPassword() {
           55 Pa. Code Chapters 2600 &amp; 2800 Compliance Platform
         </p>
       </div>
-    </div>
+    </main>
   );
 }

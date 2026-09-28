@@ -61,10 +61,10 @@ export default function MyTrainings() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">My Training Records</h1>
-          <p className="text-muted-foreground">View your compliance history. To start or continue assigned learning, open My Training.</p>
+          <p className="text-muted-foreground">View your current training records. To start or continue assigned courses, open My Learning.</p>
         </div>
         <Button asChild variant="outline">
-          <Link href="/me/courses"><BookOpen className="mr-2 h-4 w-4" />Go to My Training</Link>
+          <Link href="/me/courses"><BookOpen className="mr-2 h-4 w-4" />Go to My Learning</Link>
         </Button>
       </div>
 
@@ -101,10 +101,12 @@ export default function MyTrainings() {
             <p className="text-muted-foreground text-sm text-center py-8">No employee profile is linked to your account. Contact your facility manager.</p>
           ) : sorted.length === 0 ? (
             <div className="space-y-3 py-8 text-center">
-              <p className="text-muted-foreground text-sm">No training records found.</p>
-              <Button asChild size="sm">
-                <Link href="/me/courses">Browse assigned training</Link>
-              </Button>
+              <p className="text-muted-foreground text-sm">{statusFilter === "all" ? "No training records found." : "No training records match this status."}</p>
+              {statusFilter !== "all" ? (
+                <Button size="sm" variant="outline" onClick={() => setStatusFilter("all")}>Show all statuses</Button>
+              ) : (
+                <Button asChild size="sm"><Link href="/me/courses">Browse assigned learning</Link></Button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
@@ -119,9 +121,9 @@ export default function MyTrainings() {
                       ? "text-amber-600 font-medium"
                       : "";
                 return (
-                  <div key={r.id} className="flex items-center justify-between gap-4 p-3 rounded-lg border">
+                  <div key={r.id} className="flex flex-col gap-3 p-3 rounded-lg border sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{trainingTypeName(r)}</p>
+                      <p className="font-medium text-sm break-words">{trainingTypeName(r)}</p>
                       <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground mt-0.5">
                         {r.completion_date && <span>Completed {formatDateForDisplay(r.completion_date)}</span>}
                         {r.due_date && r.status !== "compliant" && (
@@ -133,7 +135,7 @@ export default function MyTrainings() {
                         {!r.completion_date && !r.due_date && <span>No dates on file</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                       <StatusBadge status={r.status} />
                       {needsAction && (
                         <Button asChild size="sm" variant="outline">

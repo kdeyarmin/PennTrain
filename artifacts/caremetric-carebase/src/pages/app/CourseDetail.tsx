@@ -70,10 +70,7 @@ export default function CourseDetail() {
   // org_admin/auditor who haven't self-enrolled yet (no employees row) still see the
   // "Start Training" button for their org's published training content.
   const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
-  const canUnpublishCourse = course?.status === "published" && (
-    user?.role === "platform_admin"
-    || (user?.role === "org_admin" && course.organization_id === user.organizationId)
-  );
+  const canUnpublishCourse = canManage && course?.status === "published";
 
   const handleUnpublishCourse = () => {
     if (!course || unpublishReason.trim().length < 8) return;
@@ -130,6 +127,7 @@ export default function CourseDetail() {
   const isVersionLocked = selectedVersion?.status === "published";
   const canTakeCourse =
     !!course
+    && !courseLoading && !courseError && !versionsLoading && !versionsError
     && course.status === "published"
     && canEnrollInCourse(course, effectiveOrgId)
     && isCourseVersionLearnerReady(currentVersion);
@@ -157,7 +155,7 @@ export default function CourseDetail() {
 
   // Client-side backstop that keeps in-flight HeyGen video statuses fresh without requiring
   // the manual "check status" button (which stays below as an instant fallback).
-  useAutoCheckVideoStatuses(blocks);
+  useAutoCheckVideoStatuses(blocks, canManage);
 
   // The selected version's own designed step time. get_course_version_designed_minutes() is the
   // database's authority on this and is revoked from authenticated, so the browser sums the same
@@ -512,7 +510,14 @@ export default function CourseDetail() {
   const [videoGenForm, setVideoGenForm] = useState({ avatarId: "", voiceId: "", script: "" });
   const videoGenRequestId = useRef("");
   const videoGenRequestTitle = useRef<string | undefined>(undefined);
-  const { data: heygenOptions, isLoading: heygenOptionsLoading } = useListHeygenOptions(!!videoGenBlock);
+  // The current row can acquire a durable attempt after an ambiguous first submission
+  // while this dialog remains open. Prefer that refreshed record over the opening snapshot.
+  const currentVideoBlock = blocks?.find(block => block.id === videoGenBlock?.id);
+  const pendingVideoBody = currentVideoBlock && hasPendingCourseVideoGeneration(currentVideoBlock.body) ? currentVideoBlock.body : videoGenBlock?.body;
+  const pendingVideoJob = hasPendingCourseVideoGeneration(pendingVideoBody) ? courseVideoGenerationJob(pendingVideoBody) : undefined;
+  const retryingVideo = Boolean(pendingVideoJob?.attempt_id);
+  const effectiveVideoForm = retryingVideo ? { avatarId: pendingVideoJob?.avatar_id ?? "", voiceId: pendingVideoJob?.voice_id ?? "", script: pendingVideoJob?.script ?? "" } : videoGenForm;
+  const { data: heygenOptions, isLoading: heygenOptionsLoading, isError: heygenOptionsIsError, error: heygenOptionsError, refetch: retryHeygenOptions } = useListHeygenOptions(!!videoGenBlock && !retryingVideo);
   const preferredHeygenAvatar = heygenOptions?.avatars.find(a => a.is_ai_twin) ?? heygenOptions?.avatars[0];
   const preferredHeygenVoice = heygenOptions?.voices.find(v => v.voice_id === preferredHeygenAvatar?.default_voice_id)
     ?? heygenOptions?.voices.find(v => /english|en[-_ ]?us|en[-_ ]?gb/i.test(`${v.language ?? ""} ${v.name ?? ""}`)) ?? heygenOptions?.voices[0];
@@ -522,20 +527,20 @@ export default function CourseDetail() {
   const openVideoGen = (block: CourseBlock) => {
     const pending = hasPendingCourseVideoGeneration(block.body) ? courseVideoGenerationJob(block.body) : undefined;
     videoGenRequestId.current = pending?.attempt_id ?? crypto.randomUUID();
-    videoGenRequestTitle.current = pending?.title ?? block.title ?? undefined;
+    videoGenRequestTitle.current = pending ? pending.title ?? undefined : block.title ?? undefined;
     setVideoGenBlock(block);
     setVideoGenForm({ avatarId: pending?.avatar_id ?? "", voiceId: pending?.voice_id ?? "",
       script: pending?.script ?? (block.body as { script?: string } | null)?.script ?? "" });
   };
 
   useEffect(() => {
-    if (!videoGenBlock) return;
+    if (!videoGenBlock || retryingVideo) return;
     setVideoGenForm(f => ({
       ...f,
       avatarId: f.avatarId || preferredHeygenAvatar?.id || "",
       voiceId: f.voiceId || preferredHeygenVoice?.voice_id || "",
     }));
-  }, [preferredHeygenAvatar?.id, preferredHeygenVoice?.voice_id, videoGenBlock]);
+  }, [preferredHeygenAvatar?.id, preferredHeygenVoice?.voice_id, videoGenBlock, retryingVideo]);
 
   const handleRequestCloseVideoGen = () => {
     if (videoGenForm.avatarId || videoGenForm.voiceId || videoGenForm.script.trim()) {
@@ -560,18 +565,21 @@ export default function CourseDetail() {
 
   const handleGenerateVideo = () => {
     if (!videoGenBlock) return;
-    if (!videoGenForm.avatarId || !videoGenForm.voiceId || !videoGenForm.script.trim()) {
+    if (!retryingVideo && (heygenOptionsLoading || heygenOptionsIsError || !heygenOptions?.avatars.some(avatar => avatar.id === videoGenForm.avatarId) || !heygenOptions?.voices.some(voice => voice.voice_id === videoGenForm.voiceId))) return;
+    // Resume the durable attempt with its original payload, even if the provider catalog changed.
+    const submission = effectiveVideoForm;
+    if (!submission.avatarId || !submission.voiceId || !submission.script.trim()) {
       toast({ title: "Avatar, voice, and script are all required", variant: "destructive" });
       return;
     }
     generateVideo(
       {
-        requestId: videoGenRequestId.current,
+        requestId: pendingVideoJob?.attempt_id ?? videoGenRequestId.current,
         courseBlockId: videoGenBlock.id,
-        avatarId: videoGenForm.avatarId,
-        voiceId: videoGenForm.voiceId,
-        script: videoGenForm.script.trim(),
-        title: videoGenRequestTitle.current,
+        avatarId: submission.avatarId,
+        voiceId: submission.voiceId,
+        script: submission.script.trim(),
+        title: retryingVideo ? pendingVideoJob?.title ?? undefined : videoGenRequestTitle.current,
         replaceExisting: Boolean(videoGenBlock.video_url || videoGenBlock.media_asset_id),
         expectedVideoUrl: videoGenBlock.video_url,
         expectedMediaAssetId: videoGenBlock.media_asset_id,
@@ -695,6 +703,7 @@ export default function CourseDetail() {
         selectedVersion={selectedVersion}
         effectiveOrgId={effectiveOrgId}
         canTakeCourse={canTakeCourse}
+        canEnrollLearners={canTakeCourse && ["org_admin", "facility_manager"].includes(user?.role ?? "")}
         enrolling={enrolling}
         onTakeCourse={handleTakeCourse}
         canManage={canManage}
@@ -832,13 +841,17 @@ export default function CourseDetail() {
         open={!!videoGenBlock}
         onRequestClose={handleRequestCloseVideoGen}
         onCancel={() => setVideoGenBlock(null)}
-        videoGenForm={videoGenForm}
+        videoGenForm={effectiveVideoForm}
         setVideoGenForm={setVideoGenForm}
         heygenOptions={heygenOptions}
         heygenOptionsLoading={heygenOptionsLoading}
+        heygenOptionsIsError={heygenOptionsIsError}
+        heygenOptionsError={heygenOptionsError}
+        onRetryOptions={() => void retryHeygenOptions()}
         onGenerate={handleGenerateVideo}
         generatingVideo={generatingVideo}
         replacingVideo={Boolean(videoGenBlock?.video_url || videoGenBlock?.media_asset_id)}
+        retryingVideo={retryingVideo}
         fieldIds={__fieldIds}
       />
 
@@ -850,6 +863,9 @@ export default function CourseDetail() {
         setBulkVideoForm={bulkVideoGen.setBulkVideoForm}
         bulkHeygenOptions={bulkVideoGen.bulkHeygenOptions}
         bulkHeygenOptionsLoading={bulkVideoGen.bulkHeygenOptionsLoading}
+        bulkHeygenOptionsIsError={bulkVideoGen.bulkHeygenOptionsIsError}
+        bulkHeygenOptionsError={bulkVideoGen.bulkHeygenOptionsError}
+        onRetryOptions={() => void bulkVideoGen.retryBulkHeygenOptions()}
         eligibleVideoBlocksWithScript={bulkVideoGen.eligibleVideoBlocksWithScript}
         eligibleVideoBlocksMissingScript={bulkVideoGen.eligibleVideoBlocksMissingScript}
         bulkGenSkippedCount={bulkVideoGen.bulkGenSkippedCount}

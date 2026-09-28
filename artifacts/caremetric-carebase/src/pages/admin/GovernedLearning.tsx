@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { BookCheck, GitBranch, PackageCheck, RefreshCw, ShieldCheck, WifiOff } from "lucide-react";
 import { useGovernedLearning } from "@/hooks/useGovernedLearning";
 import { GovernedContentRevisionsPanel } from "@/components/learning/GovernedContentRevisionsPanel";
@@ -28,7 +29,7 @@ function Metrics({ title, description, values }: { title: string; description: s
   return <Card><CardHeader><CardTitle className="text-base">{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2">{Object.entries(values).map(([key, value]) => <div key={key} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label(key)}</p><p className="mt-1 text-2xl font-semibold">{String(value ?? "—")}</p></div>)}</CardContent></Card>;
 }
 
-function StandardsPackagesPanel() {
+export function StandardsPackagesPanel({ canManage }: { canManage: boolean }) {
   const packages = useAdminLearningPackages(null);
   const accept = useAcceptLearningPackage();
   const quarantine = useQuarantineLearningPackage();
@@ -64,7 +65,9 @@ function StandardsPackagesPanel() {
         <CardHeader>
           <CardTitle className="text-base">Learning packages</CardTitle>
           <CardDescription>
-            Register SCORM/xAPI packages from course authoring, then accept after structural review. Accepted packages are immutable and launchable by the standards runtime.
+            {canManage
+              ? "Register SCORM/xAPI packages from course authoring, then accept after structural review. Accepted packages are immutable and launchable by the standards runtime."
+              : "The super admin manages course packages. Enroll students in published courses from the course catalog."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -73,7 +76,9 @@ function StandardsPackagesPanel() {
           )}
           {packages.isLoading && <p className="text-sm text-muted-foreground">Loading packages…</p>}
           {!packages.isLoading && !packages.isError && rows.length === 0 && (
-            <p className="text-sm text-muted-foreground">No packages registered yet. Upload a SCORM zip on a course block, then register/accept it here or via course authoring.</p>
+            <p className="text-sm text-muted-foreground">{canManage
+              ? "No packages registered yet. Upload a SCORM zip on a course block, then register/accept it here or via course authoring."
+              : "No course packages are available yet."}</p>
           )}
           {rows.map((pkg) => (
             <div key={pkg.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
@@ -86,7 +91,7 @@ function StandardsPackagesPanel() {
                 <Badge variant={pkg.validation_status === "accepted" ? "default" : pkg.validation_status === "quarantined" ? "destructive" : "secondary"}>
                   {pkg.validation_status}
                 </Badge>
-                {pkg.validation_status !== "accepted" && (
+                {canManage && pkg.validation_status !== "accepted" && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -103,7 +108,7 @@ function StandardsPackagesPanel() {
                     Accept
                   </Button>
                 )}
-                {pkg.validation_status !== "quarantined" && (
+                {canManage && pkg.validation_status !== "quarantined" && (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -123,9 +128,12 @@ function StandardsPackagesPanel() {
 }
 
 export default function GovernedLearning() {
+  const { user } = useAuth();
+  const canManageCourses = user?.role === "platform_admin";
   const snapshot = useGovernedLearning();
   if (snapshot.isLoading) return <div className="flex min-h-[45vh] items-center justify-center"><RefreshCw className="h-6 w-6 animate-spin" /></div>;
-  if (!snapshot.data) return <Alert variant="destructive"><AlertTitle>Governed content unavailable</AlertTitle><AlertDescription>{snapshot.error instanceof Error ? snapshot.error.message : "Unable to load control plane."}</AlertDescription></Alert>;
+  if (snapshot.isError) return <QueryError what="governed content and training" error={snapshot.error} onRetry={() => void snapshot.refetch()} />;
+  if (!snapshot.data) return <Alert variant="destructive"><AlertTitle>Governed content unavailable</AlertTitle><AlertDescription>No training governance snapshot is available.</AlertDescription><Button className="mt-3" variant="outline" onClick={() => void snapshot.refetch()}>Try again</Button></Alert>;
   const data = snapshot.data;
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -156,7 +164,7 @@ export default function GovernedLearning() {
         </TabsList>
         <TabsContent value="review" className="mt-4"><GovernedContentRevisionsPanel /></TabsContent>
         <TabsContent value="policies" className="mt-4"><Metrics title="Policy lifecycle" description="Effective audiences, exact attestations, and delivery outcomes." values={data.policies} /></TabsContent>
-        <TabsContent value="standards" className="mt-4 space-y-4"><StandardsPackagesPanel /><AuthoringPackageDependencies /></TabsContent>
+        <TabsContent value="standards" className="mt-4 space-y-4"><StandardsPackagesPanel canManage={canManageCourses} />{canManageCourses && <AuthoringPackageDependencies />}</TabsContent>
         <TabsContent value="adaptive" className="mt-4 space-y-4"><Metrics title="Adaptive paths" description="Pinned definitions and explainable server-side transitions." values={data.adaptive} /><AdaptivePathsPanel /></TabsContent>
         <TabsContent value="offline" className="mt-4"><Metrics title="Offline sync" description="Conflict, rejection, revocation, and wipe visibility." values={data.offline} /></TabsContent>
       </Tabs>

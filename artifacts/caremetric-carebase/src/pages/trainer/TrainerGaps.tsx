@@ -91,9 +91,10 @@ export default function TrainerGaps() {
           </CardHeader>
           <CardContent className="space-y-2">
             {facilitiesNeedingAttention.slice(0, 8).map((facility) => (
-              <div
+              <Link
                 key={facility.facilityId}
-                className="flex items-center justify-between rounded-lg border bg-background px-3 py-2 text-sm"
+                href={`/app/training-matrix?facilityId=${encodeURIComponent(facility.facilityId)}`}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 text-sm hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
                 <div>
                   <p className="font-medium">{facility.facilityName}</p>
@@ -110,7 +111,7 @@ export default function TrainerGaps() {
                 >
                   {facility.overallStatus.replace(/_/g, " ")}
                 </Badge>
-              </div>
+              </Link>
             ))}
           </CardContent>
         </Card>

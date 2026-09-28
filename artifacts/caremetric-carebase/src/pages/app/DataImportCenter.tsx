@@ -556,6 +556,7 @@ export default function DataImportCenter() {
               <Input
                 className="pl-9"
                 placeholder="Search file name"
+                aria-label="Search import file names"
                 value={search}
                 onChange={(event) => { setSearch(event.target.value); setPage(0); }}
               />
@@ -736,16 +737,17 @@ export default function DataImportCenter() {
           )}
 
           {total > PAGE_SIZE && (
-            <div className="flex items-center justify-between border-t pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
               <p className="text-sm text-muted-foreground">Page {page + 1} of {pageCount} · {total} jobs</p>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>
+                <Button size="sm" variant="outline" aria-label="Previous page of imports" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   disabled={page + 1 >= pageCount}
+                  aria-label="Next page of imports"
                   onClick={() => setPage((value) => value + 1)}
                 >
                   <ChevronRight className="h-4 w-4" />

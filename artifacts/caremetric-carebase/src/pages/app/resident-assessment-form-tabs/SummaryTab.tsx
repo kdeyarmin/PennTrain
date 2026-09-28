@@ -57,9 +57,9 @@ export function SummaryTab({
         <CardContent>
           <fieldset disabled={isReadOnly}>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium leading-none text-xs" >
+              <Label htmlFor={`${fieldIds}-overall-wellness`} className="text-xs">
                 Summary of Resident's Overall Wellness
-              </p>
+              </Label>
               {!isReadOnly && (
                 <Button
                   type="button"
@@ -78,6 +78,7 @@ export function SummaryTab({
               )}
             </div>
             <Textarea
+              id={`${fieldIds}-overall-wellness`}
               className="min-h-28"
               value={content.summary.overallWellness}
               onChange={(e) =>
@@ -183,7 +184,7 @@ export function SummaryTab({
           >
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium leading-none text-xs" >Assessor's Printed Name</p>
+                <Label htmlFor={`${fieldIds}-assessor-name`} className="text-xs">Assessor's Printed Name</Label>
                 {!isReadOnly && user && (
                   <Button
                     type="button"
@@ -206,6 +207,7 @@ export function SummaryTab({
                 )}
               </div>
               <Input
+                id={`${fieldIds}-assessor-name`}
                 className="h-9"
                 value={content.participation.assessorName}
                 onChange={(e) =>
@@ -239,6 +241,7 @@ export function SummaryTab({
               <Input
                 className="h-9"
                 placeholder="Title"
+                aria-label="Assessor's title"
                 value={content.participation.assessorTitle}
                 onChange={(e) =>
                   update({

@@ -554,14 +554,15 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
             return (
               <Card key={q.id}>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-start gap-2">
+                  <CardTitle id={`question-${q.id}`} className="text-base font-semibold flex items-start gap-2">
                     <span className="text-muted-foreground font-normal">Q{idx + 1}.</span>
                     <span>{q.question_text}</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {q.question_type === "multiple_choice" ? (
-                    <div className="space-y-2">
+                    <div className="space-y-2" role="group" aria-labelledby={`question-${q.id}`}>
+                      <p className="text-xs text-muted-foreground">Select all answers that apply.</p>
                       {questionChoices.map((c) => (
                         <label key={c.id} className="flex items-center gap-2.5 cursor-pointer">
                           <Checkbox
@@ -580,6 +581,7 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
                     </div>
                   ) : (
                     <RadioGroup
+                      aria-labelledby={`question-${q.id}`}
                       disabled={submitting || assignmentClosed}
                       value={selected[0] ?? ""}
                       onValueChange={(val) => setAnswer(q.id, [val])}
@@ -600,7 +602,7 @@ function QuizAttemptPage({ assignmentId, quizId }: { assignmentId: string; quizI
             );
           })}
 
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
             <p className="text-sm text-muted-foreground">
               {Object.values(selections).filter((s) => s.length > 0).length} of {allQuestions.length} answered
             </p>

@@ -9,7 +9,7 @@ import { NotificationsMenu } from "./NotificationsMenu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { LogOut, Bell, Building2, Menu, HelpCircle, ChevronDown, Search, Sparkles, Megaphone, ShieldCheck, PlusCircle, ExternalLink } from "lucide-react";
+import { LogOut, Bell, Building2, Menu, HelpCircle, ChevronDown, ChevronRight, Search, Sparkles, Megaphone, ShieldCheck, PlusCircle, ExternalLink } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,15 +20,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { commandActionsForRole, safePathForRole } from "@/lib/appDomains";
+import { commandActionsForRole, viewablePathForRole } from "@/lib/appDomains";
 import {
   buildCentralHelpUrl,
   CENTRAL_SUPPORT_HUB_FEATURE_KEY,
 } from "@/lib/centralHelp";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
-import { pathFallbackLabel, registryLabelForPath, usePageTitleContext } from "@/lib/pageTitle";
+import { pageBreadcrumbs, pathFallbackLabel, registryLabelForPath, usePageTitleContext } from "@/lib/pageTitle";
 import { GlobalSearch } from "./GlobalSearch";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 
 /**
  * Platform_admin's "viewing as" org picker. A plain native `<Select>` doesn't scale past ~50-100
@@ -71,21 +71,22 @@ function ViewingOrgSelector() {
   };
 
   return (
-    <div ref={containerRef} className="relative flex items-center pr-2 border-r border-border/60 mr-1">
+    <div ref={containerRef} className="relative flex items-center sm:pr-2 sm:border-r border-border/60 sm:mr-1">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label="Viewing as organization"
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-1.5 h-8 max-w-[140px] sm:max-w-[200px] px-2 rounded-md bg-muted/50 hover:bg-muted text-xs text-foreground"
+        title={selectedOrgName ?? "All Organizations"}
+        className="flex h-9 w-9 items-center justify-center gap-1.5 rounded-md bg-muted/50 px-2 text-xs text-foreground hover:bg-muted sm:h-8 sm:w-auto sm:max-w-[120px] xl:max-w-[160px]"
       >
         <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="truncate">{selectedOrgName ?? "All Organizations"}</span>
-        <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+        <span className="hidden truncate sm:inline">{selectedOrgName ?? "All Organizations"}</span>
+        <ChevronDown className="hidden h-3 w-3 text-muted-foreground shrink-0 sm:block" />
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 w-64 max-h-80 flex flex-col overflow-hidden rounded-lg border bg-popover shadow-lg z-50">
+        <div className="fixed inset-x-4 top-20 z-50 flex max-h-80 flex-col overflow-hidden rounded-lg border bg-popover shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-1 sm:w-64">
           <div className="p-2 border-b shrink-0">
             <Input
               autoFocus
@@ -124,7 +125,7 @@ function ViewingOrgSelector() {
                     viewingOrgId === org.id && "font-semibold text-primary"
                   )}
                 >
-                  {org.name}
+                  <span className="truncate">{org.name}</span>
                 </button>
               ))
             )}
@@ -139,6 +140,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const { user } = useAuth();
   const [location, navigate] = useLocation();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const compactSearchRef = useRef<HTMLDivElement>(null);
   const handleLogout = useSignOut();
   const productChangelog = useProductChangelog();
   const centralSupportHub = useFeatureReleaseActive(CENTRAL_SUPPORT_HUB_FEATURE_KEY);
@@ -146,6 +148,23 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const moduleAccess = useProductModuleAccess();
   const quickActions = commandActionsForRole(user?.role, moduleAccess.enabledModules).slice(0, 6);
   const centralSupportHubUrl = buildCentralHelpUrl({ route: location });
+
+  useEffect(() => {
+    if (!user) return;
+    function openCompactSearch(event: KeyboardEvent) {
+      if (window.matchMedia("(min-width: 1280px)").matches) return;
+      const shortcut = (event.key === "/" && !event.metaKey && !event.ctrlKey)
+        || (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey));
+      if (!shortcut) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      event.preventDefault();
+      setMobileSearchOpen(true);
+      compactSearchRef.current?.querySelector("input")?.focus();
+    }
+    document.addEventListener("keydown", openCompactSearch);
+    return () => document.removeEventListener("keydown", openCompactSearch);
+  }, [user?.id]);
 
   // Stash the route on every navigation (skipping Help's own pages) so HelpCenter can contextually
   // pin whichever job aide's relatedRoute matches wherever the user came from -- see
@@ -185,17 +204,25 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   // render this Header, so there is no conflict.
   useEffect(() => {
     document.title = `${pageTitle} · CareMetric ${import.meta.env.VITE_APP_PRODUCT === "train" ? "Train" : "CareBase"}`;
-  }, [pageTitle, moduleAccess]);
+  }, [pageTitle]);
 
-  const getBreadcrumbs = () => {
-    const segments = location.split("/").filter(Boolean);
-    if (segments.length <= 1) return null;
-    const base = segments[0];
-    const baseLabel = base === "admin" ? "Platform" : base === "app" ? "Organization" : base === "trainer" ? "Trainer" : "My Account";
-    return baseLabel;
-  };
-
-  const breadcrumb = getBreadcrumbs();
+  const breadcrumbs = pageBreadcrumbs(location, pageTitle, moduleAccess.homePath,
+    (path) => viewablePathForRole(path, user?.role, moduleAccess.enabledModules));
+  const ancestors = breadcrumbs.filter((crumb) => crumb.path);
+  const pageHeading = <>
+    {ancestors.length > 0 && <nav aria-label="Breadcrumb" className="mb-0.5">
+      <ol className="flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground">
+        {ancestors.map((crumb, index) => <li key={crumb.path} className={cn("min-w-0 items-center gap-1", index === ancestors.length - 1 ? "flex" : "hidden sm:flex")}>
+          {index > 0 && <ChevronRight className="hidden h-3 w-3 shrink-0 sm:block" aria-hidden="true" />}
+          <Link href={crumb.path!} className="truncate rounded-sm hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" title={crumb.label}>
+            <span className="sm:hidden">Back to </span>{crumb.label}
+          </Link>
+        </li>)}
+        <li className="sr-only" aria-current="page">{pageTitle}</li>
+      </ol>
+    </nav>}
+    <h2 className="text-[15px] font-semibold text-foreground truncate" title={pageTitle}>{pageTitle}</h2>
+  </>;
 
   return (
     <header className="min-h-[68px] shrink-0 border-b border-border bg-card/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8 sticky top-0 z-10">
@@ -210,13 +237,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
         >
           <Menu className="h-5 w-5" />
         </Button>
-        {breadcrumb && (
-          <>
-            <span className="hidden sm:inline text-[13px] text-muted-foreground">{breadcrumb}</span>
-            <span className="hidden sm:inline text-muted-foreground/40 text-xs">/</span>
-          </>
-        )}
-        <h2 className="text-[15px] font-semibold text-foreground truncate">{pageTitle}</h2>
+        <div className="hidden min-w-0 sm:block">{pageHeading}</div>
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -225,13 +246,13 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
             title search over their assigned training items. */}
         {!!user && (
           <>
-            <div className="hidden sm:block">
+            <div className="hidden xl:block">
               <GlobalSearch />
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground sm:hidden"
+              className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground xl:hidden"
               aria-label="Open search"
               aria-expanded={mobileSearchOpen}
               aria-controls="mobile-search-panel"
@@ -245,8 +266,8 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
         {!!user && quickActions.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="hidden h-9 gap-1.5 rounded-lg sm:inline-flex">
-                <PlusCircle className="h-4 w-4" /> Create
+              <Button variant="outline" size="sm" className="hidden h-9 gap-1.5 rounded-lg xl:inline-flex">
+                <PlusCircle className="h-4 w-4" /> Quick actions
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
@@ -288,7 +309,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
               )}
               {user.role !== "platform_admin" && (
                 <DropdownMenuItem onClick={() => navigate(user.role === "employee" ? "/me/help" : "/app/help")}>
-                  <HelpCircle className="mr-2 h-4 w-4" /> CareBase guides &amp; tickets
+                  <HelpCircle className="mr-2 h-4 w-4" /> Guides &amp; support tickets
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onClick={() => navigate("/account/whats-new")}>
@@ -347,8 +368,9 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
         </DropdownMenu>
       </div>
       </div>
+      <div className="min-w-0 pb-3 sm:hidden">{pageHeading}</div>
       {mobileSearchOpen && (
-        <div id="mobile-search-panel" className="border-t border-border/60 py-2 sm:hidden">
+        <div ref={compactSearchRef} id="mobile-search-panel" className="border-t border-border/60 py-2 xl:hidden [&>div]:w-full">
           <GlobalSearch autoFocus onNavigate={() => setMobileSearchOpen(false)} />
         </div>
       )}

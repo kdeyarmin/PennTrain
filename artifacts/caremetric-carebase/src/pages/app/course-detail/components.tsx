@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/QueryState";
 import {
   BookOpen, FileText, Video, File as FileIcon, ListChecks, Layers,
   type LucideIcon,
@@ -21,7 +22,7 @@ export function CourseVideoPreview({ src }: { src: string }) {
 export function CourseStatusBadge({ status }: { status: string }) {
   const label = status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
   const className =
-    status === "published" ? "bg-success text-success-foreground hover:bg-success/80"
+    status === "published" ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-50"
     : status === "archived" ? "bg-muted text-muted-foreground hover:bg-muted/80"
     : "bg-secondary text-secondary-foreground hover:bg-secondary/80";
   return <Badge className={className} variant="outline">{label}</Badge>;
@@ -30,7 +31,7 @@ export function CourseStatusBadge({ status }: { status: string }) {
 export function VersionStatusBadge({ status }: { status: string }) {
   const label = status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
   const className = status === "published"
-    ? "bg-success text-success-foreground hover:bg-success/80"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-50"
     : "bg-secondary text-secondary-foreground hover:bg-secondary/80";
   return <Badge className={className} variant="outline">{label}</Badge>;
 }
@@ -64,11 +65,12 @@ export function QuizBlockSummary({
   canManage: boolean;
   role: Role | undefined;
 }) {
-  const { data: quiz, isLoading, isError } = useGetQuizByBlockId(blockId);
+  const { data: quiz, isLoading, isError, error, refetch } = useGetQuizByBlockId(blockId);
 
   if (isLoading) return <p className="text-xs text-muted-foreground">Loading quiz…</p>;
+  if (isError) return <QueryError error={error} onRetry={() => refetch()} what="this lesson's quiz" />;
 
-  if (isError || !quiz) {
+  if (!quiz) {
     return (
       <div className="flex items-center gap-2">
         <p className="text-xs text-muted-foreground italic">No quiz configured yet for this block.</p>

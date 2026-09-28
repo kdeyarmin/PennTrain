@@ -79,6 +79,7 @@ export function Section1Tab({
                     </Select>
                     <Textarea
                       placeholder="Description of need"
+                      aria-label={`${key}: description of need`}
                       className="min-h-20 text-xs"
                       value={s.needsDescription}
                       onChange={(e) =>
@@ -87,6 +88,7 @@ export function Section1Tab({
                     />
                     <Textarea
                       placeholder="Plan to meet the need"
+                      aria-label={`${key}: plan to meet the need`}
                       className="min-h-20 text-xs"
                       value={s.planDescription}
                       onChange={(e) =>
@@ -113,6 +115,7 @@ export function Section1Tab({
                     {s.planResponsibleParty === "O" && (
                       <Input
                         placeholder="Specify responsible party"
+                        aria-label={`${key}: specify responsible party`}
                         className="h-8 text-xs"
                         value={s.planResponsiblePartyOther}
                         onChange={(e) =>

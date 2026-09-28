@@ -945,6 +945,7 @@ export default function Reports() {
           <div className="relative sm:col-span-2 lg:min-w-64 lg:flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            aria-label="Search reports"
             placeholder="Search reports..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -1140,17 +1141,7 @@ export default function Reports() {
           return (
             <Card
               key={report.id}
-              tabIndex={0}
-              role="button"
-              aria-pressed={isSelected}
-              aria-label={`Select ${report.title} report`}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  selectReport(report.id);
-                }
-              }}
-              className={`group flex cursor-pointer flex-col border-l-4 ${colors.border} transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isSelected ? "ring-2 ring-primary" : ""}`}
+              className={`group flex flex-col border-l-4 ${colors.border} transition-shadow hover:shadow-md ${isSelected ? "ring-2 ring-primary" : ""}`}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start gap-3">
@@ -1159,13 +1150,15 @@ export default function Reports() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <CardTitle className="text-sm leading-tight">
-                      {report.title}
+                      <button type="button" aria-pressed={isSelected} aria-label={`Select ${report.title} report`} onClick={() => selectReport(report.id)} className="rounded-sm text-left underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {report.title}
+                      </button>
                     </CardTitle>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge variant="outline" className="text-[10px]">
                         {report.category}
                       </Badge>
-                      <Badge variant="secondary" className="text-[10px] font-normal">
+                      <Badge variant="secondary" className="max-w-full whitespace-normal text-[10px] font-normal">
                         {report.requiredBy}
                       </Badge>
                     </div>
@@ -1180,6 +1173,7 @@ export default function Reports() {
                   <Button
                     size="sm"
                     variant="default"
+                    aria-label={`View ${report.title}`}
                     disabled={cardBusy}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1198,6 +1192,7 @@ export default function Reports() {
                     size="sm"
                     variant="outline"
                     disabled={cardBusy}
+                    aria-label={`Export ${report.title} CSV`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleReportAction(report, "csv");
@@ -1217,7 +1212,8 @@ export default function Reports() {
         })}
         {visibleReports.length === 0 && (
           <div className="col-span-full text-center py-16 text-muted-foreground">
-            No reports match your search.
+            <p>No reports match your search and category.</p>
+            <Button variant="outline" className="mt-3" onClick={() => { setSearch(""); setCategory("All"); }}>Clear search and category</Button>
           </div>
         )}
       </div>
@@ -1266,6 +1262,8 @@ export default function Reports() {
                   ))}
                 </SelectContent>
               </Select>
+              {employeePickerQuery.isError && <QueryError what="employees" error={employeePickerQuery.error} onRetry={() => void employeePickerQuery.refetch()} />}
+              {!employeePickerQuery.isLoading && !employeePickerQuery.isError && employeePickerQuery.data?.length === 0 && <p className="text-sm text-muted-foreground">No employees match this search. Try another name or employee number.</p>}
             </div>
           </div>
           <DialogFooter>

@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { money, today } from "./helpers";
+import { QueryError } from "@/components/QueryState";
 
 type ReviewFilter = "all" | "high" | "attention" | "info";
 
@@ -30,7 +31,7 @@ export function CareLevelReviewSection({
   residents: ResidentLike[];
   onSelectResident: (id: string) => void;
 }) {
-  const { rows, isLoading, isError, error } = useCareLevelReview(facilityId, residents);
+  const { rows, isLoading, isError, error, refetch } = useCareLevelReview(facilityId, residents);
   const [filter, setFilter] = useState<ReviewFilter>("all");
   const summary = useMemo(() => summarizeCareLevelReview(rows), [rows]);
   const worklist = useMemo(() => careLevelWorklist(rows), [rows]);
@@ -86,7 +87,7 @@ export function CareLevelReviewSection({
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading care-level review…</p>
         ) : isError ? (
-          <p className="text-sm text-destructive">Could not load care-level review: {error?.message}</p>
+          <QueryError what="care-level review" error={error} onRetry={() => void refetch()} />
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No active residents to review at this facility.</p>
         ) : (

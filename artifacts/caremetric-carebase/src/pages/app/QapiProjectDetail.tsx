@@ -124,7 +124,7 @@ export default function QapiProjectDetail() {
   }, [p?.id]);
   if (project.isLoading) return <p>Loading…</p>;
   if (project.isError || !p)
-    return <QueryError what="QAPI project" error={project.error} />;
+    return <div className="space-y-4"><Button asChild variant="outline"><Link href="/app/qapi">Back to QAPI projects</Link></Button><QueryError what="QAPI project" error={project.error} onRetry={() => void project.refetch()} /></div>;
   // BACKLOG J74. update_qapi_project_plan enforces two gates the Select did not: 'closed' is
   // refused unless the project is ALREADY 'pending_closure' ("Project requires pending closure
   // review"), and 'pending_closure' is refused unless the closure evidence is on file -- a root

@@ -524,7 +524,7 @@ function PacketCard({ sessionId, packet, readOnly }: {
 
         {unresolved > 0 && (
           <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-500" />
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
             <p className="text-sm">
               {unresolved} request{unresolved === 1 ? " is" : "s are"} still open. A packet assembled now
               records that state rather than hiding it.

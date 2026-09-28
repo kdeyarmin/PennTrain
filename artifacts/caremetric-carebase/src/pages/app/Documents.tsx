@@ -108,6 +108,9 @@ export default function Documents() {
   const total = documentsPage?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const documentsReady = documentsSuccess && !documentsError && !isLoading && !documentsFetching && !documentsPlaceholder;
+  useEffect(() => {
+    if (documentsReady && page > totalPages) setPage(totalPages);
+  }, [documentsReady, page, totalPages]);
 
   const uploadDocument = useUploadDocument();
   const getSignedUrl = useDocumentSignedUrl();
@@ -401,7 +404,7 @@ export default function Documents() {
       </Card>}
 
       {canDelete && selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-md border">
+        <div className="flex flex-wrap items-center gap-3 px-4 py-2 bg-muted rounded-md border">
           <span className="text-sm font-medium">{selectedIds.size} document{selectedIds.size === 1 ? "" : "s"} selected</span>
           <Button
             size="sm"
@@ -481,7 +484,8 @@ export default function Documents() {
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-40" />
               <p className="font-medium">No documents match this view</p>
-              <p className="text-sm mt-1">Upload training certificates and compliance documents above, or adjust the filters.</p>
+              <p className="text-sm mt-1">{facilityId !== "all" || employeeId !== "all" || docType !== "all" ? "Try clearing the filters to see more documents." : canUpload ? "Upload training certificates and compliance documents above." : "Uploaded training certificates and compliance documents will appear here."}</p>
+              {(facilityId !== "all" || employeeId !== "all" || docType !== "all") && <Button variant="outline" className="mt-3" onClick={() => { setFacilityId("all"); setEmployeeId("all"); setDocType("all"); }}>Clear filters</Button>}
             </div>
           ) : (
             <div className="space-y-4">
@@ -497,7 +501,7 @@ export default function Documents() {
             )}
             <div className="space-y-2">
               {rows.map(doc => (
-                <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 gap-3">
+                <div key={doc.id} className="flex flex-col items-stretch justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 gap-3 sm:flex-row sm:items-center">
                   <div className="flex items-center gap-3 min-w-0">
                     {canDelete && (
                       <Checkbox
@@ -521,7 +525,7 @@ export default function Documents() {
                       <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">File details</summary><p className="break-all">{doc.file_name}</p></details>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center justify-end gap-2 shrink-0">
                     <Button size="icon" variant="ghost" onClick={() => handleDownload(doc)} title="Download" aria-label="Download document">
                       <Download className="h-4 w-4" />
                     </Button>

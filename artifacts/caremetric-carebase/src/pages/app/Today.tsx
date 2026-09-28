@@ -11,7 +11,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { RoleQuickStart } from "@/components/RoleQuickStart";
 import { OrganizationSetupGuide } from "@/components/OrganizationSetupGuide";
-import { SurfacePurpose } from "@/components/SurfacePurpose";
 import { useAuth } from "@/lib/auth";
 import { getTodayDestinations } from "@/lib/todayWorkspace";
 import { buildHomeMetrics, firstCall, highlightMetrics } from "@/lib/homeMetrics";
@@ -173,13 +172,13 @@ export default function Today() {
           Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}, {user?.firstName}.
           {next
             ? ` Start with ${next.label.toLowerCase()}.`
-            : " Nothing is overdue or urgent right now."} This surface owns action, due work, and manager decisions.
+            : " Nothing is overdue or urgent right now."}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">Every figure below covers {scopeLabel}.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {facilityList.length > 1 && <Select value={facilityId ?? ALL_FACILITIES} onValueChange={changeFacility}>
-          <SelectTrigger className="w-56" aria-label="Facility scope"><SelectValue placeholder="Select facility" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-56" aria-label="Facility scope"><SelectValue placeholder="Select facility" /></SelectTrigger>
           <SelectContent>
             {!isManager && <SelectItem value={ALL_FACILITIES}>All permitted facilities</SelectItem>}
             {facilityList.map((facility) => <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>)}
@@ -203,25 +202,17 @@ export default function Today() {
       </div>
     </div>
 
-    <SurfacePurpose purpose="Today = action and due work. Compliance scorecard = health and trends. Inspection Readiness = prep. Survey Day = the live entrance conference." />
-
     {/* A brand-new organization has no facility and no roster, so every card below reads
         zero and the daily quick start points at pages that are all empty. This is the
         first-run path out of that; it retires itself once the org is operating. */}
     {canSetUpOrganization && <OrganizationSetupGuide organizationId={user?.organizationId ?? undefined} />}
 
-    <RoleQuickStart
-      role={user?.role}
-      title="Your daily quick start"
-      description="Use these role-specific steps when you are not sure where to begin."
-    />
-
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       {shown.map((metric) => (
         <Link
           key={metric.key}
           href={scopedHref(metric.href)}
-          className={`rounded-xl border bg-card p-5 shadow-sm transition hover:bg-muted/40 ${metric.urgent ? "border-destructive/50" : ""}`}
+          className={`rounded-xl border bg-card p-4 shadow-sm transition hover:bg-muted/40 ${metric.urgent ? "border-destructive/50" : ""}`}
         >
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm text-muted-foreground">{metric.label}</p>
@@ -248,9 +239,9 @@ export default function Today() {
         </CardHeader>
         <CardContent className="space-y-2">
           {soonest.length ? soonest.map((item) => (
-            <Button key={item.id} asChild variant="outline" className="h-auto w-full justify-between py-3 text-left">
+            <Button key={item.id} asChild variant="outline" className="h-auto w-full flex-wrap justify-between gap-2 whitespace-normal py-3 text-left">
               <Link href={`/app/work/${item.id}`}>
-                <span>
+                <span className="min-w-0 flex-1 basis-48 break-words">
                   <span className="block font-medium">{item.title}</span>
                   <span className="block text-xs text-muted-foreground">
                     {workItemSourceLabel(item.source_type)} · {item.facility?.name ?? "Facility"} · due {new Date(item.due_at).toLocaleString()}
@@ -276,7 +267,7 @@ export default function Today() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" />What the work is</CardTitle>
-          <CardDescription>Open work grouped by where it came from, using the shared source taxonomy.</CardDescription>
+          <CardDescription>Open work grouped by category. Choose a type to open its queue.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {groups.length ? groups.map((group) => (
@@ -306,7 +297,7 @@ export default function Today() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bot className="h-5 w-5" />Human review queue</CardTitle>
-          <CardDescription>Assistant drafts and automation stay governed until a responsible person reviews the proposed action.</CardDescription>
+          <CardDescription>Review assistant drafts before taking action, and check recent automation results.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="rounded border p-4">
@@ -341,20 +332,31 @@ export default function Today() {
       </Card>
     </div>
 
-    <Card className="border-primary/20 bg-primary/5">
-      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-3">
-          <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <div>
-            <p className="font-medium">How to use Today</p>
-            <p className="text-sm text-muted-foreground">
-              Clear the red cards first, then work the soonest-due list. Hover any figure to see
-              exactly what it counts.
-            </p>
-          </div>
-        </div>
-        <Button asChild variant="outline" size="sm"><Link href="/app/help">Open help center</Link></Button>
-      </CardContent>
-    </Card>
+    <details className="rounded-lg border bg-card p-4">
+      <summary className="cursor-pointer font-medium">Daily quick start and help</summary>
+      <div className="mt-4 space-y-4">
+        <RoleQuickStart
+          role={user?.role}
+          title="Your daily quick start"
+          description="Use these role-specific steps when you are not sure where to begin."
+        />
+
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex gap-3">
+              <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <div>
+                <p className="font-medium">How to use Today</p>
+                <p className="text-sm text-muted-foreground">
+                  Clear the red cards first, then work the soonest-due list. Hover any figure to see
+                  exactly what it counts.
+                </p>
+              </div>
+            </div>
+            <Button asChild variant="outline" size="sm"><Link href="/app/help">Open help center</Link></Button>
+          </CardContent>
+        </Card>
+      </div>
+    </details>
   </div>;
 }

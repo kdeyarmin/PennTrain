@@ -14,6 +14,7 @@ import { useGenerateCourseCurriculum } from "@/hooks/useAiCourseGeneration";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { coursesListPath, courseDetailPath } from "@/lib/courseRoutes";
+import { QueryError } from "@/components/QueryState";
 
 interface WizardFormState {
   generationMode: "course" | "training_plan";
@@ -50,8 +51,10 @@ export default function AiCourseWizard() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: trainingTypes } = useListTrainingTypes({ isActive: true });
-  const { data: organizations } = useListOrganizations();
+  const trainingTypesQuery = useListTrainingTypes({ isActive: true });
+  const organizationsQuery = useListOrganizations();
+  const trainingTypes = trainingTypesQuery.data;
+  const organizations = organizationsQuery.data;
 
   // Plain useState, matching Courses.tsx's "New Training Content" dialog convention --
   // this page is the AI counterpart to that manual form, not a wizard-library form.
@@ -75,8 +78,11 @@ export default function AiCourseWizard() {
   // title_hint, source_material, or notes is required) so we can catch it
   // before round-tripping.
   const hasEnoughToGenerate = !!(form.titleHint.trim() || planName || form.sourceMaterial.trim() || form.notes.trim());
+  const lookupsUnavailable = (isTrainingPlan && (organizationsQuery.isLoading || organizationsQuery.isError || !organizations?.some(org => org.id === form.organizationId)))
+    || (form.trainingTypeId !== NO_TRAINING_TYPE && (trainingTypesQuery.isLoading || trainingTypesQuery.isError || !trainingTypes?.some(type => type.id === form.trainingTypeId)));
 
   const handleGenerate = () => {
+    if (lookupsUnavailable) return;
     if (isTrainingPlan && !form.organizationId) {
       toast({ title: "Organization required", description: "Choose the organization that will own this training plan.", variant: "destructive" });
       return;
@@ -216,12 +222,13 @@ export default function AiCourseWizard() {
                 </div>
                 <div className="space-y-1.5 sm:col-span-3">
                   <Label htmlFor={`${__fieldIds}-owning-organization`} className="text-[13px]">Owning Organization *</Label>
-                  <Select value={form.organizationId} onValueChange={v => field("organizationId", v)}>
-                    <SelectTrigger id={`${__fieldIds}-owning-organization`} className="h-9"><SelectValue placeholder="Choose organization" /></SelectTrigger>
+                  <Select value={form.organizationId} onValueChange={v => field("organizationId", v)} disabled={organizationsQuery.isLoading || organizationsQuery.isError}>
+                    <SelectTrigger id={`${__fieldIds}-owning-organization`} className="h-9"><SelectValue placeholder={organizationsQuery.isLoading ? "Loading organizations…" : "Choose organization"} /></SelectTrigger>
                     <SelectContent>
                       {(organizations ?? []).map(org => <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                  {organizationsQuery.isError ? <QueryError what="organizations" error={organizationsQuery.error} onRetry={() => void organizationsQuery.refetch()} /> : !organizationsQuery.isLoading && organizations?.length === 0 ? <p className="text-sm text-muted-foreground">No organizations are available. Add an organization before creating its training plan.</p> : null}
                   <p className="text-xs text-muted-foreground">Courses are created in the system catalog, then bundled into this organization's training plan.</p>
                 </div>
               </div>
@@ -244,7 +251,7 @@ export default function AiCourseWizard() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`${__fieldIds}-training-requirement-type`} className="text-[13px]">Training Requirement Type</Label>
-                <Select value={form.trainingTypeId} onValueChange={v => field("trainingTypeId", v)}>
+                <Select value={form.trainingTypeId} onValueChange={v => field("trainingTypeId", v)} disabled={trainingTypesQuery.isLoading || trainingTypesQuery.isError}>
                   <SelectTrigger id={`${__fieldIds}-training-requirement-type`} className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_TRAINING_TYPE}>Not linked to a compliance requirement</SelectItem>
@@ -253,6 +260,7 @@ export default function AiCourseWizard() {
                     ))}
                   </SelectContent>
                 </Select>
+                {trainingTypesQuery.isError ? <><QueryError what="training requirement types" error={trainingTypesQuery.error} onRetry={() => void trainingTypesQuery.refetch()} /><p className="text-xs text-muted-foreground">Retry to choose a requirement, or generate without a requirement link.</p>{form.trainingTypeId !== NO_TRAINING_TYPE && <Button variant="outline" size="sm" onClick={() => field("trainingTypeId", NO_TRAINING_TYPE)}>Continue without a requirement link</Button>}</> : trainingTypesQuery.isLoading ? <p className="text-xs text-muted-foreground">Loading training requirements…</p> : trainingTypes?.length === 0 ? <p className="text-xs text-muted-foreground">No active training requirements are available. You can still create an unlinked course.</p> : null}
               </div>
             </div>
             <p className="text-xs text-muted-foreground -mt-2">
@@ -314,7 +322,7 @@ export default function AiCourseWizard() {
 
       {!isPending && (
         <div className="flex justify-end">
-          <Button onClick={handleGenerate} className="shadow-sm">
+          <Button onClick={handleGenerate} disabled={lookupsUnavailable} className="shadow-sm">
             <Sparkles className="mr-2 h-4 w-4" /> Generate
           </Button>
         </div>

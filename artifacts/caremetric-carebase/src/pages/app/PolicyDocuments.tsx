@@ -1,7 +1,7 @@
 import { usePolicyWriteAssurance } from "@/hooks/usePolicyWriteAssurance";
 import { PolicyWriteAssurance } from "@/components/policies/PolicyWriteAssurance";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import {
   useCreatePolicyDocument, type PolicyDocumentInsert,
@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FileSignature, Plus, ChevronRight } from "lucide-react";
 
 function NewPolicyDocumentDialog() {
+  const [, navigate] = useLocation();
   const assurance = usePolicyWriteAssurance();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -57,10 +58,11 @@ function NewPolicyDocumentDialog() {
       created_by: user.id,
     };
     try {
-      await createDocument(payload);
+      const document = await createDocument(payload);
       if (editor.current !== submittedEditor) return;
       toast({ title: "Policy document created", description: "Upload a version to get started." });
       changeOpen(false);
+      navigate(`/app/policy-documents/${document.id}`);
     } catch (e) {
       if (editor.current !== submittedEditor) return;
       toast({ variant: "destructive", title: "Couldn't create policy document", description: e instanceof Error ? e.message : String(e) });
@@ -154,22 +156,24 @@ export default function PolicyDocuments() {
               {[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded" />)}
             </div>
           ) : !rows.length ? (
-            <p className="text-muted-foreground text-sm text-center py-8">
-              {urlState.search
+            <div className="space-y-3 py-8 text-center"><p className="text-muted-foreground text-sm">
+              {page > 1
+                ? "There are no policy documents on this page. Return to the first page to see current results."
+                : urlState.search
                 ? "No policy documents match your search."
                 : canWrite
                   ? "No policy documents yet. Create one, upload a PDF version, and publish it to start an attestation campaign."
                   : "No policy documents have been published yet."}
-            </p>
+            </p>{page > 1 && <Button variant="outline" size="sm" onClick={() => setUrlState({ page: "1" })}>Return to first page</Button>}{urlState.search && <Button variant="ghost" size="sm" onClick={() => setUrlState({ search: "", page: "1" })}>Clear search</Button>}</div>
           ) : (
             <>
               <div className="space-y-2">
                 {rows.map((doc) => (
                   <Link key={doc.id} href={`/app/policy-documents/${doc.id}`}>
-                    <div className="flex items-center justify-between gap-3 p-4 rounded-lg border hover:bg-accent/5 cursor-pointer">
+                    <div className="flex flex-col items-start gap-3 p-4 rounded-lg border hover:bg-accent/5 cursor-pointer sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-sm truncate">{doc.title}</p>
+                          <p className="font-medium text-sm break-words">{doc.title}</p>
                           {doc.category && <Badge variant="outline" className="text-xs">{doc.category}</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground truncate mt-0.5">

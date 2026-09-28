@@ -1,11 +1,11 @@
 import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const h = vi.hoisted(() => ({ state: [] as unknown[], cursor: 0, versionsError: false, blocksError: false, coursesError: false, pending: false, retry: vi.fn(), create: vi.fn(), register: vi.fn(), toast: vi.fn() }));
+const h = vi.hoisted(() => ({ state: [] as unknown[], cursor: 0, role: "platform_admin", revisions: [] as unknown[], versionsError: false, blocksError: false, coursesError: false, pending: false, retry: vi.fn(), create: vi.fn(), register: vi.fn(), toast: vi.fn() }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(), useEffect: () => {}, useMemo: (fn: () => unknown) => fn(),
   useState: (value: unknown) => { const i = h.cursor++; if (!(i in h.state)) h.state[i] = typeof value === "function" ? value() : value;
     return [h.state[i], (next: unknown) => { h.state[i] = typeof next === "function" ? next(h.state[i]) : next; }]; },
 }));
-vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "author" } }) }));
+vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "author", role: h.role } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/hooks/useCourses", () => ({
   useListCourses: () => ({ data: [{ id: "course", title: "Course", organization_id: "org" }], isError: h.coursesError, error: new Error("Catalog unavailable"), refetch: h.retry }),
@@ -13,7 +13,7 @@ vi.mock("@/hooks/useCourses", () => ({
   useListCourseBlocks: () => ({ data: [], isError: h.blocksError, error: new Error("Blocks unavailable"), refetch: h.retry }),
 }));
 vi.mock("@/hooks/useGovernedContentRevisions", () => ({
-  useGovernedContentAssets: () => ({ data: ["a", "b"].map(id => ({ id, source_id: `course-${id}`, title: id })) }), useGovernedContentRevisions: () => ({ data: [] }),
+  useGovernedContentAssets: () => ({ data: ["a", "b"].map(id => ({ id, source_id: `course-${id}`, title: id })) }), useGovernedContentRevisions: () => ({ data: h.revisions }),
   useCreateGovernedRevision: () => ({ mutateAsync: h.create, isPending: h.pending }), useRegisterGovernedAsset: () => ({ mutateAsync: h.register }),
   useSubmitGovernedRevision: () => ({}), useReviewGovernedRevision: () => ({}), usePublishGovernedRevision: () => ({}),
 }));
@@ -26,7 +26,7 @@ function render() { h.cursor = 0; return GovernedContentRevisionsPanel(); }
 function authorNode(asset = "a") { nodes(render()).find(n => n.props.onValueChange)!.props.onValueChange(asset); return nodes(render()).find(n => n.props.assetId === asset)!; }
 function mount(node: Node) { h.state = []; return () => { h.cursor = 0; return (node.type as (props: any) => ReactNode)(node.props); }; }
 function action(tree: ReactNode, label: string) { return nodes(tree).find(n => n.props.onClick && text(n).trim() === label)!; }
-beforeEach(() => { vi.clearAllMocks(); h.state = []; h.cursor = 0; h.versionsError = false; h.blocksError = false; h.coursesError = false; h.pending = false; });
+beforeEach(() => { vi.clearAllMocks(); h.state = []; h.cursor = 0; h.role = "platform_admin"; h.revisions = []; h.versionsError = false; h.blocksError = false; h.coursesError = false; h.pending = false; });
 describe("governed revision authoring recovery", () => {
   it("offers a retry for failed source-version reads", () => {
     h.versionsError = true; const tree = mount(authorNode())(); const failure = nodes(tree).find(n => n.type === QueryError)!;
@@ -51,5 +51,22 @@ describe("governed revision authoring recovery", () => {
     expect(nodes(tree).find(n => n.props.id === "gc-summary")?.props.disabled).toBe(true);
     expect(nodes(tree).find(n => n.props.onValueChange && n.props.value === "")?.props.disabled).toBe(true);
     expect(nodes(tree).find(n => n.props.id === "gc-material")?.props.disabled).toBe(true);
+  });
+
+  it.each(["org_admin", "facility_manager", "trainer", "employee", "auditor"])("keeps course history read-only for %s", role => {
+    h.role = role;
+    nodes(render()).find(n => n.props.onValueChange)!.props.onValueChange("a");
+    const tree = render();
+    expect(text(tree)).toContain("The super admin manages course content and publication");
+    expect(nodes(tree).some(n => n.props.governedSourceIds || n.props.assetId)).toBe(false);
+
+    for (const state of ["draft", "in_review", "approved", "published"]) {
+      h.revisions = [{ id: `revision-${state}`, asset_id: "a", state, revision_number: 3, change_summary: "Reviewed safety course",
+        snapshot_sha256: "a".repeat(64), authored_by: state === "draft" ? "author" : "other", created_at: "2026-09-27T12:00:00Z", snapshot: null }];
+      const row = nodes(render()).find(n => n.props.revision)!;
+      const output = mount(row)();
+      expect(text(output)).toContain("Revision 3 · Reviewed safety course");
+      expect(nodes(output).some(n => n.props.onClick || n.props.onChange)).toBe(false);
+    }
   });
 });

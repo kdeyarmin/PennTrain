@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { facilityToday } from "@/lib/dateUtils";
+import { QueryError } from "@/components/QueryState";
 
 const human = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const commaList = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -107,7 +108,7 @@ export default function DietaryOperations() {
         </Field>
       </CardContent>
     </Card>
-    {!facilityId ? <Empty>Select a facility to open dietary operations.</Empty> : operations.isError ? <Empty>Dietary operations could not be loaded: {operations.error.message}</Empty> : operations.isLoading ? <Empty>Loading dietary operations…</Empty> :
+    {!facilityId ? <Empty>Select a facility to open dietary operations.</Empty> : operations.isError ? <QueryError what="dietary operations" error={operations.error} onRetry={() => void operations.refetch()} /> : operations.isLoading ? <Empty>Loading dietary operations…</Empty> :
       <Tabs key={facilityId} defaultValue="resident" className="space-y-4">
         <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="resident"><Utensils className="mr-2 h-4 w-4" />Resident nutrition</TabsTrigger>

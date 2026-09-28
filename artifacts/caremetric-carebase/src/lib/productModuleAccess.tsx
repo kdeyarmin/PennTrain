@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { pathAvailableInBuild } from "@/lib/productRoutes";
 import {
   ALL_PRODUCT_MODULE_IDS,
   ALL_PURCHASABLE_PRODUCT_MODULE_IDS,
@@ -108,7 +109,7 @@ export function ProductModuleAccessProvider({ children }: { children: React.Reac
       void entitlements.refetch();
     },
     canAccessModule: (moduleId) => enabledModules.has(moduleId),
-    canAccessPath: (path) => canAccessProductPath(path, enabledModules),
+    canAccessPath: (path) => pathAvailableInBuild(path) && canAccessProductPath(path, enabledModules),
     homePath: moduleHomePathForRole(user?.role, enabledModules),
   }), [enabledModules, entitlements, shouldLoadEntitlements, user?.organizationId, user?.role]);
 

@@ -105,6 +105,16 @@ beforeEach(() => {
 });
 
 describe("saved report facility scope", () => {
+  it("keeps report selection, viewing and CSV as separate native controls", async () => {
+    const tree = renderPage();
+    const select = tree.find(node => node.props["aria-label"] === "Select Expired Training Records report")!;
+    expect(select.type).toBe("button");
+    expect(tree.some(node => node.props.role === "button")).toBe(false);
+    (select.props.onClick as () => void)();
+    const view = renderPage().find(node => node.props["aria-label"] === "View Expired Training Records")!;
+    (view.props.onClick as (event: unknown) => void)({ stopPropagation: vi.fn() });
+    await vi.waitFor(() => expect(harness.rpc).toHaveBeenCalledWith("generate_paged_compliance_report", expect.objectContaining({ p_report_id: "expired-training" })));
+  });
   it("uses the saved facility immediately, even before the picker state renders", async () => {
     selectFacility("facility-west");
     (savedButton().props.onClick as () => void)();

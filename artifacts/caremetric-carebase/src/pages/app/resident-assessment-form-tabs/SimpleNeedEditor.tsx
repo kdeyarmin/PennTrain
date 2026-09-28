@@ -38,6 +38,7 @@ export const SimpleNeedEditor = memo(function SimpleNeedEditor({
         <fieldset disabled={readOnly} className="space-y-2">
           <Textarea
             placeholder="Description"
+            aria-label={`${item.label}: description`}
             className="text-xs min-h-14"
             value={answer.description}
             onChange={(e) =>
@@ -46,6 +47,7 @@ export const SimpleNeedEditor = memo(function SimpleNeedEditor({
           />
           <Textarea
             placeholder="Plan to meet the need"
+            aria-label={`${item.label}: plan to meet the need`}
             className="text-xs min-h-14"
             value={answer.planDescription}
             onChange={(e) =>

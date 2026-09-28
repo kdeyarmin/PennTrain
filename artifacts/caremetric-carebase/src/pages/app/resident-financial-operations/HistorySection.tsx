@@ -13,6 +13,7 @@ export function HistoryList({ items }: { items: FinancialWorkspace["history"] })
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
+        {items.length === 0 && <p className="text-sm text-muted-foreground">No financial history recorded yet.</p>}
         {items.map((item) => (
           <div key={item.id} className="rounded border p-3">
             <div className="flex justify-between">

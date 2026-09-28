@@ -182,13 +182,18 @@ export default function Residents() {
   };
 
   const selectedFacility = facilityById.get(form.facilityId);
+  const hasFilters = search.trim() !== "" || urlState.facility !== "all" || urlState.status !== "all";
+  const clearFilters = () => {
+    setSearch("");
+    setUrlState({ search: "", facility: "all", status: "all", page: "1" });
+  };
 
   return (
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Residents</h1>
-          <p>Track RASP/ASP compliance deadlines by resident — preadmission screening through annual reassessment. No charting or care-plan data is stored here.</p>
+          <p>Find a resident to review their care, clinical chart, assessments, documents, and RASP/ASP compliance deadlines.</p>
         </div>
         {canManage && (
           <Button onClick={openCreate} className="shadow-sm">
@@ -230,6 +235,7 @@ export default function Residents() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search residents..."
+              aria-label="Search residents"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 h-9 bg-card"
@@ -249,6 +255,7 @@ export default function Residents() {
               {["reserved", "active", "temporarily_out", "hospital_leave", "discharged", "deceased"].map((s) => <SelectItem key={s} value={s}>{humanize(s)}</SelectItem>)}
             </SelectContent>
           </Select>
+          {hasFilters && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
         </div>
 
         {isError ? (
@@ -264,8 +271,9 @@ export default function Residents() {
             <BedDouble className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No residents found</p>
             <p className="text-xs text-muted-foreground/60 mt-1">
-              {canManage ? "Add a resident to start their RASP/ASP compliance checklist." : "Try adjusting your filters."}
+              {hasFilters ? "Try clearing your filters to see all residents." : canManage ? "Add a resident to start their RASP/ASP compliance checklist." : "No residents are available in this organization."}
             </p>
+            {hasFilters && <Button className="mt-3" variant="outline" onClick={clearFilters}>Show all residents</Button>}
           </div>
         ) : (
           <>
@@ -286,7 +294,7 @@ export default function Residents() {
                 <tbody>
                   {residents.map((r) => (
                     <tr key={r.id}>
-                      <td className="font-medium text-foreground">{r.last_name}, {r.first_name}</td>
+                      <td className="font-medium text-foreground"><Link href={`/app/residents/${r.id}`} className="text-primary hover:underline">{r.last_name}, {r.first_name}</Link></td>
                       <td className="text-muted-foreground">{facilityById.get(r.facility_id)?.name ?? "—"}</td>
                       <td className="text-muted-foreground">{r.room ?? "—"}</td>
                       <td className="text-muted-foreground">{formatDateOnly(r.admission_date)}</td>
@@ -314,7 +322,7 @@ export default function Residents() {
                       </td>
                       <td><ResidentStatusPill status={r.status} /></td>
                       <td>
-                        <Link href={`/app/residents/${r.id}`} className="text-sm text-primary hover:underline">View</Link>
+                        <Link href={`/app/residents/${r.id}`} aria-label={`View ${r.first_name} ${r.last_name}`} className="text-sm text-primary hover:underline">View</Link>
                       </td>
                     </tr>
                   ))}

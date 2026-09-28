@@ -21,9 +21,6 @@ import {
   Settings,
   ShieldCheck,
   BookOpen,
-  PlayCircle,
-  ClipboardList,
-  CalendarCheck,
   FileCheck,
   ShieldAlert,
   Database,
@@ -38,6 +35,18 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { QueryError } from "@/components/QueryState";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useUrlState } from "@/hooks/useUrlState";
+
+const DASHBOARD_SECTIONS = [
+  { value: "overview", label: "Overview" },
+  { value: "organizations", label: "Organizations" },
+  { value: "compliance", label: "Compliance" },
+  { value: "training", label: "Training" },
+  { value: "system", label: "System health" },
+  { value: "tools", label: "Setup & tools" },
+] as const;
+const DASHBOARD_URL_DEFAULTS = { section: "overview" };
 
 /**
  * One tile per subscription state, in the order the column's CHECK constraint lists them
@@ -65,6 +74,8 @@ const SUBSCRIPTION_STATE_TILES: ReadonlyArray<{
 ];
 
 export default function AdminDashboard() {
+  const [urlState, setUrlState] = useUrlState(DASHBOARD_URL_DEFAULTS);
+  const section = DASHBOARD_SECTIONS.some((item) => item.value === urlState.section) ? urlState.section : "overview";
   const {
     data: health,
     isLoading: healthLoading,
@@ -85,7 +96,6 @@ export default function AdminDashboard() {
   const orgsByStatus = health?.orgsByStatus ?? {};
   const totalOrgs = Object.values(orgsByStatus).reduce((sum, value) => sum + (Number(value) || 0), 0);
   const activeOrgs = Number(orgsByStatus.active ?? 0);
-  const trialOrgs = Number(orgsByStatus.trial ?? 0);
   const pastDueOrgs = Number(orgsByStatus.past_due ?? 0);
   const suspendedOrgs = Number(orgsByStatus.suspended ?? 0);
   // "Total" sums every key the control plane returns -- all seven subscription states -- while the
@@ -180,39 +190,6 @@ export default function AdminDashboard() {
     "Monitor failed notifications, support tickets, and audit activity after launch.",
   ];
 
-  const controlRoomSections = [
-    {
-      title: "Launch a customer",
-      description: "Everything needed to take a tenant from signed contract to first login.",
-      Icon: Rocket,
-      items: [
-        { href: "/admin/organizations", label: "Create organization and package" },
-        { href: "/admin/facilities", label: "Verify facilities" },
-        { href: "/admin/users", label: "Invite customer admins" },
-      ],
-    },
-    {
-      title: "Run daily operations",
-      description: "Queues platform operators should clear before customer work backs up.",
-      Icon: ClipboardList,
-      items: [
-        { href: "/admin/support-tickets?status=open", label: "Open support tickets" },
-        { href: "/admin/notifications?status=failed", label: "Failed notification delivery" },
-        { href: "/admin/audit", label: "Audit log review" },
-      ],
-    },
-    {
-      title: "Keep training moving",
-      description: "Shortcuts for creating required content and checking that employees can complete assignments.",
-      Icon: CalendarCheck,
-      items: [
-        { href: "/admin/courses", label: "Training content catalog" },
-        { href: "/admin/courses/new-ai", label: "AI training builder" },
-        { href: "/admin/ai-generations", label: "AI generation status" },
-      ],
-    },
-  ];
-
   const dataQualityChecks = [
     {
       label: "Organizations missing contact owner",
@@ -286,7 +263,6 @@ export default function AdminDashboard() {
       Icon: Building2,
       status: healthBusy ? "—" : `${activeOrgs}/${totalOrgs} active`,
       finding: "Centralize org setup, packages, facilities, and subscription follow-up.",
-      enhancement: "Use the tenant watchlist plus org shortcuts to unblock launches faster.",
       links: [
         { href: "/admin/organizations", label: "Organizations" },
         { href: "/admin/packages", label: "Packages" },
@@ -298,7 +274,6 @@ export default function AdminDashboard() {
       Icon: Users,
       status: healthBusy ? "—" : `${health?.totalEmployees ?? 0} employees`,
       finding: "Admins need one path to inspect employees and control application users.",
-      enhancement: "Pair employee directory review with user-role review before every launch.",
       links: [
         { href: "/admin/employees", label: "Employees" },
         { href: "/admin/users", label: "Users" },
@@ -310,7 +285,6 @@ export default function AdminDashboard() {
       Icon: BookOpen,
       status: healthBusy ? "—" : `${health?.aiGenerationsFailed ?? 0} AI failures`,
       finding: "Course authoring and AI generation health should be reviewed together.",
-      enhancement: "Keep training-content creation, AI logs, and help content one click away.",
       links: [
         { href: "/admin/courses", label: "Training content" },
         { href: "/admin/courses/new-ai", label: "New AI training" },
@@ -322,7 +296,6 @@ export default function AdminDashboard() {
       Icon: ShieldAlert,
       status: healthBusy ? "—" : `${suspendedOrgs} suspended`,
       finding: "Platform admins need quick access to alerts, audit documentation, and governance.",
-      enhancement: "Review alerts and security governance before enabling troubled tenants.",
       links: [
         { href: "/admin/alerts", label: "Alerts" },
         { href: "/admin/security", label: "Security" },
@@ -334,7 +307,6 @@ export default function AdminDashboard() {
       Icon: LifeBuoy,
       status: dashboardBusy ? "—" : `${openSupportTickets} open tickets`,
       finding: "Support and failed notification delivery directly affect employee completion.",
-      enhancement: "Clear failed deliveries and open tickets from the same operating surface.",
       links: [
         { href: "/admin/support-tickets?status=open", label: "Support queue" },
         { href: "/admin/notifications?status=failed", label: "Failed delivery" },
@@ -346,7 +318,6 @@ export default function AdminDashboard() {
       Icon: Settings,
       status: "Settings ready",
       finding: "Feature flags, maintenance controls, and system health should be obvious.",
-      enhancement: "Keep platform settings visible next to health and operational queues.",
       links: [
         { href: "/admin/settings", label: "Settings" },
         { href: "/admin/security", label: "Governance" },
@@ -355,11 +326,20 @@ export default function AdminDashboard() {
     },
   ];
 
+  const priorities = [
+    { label: "Failed notifications", count: health?.notificationDeliveriesFailed ?? 0, busy: healthBusy, href: "/admin/notifications?status=failed", Icon: Send },
+    { label: "Open support tickets", count: openSupportTickets, busy: dashboardBusy, href: "/admin/support-tickets?status=open", Icon: LifeBuoy },
+    { label: "Failed system jobs", count: health?.systemJobsFailed ?? 0, busy: healthBusy, href: "/admin/system-jobs", Icon: Activity },
+    { label: "Stale system jobs", count: health?.systemJobsStale ?? 0, busy: healthBusy, href: "/admin/system-jobs", Icon: Timer },
+    { label: "Failed AI generations (30d)", count: health?.aiGenerationsFailed ?? 0, busy: healthBusy, href: "/admin/ai-generations", Icon: Sparkles },
+    { label: "Past-due organizations", count: pastDueOrgs, busy: healthBusy, href: "/admin/organizations?status=past_due", Icon: Building2 },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="page-header !mb-0">
         <h1>Platform Dashboard</h1>
-        <p>Overview of all organizations, system health, and launch controls.</p>
+        <p>Review urgent queues first, then choose an area for more detail.</p>
       </div>
 
       {(healthError || dashboardError) && (
@@ -373,54 +353,70 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-background to-background">
-        <CardContent className="p-6">
-          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-            <div className="space-y-4">
-              <Badge variant={!healthBusy && !dashboardBusy && urgentWorkItems > 0 ? "destructive" : "secondary"} className="w-fit">
-                {healthBusy || dashboardBusy
-                  ? "Metrics unavailable"
-                  : urgentWorkItems > 0
-                    ? `${urgentWorkItems} item${urgentWorkItems === 1 ? "" : "s"} need attention`
-                    : "Ready to operate"}
-              </Badge>
-              <div>
-                <h2 className="text-3xl font-bold tracking-tight text-foreground">Super admin command center</h2>
-                <p className="mt-2 max-w-2xl text-muted-foreground">
-                  Run CareMetric CareBase from this portal: launch customers, manage access, publish training content, and watch
-                  operational health without hunting through separate menus.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link href="/admin/organizations">
-                  <Button>
-                    <Rocket className="mr-2 h-4 w-4" /> Launch customer
-                  </Button>
-                </Link>
-                <Link href="/admin/support-tickets?status=open">
-                  <Button variant="outline">
-                    <LifeBuoy className="mr-2 h-4 w-4" /> Review support queue
-                  </Button>
-                </Link>
-              </div>
-            </div>
-            <div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-              <div className="flex items-center gap-2 font-semibold">
-                <PlayCircle className="h-4 w-4 text-primary" /> Recommended run order
-              </div>
-              <ol className="mt-3 space-y-3 text-sm text-muted-foreground">
-                {runSteps.map((step, index) => (
-                  <li key={step} className="flex gap-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
+        <div>
+          <p className="font-semibold">Daily operations</p>
+          <p className="text-sm text-muted-foreground">
+            {healthError || dashboardError ? "Some metrics are unavailable. Retry the affected source above."
+              : healthLoading || dashboardLoading ? "Loading current priorities…"
+              : urgentWorkItems > 0 ? `${urgentWorkItems} items across the priority queues.` : "No items in the priority queues."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild><Link href="/admin/support-tickets?status=open"><LifeBuoy className="mr-2 h-4 w-4" />Support queue</Link></Button>
+          <Button asChild variant="outline"><Link href="/admin/organizations"><Rocket className="mr-2 h-4 w-4" />Organizations</Link></Button>
+        </div>
+      </div>
 
+      <Tabs value={section} onValueChange={(section) => setUrlState({ section })} className="space-y-5">
+        <TabsList aria-label="Dashboard sections" className="text-foreground">
+          {DASHBOARD_SECTIONS.map((item) => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}
+        </TabsList>
+        <TabsContent value="overview" className="space-y-5">
+          <Card>
+            <CardHeader><CardTitle>Operating priorities</CardTitle></CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {priorities.map(({ label, count, busy, href, Icon }) => (
+                <Link key={label} href={href} className={`flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50 ${!busy && count > 0 ? "border-destructive/40" : ""}`}>
+                  <div className="flex items-start gap-2 text-sm font-medium"><Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{label}</div>
+                  <p className="shrink-0 text-2xl font-bold">{busy ? "—" : count}</p>
+                </Link>
+              ))}
+            </CardContent>
+          </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Tenant Watchlist</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {dashboardError ? (
+              <QueryError what="tenant watchlist" error={dashboardErrorDetail} onRetry={() => refetchDashboard()} />
+            ) : dashboardLoading ? (
+              <div className="space-y-3">{[1, 2, 3].map((n) => <div key={n} className="h-14 animate-pulse rounded-lg bg-muted" />)}</div>
+            ) : (
+            <div className="space-y-3">
+              {atRiskOrganizations.map((org) => (
+                <Link key={org.id} href={`/admin/organizations/${org.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 hover:bg-muted/50">
+                  <div>
+                    <p className="text-sm font-medium">{org.name}</p>
+                    <p className="text-xs text-muted-foreground">{org.plan_name ?? "Standard"} plan</p>
+                  </div>
+                  <StatusBadge status={org.subscription_status ?? "active"} type="subscription" />
+                </Link>
+              ))}
+              {atRiskOrganizations.length === 0 && (
+                <div className="rounded-lg border border-dashed p-4 text-center">
+                  <FileCheck className="mx-auto h-5 w-5 text-green-600" />
+                  <p className="mt-2 text-sm font-medium">No tenant follow-up needed</p>
+                  <p className="text-xs text-muted-foreground">Trials, past-due, and suspended organizations will appear here.</p>
+                </div>
+              )}
+            </div>
+            )}
+          </CardContent>
+        </Card>
+        </TabsContent>
+        <TabsContent value="organizations" className="space-y-5">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {/* Each tile deep-links to Organizations with the matching subscription_status
             pre-selected -- the page reads `?status=` via useUrlState, so a tile that counts
@@ -445,106 +441,6 @@ export default function AdminDashboard() {
             href={`/admin/organizations?status=${tile.status}`}
           />
         ))}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {launchActions.map(({ href, label, description, Icon }) => (
-          <Link key={href} href={href} className="group rounded-lg border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-muted/40">
-            <div className="flex items-start justify-between gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Icon className="h-5 w-5 text-primary" />
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
-            </div>
-            <h3 className="mt-4 font-semibold text-foreground">{label}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-          </Link>
-        ))}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Operating Priorities</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-3">
-            <Link href="/admin/notifications?status=failed" className="rounded-lg border p-4 hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-2 text-sm font-medium"><Send className="h-4 w-4 text-red-600" /> Failed notifications</div>
-              <p className="mt-2 text-2xl font-bold">{healthLoading || healthError ? "—" : (health?.notificationDeliveriesFailed ?? 0)}</p>
-              <p className="text-xs text-muted-foreground">Fix delivery issues before users miss required training reminders.</p>
-            </Link>
-            <Link href="/admin/security" className="rounded-lg border p-4 hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-2 text-sm font-medium"><ShieldCheck className="h-4 w-4 text-blue-600" /> Governance checks</div>
-              <p className="mt-2 text-2xl font-bold">{healthLoading || healthError ? "—" : suspendedOrgs}</p>
-              <p className="text-xs text-muted-foreground">Suspended organizations to review before enabling or expanding access.</p>
-            </Link>
-            <Link href="/admin/help-content" className="rounded-lg border p-4 hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-2 text-sm font-medium"><BookOpen className="h-4 w-4 text-green-600" /> Operator guidance</div>
-              <p className="mt-2 text-2xl font-bold">Help</p>
-              <p className="text-xs text-muted-foreground">Keep support articles current so teams can self-serve day-to-day operations.</p>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Control Room</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 lg:grid-cols-3">
-              {controlRoomSections.map(({ title, description, Icon, items }) => (
-                <div key={title} className="rounded-lg border p-4">
-                  <div className="flex items-center gap-2 font-semibold">
-                    <Icon className="h-4 w-4 text-primary" /> {title}
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-                  <div className="mt-4 space-y-2">
-                    {items.map((item) => (
-                      <Link key={item.href} href={item.href} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm font-medium hover:bg-muted">
-                        <span>{item.label}</span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Tenant Watchlist</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dashboardError ? (
-              <QueryError what="tenant watchlist" error={dashboardErrorDetail} onRetry={() => refetchDashboard()} />
-            ) : dashboardLoading ? (
-              <div className="space-y-3">{[1, 2, 3].map((n) => <div key={n} className="h-14 animate-pulse rounded-lg bg-muted" />)}</div>
-            ) : (
-            <div className="space-y-3">
-              {atRiskOrganizations.map((org) => (
-                <Link key={org.id} href={`/admin/organizations/${org.id}`} className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50">
-                  <div>
-                    <p className="text-sm font-medium">{org.name}</p>
-                    <p className="text-xs text-muted-foreground">{org.plan_name ?? "Standard"} plan</p>
-                  </div>
-                  <StatusBadge status={org.subscription_status ?? "active"} type="subscription" />
-                </Link>
-              ))}
-              {atRiskOrganizations.length === 0 && (
-                <div className="rounded-lg border border-dashed p-4 text-center">
-                  <FileCheck className="mx-auto h-5 w-5 text-green-600" />
-                  <p className="mt-2 text-sm font-medium">No tenant follow-up needed</p>
-                  <p className="text-xs text-muted-foreground">Trials, past-due, and suspended organizations will appear here.</p>
-                </div>
-              )}
-            </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
@@ -595,7 +491,7 @@ export default function AdminDashboard() {
             <div className="grid gap-3 md:grid-cols-2">
               {dataQualityChecks.map((check) => (
                 <Link key={check.label} href={check.href} className="rounded-lg border p-3 hover:bg-muted/50">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium">{check.label}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{check.guidance}</p>
@@ -611,8 +507,65 @@ export default function AdminDashboard() {
       </div>
 
       <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Organizations</CardTitle>
+          <Link href="/admin/organizations">
+            <Button variant="outline" size="sm">
+              View All <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {dashboardError ? (
+            <QueryError what="organizations" error={dashboardErrorDetail} onRetry={() => refetchDashboard()} />
+          ) : dashboardLoading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {organizationsPage.map(org => (
+                <Link key={org.id} href={`/admin/organizations/${org.id}`}>
+                  <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer border">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
+                        <Building2 className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{org.name}</p>
+                        <p className="text-xs text-muted-foreground">{org.plan_name ?? "Standard"} plan</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={org.subscription_status ?? "active"} type="subscription" />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+              {organizationsPage.length === 0 && (
+                <p className="text-muted-foreground text-sm text-center py-4">No organizations found.</p>
+              )}
+              {/* This card is a bounded slice, not the full tenant list. Say so rather than
+                  letting a truncated list read as "these are all the organizations". */}
+              {organizationsPage.length > 0 && totalOrgs > organizationsPage.length && (
+                <Link href="/admin/organizations" className="block pt-1">
+                  <p className="text-muted-foreground text-xs text-center hover:underline">
+                    Showing {organizationsPage.length} of {totalOrgs} organizations — view all
+                  </p>
+                </Link>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+        </TabsContent>
+        <TabsContent value="compliance">
+      <Card>
         <CardHeader>
-          <CardTitle>Phase 2 Compliance Automation</CardTitle>
+          <CardTitle>Compliance follow-up</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
@@ -665,7 +618,7 @@ export default function AdminDashboard() {
                       <Link key={id} href={href} className="flex items-start gap-3 rounded-md border p-3 hover:bg-muted/50">
                         <Icon className="mt-0.5 h-4 w-4 text-primary" />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{label}</p>
+                          <p className="break-words text-sm font-medium">{label}</p>
                           <p className="text-xs text-muted-foreground">{date ? formatDateForDisplay(date) : "No date"}</p>
                         </div>
                         <Badge variant="outline" className="capitalize">{status?.replace(/_/g, " ") ?? "open"}</Badge>
@@ -682,9 +635,11 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
+        </TabsContent>
+        <TabsContent value="training">
       <Card>
         <CardHeader>
-          <CardTitle>Phase 3 Training Optimization</CardTitle>
+          <CardTitle>Training follow-up</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 xl:grid-cols-[0.8fr_0.6fr_0.6fr]">
@@ -713,7 +668,7 @@ export default function AdminDashboard() {
                   <>
                     {coursesNeedingAttention.map((course) => (
                       <Link key={course.courseId} href={`/admin/courses/${course.courseId}`} className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 hover:bg-muted">
-                        <span className="truncate text-sm font-medium">{course.title}</span>
+                        <span className="break-words text-sm font-medium">{course.title}</span>
                         <Badge variant="secondary">{course.count}</Badge>
                       </Link>
                     ))}
@@ -743,35 +698,8 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Domain Review & Enhancement Map</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {domainReviewCards.map(({ title, Icon, status, finding, enhancement, links }) => (
-              <div key={title} className="rounded-lg border p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2 font-semibold">
-                    <Icon className="h-4 w-4 text-primary" /> {title}
-                  </div>
-                  <Badge variant="secondary">{status}</Badge>
-                </div>
-                <p className="mt-3 text-sm text-muted-foreground">{finding}</p>
-                <p className="mt-2 text-sm font-medium text-foreground">Enhancement: {enhancement}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {links.map((link) => (
-                    <Link key={`${title}-${link.href}`} href={link.href}>
-                      <Button variant="outline" size="sm">{link.label}</Button>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
+        </TabsContent>
+        <TabsContent value="system">
       <Card>
         <CardHeader>
           <CardTitle>System Health</CardTitle>
@@ -780,11 +708,11 @@ export default function AdminDashboard() {
           {healthError ? (
             <QueryError what="system health" error={healthErrorDetail} onRetry={() => refetchHealth()} />
           ) : healthLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
               {[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-md" />)}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
               <Link href="/admin/notifications?status=failed" className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
                 <div className="h-9 w-9 rounded-md bg-red-100 flex items-center justify-center shrink-0">
                   <Send className="h-4 w-4 text-red-600" />
@@ -873,61 +801,57 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Organizations</CardTitle>
-          <Link href="/admin/organizations">
-            <Button variant="outline" size="sm">
-              View All <ChevronRight className="ml-1 h-4 w-4" />
-            </Button>
+        </TabsContent>
+        <TabsContent value="tools" className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {launchActions.map(({ href, label, description, Icon }) => (
+          <Link key={href} href={href} className="group rounded-lg border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-muted/40">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Icon className="h-5 w-5 text-primary" />
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+            </div>
+            <h3 className="mt-4 font-semibold text-foreground">{label}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
           </Link>
+        ))}
+      </div>
+
+          <details className="rounded-lg border bg-card p-4">
+            <summary className="cursor-pointer font-medium">Customer setup checklist</summary>
+            <ol className="mt-4 space-y-3 text-sm text-muted-foreground">
+              {runSteps.map((step, index) => <li key={step} className="flex gap-3"><span className="font-semibold text-primary">{index + 1}.</span><span>{step}</span></li>)}
+            </ol>
+          </details>
+      <Card>
+        <CardHeader>
+          <CardTitle>All platform tools</CardTitle>
         </CardHeader>
         <CardContent>
-          {dashboardError ? (
-            <QueryError what="organizations" error={dashboardErrorDetail} onRetry={() => refetchDashboard()} />
-          ) : dashboardLoading ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-14 bg-muted animate-pulse rounded-md" />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {organizationsPage.map(org => (
-                <Link key={org.id} href={`/admin/organizations/${org.id}`}>
-                  <div className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer border">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
-                        <Building2 className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{org.name}</p>
-                        <p className="text-xs text-muted-foreground">{org.plan_name ?? "Standard"} plan</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={org.subscription_status ?? "active"} type="subscription" />
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {domainReviewCards.map(({ title, Icon, status, finding, links }) => (
+              <div key={title} className="rounded-lg border p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Icon className="h-4 w-4 text-primary" /> {title}
                   </div>
-                </Link>
-              ))}
-              {organizationsPage.length === 0 && (
-                <p className="text-muted-foreground text-sm text-center py-4">No organizations found.</p>
-              )}
-              {/* This card is a bounded slice, not the full tenant list. Say so rather than
-                  letting a truncated list read as "these are all the organizations". */}
-              {organizationsPage.length > 0 && totalOrgs > organizationsPage.length && (
-                <Link href="/admin/organizations" className="block pt-1">
-                  <p className="text-muted-foreground text-xs text-center hover:underline">
-                    Showing {organizationsPage.length} of {totalOrgs} organizations — view all
-                  </p>
-                </Link>
-              )}
-            </div>
-          )}
+                  <Badge variant="secondary">{status}</Badge>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">{finding}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {links.map((link) => (
+                    <Button key={`${title}-${link.href}`} asChild variant="outline" size="sm"><Link href={link.href}>{link.label}</Link></Button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
+
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

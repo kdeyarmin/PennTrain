@@ -132,7 +132,7 @@ select throws_ok($$select public.finish_native_learning_package_operation((selec
 select pg_temp.package_actor(true);
 select throws_ok($$select public.get_native_learning_package_context('22000000-0000-4000-8000-000000000030',null)$$,'42501',null,'tenant trainer cannot target global course');
 select throws_ok($$select public.get_native_learning_package_context('22000000-0000-4000-8000-000000000032',null)$$,'42501',null,'tenant trainer cannot target another tenant');
-select lives_ok($$select public.get_native_learning_package_context('22000000-0000-4000-8000-000000000031',null)$$,'same-tenant trainer retains scoped authoring access');
+select lives_ok($$select public.get_native_learning_package_context('22000000-0000-4000-8000-000000000031',null)$$,'same-tenant trainer retains scoped package inspection');
 reset role;
 select is((select count(*) from public.learning_packages where course_version_id='22000000-0000-4000-8000-000000000030'),1::bigint,'rejected CAS adds no second package');
 

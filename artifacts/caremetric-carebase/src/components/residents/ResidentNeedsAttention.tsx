@@ -13,7 +13,7 @@ import {
 
 const SEVERITY_STYLE: Record<NeedsAttentionSeverity, { border: string; badge: string; label: string }> = {
   urgent: { border: "border-l-4 border-l-destructive", badge: "border-destructive text-destructive", label: "Urgent" },
-  high: { border: "border-l-4 border-l-amber-500", badge: "border-amber-500 text-amber-700 dark:text-amber-500", label: "High" },
+  high: { border: "border-l-4 border-l-amber-500", badge: "border-amber-500 text-amber-700", label: "High" },
   attention: { border: "border-l-4 border-l-muted-foreground/40", badge: "", label: "Attention" },
   info: { border: "border-l-4 border-l-muted", badge: "", label: "Info" },
 };
@@ -77,7 +77,7 @@ export function ResidentNeedsAttentionPanel({
           {!isLoading && !isError && summary.total > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {summary.urgent > 0 && <Badge variant="outline" className="border-destructive text-destructive">{summary.urgent} urgent</Badge>}
-              {summary.high > 0 && <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-500">{summary.high} high</Badge>}
+              {summary.high > 0 && <Badge variant="outline" className="border-amber-500 text-amber-700">{summary.high} high</Badge>}
               {summary.attention > 0 && <Badge variant="outline">{summary.attention} attention</Badge>}
             </div>
           )}

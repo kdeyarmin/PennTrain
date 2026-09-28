@@ -14,9 +14,7 @@ export default function TemplateDocumentDetail() {
   if (!template) {
     return (
       <div className="space-y-4">
-        <Link href="/app/template-documents">
-          <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Template Documents</Button>
-        </Link>
+        <Button asChild variant="ghost" size="sm"><Link href="/app/template-documents"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Template Documents</Link></Button>
         <Card><CardContent className="py-12 text-center text-muted-foreground">Template not found.</CardContent></Card>
       </div>
     );
@@ -28,13 +26,11 @@ export default function TemplateDocumentDetail() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/app/template-documents">
-            <Button variant="ghost" size="icon" aria-label="Back to Template Documents"><ArrowLeft className="h-5 w-5" /></Button>
-          </Link>
+          <Button asChild variant="ghost" size="icon" className="shrink-0"><Link href="/app/template-documents" aria-label="Back to Template Documents"><ArrowLeft className="h-5 w-5" /></Link></Button>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="font-mono">{template.code}</Badge>
-              <h1 className="text-xl font-bold truncate">{template.title}</h1>
+              <h1 className="text-xl font-bold break-words">{template.title}</h1>
             </div>
             <p className="text-sm text-muted-foreground">{template.category}</p>
             <div className="mt-2 flex flex-wrap gap-1">

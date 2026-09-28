@@ -54,7 +54,8 @@ export default function EmployeeDashboard() {
   const { user } = useAuth();
   const currentYear = facilityYear();
 
-  const { data: employee, isLoading: employeeLoading } = useGetEmployeeByProfileId(user?.id);
+  const employeeQuery = useGetEmployeeByProfileId(user?.id);
+  const { data: employee, isLoading: employeeLoading } = employeeQuery;
   // Training/practicum/competency/attestation/shift/assignment queries below are all gated on a
   // resolved employee id -- without `enabled`, each one fires once with employeeId undefined
   // (scoping to "no filter at all" rather than "nothing," since RLS alone doesn't stand in for a
@@ -228,12 +229,15 @@ export default function EmployeeDashboard() {
   // The deadlines card merges four sources; if any failed the list is silently incomplete, which
   // for a compliance to-do list is worse than saying so. Retry only re-fires what actually failed.
   const deadlineSourcesError = recordsError || assignmentsError || practicumsError || attestationsError;
+  const deadlinesLoading = employeeLoading || recordsLoading || assignmentsLoading || practicumsLoading || attestationsLoading;
   const retryDeadlineSources = () => {
     if (recordsError) refetchRecords();
     if (assignmentsError) refetchAssignments();
     if (practicumsError) refetchPracticums();
     if (attestationsError) refetchAttestations();
   };
+
+  if (employeeQuery.isError) return <QueryError what="your employee profile" error={employeeQuery.error} onRetry={() => void employeeQuery.refetch()} />;
 
   return (
     <div className="space-y-6">
@@ -274,10 +278,12 @@ export default function EmployeeDashboard() {
               <Link href="/account/notifications">Notification settings</Link>
             </Button>
           </div>
-          {employeeLoading ? (
+          {deadlinesLoading ? (
             <div className="h-16 bg-muted animate-pulse rounded" />
           ) : deadlineSourcesError ? (
             <QueryError what="your due items" onRetry={retryDeadlineSources} />
+          ) : !employee ? (
+            <p className="text-sm text-muted-foreground py-2">Your due items will appear once your employee profile is linked.</p>
           ) : upcomingDeadlines.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">
               Nothing overdue or due soon. You're caught up — check your shift and credentials when you can.

@@ -43,7 +43,7 @@ export default function TrainerDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             Trainer Dashboard
@@ -58,25 +58,25 @@ export default function TrainerDashboard() {
               a kiosk is for. It used to be today's DRAFTS, so a class the trainer had opened for
               enrollment vanished from this button on the morning it ran (BACKLOG.md J74, Train). */}
           {todaysClasses.length > 0 && (
-            <Link href={`/trainer/classes/${todaysClasses[0].id}/kiosk`}>
-              <Button>
+            <Button asChild>
+              <Link href={`/trainer/classes/${todaysClasses[0].id}/kiosk`}>
                 <Monitor className="h-4 w-4 mr-2" />
                 {todaysClasses.length === 1 ? "Start today's kiosk" : "Open today's kiosk"}
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           )}
-          <Link href="/trainer/gaps">
-            <Button variant="outline">
+          <Button asChild variant="outline">
+            <Link href="/trainer/gaps">
               <AlertTriangle className="h-4 w-4 mr-2" />
               Training gaps
-            </Button>
-          </Link>
-          <Link href="/trainer/classes">
-            <Button variant={todaysClasses.length > 0 ? "outline" : "default"}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Class
-            </Button>
-          </Link>
+            </Link>
+          </Button>
+          <Button asChild variant={todaysClasses.length > 0 ? "outline" : "default"}>
+            <Link href="/trainer/classes">
+              <GraduationCap className="h-4 w-4 mr-2" />
+              Manage classes
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -166,12 +166,12 @@ export default function TrainerDashboard() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {todaysClasses.map((c) => (
-                  <Link key={c.id} href={`/trainer/classes/${c.id}/kiosk`}>
-                    <Button size="sm">
+                  <Button asChild key={c.id} size="sm" className="h-auto min-h-9 whitespace-normal text-left">
+                    <Link href={`/trainer/classes/${c.id}/kiosk`}>
                       <Monitor className="h-4 w-4 mr-2" />
                       {todaysClasses.length === 1 ? "Open Kiosk" : `Open Kiosk — ${c.className}`}
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -182,17 +182,17 @@ export default function TrainerDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2">
                 <GraduationCap className="h-5 w-5" />
                 Recent Classes
               </CardTitle>
-              <Link href="/trainer/classes">
-                <Button variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/trainer/classes">
                   View All
                   <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -205,12 +205,12 @@ export default function TrainerDashboard() {
                 <p className="text-muted-foreground text-sm mb-3">
                   No classes yet.
                 </p>
-                <Link href="/trainer/classes">
-                  <Button variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/trainer/classes">
                     <Plus className="h-4 w-4 mr-1" />
-                    Create First Class
-                  </Button>
-                </Link>
+                    Open classes
+                  </Link>
+                </Button>
               </div>
             ) : (
               <div className="space-y-2">
@@ -250,17 +250,17 @@ export default function TrainerDashboard() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5" />
                 Facilities Needing Attention
               </CardTitle>
-              <Link href="/trainer/retraining">
-                <Button variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/trainer/retraining">
                   Monitor
                   <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -283,9 +283,10 @@ export default function TrainerDashboard() {
                       ? "destructive"
                       : "secondary";
                   return (
-                    <div
+                    <Link
                       key={f.facilityId}
-                      className="flex items-center justify-between py-2 border-b last:border-0 text-sm"
+                      href={`/app/training-matrix?facilityId=${encodeURIComponent(f.facilityId)}`}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded px-2 py-2 border-b last:border-0 text-sm hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                     >
                       <div>
                         <p className="font-medium">{f.facilityName}</p>
@@ -297,7 +298,7 @@ export default function TrainerDashboard() {
                       <Badge variant={badgeVariant}>
                         {f.overallStatus.replace(/_/g, " ")}
                       </Badge>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
