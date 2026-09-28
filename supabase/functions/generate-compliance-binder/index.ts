@@ -673,7 +673,7 @@ async function buildBinderPdf(
     fetchRealFacilityRows(() => scoped(adminClient
       .from("policy_attestations")
       .select(
-        "id, status, due_date, attested_at, auth_method, ip_address, employee_id, facility_id, " +
+        "id, status, due_date, superseded_at, attested_at, auth_method, ip_address, employee_id, facility_id, " +
           "policy_attestation_campaigns(name, policy_documents(title))",
       )
       .eq("organization_id", orgId).order("id"))),
@@ -757,8 +757,10 @@ async function buildBinderPdf(
 
   const today = paToday();
   const attestedCount = attestations.filter((a) => a.status === "attested").length;
-  const overdueAttestations = attestations.filter((a) => a.status === "pending" && a.due_date && a.due_date < today);
-  const pendingAttestations = attestations.filter((a) => a.status === "pending" && (!a.due_date || a.due_date >= today));
+  // Publishing a newer version leaves the old row pending and stamps superseded_at.
+  // That row cannot be signed, so it is not an outstanding attestation.
+  const overdueAttestations = attestations.filter((a) => !a.superseded_at && a.status === "pending" && a.due_date && a.due_date < today);
+  const pendingAttestations = attestations.filter((a) => !a.superseded_at && a.status === "pending" && (!a.due_date || a.due_date >= today));
   const signedAttestations = attestations
     .filter((a) => a.status === "attested")
     .sort((a, b) => (b.attested_at ?? "").localeCompare(a.attested_at ?? ""));

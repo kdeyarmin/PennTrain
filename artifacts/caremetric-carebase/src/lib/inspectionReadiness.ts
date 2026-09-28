@@ -149,3 +149,14 @@ export function inspectionReadinessVerdict<T extends { item_type: string; status
     ? { level: "ready", detail: `${scoped.length} on schedule` }
     : { level: "attention", detail: `${outstanding.length} outstanding` };
 }
+
+/** A superseded pending attestation cannot be signed, so it is not survey work. */
+export function isOverduePolicyAttestation(
+  attestation: { status?: string | null; due_date?: string | null; superseded_at?: string | null },
+  today: string,
+): boolean {
+  return !attestation.superseded_at
+    && attestation.status === "pending"
+    && Boolean(attestation.due_date)
+    && attestation.due_date! < today;
+}

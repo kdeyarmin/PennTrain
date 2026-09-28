@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildInspectionReadinessActions, inspectionReadinessVerdict, isOutstandingReadinessStatus,
-  scopedInspectionItems, trainingReadinessVerdict,
+  isOverduePolicyAttestation, scopedInspectionItems, trainingReadinessVerdict,
 } from "./inspectionReadiness";
 
 describe("buildInspectionReadinessActions", () => {
@@ -94,5 +94,27 @@ describe("inspectionReadinessVerdict", () => {
   it("counts exactly the three outstanding statuses", () => {
     expect(["expired", "due_soon", "missing"].every(isOutstandingReadinessStatus)).toBe(true);
     expect(["compliant", "not_applicable", "", null, undefined].some(isOutstandingReadinessStatus)).toBe(false);
+  });
+});
+
+describe("isOverduePolicyAttestation", () => {
+  it("skips a superseded pending row and a row that is not yet due", () => {
+    const today = "2026-07-20";
+    expect(isOverduePolicyAttestation(
+      { status: "pending", due_date: "2026-07-01", superseded_at: "2026-07-15T00:00:00Z" },
+      today,
+    )).toBe(false);
+    expect(isOverduePolicyAttestation(
+      { status: "pending", due_date: "2026-07-01", superseded_at: null },
+      today,
+    )).toBe(true);
+    expect(isOverduePolicyAttestation(
+      { status: "pending", due_date: "2026-08-01", superseded_at: null },
+      today,
+    )).toBe(false);
+    expect(isOverduePolicyAttestation(
+      { status: "attested", due_date: "2026-07-01", superseded_at: null },
+      today,
+    )).toBe(false);
   });
 });
