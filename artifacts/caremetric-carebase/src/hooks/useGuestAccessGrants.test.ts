@@ -24,8 +24,8 @@ beforeEach(() => {
     let rows = [...tables[url.pathname.split("/").at(-1)!]];
     const params = url.searchParams;
     rows = rows.filter(row => `eq.${row.organization_id}` === params.get("organization_id"));
-    const cutoff = params.get("created_at")!.slice(4);
-    rows = rows.filter(row => new Date(row.created_at) <= new Date(cutoff));
+    const cutoff = params.get("created_at");
+    if (cutoff) rows = rows.filter(row => new Date(row.created_at) <= new Date(cutoff.slice(4)));
     for (const or of params.getAll("or")) {
       if (or.includes("created_at.lt.")) {
         const [, createdAt, id] = or.match(/^\(created_at\.lt\.(.+),and\(created_at\.eq\..+,id\.lt\.(.+)\)\)$/)!;
@@ -96,7 +96,18 @@ describe("guest grant pagination through the existing Data API", () => {
     expect(requests.every(request => request.pathname.endsWith("evidence_guest_grants"))).toBe(true);
     expect(requests[1].searchParams.getAll("or")).toHaveLength(2);
     expect(requests[1].searchParams.get("revoked_at")).toBe("is.null");
-    expect(requests[1].searchParams.get("created_at")).toBe(requests[0].searchParams.get("created_at"));
+    expect(requests[0].searchParams.get("created_at")).toBeNull();
+    expect(requests[1].searchParams.get("created_at")).toBe(`lte.${first.rows[0].createdAt}`);
+  });
+
+  it("includes a grant the database timestamped ahead of the browser clock", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    tables.evidence_guest_grants = [row(9, 20)];
+    const page = await fetchGuestGrantPage({ ...base, kind: "evidence" });
+    expect(page.rows.map(grant => grant.id)).toEqual([row(9, 20).id]);
+    expect(requests[0].searchParams.get("created_at")).toBeNull();
+    vi.useRealTimers();
   });
 
   it("keeps inactive filtering and platform resident destinations", async () => {

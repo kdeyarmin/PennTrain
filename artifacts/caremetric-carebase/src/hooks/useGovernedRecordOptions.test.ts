@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ query: vi.fn(), from: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: h.query }));
 vi.mock("@/lib/supabase", () => ({ supabase: { from: h.from } }));
-import { governedRecordOption, useGovernedRecordOptions } from "./useGovernedRecordOptions";
+import { governedRecordOption, governedRecordSearchFilter, useGovernedRecordOptions } from "./useGovernedRecordOptions";
 
 function prepare(pages: Array<{ data: unknown[] | null; error: Error | null }>) {
   const query = {
-    select: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), range: vi.fn().mockReturnThis(), abortSignal: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), range: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(), abortSignal: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(), is: vi.fn().mockReturnThis(), or: vi.fn().mockReturnThis(),
     then(resolve: (value: unknown) => unknown) { const next = pages.shift(); if (!next) throw new Error("Unexpected request"); return Promise.resolve(next).then(resolve); },
   };
@@ -19,17 +19,30 @@ describe("governed record choices", () => {
     useGovernedRecordOptions(kind); expect(h.query.mock.calls.at(-1)![0].enabled).toBe(false);
     expect(await run()).toEqual([]); expect(h.from).not.toHaveBeenCalled();
   });
-  it("retains scope and stable pagination when the server response cap is smaller than requested", async () => {
-    const query = prepare([{ data: [{ id: "one", title: "First" }], error: null }, { data: [{ id: "two", title: "Second" }], error: null }, { data: [], error: null }]);
+  it("reads one bounded page for the picker instead of the whole table", async () => {
+    const query = prepare([{ data: [{ id: "one", title: "First" }], error: null }]);
     useGovernedRecordOptions("work_item", "org-a", "east");
-    expect(await run()).toEqual([{ id: "one", label: "First", description: "Ref one" }, { id: "two", label: "Second", description: "Ref two" }]);
-    expect(query.range.mock.calls).toEqual([[0, 499], [1, 500], [2, 501]]);
-    expect(query.eq.mock.calls).toEqual(Array.from({ length: 3 }, () => [["organization_id", "org-a"], ["facility_id", "east"]]).flat());
-    expect(query.order.mock.calls).toEqual(Array.from({ length: 3 }, () => [["title"], ["id"]]).flat());
+    expect(await run()).toEqual([{ id: "one", label: "First", description: "Ref one" }]);
+    expect(query.limit).toHaveBeenCalledWith(50);
+    expect(query.range).not.toHaveBeenCalled();
+    expect(query.eq.mock.calls).toEqual([["organization_id", "org-a"], ["facility_id", "east"]]);
+    expect(query.order.mock.calls).toEqual([["title"], ["id"]]);
     expect(query.select).toHaveBeenCalledWith("id,title,state,due_at");
+    expect(query.or).not.toHaveBeenCalled();
   });
-  it("rejects a partial lookup if a later page fails", async () => {
-    prepare([{ data: [{ id: "one", name: "First" }], error: null }, { data: null, error: new Error("Read unavailable") }]);
+  it("sends the search to the server and still resolves a selected record outside that page", async () => {
+    const query = prepare([{ data: [{ id: "one", title: "Night" }], error: null }, { data: [{ id: "kept", title: "Kept" }], error: null }]);
+    useGovernedRecordOptions("work_item", "org-a", undefined, false, "Night shift", "kept");
+    expect(await run()).toEqual([
+      { id: "kept", label: "Kept", description: "Ref kept" },
+      { id: "one", label: "Night", description: "Ref one" },
+    ]);
+    expect(query.or).toHaveBeenCalledWith(governedRecordSearchFilter(["title"], "Night shift"));
+    expect(query.limit.mock.calls).toEqual([[50], [1]]);
+    expect(query.eq.mock.calls).toContainEqual(["id", "kept"]);
+  });
+  it("rejects the lookup when the read fails", async () => {
+    prepare([{ data: null, error: new Error("Read unavailable") }]);
     useGovernedRecordOptions("facility", "org-a"); await expect(run()).rejects.toThrow("Read unavailable");
   });
   it("offers only verified non-revoked domains for SSO", async () => {

@@ -64,7 +64,6 @@ function toGrant(kind: GrantKind, row: GrantRow, residentBase: string): UnifiedG
 
 /** Merge one globally ordered page without an RPC or changing any table's existing RLS. */
 export async function fetchGuestGrantPage(filters: GrantFilters, cursor: GrantPageCursor = {}, signal?: AbortSignal) {
-  const startedAt = cursor.startedAt ?? new Date().toISOString();
   const now = new Date().toISOString();
   const kinds = (filters.kind === "all" ? KINDS : [filters.kind]).filter(kind => !cursor.exhausted?.includes(kind));
   const sources = await Promise.all(kinds.map(async kind => {
@@ -72,8 +71,12 @@ export async function fetchGuestGrantPage(filters: GrantFilters, cursor: GrantPa
     // Do not select token hashes or expand the existing organization/facility access policies.
     let query = supabase.from(source.table)
       .select(`id,expires_at,revoked_at,created_at,${source.columns}`)
-      .eq("organization_id", filters.organizationId)
-      .lte("created_at", startedAt);
+      .eq("organization_id", filters.organizationId);
+    // The first page has no upper bound. Using the browser clock as that bound
+    // dropped every grant the database timestamped during clock skew, including
+    // access an administrator had just issued and needed to revoke. Later pages
+    // freeze on the newest created_at the database actually returned.
+    if (cursor.startedAt) query = query.lte("created_at", cursor.startedAt);
     if (filters.status === "active") query = query.is("revoked_at", null).or(`expires_at.is.null,expires_at.gt.${now}`);
     if (filters.status === "inactive") query = query.or(`revoked_at.not.is.null,expires_at.lte.${now}`);
     const after = cursor.after?.[kind];
@@ -97,7 +100,8 @@ export async function fetchGuestGrantPage(filters: GrantFilters, cursor: GrantPa
     if (source.rows.length <= GRANT_PAGE_SIZE && emitted.length === source.rows.length) exhausted.push(source.kind);
   }
   const hasMore = candidates.length > rows.length;
-  return { rows, nextCursor: hasMore ? { startedAt, after, exhausted } : undefined };
+  const snapshot = cursor.startedAt ?? candidates.reduce<string | undefined>((latest, row) => !latest || row.createdAt > latest ? row.createdAt : latest, undefined);
+  return { rows, nextCursor: hasMore && snapshot ? { startedAt: snapshot, after, exhausted } : undefined };
 }
 
 export function useGuestAccessGrants(filters: GrantFilters, viewerId?: string) {

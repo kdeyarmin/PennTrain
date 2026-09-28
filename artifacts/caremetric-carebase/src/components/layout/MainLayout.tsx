@@ -108,9 +108,10 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
   // The app scrolls inside main rather than window. A new page should begin at its
   // heading; query-only filter/tab changes retain the reader's place.
+  const pathname = location.split(/[?#]/, 1)[0];
   useEffect(() => {
     mainContent.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [location]);
+  }, [pathname]);
 
   useEffect(() => {
     const path = location.split(/[?#]/, 1)[0];
