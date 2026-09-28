@@ -31,7 +31,7 @@ export interface CrosswalkEvidenceInput {
   residentItems?: Array<{ status?: string | null; due_date?: string | null; item_type?: string | null }>;
   incidents?: Array<{ status?: string | null; final_report_submitted_at?: string | null; occurred_at?: string | null }>;
   correctiveActions?: Array<{ status?: string | null; due_date?: string | null }>;
-  inspectionItems?: Array<{ status?: string | null; due_date?: string | null; next_due_date?: string | null }>;
+  inspectionItems?: Array<{ status?: string | null; due_date?: string | null; next_due_date?: string | null; is_active?: boolean | null }>;
   violations?: Array<{ status?: string | null; citation?: string | null; due_date?: string | null; poc_due_date?: string | null }>;
   policyDocuments?: Array<{ current_version_id?: string | null }>;
   policyAttestations?: Array<{
@@ -222,8 +222,11 @@ function evaluateEvidence(obligation: RegulatoryObligation, input: CrosswalkEvid
     // the plan-of-correction deadline as poc_due_date. Reading only due_date left
     // both blank, so an expired detector or an open late plan counted as
     // needs_attention with no date instead of overdue.
+    // Retiring an item leaves status and next_due_date in place and later
+    // recalculations skip it. A still-compliant historical date must not stay
+    // an outstanding gap.
     const records: Array<{ status?: string | null; due_date?: string | null }> = [
-      ...(input.inspectionItems ?? []).map((item) => ({
+      ...(input.inspectionItems ?? []).filter((item) => item.is_active !== false).map((item) => ({
         status: item.status,
         due_date: item.due_date ?? item.next_due_date ?? null,
       })),
@@ -294,15 +297,15 @@ function summarize(
   today: string,
   gapDates: string[] = sortedDates,
 ): Pick<RegulatoryCrosswalkRow, "status" | "nextDueDate" | "evidenceCount" | "gapCount"> {
-  // A past date is only a meaningful "next due date" when something is actually outstanding.
-  // The unconditional `?? sortedDates[0]` fallback made sense while any past due_date implied a
-  // gap -- but the branches above now exclude SATISFIED records from the gap count (a compliant
-  // resident item keeps its original due_date forever), so a fully settled row reached
-  // `inspection_ready` while still reporting the oldest of those settled dates as what is coming
-  // next. "Inspection ready" beside a date that has already gone by reads as a contradiction, and
-  // the honest answer for a row with nothing open is that there is no next date to show.
-  const nextDueDate = sortedDates.find((date) => date >= today)
-    ?? (gapCount > 0 ? sortedDates[0] ?? null : null);
+  // An overdue row can also carry a future inspection. The first date on or after
+  // today hid the late plan behind that schedule, so the card and CSV said overdue
+  // next to a date that had not arrived. When a gap date has already passed, show
+  // the earliest of those past dates. A row with nothing open still has no past
+  // "next" date: satisfied evidence keeps its original due date forever.
+  const pastGapDates = gapDates.filter((date) => date < today).sort();
+  const nextDueDate = pastGapDates[0]
+    ?? sortedDates.find((date) => date >= today)
+    ?? (gapCount > 0 ? gapDates.slice().sort()[0] ?? null : null);
   let status: CrosswalkStatus = "inspection_ready";
   if (evidenceCount === 0) status = "missing_evidence";
   // Overdue means an OUTSTANDING obligation whose date has passed -- so it is read off the gap

@@ -92,6 +92,35 @@ describe("regulatory crosswalk", () => {
     expect(site?.nextDueDate).toBe("2026-12-01");
   });
 
+  it("shows an overdue plan date ahead of a later scheduled inspection", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      inspectionItems: [{ status: "compliant", next_due_date: "2026-12-01" }],
+      violations: [{ status: "open", poc_due_date: "2026-07-15" }],
+      correctiveActions: [],
+    }, "org_admin");
+    const site = rows.find((row) => row.id === "physical-site-emergency");
+    expect(site?.status).toBe("overdue");
+    expect(site?.nextDueDate).toBe("2026-07-15");
+  });
+
+  it("ignores a retired inspection item's historical deadline", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      inspectionItems: [
+        { status: "compliant", next_due_date: "2026-01-01", is_active: false },
+        { status: "compliant", next_due_date: "2026-12-01", is_active: true },
+      ],
+      violations: [],
+      correctiveActions: [],
+    }, "org_admin");
+    const site = rows.find((row) => row.id === "physical-site-emergency");
+    expect(site?.evidenceCount).toBe(1);
+    expect(site?.gapCount).toBe(0);
+    expect(site?.status).toBe("inspection_ready");
+    expect(site?.nextDueDate).toBe("2026-12-01");
+  });
+
   it("reads a clearance as overdue on the earlier facility policy date", () => {
     const rows = buildRegulatoryCrosswalkRows({
       today: "2026-08-05",
