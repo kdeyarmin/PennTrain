@@ -649,8 +649,8 @@ ${text}` : text;
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
-            <Link href={`${residentPathPrefix}/${residentId}`}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Resident
+            <Link href={`${residentPathPrefix}/${residentId}?tab=assessments`}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Assessments
             </Link>
           </Button>
           <div>

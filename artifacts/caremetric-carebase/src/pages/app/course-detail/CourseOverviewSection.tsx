@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ArrowLeft, Archive, BookOpen, Loader2, Pencil, Play, Sparkles, Star } from "lucide-react";
+import { ArrowLeft, Archive, BookOpen, Loader2, Pencil, Play, Sparkles, Star, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ export function CourseOverviewSection({
   selectedVersion,
   effectiveOrgId,
   canTakeCourse,
+  canEnrollLearners = false,
   enrolling,
   onTakeCourse,
   canManage,
@@ -31,6 +32,7 @@ export function CourseOverviewSection({
   selectedVersion: CourseVersion | undefined;
   effectiveOrgId: string | undefined;
   canTakeCourse: boolean;
+  canEnrollLearners?: boolean;
   enrolling: boolean;
   onTakeCourse: () => void;
   canManage: boolean;
@@ -53,13 +55,13 @@ export function CourseOverviewSection({
         </Button>
       </div>
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
           <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
             <BookOpen className="h-7 w-7 text-primary" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">{documentDisplayName({ title: course.title, fallback: "Course" })}</h1>
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold">{documentDisplayName({ title: course.title, fallback: "Course" })}</h1>
             <p className="text-muted-foreground">{course.category ?? "Uncategorized"}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <CourseStatusBadge status={course.status} />
@@ -76,11 +78,14 @@ export function CourseOverviewSection({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 lg:max-w-sm lg:justify-end">
+          {canEnrollLearners && <Button asChild size="sm">
+            <Link href={`/app/course-assignments?courseId=${encodeURIComponent(course.id)}`}><UserPlus className="mr-2 h-3.5 w-3.5" aria-hidden="true" />Enroll learners</Link>
+          </Button>}
           {course.status === "published" && canEnrollInCourse(course, effectiveOrgId) && (
             <Button variant="outline" size="sm" onClick={onTakeCourse} disabled={enrolling || !canTakeCourse}>
               {enrolling ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-2 h-3.5 w-3.5" />}
-              {canTakeCourse ? "Start Training" : "Training Not Ready"}
+              {canTakeCourse ? (["org_admin", "facility_manager"].includes(userRole ?? "") ? "Take this course yourself" : "Start Training") : "Training Not Ready"}
             </Button>
           )}
           {canManage && (

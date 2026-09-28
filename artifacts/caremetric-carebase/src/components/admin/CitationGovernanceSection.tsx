@@ -39,9 +39,9 @@ import {
  */
 
 const STATUS_STYLE: Record<string, string> = {
-  verified: "border-emerald-600 text-emerald-700 dark:text-emerald-500",
-  approximate: "border-amber-500 text-amber-700 dark:text-amber-500",
-  unverified: "border-amber-500 text-amber-700 dark:text-amber-500",
+  verified: "border-emerald-600 text-emerald-700",
+  approximate: "border-amber-500 text-amber-700",
+  unverified: "border-amber-500 text-amber-700",
   superseded: "border-muted-foreground/40 text-muted-foreground",
 };
 

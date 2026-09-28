@@ -163,6 +163,7 @@ export function FrequencyPartyFields({
         {frequency === "other" && (
           <Input
             placeholder="Specify frequency"
+            aria-label="Specify frequency"
             className="h-8 text-xs"
             value={frequencyOther}
             disabled={disabled}
@@ -190,6 +191,7 @@ export function FrequencyPartyFields({
         {responsibleParty === "O" && (
           <Input
             placeholder="Specify responsible party"
+            aria-label="Specify responsible party"
             className="h-8 text-xs"
             value={responsiblePartyOther}
             disabled={disabled}

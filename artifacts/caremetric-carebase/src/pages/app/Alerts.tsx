@@ -213,6 +213,7 @@ export default function Alerts() {
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            aria-label="Search alerts"
             placeholder="Search alerts..."
             value={search}
             onChange={e => setFilters({ search: e.target.value, page: "1" })}
@@ -270,7 +271,7 @@ export default function Alerts() {
       </div>
 
       {canWrite && selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-muted rounded-md border">
+        <div className="flex flex-wrap items-center gap-3 px-4 py-2 bg-muted rounded-md border">
           <span className="text-sm font-medium">{selectedIds.size} alert(s) selected</span>
           <Button
             size="sm"
@@ -327,7 +328,7 @@ export default function Alerts() {
                 {paginated.map((alert: AlertListRow) => {
                   const alertLink = resolveAlertLink(alert);
                   return (
-                  <div key={alert.id} className="flex items-start gap-4 p-4 rounded-lg border">
+                  <div key={alert.id} className="flex flex-wrap items-start gap-3 p-4 rounded-lg border sm:flex-nowrap">
                     {canWrite && alert.status === "open" && (
                       <div className="mt-0.5">
                         <Checkbox
@@ -338,7 +339,7 @@ export default function Alerts() {
                       </div>
                     )}
                     <div className="mt-0.5">{severityIcon(alert.severity)}</div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-[120px]">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-sm">{alert.title}</p>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${severityBadgeClass(alert.severity)}`}>
@@ -346,7 +347,7 @@ export default function Alerts() {
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{alert.message}</p>
-                      <div className="flex items-center gap-3 mt-1">
+                      <div className="flex flex-wrap items-center gap-3 mt-1">
                         <p className="text-xs text-muted-foreground">
                           {new Date(alert.created_at).toLocaleDateString()}
                         </p>
@@ -361,7 +362,7 @@ export default function Alerts() {
                       </div>
                     </div>
                     {canWrite && alert.status === "open" && (
-                      <div className="flex gap-2 shrink-0">
+                      <div className="flex w-full justify-end gap-2 shrink-0 sm:w-auto">
                         <Button
                           size="sm"
                           variant="outline"
@@ -387,7 +388,7 @@ export default function Alerts() {
                 })}
               </div>
               {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
                   <p className="text-sm text-muted-foreground">
                     Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
                   </p>

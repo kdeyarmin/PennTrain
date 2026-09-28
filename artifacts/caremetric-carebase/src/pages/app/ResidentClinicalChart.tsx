@@ -198,7 +198,10 @@ export default function ResidentClinicalChart() {
   };
 
   if (resident.isError) {
-    return <QueryError what="resident" error={resident.error} onRetry={() => resident.refetch()} />;
+    return <div className="space-y-4"><Button asChild variant="outline"><Link href="/app/residents">Back to residents</Link></Button><QueryError what="resident" error={resident.error} onRetry={() => resident.refetch()} /></div>;
+  }
+  if (!resident.isLoading && !resident.data) {
+    return <div className="space-y-4 py-12 text-center"><h1 className="text-xl font-semibold">Resident not found</h1><p className="text-sm text-muted-foreground">The record may no longer be available or may be outside your access.</p><Button asChild variant="outline"><Link href="/app/residents">Back to residents</Link></Button></div>;
   }
 
   return (

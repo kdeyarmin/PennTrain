@@ -273,14 +273,14 @@ function UnlinkedDocumentRow({
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Completion Date</label>
-          <Input type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
+          <Input aria-label="Completion Date" type="date" className="h-9" value={completionDate} onChange={e => setCompletionDate(e.target.value)} />
         </div>
       </div>
 
       {canManage && (
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Review Comments (required to reject)</label>
-          <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Notes for the employee's file..." />
+          <Textarea aria-label="Review Comments (required to reject)" rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Notes for the employee's file..." />
         </div>
       )}
 
@@ -375,7 +375,7 @@ function PendingRecordRow({
       {canManage && (
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">Review Comments (required to reject)</label>
-          <Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Notes for the employee's file..." />
+          <Textarea aria-label="Review Comments (required to reject)" rows={2} value={comment} onChange={e => setComment(e.target.value)} placeholder="Notes for the employee's file..." />
         </div>
       )}
 

@@ -1,5 +1,6 @@
 import type { Role } from "@/lib/auth";
 import { canAccessProductPath, moduleHomePathForRole, type ProductModuleId } from "@/lib/productModules";
+import { pathAvailableInBuild } from "@/lib/productRoutes";
 
 export type AppDomain =
   | "platform"
@@ -299,6 +300,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   // entry Sidebar.tsx writes for this page was filtered out by canViewPath and never rendered,
   // while the URL itself worked -- a nav item that existed in the code and not on the screen.
   { path: "/app/medication-integration", label: "Medication integration", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["emar", "medication", "administration", "refusal", "held", "missed", "sync", "external source"] },
+  { path: "/app/fhir-integration", label: "Clinical record integration", domain: "residents", roles: WORK_QUEUE_ROLES, keywords: ["fhir", "clinical", "integration", "health records", "ehr"] },
   { path: "/app/qapi", label: "QAPI & quality management", domain: "compliance", roles: WORK_QUEUE_ROLES, keywords: ["quality", "performance improvement", "five whys", "fishbone", "measurements", "audit sample", "sustainment"] },
   { path: "/app/emergency", label: "Emergency operations", domain: "compliance", roles: EMERGENCY_ROLES, keywords: ["evacuation", "accountability", "outage", "emergency plan", "relocation", "generator fuel", "mass notification", "after action"] },
   { path: "/app/inspections", label: "Inspections & equipment", domain: "compliance", roles: INSPECTION_ROLES, keywords: ["fire drill", "equipment", "physical plant"] },
@@ -348,6 +350,7 @@ export const APP_PAGES: AppPageDefinition[] = [
   { path: "/trainer/employees", label: "Trainer employees", domain: "directory", roles: TRAINER_ONLY, keywords: ["employees", "roster"] },
 
   { path: "/me", label: "My dashboard", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["home", "tasks"] },
+  { path: "/me/floor", label: "Floor overview", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["residents", "rounds", "floor", "care", "room"] },
   { path: "/me/shift", label: "My Shift", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["today", "handoff", "call off", "resident services", "open shifts"] },
   { path: "/me/courses", label: "My training assignments", domain: "self_service", roles: ANY_ROLE, keywords: ["training", "assignments"] },
   { path: "/me/trainings", label: "My training records", domain: "self_service", roles: EMPLOYEE_ONLY, keywords: ["records", "requirements"] },
@@ -452,7 +455,8 @@ export function pagesForRole(
 ): AppPageDefinition[] {
   if (!role) return [];
   return APP_PAGES.filter((page) =>
-    page.roles.includes(role) && (!enabledModules || canAccessProductPath(page.path, enabledModules)),
+    page.roles.includes(role) && pathAvailableInBuild(page.path)
+      && (!enabledModules || canAccessProductPath(page.path, enabledModules)),
   );
 }
 
@@ -462,7 +466,7 @@ export function canViewPage(
   enabledModules?: ReadonlySet<ProductModuleId>,
 ): boolean {
   if (!role) return false;
-  return (APP_PAGES_BY_PATH.get(path)?.roles.includes(role) ?? false)
+  return pathAvailableInBuild(path) && (APP_PAGES_BY_PATH.get(path)?.roles.includes(role) ?? false)
     && (!enabledModules || canAccessProductPath(path, enabledModules));
 }
 
@@ -514,6 +518,7 @@ export function canViewPath(
 ): boolean {
   if (!role) return false;
   const canonicalPath = canonicalHelpPathForRole(path, role);
+  if (!pathAvailableInBuild(canonicalPath)) return false;
   if (enabledModules && !canAccessProductPath(canonicalPath, enabledModules)) return false;
   const [pathname] = splitPathSuffix(canonicalPath);
   const match = APP_PAGE_ROUTE_MATCHERS.find(({ page: candidate, matcher }) => {
@@ -574,7 +579,8 @@ export function commandActionsForRole(
 ): AppCommandAction[] {
   if (!role) return [];
   return APP_COMMAND_ACTIONS.filter((action) =>
-    action.roles.includes(role) && (!enabledModules || canAccessProductPath(action.path, enabledModules)),
+    action.roles.includes(role) && pathAvailableInBuild(action.path)
+      && (!enabledModules || canAccessProductPath(action.path, enabledModules)),
   );
 }
 

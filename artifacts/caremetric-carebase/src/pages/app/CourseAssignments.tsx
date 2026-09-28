@@ -1,4 +1,4 @@
-import { useId, useEffect, useMemo, useState } from "react";
+import { useId, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearch } from "wouter";
 import { useUrlState } from "@/hooks/useUrlState";
 import { useTrainingFacilityScope } from "@/hooks/useFacilityAssignments";
@@ -43,9 +43,10 @@ import { ClipboardList, Search, ChevronLeft, ChevronRight, UserPlus, CheckCircle
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { courseDetailPath } from "@/lib/courseRoutes";
 
 const PAGE_SIZE = 15;
-const ASSIGNMENTS_URL_DEFAULTS = { facilityId: "all" };
+const ASSIGNMENTS_URL_DEFAULTS = { facilityId: "all", courseId: "", returnCourseId: "" };
 
 // `canceled` is here because this page can now produce one (see the cancel action below). Without
 // it a cancelled assignment is unreachable from the filter bar -- it is excluded from every other
@@ -157,6 +158,8 @@ export default function CourseAssignments() {
   const [assignEmployeeSearch, setAssignEmployeeSearch] = useState("");
   const [assignFacilityFilter, setAssignFacilityFilter] = useState<string>("all");
   const [assigning, setAssigning] = useState(false);
+  const [courseHandoffError, setCourseHandoffError] = useState<string | null>(null);
+  const handledCourseIntent = useRef<string | null>(null);
   const [progressAssignmentId, setProgressAssignmentId] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
@@ -184,6 +187,7 @@ export default function CourseAssignments() {
   // self-service path lives on the employee training page -- this admin view
   // only exposes "Mark Complete" to non-employee managing roles.
   const canManage = ["org_admin", "facility_manager", "trainer"].includes(user?.role ?? "");
+  const canEnrollFromCatalog = ["org_admin", "facility_manager"].includes(user?.role ?? "");
   // The two unblock actions below are security-definer RPCs, so they do NOT go through
   // course_assignments_update's `is_assigned_to_facility(facility_id)`. Both call
   // `assert_content_permission(organization_id, 'training.sessions.manage')` (20260906130000),
@@ -204,12 +208,15 @@ export default function CourseAssignments() {
   // Historical assignments survive leave and termination. Keep those employees available for
   // row labels and search; the new-assignment picker uses activeEmployees below.
   const { data: employees, isLoading: employeesLoading, isError: employeesError, error: employeesErr, refetch: refetchEmployees } = useListEmployees();
-  const { data: courses } = useListCourses();
+  const { data: courses, isLoading: coursesLoading, isFetching: coursesFetching, isError: coursesError, error: coursesErr, refetch: refetchCourses } = useListCourses();
   const courseIds = useMemo(() => (courses ?? []).map(c => c.id), [courses]);
   const {
     data: allCourseVersions,
     isLoading: courseVersionsLoading,
     isError: courseVersionsError,
+    isFetching: courseVersionsFetching,
+    error: courseVersionsErr,
+    refetch: refetchCourseVersions,
   } = useListCourseVersionsForCourses(courseIds);
 
   const { mutateAsync: createAssignmentAsync } = useCreateCourseAssignment();
@@ -275,6 +282,42 @@ export default function CourseAssignments() {
       .find(version => version.id === selectedCourse?.current_version_id),
     [learnerReadyVersionsByCourseId, selectedCourse?.current_version_id, selectedCourse?.id],
   );
+  const courseReadsBlocked = coursesLoading || coursesError || courseVersionsLoading || courseVersionsError;
+  const returnCourse = canEnrollFromCatalog && urlState.returnCourseId ? courseById.get(urlState.returnCourseId) : undefined;
+
+  // An enrollment URL is a one-time, read-only intent. Resolve only against the caller's
+  // loaded catalog, current reviewed version and available facilities; the existing submit
+  // handler and RPC remain responsible for the actual enrollment and authorization.
+  useEffect(() => {
+    const requestedId = urlState.courseId;
+    if (!requestedId) { handledCourseIntent.current = null; return; }
+    if (handledCourseIntent.current === requestedId || showAssignForm || assigning) return;
+    if (!canEnrollFromCatalog) {
+      handledCourseIntent.current = requestedId;
+      setCourseHandoffError("Your role cannot open a course enrollment request here.");
+      setUrlState({ courseId: "", returnCourseId: "" });
+      return;
+    }
+    if (!facilityScope.isReady || courseReadsBlocked || coursesFetching || courseVersionsFetching) return;
+    handledCourseIntent.current = requestedId;
+    const requestedCourse = publishedCourses.find(course => course.id === requestedId);
+    if (!requestedCourse || facilityActionsBlocked) {
+      setCourseHandoffError(!requestedCourse
+        ? "This course is unavailable for enrollment. It may have been unpublished, changed, or become unavailable to your organization. Choose another published course."
+        : "You do not currently have an available facility for enrolling learners. Choose an available facility or contact your organization administrator.");
+      setUrlState({ courseId: "", returnCourseId: courseById.has(requestedId) ? requestedId : "" });
+      return;
+    }
+    setCourseHandoffError(null);
+    setAssignForm({ ...EMPTY_ASSIGN_FORM, courseId: requestedCourse.id });
+    setSelectedEmployeeIds(new Set());
+    setAssignEmployeeSearch("");
+    setAssignFacilityFilter(assignableFacilities.some(facility => facility.id === facilityId) ? facilityId : "all");
+    setShowAssignForm(true);
+    // Replacing the URL consumes the intent. Dismissing the dialog or returning here later
+    // cannot unexpectedly reopen it. Return links are built from a visible record, never a URL.
+    setUrlState({ courseId: "", returnCourseId: requestedCourse.id });
+  }, [urlState.courseId, canEnrollFromCatalog, facilityScope.isReady, courseReadsBlocked, coursesFetching, courseVersionsFetching, facilityActionsBlocked, publishedCourses, courseById, assignableFacilities, facilityId, showAssignForm, assigning, setUrlState]);
 
   // course_assignments has no employee-name/course-title columns of its own, so the free-text
   // search box is resolved against the employees/courses lists above (already loaded, and
@@ -405,7 +448,8 @@ export default function CourseAssignments() {
   };
 
   const openAssign = () => {
-    if (facilityActionsBlocked) return;
+    if (!canManage || facilityActionsBlocked) return;
+    setCourseHandoffError(null);
     setAssignForm(EMPTY_ASSIGN_FORM);
     setSelectedEmployeeIds(new Set());
     setAssignEmployeeSearch("");
@@ -423,7 +467,7 @@ export default function CourseAssignments() {
   // (mirrors CourseDetail.tsx's handleGenerateAllVideos bulk pattern) so one employee's failure
   // doesn't stop the rest, then reports one summary toast instead of one per employee.
   const handleAssign = async () => {
-    if (facilityActionsBlocked || assigning || employeesLoading || employeesError || courseVersionsLoading || courseVersionsError) return;
+    if (!canManage || facilityActionsBlocked || assigning || employeesLoading || employeesError || courseReadsBlocked) return;
     if (selectedEmployeeIds.size === 0 || !assignForm.courseId) {
       toast({ title: "Select at least one employee and training item", variant: "destructive" });
       return;
@@ -438,7 +482,7 @@ export default function CourseAssignments() {
     // survives into that nested closure.
     const organizationId = user?.organizationId;
     const assignedBy = user?.id;
-    if (!course || !organizationId || !assignedBy) return;
+    if (!course || course.status !== "published" || !organizationId || !assignedBy) return;
 
     const versionId = defaultVersion?.id;
     if (!versionId) {
@@ -618,6 +662,15 @@ export default function CourseAssignments() {
 
   return (
     <div className="space-y-6">
+      {returnCourse && <div className="rounded-lg border p-4 space-y-2">
+        <Link href={courseDetailPath(returnCourse.id, user?.role)} className="break-words font-medium text-primary underline">Back to {returnCourse.title}</Link>
+        <p className="text-sm text-muted-foreground">Choose learners and a deadline to enroll them. No enrollment is created until you confirm the assignment.</p>
+      </div>}
+      {courseHandoffError && <div role="alert" className="rounded-lg border border-destructive/30 p-4 space-y-3">
+        <p className="text-sm">{courseHandoffError}</p>
+        <div className="flex flex-wrap gap-2"><Button asChild variant="outline" size="sm"><Link href="/app/courses">Browse course catalog</Link></Button><Button type="button" variant="ghost" size="sm" onClick={() => setCourseHandoffError(null)}>Dismiss</Button></div>
+      </div>}
+      {!!urlState.courseId && canEnrollFromCatalog && !coursesError && !courseVersionsError && <p role="status" className="text-sm text-muted-foreground">Checking the course and your available facilities…</p>}
       {trainingHandoff && <div className="rounded-lg border p-4 space-y-2">
         <Link href={trainingWorkspaceHref(trainingFacility?.id)} className="underline">Back to training</Link>
         <p className="text-sm">{trainingFacility ? `Enroll students at ${trainingFacility.name} and follow their course progress here. Reports and certificate printing are in the training workspace.` : invalidTrainingFacility ? "The linked facility is unavailable or you cannot manage it. Choose an available facility below." : "Enroll students and follow their course progress here. Reports and certificate printing are in the training workspace."}</p>
@@ -633,6 +686,9 @@ export default function CourseAssignments() {
           </Button>
         )}
       </div>
+
+      {coursesError && <QueryError what="course catalog" error={coursesErr} onRetry={() => void refetchCourses()} />}
+      {!coursesError && courseVersionsError && <QueryError what="published course versions" error={courseVersionsErr} onRetry={() => void refetchCourseVersions()} />}
 
       {!assignmentsError && (
         <div className="grid gap-4 md:grid-cols-4">
@@ -739,7 +795,7 @@ export default function CourseAssignments() {
           <div className="flex flex-col items-center justify-center py-16">
             <ClipboardList className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-medium text-muted-foreground">No training assignments found</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
+            <p className="text-xs text-muted-foreground mt-1">Try adjusting your search or filters</p>
           </div>
         ) : (
           <>
@@ -923,11 +979,12 @@ export default function CourseAssignments() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assign Training</DialogTitle>
+            <DialogDescription>Choose a published course, its completion deadline, and the learners to enroll.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-training-item`} className="text-[13px]">Training item *</Label>
-              <Select value={assignForm.courseId} onValueChange={handleCourseChange} disabled={assigning}>
+              <Select value={assignForm.courseId} onValueChange={handleCourseChange} disabled={assigning || courseReadsBlocked}>
                 <SelectTrigger id={`${__fieldIds}-training-item`} className="h-9"><SelectValue placeholder="Select training item" /></SelectTrigger>
                 <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-content-available-width)]">
                   {publishedCourses.map(c => (
@@ -935,6 +992,11 @@ export default function CourseAssignments() {
                   ))}
                 </SelectContent>
               </Select>
+              {coursesError ? <QueryError what="course catalog" error={coursesErr} onRetry={() => void refetchCourses()} /> :
+                courseVersionsError ? <QueryError what="published course versions" error={courseVersionsErr} onRetry={() => void refetchCourseVersions()} /> :
+                  coursesLoading || courseVersionsLoading ? <p role="status" className="text-sm text-muted-foreground">Loading published courses…</p> :
+                    assignForm.courseId && !publishedCourses.some(course => course.id === assignForm.courseId) ? <p role="alert" className="text-sm text-destructive">The selected course is no longer available for enrollment. Choose another published course.</p> :
+                      publishedCourses.length === 0 ? <p className="text-sm text-muted-foreground">No published courses are ready for enrollment. The super admin must publish a reviewed course before learners can be enrolled.</p> : null}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-due-date`} className="text-[13px]">Completion required by *</Label>
@@ -970,7 +1032,7 @@ export default function CourseAssignments() {
                     disabled={assigning}
                     aria-label="Select all in facility"
                   />
-                  <span className="text-muted-foreground">
+                  <span className="text-foreground">
                     Select all{assignFacilityFilter !== "all" ? " in this facility" : ""} ({filteredAssignEmployees.length})
                   </span>
                 </label>
@@ -1006,7 +1068,7 @@ export default function CourseAssignments() {
             <Button variant="outline" disabled={assigning} onClick={() => { if (!assigning) setShowAssignForm(false); }}>Cancel</Button>
             <Button
               onClick={handleAssign}
-              disabled={facilityActionsBlocked || assigning || employeesLoading || employeesError || courseVersionsLoading || courseVersionsError || selectedEmployeeIds.size === 0 || !assignForm.courseId || !defaultVersion}
+              disabled={facilityActionsBlocked || assigning || employeesLoading || employeesError || courseReadsBlocked || selectedEmployeeIds.size === 0 || !assignForm.courseId || !defaultVersion || selectedCourse?.status !== "published"}
               className="shadow-sm"
             >
               {assigning

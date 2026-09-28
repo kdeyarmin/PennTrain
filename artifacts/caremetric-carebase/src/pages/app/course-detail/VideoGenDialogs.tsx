@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { HeygenAvatar, HeygenVoice } from "@/hooks/useCourseVideoGeneration";
 import type { CourseBlock } from "@/hooks/useCourses";
 import type { BulkVideoGenStatus } from "./useBulkVideoGeneration";
+import { QueryError } from "@/components/QueryState";
 
 type HeygenOptions = { avatars: HeygenAvatar[]; voices: HeygenVoice[] } | undefined;
 type VideoGenForm = { avatarId: string; voiceId: string; script: string };
@@ -21,9 +22,13 @@ export function VideoGenDialog({
   setVideoGenForm,
   heygenOptions,
   heygenOptionsLoading,
+  heygenOptionsIsError,
+  heygenOptionsError,
+  onRetryOptions,
   onGenerate,
   generatingVideo,
   replacingVideo,
+  retryingVideo = false,
   fieldIds,
 }: {
   open: boolean;
@@ -33,9 +38,13 @@ export function VideoGenDialog({
   setVideoGenForm: Dispatch<SetStateAction<VideoGenForm>>;
   heygenOptions: HeygenOptions;
   heygenOptionsLoading: boolean;
+  heygenOptionsIsError: boolean;
+  heygenOptionsError: unknown;
+  onRetryOptions: () => void;
   onGenerate: () => void;
   generatingVideo: boolean;
   replacingVideo: boolean;
+  retryingVideo?: boolean;
   fieldIds: string;
 }) {
   return (
@@ -48,9 +57,12 @@ export function VideoGenDialog({
             and preselected so high-quality course videos can be created with one click.
           </p>
           {replacingVideo && <p className="text-xs text-muted-foreground">The current video stays available until its replacement finishes successfully.</p>}
+          {retryingVideo && <p className="text-sm text-muted-foreground">Retry uses the original avatar, voice, and script for this request. These details stay fixed while its status is confirmed.</p>}
+          {!retryingVideo && <>
+          {heygenOptionsIsError ? <QueryError what="video avatars and voices" error={heygenOptionsError} onRetry={onRetryOptions} /> : !heygenOptionsLoading && heygenOptions && (!heygenOptions.avatars.length || !heygenOptions.voices.length) ? <p className="text-sm text-muted-foreground">Your video provider has no available avatars or voices. Check the provider account, then <Button variant="link" className="h-auto p-0" onClick={onRetryOptions}>refresh options</Button>.</p> : null}
           <div className="space-y-1">
             <Label htmlFor={`${fieldIds}-avatar`}>Avatar *</Label>
-            <Select value={videoGenForm.avatarId} onValueChange={v => setVideoGenForm(f => ({ ...f, avatarId: v }))} disabled={heygenOptionsLoading}>
+            <Select value={videoGenForm.avatarId} onValueChange={v => setVideoGenForm(f => ({ ...f, avatarId: v }))} disabled={heygenOptionsLoading || heygenOptionsIsError}>
               <SelectTrigger id={`${fieldIds}-avatar`}><SelectValue placeholder={heygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
               <SelectContent>
                 {heygenOptions?.avatars.map(a => (
@@ -61,7 +73,7 @@ export function VideoGenDialog({
           </div>
           <div className="space-y-1">
             <Label htmlFor={`${fieldIds}-voice`}>Voice *</Label>
-            <Select value={videoGenForm.voiceId} onValueChange={v => setVideoGenForm(f => ({ ...f, voiceId: v }))} disabled={heygenOptionsLoading}>
+            <Select value={videoGenForm.voiceId} onValueChange={v => setVideoGenForm(f => ({ ...f, voiceId: v }))} disabled={heygenOptionsLoading || heygenOptionsIsError}>
               <SelectTrigger id={`${fieldIds}-voice`}><SelectValue placeholder={heygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
               <SelectContent>
                 {heygenOptions?.voices.map(v => (
@@ -70,9 +82,11 @@ export function VideoGenDialog({
               </SelectContent>
             </Select>
           </div>
+          </>}
           <div className="space-y-1">
-            <Label htmlFor={`${fieldIds}-script`}>Script *</Label>
+            <Label htmlFor={`${fieldIds}-script`}>{retryingVideo ? "Original script" : "Script *"}</Label>
             <Textarea id={`${fieldIds}-script`}
+              readOnly={retryingVideo}
               value={videoGenForm.script}
               onChange={e => setVideoGenForm(f => ({ ...f, script: e.target.value }))}
               placeholder="What should the avatar say?"
@@ -82,7 +96,7 @@ export function VideoGenDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button onClick={onGenerate} disabled={generatingVideo}>{generatingVideo ? "Starting..." : replacingVideo ? "Replace Video" : "Generate Video"}</Button>
+          <Button onClick={onGenerate} disabled={generatingVideo || !videoGenForm.avatarId || !videoGenForm.voiceId || !videoGenForm.script.trim() || (!retryingVideo && (heygenOptionsLoading || heygenOptionsIsError || !heygenOptions?.avatars.some(avatar => avatar.id === videoGenForm.avatarId) || !heygenOptions?.voices.some(voice => voice.voice_id === videoGenForm.voiceId)))}>{generatingVideo ? "Starting..." : retryingVideo ? "Retry Generate" : replacingVideo ? "Replace Video" : "Generate Video"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -105,6 +119,9 @@ export function BulkVideoGenDialog({
   setBulkVideoForm,
   bulkHeygenOptions,
   bulkHeygenOptionsLoading,
+  bulkHeygenOptionsIsError,
+  bulkHeygenOptionsError,
+  onRetryOptions,
   eligibleVideoBlocksWithScript,
   eligibleVideoBlocksMissingScript,
   bulkGenSkippedCount,
@@ -121,6 +138,9 @@ export function BulkVideoGenDialog({
   setBulkVideoForm: Dispatch<SetStateAction<BulkVideoForm>>;
   bulkHeygenOptions: HeygenOptions;
   bulkHeygenOptionsLoading: boolean;
+  bulkHeygenOptionsIsError: boolean;
+  bulkHeygenOptionsError: unknown;
+  onRetryOptions: () => void;
   eligibleVideoBlocksWithScript: CourseBlock[];
   eligibleVideoBlocksMissingScript: number;
   bulkGenSkippedCount: number;
@@ -141,9 +161,10 @@ export function BulkVideoGenDialog({
                 Generates an AI avatar video for every video block in this version that doesn't have one yet, using
                 one avatar and voice for all of them. Your HeyGen AI Twin is sorted first when available, and each block uses its AI-authored narration script.
               </p>
+              {bulkHeygenOptionsIsError ? <QueryError what="video avatars and voices" error={bulkHeygenOptionsError} onRetry={onRetryOptions} /> : !bulkHeygenOptionsLoading && bulkHeygenOptions && (!bulkHeygenOptions.avatars.length || !bulkHeygenOptions.voices.length) ? <p className="text-sm text-muted-foreground">Your video provider has no available avatars or voices. Check the provider account, then <Button variant="link" className="h-auto p-0" onClick={onRetryOptions}>refresh options</Button>.</p> : null}
               <div className="space-y-1">
                 <Label htmlFor={`${fieldIds}-avatar-2`}>Avatar *</Label>
-                <Select value={bulkVideoForm.avatarId} onValueChange={v => setBulkVideoForm(f => ({ ...f, avatarId: v }))} disabled={bulkHeygenOptionsLoading}>
+                <Select value={bulkVideoForm.avatarId} onValueChange={v => setBulkVideoForm(f => ({ ...f, avatarId: v }))} disabled={bulkHeygenOptionsLoading || bulkHeygenOptionsIsError}>
                   <SelectTrigger id={`${fieldIds}-avatar-2`}><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading avatars..." : "Select an avatar"} /></SelectTrigger>
                   <SelectContent>
                     {bulkHeygenOptions?.avatars.map(a => (
@@ -154,7 +175,7 @@ export function BulkVideoGenDialog({
               </div>
               <div className="space-y-1">
                 <Label htmlFor={`${fieldIds}-voice-2`}>Voice *</Label>
-                <Select value={bulkVideoForm.voiceId} onValueChange={v => setBulkVideoForm(f => ({ ...f, voiceId: v }))} disabled={bulkHeygenOptionsLoading}>
+                <Select value={bulkVideoForm.voiceId} onValueChange={v => setBulkVideoForm(f => ({ ...f, voiceId: v }))} disabled={bulkHeygenOptionsLoading || bulkHeygenOptionsIsError}>
                   <SelectTrigger id={`${fieldIds}-voice-2`}><SelectValue placeholder={bulkHeygenOptionsLoading ? "Loading voices..." : "Select a voice"} /></SelectTrigger>
                   <SelectContent>
                     {bulkHeygenOptions?.voices.map(v => (
@@ -205,7 +226,7 @@ export function BulkVideoGenDialog({
               <Button variant="outline" onClick={onClose}>Cancel</Button>
               <Button
                 onClick={onGenerate}
-                disabled={bulkGenStarting || bulkHeygenOptionsLoading || eligibleVideoBlocksWithScript.length === 0}
+                disabled={bulkGenStarting || bulkHeygenOptionsLoading || bulkHeygenOptionsIsError || !bulkHeygenOptions?.avatars.some(avatar => avatar.id === bulkVideoForm.avatarId) || !bulkHeygenOptions?.voices.some(voice => voice.voice_id === bulkVideoForm.voiceId) || eligibleVideoBlocksWithScript.length === 0}
               >
                 {bulkGenStarting ? "Starting..." : "Generate"}
               </Button>

@@ -115,7 +115,7 @@ set local role authenticated;
 select pg_temp.media_actor(true);
 select throws_ok($$select public.get_native_course_media_context('23550000-0000-4000-8000-000000000030','23550000-0000-4000-8000-000000000050')$$,'42501',null,'trainer cannot inspect global authoring state');
 select throws_ok($$select public.get_native_course_media_context('23550000-0000-4000-8000-000000000032','23550000-0000-4000-8000-000000000053')$$,'42501',null,'trainer cannot inspect foreign authoring state');
-select lives_ok($$select public.get_native_course_media_context('23550000-0000-4000-8000-000000000031','23550000-0000-4000-8000-000000000052')$$,'same-tenant authoring retains authority');
+select lives_ok($$select public.get_native_course_media_context('23550000-0000-4000-8000-000000000031','23550000-0000-4000-8000-000000000052')$$,'same-tenant trainer retains scoped media inspection');
 select pg_temp.media_actor();
 insert into media_fixture values('stale',public.prepare_native_course_media_operation(pg_temp.media_request('23550000-0000-4000-8000-000000000041')));
 reset role;

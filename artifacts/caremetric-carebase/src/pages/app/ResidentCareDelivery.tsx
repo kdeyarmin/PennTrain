@@ -85,7 +85,7 @@ export default function ResidentCareDelivery() {
       <Card>
         <CardHeader>
           <CardTitle>Scope and reporting period</CardTitle>
-          <CardDescription>Metrics disclose the numerator, denominator, date basis, and facility scope used by the RLS-scoped analytics RPC.</CardDescription>
+          <CardDescription>Select a facility and date range to review completed services, exceptions, and follow-up work.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-4">
           <div className="space-y-2">

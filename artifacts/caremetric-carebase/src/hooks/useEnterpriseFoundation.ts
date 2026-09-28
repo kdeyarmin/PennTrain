@@ -148,6 +148,7 @@ export function useEnterpriseRpcCommand() {
     },
     onSuccess: async (_data, input) => {
       await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
+      await queryClient.invalidateQueries({ queryKey: ["governed-record-options"] });
       if (["issue_integration_api_credential", "create_integration_webhook_endpoint"].includes(input.rpc)) {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["integration-register"] }),
@@ -220,6 +221,7 @@ export function useEnterpriseTableInsert(table: string) {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
+      await queryClient.invalidateQueries({ queryKey: ["governed-record-options"] });
     },
   });
 }

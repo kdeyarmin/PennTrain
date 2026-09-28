@@ -129,14 +129,16 @@ export default function MoveInGuestPortal() {
                 <CardDescription>Access for {workspace.data.guestLabel} expires {new Date(workspace.data.expiresAt).toLocaleString()}.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                {workspace.data.tasks.length === 0 && <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">No move-in tasks are shared with you yet. Contact the facility if you were expecting something to review.</p>}
                 {workspace.data.tasks.map(task => (
                   <div key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-4">
                     <div>
                       <p className="font-medium">{task.title}</p>
-                      <div className="mt-1 flex gap-2">
+                      <div className="mt-1 flex flex-wrap gap-2">
                         {task.requiresSignature && <Badge variant="outline"><FileSignature className="mr-1 h-3 w-3" />Signature required</Badge>}
                         {task.requiresDocument && <Badge variant="outline">Document requested</Badge>}
                       </div>
+                      {task.requiresDocument && ["open", "in_progress", "exception"].includes(task.state) && <p className="mt-2 text-sm text-muted-foreground">Contact the facility to arrange delivery of the requested document.</p>}
                     </div>
                     {task.signed ? (
                       <Badge className="bg-emerald-100 text-emerald-900"><CheckCircle2 className="mr-1 h-3 w-3" />Signed</Badge>

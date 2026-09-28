@@ -177,14 +177,16 @@ export default function EvidenceRoom() {
               {[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />)}
             </div>
           ) : rows.length === 0 ? (
-            <p className="text-muted-foreground text-sm text-center py-10">
-              {!hasFilters && total === 0
+            <div className="space-y-3 py-10 text-center"><p className="text-muted-foreground text-sm">
+              {page > 1
+                ? "There are no collections on this page. Return to the first page to see current results."
+                : !hasFilters && total === 0
                 ? "No documentation collections yet. Create one to assemble survey-ready exports."
                 : "No collections match the current filters."}
-            </p>
+            </p>{page > 1 && <Button variant="outline" size="sm" onClick={() => setUrlState({ page: "1" })}>Return to first page</Button>}{hasFilters && <Button variant="ghost" size="sm" onClick={() => setUrlState(URL_DEFAULTS)}>Clear filters</Button>}</div>
           ) : (
             <div className="space-y-4">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" role="region" aria-label="Documentation collections" tabIndex={0}>
               <table className="data-table min-w-[700px]">
                 <thead>
                   <tr>
@@ -220,7 +222,7 @@ export default function EvidenceRoom() {
                       <td className="text-sm text-muted-foreground">{formatDateForDisplay(c.created_at)}</td>
                       <td>
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/app/evidence/${c.id}`}>
+                          <Link href={`/app/evidence/${c.id}`} aria-label={`Open ${c.name}`}>
                             Open <ChevronRight className="h-4 w-4" />
                           </Link>
                         </Button>

@@ -121,7 +121,7 @@ function ServiceList({ value }: { value: unknown }) {
               {refusal && <p className="text-[11px] text-muted-foreground">On refusal: {refusal}</p>}
               {escalation && <p className="text-[11px] text-muted-foreground">Escalate when: {escalation}</p>}
               {!refusal && responses.includes("resident_refused") && (
-                <p className="text-[11px] text-amber-700 dark:text-amber-500">
+                <p className="text-[11px] text-amber-700">
                   Refusal is an allowed outcome but the plan does not say what staff should do next.
                 </p>
               )}

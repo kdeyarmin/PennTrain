@@ -369,6 +369,12 @@ export default function NotificationSettings() {
               </div>
             </CardContent>
           </Card>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
+            <p className="text-sm text-muted-foreground">Save to apply your contact and notification preferences.</p>
+            <Button onClick={handleSave} disabled={saving} className="shadow-sm">
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </>
       )}
     </div>

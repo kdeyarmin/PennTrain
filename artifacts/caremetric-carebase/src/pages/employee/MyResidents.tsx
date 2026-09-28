@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { HeartPulse, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QueryError } from "@/components/QueryState";
 import { ResidentAvatar } from "@/components/residents/ResidentAvatar";
@@ -57,8 +58,8 @@ export default function MyResidents() {
   // flat list paints and then every row jumps as it re-splits into "on your assignment" / "everyone
   // else". On a bedside right-patient surface with 64px targets that is a mis-tap hazard.
   const onAssignmentIds = useMemo(
-    () => new Set(((queue.data ?? []) as unknown as QueueResidentRow[]).map((task) => task.resident_id)),
-    [queue.data],
+    () => new Set(((queue.isError ? [] : queue.data ?? []) as unknown as QueueResidentRow[]).map((task) => task.resident_id)),
+    [queue.data, queue.isError],
   );
 
   const residents = useMemo(
@@ -91,6 +92,13 @@ export default function MyResidents() {
         />
       </div>
 
+      {queue.isError && !options.isError && (
+        <div className="space-y-2 rounded-md border p-4">
+          <QueryError what="today's resident assignments" error={queue.error} onRetry={() => void queue.refetch()} />
+          <p className="text-sm text-muted-foreground">You can still open the residents listed below. Assignment grouping will return when this information is available.</p>
+        </div>
+      )}
+
       {options.isError ? (
         <QueryError what="your residents" error={options.error} onRetry={() => void options.refetch()} />
       ) : options.isLoading || queue.isPending ? (
@@ -100,9 +108,10 @@ export default function MyResidents() {
           <Skeleton className="h-16 w-full" />
         </div>
       ) : residents.length === 0 ? (
-        <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          {query ? "No residents match your search." : "No residents at your facility yet."}
-        </p>
+        <div className="space-y-3 rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <p>{query ? "No residents match your search." : "No residents are available for charting at your facility."}</p>
+          {query && <Button variant="outline" onClick={() => setQuery("")}>Clear search</Button>}
+        </div>
       ) : onAssignment.length === 0 ? (
         <div className="space-y-2">
           {residents.map((resident) => (

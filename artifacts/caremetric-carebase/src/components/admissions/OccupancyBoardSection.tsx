@@ -142,7 +142,7 @@ export default function OccupancyBoardSection({ facilityId }: { facilityId: stri
 
         {capacityNote && (
           <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-500" />
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
             <p className="text-sm">{capacityNote}</p>
           </div>
         )}

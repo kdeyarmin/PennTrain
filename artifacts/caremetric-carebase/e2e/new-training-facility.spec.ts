@@ -337,8 +337,10 @@ test.describe("new training facility administrator", () => {
         const recoveryPage = await secondDevice.newPage();
         // A used invite is rejected, with an explicit working recovery route.
         await recoveryPage.goto(invitation.url);
-        await expect(recoveryPage.getByRole("button", { name: "Request a new link", exact: true })).toBeVisible();
-        await recoveryPage.getByRole("button", { name: "Request a new link", exact: true }).click();
+        const newLink = recoveryPage.getByRole("link", { name: "Request a new link", exact: true });
+        await expect(newLink).toBeVisible();
+        await expect(newLink).toHaveAttribute("href", "/forgot-password");
+        await newLink.click();
         await recoveryPage.getByLabel("Email address", { exact: true }).fill(studentEmail);
         await recoveryPage.getByRole("button", { name: "Send reset link", exact: true }).click();
         await expect(recoveryPage.getByText("Email sent", { exact: true })).toBeVisible();

@@ -391,13 +391,16 @@ function FundStatement({ data }: { data: FinancialWorkspace }) {
           </p>
         )}
         {ledger.isError && (
+          <div className="space-y-2">
           <p className="text-sm text-destructive">
             The ledger for this period could not be read, so this statement is not complete. Try
             again before issuing it.
           </p>
+          <Button className="no-print" variant="outline" onClick={() => void ledger.refetch()}>Retry statement ledger</Button>
+          </div>
         )}
 
-        {ledger.isLoading ? (
+        {ledger.isError ? null : ledger.isLoading ? (
           <Empty>Loading this period's ledger…</Empty>
         ) : statement.rows.length === 0 ? (
           <Empty>No personal-funds movements in this period.</Empty>

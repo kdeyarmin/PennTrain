@@ -52,7 +52,7 @@ export function ResidentAvatar({
     <div
       aria-hidden="true"
       className={cn(
-        "flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-base font-semibold text-primary",
+        "flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-base font-semibold text-blue-800",
         className,
       )}
     >

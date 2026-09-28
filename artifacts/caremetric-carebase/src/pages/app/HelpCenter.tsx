@@ -17,6 +17,7 @@ import {
   SUPPORT_TICKET_CATEGORIES, SUPPORT_TICKET_PRIORITIES,
 } from "@/hooks/useSupportTickets";
 import { useAuth } from "@/lib/auth";
+import { useUrlState } from "@/hooks/useUrlState";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { viewablePathForRole } from "@/lib/appDomains";
 import {
@@ -54,8 +55,10 @@ const CONFIDENCE_DISPLAY: Record<HelpCopilotConfidence, { label: string; classNa
 
 function HelpCopilotPanel({ originRoute }: { originRoute: string | null }) {
   const { user } = useAuth();
+  const { canAccessPath } = useProductModuleAccess();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<HelpCopilotAnswer | null>(null);
+  const answerLinks = answer?.links.filter((link) => canAccessPath(link.href)) ?? [];
   const suggestions = useMemo(
     () => getHelpCopilotPromptSuggestions(originRoute, user?.role),
     [originRoute, user?.role],
@@ -75,7 +78,7 @@ function HelpCopilotPanel({ originRoute }: { originRoute: string | null }) {
           <Bot className="h-5 w-5 text-primary" /> Help Copilot
         </CardTitle>
         <CardDescription>
-          Ask how to complete a CareMetric CareBase workflow. Answers use the page you came from and show only links available to your role.
+          Ask how to complete a workflow. Answers use the page you came from and show links available to your role and enabled modules.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 pt-5">
@@ -135,11 +138,11 @@ function HelpCopilotPanel({ originRoute }: { originRoute: string | null }) {
               </ol>
             </div>
 
-            {answer.links.length > 0 && (
+            {answerLinks.length > 0 && (
               <div>
                 <p className="mb-2 text-sm font-semibold">Related pages</p>
                 <div className="flex flex-wrap gap-2">
-                  {answer.links.map((link) => (
+                  {answerLinks.map((link) => (
                     <Button key={`${link.href}-${link.label}`} asChild size="sm" variant="outline">
                       <Link href={link.href}>{link.label} <ExternalLink className="ml-1.5 h-3.5 w-3.5" /></Link>
                     </Button>
@@ -207,7 +210,7 @@ function FaqTab() {
     <div className="space-y-4">
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search FAQs..." className="pl-9" />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search FAQs..." aria-label="Search FAQs" className="pl-9" />
       </div>
 
       {isSearching ? (
@@ -264,11 +267,12 @@ function FaqTab() {
 
 function JobAideItem({ article }: { article: HelpArticle }) {
   const { user } = useAuth();
+  const { canAccessPath } = useProductModuleAccess();
   const aide = article.content as unknown as JobAideContent;
   const relatedHref = aide.relatedRoute
     ? viewablePathForRole(aide.relatedRoute.href, user?.role)
     : null;
-  const showRelatedRoute = !!relatedHref;
+  const showRelatedRoute = !!relatedHref && canAccessPath(relatedHref);
 
   return (
     <AccordionItem value={article.id} className="border rounded-lg px-4">
@@ -292,11 +296,11 @@ function JobAideItem({ article }: { article: HelpArticle }) {
           </div>
         )}
         {showRelatedRoute && aide.relatedRoute && relatedHref && (
-          <Link href={relatedHref}>
-            <Button variant="outline" size="sm" className="mt-3 gap-1.5">
+          <Button asChild variant="outline" size="sm" className="mt-3 gap-1.5">
+            <Link href={relatedHref}>
               {aide.relatedRoute.label} <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         )}
       </AccordionContent>
     </AccordionItem>
@@ -345,7 +349,7 @@ function JobAidesTab({ pinnedArticleId }: { pinnedArticleId?: string }) {
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search job aides..." className="pl-9" />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search job aides..." aria-label="Search job aides" className="pl-9" />
       </div>
 
       {isSearching ? (
@@ -553,8 +557,8 @@ function SupportTab({ base }: { base: string }) {
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Subject</label>
-                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Briefly describe the issue" />
+                <label htmlFor="support-subject" className="text-sm font-medium">Subject</label>
+                <Input id="support-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Briefly describe the issue" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Category</label>
@@ -580,8 +584,9 @@ function SupportTab({ base }: { base: string }) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Message</label>
+              <label htmlFor="support-message" className="text-sm font-medium">Message</label>
               <Textarea
+                id="support-message"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={5}
@@ -590,7 +595,7 @@ function SupportTab({ base }: { base: string }) {
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Attachment (optional)</label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                   <Paperclip className="h-3.5 w-3.5 mr-1.5" /> {file ? "Replace File" : "Attach File"}
                 </Button>
@@ -665,11 +670,16 @@ function SupportTab({ base }: { base: string }) {
   );
 }
 
+const HELP_FILTER_DEFAULTS = { tab: "faq" };
+const HELP_TABS = ["faq", "job-aides", "manual", "glossary", "support"];
+
 export default function HelpCenter() {
   const { user } = useAuth();
   const [location] = useLocation();
   const base = location.startsWith("/me") ? "/me" : "/app";
-  const [activeTab, setActiveTab] = useState("faq");
+  const [helpFilters, setHelpFilters] = useUrlState(HELP_FILTER_DEFAULTS);
+  const activeTab = HELP_TABS.includes(helpFilters.tab) ? helpFilters.tab : "faq";
+  const setActiveTab = (tab: string) => setHelpFilters({ tab });
   const centralSupportHub = useFeatureReleaseActive(CENTRAL_SUPPORT_HUB_FEATURE_KEY);
 
   // Read once per mount rather than tracked live -- this page is about where the user *came from*
@@ -748,7 +758,7 @@ export default function HelpCenter() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="faq">FAQ</TabsTrigger>
           <TabsTrigger value="job-aides">Job Aides</TabsTrigger>
           <TabsTrigger value="manual">User Manual</TabsTrigger>

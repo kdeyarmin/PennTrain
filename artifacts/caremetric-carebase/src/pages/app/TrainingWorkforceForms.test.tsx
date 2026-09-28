@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   employeeRoster: vi.fn(), employeeLookup: vi.fn(), employeeLookupRetry: vi.fn(),
   employeeLookupError: false, employeeLookupLoading: false,
   checklistError: false, checklistLoading: false, checklistRetry: vi.fn(),
+  url: {} as Record<string, string>, schedulesQuery: vi.fn(), credentialRows: [] as Record<string, unknown>[],
 }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(),
   useId: () => "test", useMemo: (compute: () => unknown) => compute(), useRef: (value: unknown) => ({ current: value }), useEffect: () => {},
@@ -21,7 +22,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "manager", role: "org_admin", organizationId: "org" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/hooks/useFacilities", () => ({ useListFacilities: () => ({ data: [{ id: "facility-a", name: "A" }, { id: "facility-b", name: "B" }] }) }));
-vi.mock("@/hooks/useSchedules", () => ({ useListSchedules: () => ({ data: [] }), useCreateSchedule: () => ({ mutate: h.save }) }));
+vi.mock("@/hooks/useSchedules", () => ({ useListSchedules: (filters: unknown, options: unknown) => { h.schedulesQuery(filters, options); return { data: [] }; }, useCreateSchedule: () => ({ mutate: h.save }) }));
 vi.mock("@/hooks/useTrainingClasses", () => ({ useListTrainingClasses: () => ({ data: [] }), useClassAttendeeCounts: () => ({ data: {} }), useCreateTrainingClass: () => ({ mutate: h.save }) }));
 vi.mock("@/hooks/useProfiles", () => ({ useListProfiles: () => ({ data: [{ id: "trainer", first_name: "Training", last_name: "Lead" }] }) }));
 vi.mock("@/hooks/useTrainingTypes", () => ({ useListTrainingTypes: () => ({ data: [] }), useCreateTrainingType: () => ({ mutate: h.save }), useUpdateTrainingType: () => ({ mutate: h.save }) }));
@@ -40,9 +41,9 @@ vi.mock("@/hooks/useCompetencies", () => ({ useListCompetencyRecords: () => ({ d
   useListCompetencyTemplates: () => ({ data: [{ id: "template", name: "Checklist" }] }), useListCompetencyRecordItems: () => ({ data: [] }),
   useListCompetencyTemplateItems: () => ({ data: h.checklistLoading ? undefined : [{ id: "item", item_text: "Observed task" }], isLoading: h.checklistLoading, isError: h.checklistError, error: new Error("Checklist unavailable"), refetch: h.checklistRetry }),
 }));
-vi.mock("@/hooks/useEmployeeCredentials", () => ({ useListEmployeeCredentials: () => ({ data: [] }), useCreateEmployeeCredential: () => ({ mutate: h.save }), useUpdateEmployeeCredential: () => ({ mutate: h.save }), useDeleteEmployeeCredential: () => ({ mutate: vi.fn() }) }));
+vi.mock("@/hooks/useEmployeeCredentials", () => ({ useListEmployeeCredentials: () => ({ data: h.credentialRows }), useCreateEmployeeCredential: () => ({ mutate: h.save }), useUpdateEmployeeCredential: () => ({ mutate: h.save }), useDeleteEmployeeCredential: () => ({ mutate: vi.fn() }) }));
 vi.mock("@/hooks/useFacilityAssignments", () => ({ useAssignableFacilities: (facilities: unknown) => facilities }));
-vi.mock("@/hooks/useUrlState", () => ({ useUrlState: (defaults: unknown) => [defaults, vi.fn()] }));
+vi.mock("@/hooks/useUrlState", () => ({ useUrlState: (defaults: Record<string, string>) => [{ ...defaults, ...h.url }, (updates: Record<string, string>) => { h.url = { ...h.url, ...updates }; }] }));
 vi.mock("@/hooks/usePracticums", () => ({ usePaginatedPracticums: (filters: unknown) => { h.practicumQuery(filters); return { data: { rows: h.practicumRows, count: h.practicumRows.length } }; }, useCreatePracticum: () => ({ mutateAsync: h.save }), useUpdatePracticum: () => ({ mutateAsync: h.save }) }));
 
 import Schedule from "./Schedule";
@@ -77,6 +78,7 @@ function field(tree: ReactNode, id: string, value: string) {
 }
 beforeEach(() => {
   h.state = []; h.index = 0; h.practicumRows = []; h.historicalEmployees = [];
+  h.url = {}; h.credentialRows = [];
   h.employeeLookupError = false; h.employeeLookupLoading = false;
   h.checklistError = false; h.checklistLoading = false;
   vi.clearAllMocks();
@@ -103,6 +105,19 @@ describe("competency checklist recovery", () => {
 });
 
 describe("schedule form recovery", () => {
+  it("preserves the linked facility in the schedule query, setup link and return link", () => {
+    h.url = { facilityId: "facility-b" };
+    const schedule = render(Schedule);
+    expect(h.schedulesQuery).toHaveBeenLastCalledWith({ facilityId: "facility-b" }, { enabled: true });
+    expect(nodes(schedule).some(node => node.props.href === "/app/schedule/setup?facilityId=facility-b")).toBe(true);
+    h.state = [];
+    expect(nodes(render(ScheduleSetup)).some(node => node.props.href === "/app/schedule?facilityId=facility-b")).toBe(true);
+  });
+  it("explains an unavailable linked facility without showing another facility's schedules", () => {
+    h.url = { facilityId: "unavailable" };
+    expect(text(render(Schedule))).toContain("The linked facility is unavailable");
+    expect(h.schedulesQuery).toHaveBeenLastCalledWith({ facilityId: undefined }, { enabled: false });
+  });
   it("keeps the form usable when its start date is cleared and requires a valid date before saving", () => {
     field(render(Schedule), "periodStart", "");
     let tree = render(Schedule);
@@ -129,6 +144,21 @@ describe("schedule form recovery", () => {
 });
 
 describe("credential warning window", () => {
+  it("clears the employee filter when switching facility and offers a filter reset", () => {
+    h.url = { facilityFilter: "facility-a", employeeFilter: "employee" };
+    const tree = render(EmployeeCredentials);
+    const facility = nodes(tree).find(node => node.props.value === "facility-a" && node.props.onValueChange)!;
+    (facility.props.onValueChange as (value: string) => void)("facility-b");
+    expect(h.url).toMatchObject({ facilityFilter: "facility-b", employeeFilter: "all", page: "1" });
+    click(render(EmployeeCredentials), "Clear filters");
+    expect(h.url).toMatchObject({ facilityFilter: "all", employeeFilter: "all", statusFilter: "all", page: "1" });
+  });
+  it("keeps existing credentials reachable when a bookmarked page is past the end", () => {
+    h.url = { page: "8" };
+    h.credentialRows = [{ id: "credential", employee_id: "employee", credential_type: "cpr", status: "compliant", expiration_date: null }];
+    expect(text(render(EmployeeCredentials))).toContain("Page 1 of 1");
+    expect(text(render(EmployeeCredentials))).not.toContain("No credentials found");
+  });
   function draft(warningDays: string) {
     render(EmployeeCredentials);
     h.state[2] = { ...(h.state[2] as object), employeeId: "employee", warningDays };

@@ -239,10 +239,7 @@ export default function ResidentFinancialOperations() {
       ) : workspace.isLoading ? (
         <Empty>Loading resident financial operations…</Empty>
       ) : workspace.isError ? (
-        <Empty>
-          Resident financial operations could not be loaded:{" "}
-          {workspace.error.message}
-        </Empty>
+        <QueryError what="resident financial operations" error={workspace.error} onRetry={() => void workspace.refetch()} />
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

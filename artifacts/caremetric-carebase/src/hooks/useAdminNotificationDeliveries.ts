@@ -175,19 +175,41 @@ export function useBulkRetryNotificationDeliveries() {
   });
 }
 
-// Simple id -> name lookup so the oversight page can show organization names
-// instead of raw UUIDs (see ROADMAP: raw-UUID reports called out as a defect
-// to avoid repeating).
-export function useOrganizationNameMap() {
+const ORGANIZATION_NAME_BATCH_SIZE = 100;
+const ORGANIZATION_NAME_PAGE_SIZE = 1000;
+
+// Existing oversight callers may request every visible organization. Paged views
+// should pass only their visible ids, keeping the lookup and its URL bounded.
+export function useOrganizationNameMap(organizationIds?: string[]) {
+  const ids = organizationIds === undefined ? undefined : [...new Set(organizationIds.filter(Boolean))].sort();
   return useQuery({
-    queryKey: ["organizations", "name_map"],
+    // Preserve the established unrestricted cache while isolating scoped maps.
+    queryKey: ids === undefined ? ["organizations", "name_map"] : ["organizations", "name_map", ids],
     queryFn: async () => {
-      const { data, error } = await supabase.from("organizations").select("id, name");
-      if (error) throw error;
       const map: Record<string, string> = {};
-      for (const org of data ?? []) map[org.id] = org.name;
+      const batches: Array<string[] | undefined> = ids === undefined ? [undefined] : [];
+      if (ids !== undefined) {
+        for (let from = 0; from < ids.length; from += ORGANIZATION_NAME_BATCH_SIZE) {
+          batches.push(ids.slice(from, from + ORGANIZATION_NAME_BATCH_SIZE));
+        }
+      }
+      for (const batch of batches) {
+        for (let from = 0; ;) {
+          let query = supabase.from("organizations").select("id, name").order("id", { ascending: true });
+          if (batch !== undefined) query = query.in("id", batch);
+          const { data, error } = await query.range(from, from + ORGANIZATION_NAME_PAGE_SIZE - 1);
+          if (error) throw error;
+          if (!data?.length) break;
+          for (const org of data) map[org.id] = org.name;
+          from += data.length;
+          if (batch !== undefined && from >= batch.length) break;
+          // A deployment's API cap can be smaller than the requested range.
+          // Only exhaustion (or resolving every requested id) proves completion.
+        }
+      }
       return map;
     },
+    enabled: ids === undefined || ids.length > 0,
   });
 }
 

@@ -38,5 +38,7 @@ export async function setPasswordFromEmail(page: Page, link: string, password: s
   await page.getByLabel("New password", { exact: true }).fill(password);
   await page.getByLabel("Confirm new password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Update password", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Sign in and continue", exact: true })).toBeVisible();
+  const signIn = page.getByRole("link", { name: "Sign in and continue", exact: true });
+  await expect(signIn).toBeVisible();
+  await expect(signIn).toHaveAttribute("href", "/login");
 }

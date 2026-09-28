@@ -37,6 +37,14 @@ function button(tree: ReactNode, label: string) { return nodes(tree).find(node =
 beforeEach(() => { h.state = []; h.cursor = 0; });
 
 describe("My Learning list selection", () => {
+  it("only offers statuses belonging to the selected learning list", () => {
+    const statuses = (tree: ReactNode) => nodes(tree).filter(node => ["assigned", "in_progress", "overdue", "paused", "completed", "canceled"].includes(String(node.props.value))).map(node => node.props.value);
+    let tree = render();
+    expect(statuses(tree)).toEqual(["assigned", "in_progress", "overdue", "paused"]);
+    (button(tree, "Completed / history").props.onClick as () => void)();
+    tree = render();
+    expect(statuses(tree)).toEqual(["completed", "canceled"]);
+  });
   it("keeps selection, heading and content aligned when required learning is complete", () => {
     let tree = render();
     expect(button(tree, "Required").props["aria-pressed"]).toBe(true);

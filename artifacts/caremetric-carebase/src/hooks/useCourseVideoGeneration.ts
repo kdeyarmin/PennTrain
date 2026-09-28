@@ -108,7 +108,7 @@ const TERMINAL_HEYGEN_STATUSES = new Set(["completed", "failed"]);
  * cron job or this poll gets there first. The interval is only created while at least one
  * such block is present and is cleared the moment none remain (or on unmount).
  */
-export function useAutoCheckVideoStatuses(blocks: CourseBlock[] | undefined) {
+export function useAutoCheckVideoStatuses(blocks: CourseBlock[] | undefined, enabled: boolean) {
   const { mutate: checkVideoStatus } = useCheckCourseVideoStatus();
 
   // Refs so the interval tick always reads the latest blocks/mutate function without having
@@ -124,7 +124,7 @@ export function useAutoCheckVideoStatuses(blocks: CourseBlock[] | undefined) {
   });
 
   useEffect(() => {
-    if (!hasPendingVideo) return;
+    if (!enabled || !hasPendingVideo) return;
     const intervalId = setInterval(() => {
       for (const block of blocksRef.current ?? []) {
         const status = (block.body as { heygen?: { status?: string } } | null)?.heygen?.status;
@@ -134,5 +134,5 @@ export function useAutoCheckVideoStatuses(blocks: CourseBlock[] | undefined) {
       }
     }, 15_000);
     return () => clearInterval(intervalId);
-  }, [hasPendingVideo]);
+  }, [enabled, hasPendingVideo]);
 }

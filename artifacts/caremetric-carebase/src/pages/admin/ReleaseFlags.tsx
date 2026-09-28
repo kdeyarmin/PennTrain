@@ -44,7 +44,7 @@ function EvaluatedState({ featureKey }: { featureKey: string }) {
   if (release.isLoading) return <span className="text-xs text-muted-foreground">checking…</span>;
   if (release.isError) return <span role="alert" className="text-xs text-destructive">Unavailable</span>;
   return (
-    <Badge variant="outline" className={release.isActive ? "border-emerald-500 text-emerald-700 dark:text-emerald-500" : undefined}>
+    <Badge variant="outline" className={release.isActive ? "border-emerald-500 text-emerald-700" : undefined}>
       {release.isActive ? "Active for you" : "Off for you"}
     </Badge>
   );

@@ -125,7 +125,8 @@ describe("administration asynchronous target recovery", () => {
 
 it("surfaces notification evidence failures with a scoped retry", () => {
   h.evidenceError = true;
-  click(render(NotificationDeliveries).find(node => Array.isArray(node.props.children) && node.props.children.includes("Documentation"))!);
+  const openDocumentation = render(NotificationDeliveries).find(node => Array.isArray(node.props.children) && node.props.children.includes("Documentation"))!;
+  (openDocumentation.props.onClick as (event: unknown) => void)({ currentTarget: { focus: vi.fn() } });
   (render(NotificationDeliveries).find(node => node.props.what === "delivery documentation")!.props.onRetry as () => void)();
   expect(h.evidenceRetry).toHaveBeenCalledOnce();
 });

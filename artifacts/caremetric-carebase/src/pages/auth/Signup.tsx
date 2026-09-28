@@ -175,12 +175,12 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden py-12">
+    <main className="min-h-screen w-full flex items-center justify-center relative overflow-hidden py-12">
       <AuthBackground />
 
       <div className="w-full max-w-[460px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
-          <Link href="/" aria-label="CareMetric CareBase home">
+          <Link href="/" aria-label="CareMetric home">
             <LogoMark className="h-20 w-20" />
           </Link>
           <div className="space-y-1.5">
@@ -220,6 +220,7 @@ export default function Signup() {
                 <Label htmlFor="organizationName" className="text-[13px] font-medium">Organization / Facility Name</Label>
                 <Input
                   id="organizationName"
+                  autoComplete="organization"
                   value={form.organizationName}
                   onChange={e => field("organizationName", e.target.value)}
                   placeholder="Sunrise Healthcare"
@@ -242,6 +243,7 @@ export default function Signup() {
                   <Label htmlFor="firstName" className="text-[13px] font-medium">First Name</Label>
                   <Input
                     id="firstName"
+                    autoComplete="given-name"
                     value={form.firstName}
                     onChange={e => field("firstName", e.target.value)}
                     disabled={isPending}
@@ -253,6 +255,7 @@ export default function Signup() {
                   <Label htmlFor="lastName" className="text-[13px] font-medium">Last Name</Label>
                   <Input
                     id="lastName"
+                    autoComplete="family-name"
                     value={form.lastName}
                     onChange={e => field("lastName", e.target.value)}
                     disabled={isPending}
@@ -266,6 +269,8 @@ export default function Signup() {
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
                   value={form.email}
                   onChange={e => field("email", e.target.value)}
                   placeholder="you@example.com"
@@ -341,6 +346,6 @@ export default function Signup() {
           55 Pa. Code Chapters 2600 & 2800 Compliance Platform
         </p>
       </div>
-    </div>
+    </main>
   );
 }

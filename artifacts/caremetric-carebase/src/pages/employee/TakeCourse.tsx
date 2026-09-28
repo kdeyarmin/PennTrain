@@ -854,7 +854,7 @@ useEffect(() => {
 
       <div>
         <h1 className="text-2xl font-bold tracking-tight">{courseTitle}</h1>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex flex-wrap items-center gap-2 mt-1">
           {alreadyCompleted ? (
             <Badge>Completed</Badge>
           ) : (
@@ -969,7 +969,7 @@ useEffect(() => {
           {blocks.length > 1 && (
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">Training map: revisit completed steps, track what is locked, and see what comes next.</p>
-              <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Lesson navigation">
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Lesson navigation">
                 {blocks.map((b, i) => {
                   const isCurrent = i === stepIndex;
                   const isVisited = i <= furthestIndex;
@@ -979,8 +979,7 @@ useEffect(() => {
                     <button
                       key={b.id}
                       type="button"
-                      role="tab"
-                      aria-selected={isCurrent}
+                      aria-pressed={isCurrent}
                       aria-current={isCurrent ? "step" : undefined}
                       aria-label={`Lesson ${i + 1}: ${documentDisplayName({ title: b.title, fallback: getBlockLabel(b.block_type) })}${isCurrent ? " (current)" : !isVisited ? " (not yet visited)" : ""}`}
                       title={documentDisplayName({ title: b.title, fallback: `Lesson ${i + 1}` })}
@@ -1297,7 +1296,7 @@ useEffect(() => {
             </CardContent>
           </Card>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <Button
               variant="outline"
               onClick={() => setStepIndex(i => Math.max(0, i - 1))}
@@ -1308,7 +1307,7 @@ useEffect(() => {
 
             {isLastBlock ? (
               alreadyCompleted ? (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Badge className="px-3 py-1.5">
                     <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Training Completed
                   </Badge>

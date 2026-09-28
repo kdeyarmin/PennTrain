@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { useListSchedules, useCreateSchedule, type Schedule } from "@/hooks/useSchedules";
@@ -17,6 +17,9 @@ import { useToast } from "@/hooks/use-toast";
 import { addDaysIso, formatDateLabel, startOfWeekIso, todayIso } from "@/lib/scheduleDates";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { isExplicitCompletionDeadline } from "@/lib/trainingPlanEditing";
+import { useUrlState } from "@/hooks/useUrlState";
+
+const SCHEDULE_FILTERS = { facilityId: "" };
 
 export default function Schedule() {
   const __fieldIds = useId();
@@ -25,10 +28,11 @@ export default function Schedule() {
   const { user } = useAuth();
   const facilitiesQuery = useListFacilities({ organizationId: user?.organizationId ?? undefined });
   const facilities = facilitiesQuery.data;
-  const [facilityId, setFacilityId] = useState<string>("");
+  const [{ facilityId }, setFilters] = useUrlState(SCHEDULE_FILTERS);
   const [showCreate, setShowCreate] = useState(false);
 
-  const activeFacilityId = facilityId || facilities?.[0]?.id || "";
+  const activeFacilityId = (facilityId ? facilities?.find(facility => facility.id === facilityId) : facilities?.[0])?.id || "";
+  const unavailableFacility = !!facilityId && !facilitiesQuery.isLoading && !facilitiesQuery.isError && !activeFacilityId;
 
   // Gated on the facility being known: the filter is applied only `if` truthy, so until
   // useListFacilities resolves an ungated read lists every schedule in the organization under this
@@ -88,10 +92,12 @@ export default function Schedule() {
             Build shift schedules that auto-fill from each employee's typical shift and unit.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => navigate("/app/schedule/setup")}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/app/schedule/setup${activeFacilityId ? `?facilityId=${encodeURIComponent(activeFacilityId)}` : ""}`}>
             <Settings2 className="h-4 w-4 mr-2" />
             Shifts, Units &amp; Patterns
+            </Link>
           </Button>
           <Dialog open={showCreate} onOpenChange={(o) => { setShowCreate(o); if (!o) resetForm(); }}>
             <DialogTrigger asChild>
@@ -153,9 +159,9 @@ export default function Schedule() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Label htmlFor={`${__fieldIds}-facility`} className="text-sm text-muted-foreground shrink-0">Facility</Label>
-        <Select value={activeFacilityId} onValueChange={setFacilityId}>
+        <Select value={activeFacilityId} onValueChange={value => setFilters({ facilityId: value })}>
           <SelectTrigger id={`${__fieldIds}-facility`} className="w-64">
             <SelectValue placeholder="Select a facility" />
           </SelectTrigger>
@@ -167,7 +173,9 @@ export default function Schedule() {
         </Select>
       </div>
 
-      {facilitiesQuery.isError || schedulesQuery.isError ? (
+      {unavailableFacility ? (
+        <p role="status" className="rounded-lg border p-4 text-sm">The linked facility is unavailable. Choose an available facility above.</p>
+      ) : facilitiesQuery.isError || schedulesQuery.isError ? (
         <QueryError
           what="schedules"
           error={facilitiesQuery.error ?? schedulesQuery.error}
@@ -207,7 +215,9 @@ export default function Schedule() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <CardTitle className="text-base leading-snug pr-2">
-                    {s.title || `${formatDateLabel(s.period_start)} – ${formatDateLabel(s.period_end)}`}
+                    <Link href={`/app/schedule/${s.id}`} className="hover:underline focus-visible:underline" onClick={event => event.stopPropagation()}>
+                      {s.title || `${formatDateLabel(s.period_start)} – ${formatDateLabel(s.period_end)}`}
+                    </Link>
                   </CardTitle>
                   <Badge variant={s.status === "published" ? "default" : "secondary"}>{s.status}</Badge>
                 </div>

@@ -241,7 +241,7 @@ export function CampaignQuestions({ campaignId }: { campaignId: string }) {
                 <li
                   key={index}
                   className={index === question.correct_choice_index
-                    ? "text-emerald-700 dark:text-emerald-500"
+                    ? "text-emerald-700"
                     : "text-muted-foreground"}
                 >
                   {index === question.correct_choice_index ? "✓ " : "· "}{choice}
@@ -337,7 +337,7 @@ export function AssignCampaignDialog({
         </DialogHeader>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input aria-label="Search employees to assign" placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <div className="flex-1 overflow-y-auto border rounded-md max-h-[300px]">
           {employeesLoading ? (

@@ -696,7 +696,7 @@ export default function EmployeeDetail() {
               <p className="text-xs text-muted-foreground">
                 Half of first-year quits happen inside 90 days -- log a 7/14/30/60/90-day check-in conversation here.
               </p>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 {[7, 14, 30, 60, 90].map((day) => {
                   const log = checkinLogs?.find((c) => c.check_in_day === day);
                   return (

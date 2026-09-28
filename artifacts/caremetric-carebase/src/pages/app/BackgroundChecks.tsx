@@ -75,7 +75,8 @@ export default function BackgroundChecks() {
     error: employeesErrorDetail,
     refetch: refetchEmployees,
   } = useListEmployees({ status: "active" });
-  const { data: profiles } = useListBackgroundCheckProfiles({ organizationId: user?.organizationId ?? undefined });
+  const profilesQuery = useListBackgroundCheckProfiles({ organizationId: user?.organizationId ?? undefined });
+  const { data: profiles } = profilesQuery;
   const dutyStatuses = useOapsaDutyStatuses((employees ?? []).map(e => e.id));
   const { mutateAsync: upsertProfile, isPending: saving } = useUpsertBackgroundCheckProfile();
 
@@ -91,6 +92,7 @@ export default function BackgroundChecks() {
   );
 
   const openEditor = (employeeId: string) => {
+    if (profilesQuery.isLoading || profilesQuery.isError) return;
     const existing = profileByEmployeeId.get(employeeId);
     setEditingEmployeeId(employeeId);
     setForm({
@@ -110,7 +112,7 @@ export default function BackgroundChecks() {
   const field = <K extends keyof ProfileFormData>(k: K, v: ProfileFormData[K]) => setForm((f) => (f ? { ...f, [k]: v } : f));
 
   const handleSave = async () => {
-    if (!editingEmployeeId || !form || !user?.organizationId) return;
+    if (!editingEmployeeId || !form || !user?.organizationId || profilesQuery.isLoading || profilesQuery.isError) return;
     const employee = (employees ?? []).find((e) => e.id === editingEmployeeId);
     if (!employee) return;
 
@@ -222,8 +224,15 @@ export default function BackgroundChecks() {
           {dutyStatuses.isError && <QueryError what="clearance deadlines" error={dutyStatuses.error} onRetry={() => dutyStatuses.refetch()} />}
           {employeesError ? (
             <QueryError what="the employee roster" error={employeesErrorDetail} onRetry={() => refetchEmployees()} />
-          ) : employeesLoading ? (
+          ) : profilesQuery.isError ? (
+            <QueryError what="background-check profiles" error={profilesQuery.error} onRetry={() => void profilesQuery.refetch()} />
+          ) : employeesLoading || profilesQuery.isLoading ? (
             <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded" />)}</div>
+          ) : filteredEmployees.length === 0 ? (
+            <div className="space-y-3 py-8 text-center">
+              <p className="text-sm text-muted-foreground">{facilityFilter === "all" ? "No employees are available for background-check review yet." : "No employees match the selected facility."}</p>
+              {facilityFilter !== "all" && <Button variant="outline" size="sm" onClick={() => setFacilityFilter("all")}>Show all facilities</Button>}
+            </div>
           ) : (
             <div className="space-y-2">
               {filteredEmployees.map((emp) => {
@@ -231,7 +240,7 @@ export default function BackgroundChecks() {
                 const dutyStatus = dutyStatuses.data?.[emp.id];
                 const provisional = provisionalStatus(dutyStatus);
                 return (
-                  <div key={emp.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border">
+                  <div key={emp.id} className="flex flex-col gap-3 p-3 rounded-lg border sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{emp.first_name} {emp.last_name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -240,7 +249,7 @@ export default function BackgroundChecks() {
                       {dutyStatus?.pspExpiresOn && <p className="text-xs">PSP due {formatDateForDisplay(dutyStatus.pspExpiresOn)}</p>}
                       {dutyStatus?.fbiExpiresOn && <p className="text-xs">FBI due {formatDateForDisplay(dutyStatus.fbiExpiresOn)}</p>}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                       {provisional && <Badge className={provisional.className}>{provisional.label}</Badge>}
                       <Badge className={suitabilityBadgeClass(profile?.suitability_determination ?? "pending")}>
                         {SUITABILITY_LABELS[profile?.suitability_determination ?? "pending"]}
@@ -261,6 +270,7 @@ export default function BackgroundChecks() {
             <DialogTitle>{editingEmployee ? `${editingEmployee.first_name} ${editingEmployee.last_name}` : ""}</DialogTitle>
             <DialogDescription>Background-check decision logic, provisional-employment tracking, and suitability determination.</DialogDescription>
           </DialogHeader>
+          {profilesQuery.isError && <QueryError what="background-check profiles" error={profilesQuery.error} onRetry={() => void profilesQuery.refetch()} />}
           {form && (
             <fieldset disabled={!canManage} className="m-0 min-w-0 space-y-4 border-0 p-0">
               <div className="space-y-1.5">
@@ -325,7 +335,7 @@ export default function BackgroundChecks() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setEditingEmployeeId(null); setForm(null); }}>{canManage ? "Cancel" : "Close"}</Button>
-            {canManage && <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>}
+            {canManage && <Button onClick={handleSave} disabled={saving || profilesQuery.isLoading || profilesQuery.isError}>{saving ? "Saving..." : "Save"}</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

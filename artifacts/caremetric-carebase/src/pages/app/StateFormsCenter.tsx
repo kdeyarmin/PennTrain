@@ -124,6 +124,8 @@ export default function StateFormsCenter() {
             <Button
               variant="ghost" size="sm" className="h-7 text-xs"
               onClick={() => setExpandedItemId(expanded ? null : item.id)}
+              aria-expanded={expanded}
+              aria-controls={`state-form-workflow-${item.id}`}
             >
               {expanded ? <ChevronUp className="mr-1 h-3.5 w-3.5" /> : <ChevronDown className="mr-1 h-3.5 w-3.5" />}
               Workflow
@@ -131,6 +133,7 @@ export default function StateFormsCenter() {
           </div>
         </div>
         {expanded && resident && (
+          <div id={`state-form-workflow-${item.id}`}>
           <StateFormWorkflowStepper
             item={item}
             resident={resident}
@@ -138,6 +141,7 @@ export default function StateFormsCenter() {
             canManage={canManage}
             triggeredByItemType={triggeredByItemType}
           />
+          </div>
         )}
       </div>
     );
@@ -175,7 +179,7 @@ export default function StateFormsCenter() {
             signed state form without hunting through individual residents.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canManage && (
             <Button variant="outline" size="sm" onClick={() => setShowChangeDialog(true)}>
               <TriangleAlert className="mr-2 h-3.5 w-3.5" /> Log Change of Condition

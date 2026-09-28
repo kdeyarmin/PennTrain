@@ -231,8 +231,8 @@ export default defineConfig(({ command, mode }) => {
           name: trainBuild ? "CareMetric Train" : "CareMetric CareBase",
           short_name: "CareMetric",
           description: trainBuild ? "Facility staff training, certificates and evidence reports." : "Operations, workforce compliance, and survey readiness for personal care homes and assisted living facilities.",
-          theme_color: "#102a43",
-          background_color: "#102a43",
+          theme_color: "#f6f7f9",
+          background_color: "#f6f7f9",
           display: "standalone",
           start_url: trainBuild ? basePath : `${basePath}me`,
           icons: [

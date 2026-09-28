@@ -4,7 +4,8 @@ import { useGlobalSearch } from "@/hooks/useGlobalSearch";
 import { useNavigationWorkspace } from "@/hooks/useProductExperience";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
-import { searchCommandActions, searchPages } from "@/lib/appDomains";
+import { canViewPath, viewablePathForRole, searchCommandActions, searchPages } from "@/lib/appDomains";
+import { pathFallbackLabel, registryLabelForPath } from "@/lib/pageTitle";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { Search, Building2, User, Users, UserRound, Compass, Zap, BookOpen, FileText, AlertTriangle, Wrench, ShieldCheck, Star, History } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,7 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
     function onKeyDown(e: KeyboardEvent) {
       const isShortcut = (e.key === "/" && !e.metaKey && !e.ctrlKey) || (e.key === "k" && (e.metaKey || e.ctrlKey));
       if (!isShortcut) return;
+      if (!inputRef.current?.getClientRects().length) return;
       const target = e.target as HTMLElement | null;
       const isTyping = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (isTyping) return;
@@ -76,28 +78,31 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
   // Navigation is local and remains useful while record lookup is pending or unavailable.
   const actionResults = searchCommandActions(query, user?.role, moduleAccess.enabledModules);
   const pageResults = searchPages(query, user?.role, moduleAccess.enabledModules);
-  const workspaceItems = results?.items.filter((item) => moduleAccess.canAccessPath(item.route)) ?? [];
-  const residents = moduleAccess.canAccessModule("carebase") ? results?.residents ?? [] : [];
-  const courses = moduleAccess.canAccessModule("train") ? results?.courses ?? [] : [];
-  const hasWorkspaceItems = workspaceItems.length > 0;
-  const hasResults = actionResults.length || pageResults.length || hasWorkspaceItems || results?.organizations.length || results?.profiles.length || results?.employees.length || residents.length || courses.length;
-  const favoriteShortcuts = navigationWorkspace.favoritePaths
-    .filter((path) => moduleAccess.canAccessPath(path))
-    .map((path: string) => {
-    const page = searchPages(path, user?.role, moduleAccess.enabledModules).find((candidate) => candidate.path === path);
-    return { path, label: page?.label ?? path };
-  });
-  const recentShortcuts = navigationWorkspace.recentPaths
-    .filter((recent) => !navigationWorkspace.favoritePaths.includes(recent.path))
-    .filter((recent) => moduleAccess.canAccessPath(recent.path))
-    .slice(0, 5);
-  const hasShortcuts = favoriteShortcuts.length > 0 || recentShortcuts.length > 0;
-
   const employeesBasePath = user?.role === "platform_admin" ? "/admin/employees"
     : user?.role === "trainer" ? "/trainer/employees"
     : "/app/employees";
   const usersBasePath = user?.role === "platform_admin" ? "/admin/users" : "/app/users";
   const residentsBasePath = user?.role === "platform_admin" ? "/admin/residents" : "/app/residents";
+  const viewable = (path: string) => canViewPath(path, user?.role, moduleAccess.enabledModules);
+  const workspaceItems = results?.items.flatMap((item) => {
+    const route = viewablePathForRole(item.route, user?.role, moduleAccess.enabledModules);
+    return route ? [{ ...item, route }] : [];
+  }) ?? [];
+  const organizations = viewable("/admin/organizations") ? results?.organizations ?? [] : [];
+  const profiles = viewable(usersBasePath) ? results?.profiles ?? [] : [];
+  const employees = viewable(employeesBasePath) ? results?.employees ?? [] : [];
+  const residents = results?.residents.filter(resident => viewable(`${residentsBasePath}/${resident.id}`)) ?? [];
+  const courses = moduleAccess.canAccessModule("train") ? results?.courses ?? [] : [];
+  const hasWorkspaceItems = workspaceItems.length > 0;
+  const hasResults = actionResults.length || pageResults.length || hasWorkspaceItems || organizations.length || profiles.length || employees.length || residents.length || courses.length;
+  const favoriteShortcuts = navigationWorkspace.favoritePaths
+    .filter(viewable)
+    .map((path: string) => ({ path, label: registryLabelForPath(path) ?? pathFallbackLabel(path) }));
+  const recentShortcuts = navigationWorkspace.recentPaths
+    .filter((recent) => !navigationWorkspace.favoritePaths.includes(recent.path))
+    .filter((recent) => viewable(recent.path))
+    .slice(0, 5);
+  const hasShortcuts = favoriteShortcuts.length > 0 || recentShortcuts.length > 0;
 
   const go = (path: string) => {
     setQuery("");
@@ -302,10 +307,10 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   ))}
                 </div>
               )}
-              {!!results?.organizations.length && (
+              {!!organizations.length && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Organizations</p>
-                  {results.organizations.map((o) => (
+                  {organizations.map((o) => (
                     <button
                       key={o.id}
                       id={optionId("organization", o.id)}
@@ -320,10 +325,10 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   ))}
                 </div>
               )}
-              {!!results?.profiles.length && (
+              {!!profiles.length && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Users</p>
-                  {results.profiles.map((p) => (
+                  {profiles.map((p) => (
                     <button
                       key={p.id}
                       id={optionId("profile", p.id)}
@@ -339,10 +344,10 @@ export function GlobalSearch({ autoFocus = false, onNavigate }: { autoFocus?: bo
                   ))}
                 </div>
               )}
-              {!!results?.employees.length && (
+              {!!employees.length && (
                 <div>
                   <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Employees</p>
-                  {results.employees.map((e) => (
+                  {employees.map((e) => (
                     <button
                       key={e.id}
                       id={optionId("employee", e.id)}

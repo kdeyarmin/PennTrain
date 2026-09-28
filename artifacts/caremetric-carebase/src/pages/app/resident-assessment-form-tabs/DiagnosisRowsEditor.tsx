@@ -58,6 +58,7 @@ export function DiagnosisRowsEditor({
                 <div className="flex items-center gap-2">
                   <Input
                     placeholder="Description"
+                    aria-label={`${title}, row ${i + 1}: description`}
                     className="h-8 text-xs"
                     value={row.description}
                     disabled={readOnly}
@@ -71,7 +72,7 @@ export function DiagnosisRowsEditor({
                       onClick={() =>
                         onRowsChange(rows.filter((_, j) => j !== i))
                       }
-                      aria-label="Remove diagnosis"
+                      aria-label={`Remove ${title.toLowerCase()} row ${i + 1}`}
                     >
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </Button>
@@ -79,6 +80,7 @@ export function DiagnosisRowsEditor({
                 </div>
                 <Input
                   placeholder="Plan to meet the need"
+                  aria-label={`${title}, row ${i + 1}: plan to meet the need`}
                   className="h-8 text-xs"
                   value={row.planDescription}
                   disabled={readOnly}

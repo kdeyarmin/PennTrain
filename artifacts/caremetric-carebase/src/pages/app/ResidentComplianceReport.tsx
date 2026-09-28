@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "wouter";
 import { useListAllResidentComplianceItems } from "@/hooks/useResidentComplianceItems";
 import { useListResidentNames } from "@/hooks/useResidents";
@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, ClipboardList } from "lucide-react";
 import { ITEM_TYPE_LABELS, complianceStatusBadgeClassName, residentItemDeadlineLabel } from "@/lib/residentCompliance";
 import { QueryError } from "@/components/QueryState";
+import { Button } from "@/components/ui/button";
+import { useUrlState } from "@/hooks/useUrlState";
 
 function humanize(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
@@ -20,9 +22,10 @@ const OPEN_STATUSES = ["due_soon", "expired", "missing"];
 // a facility manager had to click into every individual resident one at a time to find out
 // whether their RASP/ASP items were on track. Mirrors Alerts.tsx's filter-bar + flat-query pattern.
 export default function ResidentComplianceReport() {
-  const [facilityId, setFacilityId] = useState<string>("all");
-  const [status, setStatus] = useState<string>("open");
-  const [itemType, setItemType] = useState<string>("all");
+  const [filters, setFilters] = useUrlState({ facility: "all", status: "open", itemType: "all" });
+  const facilityId = filters.facility;
+  const status = filters.status;
+  const itemType = filters.itemType;
 
   const facilitiesQuery = useListFacilities();
   // Names only, and paged: this report renders one row per regulatory deadline across every
@@ -46,6 +49,7 @@ export default function ResidentComplianceReport() {
   // as a complete one is the failure mode this banner exists to prevent.
   const reportQueries = [facilitiesQuery, residentsQuery, itemsQuery];
   const reportFailure = reportQueries.find((query) => query.isError);
+  const reportLoading = isLoading || facilitiesQuery.isLoading || residentsQuery.isLoading;
 
   return (
     <div className="space-y-6">
@@ -65,14 +69,14 @@ export default function ResidentComplianceReport() {
       </div>
 
       <div className="flex gap-3 flex-wrap">
-        <Select value={facilityId} onValueChange={setFacilityId}>
+        <Select value={facilityId} onValueChange={(facility) => setFilters({ facility })}>
           <SelectTrigger className="w-48" aria-label="Facility"><SelectValue placeholder="All Facilities" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Facilities</SelectItem>
             {facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={status} onValueChange={setStatus}>
+        <Select value={status} onValueChange={(status) => setFilters({ status })}>
           <SelectTrigger className="w-48" aria-label="Status"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="open">Due Soon / Expired / Missing</SelectItem>
@@ -83,7 +87,7 @@ export default function ResidentComplianceReport() {
             <SelectItem value="compliant">Compliant</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={itemType} onValueChange={setItemType}>
+        <Select value={itemType} onValueChange={(itemType) => setFilters({ itemType })}>
           <SelectTrigger className="w-56" aria-label="Item type"><SelectValue placeholder="All Item Types" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Item Types</SelectItem>
@@ -92,11 +96,14 @@ export default function ResidentComplianceReport() {
             ))}
           </SelectContent>
         </Select>
+        {(facilityId !== "all" || status !== "all" || itemType !== "all") && <Button variant="outline" onClick={() => setFilters({ facility: "all", status: "all", itemType: "all" })}>Clear filters</Button>}
       </div>
 
       <Card>
         <CardContent className="pt-6">
-          {isLoading ? (
+          {reportFailure ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">The report is unavailable. Retry the failed request above to view compliance items.</p>
+          ) : reportLoading ? (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-md" />)}
             </div>
@@ -141,8 +148,8 @@ export default function ResidentComplianceReport() {
                           </Badge>
                         </td>
                         <td>
-                          <Link href={`/app/residents/${item.resident_id}`} className="text-sm text-primary hover:underline">
-                            View
+                          <Link href={`/app/residents/${item.resident_id}?tab=assessments`} className="text-sm text-primary hover:underline">
+                            Review checklist
                           </Link>
                         </td>
                       </tr>

@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Download, Loader2, Printer, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2, Printer } from "lucide-react";
 import { LogoMark, BrandName, BRAND_BLUE } from "@/components/brand/Logo";
 import { formatDateForDisplay } from "@/lib/dateUtils";
 
@@ -66,12 +66,12 @@ export function ReportViewer({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4 no-print">
-        <div className="flex items-center gap-3 min-w-0">
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close report">
-            <X className="h-5 w-5" />
+        <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-center">
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Back to Reports" className="shrink-0">
+            <ChevronLeft className="h-4 w-4" /> Reports
           </Button>
           <div>
-            <h2 className="text-xl font-bold">{title}</h2>
+            <h1 className="text-xl font-bold">{title}</h1>
             {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
           </div>
         </div>
@@ -114,18 +114,18 @@ export function ReportViewer({
             Generated {new Date(generatedAt).toLocaleString()}
           </span>
           {facilityName && (
-            <Badge variant="secondary">{facilityName}</Badge>
+            <Badge variant="secondary" className="max-w-full whitespace-normal">{facilityName}</Badge>
           )}
         </div>
 
         {scopeLines && scopeLines.length > 0 && (
           <div className="mb-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 print-scope">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
               What this counts
             </p>
             <ul className="mt-1.5 space-y-0.5">
               {scopeLines.map((line) => (
-                <li key={line} className="text-xs text-muted-foreground">{line}</li>
+                <li key={line} className="text-xs text-foreground">{line}</li>
               ))}
             </ul>
           </div>
@@ -155,11 +155,11 @@ export function ReportViewer({
               <table className="w-full text-sm print-table">
                 <thead className="bg-muted/60">
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground w-10">#</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground w-10">#</th>
                     {headers.map((h, i) => (
                       <th
                         key={i}
-                        className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-foreground"
                       >
                         {h}
                       </th>

@@ -19,9 +19,9 @@ function SectionList({ sections }: { sections: { title: string; body: string[] }
     <div className="space-y-6">
       {sections.map((section, index) => (
         <section key={section.title} className="space-y-2">
-          <h2 className="text-lg font-semibold text-slate-950">
+          <h3 className="text-lg font-semibold text-slate-950">
             {index + 1}. {section.title}
-          </h2>
+          </h3>
           {section.body.map((paragraph, paragraphIndex) => (
             <p key={`${index}-${paragraphIndex}`} className="text-sm leading-6 text-slate-700">
               {paragraph}
@@ -53,6 +53,11 @@ export default function FacilitySignupLegal() {
           </div>
         </div>
 
+        <nav aria-label="Legal terms sections" className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm">
+          <a className="font-medium text-primary underline underline-offset-4" href="#facility-administrator-agreement">Facility administrator agreement</a>
+          <a className="font-medium text-primary underline underline-offset-4" href="#business-associate-agreement">Business associate agreement</a>
+          <Link className="font-medium text-primary underline underline-offset-4" href="/signup">Return to signup</Link>
+        </nav>
         <Card className="border-border/60 shadow-sm">
           <CardHeader>
             <div className="flex flex-wrap gap-2">

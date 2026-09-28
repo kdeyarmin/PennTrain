@@ -630,7 +630,7 @@ function openOverride(candidate: EligibilityCandidate, blockCode: string) {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <Button variant="ghost" size="sm" className="mb-1 -ml-2" onClick={() => navigate("/app/schedule")}>
+          <Button variant="ghost" size="sm" className="mb-1 -ml-2" onClick={() => navigate(`/app/schedule?facilityId=${encodeURIComponent(schedule.facility_id)}`)}>
             <ArrowLeft className="h-4 w-4 mr-1" />
             All Schedules
           </Button>

@@ -306,7 +306,7 @@ export default function Maintenance() {
         <TabsList><TabsTrigger value="orders">Work orders</TabsTrigger><TabsTrigger value="preventive">Preventive maintenance</TabsTrigger><TabsTrigger value="locations">Room QR labels</TabsTrigger></TabsList>
         <TabsContent value="orders" className="space-y-4">
           <div className="filter-bar premium-card">
-            <div className="relative min-w-56 flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Search work orders" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
+            <div className="relative min-w-56 flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Search work orders" aria-label="Search work orders" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
             <Select value={facilityId} onValueChange={setFacilityId}><SelectTrigger className="w-48" aria-label="Facility"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All facilities</SelectItem>{facilities?.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent></Select>
             <Select value={status} onValueChange={setStatus}><SelectTrigger className="w-48" aria-label="Status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem>{["open","assigned","in_progress","on_hold","pending_verification","verified","canceled"].map((value) => <SelectItem key={value} value={value}>{humanize(value)}</SelectItem>)}</SelectContent></Select>
           </div>

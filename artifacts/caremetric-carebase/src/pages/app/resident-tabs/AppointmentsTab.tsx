@@ -34,9 +34,9 @@ import type { ResidentTabProps } from "./types";
 
 const STAGE_STYLE: Record<AppointmentStage, string> = {
   upcoming: "",
-  in_progress: "border-amber-500 text-amber-700 dark:text-amber-500",
-  awaiting_outcome: "border-amber-500 text-amber-700 dark:text-amber-500",
-  follow_up_open: "border-amber-500 text-amber-700 dark:text-amber-500",
+  in_progress: "border-amber-500 text-amber-700",
+  awaiting_outcome: "border-amber-500 text-amber-700",
+  follow_up_open: "border-amber-500 text-amber-700",
   closed: "",
   canceled: "",
   rescheduled: "",

@@ -22,3 +22,7 @@ d3f81bd91acb577a13d9d5f74c65ea091e20077c:supabase/functions/_shared/marketingEma
 # Audit prose about MFA enrollment and verification/removal was mistaken for an API key.
 # The wording is corrected; this exact immutable-history fingerprint contains no credential.
 77c3c4fc012801478dcc37d804fbaf3458afe54f:docs/audits/2026-09-26-comprehensive-workflow-review.md:generic-api-key:95
+
+# Audit prose describing attendance-link loading and completion states was mistaken for an API key.
+# The wording is corrected; this exact immutable-history fingerprint contains no credential.
+55ef7a19f816a7b311d72eebc1bff33f7c140bd8:docs/audits/2026-09-27-deep-page-coverage.md:generic-api-key:244

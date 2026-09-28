@@ -242,7 +242,7 @@ export default function TrainerClasses() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Training Classes</h1>
           <p className="text-muted-foreground">
@@ -426,6 +426,7 @@ export default function TrainerClasses() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search classes..."
+            aria-label="Search training classes"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"

@@ -7,6 +7,7 @@ import { useListResidentDocuments } from "@/hooks/useResidentDocuments";
 import { useListResidentInformalSupports } from "@/hooks/useResidentInformalSupports";
 import { useListFacilities } from "@/hooks/useFacilities";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useResidentFhirClinical } from "@/hooks/useFhirIntegration";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -342,32 +343,25 @@ export default function ResidentDetail() {
           />
         </Suspense>
 
-        <div role="tablist" aria-label="Resident record sections" className="flex flex-wrap gap-1 border-b">
+        <Tabs value={activeTab} onValueChange={selectTab}>
+        <TabsList aria-label="Resident record sections" className="flex w-full gap-1 rounded-none border-b bg-transparent p-0">
           {tabs.map((tab) => (
-            <button
+            <TabsTrigger
               key={tab.id}
-              type="button"
-              role="tab"
-              id={`resident-tab-${tab.id}`}
-              aria-selected={activeTab === tab.id}
-              aria-controls="resident-tab-panel"
-              onClick={() => selectTab(tab.id)}
-              className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+              value={tab.id}
+              className="-mb-px rounded-none border-b-2 border-transparent px-3 py-2 text-muted-foreground hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               {tab.label}
-            </button>
+            </TabsTrigger>
           ))}
-        </div>
+        </TabsList>
 
-        <div role="tabpanel" id="resident-tab-panel" aria-labelledby={`resident-tab-${activeTab}`}>
+        <TabsContent value={activeTab}>
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <ActiveTabComponent {...tabProps} />
           </Suspense>
-        </div>
+        </TabsContent>
+        </Tabs>
       </div>
 
       {censusDialogOpen && (

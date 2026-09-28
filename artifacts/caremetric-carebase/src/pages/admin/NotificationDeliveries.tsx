@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   useListNotificationDeliveries,
   useOrganizationNameMap,
@@ -27,9 +27,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, AlertTriangle, Bell, CheckCircle2, CircleDollarSign, Eye, FileText, Search } from "lucide-react";
+import { Activity, AlertTriangle, Bell, CheckCircle2, CircleDollarSign, Eye, Search } from "lucide-react";
 import { QueryError } from "@/components/QueryState";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type StatusFilter = "all" | "pending" | "processing" | "sent" | "accepted" | "delivered" | "failed" | "skipped";
 type ChannelFilter = "all" | "email" | "sms";
@@ -73,6 +75,7 @@ ${body}`.matchAll(/\{\{([a-z][a-z0-9_]*)\}\}/g);
 // tile (?status=failed) pre-selects the matching filter on load, and Back/Forward between two
 // filtered views of this page works instead of resetting to "all" every time.
 const NOTIFICATION_DELIVERIES_URL_DEFAULTS = {
+  section: "deliveries",
   status: "all",
   channel: "all",
   search: "",
@@ -81,10 +84,12 @@ const NOTIFICATION_DELIVERIES_URL_DEFAULTS = {
 export default function NotificationDeliveries() {
   const { toast } = useToast();
   const [urlState, setUrlState] = useUrlState(NOTIFICATION_DELIVERIES_URL_DEFAULTS);
+  const section = ["deliveries", "health", "templates", "policies"].includes(urlState.section) ? urlState.section : "deliveries";
   const statusFilter = urlState.status as StatusFilter;
   const channelFilter = urlState.channel as ChannelFilter;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [evidenceDeliveryId, setEvidenceDeliveryId] = useState<string | null>(null);
+  const evidenceTrigger = useRef<HTMLButtonElement | null>(null);
   const [templateScope, setTemplateScope] = useState("global");
   const [templateKey, setTemplateKey] = useState("default");
   const [templateChannel, setTemplateChannel] = useState<"email" | "sms">("email");
@@ -386,40 +391,8 @@ export default function NotificationDeliveries() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Notification Deliveries</h1>
-        <p className="text-muted-foreground">Provider outcomes, fallback documentation, templates, retries, and estimated spend.</p>
+        <p className="text-muted-foreground">Review delivery outcomes and retries. Use the other sections to check queue health, edit templates, or manage costs.</p>
       </div>
-
-      {(reach.data ?? []).some((row) => row.unreachable_employees > 0) && (
-        <Card className="border-warning/40 bg-warning/5">
-          <CardContent className="pt-5 space-y-2">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-              <div>
-                <p className="font-medium">Employees with no login</p>
-                {/* Every delivery path resolves its recipient through profiles, so an employee with
-                    no linked login receives nothing and produces no delivery row to notice. An
-                    imported roster that was never invited looks identical to a quiet week. */}
-                <p className="text-sm text-muted-foreground">
-                  These employees receive no reminders, digests or alerts on any channel, and no
-                  failed delivery is recorded for them. The fix is an invitation.
-                </p>
-              </div>
-            </div>
-            <ul className="space-y-1 text-sm">
-              {(reach.data ?? [])
-                .filter((row) => row.unreachable_employees > 0)
-                .map((row) => (
-                  <li key={row.organization_id} className="flex justify-between gap-3 rounded border bg-card px-3 py-1.5">
-                    <span className="truncate">{row.organization_name}</span>
-                    <span className="shrink-0 text-muted-foreground">
-                      {row.unreachable_employees} of {row.active_employees} unreachable
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -448,68 +421,18 @@ export default function NotificationDeliveries() {
         </Card>
       </div>
 
-      {isPlatformAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><Activity className="h-5 w-5" />Queue health (platform-wide)</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Whether the delivery queue is moving at all. The tiles above count outcomes; these count work
-              waiting to happen, across every organization.
-            </p>
-          </CardHeader>
-          <CardContent>
-            {health.isError ? (
-              <QueryError what="delivery queue health" error={health.error} onRetry={() => void health.refetch()} />
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                {([
-                  ["Ready to send now", health.data?.pendingReady],
-                  ["Deferred to a later attempt", health.data?.deferred],
-                  ["Processing", health.data?.processing],
-                  ["Awaiting provider final", health.data?.awaitingFinal],
-                  ["Delivered (24h)", health.data?.delivered24h],
-                  ["Failed (24h)", health.data?.failed24h],
-                  ["Final outcome unknown (24h)", health.data?.unknown],
-                  ["Signed provider events (24h)", health.data?.signedProviderEvents24h],
-                ] as const).map(([label, value]) => (
-                  <div key={label} className="rounded-lg border p-3">
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    <p className="mt-1 text-2xl font-semibold">{health.isLoading ? "--" : value ?? 0}</p>
-                  </div>
-                ))}
-                <div className="rounded-lg border p-3 sm:col-span-3 xl:col-span-4">
-                  <p className="text-xs text-muted-foreground">Oldest pending or failed delivery</p>
-                  <p className="mt-1 text-sm font-medium">
-                    {health.isLoading
-                      ? "--"
-                      : health.data?.oldestActionableAt
-                        ? new Date(health.data.oldestActionableAt).toLocaleString()
-                        : "Nothing outstanding"}
-                  </p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {Boolean(operations?.spendAlerts.length) && (
-        <Card className="border-amber-300 bg-amber-50/50">
-          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><CircleDollarSign className="h-5 w-5" />Open spend alerts</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {operations?.spendAlerts.map((alert) => (
-              <div key={alert.id} className="flex items-center justify-between gap-4 rounded-md border bg-background p-3">
-                <div>
-                  <p className="font-medium">{alert.organizationName} reached {alert.thresholdPercent}% of its monthly notification budget</p>
-                  <p className="text-sm text-muted-foreground">Estimated {formatUsdMicros(alert.estimatedSpendMicros)} of {formatUsdMicros(alert.budgetMicros)}</p>
-                </div>
-                <Button size="sm" variant="outline" disabled={acknowledgingSpendAlert} onClick={() => acknowledgeSpendAlert(alert.id)}>Acknowledge</Button>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
+      <Tabs value={section} onValueChange={(section) => setUrlState({ section })} className="space-y-5">
+        <TabsList aria-label="Notification sections" className="text-foreground">
+          <TabsTrigger value="deliveries">Delivery queue</TabsTrigger>
+          <TabsTrigger value="health">Queue health</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="policies">Cost & fallback{operations?.spendAlerts.length ? ` (${operations.spendAlerts.length} alerts)` : ""}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="deliveries" className="space-y-5">
+          {((reach.data ?? []).some((row) => row.unreachable_employees > 0) || Boolean(operations?.spendAlerts.length)) && <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50/50 p-3 text-sm">
+            {(reach.data ?? []).some((row) => row.unreachable_employees > 0) && <Button variant="link" className="h-auto whitespace-normal p-0 text-left" onClick={() => setUrlState({ section: "health" })}>Review employees who cannot receive notifications</Button>}
+            {Boolean(operations?.spendAlerts.length) && <Button variant="link" className="h-auto whitespace-normal p-0 text-left" onClick={() => setUrlState({ section: "policies" })}>Review {operations?.spendAlerts.length} open spend alerts</Button>}
+          </div>}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
           <CardTitle>All Deliveries</CardTitle>
@@ -518,9 +441,10 @@ export default function NotificationDeliveries() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search deliveries..."
+                aria-label="Search deliveries"
                 value={urlState.search}
                 onChange={(e) => setUrlState({ search: e.target.value })}
-                className="pl-9 h-9 w-56"
+                className="pl-9 h-9 w-full sm:w-56"
               />
             </div>
             <Select value={statusFilter} onValueChange={(v) => setUrlState({ status: v })}>
@@ -559,7 +483,8 @@ export default function NotificationDeliveries() {
                 <Bell className="h-6 w-6 text-muted-foreground" />
               </div>
               <p className="font-medium text-muted-foreground">No notification deliveries found</p>
-              <p className="text-sm text-muted-foreground/60 mt-1">Try adjusting your search or filters, or check back after the next notification run.</p>
+              <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters, or check back after the next notification run.</p>
+              {(urlState.search || statusFilter !== "all" || channelFilter !== "all") && <Button variant="outline" className="mt-3" onClick={() => setUrlState({ search: "", status: "all", channel: "all" })}>Clear filters</Button>}
             </div>
           ) : (
             <>
@@ -642,7 +567,7 @@ export default function NotificationDeliveries() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="ghost" onClick={() => setEvidenceDeliveryId(delivery.id)}>
+                            <Button size="sm" variant="ghost" onClick={(event) => { evidenceTrigger.current = event.currentTarget; setEvidenceDeliveryId(delivery.id); }}>
                               <Eye className="h-4 w-4 mr-1" />Documentation
                             </Button>
                             {retryOffered(delivery) && (
@@ -670,13 +595,221 @@ export default function NotificationDeliveries() {
         </CardContent>
       </Card>
 
-      {evidenceDeliveryId && (
+        </TabsContent>
+        <TabsContent value="health" className="space-y-5">
+      {isPlatformAdmin && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Delivery documentation</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => setEvidenceDeliveryId(null)}>Close</Button>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><Activity className="h-5 w-5" />Queue health (platform-wide)</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Whether the delivery queue is moving at all. The tiles above count outcomes; these count work
+              waiting to happen, across every organization.
+            </p>
           </CardHeader>
           <CardContent>
+            {health.isError ? (
+              <QueryError what="delivery queue health" error={health.error} onRetry={() => void health.refetch()} />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                {([
+                  ["Ready to send now", health.data?.pendingReady],
+                  ["Deferred to a later attempt", health.data?.deferred],
+                  ["Processing", health.data?.processing],
+                  ["Awaiting provider final", health.data?.awaitingFinal],
+                  ["Delivered (24h)", health.data?.delivered24h],
+                  ["Failed (24h)", health.data?.failed24h],
+                  ["Final outcome unknown (24h)", health.data?.unknown],
+                  ["Signed provider events (24h)", health.data?.signedProviderEvents24h],
+                ] as const).map(([label, value]) => (
+                  <div key={label} className="rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className="mt-1 text-2xl font-semibold">{health.isLoading ? "--" : value ?? 0}</p>
+                  </div>
+                ))}
+                <div className="rounded-lg border p-3 sm:col-span-3 xl:col-span-4">
+                  <p className="text-xs text-muted-foreground">Oldest pending or failed delivery</p>
+                  <p className="mt-1 text-sm font-medium">
+                    {health.isLoading
+                      ? "--"
+                      : health.data?.oldestActionableAt
+                        ? new Date(health.data.oldestActionableAt).toLocaleString()
+                        : "Nothing outstanding"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {(reach.data ?? []).some((row) => row.unreachable_employees > 0) && (
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="pt-5 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div>
+                <p className="font-medium">Employees with no login</p>
+                {/* Every delivery path resolves its recipient through profiles, so an employee with
+                    no linked login receives nothing and produces no delivery row to notice. An
+                    imported roster that was never invited looks identical to a quiet week. */}
+                <p className="text-sm text-foreground">
+                  These employees receive no reminders, digests or alerts on any channel, and no
+                  failed delivery is recorded for them. The fix is an invitation.
+                </p>
+              </div>
+            </div>
+            <ul className="space-y-1 text-sm">
+              {(reach.data ?? [])
+                .filter((row) => row.unreachable_employees > 0)
+                .map((row) => (
+                  <li key={row.organization_id} className="flex flex-wrap justify-between gap-2 rounded border bg-card px-3 py-1.5">
+                    <span className="break-words">{row.organization_name}</span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {row.unreachable_employees} of {row.active_employees} unreachable
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+        </TabsContent>
+        <TabsContent value="templates">
+        <Card>
+          <CardHeader>
+            <CardTitle>Versioned template editor</CardTitle>
+            <p className="text-sm text-muted-foreground">Preview exact provider copy, then create and atomically activate a new version.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Select value={templateScope} onValueChange={setTemplateScope}>
+                <SelectTrigger aria-label="Scope"><SelectValue placeholder="Scope" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="global">Global default</SelectItem>
+                  {Object.entries(orgNameMap ?? {}).map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Input value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} placeholder="template_key" aria-label="Template key" />
+              <Select value={templateChannel} onValueChange={(value) => setTemplateChannel(value as "email" | "sms")}>
+                <SelectTrigger aria-label="Template channel"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <Input value={templateSubject} onChange={(event) => setTemplateSubject(event.target.value)} placeholder="Subject" aria-label="Template subject" />
+            <Textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} rows={4} placeholder="Provider-safe body" aria-label="Template body" />
+            <p className="text-xs text-muted-foreground">Allowed placeholders: {"{{title}}, {{body}}, {{organization_name}}, {{action_url}}"}. Sensitive notification types receive generic values.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handlePreviewTemplate} disabled={previewing}>{previewing ? "Previewing..." : "Preview"}</Button>
+              <Button onClick={handleSaveTemplate} disabled={savingTemplate}>{savingTemplate ? "Activating..." : "Save and activate version"}</Button>
+            </div>
+            {templatePreview && !previewing && previewedDraft?.subjectTemplate === templateSubject && previewedDraft?.bodyTemplate === templateBody && (
+              <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                <p className="font-medium">{templatePreview.subject}</p>
+                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{templatePreview.body}</p>
+              </div>
+            )}
+            {templateLibrary.isError ? <QueryError what="notification template library" error={templateLibrary.error} onRetry={() => void templateLibrary.refetch()} /> : templateLibrary.isLoading ? <p>Loading notification templates…</p> : <div className="max-h-64 overflow-auto rounded-md border">
+              <Table>
+                <TableHeader><TableRow><TableHead>Template</TableHead><TableHead>Scope</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
+                <TableBody>
+                  {templates.map((template) => (
+                    <Fragment key={template.id}>
+                      <TableRow>
+                        <TableCell><span className="font-medium">{template.templateKey}</span><span className="text-muted-foreground"> / {template.channel} / v{template.version}</span></TableCell>
+                        <TableCell>{template.organizationId ? orgNameMap?.[template.organizationId] ?? "Organization" : "Global"}</TableCell>
+                        <TableCell><Badge variant="outline">{template.status}</Badge></TableCell>
+                        <TableCell className="space-x-1 text-right">
+                          <Button size="sm" variant="ghost" disabled={previewingSaved} onClick={() => void handlePreviewSavedTemplate(template.id)}>Preview</Button>
+                          {template.status !== "active" && <Button size="sm" variant="ghost" disabled={activatingTemplate} onClick={() => handleActivateTemplate(template.id)}>Activate</Button>}
+                        </TableCell>
+                      </TableRow>
+                      {previewedTemplateId === template.id && !previewingSaved && savedTemplatePreview?.templateId === template.id && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="bg-muted/30 text-sm">
+                            <p className="font-medium">{savedTemplatePreview.subject}</p>
+                            <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{savedTemplatePreview.body}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">Rendered from the stored v{savedTemplatePreview.version}, not the draft above.</p>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>}
+          </CardContent>
+        </Card>
+
+        </TabsContent>
+        <TabsContent value="policies" className="space-y-5">
+      {Boolean(operations?.spendAlerts.length) && (
+        <Card className="border-amber-300 bg-amber-50/50">
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><CircleDollarSign className="h-5 w-5" />Open spend alerts</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {operations?.spendAlerts.map((alert) => (
+              <div key={alert.id} className="flex flex-wrap items-center justify-between gap-4 rounded-md border bg-background p-3">
+                <div>
+                  <p className="font-medium">{alert.organizationName} reached {alert.thresholdPercent}% of its monthly notification budget</p>
+                  <p className="text-sm text-muted-foreground">Estimated {formatUsdMicros(alert.estimatedSpendMicros)} of {formatUsdMicros(alert.budgetMicros)}</p>
+                </div>
+                <Button size="sm" variant="outline" disabled={acknowledgingSpendAlert} onClick={() => acknowledgeSpendAlert(alert.id)}>Acknowledge</Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Delivery cost and fallback policy</CardTitle>
+            <p className="text-sm text-muted-foreground">Provider rates vary by contract. Configure estimates explicitly; no assumed rate is applied.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Select value={spendOrganizationId} onValueChange={setSpendOrganizationId}>
+              <SelectTrigger aria-label="Spend organization"><SelectValue placeholder="Select organization" /></SelectTrigger>
+              <SelectContent>{Object.entries(orgNameMap ?? {}).map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}</SelectContent>
+            </Select>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><label htmlFor="spend-monthly-budget" className="text-sm font-medium">Monthly budget (USD)</label><Input id="spend-monthly-budget" type="number" min="0.01" step="0.01" value={monthlyBudgetUsd} onChange={(event) => setMonthlyBudgetUsd(event.target.value)} /></div>
+              <div><label htmlFor="spend-warning-percent" className="text-sm font-medium">Alert threshold (%)</label><Input id="spend-warning-percent" type="number" min="1" max="99" value={warningPercent} onChange={(event) => setWarningPercent(event.target.value)} /></div>
+              <div><label htmlFor="spend-email-estimate" className="text-sm font-medium">Email estimate / attempt</label><Input id="spend-email-estimate" type="number" min="0" step="0.000001" value={emailEstimateUsd} onChange={(event) => setEmailEstimateUsd(event.target.value)} /></div>
+              <div><label htmlFor="spend-sms-estimate" className="text-sm font-medium">SMS estimate / attempt</label><Input id="spend-sms-estimate" type="number" min="0" step="0.000001" value={smsEstimateUsd} onChange={(event) => setSmsEstimateUsd(event.target.value)} /></div>
+            </div>
+            <Button onClick={handleSaveSpendPolicy} disabled={!spendOrganizationId || savingSpendPolicy}>{savingSpendPolicy ? "Saving..." : "Save spend policy"}</Button>
+
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Checkbox id="fallback-enabled" checked={fallbackEnabled} onCheckedChange={(checked) => setFallbackEnabled(Boolean(checked))} />
+                <label htmlFor="fallback-enabled" className="text-sm font-medium">Fallback to the alternate channel after permanent failure</label>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div><label htmlFor="fallback-delay-minutes" className="text-sm font-medium">Fallback delay (minutes)</label><Input id="fallback-delay-minutes" type="number" min="0" max="1440" value={fallbackDelayMinutes} onChange={(event) => setFallbackDelayMinutes(event.target.value)} /></div>
+                <div><label htmlFor="fallback-max-depth" className="text-sm font-medium">Maximum fallback depth</label><Input id="fallback-max-depth" type="number" min="0" max="2" value={maxFallbackDepth} onChange={(event) => setMaxFallbackDepth(event.target.value)} /></div>
+              </div>
+              <Button variant="outline" onClick={handleSaveChannelPolicy} disabled={!spendOrganizationId || savingChannelPolicy}>{savingChannelPolicy ? "Saving..." : "Save fallback policy"}</Button>
+            </div>
+
+            <div className="border-t pt-4 space-y-2">
+              <h3 className="font-medium">Current month estimates</h3>
+              {operations?.spend.map((row) => (
+                <div key={row.organizationId} className="flex items-center justify-between text-sm">
+                  <span>{row.organizationName}</span>
+                  <span>{formatUsdMicros(row.estimatedSpendMicros)} / {formatUsdMicros(row.budgetMicros)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        </TabsContent>
+      </Tabs>
+      <Dialog open={Boolean(evidenceDeliveryId)} onOpenChange={(open) => { if (!open) setEvidenceDeliveryId(null); }}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl [&_th]:text-foreground" onCloseAutoFocus={(event) => { event.preventDefault(); evidenceTrigger.current?.focus(); }}>
+          <DialogHeader>
+            <DialogTitle>Delivery documentation</DialogTitle>
+            <DialogDescription>Provider attempts and events for the selected delivery.</DialogDescription>
+          </DialogHeader>
+          <div>
             {evidenceError ? <QueryError what="delivery documentation" error={evidenceErrorDetail} onRetry={() => void refetchEvidence()} /> : evidenceLoading ? (
               <div className="h-24 rounded-md bg-muted animate-pulse" />
             ) : evidence ? (
@@ -722,118 +855,10 @@ export default function NotificationDeliveries() {
                 </div>
               </div>
             ) : null}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Versioned template editor</CardTitle>
-            <p className="text-sm text-muted-foreground">Preview exact provider copy, then create and atomically activate a new version.</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Select value={templateScope} onValueChange={setTemplateScope}>
-                <SelectTrigger aria-label="Scope"><SelectValue placeholder="Scope" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="global">Global default</SelectItem>
-                  {Object.entries(orgNameMap ?? {}).map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Input value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} placeholder="template_key" aria-label="Template key" />
-              <Select value={templateChannel} onValueChange={(value) => setTemplateChannel(value as "email" | "sms")}>
-                <SelectTrigger aria-label="Template channel"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="sms">SMS</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <Input value={templateSubject} onChange={(event) => setTemplateSubject(event.target.value)} placeholder="Subject" aria-label="Template subject" />
-            <Textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} rows={4} placeholder="Provider-safe body" aria-label="Template body" />
-            <p className="text-xs text-muted-foreground">Allowed placeholders: {"{{title}}, {{body}}, {{organization_name}}, {{action_url}}"}. Sensitive notification types receive generic values.</p>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handlePreviewTemplate} disabled={previewing}>{previewing ? "Previewing..." : "Preview"}</Button>
-              <Button onClick={handleSaveTemplate} disabled={savingTemplate}>{savingTemplate ? "Activating..." : "Save and activate version"}</Button>
-            </div>
-            {templatePreview && !previewing && previewedDraft?.subjectTemplate === templateSubject && previewedDraft?.bodyTemplate === templateBody && (
-              <div className="rounded-md border bg-muted/30 p-3 text-sm">
-                <p className="font-medium">{templatePreview.subject}</p>
-                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{templatePreview.body}</p>
-              </div>
-            )}
-            {templateLibrary.isError ? <QueryError what="notification template library" error={templateLibrary.error} onRetry={() => void templateLibrary.refetch()} /> : templateLibrary.isLoading ? <p>Loading notification templates…</p> : <div className="max-h-64 overflow-auto rounded-md border">
-              <Table>
-                <TableHeader><TableRow><TableHead>Template</TableHead><TableHead>Scope</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
-                <TableBody>
-                  {templates.map((template) => (
-                    <Fragment key={template.id}>
-                      <TableRow>
-                        <TableCell><span className="font-medium">{template.templateKey}</span><span className="text-muted-foreground"> / {template.channel} / v{template.version}</span></TableCell>
-                        <TableCell>{template.organizationId ? orgNameMap?.[template.organizationId] ?? "Organization" : "Global"}</TableCell>
-                        <TableCell><Badge variant="outline">{template.status}</Badge></TableCell>
-                        <TableCell className="space-x-1 text-right">
-                          <Button size="sm" variant="ghost" disabled={previewingSaved} onClick={() => void handlePreviewSavedTemplate(template.id)}>Preview</Button>
-                          {template.status !== "active" && <Button size="sm" variant="ghost" disabled={activatingTemplate} onClick={() => handleActivateTemplate(template.id)}>Activate</Button>}
-                        </TableCell>
-                      </TableRow>
-                      {previewedTemplateId === template.id && !previewingSaved && savedTemplatePreview?.templateId === template.id && (
-                        <TableRow>
-                          <TableCell colSpan={4} className="bg-muted/30 text-sm">
-                            <p className="font-medium">{savedTemplatePreview.subject}</p>
-                            <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{savedTemplatePreview.body}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">Rendered from the stored v{savedTemplatePreview.version}, not the draft above.</p>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </Fragment>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Delivery cost and fallback policy</CardTitle>
-            <p className="text-sm text-muted-foreground">Provider rates vary by contract. Configure estimates explicitly; no assumed rate is applied.</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Select value={spendOrganizationId} onValueChange={setSpendOrganizationId}>
-              <SelectTrigger aria-label="Spend organization"><SelectValue placeholder="Select organization" /></SelectTrigger>
-              <SelectContent>{Object.entries(orgNameMap ?? {}).map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}</SelectContent>
-            </Select>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div><label htmlFor="spend-monthly-budget" className="text-sm font-medium">Monthly budget (USD)</label><Input id="spend-monthly-budget" type="number" min="0.01" step="0.01" value={monthlyBudgetUsd} onChange={(event) => setMonthlyBudgetUsd(event.target.value)} /></div>
-              <div><label htmlFor="spend-warning-percent" className="text-sm font-medium">Alert threshold (%)</label><Input id="spend-warning-percent" type="number" min="1" max="99" value={warningPercent} onChange={(event) => setWarningPercent(event.target.value)} /></div>
-              <div><label htmlFor="spend-email-estimate" className="text-sm font-medium">Email estimate / attempt</label><Input id="spend-email-estimate" type="number" min="0" step="0.000001" value={emailEstimateUsd} onChange={(event) => setEmailEstimateUsd(event.target.value)} /></div>
-              <div><label htmlFor="spend-sms-estimate" className="text-sm font-medium">SMS estimate / attempt</label><Input id="spend-sms-estimate" type="number" min="0" step="0.000001" value={smsEstimateUsd} onChange={(event) => setSmsEstimateUsd(event.target.value)} /></div>
-            </div>
-            <Button onClick={handleSaveSpendPolicy} disabled={!spendOrganizationId || savingSpendPolicy}>{savingSpendPolicy ? "Saving..." : "Save spend policy"}</Button>
-
-            <div className="border-t pt-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Checkbox id="fallback-enabled" checked={fallbackEnabled} onCheckedChange={(checked) => setFallbackEnabled(Boolean(checked))} />
-                <label htmlFor="fallback-enabled" className="text-sm font-medium">Fallback to the alternate channel after permanent failure</label>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div><label htmlFor="fallback-delay-minutes" className="text-sm font-medium">Fallback delay (minutes)</label><Input id="fallback-delay-minutes" type="number" min="0" max="1440" value={fallbackDelayMinutes} onChange={(event) => setFallbackDelayMinutes(event.target.value)} /></div>
-                <div><label htmlFor="fallback-max-depth" className="text-sm font-medium">Maximum fallback depth</label><Input id="fallback-max-depth" type="number" min="0" max="2" value={maxFallbackDepth} onChange={(event) => setMaxFallbackDepth(event.target.value)} /></div>
-              </div>
-              <Button variant="outline" onClick={handleSaveChannelPolicy} disabled={!spendOrganizationId || savingChannelPolicy}>{savingChannelPolicy ? "Saving..." : "Save fallback policy"}</Button>
-            </div>
-
-            <div className="border-t pt-4 space-y-2">
-              <h3 className="font-medium">Current month estimates</h3>
-              {operations?.spend.map((row) => (
-                <div key={row.organizationId} className="flex items-center justify-between text-sm">
-                  <span>{row.organizationName}</span>
-                  <span>{formatUsdMicros(row.estimatedSpendMicros)} / {formatUsdMicros(row.budgetMicros)}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
