@@ -96,6 +96,18 @@ function TrainHome() {
   return <Redirect to={access.homePath || "/login"} />;
 }
 
+// CareBase pages are not in this bundle. Leaving the URL on /app/residents (or /report-safety)
+// makes a Train-only facility look like it opened an operational module. Signed-in users go
+// home; signed-out visitors still get the not-found page.
+function TrainExcludedRoute() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const access = useProductModuleAccess();
+  if (isLoading || access.isLoading) return <FullPageLoading label="Loading CareMetric Train" />;
+  if (!isAuthenticated) return <NotFound />;
+  if (user?.role === "platform_admin") return <Redirect to="/admin" />;
+  return <Redirect to={access.homePath || "/login"} />;
+}
+
 function TrainRouter() {
   return <Suspense fallback={<FullPageLoading label="Loading CareMetric Train" />}><Switch>
       <Route path="/" component={TrainHome} />
@@ -249,7 +261,7 @@ function TrainRouter() {
       </Route>
       <Route path="/app/help/tickets/:id">{() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={ORG_ROLES} />}</Route>
       <Route path="/me/help/tickets/:id">{() => <ProtectedRoute component={SupportTicketDetail} allowedRoles={["employee"]} />}</Route>
-      <Route component={NotFound} />
+      <Route component={TrainExcludedRoute} />
     </Switch></Suspense>;
 }
 

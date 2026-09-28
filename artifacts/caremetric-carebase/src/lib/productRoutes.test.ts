@@ -13,7 +13,7 @@ describe("product route availability", () => {
     const source = readFileSync(resolve(__dirname, "../TrainApp.tsx"), "utf8");
     const declared = [...source.matchAll(/<Route path="([^"]+)"/g)].map((match) => match[1]);
     expect([...TRAIN_ROUTE_PATTERNS].sort()).toEqual(declared.sort());
-    expect(source).toContain("<Route component={NotFound} />");
+    expect(source).toContain("<Route component={TrainExcludedRoute} />");
   });
 
   it("allows real Train details and rejects omitted or malformed pages", () => {
