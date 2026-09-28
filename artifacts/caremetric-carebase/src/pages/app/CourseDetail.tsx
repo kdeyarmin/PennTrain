@@ -70,10 +70,7 @@ export default function CourseDetail() {
   // org_admin/auditor who haven't self-enrolled yet (no employees row) still see the
   // "Start Training" button for their org's published training content.
   const effectiveOrgId = employee?.organization_id ?? user?.organizationId ?? undefined;
-  const canUnpublishCourse = course?.status === "published" && (
-    user?.role === "platform_admin"
-    || (user?.role === "org_admin" && course.organization_id === user.organizationId)
-  );
+  const canUnpublishCourse = canManage && course?.status === "published";
 
   const handleUnpublishCourse = () => {
     if (!course || unpublishReason.trim().length < 8) return;
@@ -157,7 +154,7 @@ export default function CourseDetail() {
 
   // Client-side backstop that keeps in-flight HeyGen video statuses fresh without requiring
   // the manual "check status" button (which stays below as an instant fallback).
-  useAutoCheckVideoStatuses(blocks);
+  useAutoCheckVideoStatuses(blocks, canManage);
 
   // The selected version's own designed step time. get_course_version_designed_minutes() is the
   // database's authority on this and is revoked from authenticated, so the browser sums the same

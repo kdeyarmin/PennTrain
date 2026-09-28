@@ -7,14 +7,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Search, ChevronRight, Plus, Sparkles } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BookOpen, Search, ChevronRight, Plus, Sparkles, Lightbulb, UserPlus } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { courseDetailPath } from "@/lib/courseRoutes";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { documentDisplayName } from "@/lib/documentDisplayName";
+import { useUrlState } from "@/hooks/useUrlState";
+import { CourseRecommendations } from "@/components/training/CourseRecommendations";
+import { pathAvailableInBuild } from "@/lib/productRoutes";
 
 interface CourseFormData {
   title: string;
@@ -25,6 +28,7 @@ interface CourseFormData {
 }
 
 const NO_TRAINING_TYPE = "none";
+const CATALOG_DEFAULTS = { search: "", status: "all", category: "all", scope: "system", section: "catalog" };
 
 const EMPTY_FORM: CourseFormData = {
   title: "",
@@ -38,7 +42,7 @@ function StatusPill({ status }: { status: string }) {
   const label = status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
   const className =
     status === "published"
-      ? "bg-success text-success-foreground hover:bg-success/80"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-50"
       : status === "archived"
         ? "bg-muted text-muted-foreground hover:bg-muted/80"
         : "bg-secondary text-secondary-foreground hover:bg-secondary/80";
@@ -59,9 +63,11 @@ function formatDuration(minutes: number | null): string {
 
 export default function Courses() {
   const __fieldIds = useId();
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<string>("all");
-  const [category, setCategory] = useState<string>("all");
+  const [catalogFilters, setCatalogFilters] = useUrlState(CATALOG_DEFAULTS);
+  const { search, category } = catalogFilters;
+  const setSearch = (value: string) => setCatalogFilters({ search: value });
+  const setCategory = (value: string) => setCatalogFilters({ category: value });
+  const setStatus = (value: string) => setCatalogFilters({ status: value });
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<CourseFormData>(EMPTY_FORM);
 
@@ -69,11 +75,20 @@ export default function Courses() {
   const { toast } = useToast();
 
   const canCreate = user?.role === "platform_admin";
+  const canAuthorHere = canCreate && pathAvailableInBuild("/admin/courses/new-ai");
+  const canRecommend = user?.role === "org_admin" || user?.role === "facility_manager";
+  const canUseRecommendations = canRecommend || canCreate;
+  const activeTab = canUseRecommendations && catalogFilters.section === "recommendations" ? "recommendations" : "catalog";
+  // Facility administrators choose from published courses; authoring states belong to the owner.
+  const status = canRecommend ? "published" : ["all", "draft", "published", "archived"].includes(catalogFilters.status) ? catalogFilters.status : "all";
+  const hasFilters = !!search || category !== "all" || (!canRecommend && status !== "all");
+  const clearFilters = () => setCatalogFilters({ search: "", status: "all", category: "all" });
 
   // platform_admin's RLS grant sees every organization's courses at once; default
   // to the shared system catalog (organization_id IS NULL) since that's what this
   // page is for building/managing -- "All Organizations" is an explicit opt-in.
-  const [catalogScope, setCatalogScope] = useState<"system" | "all">("system");
+  const catalogScope = catalogFilters.scope === "all" ? "all" : "system";
+  const setCatalogScope = (value: string) => setCatalogFilters({ scope: value });
   const systemOnly = user?.role === "platform_admin" && catalogScope === "system";
 
   const { data: courses, isLoading, isError, error, refetch } = useListCourses({
@@ -81,7 +96,7 @@ export default function Courses() {
     systemOnly,
   });
   const { mutate: createCourse, isPending: creating } = useCreateCourse();
-  const creationOptions = useLearningCreationOptions(canCreate);
+  const creationOptions = useLearningCreationOptions(canAuthorHere);
   const trainingTypes = [...new Map((creationOptions.data?.pages.flatMap(page => page.trainingTypes) ?? []).map(row => [row.id, row])).values()];
   const [, navigate] = useLocation();
   const [creationReviewed, setCreationReviewed] = useState(false);
@@ -118,7 +133,7 @@ export default function Courses() {
   };
 
   const handleSubmit = () => {
-    if (!creationReviewed) return;
+    if (!canAuthorHere || creating || !creationReviewed) return;
     if (!form.title.trim()) {
       toast({ title: "Title is required", variant: "destructive" });
       return;
@@ -155,18 +170,22 @@ export default function Courses() {
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1>Training Content</h1>
-          <p>Browse the system catalog and your organization's training content.</p>
+          <p>{canRecommend ? "Enroll your learners in published courses, or recommend a new course to the super admin." : "Browse the system catalog and your organization's training content."}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {user?.role === "platform_admin" && (
+          {user?.role === "platform_admin" && activeTab === "catalog" && (
             <Tabs value={catalogScope} onValueChange={v => setCatalogScope(v as "system" | "all")}>
-              <TabsList>
+              <TabsList className="text-foreground">
                 <TabsTrigger value="system">System Catalog</TabsTrigger>
                 <TabsTrigger value="all">All Organizations</TabsTrigger>
               </TabsList>
             </Tabs>
           )}
-          {canCreate && (
+          {canRecommend && <>
+            <Button asChild className="shadow-sm"><Link href="/app/course-assignments"><UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />Enroll learners</Link></Button>
+            <Button variant="outline" onClick={() => setCatalogFilters({ section: "recommendations" })}><Lightbulb className="mr-2 h-4 w-4" aria-hidden="true" />Recommend a course</Button>
+          </>}
+          {canAuthorHere && (
             <>
               <Button asChild variant="outline" className="shadow-sm">
                 <Link href="/admin/courses/new-ai">
@@ -178,9 +197,16 @@ export default function Courses() {
               </Button>
             </>
           )}
+          {canCreate && !canAuthorHere && <Button asChild variant="outline"><a href="https://cmcarebase.com/admin/courses">Open course authoring in owner console</a></Button>}
         </div>
       </div>
 
+      <Tabs value={activeTab} onValueChange={section => setCatalogFilters({ section })}>
+        {canUseRecommendations && <TabsList className="h-auto flex-wrap justify-start text-foreground">
+          <TabsTrigger value="catalog">Course catalog</TabsTrigger>
+          <TabsTrigger value="recommendations">{canCreate ? "Course recommendations" : "My recommendations"}</TabsTrigger>
+        </TabsList>}
+        <TabsContent value="catalog" className="space-y-4">
       <div className="premium-card">
         <div className="filter-bar">
           <div className="relative flex-1 min-w-48">
@@ -193,7 +219,7 @@ export default function Courses() {
               className="pl-9 h-9 bg-card"
             />
           </div>
-          <Select value={status} onValueChange={setStatus}>
+          {!canRecommend && <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="w-40 h-9 bg-card" aria-label="Filter by status">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
@@ -203,7 +229,7 @@ export default function Courses() {
               <SelectItem value="published">Published</SelectItem>
               <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
-          </Select>
+          </Select>}
           {(categories.length > 0 || category !== "all") && (
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-48 h-9 bg-card" aria-label="Filter by category">
@@ -232,14 +258,26 @@ export default function Courses() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">{search || status !== "all" || category !== "all" ? "No training content matches your filters" : "No training content yet"}</p>
-            {search || status !== "all" || category !== "all" ? <>
+            <p className="text-sm font-medium text-muted-foreground">{hasFilters ? "No training content matches your filters" : canRecommend ? "No published courses available yet" : "No training content yet"}</p>
+            {hasFilters ? <>
               <p className="text-sm text-muted-foreground mt-1">Clear the filters to browse all available training content.</p>
-              <Button className="mt-3" variant="outline" onClick={() => { setSearch(""); setStatus("all"); setCategory("all"); }}>Clear filters</Button>
-            </> : <p className="text-sm text-muted-foreground mt-1">{canCreate ? "Create your first training item using New Training Content above." : "Your administrator will make training content available here."}</p>}
+              <Button className="mt-3" variant="outline" onClick={clearFilters}>Clear filters</Button>
+            </> : <p className="text-sm text-muted-foreground mt-1 px-4 text-center">{canCreate ? "Create your first training item using New Training Content above." : canRecommend ? "Recommend a course to tell the super admin what your learners need." : "Your administrator will make training content available here."}</p>}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <ul className="divide-y md:hidden">
+            {filtered.map(course => <li key={course.id} className="space-y-3 p-4">
+              <Link className="block break-words font-medium text-primary underline-offset-4 hover:underline" href={courseDetailPath(course.id, user?.role)}>{documentDisplayName({ title: course.title, fallback: "Course" })}<ChevronRight className="ml-1 inline h-4 w-4" aria-hidden="true" /></Link>
+              {course.description && <p className="text-sm text-muted-foreground line-clamp-3">{course.description}</p>}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <StatusPill status={course.status} />
+                {course.category && <span className="break-words">{course.category}</span>}
+                <span>{formatDuration(course.estimated_duration_minutes)}</span>
+              </div>
+            </li>)}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <table className="data-table min-w-[720px]">
               <thead>
                 <tr>
@@ -288,6 +326,7 @@ export default function Courses() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
@@ -295,6 +334,9 @@ export default function Courses() {
         <BookOpen className="h-4 w-4" />
         <span>{filtered.length} training item{filtered.length !== 1 ? "s" : ""} total</span>
       </div>
+        </TabsContent>
+        {canUseRecommendations && <TabsContent value="recommendations" forceMount hidden={activeTab !== "recommendations"} className="mt-4 data-[state=inactive]:hidden"><CourseRecommendations /></TabsContent>}
+      </Tabs>
 
       <Dialog open={showForm} onOpenChange={o => { if (!o) { setShowForm(false); setForm(EMPTY_FORM); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">

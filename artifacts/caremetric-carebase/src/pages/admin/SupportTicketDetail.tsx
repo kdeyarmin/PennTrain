@@ -1,7 +1,7 @@
 import { useMemo, useRef } from "react";
 import { useSupportReplyDraft } from "@/hooks/useSupportReplyDraft";
 import { useProfileNameMap } from "@/hooks/useProfiles";
-import { useParams, Link } from "wouter";
+import { useParams, useSearch, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +48,10 @@ function MessageAttachment({ message }: { message: SupportTicketMessage }) {
 
 export default function SupportTicketDetail() {
   const { id } = useParams<{ id: string }>();
+  const search = useSearch();
+  const fromCourses = new URLSearchParams(search).get("from") === "courses";
+  const backHref = fromCourses ? "/admin/courses?section=recommendations" : "/admin/support-tickets";
+  const backLabel = fromCourses ? "Back to Course Recommendations" : "Back to Support Tickets";
   const { user } = useAuth();
   const { toast } = useToast();
   const { reply, setReply, file, setFile, onSubmitted } = useSupportReplyDraft(id);
@@ -110,7 +114,7 @@ export default function SupportTicketDetail() {
     return (
       <div className="text-center py-16">
         <p className="text-muted-foreground">Ticket not found.</p>
-        <Button asChild variant="outline" className="mt-4"><Link href="/admin/support-tickets">Back to Support Tickets</Link></Button>
+        <Button asChild variant="outline" className="mt-4"><Link href={backHref}>{backLabel}</Link></Button>
       </div>
     );
   }
@@ -118,8 +122,8 @@ export default function SupportTicketDetail() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <Link href="/admin/support-tickets" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3">
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to Support Tickets
+        <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3">
+          <ArrowLeft className="h-3.5 w-3.5" /> {backLabel}
         </Link>
         <h1 className="text-xl font-bold">{ticket.subject}</h1>
         <p className="text-sm text-muted-foreground mt-1">

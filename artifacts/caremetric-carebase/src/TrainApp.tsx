@@ -80,6 +80,8 @@ function TrainAdministration() {
     <div className="grid gap-4 sm:grid-cols-2">
       <Card><CardHeader><CardTitle>Facility training reports</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Review enrollment, completion, and certificates across facilities.</p><Button asChild><Link href="/admin/training-reports">Open training reports</Link></Button></CardContent></Card>
       <Card><CardHeader><CardTitle>Organizations &amp; plans</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Manage customer organizations, facility access, and module terms in CareBase.</p><Button asChild variant="outline"><a href="https://cmcarebase.com/admin/organizations">Open owner console</a></Button></CardContent></Card>
+      <Card><CardHeader><CardTitle>Course authoring</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Create and review courses, including AI generated courses, in the super admin owner console.</p><Button asChild variant="outline"><a href="https://cmcarebase.com/admin/courses">Manage course catalog</a></Button></CardContent></Card>
+      <Card><CardHeader><CardTitle>Course recommendations</CardTitle></CardHeader><CardContent className="space-y-4"><p className="text-sm text-muted-foreground">Review requests from facility admins and reply before creating new training content.</p><Button asChild variant="outline"><a href="https://cmcarebase.com/admin/courses?section=recommendations">Review course recommendations</a></Button></CardContent></Card>
     </div>
     <Button asChild variant="outline"><Link href="/me/courses">My training</Link></Button>
   </div>;

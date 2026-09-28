@@ -243,7 +243,7 @@ Residual opportunities are explicitly recorded above: same-mounted-page invitati
 
 | Checked source | Evidence / outcome |
 | --- | --- |
-| CheckIn.tsx | Reviewed token consumption, initial/pending/success/failure and return link. Remaining: retrying failed automatic attendance mutations needs outcome-aware handling because repeat scan can check out; do not add blind retry. Return label is CareBase-specific in Train. |
+| CheckIn.tsx | Reviewed attendance-link consumption, initial state, pending state, success, failure, and return link. Remaining: retrying failed automatic attendance mutations needs outcome-aware handling because repeat scan can check out; do not add blind retry. Return label is CareBase-specific in Train. |
 | Landing.tsx | Reviewed all section destinations, product tabs, primary trial/demo paths, pricing and footer references. Prior shell fixes retained. No additional concrete routing defect found; long marketing narrative remains an editorial optimization opportunity. |
 | not-found.tsx | Reviewed role/module home resolution, public/authenticated variants and noindex cleanup. Explicit home recovery works. History-back has no guaranteed earlier in-app entry, but home is always offered. |
 | TrainLanding.tsx | Reviewed signup product flag, learner login, trust chrome and light background. No additional concrete issue found. |

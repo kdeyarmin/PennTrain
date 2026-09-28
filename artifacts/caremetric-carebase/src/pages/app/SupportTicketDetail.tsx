@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { useSupportReplyDraft } from "@/hooks/useSupportReplyDraft";
-import { useParams, useLocation, Link } from "wouter";
+import { useParams, useLocation, useSearch, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,6 +61,10 @@ export default function SupportTicketDetail() {
   const [location] = useLocation();
   const base = location.startsWith("/me") ? "/me" : "/app";
   const { user } = useAuth();
+  const search = useSearch();
+  const fromCourses = base === "/app" && ["org_admin", "facility_manager", "platform_admin"].includes(user?.role ?? "") && new URLSearchParams(search).get("from") === "courses";
+  const backHref = fromCourses ? "/app/courses?section=recommendations" : `${base}/help?tab=support`;
+  const backLabel = fromCourses ? "Back to Course Recommendations" : "Back to Support";
   const { toast } = useToast();
   const { reply, setReply, file, setFile, onSubmitted } = useSupportReplyDraft(id);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +117,7 @@ export default function SupportTicketDetail() {
     return (
       <div className="text-center py-16">
         <p className="text-muted-foreground">Ticket not found.</p>
-        <Button asChild variant="outline" className="mt-4"><Link href={`${base}/help?tab=support`}>Back to Support</Link></Button>
+        <Button asChild variant="outline" className="mt-4"><Link href={backHref}>{backLabel}</Link></Button>
       </div>
     );
   }
@@ -124,8 +128,8 @@ export default function SupportTicketDetail() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <Link href={`${base}/help?tab=support`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3">
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to Support
+        <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-3">
+          <ArrowLeft className="h-3.5 w-3.5" /> {backLabel}
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>

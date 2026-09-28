@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ useMutation: vi.fn(), useQuery: vi.fn(), rpc: vi.fn(), upload: vi.fn(), remove: vi.fn(), invalidate: vi.fn(), read: vi.fn(), insert: vi.fn(), page: vi.fn(), eq: vi.fn(), range: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useMutation: vi.fn(), useQuery: vi.fn(), rpc: vi.fn(), upload: vi.fn(), remove: vi.fn(), invalidate: vi.fn(), read: vi.fn(), insert: vi.fn(), page: vi.fn(), eq: vi.fn(), like: vi.fn(), range: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({
   useMutation: mocks.useMutation, useQuery: mocks.useQuery,
   useQueryClient: () => ({ invalidateQueries: mocks.invalidate }),
@@ -11,6 +11,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: {
     const query = {
       select: () => query, insert: () => query, order: () => query, or: () => query,
       eq: (...args: unknown[]) => { mocks.eq(...args); return query; },
+      like: (...args: unknown[]) => { mocks.like(...args); return query; },
       range: (...args: unknown[]) => { mocks.range(...args); return query; },
       maybeSingle: mocks.read, single: mocks.insert,
       then: (resolve: (value: unknown) => void) => mocks.page().then(resolve),
@@ -113,6 +114,16 @@ describe("support reply attachment ambiguous writes", () => {
 });
 
 describe("complete support history reads", () => {
+  it("keeps recommendation filters on every page and treats prefix wildcards literally", async () => {
+    mocks.page.mockResolvedValueOnce({ data: [{ id: "recommendation" }], error: null }).mockResolvedValueOnce({ data: [], error: null });
+    const filters = { category: "training_content", subjectPrefix: "Course recommendation: 100%_" };
+    useListSupportTickets(filters);
+    const options = mocks.useQuery.mock.calls.at(-1)![0];
+    expect(options.queryKey).toEqual(["support_tickets", filters]);
+    expect(await options.queryFn()).toEqual([{ id: "recommendation" }]);
+    expect(mocks.eq.mock.calls).toEqual([["category", "training_content"], ["category", "training_content"]]);
+    expect(mocks.like.mock.calls).toEqual([["subject", "Course recommendation: 100\\%\\_%"], ["subject", "Course recommendation: 100\\%\\_%"]]);
+  });
   it.each(["messages", "tickets"])("pages %s through a configured cap smaller than 1000", async kind => {
     mocks.page.mockResolvedValueOnce({ data: [{ id: "a" }], error: null }).mockResolvedValueOnce({ data: [{ id: "b" }], error: null }).mockResolvedValueOnce({ data: [], error: null });
     if (kind === "messages") useListSupportTicketMessages("ticket"); else useListSupportTickets({ status: "open" });
