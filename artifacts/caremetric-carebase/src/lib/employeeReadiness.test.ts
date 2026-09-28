@@ -69,6 +69,16 @@ describe("computeEmployeeReadiness", () => {
     expect(v.reasons.join(" ")).toContain("expired");
   });
 
+  it("names the facility renewal when it is earlier than the document expiration", () => {
+    const v = computeEmployeeReadiness({
+      clearedForUnsupervisedDuty: true,
+      credentials: [{ label: "FBI clearance", status: "expired", expiration_date: "2028-01-01", policy_renewal_due_date: "2026-06-01" }],
+    }, TODAY);
+    expect(v.status).toBe("not_eligible");
+    expect(v.reasons.join(" ")).toContain("6/1/2026");
+    expect(v.reasons.join(" ")).not.toContain("2028");
+  });
+
   it("is not eligible when employment is not active", () => {
     const v = computeEmployeeReadiness({ clearedForUnsupervisedDuty: true, employmentStatus: "suspended" }, TODAY);
     expect(v.status).toBe("not_eligible");

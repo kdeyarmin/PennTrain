@@ -27,4 +27,17 @@ describe("selectCurrentTrainingRecords", () => {
 
     expect(selectCurrentTrainingRecords(records)).toEqual([records[1]]);
   });
+
+  it("prefers the real record when a missing placeholder ties every date", () => {
+    const missing = {
+      id: "b", employee_id: "e1", training_type_id: "t1", status: "missing",
+      due_date: "2026-07-01", completion_date: null, created_at: "2026-07-01T00:00:00Z",
+    };
+    const real = {
+      id: "a", employee_id: "e1", training_type_id: "t1", status: "expired",
+      due_date: "2026-07-01", completion_date: null, created_at: "2026-07-01T00:00:00Z",
+    };
+    expect(selectCurrentTrainingRecords([missing, real])).toEqual([real]);
+    expect(selectCurrentTrainingRecords([real, missing])).toEqual([real]);
+  });
 });

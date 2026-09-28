@@ -81,7 +81,7 @@ export default function RegulatoryCrosswalk() {
   const { data: residentItems, ...residentItemsQuery } = useListAllResidentComplianceItems({ facilityId: activeFacilityId || undefined }, scopedToFacility);
   const { data: incidents, ...incidentsQuery } = useListIncidents({ facilityId: activeFacilityId || undefined }, scopedToFacility);
   const { data: correctiveActions, ...correctiveActionsQuery } = useListCorrectiveActions({ facilityId: activeFacilityId || undefined }, scopedToFacility);
-  const { data: inspectionItems, ...inspectionItemsQuery } = useListInspectionItems({ facilityId: activeFacilityId || undefined }, scopedToFacility);
+  const { data: inspectionItems, ...inspectionItemsQuery } = useListInspectionItems({ facilityId: activeFacilityId || undefined, isActive: true }, scopedToFacility);
   const { data: violations, ...violationsQuery } = useListViolations({ facilityId: activeFacilityId || undefined }, scopedToFacility);
   const { data: policyDocuments, ...policyDocumentsQuery } = useListPolicyDocuments({ organizationId: user?.organizationId ?? undefined });
   const { data: policyAttestations, ...policyAttestationsQuery } = useListPolicyAttestations(

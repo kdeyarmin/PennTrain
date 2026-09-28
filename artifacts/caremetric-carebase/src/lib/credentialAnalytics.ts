@@ -1,4 +1,5 @@
 import { facilityDaysUntil } from "./dateUtils";
+import { credentialGoverningDate } from "./credentialDeadlines";
 
 export interface CredentialAnalyticsRecord {
   id: string;
@@ -7,6 +8,8 @@ export interface CredentialAnalyticsRecord {
   credential_label: string | null;
   status: string;
   expiration_date: string | null;
+  /** Facility renewal policy. Status is the earlier of this and expiration_date. */
+  policy_renewal_due_date?: string | null;
   warning_days: number | null;
   last_verified_date?: string | null;
 }
@@ -34,8 +37,9 @@ function riskScore(credential: CredentialAnalyticsRecord, today: string): number
   if (credential.status === "missing") score += 90;
   if (credential.status === "due_soon") score += 50;
   if (!credential.last_verified_date) score += 10;
-  if (credential.expiration_date) {
-    const days = daysUntil(credential.expiration_date, today);
+  const due = credentialGoverningDate(credential);
+  if (due) {
+    const days = daysUntil(due, today);
     if (days < 0) score += 100;
     else if (days <= 7) score += 40;
     else if (days <= 30) score += 25;
@@ -53,13 +57,14 @@ export function summarizeCredentialAnalytics(credentials: CredentialAnalyticsRec
   ).size;
 
   const expiringWithin30Days = activeRiskCredentials.filter((c) => {
-    if (!c.expiration_date) return false;
-    const days = daysUntil(c.expiration_date, today);
+    const due = credentialGoverningDate(c);
+    if (!due) return false;
+    const days = daysUntil(due, today);
     return days >= 0 && days <= 30;
   }).length;
 
   const topRiskCredentialIds = [...activeRiskCredentials]
-    .sort((a, b) => riskScore(b, today) - riskScore(a, today) || (a.expiration_date ?? "9999-12-31").localeCompare(b.expiration_date ?? "9999-12-31"))
+    .sort((a, b) => riskScore(b, today) - riskScore(a, today) || (credentialGoverningDate(a) ?? "9999-12-31").localeCompare(credentialGoverningDate(b) ?? "9999-12-31"))
     .slice(0, 5)
     .map((c) => c.id);
 

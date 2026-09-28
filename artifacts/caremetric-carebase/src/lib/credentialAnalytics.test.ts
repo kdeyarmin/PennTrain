@@ -13,4 +13,15 @@ describe("summarizeCredentialAnalytics", () => {
     expect(summary).toMatchObject({ expired: 1, dueSoon: 1, missing: 1, employeesWithGaps: 3, expiringWithin30Days: 1, unverified: 2 });
     expect(summary.topRiskCredentialIds.slice(0, 2)).toEqual(["expired", "missing"]);
   });
+
+  it("counts a facility renewal inside 30 days when the document expires later", () => {
+    const summary = summarizeCredentialAnalytics([
+      { id: "policy", employee_id: "e1", credential_type: "act34_criminal_history", credential_label: null, status: "due_soon", expiration_date: "2028-01-01", policy_renewal_due_date: "2026-07-20", warning_days: 90, last_verified_date: "2026-01-01" },
+      { id: "later", employee_id: "e2", credential_type: "tb_screening", credential_label: null, status: "compliant", expiration_date: "2026-09-01", policy_renewal_due_date: null, warning_days: 30, last_verified_date: "2026-01-01" },
+    ], "2026-07-10");
+
+    expect(summary.expiringWithin30Days).toBe(1);
+    expect(summary.dueSoon).toBe(1);
+    expect(summary.topRiskCredentialIds[0]).toBe("policy");
+  });
 });

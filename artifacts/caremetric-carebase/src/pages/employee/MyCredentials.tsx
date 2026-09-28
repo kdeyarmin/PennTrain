@@ -9,12 +9,24 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { QueryError } from "@/components/QueryState";
 import { Button } from "@/components/ui/button";
 import { formatDateForDisplay } from "@/lib/dateUtils";
+import { credentialGoverningDate } from "@/lib/credentialDeadlines";
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, Upload } from "lucide-react";
 import { CREDENTIAL_TYPE_LABELS } from "@/lib/credentialLabels";
 
 function credentialTitle(c: EmployeeCredential): string {
   return c.credential_label || CREDENTIAL_TYPE_LABELS[c.credential_type] || c.credential_type.replace(/_/g, " ");
+}
+
+function credentialDateLine(c: EmployeeCredential): string {
+  const due = credentialGoverningDate(c);
+  const expiration = c.expiration_date;
+  if (due && due !== expiration) {
+    return expiration
+      ? `Due ${formatDateForDisplay(due)} · document expires ${formatDateForDisplay(expiration)}`
+      : `Due ${formatDateForDisplay(due)}`;
+  }
+  return expiration ? `Expires ${formatDateForDisplay(expiration)}` : "No expiration on file";
 }
 
 export default function MyCredentials() {
@@ -117,7 +129,7 @@ export default function MyCredentials() {
                   <div>
                     <p className="font-medium text-sm">{credentialTitle(c)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {c.expiration_date ? `Expires ${formatDateForDisplay(c.expiration_date)}` : "No expiration on file"}
+                      {credentialDateLine(c)}
                       {c.issuing_authority ? ` · ${c.issuing_authority}` : ""}
                     </p>
                   </div>

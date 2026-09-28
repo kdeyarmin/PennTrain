@@ -62,6 +62,86 @@ describe("regulatory crosswalk", () => {
     expect(rows.find((row) => row.id === "physical-site-emergency")?.gapCount).toBe(0);
   });
 
+  it("reads an inspection next_due_date and an open plan-of-correction date", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      inspectionItems: [{ status: "expired", next_due_date: "2026-07-01" }],
+      violations: [{ status: "open", poc_due_date: "2026-07-15" }],
+      correctiveActions: [],
+    }, "org_admin");
+    const site = rows.find((row) => row.id === "physical-site-emergency");
+    expect(site?.gapCount).toBe(2);
+    expect(site?.status).toBe("overdue");
+    expect(site?.nextDueDate).toBe("2026-07-01");
+  });
+
+  it("does not keep a finished plan of correction overdue, and still schedules a current inspection", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      inspectionItems: [{ status: "compliant", next_due_date: "2026-12-01" }],
+      violations: [
+        { status: "corrected", poc_due_date: "2026-01-01" },
+        { status: "verified", poc_due_date: "2026-02-01" },
+        { status: "poc_submitted", poc_due_date: "2026-03-01" },
+      ],
+      correctiveActions: [],
+    }, "org_admin");
+    const site = rows.find((row) => row.id === "physical-site-emergency");
+    expect(site?.gapCount).toBe(0);
+    expect(site?.status).toBe("inspection_ready");
+    expect(site?.nextDueDate).toBe("2026-12-01");
+  });
+
+  it("shows an overdue plan date ahead of a later scheduled inspection", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      inspectionItems: [{ status: "compliant", next_due_date: "2026-12-01" }],
+      violations: [{ status: "open", poc_due_date: "2026-07-15" }],
+      correctiveActions: [],
+    }, "org_admin");
+    const site = rows.find((row) => row.id === "physical-site-emergency");
+    expect(site?.status).toBe("overdue");
+    expect(site?.nextDueDate).toBe("2026-07-15");
+  });
+
+  it("ignores a retired inspection item's historical deadline", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      inspectionItems: [
+        { status: "compliant", next_due_date: "2026-01-01", is_active: false },
+        { status: "compliant", next_due_date: "2026-12-01", is_active: true },
+      ],
+      violations: [],
+      correctiveActions: [],
+    }, "org_admin");
+    const site = rows.find((row) => row.id === "physical-site-emergency");
+    expect(site?.evidenceCount).toBe(1);
+    expect(site?.gapCount).toBe(0);
+    expect(site?.status).toBe("inspection_ready");
+    expect(site?.nextDueDate).toBe("2026-12-01");
+  });
+
+  it("reads a clearance as overdue on the earlier facility policy date", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      credentials: [{ status: "expired", expiration_date: "2027-01-01", policy_renewal_due_date: "2026-07-01" }],
+    }, "org_admin");
+    const training = rows.find((row) => row.id === "staff-training");
+    expect(training?.gapCount).toBe(1);
+    expect(training?.status).toBe("overdue");
+    expect(training?.nextDueDate).toBe("2026-07-01");
+  });
+
+  it("schedules a due-soon clearance on the policy date, not the later document expiration", () => {
+    const rows = buildRegulatoryCrosswalkRows({
+      today: "2026-08-05",
+      credentials: [{ status: "due_soon", expiration_date: "2028-06-01", policy_renewal_due_date: "2026-09-01" }],
+    }, "org_admin");
+    const training = rows.find((row) => row.id === "staff-training");
+    expect(training?.status).toBe("needs_attention");
+    expect(training?.nextDueDate).toBe("2026-09-01");
+  });
+
   it("keeps auditor access read-only", () => {
     expect(canManageRegulatoryCrosswalk("auditor")).toBe(false);
     expect(baseRows().every((row) => row.canEdit === false)).toBe(true);

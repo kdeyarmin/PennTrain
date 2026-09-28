@@ -7,6 +7,8 @@
 // safe, human phrasing. Facility-type wording follows the project rule:
 // "Assisted Living Facility (ALF)", never "ALR".
 
+import { credentialGoverningDate } from "./credentialGoverningDate.ts";
+
 export const VOICE_TOOL_NAMES = [
   "ask_compliance_question",
   "get_facility_readiness",
@@ -240,6 +242,7 @@ export interface CredentialRow {
   credential_type: unknown;
   status: unknown;
   expiration_date: unknown;
+  policy_renewal_due_date?: unknown;
 }
 export interface ResidentItemRow {
   item_type: unknown;
@@ -314,14 +317,17 @@ export function summarizeDeadlines(
     });
   }
   for (const row of credentials) {
-    if (typeof row.expiration_date !== "string") continue;
+    const dueOn = credentialGoverningDate(row);
+    if (!dueOn) continue;
     // Speak the constrained credential_type code, never credential_label:
     // the label is free text and can carry a person's name, which would
     // break this module's "type labels, never person names" contract.
+    // The spoken day is the earlier of the document expiration and the
+    // facility renewal policy, matching apply_staff_credential_policy.
     items.push({
       kind: "credential",
       label: `${humanizeToken(row.credential_type, "Staff credential")} expiring`,
-      dueOn: row.expiration_date,
+      dueOn,
     });
   }
   for (const row of residentItems) {

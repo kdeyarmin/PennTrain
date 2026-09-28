@@ -2,6 +2,7 @@
 // training status, unsupervised-duty clearance, employment status, and any active restrictions into
 // a single verdict with a plain-language "why". Pure and unit-tested; consumed by the employee page.
 import { facilityDaysUntil, formatDateForDisplay } from "@/lib/dateUtils";
+import { credentialGoverningDate } from "@/lib/credentialDeadlines";
 import { CREDENTIAL_TYPE_LABELS } from "@/lib/credentialLabels";
 
 export type ReadinessStatus =
@@ -16,6 +17,7 @@ export interface ReadinessCredentialLike {
   label?: string | null;
   status?: string | null;
   expiration_date?: string | null;
+  policy_renewal_due_date?: string | null;
 }
 
 export interface ReadinessTrainingLike {
@@ -129,7 +131,7 @@ export function computeEmployeeReadiness(input: ReadinessInput, today: Date = ne
   if (inactive || expiredCreds.length > 0 || expiredTraining.length > 0) {
     const reasons: string[] = [];
     if (inactive) reasons.push(`Employment status is "${input.employmentStatus}".`);
-    for (const c of expiredCreds) reasons.push(withExpiry(credLabel(c), c.expiration_date, "expired"));
+    for (const c of expiredCreds) reasons.push(withExpiry(credLabel(c), credentialGoverningDate(c), "expired"));
     for (const t of expiredTraining) reasons.push(`${trainLabel(t)} is expired.`);
     return verdict("not_eligible", reasons);
   }
@@ -156,7 +158,7 @@ export function computeEmployeeReadiness(input: ReadinessInput, today: Date = ne
   // 4. Conditionally ready — not cleared for unsupervised duty (may work supervised).
   if (input.clearedForUnsupervisedDuty === false) {
     const reasons = ["Not yet cleared for unsupervised duty — may work under supervision."];
-    for (const c of dueCreds) reasons.push(withExpiry(credLabel(c), c.expiration_date, "expires"));
+    for (const c of dueCreds) reasons.push(withExpiry(credLabel(c), credentialGoverningDate(c), "expires"));
     // Due-soon TRAINING belongs here too. Step 5 below lists both, and this branch listed only
     // credentials -- so an employee who was conditionally ready AND had training expiring in days
     // saw no mention of it anywhere: this verdict replaces step 5 rather than preceding it, so the
@@ -168,7 +170,7 @@ export function computeEmployeeReadiness(input: ReadinessInput, today: Date = ne
   // 5. Expiring soon — eligible now, but something renews soon.
   if (dueCreds.length > 0 || dueTraining.length > 0) {
     const reasons: string[] = [];
-    for (const c of dueCreds) reasons.push(withExpiry(credLabel(c), c.expiration_date, "expires"));
+    for (const c of dueCreds) reasons.push(withExpiry(credLabel(c), credentialGoverningDate(c), "expires"));
     for (const t of dueTraining) reasons.push(`${trainLabel(t)} is due soon.`);
     return verdict("expiring_soon", reasons);
   }

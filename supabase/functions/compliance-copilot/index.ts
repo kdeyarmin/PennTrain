@@ -23,6 +23,7 @@ import {
 } from "../_shared/complianceCopilot.ts";
 import { facilityTypeLabel } from "../_shared/facilityTypes.ts";
 import { paToday } from "../_shared/paDay.ts";
+import { credentialDeadlineWindowFilter, credentialGoverningDate, credentialsInGoverningWindow } from "../_shared/credentialGoverningDate.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 const ALLOWED_ROLES = ["platform_admin", "org_admin", "facility_manager", "auditor"];
@@ -271,13 +272,17 @@ async function collectDue(client: any, facilityId: string, asOf: string) {
   // Every query orders by its due column before limiting -- an unordered `.limit(100)`
   // would ground the answer (and the immutable run evidence) on an arbitrary subset
   // instead of the nearest deadlines once a facility has >100 due items.
-  const [training, credentials, residentItems, workItems, inspections] = await Promise.all([
+  const [training, credentialRows, residentItems, workItems, inspections] = await Promise.all([
     queryOrThrow(client.from("employee_training_records").select("id,employee_id,training_type_id,status,due_date").eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).order("due_date", { ascending: true }).limit(100), "training due dates"),
-    queryOrThrow(client.from("employee_credentials").select("id,employee_id,credential_type,credential_label,status,expiration_date").eq("facility_id", facilityId).gte("expiration_date", asOf).lte("expiration_date", through).order("expiration_date", { ascending: true }).limit(100), "credential expirations"),
+    queryOrThrow(client.from("employee_credentials").select("id,employee_id,credential_type,credential_label,status,expiration_date,policy_renewal_due_date").eq("facility_id", facilityId).or(credentialDeadlineWindowFilter(asOf, through)).order("id", { ascending: true }).limit(1000), "credential expirations"),
     queryOrThrow(client.from("resident_compliance_items").select("id,resident_id,item_type,status,due_date").eq("facility_id", facilityId).gte("due_date", asOf).lte("due_date", through).order("due_date", { ascending: true }).limit(100), "resident compliance due dates"),
     queryOrThrow(client.from("work_items").select("id,title,state,priority,due_at,source_type").eq("facility_id", facilityId).neq("state", "closed").gt("due_at", paDayBounds(asOf).from).lte("due_at", paDayBounds(through).through).order("due_at", { ascending: true }).limit(100), "work item due dates"),
     queryOrThrow(client.from("inspection_items").select("id,label,status,next_due_date,item_type").eq("facility_id", facilityId).eq("is_active", true).gte("next_due_date", asOf).lte("next_due_date", through).order("next_due_date", { ascending: true }).limit(100), "inspection due dates"),
   ]) as QueryRow[][];
+  // The query matches either date. Keep the nearest governing dates only: a document
+  // that expires later must not hide an earlier facility renewal, or count as upcoming
+  // after that renewal has already passed.
+  const credentials = credentialsInGoverningWindow(credentialRows, asOf, through).slice(0, 100);
   const [employees, residents] = await Promise.all([
     employeeNames(client, [...training, ...credentials].map((row) => row.employee_id)),
     residentNames(client, residentItems.map((row) => row.resident_id)),
@@ -285,7 +290,7 @@ async function collectDue(client: any, facilityId: string, asOf: string) {
   return {
     evidence: [
       ...training.map((row) => evidence(`training:${row.id}`, "training_record", `Training due for ${employees.get(row.employee_id) ?? row.employee_id}`, row.status, null, row.due_date, "/app/training-matrix", { employeeId: row.employee_id, trainingTypeId: row.training_type_id })),
-      ...credentials.map((row) => evidence(`credential:${row.id}`, "employee_credential", `${row.credential_label || row.credential_type} for ${employees.get(row.employee_id) ?? row.employee_id}`, row.status, null, row.expiration_date, `/app/employees/${row.employee_id}?tab=credentials`, { employeeId: row.employee_id, credentialType: row.credential_type })),
+      ...credentials.map((row) => evidence(`credential:${row.id}`, "employee_credential", `${row.credential_label || row.credential_type} for ${employees.get(row.employee_id) ?? row.employee_id}`, row.status, null, credentialGoverningDate(row), `/app/employees/${row.employee_id}?tab=credentials`, { employeeId: row.employee_id, credentialType: row.credential_type })),
       ...residentItems.map((row) => evidence(`resident-compliance:${row.id}`, "resident_compliance_item", `${row.item_type.replaceAll("_", " ")} for ${residents.get(row.resident_id) ?? row.resident_id}`, row.status, null, row.due_date, `/app/residents/${row.resident_id}`, { residentId: row.resident_id, itemType: row.item_type })),
       ...workItems.map((row) => evidence(`work-item:${row.id}`, "work_item", row.title, row.state, null, row.due_at, `/app/work/${row.id}`, { priority: row.priority, sourceType: row.source_type })),
       ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspections/${row.id}`, { itemType: row.item_type })),
@@ -339,7 +344,7 @@ async function collectCitationEvidence(client: any, facilityId: string, citation
   const topicIds = matchingTopics.map((topic) => topic.id);
   const [violations, credentials, residents, inspections, trainingTypes] = await Promise.all([
     queryOrThrow(client.from("dhs_violations").select("id,citation_ref,citation_topic_id,description,severity,status,inspection_date,poc_due_date").eq("facility_id", facilityId).limit(200), "citation violations"),
-    topicIds.length ? queryOrThrow(client.from("employee_credentials").select("id,employee_id,credential_type,status,expiration_date,citation_topic_id").eq("facility_id", facilityId).in("citation_topic_id", topicIds).limit(100), "citation credentials") : [],
+    topicIds.length ? queryOrThrow(client.from("employee_credentials").select("id,employee_id,credential_type,status,expiration_date,policy_renewal_due_date,citation_topic_id").eq("facility_id", facilityId).in("citation_topic_id", topicIds).limit(100), "citation credentials") : [],
     topicIds.length ? queryOrThrow(client.from("resident_compliance_items").select("id,resident_id,item_type,status,due_date,citation_topic_id").eq("facility_id", facilityId).in("citation_topic_id", topicIds).limit(100), "citation resident items") : [],
     topicIds.length ? queryOrThrow(client.from("inspection_items").select("id,label,item_type,status,next_due_date,citation_topic_id").eq("facility_id", facilityId).in("citation_topic_id", topicIds).limit(100), "citation inspections") : [],
     topicIds.length ? queryOrThrow(client.from("training_types").select("id,name,citation_note,citation_topic_id").in("citation_topic_id", topicIds).limit(100), "citation training types") : [],
@@ -359,7 +364,7 @@ async function collectCitationEvidence(client: any, facilityId: string, citation
   const collected = [
     ...topicEvidence,
     ...matchingViolations.map((row) => evidence(`violation:${row.id}`, "dhs_violation", row.citation_ref || row.description, row.status, row.inspection_date, row.poc_due_date, `/app/violations/${row.id}`, { description: row.description, severity: row.severity, citationTopicId: row.citation_topic_id })),
-    ...credentials.map((row) => evidence(`credential:${row.id}`, "employee_credential", `${row.credential_type} for ${employeeMap.get(row.employee_id) ?? row.employee_id}`, row.status, null, row.expiration_date, `/app/employees/${row.employee_id}?tab=credentials`, { citationTopicId: row.citation_topic_id })),
+    ...credentials.map((row) => evidence(`credential:${row.id}`, "employee_credential", `${row.credential_type} for ${employeeMap.get(row.employee_id) ?? row.employee_id}`, row.status, null, credentialGoverningDate(row), `/app/employees/${row.employee_id}?tab=credentials`, { citationTopicId: row.citation_topic_id })),
     ...residents.map((row) => evidence(`resident-compliance:${row.id}`, "resident_compliance_item", `${row.item_type.replaceAll("_", " ")} for ${residentMap.get(row.resident_id) ?? row.resident_id}`, row.status, null, row.due_date, `/app/residents/${row.resident_id}`, { citationTopicId: row.citation_topic_id })),
     ...inspections.map((row) => evidence(`inspection:${row.id}`, "inspection_item", row.label, row.status, null, row.next_due_date, `/app/inspections/${row.id}`, { citationTopicId: row.citation_topic_id, itemType: row.item_type })),
     ...training.map((row) => evidence(`training:${row.id}`, "training_record", `${trainingTypeMap.get(row.training_type_id)?.name ?? "Training"} for ${employeeMap.get(row.employee_id) ?? row.employee_id}`, row.status, row.completion_date, row.due_date, "/app/training-matrix", { trainingTypeId: row.training_type_id, citationTopicId: trainingTypeMap.get(row.training_type_id)?.citation_topic_id })),

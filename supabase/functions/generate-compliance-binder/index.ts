@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import { CRON_SECRET_HEADER, requireCronRequest } from "../_shared/cronAuth.ts";
 import { paToday } from "../_shared/paDay.ts";
+import { credentialGoverningDate } from "../_shared/credentialGoverningDate.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { facilityTypeLabel } from "../_shared/facilityTypes.ts";
 import { toWinAnsi } from "../_shared/pdfText.ts";
@@ -672,13 +673,13 @@ async function buildBinderPdf(
     fetchRealFacilityRows(() => scoped(adminClient
       .from("policy_attestations")
       .select(
-        "id, status, due_date, attested_at, auth_method, ip_address, employee_id, facility_id, " +
+        "id, status, due_date, superseded_at, attested_at, auth_method, ip_address, employee_id, facility_id, " +
           "policy_attestation_campaigns(name, policy_documents(title))",
       )
       .eq("organization_id", orgId).order("id"))),
     fetchRealFacilityRows(() => scoped(adminClient
       .from("employee_credentials")
-      .select("id, status, expiration_date, employee_id, facility_id, credential_type, citation_topic_id")
+      .select("id, status, expiration_date, policy_renewal_due_date, employee_id, facility_id, credential_type, citation_topic_id")
       .eq("organization_id", orgId).order("id"))),
     fetchRealFacilityRows(() => scoped(adminClient
       .from("incidents")
@@ -756,8 +757,10 @@ async function buildBinderPdf(
 
   const today = paToday();
   const attestedCount = attestations.filter((a) => a.status === "attested").length;
-  const overdueAttestations = attestations.filter((a) => a.status === "pending" && a.due_date && a.due_date < today);
-  const pendingAttestations = attestations.filter((a) => a.status === "pending" && (!a.due_date || a.due_date >= today));
+  // Publishing a newer version leaves the old row pending and stamps superseded_at.
+  // That row cannot be signed, so it is not an outstanding attestation.
+  const overdueAttestations = attestations.filter((a) => !a.superseded_at && a.status === "pending" && a.due_date && a.due_date < today);
+  const pendingAttestations = attestations.filter((a) => !a.superseded_at && a.status === "pending" && (!a.due_date || a.due_date >= today));
   const signedAttestations = attestations
     .filter((a) => a.status === "attested")
     .sort((a, b) => (b.attested_at ?? "").localeCompare(a.attested_at ?? ""));
@@ -772,7 +775,7 @@ async function buildBinderPdf(
   for (const c of credentials) credentialStatusCounts.set(c.status, (credentialStatusCounts.get(c.status) ?? 0) + 1);
   const nonCompliantCredentials = credentials
     .filter((c) => c.status === "expired" || c.status === "due_soon" || c.status === "missing")
-    .sort((a, b) => (a.expiration_date ?? "").localeCompare(b.expiration_date ?? ""));
+    .sort((a, b) => (credentialGoverningDate(a) ?? "").localeCompare(credentialGoverningDate(b) ?? ""));
 
   // Reportable incidents -- omitted from the binder before this Tier 3.1 rebuild. "Open" means
   // no final report has been submitted yet, mirroring the 24-hour reportable-incident workflow's
@@ -1023,7 +1026,7 @@ async function buildBinderPdf(
     pdf.heading(`Outstanding Credentials & Clearances (${nonCompliantCredentials.length})`);
     const shown = nonCompliantCredentials.slice(0, MAX_LISTED_ROWS);
     pdf.table(
-      ["Employee", "Facility", "Credential", "Expiration", "Status"],
+      ["Employee", "Facility", "Credential", "Due", "Status"],
       shown.map((c) => {
         const e = employeeMap.get(c.employee_id);
         const f = facilityMap.get(c.facility_id);
@@ -1031,7 +1034,7 @@ async function buildBinderPdf(
           e ? `${e.first_name} ${e.last_name}` : "—",
           f?.name ?? "—",
           c.credential_type.replace(/_/g, " "),
-          c.expiration_date ?? "—",
+          credentialGoverningDate(c) ?? "—",
           STATUS_LABELS[c.status] ?? c.status,
         ];
       }),
@@ -1214,7 +1217,7 @@ async function buildBinderPdf(
       title: "Credential Gaps",
       included: nonCompliantCredentials.length,
       total: nonCompliantCredentials.length,
-      headers: ["Employee", "Facility", "Credential", "Expiration", "Status"],
+      headers: ["Employee", "Facility", "Credential", "Due", "Status"],
       rows: nonCompliantCredentials.map((c) => {
         const e = employeeMap.get(c.employee_id);
         const f = facilityMap.get(c.facility_id);
@@ -1222,7 +1225,7 @@ async function buildBinderPdf(
           e ? `${e.first_name} ${e.last_name}` : "—",
           f?.name ?? "—",
           c.credential_type ?? "—",
-          c.expiration_date ?? "—",
+          credentialGoverningDate(c) ?? "—",
           STATUS_LABELS[c.status] ?? c.status,
         ];
       }),

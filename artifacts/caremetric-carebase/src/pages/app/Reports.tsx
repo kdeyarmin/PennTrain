@@ -258,7 +258,7 @@ const ALL_REPORTS: ReportDef[] = [
     id: "credential-status",
     title: "Credential & Clearance Status",
     description:
-      "Background clearances, licensure, and health screenings across all staff, with expiration status.",
+      "Background clearances, licensure, and health screenings across all staff. The date is the earlier of the document expiration and the facility renewal.",
     icon: Shield,
     category: "Credentials",
     requiredBy: "OAPSA / PA Board of Nursing",
@@ -354,7 +354,7 @@ const REPORT_DATE_FIELD_LABEL: Record<string, string | null> = {
   "missing-documents": "Due Date",
   "document-audit": "Document Upload Date",
   "overdue-training": "Due Date",
-  "credential-status": "Expiration Date",
+  "credential-status": "Due Date",
   "incident-log": "Occurred Date",
   "incident-notification-register": "Notification Due Date",
   "inspection-compliance": "Next Due Date",

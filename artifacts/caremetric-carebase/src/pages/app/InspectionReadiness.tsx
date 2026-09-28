@@ -21,7 +21,7 @@ import { BinderExportButton } from "@/components/reports/BinderExportButton";
 import { SurveyPrepChecklist } from "@/components/checklists/SurveyPrepChecklist";
 import { SurfacePurpose } from "@/components/SurfacePurpose";
 import {
-  buildInspectionReadinessActions, inspectionReadinessVerdict, trainingReadinessVerdict,
+  buildInspectionReadinessActions, inspectionReadinessVerdict, isOverduePolicyAttestation, trainingReadinessVerdict,
   type ReadinessActionChecklistItem, type ReadinessLevel,
 } from "@/lib/inspectionReadiness";
 import { useFacilityHasCoveringBinder } from "@/hooks/useComplianceBinder";
@@ -275,7 +275,7 @@ export default function InspectionReadiness() {
         const blocked = sourceState(policyAttestationsQuery);
         if (blocked) return { level: blocked, detail: policyAttestationsQuery.isError ? "attestation data unavailable" : "loading attestations" };
         const rows = (policyAttestations ?? []).filter((a) => a.facility_id === activeFacilityId);
-        const overdue = rows.filter((a) => a.status === "pending" && a.due_date && a.due_date < today);
+        const overdue = rows.filter((a) => isOverduePolicyAttestation(a, today));
         return overdue.length === 0 ? { level: "ready" } : { level: "attention", detail: `${overdue.length} overdue` };
       }
       case "administrator": {
