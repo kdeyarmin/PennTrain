@@ -20,6 +20,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { recommendationReturnHref } from "@/lib/courseRecommendationNavigation";
 
 function MessageAttachment({ message }: { message: SupportTicketMessage }) {
   const { toast } = useToast();
@@ -50,7 +51,7 @@ export default function SupportTicketDetail() {
   const { id } = useParams<{ id: string }>();
   const search = useSearch();
   const fromCourses = new URLSearchParams(search).get("from") === "courses";
-  const backHref = fromCourses ? "/admin/courses?section=recommendations" : "/admin/support-tickets";
+  const backHref = fromCourses ? recommendationReturnHref(true, search) : "/admin/support-tickets";
   const backLabel = fromCourses ? "Back to Course Recommendations" : "Back to Support Tickets";
   const { user } = useAuth();
   const { toast } = useToast();
@@ -107,7 +108,7 @@ export default function SupportTicketDetail() {
   }
 
   if (isError) {
-    return <QueryError what="this support ticket" error={error} onRetry={() => void refetch()} />;
+    return <div className="space-y-4"><Button asChild variant="outline"><Link href={backHref}>{backLabel}</Link></Button><QueryError what="this support ticket" error={error} onRetry={() => void refetch()} /></div>;
   }
 
   if (!ticket) {

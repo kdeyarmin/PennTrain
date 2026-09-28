@@ -127,6 +127,7 @@ export default function CourseDetail() {
   const isVersionLocked = selectedVersion?.status === "published";
   const canTakeCourse =
     !!course
+    && !courseLoading && !courseError && !versionsLoading && !versionsError
     && course.status === "published"
     && canEnrollInCourse(course, effectiveOrgId)
     && isCourseVersionLearnerReady(currentVersion);
@@ -702,6 +703,7 @@ export default function CourseDetail() {
         selectedVersion={selectedVersion}
         effectiveOrgId={effectiveOrgId}
         canTakeCourse={canTakeCourse}
+        canEnrollLearners={canTakeCourse && ["org_admin", "facility_manager"].includes(user?.role ?? "")}
         enrolling={enrolling}
         onTakeCourse={handleTakeCourse}
         canManage={canManage}

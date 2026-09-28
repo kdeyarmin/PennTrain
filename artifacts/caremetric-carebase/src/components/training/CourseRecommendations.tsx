@@ -1,16 +1,21 @@
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Link } from "wouter";
 import { ChevronRight, RefreshCw, Send } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { hasDefinitivePostgresWriteRejection } from "@/lib/postgresWriteOutcome";
 import { pathAvailableInBuild } from "@/lib/productRoutes";
 import { useCreateSupportTicket, useListSupportTickets } from "@/hooks/useSupportTickets";
+import { useOrganizationNameMap } from "@/hooks/useAdminNotificationDeliveries";
+import { useProfileNameMap } from "@/hooks/useProfiles";
+import { useUrlState } from "@/hooks/useUrlState";
+import { RECOMMENDATION_DEFAULTS, recommendationQuery, recommendationState } from "@/lib/courseRecommendationNavigation";
 import { QueryError, QueryLoading } from "@/components/QueryState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const SUBJECT_PREFIX = "Course recommendation: ";
 const REQUEST_FILTERS = { category: "training_content", subjectPrefix: SUBJECT_PREFIX };
@@ -36,16 +41,27 @@ function RecommendationWorkspace({ canRecommend, canReview }: { canRecommend: bo
   const [submittedId, setSubmittedId] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [needsHistoryCheck, setNeedsHistoryCheck] = useState(false);
-  const [page, setPage] = useState(1);
+  const [rawFilters, setFilters] = useUrlState(RECOMMENDATION_DEFAULTS);
+  const filters = recommendationState(rawFilters);
+  const [searchDraft, setSearchDraft] = useState(filters.recommendationSearch);
+  useEffect(() => setSearchDraft(filters.recommendationSearch), [filters.recommendationSearch]);
+  const status = needsHistoryCheck ? "all" : filters.recommendationStatus;
+  const search = needsHistoryCheck ? "" : filters.recommendationSearch.trim();
+  const page = Number(filters.recommendationPage);
+  const setPage = (value: number) => setFilters({ recommendationPage: String(value) });
+  const clearFilters = () => { setSearchDraft(""); setFilters(RECOMMENDATION_DEFAULTS); };
+  const hasFilters = status !== "all" || !!search;
   const submitting = useRef(false);
-  const requests = useListSupportTickets(REQUEST_FILTERS);
+  const requests = useListSupportTickets({ ...REQUEST_FILTERS, ...(status !== "all" ? { status } : {}), ...(search ? { subjectSearch: search } : {}) });
   const create = useCreateSupportTicket();
   const tickets = requests.data ?? [];
   const pageCount = Math.max(1, Math.ceil(tickets.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const visibleTickets = tickets.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const organizations = useOrganizationNameMap(canReview ? visibleTickets.map(ticket => ticket.organization_id) : []);
+  const requesters = useProfileNameMap(canReview ? visibleTickets.map(ticket => ticket.created_by) : []);
   const valid = form.title.trim().length >= 3 && !!form.audience.trim() && form.goals.trim().length >= 10;
-  const threadHref = (ticketId: string) => `${canReview ? "/admin/support-tickets" : "/app/help/tickets"}/${ticketId}?from=courses`;
+  const threadHref = (ticketId: string) => `${canReview ? "/admin/support-tickets" : "/app/help/tickets"}/${ticketId}?${recommendationQuery({ ...filters, recommendationPage: String(currentPage) }, "thread")}`;
   const canOpenReview = !canReview || pathAvailableInBuild("/admin/support-tickets");
 
   const update = (key: keyof typeof EMPTY_FORM, value: string) => setForm(previous => ({ ...previous, [key]: value }));
@@ -55,6 +71,7 @@ function RecommendationWorkspace({ canRecommend, canReview }: { canRecommend: bo
     submitting.current = true;
     setSubmissionError(null);
     setSubmittedId(null);
+    clearFilters();
     create.mutate({
       organizationId: user.organizationId,
       category: "training_content",
@@ -76,6 +93,7 @@ function RecommendationWorkspace({ canRecommend, canReview }: { canRecommend: bo
       onError: error => {
         const uncertain = !hasDefinitivePostgresWriteRejection(error);
         setNeedsHistoryCheck(uncertain);
+        if (uncertain) clearFilters();
         setSubmissionError(uncertain
           ? "We couldn't confirm whether your recommendation was saved. Refresh your recommendations and check for it before submitting again. Your answers are still here."
           : "Your recommendation could not be submitted. Your answers are still here; please try again.");
@@ -85,8 +103,11 @@ function RecommendationWorkspace({ canRecommend, canReview }: { canRecommend: bo
   };
 
   const refresh = async () => {
+    if (submitting.current || create.isPending) return;
+    // A read started before an uncertain write cannot prove that write was absent.
+    const checkingUncertainSubmission = needsHistoryCheck;
     const result = await requests.refetch();
-    if (!result.isError) setNeedsHistoryCheck(false);
+    if (checkingUncertainSubmission && !result.isError) setNeedsHistoryCheck(false);
   };
 
   return <div className={`grid gap-6 ${canRecommend ? "xl:grid-cols-2" : ""}`}>
@@ -130,20 +151,43 @@ function RecommendationWorkspace({ canRecommend, canReview }: { canRecommend: bo
     <section className="premium-card min-w-0 p-4 sm:p-6" aria-labelledby={`${id}-list-heading`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id={`${id}-list-heading`} className="text-lg font-semibold">{canReview ? "Course recommendations" : "My recommendations"}</h2>
-        <Button type="button" variant="outline" size="sm" disabled={requests.isFetching} onClick={() => void refresh()} aria-label="Refresh recommendation history"><RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />Refresh</Button>
+        <Button type="button" variant="outline" size="sm" disabled={requests.isFetching || create.isPending} onClick={() => void refresh()} aria-label="Refresh recommendation history"><RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />Refresh</Button>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{canReview ? "Review facility requests and reply in their conversations. Creating and publishing a course is a separate super admin action." : "Track your requests and read the super admin's replies. A resolved request does not necessarily mean a course has been published."}</p>
+      <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); if (!needsHistoryCheck && !create.isPending) setFilters({ recommendationSearch: searchDraft.trim(), recommendationPage: "1" }); }}>
+        <div className="min-w-0 flex-1 basis-52 space-y-1.5">
+          <Label htmlFor={`${id}-search`}>Search course topics</Label>
+          <Input id={`${id}-search`} value={searchDraft} onChange={event => setSearchDraft(event.target.value)} maxLength={200} disabled={needsHistoryCheck || create.isPending} placeholder="Search recommendations" />
+        </div>
+        <Button type="submit" variant="outline" disabled={needsHistoryCheck || create.isPending}>Search</Button>
+        <div className="min-w-0 flex-1 basis-40 space-y-1.5">
+          <Label htmlFor={`${id}-status`}>Request status</Label>
+          <Select value={status} onValueChange={value => setFilters({ recommendationStatus: value, recommendationPage: "1" })} disabled={needsHistoryCheck || create.isPending}>
+            <SelectTrigger id={`${id}-status`}><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All statuses</SelectItem>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        {hasFilters && <Button type="button" variant="ghost" onClick={clearFilters}>Clear filters</Button>}
+      </form>
+      {canReview && (organizations.isError || requesters.isError) && <div role="status" className="mt-4 rounded-lg border p-3 text-sm">
+        <p>Some requester details could not be loaded. You can still open the recommendations.</p>
+        <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => { if (organizations.isError) void organizations.refetch(); if (requesters.isError) void requesters.refetch(); }}>Retry requester details</Button>
+      </div>}
       {!canOpenReview && <p className="mt-4 text-sm">Open the <a className="text-primary underline" href="https://cmcarebase.com/admin/courses?section=recommendations">owner console</a> to review recommendation conversations.</p>}
       <div className="mt-5">
         {requests.isError ? <QueryError what="course recommendations" error={requests.error} onRetry={() => void refresh()} /> :
           requests.isLoading ? <QueryLoading what="course recommendations" /> :
-            tickets.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">{canReview ? "No course recommendations have been submitted yet." : "You haven't recommended a course yet. Use the form to send your first request."}</p> :
+            tickets.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">{hasFilters ? "No recommendations match these filters. Clear the filters to see all requests." : canReview ? "No course recommendations have been submitted yet." : "You haven't recommended a course yet. Use the form to send your first request."}</p> :
               <ul className="space-y-3">
                 {visibleTickets.map(ticket => <li key={ticket.id} className="rounded-lg border p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     {canOpenReview ? <Link className="min-w-0 flex-1 basis-44 break-words font-medium text-primary underline-offset-4 hover:underline" href={threadHref(ticket.id)}>{ticket.subject.startsWith(SUBJECT_PREFIX) ? ticket.subject.slice(SUBJECT_PREFIX.length) : ticket.subject}<ChevronRight className="ml-1 inline h-4 w-4" aria-hidden="true" /></Link> : <p className="min-w-0 flex-1 basis-44 break-words font-medium">{ticket.subject.slice(SUBJECT_PREFIX.length)}</p>}
                     <Badge variant="secondary">{STATUS_LABELS[ticket.status] ?? ticket.status.replace(/_/g, " ")}</Badge>
                   </div>
+                  {canReview && <p className="mt-2 break-words text-sm text-muted-foreground">
+                    {organizations.data?.[ticket.organization_id] || (organizations.isLoading ? "Loading organization…" : "Organization unavailable")}
+                    {" · "}{requesters.data?.[ticket.created_by] || (requesters.isLoading ? "Loading requester…" : "Requester unavailable")}
+                  </p>}
                   <p className="mt-2 text-xs text-muted-foreground">Updated {new Date(ticket.last_message_at).toLocaleDateString()}</p>
                 </li>)}
               </ul>}

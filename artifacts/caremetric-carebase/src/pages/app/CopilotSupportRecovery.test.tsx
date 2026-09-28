@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   state: [] as unknown[], refs: [] as Array<{ current: unknown }>, deps: [] as Array<unknown[] | undefined>, effects: [] as Array<() => unknown>, cleanups: [] as Array<unknown>,
   cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
-  ticket: "ticket-a", search: "", location: "/app/support", role: "org_admin", contextError: false, messagesError: false,
+  ticket: "ticket-a", search: "", location: "/app/support", role: "org_admin", contextError: false, messagesError: false, ticketError: false,
   ask: vi.fn(), reset: vi.fn(), create: vi.fn(), send: vi.fn(), toast: vi.fn(),
 }));
 vi.mock("react", async original => ({
@@ -38,7 +38,7 @@ vi.mock("@/lib/voice/voiceGatewayConfig", () => ({ voiceAssistantEnabled: false 
 vi.mock("@/hooks/useProfiles", () => ({ useProfileNameMap: () => ({ data: {} }) }));
 vi.mock("@/hooks/useAdminNotificationDeliveries", () => ({ useOrganizationNameMap: () => ({ data: {} }) }));
 vi.mock("@/hooks/useSupportTickets", () => ({
-  useGetSupportTicket: () => ({ data: { id: h.ticket, organization_id: "org", subject: "Test", status: "open", priority: "normal", created_at: "2026-09-01", updated_at: "2026-09-01" } }),
+  useGetSupportTicket: () => ({ isError: h.ticketError, data: { id: h.ticket, organization_id: "org", subject: "Test", status: "open", priority: "normal", created_at: "2026-09-01", updated_at: "2026-09-01" } }),
   useListSupportTicketMessages: () => ({ data: [], isError: h.messagesError }), useSendSupportTicketMessage: () => ({ mutate: h.send }),
   useCloseSupportTicket: () => ({}), useReopenSupportTicket: () => ({}), useUpdateSupportTicket: () => ({}), useTicketAttachmentSignedUrl: () => ({}),
   SUPPORT_TICKET_CATEGORIES: [], SUPPORT_TICKET_PRIORITIES: [], SUPPORT_TICKET_STATUSES: [],
@@ -67,7 +67,7 @@ function resultNode() { return render(RegulatoryCopilot).find(node => node.props
 const result = { runId: "run-a", intent: "due_next_30_days", evidenceUsed: [], response: { recommended_next_steps: ["Review records"] } };
 beforeEach(() => {
   vi.clearAllMocks(); h.state = []; h.refs = []; h.deps = []; h.cleanups = []; h.contextError = false; h.messagesError = false; h.ticket = "ticket-a";
-  h.search = ""; h.location = "/app/support"; h.role = "org_admin";
+  h.search = ""; h.location = "/app/support"; h.role = "org_admin"; h.ticketError = false;
   vi.stubGlobal("window", { location: { search: "" } });
 });
 afterEach(() => { h.cleanups.forEach(cleanup => { if (typeof cleanup === "function") cleanup(); }); vi.unstubAllGlobals(); });
@@ -120,6 +120,12 @@ describe.each([["requester", SupportTicketDetail], ["platform", AdminSupportTick
 });
 
 describe("support conversation return navigation", () => {
+  it.each([["requester", SupportTicketDetail, "/app"], ["owner", AdminSupportTicketDetail, "/admin"]] as const)("keeps a filtered return available when %s ticket loading fails", (_, Page, prefix) => {
+    h.ticketError = true; h.search = "from=courses&recommendationStatus=open&recommendationPage=2";
+    const tree = render(Page);
+    expect(tree.find(node => node.type === "a")?.props.href).toBe(`${prefix}/courses?section=recommendations&recommendationStatus=open&recommendationPage=2`);
+    expect(tree.some(node => node.props.what === "this support ticket" && node.props.onRetry)).toBe(true);
+  });
   it.each(["org_admin", "facility_manager"])("returns %s to course recommendations", role => {
     h.role = role; h.search = "from=courses";
     expect(render(SupportTicketDetail).find(node => node.type === "a")?.props.href).toBe("/app/courses?section=recommendations");

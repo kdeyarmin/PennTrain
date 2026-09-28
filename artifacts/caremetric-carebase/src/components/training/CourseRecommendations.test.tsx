@@ -5,10 +5,12 @@ const h = vi.hoisted(() => ({
   role: "org_admin", organizationId: "organization", state: [] as unknown[], cursor: 0,
   refs: [] as { current: unknown }[], refCursor: 0, train: false,
   create: vi.fn(), list: vi.fn(), refetch: vi.fn(), pending: false,
-  loading: false, error: false, tickets: [] as { id: string; subject: string; status: string; last_message_at: string }[],
+  url: {} as Record<string, string>, orgLookup: vi.fn(), profileLookup: vi.fn(), namesError: false, retryNames: vi.fn(),
+  loading: false, error: false, tickets: [] as { id: string; subject: string; status: string; last_message_at: string; organization_id?: string; created_by?: string }[],
 }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(),
   useId: () => "recommendation",
+  useEffect: () => {},
   useState: (initial: unknown) => {
     const index = h.cursor++;
     if (!(index in h.state)) h.state[index] = typeof initial === "function" ? initial() : initial;
@@ -19,6 +21,9 @@ vi.mock("react", async original => ({ ...await original<typeof import("react")>(
 vi.mock("wouter", () => ({ Link: "a" }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { role: h.role, organizationId: h.organizationId } }) }));
 vi.mock("@/lib/productRoutes", () => ({ pathAvailableInBuild: () => !h.train }));
+vi.mock("@/hooks/useUrlState", () => ({ useUrlState: (defaults: Record<string, string>) => [{ ...defaults, ...h.url }, (updates: Record<string, string>) => { h.url = { ...h.url, ...updates }; }] }));
+vi.mock("@/hooks/useAdminNotificationDeliveries", () => ({ useOrganizationNameMap: (ids: string[]) => { h.orgLookup(ids); return { data: { organization: "Sunrise Care" }, isError: h.namesError, refetch: h.retryNames }; } }));
+vi.mock("@/hooks/useProfiles", () => ({ useProfileNameMap: (ids: string[]) => { h.profileLookup(ids); return { data: { requester: "Alex Manager" }, isError: h.namesError, refetch: h.retryNames }; } }));
 vi.mock("@/hooks/useSupportTickets", () => ({
   useCreateSupportTicket: () => ({ mutate: h.create, isPending: h.pending }),
   useListSupportTickets: (filters: unknown) => {
@@ -54,6 +59,7 @@ function button(tree: ReactNode, name: string) { return nodes(tree).find(node =>
 beforeEach(() => {
   h.role = "org_admin"; h.organizationId = "organization"; h.state = []; h.refs = []; h.train = false;
   h.pending = false; h.loading = false; h.error = false; h.tickets = [];
+  h.url = {}; h.namesError = false; h.orgLookup.mockClear(); h.profileLookup.mockClear(); h.retryNames.mockReset();
   h.create.mockReset(); h.list.mockReset(); h.refetch.mockReset().mockResolvedValue({ isError: false });
 });
 
@@ -124,6 +130,24 @@ describe("course recommendations", () => {
     expect(button(render(), "Submit recommendation").props.disabled).toBe(true);
   });
 
+  it("does not unlock an uncertain write using a refresh begun before submission", async () => {
+    let completeRead!: (result: { isError: boolean }) => void;
+    h.refetch.mockReturnValueOnce(new Promise(resolve => { completeRead = resolve; }));
+    (button(render(), "Refresh").props.onClick as () => void)();
+    submit(fill()); const callbacks = h.create.mock.calls[0][1];
+    callbacks.onError(new Error("Timeout")); callbacks.onSettled();
+    completeRead({ isError: false }); await Promise.resolve();
+    expect(button(render(), "Submit recommendation").props.disabled).toBe(true);
+  });
+
+  it("does not refresh history while a recommendation is being submitted", () => {
+    const tree = fill(); submit(tree);
+    (button(tree, "Refresh").props.onClick as () => void)();
+    expect(h.refetch).not.toHaveBeenCalled();
+    h.pending = true;
+    expect(button(render(), "Refresh").props.disabled).toBe(true);
+  });
+
   it("provides a tracked conversation after success without generating a course", () => {
     submit(fill()); const callbacks = h.create.mock.calls[0][1];
     callbacks.onSuccess({ id: "saved-ticket" }); callbacks.onSettled();
@@ -139,7 +163,7 @@ describe("course recommendations", () => {
     h.tickets = [{ id: "ticket", subject: "Course recommendation: Dementia care", status: "in_progress", last_message_at: "2026-09-27T12:00:00Z" }];
     const tree = render();
     expect(text(tree)).toContain("In review");
-    expect(nodes(tree).some(node => node.type === "form")).toBe(false);
+    expect(nodes(tree).some(node => node.props.id === "recommendation-topic")).toBe(false);
     expect(nodes(tree).some(node => node.props.href === "/admin/support-tickets/ticket?from=courses")).toBe(true);
   });
 
@@ -169,8 +193,56 @@ describe("course recommendations", () => {
     expect(text(tree)).toContain("Page 1 of 2");
     (button(tree, "Next").props.onClick as () => void)(); tree = render();
     expect(text(tree)).toContain("Page 2 of 2");
-    expect(nodes(tree).some(node => node.props.href === "/app/help/tickets/10?from=courses")).toBe(true);
+    expect(nodes(tree).some(node => node.props.href === "/app/help/tickets/10?from=courses&recommendationPage=2")).toBe(true);
     h.tickets = h.tickets.slice(0, 1); tree = render();
     expect(nodes(tree).some(node => node.props.href === "/app/help/tickets/0?from=courses")).toBe(true);
+  });
+
+  it("shows owner request attribution and only looks up the visible page", () => {
+    h.role = "platform_admin";
+    h.tickets = Array.from({ length: 11 }, (_, i) => ({ id: String(i), organization_id: i < 10 ? "organization" : "hidden-org", created_by: i < 10 ? "requester" : "hidden-user", subject: `Course recommendation: Topic ${i}`, status: "open", last_message_at: "2026-09-27T12:00:00Z" }));
+    const tree = render();
+    expect(text(tree)).toContain("Sunrise Care · Alex Manager");
+    expect(h.orgLookup).toHaveBeenLastCalledWith(Array(10).fill("organization"));
+    expect(h.profileLookup).toHaveBeenLastCalledWith(Array(10).fill("requester"));
+  });
+
+  it("does not fetch organization or requester directories for facility admins", () => {
+    render();
+    expect(h.orgLookup).toHaveBeenLastCalledWith([]);
+    expect(h.profileLookup).toHaveBeenLastCalledWith([]);
+  });
+
+  it("keeps requests available while attribution has a retryable failure", () => {
+    h.role = "platform_admin"; h.namesError = true;
+    h.tickets = [{ id: "ticket", subject: "Course recommendation: Topic", status: "open", last_message_at: "2026-09-27T12:00:00Z" }];
+    const tree = render();
+    expect(text(tree)).toContain("Some requester details could not be loaded");
+    expect(nodes(tree).some(node => node.props.href === "/admin/support-tickets/ticket?from=courses")).toBe(true);
+    (button(tree, "Retry requester details").props.onClick as () => void)();
+    expect(h.retryNames).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies URL-backed topic/status filters and resets pagination when changed", () => {
+    h.url = { recommendationSearch: "Dementia", recommendationStatus: "in_progress", recommendationPage: "3" };
+    const tree = render();
+    expect(h.list).toHaveBeenLastCalledWith({ category: "training_content", subjectPrefix: "Course recommendation: ", subjectSearch: "Dementia", status: "in_progress" });
+    expect(text(tree)).toContain("No recommendations match these filters");
+    const status = nodes(tree).find(node => node.props.onValueChange)!;
+    (status.props.onValueChange as (value: string) => void)("resolved"); render();
+    expect(h.url.recommendationPage).toBe("1");
+    expect(h.list).toHaveBeenLastCalledWith(expect.objectContaining({ status: "resolved" }));
+    (button(render(), "Clear filters").props.onClick as () => void)(); render();
+    expect(h.list).toHaveBeenLastCalledWith({ category: "training_content", subjectPrefix: "Course recommendation: " });
+  });
+
+  it("checks unfiltered history after an uncertain submission even when URL filters change", () => {
+    h.url = { recommendationStatus: "closed", recommendationSearch: "old topic" };
+    submit(fill()); const callbacks = h.create.mock.calls[0][1];
+    callbacks.onError(new Error("Timeout")); callbacks.onSettled();
+    h.url = { recommendationStatus: "resolved", recommendationSearch: "unrelated" };
+    render();
+    expect(h.list).toHaveBeenLastCalledWith({ category: "training_content", subjectPrefix: "Course recommendation: " });
+    expect(button(render(), "Search").props.disabled).toBe(true);
   });
 });

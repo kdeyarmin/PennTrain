@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ useMutation: vi.fn(), useQuery: vi.fn(), rpc: vi.fn(), upload: vi.fn(), remove: vi.fn(), invalidate: vi.fn(), read: vi.fn(), insert: vi.fn(), page: vi.fn(), eq: vi.fn(), like: vi.fn(), range: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useMutation: vi.fn(), useQuery: vi.fn(), rpc: vi.fn(), upload: vi.fn(), remove: vi.fn(), invalidate: vi.fn(), read: vi.fn(), insert: vi.fn(), page: vi.fn(), eq: vi.fn(), like: vi.fn(), ilike: vi.fn(), or: vi.fn(), range: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({
   useMutation: mocks.useMutation, useQuery: mocks.useQuery,
   useQueryClient: () => ({ invalidateQueries: mocks.invalidate }),
@@ -9,9 +9,11 @@ vi.mock("@/lib/supabase", () => ({ supabase: {
   rpc: mocks.rpc, storage: { from: () => ({ upload: mocks.upload, remove: mocks.remove }) },
   from: () => {
     const query = {
-      select: () => query, insert: () => query, order: () => query, or: () => query,
+      select: () => query, insert: () => query, order: () => query,
+      or: (...args: unknown[]) => { mocks.or(...args); return query; },
       eq: (...args: unknown[]) => { mocks.eq(...args); return query; },
       like: (...args: unknown[]) => { mocks.like(...args); return query; },
+      ilike: (...args: unknown[]) => { mocks.ilike(...args); return query; },
       range: (...args: unknown[]) => { mocks.range(...args); return query; },
       maybeSingle: mocks.read, single: mocks.insert,
       then: (resolve: (value: unknown) => void) => mocks.page().then(resolve),
@@ -114,6 +116,13 @@ describe("support reply attachment ambiguous writes", () => {
 });
 
 describe("complete support history reads", () => {
+  it("searches requested topics after their prefix without matching category or wildcard syntax", async () => {
+    mocks.page.mockResolvedValueOnce({ data: [], error: null });
+    useListSupportTickets({ category: "training_content", subjectPrefix: "Course recommendation: ", subjectSearch: "  training 100%_  " });
+    await mocks.useQuery.mock.calls.at(-1)![0].queryFn();
+    expect(mocks.ilike).toHaveBeenCalledExactlyOnceWith("subject", "Course recommendation: %training 100\\%\\_%");
+    expect(mocks.or).not.toHaveBeenCalled();
+  });
   it("keeps recommendation filters on every page and treats prefix wildcards literally", async () => {
     mocks.page.mockResolvedValueOnce({ data: [{ id: "recommendation" }], error: null }).mockResolvedValueOnce({ data: [], error: null });
     const filters = { category: "training_content", subjectPrefix: "Course recommendation: 100%_" };

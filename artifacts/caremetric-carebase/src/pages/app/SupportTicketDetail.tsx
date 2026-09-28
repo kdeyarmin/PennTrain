@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
+import { recommendationReturnHref } from "@/lib/courseRecommendationNavigation";
 
 function MessageAttachment({ message }: { message: SupportTicketMessage }) {
   const { toast } = useToast();
@@ -63,7 +64,7 @@ export default function SupportTicketDetail() {
   const { user } = useAuth();
   const search = useSearch();
   const fromCourses = base === "/app" && ["org_admin", "facility_manager", "platform_admin"].includes(user?.role ?? "") && new URLSearchParams(search).get("from") === "courses";
-  const backHref = fromCourses ? "/app/courses?section=recommendations" : `${base}/help?tab=support`;
+  const backHref = fromCourses ? recommendationReturnHref(false, search) : `${base}/help?tab=support`;
   const backLabel = fromCourses ? "Back to Course Recommendations" : "Back to Support";
   const { toast } = useToast();
   const { reply, setReply, file, setFile, onSubmitted } = useSupportReplyDraft(id);
@@ -110,7 +111,7 @@ export default function SupportTicketDetail() {
   }
 
   if (isError) {
-    return <QueryError what="this support ticket" error={error} onRetry={() => void refetch()} />;
+    return <div className="space-y-4"><Button asChild variant="outline"><Link href={backHref}>{backLabel}</Link></Button><QueryError what="this support ticket" error={error} onRetry={() => void refetch()} /></div>;
   }
 
   if (!ticket) {

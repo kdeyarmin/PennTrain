@@ -99,7 +99,10 @@ select lives_ok($$select public.unpublish_course(pg_temp.id(301), 'Retire this c
 select is((select status from public.courses where id = pg_temp.id(301)), 'archived', 'unpublished course is archived');
 select is((select count(*) from public.audit_logs where entity_id = pg_temp.id(301)::text and action = 'unpublished' and new_values->>'reason' = 'Retire this content'), 1::bigint, 'unpublishing retains its audit reason');
 select lives_ok($$select public.quarantine_learning_package(pg_temp.id(501), 'Quarantine reviewed content')$$, 'super admin retains package quarantine');
-select is((select validation_status from public.learning_packages where id = pg_temp.id(501)), 'quarantined', 'package quarantine remains effective');
+-- Direct package SELECT exposes accepted learner content only, even for an
+-- authenticated super admin. Inspect quarantined records through the same
+-- scoped administrative RPC used by the package-management screen.
+select is((select validation_status from public.list_learning_packages_admin(pg_temp.id(403)) where id = pg_temp.id(501)), 'quarantined', 'package quarantine remains effective');
 select is((select count(*) from public.course_assignments where course_id = pg_temp.id(302)), 3::bigint, 'enrollment records remain intact');
 
 reset role;
