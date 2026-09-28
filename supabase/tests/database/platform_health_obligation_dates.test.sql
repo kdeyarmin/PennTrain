@@ -103,20 +103,20 @@ insert into public.employee_credentials(
 
 insert into public.course_assignments(
   id, organization_id, facility_id, employee_id, course_id, course_version_id,
-  assigned_by, due_date, status
+  assigned_by, due_date, status, canceled_at, cancellation_reason
 ) values
   ('e2820000-0000-4000-8000-000000000501', 'e2820000-0000-4000-8000-000000000001',
    'e2820000-0000-4000-8000-000000000011', 'e2820000-0000-4000-8000-000000000102',
    'e2820000-0000-4000-8000-000000000401', 'e2820000-0000-4000-8000-000000000411',
-   'e2820000-0000-4000-8000-000000000301', public.pa_today() - 1, 'assigned'),
+   'e2820000-0000-4000-8000-000000000301', public.pa_today() - 1, 'assigned', null, null),
   ('e2820000-0000-4000-8000-000000000502', 'e2820000-0000-4000-8000-000000000001',
    'e2820000-0000-4000-8000-000000000011', 'e2820000-0000-4000-8000-000000000103',
    'e2820000-0000-4000-8000-000000000401', 'e2820000-0000-4000-8000-000000000411',
-   'e2820000-0000-4000-8000-000000000301', public.pa_today() - 1, 'canceled'),
+   'e2820000-0000-4000-8000-000000000301', public.pa_today() - 1, 'canceled', now(), 'Learner left before the due date'),
   ('e2820000-0000-4000-8000-000000000503', 'e2820000-0000-4000-8000-000000000001',
    'e2820000-0000-4000-8000-000000000011', 'e2820000-0000-4000-8000-000000000104',
    'e2820000-0000-4000-8000-000000000401', 'e2820000-0000-4000-8000-000000000411',
-   'e2820000-0000-4000-8000-000000000301', public.pa_today() - 1, 'paused');
+   'e2820000-0000-4000-8000-000000000301', public.pa_today() - 1, 'paused', null, null);
 select set_config('app.privileged_write', 'off', true);
 
 insert into public.training_types(
