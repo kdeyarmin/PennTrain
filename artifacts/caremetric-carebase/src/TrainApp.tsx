@@ -96,9 +96,9 @@ function TrainHome() {
   return <Redirect to={access.homePath || "/login"} />;
 }
 
-// CareBase pages are not in this bundle. Leaving the URL on /app/residents (or /report-safety)
-// makes a Train-only facility look like it opened an operational module. Signed-in users go
-// home; signed-out visitors still get the not-found page.
+// CareBase pages are not in this bundle. Keeping an operational URL makes a
+// Train-only facility look like it opened a module this product does not ship.
+// Signed-in users go home; signed-out visitors still get the not-found page.
 function TrainExcludedRoute() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const access = useProductModuleAccess();
