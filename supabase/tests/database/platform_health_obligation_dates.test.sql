@@ -90,7 +90,7 @@ insert into public.employee_credentials(
    public.pa_today() + 400, public.pa_today() + 10),
   ('e2820000-0000-4000-8000-000000000203', 'e2820000-0000-4000-8000-000000000001',
    'e2820000-0000-4000-8000-000000000011', 'e2820000-0000-4000-8000-000000000101',
-   'i9', 'Second policy inside the window', 'compliant', public.pa_today() - 30,
+   'i9_employment_eligibility', 'Second policy inside the window', 'compliant', public.pa_today() - 30,
    public.pa_today() + 400, public.pa_today() + 12),
   ('e2820000-0000-4000-8000-000000000204', 'e2820000-0000-4000-8000-000000000001',
    'e2820000-0000-4000-8000-000000000011', 'e2820000-0000-4000-8000-000000000101',

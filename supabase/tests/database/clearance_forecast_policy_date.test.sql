@@ -38,8 +38,15 @@ select is(
   'a facility renewal inside 30 days is a forecast event even when the document expires later'
 );
 select is(
-  public.get_workforce_readiness_forecast('d2600000-0000-4000-8000-000000000011')
-    -> 'risks' -> 0 -> 'reasons' -> 0 ->> 'riskDate',
+  (
+    select reason->>'riskDate'
+    from jsonb_array_elements(
+      public.get_workforce_readiness_forecast('d2600000-0000-4000-8000-000000000011')
+        -> 'risks' -> 0 -> 'reasons'
+    ) as reason
+    where reason->>'type' = 'credential'
+    limit 1
+  ),
   (public.pa_today() + 15)::text,
   'the forecast dates the clearance on the facility renewal, not the later document expiration'
 );
