@@ -9,7 +9,9 @@ insert into auth.users(instance_id, id, aud, role, email, encrypted_password, em
 values('00000000-0000-0000-0000-000000000000', 'd2600000-0000-4000-8000-000000000101', 'authenticated', 'authenticated', 'policy-date-forecast@test.local', 'x', now(), '{}', '{}', now(), now(), '', '', '', '', '', '', false, false);
 select set_config('app.privileged_write', 'on', true);
 insert into public.profiles(id, organization_id, email, first_name, last_name, role, is_active) values
-  ('d2600000-0000-4000-8000-000000000101', 'd2600000-0000-4000-8000-000000000001', 'policy-date-forecast@test.local', 'Policy', 'Admin', 'org_admin', true);
+  ('d2600000-0000-4000-8000-000000000101', 'd2600000-0000-4000-8000-000000000001', 'policy-date-forecast@test.local', 'Policy', 'Admin', 'org_admin', true)
+on conflict (id) do update set
+  organization_id = excluded.organization_id, role = excluded.role, is_active = true;
 select set_config('app.privileged_write', 'off', true);
 insert into public.employees(
   id, organization_id, facility_id, first_name, last_name, job_title, status, cleared_for_unsupervised_duty

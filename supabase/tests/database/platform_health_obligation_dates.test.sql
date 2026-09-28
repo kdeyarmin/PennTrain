@@ -39,7 +39,6 @@ insert into public.employees(
    'e2820000-0000-4000-8000-000000000011', 'Paused', 'Staff', 'Aide', 'active', public.pa_today() - 400),
   ('e2820000-0000-4000-8000-000000000105', 'e2820000-0000-4000-8000-000000000001',
    'e2820000-0000-4000-8000-000000000011', 'Training', 'Staff', 'Aide', 'active', public.pa_today() - 400);
-select set_config('app.privileged_write', 'off', true);
 
 insert into public.courses(id, organization_id, title, status) values
   ('e2820000-0000-4000-8000-000000000401', 'e2820000-0000-4000-8000-000000000001', 'Health course', 'draft');
@@ -53,6 +52,7 @@ update public.course_versions set status = 'published', published_at = now()
 where id = 'e2820000-0000-4000-8000-000000000411';
 update public.courses set status = 'published', current_version_id = 'e2820000-0000-4000-8000-000000000411'
 where id = 'e2820000-0000-4000-8000-000000000401';
+select set_config('app.privileged_write', 'off', true);
 
 create temp table health_before (health jsonb);
 grant all on table health_before to authenticated;

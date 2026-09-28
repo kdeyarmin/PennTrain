@@ -84,7 +84,9 @@ insert into auth.users(
 select set_config('app.privileged_write', 'on', true);
 insert into public.profiles(id, organization_id, email, first_name, last_name, role, is_active) values
   ('e2710000-0000-4000-8000-000000000301', 'e2710000-0000-4000-8000-000000000001',
-   'clearance-reader@test.local', 'Report', 'Admin', 'org_admin', true);
+   'clearance-reader@test.local', 'Report', 'Admin', 'org_admin', true)
+on conflict (id) do update set
+  organization_id = excluded.organization_id, role = excluded.role, is_active = true;
 select set_config('app.privileged_write', 'off', true);
 
 insert into public.employees(
