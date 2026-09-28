@@ -6,7 +6,9 @@
  * superseded rows stay "expired" forever. Any aggregate that counts raw rows therefore
  * overstates outstanding training. These helpers select the single current record per
  * (employee_id, training_type_id) -- the same ordering used by the matrix pages:
- * latest due_date, then completion_date, then created_at.
+ * latest due_date, then completion_date, then created_at. A full tie prefers the real
+ * record over the rulepack's missing placeholder, then the smaller id, matching
+ * get_org_dashboard_summary.
  */
 export interface CurrentTrainingRecordLike {
   employee_id: string;
@@ -14,6 +16,8 @@ export interface CurrentTrainingRecordLike {
   due_date?: string | null;
   completion_date?: string | null;
   created_at?: string | null;
+  status?: string | null;
+  id?: string | null;
 }
 
 export function isMoreCurrentTrainingRecord(a: CurrentTrainingRecordLike, b: CurrentTrainingRecordLike): boolean {
@@ -23,7 +27,9 @@ export function isMoreCurrentTrainingRecord(a: CurrentTrainingRecordLike, b: Cur
   const aCompletion = a.completion_date ?? "";
   const bCompletion = b.completion_date ?? "";
   if (aCompletion !== bCompletion) return aCompletion > bCompletion;
-  return (a.created_at ?? "") > (b.created_at ?? "");
+  if ((a.created_at ?? "") !== (b.created_at ?? "")) return (a.created_at ?? "") > (b.created_at ?? "");
+  if ((a.status === "missing") !== (b.status === "missing")) return a.status !== "missing";
+  return (a.id ?? "") < (b.id ?? "");
 }
 
 /** One current record per (employee_id, training_type_id); superseded history is dropped. */
