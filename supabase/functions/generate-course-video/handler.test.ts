@@ -51,11 +51,24 @@ Deno.test("billed HeyGen submission uses only the leased stored payload and cano
   assertEquals(h.calls[1].args.p_lease_id, LEASE);
   assertEquals(h.calls[1].args.p_outcome, "accepted");
 });
-Deno.test("a configured Avatar III engine is added to the leased payload under the same idempotency key", async () => {
-  const h = harness({ env: { HEYGEN_AVATAR_ENGINE: "avatar_iii" } });
+const FROZEN_WITH_ENGINE = { ...PAYLOAD, engine: { type: "avatar_iii" } };
+const claimWith = (payload: Record<string, unknown>) => ({ attempt_id: ATTEMPT, lease_id: LEASE, payload, state: "submitting", should_submit: true });
+Deno.test("a configured engine is frozen into the claimed payload, and the provider receives only that payload", async () => {
+  const h = harness({ env: { HEYGEN_AVATAR_ENGINE: "avatar_iii" }, claim: claimWith(FROZEN_WITH_ENGINE) });
   assertEquals((await h.handler(request())).status, 200);
-  assertEquals(h.requests[0].init?.body, JSON.stringify({ ...PAYLOAD, engine: { type: "avatar_iii" } }));
+  assertEquals(h.calls[0].args.p_payload, { type: "avatar", avatar_id: "kevin", voice_id: "cloned", script: "Exact stored narration", title: "Course", engine: { type: "avatar_iii" } });
+  assertEquals(h.requests[0].init?.body, JSON.stringify(FROZEN_WITH_ENGINE));
   assertEquals(new Headers(h.requests[0].init?.headers).get("Idempotency-Key"), ATTEMPT);
+});
+Deno.test("a retry submits the engine frozen with the attempt, not the current setting", async () => {
+  const h = harness({ env: { HEYGEN_AVATAR_ENGINE: "avatar_v" }, claim: claimWith(FROZEN_WITH_ENGINE) });
+  assertEquals((await h.handler(request())).status, 200);
+  assertEquals(h.requests[0].init?.body, JSON.stringify(FROZEN_WITH_ENGINE));
+});
+Deno.test("an unset engine claims a payload without one", async () => {
+  const h = harness();
+  assertEquals((await h.handler(request())).status, 200);
+  assertEquals("engine" in (h.calls[0].args.p_payload as Record<string, unknown>), false);
 });
 Deno.test("an unreviewed engine name fails closed before reserving a paid attempt", async () => {
   const h = harness({ env: { HEYGEN_AVATAR_ENGINE: "avatar_ultra" } });

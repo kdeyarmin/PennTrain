@@ -8,7 +8,8 @@ function json(req: Request, body: unknown, status = 200) {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // HeyGen v3 renders with Avatar IV, its most expensive engine for this look, when no engine is
-// named. HEYGEN_AVATAR_ENGINE selects a reviewed engine; unset keeps the provider default.
+// named. HEYGEN_AVATAR_ENGINE selects a reviewed engine; unset keeps the provider default. The
+// engine is frozen into the claimed payload, so a retry under the same key cannot switch it.
 const AVATAR_ENGINES = new Set(["avatar_iii", "avatar_iv", "avatar_v"]);
 type Claim = { attempt_id: string; lease_id?: string; payload?: Record<string, unknown>;
   state: string; video_id?: string; should_submit: boolean; retry_after?: number; error?: string };
@@ -49,7 +50,7 @@ export function createGenerateCourseVideoHandler({ createClient, getEnv = (name:
     // paid call. Its row lock, frozen payload, and durable aliases survive browser reloads.
     const { data, error: claimError } = await caller.rpc("claim_course_video_generation", {
       p_block_id: course_block_id, p_request_id: request_id,
-      p_payload: { type: "avatar", avatar_id, voice_id, script, ...(title === undefined ? {} : { title }) },
+      p_payload: { type: "avatar", avatar_id, voice_id, script, ...(title === undefined ? {} : { title }), ...(engine ? { engine: { type: engine } } : {}) },
       p_replace_existing: replace_existing === true, p_expected_video_url: expected_video_url ?? null, p_expected_media_asset_id: expected_media_asset_id ?? null,
     });
     if (claimError) {
@@ -80,7 +81,7 @@ export function createGenerateCourseVideoHandler({ createClient, getEnv = (name:
     try {
       response = await fetchImpl("https://api.heygen.com/v3/videos", { method: "POST",
         headers: { "x-api-key": apiKey, "Content-Type": "application/json", "Idempotency-Key": claim.attempt_id },
-        body: JSON.stringify(engine ? { ...claim.payload, engine: { type: engine } } : claim.payload), signal: AbortSignal.timeout(10_000) });
+        body: JSON.stringify(claim.payload), signal: AbortSignal.timeout(10_000) });
       provider = await response.json().catch(() => null);
     } catch {
       await finish("unknown", undefined, "The provider response was interrupted; retry the same request.").catch(() => undefined);

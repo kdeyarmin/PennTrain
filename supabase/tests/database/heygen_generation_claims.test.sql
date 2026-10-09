@@ -308,6 +308,32 @@ select isnt((select value->>'attempt_id' from heygen_claim_test_state where key=
  (select value->>'attempt_id' from heygen_claim_test_state where key='first'),
  'generation attempts stay bound to their original blocks');
 
+-- The avatar engine is frozen with the attempt (20261009213000): a retry under the same request
+-- cannot switch it, and only a reviewed engine object is accepted.
+select pg_temp.heygen_actor();
+select lives_ok($$select pg_temp.heygen_claim('engine',310,520,
+ '{"type":"avatar","avatar_id":"avatar_test","voice_id":"voice_test","script":"Original narration","title":"Claim test","engine":{"type":"avatar_iii"}}')$$,
+ 'a claim may name a reviewed avatar engine');
+select is((select value->'payload'->'engine'->>'type' from heygen_claim_test_state where key='engine'),'avatar_iii',
+ 'the engine is part of the frozen payload the provider call is built from');
+select throws_ok($$select pg_temp.heygen_claim('engine-changed',310,520,
+ '{"type":"avatar","avatar_id":"avatar_test","voice_id":"voice_test","script":"Original narration","title":"Claim test","engine":{"type":"avatar_v"}}')$$,
+ null::char(5),null,'a replay cannot silently switch the engine of a paid attempt');
+select throws_ok($$select pg_temp.heygen_claim('engine-unknown',307,521,
+ '{"type":"avatar","avatar_id":"avatar_test","voice_id":"voice_test","script":"Original narration","engine":{"type":"avatar_ultra"}}')$$,
+ '22023',null,'an unreviewed engine name is refused before any attempt exists');
+select throws_ok($$select pg_temp.heygen_claim('engine-extra',307,522,
+ '{"type":"avatar","avatar_id":"avatar_test","voice_id":"voice_test","script":"Original narration","engine":{"type":"avatar_iii","resolution":"4k"}}')$$,
+ '22023',null,'an engine object carries only its type');
+select throws_ok($$select pg_temp.heygen_claim('engine-scalar',307,523,
+ '{"type":"avatar","avatar_id":"avatar_test","voice_id":"voice_test","script":"Original narration","engine":"avatar_iii"}')$$,
+ '22023',null,'an engine must be an object, and a scalar is refused rather than raising');
+reset role;
+select is((select count(*)::integer from app_private.heygen_generation_attempts
+ where block_id='db700000-0000-4000-8000-000000000307'),0,
+ 'refused engine requests create no paid-generation attempt');
+
+
 -- Publication may follow an accepted request; its already-authorized result still
 -- needs to finish through the trusted writer without reopening ordinary editing.
 select pg_temp.heygen_claim('published',305,508);
