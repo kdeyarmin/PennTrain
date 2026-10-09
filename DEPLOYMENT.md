@@ -94,6 +94,10 @@ Non-AI and existing ungoverned courses retain their existing review policy.
      PUBLIC_APP_URL='https://cmcarebase.com'
    ```
    Set `ANTHROPIC_BAA_CONFIRMED=true` once the Anthropic BAA is on file (signed 2026-07-30).
+   Optionally set `HEYGEN_AVATAR_ENGINE` to `avatar_iii`, `avatar_iv` or `avatar_v` to choose the
+   engine `generate-course-video` renders with. When it is unset, HeyGen v3 uses Avatar IV, its most
+   expensive engine. Any other value makes the function refuse with 503 before reserving a paid
+   attempt. The engine is frozen with each attempt, so a retried submission keeps its first choice.
    The document analyzer refuses provider calls until this secret is exactly `true`.
    The AI Edge Functions default to the highest-capability generally available Claude model and
    then fall back through current strong models. If Anthropic changes availability, cost, or account

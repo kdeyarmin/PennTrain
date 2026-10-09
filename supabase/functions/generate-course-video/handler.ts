@@ -7,6 +7,10 @@ function json(req: Request, body: unknown, status = 200) {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// HeyGen v3 renders with Avatar IV, its most expensive engine for this look, when no engine is
+// named. HEYGEN_AVATAR_ENGINE selects a reviewed engine; unset keeps the provider default. The
+// engine is frozen into the claimed payload, so a retry under the same key cannot switch it.
+const AVATAR_ENGINES = new Set(["avatar_iii", "avatar_iv", "avatar_v"]);
 type Claim = { attempt_id: string; lease_id?: string; payload?: Record<string, unknown>;
   state: string; video_id?: string; should_submit: boolean; retry_after?: number; error?: string };
 
@@ -19,7 +23,8 @@ export function createGenerateCourseVideoHandler({ createClient, getEnv = (name:
     const authorization = req.headers.get("Authorization");
     if (!authorization) return json(req, { error: "Missing Authorization header" }, 401);
     const url = getEnv("SUPABASE_URL"), anon = getEnv("SUPABASE_ANON_KEY"), service = getEnv("SUPABASE_SERVICE_ROLE_KEY"), apiKey = getEnv("HEYGEN_API_KEY");
-    if (!url || !anon || !service || !apiKey) return json(req, { error: "Video generation is not configured" }, 503);
+    const engine = getEnv("HEYGEN_AVATAR_ENGINE")?.trim() || null;
+    if (!url || !anon || !service || !apiKey || (engine && !AVATAR_ENGINES.has(engine))) return json(req, { error: "Video generation is not configured" }, 503);
     const caller = createClient(url, anon, { global: { headers: { Authorization: authorization } } });
     const { data: { user }, error: authError } = await caller.auth.getUser();
     if (authError || !user) return json(req, { error: "Invalid or expired session" }, 401);
@@ -45,7 +50,7 @@ export function createGenerateCourseVideoHandler({ createClient, getEnv = (name:
     // paid call. Its row lock, frozen payload, and durable aliases survive browser reloads.
     const { data, error: claimError } = await caller.rpc("claim_course_video_generation", {
       p_block_id: course_block_id, p_request_id: request_id,
-      p_payload: { type: "avatar", avatar_id, voice_id, script, ...(title === undefined ? {} : { title }) },
+      p_payload: { type: "avatar", avatar_id, voice_id, script, ...(title === undefined ? {} : { title }), ...(engine ? { engine: { type: engine } } : {}) },
       p_replace_existing: replace_existing === true, p_expected_video_url: expected_video_url ?? null, p_expected_media_asset_id: expected_media_asset_id ?? null,
     });
     if (claimError) {

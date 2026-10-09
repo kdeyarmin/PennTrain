@@ -445,7 +445,7 @@ Not blockers; each needs a written decision in BACKLOG.md.
 | N5 | AI posture drift: production has document analyzer, wellness summaries, course generation and video generation **on** and the copilot **off**; `DEPLOYMENT.md` says the switches "still default false except voice". Both organizations have no BAA stamp, so tenant AI is dark regardless | Decide the launch posture per feature, set the switches to match, and correct `DEPLOYMENT.md` |
 | N6 | Documentation drift: project name ("CM Train" vs "CM CareBase"); `ARCHITECTURE.md` lists 10 edge functions of 73; `DEPLOYMENT.md` predates the release-flag and job-registry work | One docs pass at the end of the review (section 6, area O) |
 | N7 | No backup / point-in-time-recovery posture or restore rehearsal is documented anywhere in the repository; no incident-response runbook | Verify the Supabase plan's PITR/backup setting, rehearse a restore into a branch or staging project, write both one-page runbooks (area O) |
-| N8 | SG-4 (`record_resident_service_task`) review date 2026-10-01 | Decide before it trips the same gate as B1 |
+| N8 | SG-4 (`record_resident_service_task`) review date 2026-10-01 | Closed 2026-10-09: `20261009210000` drops the function after 30 days of production gateway logs showed no caller |
 | N9 | Terms/Privacy language about the clinical record "should still be confirmed by legal before release" (`docs/HIPAA_CLINICAL_DATA.md`) | Get and record the confirmation (area M) |
 | N10 | B3 (real Storyline/Captivate packages) and E8 (diabetes video deck) are `in_progress` | Accept at launch; both are owner-gated and documented |
 | N11 | The organization-export worker buffers each table in memory (BACKLOG "still open" item 10b) | Accept at launch scale; dated row |

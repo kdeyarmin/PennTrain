@@ -1,13 +1,13 @@
 begin;
-select plan(40);
+select plan(38);
 
 select has_table('public', 'resident_service_requirements', 'service requirements use a dedicated high-volume model');
 select has_table('public', 'resident_service_task_instances', 'scheduled service task instances exist');
 select has_table('public', 'service_task_alerts', 'service exceptions have a dedicated alert queue');
 select has_function(
   'public',
-  'record_resident_service_task',
-  array['uuid', 'text', 'text', 'boolean', 'uuid'],
+  'record_service_task_response',
+  array['uuid', 'text', 'jsonb', 'uuid'],
   'staff outcomes use a scoped command'
 );
 select ok(
@@ -141,29 +141,29 @@ select is(
   'direct-care employee sees unassigned facility service tasks'
 );
 select lives_ok(
-  $$select public.record_resident_service_task(
+  $$select public.record_service_task_response(
     (select id from public.resident_service_task_instances
      where source_assessment_form_id = '56000000-0000-4000-8000-000000000301'
        and status = 'scheduled' order by scheduled_start limit 1),
-    'resident_refused', 'Resident declined after two offers.', true, null
+    'resident_refused', jsonb_build_object('note', 'Resident declined after two offers.', 'supervisor_notified', true), null
   )$$,
   'staff can document a resident refusal with supervisor notification'
 );
 select lives_ok(
-  $$select public.record_resident_service_task(
+  $$select public.record_service_task_response(
     (select id from public.resident_service_task_instances
      where source_assessment_form_id = '56000000-0000-4000-8000-000000000301'
        and status = 'scheduled' order by scheduled_start limit 1),
-    'resident_refused', 'Resident declined the scheduled service.', false, null
+    'resident_refused', jsonb_build_object('note', 'Resident declined the scheduled service.', 'supervisor_notified', false), null
   )$$,
   'second refusal remains tied to its scheduled instance'
 );
 select lives_ok(
-  $$select public.record_resident_service_task(
+  $$select public.record_service_task_response(
     (select id from public.resident_service_task_instances
      where source_assessment_form_id = '56000000-0000-4000-8000-000000000301'
        and status = 'scheduled' order by scheduled_start limit 1),
-    'resident_refused', 'Resident declined again; manager notified.', true, null
+    'resident_refused', jsonb_build_object('note', 'Resident declined again; manager notified.', 'supervisor_notified', true), null
   )$$,
   'third refusal crosses the configurable threshold'
 );
@@ -230,18 +230,13 @@ select ok(
 );
 
 -- ---------------------------------------------------------------------------
--- The legacy command and its successor are not interchangeable (backlog SG-4)
+-- The superseded service-task command is gone (backlog SG-4, closed by 20261009210000)
 -- ---------------------------------------------------------------------------
 --
--- 20260805000000, as corrected by 20260805030000, records why public.record_resident_service_task
--- is retained rather than dropped, revoked, or reduced to a shim over record_service_task_response.
--- That argument rests entirely on claims about live behaviour, so they are asserted here rather
--- than only described: a documented reason that quietly stops being true is worse than no reason at
--- all. If any assertion below starts failing, the standing gap needs re-deciding, not re-dating.
---
--- All four assertions survived that correction unchanged, which is the useful part: what 20260805030000
--- retracted was an inference drawn from them (that a shim would lose completed_by_other), not any
--- fact they pin. See backlog SG-4, which is now the single row for this RPC.
+-- public.record_resident_service_task was kept, granted to `authenticated`, while nobody could say
+-- whether an out-of-repo caller still used it. Thirty days of production gateway logs showed none,
+-- so 20261009210000 dropped it. The successor is now the only writer of a service outcome; the
+-- assertions below pin what it does and does not accept.
 
 reset role;
 create temporary table legacy_command_probe(label text primary key, task_id uuid) on commit drop;
@@ -253,7 +248,8 @@ create temporary table legacy_command_probe(label text primary key, task_id uuid
 grant select on legacy_command_probe to authenticated;
 insert into legacy_command_probe(label, task_id)
 select case seq
-  when 1 then 'legacy_by_other'
+  -- Position 1 belonged to the dropped legacy command's probe; kept so the later probes keep their tasks.
+  when 1 then 'unused'
   when 2 then 'successor_rejects'
   when 3 then 'successor_alerts'
   when 4 then 'late_first'
@@ -271,43 +267,19 @@ from (
 ) ranked
 where seq <= 10;
 
--- 1. Still an executable surface. This is the fact that makes the other three consequential: an
--- out-of-repo caller can reach it today, so every way of closing it out is a breaking change.
-select ok(
-  has_function_privilege(
-    'authenticated',
-    'public.record_resident_service_task(uuid,text,text,boolean,uuid)',
-    'EXECUTE'
-  ),
-  'the superseded service-task command is still granted, so it is a live surface and not dead code'
+-- 1. The superseded command no longer exists, so there is one write path for a service outcome.
+select hasnt_function(
+  'public',
+  'record_resident_service_task',
+  array['uuid', 'text', 'text', 'boolean', 'uuid'],
+  'the superseded service-task command is dropped'
 );
 
 select pg_temp.act_as('56000000-0000-4000-8000-000000000102');
 
--- 2 and 3. completed_by_other is an outcome only the legacy command can record, and it lands as
--- its own status rather than collapsing into a plain completion.
-select lives_ok(
-  $$select public.record_resident_service_task(
-    (select task_id from legacy_command_probe where label = 'legacy_by_other'),
-    'completed_by_other', 'Night aide had already done it.', false, null
-  )$$,
-  'the legacy command accepts completed_by_other'
-);
-select is(
-  (select status from public.resident_service_task_instances
-   where id = (select task_id from legacy_command_probe where label = 'legacy_by_other')),
-  'completed_by_other',
-  'and records it as its own status, distinct from an ordinary completion'
-);
-
--- 4. The successor's response *vocabulary* cannot express it: acceptable_completion_responses is
--- CHECK-constrained to seven values that do not include completed_by_other, so a shim has to send
--- completed_as_planned, which writes status = 'completed'. That is a mapping, not a loss of the
--- fact -- useResidentServiceTasks already makes this exact call and carries the original outcome in
--- exception_details.legacy_status, which is why 20260805030000 retracts 20260805000000's claim that
--- a shim would record an ordinary completion. What this assertion pins is the gate rather than the
--- vocabulary: the successor rejects any response the plan does not list, and that is the rule a
--- delegating shim would inherit and its out-of-repo callers have never been subject to.
+-- 2. completed_by_other is not a response the successor accepts. acceptable_completion_responses is
+-- CHECK-constrained to seven values that do not include it, so the floor sends completed_as_planned
+-- and useResidentServiceTasks carries the original outcome in exception_details.legacy_status.
 select throws_ok(
   $$select public.record_service_task_response(
     (select task_id from legacy_command_probe where label = 'successor_rejects'),
@@ -315,13 +287,12 @@ select throws_ok(
   )$$,
   '22023',
   null,
-  'the successor refuses completed_by_other, so a delegating shim would have to record something else'
+  'the successor refuses completed_by_other'
 );
 
--- 5. Alerting is no longer one of the divergences. 20260805040000 wired
--- app_private.evaluate_service_task_exception into the successor, because leaving it out had left
--- public.service_task_alerts with no in-repo producer at all. The three assertions above still
--- decide SG-4; this one is here to state which leg of the original argument is now closed.
+-- 3. The successor raises exception alerts. 20260805040000 wired
+-- app_private.evaluate_service_task_exception into it, so dropping the legacy command left
+-- public.service_task_alerts with a producer.
 select lives_ok(
   $$select public.record_service_task_response(
     (select task_id from legacy_command_probe where label = 'successor_alerts'),
@@ -350,7 +321,7 @@ select is(
   (select alert_type from public.service_task_alerts
    where task_instance_id = (select task_id from legacy_command_probe where label = 'successor_alerts')),
   'missed_service',
-  'and routes it through the same rule mapping the legacy command uses'
+  'and routes it through the facility exception-rule mapping'
 );
 select is(
   (select severity from public.service_task_alerts
