@@ -43829,50 +43829,6 @@ export type Database = {
         }
         Returns: string
       }
-      record_resident_service_task: {
-        Args: {
-          p_note?: string
-          p_second_employee_id?: string
-          p_status: string
-          p_supervisor_notified?: boolean
-          p_task_id: string
-        }
-        Returns: {
-          assigned_employee_id: string | null
-          change_of_condition_id: string | null
-          completed_by_employee_id: string | null
-          completion_response: string | null
-          created_at: string
-          documented_assistance_level: string | null
-          exception_details: Json
-          facility_id: string
-          id: string
-          note: string | null
-          organization_id: string
-          performed_at: string | null
-          recorded_by_profile_id: string | null
-          requirement_id: string
-          resident_id: string
-          responsible_role: string
-          scheduled_end: string
-          scheduled_start: string
-          second_employee_id: string | null
-          service_name: string
-          source_assessment_form_id: string
-          source_plan_version: number
-          status: string
-          supervisor_notified: boolean
-          supervisor_notified_at: string | null
-          unit_id: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "resident_service_task_instances"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       record_resident_weight: {
         Args: {
           p_assignment_id: string
