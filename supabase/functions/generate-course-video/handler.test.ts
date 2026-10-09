@@ -11,11 +11,11 @@ const request = (overrides = {}) => new Request("https://function.test", { metho
   body: JSON.stringify({ course_block_id: BLOCK, request_id: REQUEST, avatar_id: "kevin", voice_id: "cloned", script: "Exact stored narration", title: "Course", ...overrides }) });
 
 function harness(options: { claim?: Record<string, unknown>; claimError?: { code: string; message: string }; providerStatus?: number;
-  providerBody?: unknown; throwProvider?: boolean; saveError?: boolean; saveThrows?: boolean; savedState?: string } = {}) {
+  providerBody?: unknown; throwProvider?: boolean; saveError?: boolean; saveThrows?: boolean; savedState?: string; env?: Record<string, string> } = {}) {
   const requests: { url: string; init?: RequestInit }[] = [];
   const calls: { key: string; name: string; args: Record<string, unknown> }[] = [];
   const handler = createGenerateCourseVideoHandler({
-    getEnv: name => ENV[name],
+    getEnv: name => ({ ...ENV, ...options.env })[name],
     createClient: ((_: string, key: string, config?: unknown) => {
       if (key === "anon") assertEquals(config, { global: { headers: { Authorization: "Bearer user-jwt" } } });
       else { assertEquals(key, "service"); assertEquals(config, undefined); }
@@ -50,6 +50,18 @@ Deno.test("billed HeyGen submission uses only the leased stored payload and cano
   assertEquals(h.calls[1].args.p_attempt_id, ATTEMPT);
   assertEquals(h.calls[1].args.p_lease_id, LEASE);
   assertEquals(h.calls[1].args.p_outcome, "accepted");
+});
+Deno.test("a configured Avatar III engine is added to the leased payload under the same idempotency key", async () => {
+  const h = harness({ env: { HEYGEN_AVATAR_ENGINE: "avatar_iii" } });
+  assertEquals((await h.handler(request())).status, 200);
+  assertEquals(h.requests[0].init?.body, JSON.stringify({ ...PAYLOAD, engine: { type: "avatar_iii" } }));
+  assertEquals(new Headers(h.requests[0].init?.headers).get("Idempotency-Key"), ATTEMPT);
+});
+Deno.test("an unreviewed engine name fails closed before reserving a paid attempt", async () => {
+  const h = harness({ env: { HEYGEN_AVATAR_ENGINE: "avatar_ultra" } });
+  assertEquals((await h.handler(request())).status, 503);
+  assertEquals(h.calls.length, 0);
+  assertEquals(h.requests.length, 0);
 });
 for (const [state, status] of [["submitting",409],["unknown",409],["reconciliation_required",409],["failed",409],["stale",409],["processing",200],["completed",200]] as const) {
   Deno.test(`HeyGen claim in ${state} never submits a second billed request`, async () => {
