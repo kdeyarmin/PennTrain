@@ -1,4 +1,7 @@
 {
+  "20260925184829": {
+    "reason": "Never applied in production: every deploy from 2026-09-26 stopped here (issues #573-#588) because its certificate snapshot backfill updated existing rows without app.privileged_write, and protect_certificate_write refused it (42501). CI passed because a fresh database has no certificates at this point. Corrected in place on 2026-10-10 so the pending chain can deploy: the three backfill UPDATEs run in one DO block holding the flag, and nothing else changed. A new migration cannot express this because the deploy stops before reaching it. Once production records this version, the drift check reports this entry as stale and it can be removed."
+  },
   "20260916163258": {
     "reason": "Recovered deployed SQL was verified against the production migration ledger on 2026-09-25. Its COMMENT ON POLICY alone is retained as a source comment because the clean Supabase migration role does not own storage.objects (CI 36094543155). The restrictive policy, roles, predicates and all authorization behavior are unchanged; production migration history is untouched."
   },
