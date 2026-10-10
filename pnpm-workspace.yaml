@@ -117,14 +117,25 @@ overrides:
   # Patch transitive brace-expansion off the range flagged by GHSA-mh99-v99m-4gvg (DoS via
   # unbounded expansion length -> out-of-memory crash), then GHSA-rgw5-rvv9-x895, which found the
   # first fix bypassable via unbounded INTERMEDIATE arrays and widened the affected range to
-  # >=4.0.0 <5.0.9 -- taking 5.0.8, this override's own previous target, with it. Bumped to 5.0.9.
-  # The `expand` API is unchanged across both patches and it still ships a CommonJS build via its
+  # >=4.0.0 <5.0.9 -- taking 5.0.8, this override's own previous target, with it. Then three more
+  # took 5.0.9 the same way: GHSA-6j4f-fj2g-mc7p (stack exhaustion in parseCommaParts, <5.0.10),
+  # GHSA-qhr7-859c-m2p7 (stack exhaustion on nested brace groups, <5.0.11) and the moderate
+  # GHSA-q2hr-2g5m-vwhr (quadratic `{a},b}` rewrite, <5.0.12). 5.0.12 clears all three.
+  # The `expand` API is unchanged across these patches and it still ships a CommonJS build via its
   # exports map, so the older 2.x consumers keep working.
   #
   # This surfaces as a CI failure on every branch the day the advisory publishes, including main,
   # because check-dependencies.mjs audits against the live advisory database rather than a
   # snapshot. A red `application` job here is not necessarily the branch's doing.
-  'brace-expansion@<=5.0.8': 5.0.9
+  'brace-expansion@<=5.0.11': 5.0.12
+  # Patch proxy-addr (via express) off GHSA-jqcg-44mw-7w3h, critical: an IPv4-mapped IPv6 peer
+  # address could match an IPv4 trust subnet it is not in, so a spoofed X-Forwarded-For would be
+  # believed. Fixed in 2.0.8, the same major express already declares (`proxy-addr: ~2.0.7`).
+  'proxy-addr@<2.0.8': 2.0.8
+  # Patch transitive source-map-js (via postcss and @tailwindcss/node) off GHSA-68fv-2mgg-jv7q: indexed
+  # source-map section offsets could stall the event loop. Build-time only, like the postcss
+  # entry above; fixed in 1.2.2 on the same minor.
+  'source-map-js@<1.2.2': 1.2.2
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
