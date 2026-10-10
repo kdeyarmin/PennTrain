@@ -201,17 +201,26 @@ grant execute on function public.resolve_training_plan_assignment(uuid,uuid,uuid
 alter table public.certificates add column course_title_snapshot text,
   add column course_code_snapshot text, add column course_version_snapshot text,
   add column learner_name_snapshot text;
-update public.certificates cert set course_title_snapshot=coalesce(cv.title,c.title),
-  course_code_snapshot=c.catalog_code,course_version_snapshot=coalesce(cv.version_label,'v'||cv.version_number::text)
-from public.courses c left join public.course_assignments a on a.course_id=c.id
-left join public.course_versions cv on cv.id=a.course_version_id
-where cert.course_id=c.id and cert.course_assignment_id=a.id;
-update public.certificates cert set course_title_snapshot=c.title,course_code_snapshot=c.catalog_code
-from public.courses c where cert.course_id=c.id and cert.course_title_snapshot is null;
--- Legacy names cannot be reconstructed reliably. Freeze the current recorded name without
--- rewriting existing PDFs; approved historical corrections follow the documented review process.
-update public.certificates cert set learner_name_snapshot=e.first_name||' '||e.last_name
-from public.employees e where e.id=cert.employee_id;
+-- protect_certificate_write refuses a plain write to an existing certificate, which every
+-- deployed database has. The backfill holds the privileged-write flag for these three
+-- statements only, in one DO block, the way seed.sql and the definer RPCs do.
+do $backfill$
+begin
+  perform set_config('app.privileged_write', 'on', true);
+  update public.certificates cert set course_title_snapshot=coalesce(cv.title,c.title),
+    course_code_snapshot=c.catalog_code,course_version_snapshot=coalesce(cv.version_label,'v'||cv.version_number::text)
+  from public.courses c left join public.course_assignments a on a.course_id=c.id
+  left join public.course_versions cv on cv.id=a.course_version_id
+  where cert.course_id=c.id and cert.course_assignment_id=a.id;
+  update public.certificates cert set course_title_snapshot=c.title,course_code_snapshot=c.catalog_code
+  from public.courses c where cert.course_id=c.id and cert.course_title_snapshot is null;
+  -- Legacy names cannot be reconstructed reliably. Freeze the current recorded name without
+  -- rewriting existing PDFs; approved historical corrections follow the documented review process.
+  update public.certificates cert set learner_name_snapshot=e.first_name||' '||e.last_name
+  from public.employees e where e.id=cert.employee_id;
+  perform set_config('app.privileged_write', 'off', true);
+end
+$backfill$;
 create function app_private.snapshot_training_certificate()
 returns trigger language plpgsql security definer set search_path='' as $$
 begin
