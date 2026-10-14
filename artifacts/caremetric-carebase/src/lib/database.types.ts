@@ -5513,6 +5513,27 @@ export type Database = {
           },
         ]
       }
+      course_video_captions: {
+        Row: {
+          created_at: string
+          heygen_video_id: string
+          video_path: string
+          vtt: string
+        }
+        Insert: {
+          created_at?: string
+          heygen_video_id: string
+          video_path: string
+          vtt: string
+        }
+        Update: {
+          created_at?: string
+          heygen_video_id?: string
+          video_path?: string
+          vtt?: string
+        }
+        Relationships: []
+      }
       courses: {
         Row: {
           catalog_code: string | null

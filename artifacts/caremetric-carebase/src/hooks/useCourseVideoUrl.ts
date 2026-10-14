@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 
-function courseVideoStoragePath(value: string): string | null {
+export function courseVideoStoragePath(value: string): string | null {
   const locatorPrefix = "storage://course-videos/";
   if (value.startsWith(locatorPrefix)) return value.slice(locatorPrefix.length);
   try {
