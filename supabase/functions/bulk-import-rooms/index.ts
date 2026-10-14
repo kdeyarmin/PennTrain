@@ -4,8 +4,8 @@ import { parse } from "jsr:@std/csv/parse";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { acquireImportJobLease } from "../_shared/importJobLease.ts";
 import { listImportFacilitiesForCaller } from "../_shared/importFacilityScope.ts";
-import { MAX_IMPORT_BODY_BYTES, readJsonBody, RequestBodyError } from "../_shared/requestBody.ts";
 import { roomBedCount } from "./capacity.ts";
+import { parseRoomImportBody } from "./request.ts";
 
 function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -52,13 +52,10 @@ Deno.serve(async (req: Request) => {
     return json(req, { error: "not authorized to import rooms" }, 403);
   }
 
-  let body: any;
-  try { body = await readJsonBody(req, MAX_IMPORT_BODY_BYTES); } catch (error) {
-    if (error instanceof RequestBodyError) return json(req, { error: error.message }, error.status);
-    return json(req, { error: "Invalid JSON body" }, 400);
-  }
+  const parsed = await parseRoomImportBody(req);
+  if (!parsed.ok) return json(req, { error: parsed.error }, parsed.status);
+  const body: any = parsed.body;
   const csv = body.csv;
-  if (!csv || typeof csv !== "string") return json(req, { error: "csv (string) is required" }, 400);
   const offset = Number.isFinite(body.offset) ? Math.max(0, Math.floor(body.offset)) : 0;
   const limit = Number.isFinite(body.limit) ? Math.max(1, Math.min(200, Math.floor(body.limit))) : null;
   const mode = body.mode === "validate" ? "validate" : "apply";
