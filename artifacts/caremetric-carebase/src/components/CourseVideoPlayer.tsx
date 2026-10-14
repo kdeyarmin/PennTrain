@@ -3,6 +3,7 @@ import { CheckCircle2, Lock } from "lucide-react";
 import { EMPTY_VIDEO_STATE, type VideoBlockState } from "@/lib/videoWatchState";
 import { useCourseMediaUrl } from "@/hooks/useCourseMedia";
 import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
+import { useCourseVideoCaptions } from "@/hooks/useCourseVideoCaptions";
 
 // "Watched through" tolerates outros/rounding: 95% of duration or the ended event.
 const WATCHED_FRACTION = 0.95;
@@ -34,6 +35,8 @@ interface CourseVideoPlayerProps {
   gated: boolean;
   /** Called with fresh state on pause/ended/completion and every few seconds while playing. */
   onChange: (next: VideoBlockState) => void;
+  /** HeyGen render id (`body.heygen.video_id`); its WebVTT captions are attached when they exist. */
+  captionsVideoId?: string;
 }
 
 /**
@@ -53,8 +56,13 @@ function LegacyCourseVideoPlayer(props: CourseVideoPlayerProps) {
   const resolved = useCourseVideoUrl(props.src);
   return <CourseVideoPlayerCore {...props} resolved={resolved} />;
 }
-function CourseVideoPlayerCore({ src, media, state, gated, onChange, resolved }: CourseVideoPlayerProps & { resolved: ReturnType<typeof useCourseVideoUrl> }) {
+function CourseVideoPlayerCore({ src, media, state, gated, onChange, captionsVideoId, resolved }: CourseVideoPlayerProps & { resolved: ReturnType<typeof useCourseVideoUrl> }) {
   const sourceIdentity = media?.assetId ?? src;
+  const captions = useCourseVideoCaptions(captionsVideoId);
+  // The element waits for the captions lookup so its track is there when it loads and `default`
+  // turns captions on. Everything below keys on this rather than resolved.url, so the listeners
+  // attach to the element that actually mounts.
+  const playableUrl = captions.isLoading ? null : resolved.url;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stateRef = useRef<VideoBlockState>({ ...(state ?? EMPTY_VIDEO_STATE) });
   const restoredRef = useRef(false);
@@ -86,7 +94,7 @@ function CourseVideoPlayerCore({ src, media, state, gated, onChange, resolved }:
   // what lets loadedmetadata put the playhead back instead of starting the lesson over.
   useEffect(() => {
     restoredRef.current = false;
-  }, [resolved.url]);
+  }, [playableUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -197,15 +205,16 @@ function CourseVideoPlayerCore({ src, media, state, gated, onChange, resolved }:
     };
     // resolved.refresh is useCallback-stable over the query's refetch; taking the whole `resolved`
     // object here would re-attach every listener on every render.
-  }, [gated, onChange, resolved.url, resolved.refresh, src]);
+  }, [gated, onChange, playableUrl, resolved.refresh, src]);
 
   return (
     <div className="space-y-2">
-      {resolved.isLoading && <div className="aspect-video w-full animate-pulse rounded-lg bg-muted" />}
+      {(resolved.isLoading || (resolved.url && !playableUrl)) && <div className="aspect-video w-full animate-pulse rounded-lg bg-muted" />}
       {resolved.error && <p className="text-sm text-destructive">Video unavailable: {resolved.error}</p>}
       {resigning && <p className="text-xs text-muted-foreground">Refreshing the video link -- your place is saved.</p>}
       {playbackError && <p className="text-sm text-destructive">{playbackError}</p>}
-      {resolved.url && <video ref={videoRef} controls className="w-full rounded-lg border" src={resolved.url}>
+      {playableUrl && <video ref={videoRef} controls className="w-full rounded-lg border" src={playableUrl}>
+        {captions.url && <track kind="captions" src={captions.url} srcLang="en" label="English" default />}
         Your browser does not support embedded video.
       </video>}
       {gated && (
