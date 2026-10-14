@@ -184,7 +184,7 @@ const CheckIn = lazy(() => import("@/pages/CheckIn"));
 
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { useAuth } from "@/lib/auth";
-import { helpBasePathForRole } from "@/lib/appDomains";
+import { helpBasePathForRole } from "@/lib/roleHomePaths";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 
 import { FullPageLoading, MaintenanceGatedRoute, ProtectedRoute, type UserRole } from "@/components/routing/ProtectedRoute";
