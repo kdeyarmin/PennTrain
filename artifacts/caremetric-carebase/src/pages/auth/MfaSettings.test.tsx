@@ -46,8 +46,8 @@ const smsReady = {
 };
 function click(label: string) { const button = render().find(node => node.props.onClick && text(node.props.children as ReactNode) === label)!; (button.props.onClick as () => void)(); }
 const ready = {
-  status: { verified: false, method: null, verifiedAt: null, expiresAt: null, hasVerifiedFactor: true, smsRequired: false, smsFactors: [] },
-  factors: [{ id: "factor", factor_type: "totp", status: "verified", friendly_name: "Authenticator", created_at: "2026-09-26T12:00:00Z" }], smsAvailable: false,
+  status: { verified: false, method: null, verifiedAt: null, expiresAt: null, hasVerifiedFactor: false, smsRequired: false, smsFactors: [] },
+  factors: [{ id: "factor", factor_type: "totp", status: "unverified", friendly_name: "Authenticator", created_at: "2026-09-26T12:00:00Z" }], smsAvailable: false,
 };
 beforeEach(() => {
   vi.clearAllMocks(); h.states = []; h.refs = []; h.authEvent = undefined; cleanups = [];
@@ -94,6 +94,14 @@ describe("account security request ownership", () => {
     expect(page.some(node => node.props.onClick && text(node.props.children as ReactNode) === "Text me a code")).toBe(false);
     expect(page.some(node => String(node.props["aria-label"]).startsWith("Remove "))).toBe(true);
     expect(h.enroll).not.toHaveBeenCalled(); expect(h.verify).not.toHaveBeenCalled();
+  });
+
+  it("sends a verified leftover factor to an administrator's reset instead of an unusable Remove", async () => {
+    h.load.mockResolvedValue({ ...ready, status: { ...ready.status, hasVerifiedFactor: true }, factors: [{ ...ready.factors[0], status: "verified" }] });
+    await mount();
+    const page = render(); const labels = page.map(node => text(node.props.children as ReactNode)).join("|");
+    expect(labels).toContain("Ask a CareMetric administrator to reset your verification");
+    expect(page.some(node => String(node.props["aria-label"]).startsWith("Remove "))).toBe(false);
   });
 
   it("does not publish a texted enrollment or feedback after the account changes", async () => {

@@ -43,7 +43,7 @@ test("apply switches off exactly the six native MFA switches, reads back, and is
   assert.equal(report.status, "updated");
   assert.equal(report.verified, true);
   assert.deepEqual(h.calls.map((c) => [c.url === QUERY ? "QUERY" : "AUTH", c.method]),
-    [["AUTH", "GET"], ["QUERY", "POST"], ["AUTH", "GET"], ["AUTH", "PATCH"], ["AUTH", "GET"]]);
+    [["AUTH", "GET"], ["QUERY", "POST"], ["AUTH", "GET"], ["AUTH", "PATCH"], ["AUTH", "GET"], ["QUERY", "POST"]]);
   const patch = JSON.parse(h.calls[3].body);
   assert.deepEqual(Object.keys(patch).sort(), [...NATIVE_MFA_SWITCHES].sort());
   assert.ok(Object.values(patch).every((value) => value === false));
@@ -59,7 +59,7 @@ test("apply switches off exactly the six native MFA switches, reads back, and is
   }
   const repeated = await reconcileProductionMfaMethods({ ...base, apply: true, fetcher: h.fetcher });
   assert.equal(repeated.status, "already_correct");
-  assert.equal(h.calls.length, 6);
+  assert.equal(h.calls.length, 7);
   noSecrets([report, repeated]);
 });
 
@@ -92,6 +92,18 @@ test("unknown and malformed settings or factor counts fail closed", async () => 
       fetcher: async (url) => json(url === QUERY ? rows : fixture()) });
     assert.deepEqual([report.status, report.reason, report.mutationAttempted], ["blocked", "invalid_response", false]);
   }
+});
+
+test("a native factor verified between the count and the write fails verification instead of reporting updated", async () => {
+  let counts = 0;
+  const h = harness();
+  const report = await reconcileProductionMfaMethods({ ...base, apply: true, fetcher: async (url, options) => {
+    if (url === QUERY) return json([{ verified: counts++ === 0 ? 0 : 1 }]);
+    return h.fetcher(url, options);
+  } });
+  assert.deepEqual([report.status, report.reason, report.mutationAttempted, report.verified],
+    ["verification_failed", "verified_native_factors_present", true, false]);
+  assert.equal(counts, 2);
 });
 
 test("concurrent setting changes abort without an overwrite", async () => {

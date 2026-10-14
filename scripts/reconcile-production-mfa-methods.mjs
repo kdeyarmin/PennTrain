@@ -9,7 +9,8 @@
  *
  * Turning verification off would lock out anyone who already relies on a native factor, so the
  * apply path first counts verified native factors through the read-only query endpoint and refuses
- * while any exist. No user is enrolled, unenrolled, or reset here, and no other Auth setting moves.
+ * while any exist, then counts again after the write and reports any factor verified in between.
+ * No user is enrolled, unenrolled, or reset here, and no other Auth setting moves.
  * The Management API is not atomic: operators must avoid concurrent edits during this step.
  */
 import { pathToFileURL } from "node:url";
@@ -125,6 +126,11 @@ export async function reconcileProductionMfaMethods({ projectRef, token, apply =
     mutationAttempted = true;
     await request({ token, fetcher, url: AUTH_ENDPOINT, method: "PATCH", body: DESIRED });
     if (!allOff(await readSwitches({ token, fetcher }))) return result("verification_failed", "readback_mismatch");
+    // Nothing can make the first count and the write atomic: a pending native factor could be
+    // verified between them, and stopping verification first would strand that person anyway.
+    // So count again once verification is off and report it, rather than claim a clean cutover.
+    // That account is recovered by a platform administrator's MFA reset.
+    if (await countVerifiedNativeFactors({ token, fetcher }) > 0) return result("verification_failed", "verified_native_factors_present");
     return result("updated");
   } catch (error) {
     return result(mutationAttempted ? "verification_failed" : "blocked",

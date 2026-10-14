@@ -378,7 +378,9 @@ export default function MfaSettings() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{factor.factor_type === "sms" ? mfaFactorLabel(factor) : "Older verification method"}</p>
                     <p className="text-xs text-muted-foreground">
-                      {factor.factor_type === "sms" ? "Text message" : "No longer supported. Remove it and use text message."}
+                      {factor.factor_type === "sms" ? "Text message"
+                        : factor.status === "verified" ? "No longer supported. Ask a CareMetric administrator to reset your verification, then add a mobile number."
+                        : "No longer supported. Remove it and use text message."}
                       {" · Added "}
                       {new Date(factor.created_at).toLocaleDateString()}
                     </p>
@@ -396,9 +398,11 @@ export default function MfaSettings() {
                     </Button>
                   ) : null}
                   {/* App-managed SMS factors have no self-service removal (sms-mfa accepts only
-                      status/send/verify), so the button is offered only for a leftover native
-                      factor; the copy below already points SMS users to an administrator. */}
-                  {factor.factor_type !== "sms" ? (
+                      status/send/verify), so the button is offered only for an unfinished native
+                      factor. Auth refuses to remove a verified native factor without a native AAL2
+                      session, which nothing here can produce any more, so that one is recovered by
+                      a platform administrator's reset (admin-update-user reset_mfa) instead. */}
+                  {factor.factor_type !== "sms" && factor.status !== "verified" ? (
                   <Button
                     type="button"
                     variant="ghost"

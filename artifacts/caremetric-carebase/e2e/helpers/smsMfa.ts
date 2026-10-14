@@ -82,14 +82,21 @@ async function call(client: SupabaseClient, name: string, args: Record<string, u
 
 type Identity = { p_profile_id: string; p_session_id: string };
 
+/**
+ * Twilio returns the same Verification SID when a pending verification is resent, and
+ * `activate_sms_mfa_challenge` accepts only that original SID for a reused challenge, so the
+ * emulated provider keeps one SID per challenge.
+ */
+const verificationSids = new Map<string, string>();
+
 /** What the Edge Function's "send" does after its own checks: open the challenge and record the SID. */
 async function sendCode(client: SupabaseClient, identity: Identity, phone: string | null) {
   ageSmsHistory(identity.p_profile_id);
   const prepared = await call(client, "prepare_sms_mfa_challenge", { ...identity, p_phone: phone, p_native_aal2: false });
   if (typeof prepared.challengeId !== "string" || typeof prepared.phone !== "string") throw new Error("No challenge was prepared");
-  await call(client, "activate_sms_mfa_challenge", {
-    ...identity, p_challenge_id: prepared.challengeId, p_verification_sid: `VE${randomBytes(16).toString("hex")}`,
-  });
+  let sid = verificationSids.get(prepared.challengeId);
+  if (!sid) verificationSids.set(prepared.challengeId, sid = `VE${randomBytes(16).toString("hex")}`);
+  await call(client, "activate_sms_mfa_challenge", { ...identity, p_challenge_id: prepared.challengeId, p_verification_sid: sid });
   return { challengeId: prepared.challengeId, phone: prepared.phone, expiresAt: prepared.expiresAt };
 }
 
