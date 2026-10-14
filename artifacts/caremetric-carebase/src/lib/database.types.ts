@@ -42000,6 +42000,10 @@ export type Database = {
         }
         Returns: string
       }
+      install_and_activate_regulatory_rule_pack: {
+        Args: { p_review_notes: string; p_template_key: string }
+        Returns: string
+      }
       install_regulatory_rule_pack_template: {
         Args: { p_template_key: string }
         Returns: string

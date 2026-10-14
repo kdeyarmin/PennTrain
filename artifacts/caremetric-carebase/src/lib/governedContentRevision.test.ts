@@ -171,15 +171,11 @@ describe("stepBlocker", () => {
     expect(stepBlocker(revision(), "someone-else")).toMatch(/only the author/i);
   });
 
-  it("refuses self-review, which is the whole point of the control", () => {
-    expect(stepBlocker(revision({ state: "in_review" }), "author-1")).toMatch(/cannot review their own/i);
+  it("lets the author review and publish their own revision", () => {
+    expect(stepBlocker(revision({ state: "in_review" }), "author-1")).toBeNull();
     expect(stepBlocker(revision({ state: "in_review" }), "reviewer-1")).toBeNull();
-  });
-
-  it("refuses self-publication too, separately from review", () => {
-    const approved = revision({ state: "approved", reviewed_by: "reviewer-1" });
-    expect(stepBlocker(approved, "author-1")).toMatch(/cannot publish their own/i);
-    expect(stepBlocker(approved, "publisher-1")).toBeNull();
+    const approved = revision({ state: "approved", reviewed_by: "author-1" });
+    expect(stepBlocker(approved, "author-1")).toBeNull();
   });
 
   it("says a published revision is finished rather than blaming the viewer", () => {

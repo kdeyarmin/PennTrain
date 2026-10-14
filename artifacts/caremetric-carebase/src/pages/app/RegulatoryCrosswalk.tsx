@@ -192,7 +192,7 @@ export default function RegulatoryCrosswalk() {
               // (20260804020000_activation_no_longer_waits_on_a_shadow_period.sql); golden-fixture
               // verification, author/reviewer separation and approval still block activation, and
               // naming a gate that no longer exists misdescribes what these rows are waiting for.
-              ? "Rows without a governed version are clearly marked reference mappings. They must not be treated as legal advice or activated compliance logic until independent review, golden-fixture verification, and approval are complete."
+              ? "Rows without a governed version are clearly marked reference mappings. They must not be treated as legal advice or activated compliance logic until golden-fixture verification and approval are complete."
               : "No PCH or ALF facility is selected, so no rule pack applies to these rows. Choose a personal care home or assisted living facility above to see which obligations its installed rule pack governs."}
         </AlertDescription>
       </Alert>

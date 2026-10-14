@@ -84,6 +84,13 @@ for (const [name, stored, expected] of [
   });
 }
 
+Deno.test("push setup without service credentials is a configuration failure", async () => {
+  const { handler } = fixture(true, null, { ...ENV, SUPABASE_SERVICE_ROLE_KEY: "" });
+  const response = await handler(new Request("https://function.test", { headers: { Authorization: "Bearer user-jwt" } }));
+  assertEquals(response.status, 503);
+  assertEquals((await response.json()).error, "push_not_configured");
+});
+
 Deno.test("push availability and registration require both VAPID keys while removal stays usable", async () => {
   const { handler, effects } = fixture(true, null, { ...ENV, WEB_PUSH_VAPID_PRIVATE_KEY: " " });
   assertEquals((await handler(new Request("https://function.test", { headers: { Authorization: "Bearer user-jwt" } }))).status, 503);

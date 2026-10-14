@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MfaStatus } from "@/lib/mfaSecurity";
 
-const mocks = vi.hoisted(() => ({ useQuery: vi.fn(), location: "/app/users", signOut: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useQuery: vi.fn(), location: "/app/users", signOut: vi.fn(), role: null as string | null }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: mocks.useQuery, useQueryClient: () => ({}) }));
 vi.mock("@/lib/auth", () => ({
-  useSignOut: () => mocks.signOut, useAuth: () => ({ user: null }),
+  useSignOut: () => mocks.signOut, useAuth: () => ({ user: mocks.role ? { role: mocks.role } : null }),
   signInWithPassword: vi.fn(), markIdleUnlockSignIn: vi.fn(),
 }));
 vi.mock("@/lib/supabase", () => ({ supabase: { rpc: vi.fn() } }));
@@ -32,6 +32,7 @@ const render = () => renderToStaticMarkup(<MfaPolicyGate><main>Protected user ed
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.location = "/app/users";
+  mocks.role = null;
   mocks.useQuery.mockReturnValue(query());
 });
 
@@ -99,6 +100,20 @@ describe("MFA workspace gate", () => {
     } }));
     const html = render();
     expect(html).toContain("Sign in again to continue");
+    expect(html).not.toContain("Protected user editor");
+  });
+
+  it("tells a platform administrator to enroll an authenticator", () => {
+    mocks.role = "platform_admin";
+    mocks.useQuery.mockReturnValueOnce(query({ data: {
+      requirement: { required: true },
+      verification: { ...verification, verified: false, method: null, smsRequired: false, smsFactors: [] },
+      assuranceIsCurrent: false,
+    } }));
+    const html = render();
+    expect(html).toContain("Platform administration requires an authenticator");
+    expect(html).toContain("Open account security");
+    expect(html).not.toContain("Your organization requires");
     expect(html).not.toContain("Protected user editor");
   });
 

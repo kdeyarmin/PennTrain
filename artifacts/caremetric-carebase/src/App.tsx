@@ -7,10 +7,10 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
 import { ViewingOrgProvider } from "@/lib/viewingOrg";
 import { ProductModuleAccessProvider, useProductModuleAccess } from "@/lib/productModuleAccess";
-import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import { ProductTelemetry } from "@/components/ProductTelemetry";
 
+const NotFound = lazy(() => import("@/pages/not-found"));
 const Features = lazy(() => import("@/pages/marketing/Features"));
 const Security = lazy(() => import("@/pages/marketing/Security"));
 const HowItWorks = lazy(() => import("@/pages/marketing/HowItWorks"));
@@ -184,7 +184,7 @@ const CheckIn = lazy(() => import("@/pages/CheckIn"));
 
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { useAuth } from "@/lib/auth";
-import { helpBasePathForRole } from "@/lib/appDomains";
+import { helpBasePathForRole } from "@/lib/roleHomePaths";
 import { PCH_ALR_ONLY_FACILITY_TYPES } from "@/lib/facilityTypes";
 
 import { FullPageLoading, MaintenanceGatedRoute, ProtectedRoute, type UserRole } from "@/components/routing/ProtectedRoute";

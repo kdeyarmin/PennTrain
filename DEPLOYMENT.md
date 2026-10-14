@@ -512,11 +512,14 @@ sandbox live.
 - **Shape:** a JSON array of `{ label, email, password, role, description? }`. `role` must be
   one of `org_admin | facility_manager | trainer | employee | auditor`
   (`artifacts/caremetric-carebase/src/lib/demoAccounts.ts` allow-lists these so a stray production credential can't leak in).
-- **Local dev:** `supabase/seed.sql` creates matching auth users for every role (all password
-  `demo123`), and `pnpm run db:reset:demo` loads it -- seeding is opt-in, so a plain `supabase
-  start` gives you the migration chain with no demo accounts. Copy the ready-made
+- **Local dev:** `supabase/seed.sql` creates matching auth users for every public-demo
+  role (password `demo123`), and `pnpm run db:reset:demo` loads it -- seeding is opt-in, so a
+  plain `supabase start` gives you the migration chain with no demo accounts. Copy the ready-made
   `VITE_DEMO_ACCOUNTS_JSON` line from `.env.example` into your `.env` and the sandbox works
-  immediately.
+  immediately. The same seed also creates two local TEST platform admins
+  (`test-platform-admin@example.invalid` and `test-platform-reviewer@example.invalid`,
+  password `TestLocal-8de2`, verified TOTP). They are not public-demo roles and must not be
+  copied into `VITE_DEMO_ACCOUNTS_JSON`.
 - **Hosted / prod:** never reuse the seed passwords. Provision dedicated public-demo auth users
   (synthetic credentials only) attached to the demo organization with the
   **`provision-demo-tenant`** Edge Function, then set `VITE_DEMO_ACCOUNTS_JSON` to the value it

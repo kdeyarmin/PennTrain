@@ -1,5 +1,6 @@
 /**
- * The two-person authorization record for emergency access (BACKLOG.md G15.9, G15.10, I22).
+ * The authorization record for emergency access (BACKLOG.md G15.9, G15.10, I22).
+ * The platform administrator may be both requester and approver.
  *
  * `grant_identity_break_glass` takes a target, a requester, a written reason, a ticket reference
  * and a mandatory expiry -- every field somebody designed because break-glass is the access you

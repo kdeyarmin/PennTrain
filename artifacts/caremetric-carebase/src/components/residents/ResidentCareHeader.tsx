@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { facilityDateOf } from "@/lib/dateUtils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
@@ -18,7 +18,12 @@ import {
 } from "@/lib/residentCareHeader";
 import { useResidentCareHeader } from "@/hooks/useResidentCareHeader";
 import type { ResidentDocument } from "@/hooks/useResidentDocuments";
-import { EditResidentCareProfileDialog } from "@/components/residents/EditResidentCareProfileDialog";
+// The editor is a dialog. Keep it out of the resident shell until someone opens it.
+const EditResidentCareProfileDialog = lazy(() =>
+  import("@/components/residents/EditResidentCareProfileDialog").then((module) => ({
+    default: module.EditResidentCareProfileDialog,
+  })),
+);
 import { ResidentStatusPill } from "@/components/residents/ResidentStatusPill";
 
 const TONE_CLASS: Record<CareHeaderTone, string> = {
@@ -200,13 +205,15 @@ export function ResidentCareHeaderPanel({
         )}
       </div>
 
-      {canManage && (
-        <EditResidentCareProfileDialog key={residentId}
-          open={editing}
-          onOpenChange={setEditing}
-          residentId={residentId}
-          current={data as ResidentCareHeaderData}
-        />
+      {canManage && editing && (
+        <Suspense fallback={null}>
+          <EditResidentCareProfileDialog key={residentId}
+            open={editing}
+            onOpenChange={setEditing}
+            residentId={residentId}
+            current={data as ResidentCareHeaderData}
+          />
+        </Suspense>
       )}
     </>
   );

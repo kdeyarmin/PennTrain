@@ -218,7 +218,72 @@ begin
     select o.id, f.id, v_user_id, 'Avery', 'Johnson', 'employee@sunrisehealthcare.com', 'Direct Care Staff', '2026-02-12', 'active', true
     from public.organizations o, public.facilities f where o.slug = 'sunrise-healthcare' and f.name = 'Sunrise Manor';
   end if;
+
+  -- Local TEST operators. platform_admin is MFA-mandatory even for a demo org, so the
+  -- customer-role `demo123` accounts cannot open /admin. These accounts have no organization,
+  -- use the reserved example.invalid domain (they cannot receive mail), and are not part
+  -- of the public Demo page (PUBLIC_DEMO_ROLES excludes platform_admin). Password is
+  -- TestLocal-8de2. One platform administrator can approve and activate their own work;
+  -- the second account is only a spare local login, not a required approver.
+  if not exists (select 1 from auth.users where email = 'test-platform-admin@example.invalid') then
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+      confirmation_token, recovery_token, email_change_token_new, email_change,
+      email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+    ) values (
+      '00000000-0000-0000-0000-000000000000', 'a1111111-1111-4111-8111-111111111111', 'authenticated', 'authenticated',
+      'test-platform-admin@example.invalid', extensions.crypt('TestLocal-8de2', extensions.gen_salt('bf')), now(),
+      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','platform_admin'),
+      jsonb_build_object('first_name','TEST','last_name','Platform Admin'),
+      now(), now(), '', '', '', '', '', '', false, false
+    ) returning id into v_user_id;
+    insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+    values (v_user_id, v_user_id::text, jsonb_build_object('sub', v_user_id::text, 'email', 'test-platform-admin@example.invalid'), 'email', now(), now(), now());
+  end if;
+
+  if not exists (select 1 from auth.users where email = 'test-platform-reviewer@example.invalid') then
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+      confirmation_token, recovery_token, email_change_token_new, email_change,
+      email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+    ) values (
+      '00000000-0000-0000-0000-000000000000', 'a2222222-2222-4222-8222-222222222222', 'authenticated', 'authenticated',
+      'test-platform-reviewer@example.invalid', extensions.crypt('TestLocal-8de2', extensions.gen_salt('bf')), now(),
+      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','platform_admin'),
+      jsonb_build_object('first_name','TEST','last_name','Platform Reviewer'),
+      now(), now(), '', '', '', '', '', '', false, false
+    ) returning id into v_user_id;
+    insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+    values (v_user_id, v_user_id::text, jsonb_build_object('sub', v_user_id::text, 'email', 'test-platform-reviewer@example.invalid'), 'email', now(), now(), now());
+  end if;
 end $$;
+
+-- Verified TOTP factors for the TEST platform operators. Local GoTrue stores the secret as
+-- plaintext base32 and accepts a row inserted here on mfa.challenge + mfa.verify (AAL2).
+-- Authenticator secrets (RFC 6238, SHA-1, 6 digits, 30s):
+--   test-platform-admin@example.invalid     TESTLOCALPLATFORMAAA234567AAAAAA
+--   test-platform-reviewer@example.invalid  TESTLOCALREVIEWERAAA234567AAAAAA
+insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, secret, created_at, updated_at)
+select 'b1111111-1111-4111-8111-111111111111', u.id, 'TEST local authenticator', 'totp', 'verified',
+       'TESTLOCALPLATFORMAAA234567AAAAAA', now(), now()
+from auth.users u
+where u.email = 'test-platform-admin@example.invalid'
+  and not exists (
+    select 1 from auth.mfa_factors f
+    where f.user_id = u.id and f.factor_type = 'totp' and f.status = 'verified'
+  );
+
+insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, secret, created_at, updated_at)
+select 'b2222222-2222-4222-8222-222222222222', u.id, 'TEST local authenticator', 'totp', 'verified',
+       'TESTLOCALREVIEWERAAA234567AAAAAA', now(), now()
+from auth.users u
+where u.email = 'test-platform-reviewer@example.invalid'
+  and not exists (
+    select 1 from auth.mfa_factors f
+    where f.user_id = u.id and f.factor_type = 'totp' and f.status = 'verified'
+  );
 
 -- Every person and operational record in the public demo tenant is synthetic.
 update public.employees e
@@ -244,5 +309,19 @@ begin
       'demo seed incomplete: organizations.is_demo is not set for sunrise-healthcare, so '
       'app_private.seed_demo_organization() was skipped and get_my_mfa_policy() will gate the '
       'demo admin. Something is reverting the write -- see the note above the UPDATE in this file.';
+  end if;
+  if (
+    select count(*)
+    from auth.users u
+    join public.profiles p on p.id = u.id and p.role = 'platform_admin' and p.organization_id is null
+    join auth.mfa_factors f on f.user_id = u.id and f.factor_type = 'totp' and f.status = 'verified'
+    where u.email in (
+      'test-platform-admin@example.invalid',
+      'test-platform-reviewer@example.invalid'
+    )
+  ) <> 2 then
+    raise exception
+      'demo seed incomplete: the two TEST platform admins need verified TOTP factors so a local '
+      'session can reach AAL2. platform_admin is MFA-mandatory and is not on the public Demo page.';
   end if;
 end $$;

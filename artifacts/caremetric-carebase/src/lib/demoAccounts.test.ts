@@ -49,6 +49,14 @@ describe("parseDemoAccounts", () => {
     ]);
   });
 
+  it("never offers a platform administrator as a public persona", () => {
+    const raw = JSON.stringify([
+      { label: "Operator", email: "operator@example.com", password: "secret-unique-1", role: "platform_admin" },
+    ]);
+    expect(parseDemoAccounts(raw, { isProd: false })).toEqual([]);
+    expect(parseDemoAccounts(raw, { isProd: true, enablePublicDemo: true })).toEqual([]);
+  });
+
   it("strips banned seed passwords in every mode", () => {
     expect(isBannedDemoPassword("demo123")).toBe(true);
     const raw = JSON.stringify([

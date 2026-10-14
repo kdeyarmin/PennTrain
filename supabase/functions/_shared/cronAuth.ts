@@ -47,8 +47,11 @@ export function requireCronRequest(
   const expectedSecret = configuredSecret ?? Deno.env.get("CRON_SHARED_SECRET");
   if (!expectedSecret) {
     console.error("CRON_SHARED_SECRET is not configured");
-    return new Response(JSON.stringify({ error: "Cron secret is not configured" }), {
-      status: 500,
+    return new Response(JSON.stringify({
+      error: "cron_not_configured",
+      message: "Cron secret is not configured",
+    }), {
+      status: 503,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }

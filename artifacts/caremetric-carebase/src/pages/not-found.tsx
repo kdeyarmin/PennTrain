@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/lib/auth";
-import { homePathForRole } from "@/lib/appDomains";
+import { homePathForRole } from "@/lib/roleHomePaths";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
 import { usePageTitle } from "@/lib/pageTitle";
 import { AlertCircle, ArrowLeft, Home, Loader2 } from "lucide-react";

@@ -35,10 +35,10 @@ describe("SG-2 activation messaging", () => {
 
   it("offers PA installs in Enterprise Foundation while keeping Ohio as a mechanism demo", () => {
     expect(enterpriseFoundationSource).toContain("PA rule packs — counsel-cleared SG-2");
-    expect(enterpriseFoundationSource).toContain('installTemplate("pa.pch.2600.65.personnel", "PA PCH personnel rule pack")');
-    expect(enterpriseFoundationSource).toContain('installTemplate("pa.alf.2800.65.personnel", "PA ALF personnel rule pack")');
-    expect(enterpriseFoundationSource).toContain("Install PA PCH draft");
-    expect(enterpriseFoundationSource).toContain("Install PA ALF draft");
+    expect(enterpriseFoundationSource).toContain('installAndActivate("pa.pch.2600.65.personnel", "PA PCH personnel rule pack")');
+    expect(enterpriseFoundationSource).toContain('installAndActivate("pa.alf.2800.65.personnel", "PA ALF personnel rule pack")');
+    expect(enterpriseFoundationSource).toContain("Install & activate");
+    expect(enterpriseFoundationSource).toContain("Install draft only");
     expect(enterpriseFoundationSource).toContain("Install for mechanism demo only; it does not cover Pennsylvania.");
     expect(enterpriseFoundationSource).toContain('variant="outline"');
   });

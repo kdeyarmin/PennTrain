@@ -38,7 +38,8 @@ export function createStripeBillingWebhookHandler({
       if (error instanceof RequestBodyError) return json({ error: "payload_too_large" }, error.status);
       throw error;
     }
-    const webhookSecret = getEnv("STRIPE_BILLING_WEBHOOK_SECRET") ?? "";
+    const webhookSecret = getEnv("STRIPE_BILLING_WEBHOOK_SECRET")?.trim() ?? "";
+    if (!webhookSecret) return json({ error: "billing_webhook_not_configured" }, 503);
     const verification = await verifySignature(
       rawBody,
       req.headers.get("stripe-signature") ?? "",

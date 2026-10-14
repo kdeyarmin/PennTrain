@@ -118,14 +118,6 @@ export function CredentialRenewalInbox({
 
   const submitReview = async () => {
     if (submitting.current || busy || !selected || reason.trim().length < 5) return;
-    if (user?.id && selected.submitted_by && user.id === selected.submitted_by) {
-      toast({
-        title: "Independent reviewer required",
-        description: "The person who submitted this renewal cannot approve or reject it.",
-        variant: "destructive",
-      });
-      return;
-    }
     submitting.current = true;
     setPending(true);
     try {
@@ -208,7 +200,7 @@ export function CredentialRenewalInbox({
               <FileScan className="h-5 w-5" /> Credential renewal inbox
             </CardTitle>
             <CardDescription>
-              OCR and extraction are advisory. Compliance updates only when an independent reviewer confirms issuer and expiration.
+              OCR and extraction are advisory. Compliance updates only when a reviewer confirms issuer and expiration. The reviewer is recorded even when they also submitted the renewal.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -237,7 +229,6 @@ export function CredentialRenewalInbox({
             </p>
           ) : (
             submissions.data?.rows.map((row) => {
-              const isSelf = Boolean(user?.id && row.submitted_by && user.id === row.submitted_by);
               // BACKLOG.md I23. This used to require scan_status === "clean", and the worker used
               // to write "clean" on every submission it touched -- including ones it never opened,
               // because the type-and-size gate lived inside an extraction branch that only runs
@@ -246,7 +237,7 @@ export function CredentialRenewalInbox({
               // gate and that no scanner has looked at is exactly what a human review is for.
               // `malicious` and `failed` still cannot be reviewed -- they quarantine.
               const reviewableScan = row.scan_status === "clean" || row.scan_status === "not_scanned";
-              const canReview = row.status === "needs_review" && reviewableScan && !isSelf;
+              const canReview = row.status === "needs_review" && reviewableScan;
               const sla = renewalSlaLabel(row.created_at);
               return (
                 <div key={row.id} className="rounded-lg border p-4">
@@ -277,9 +268,6 @@ export function CredentialRenewalInbox({
                       </p>
                       {row.review_reason && (
                         <p className="text-xs text-muted-foreground">Review reason: {row.review_reason}</p>
-                      )}
-                      {isSelf && row.status === "needs_review" && (
-                        <p className="text-xs text-amber-700">You submitted this package — another manager must review it.</p>
                       )}
                       <Button asChild size="sm" variant="link" className="h-auto px-0">
                         <Link href={`${employeeRecordPrefix}/${row.employee_id}`}>Employee record</Link>

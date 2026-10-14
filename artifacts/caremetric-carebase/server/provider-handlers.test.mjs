@@ -92,8 +92,12 @@ test("missing server configuration and missing auth fail closed before remote wo
   const empty = handlers({ getEnv: () => undefined });
   assert.equal((await empty.get("sms-mfa")(request({ action: "send" }))).status, 503);
   assert.equal((await empty.get("create-billing-session")(request({ action: "checkout" }))).status, 503);
-  assert.equal((await empty.get("stripe-billing-webhook")(request({}))).status, 400);
-  assert.equal((await empty.get("sync-billing-quantities")(request({}))).status, 500);
+  const webhook = await empty.get("stripe-billing-webhook")(request({}));
+  assert.equal(webhook.status, 503);
+  assert.equal((await webhook.json()).error, "billing_webhook_not_configured");
+  const sync = await empty.get("sync-billing-quantities")(request({}));
+  assert.equal(sync.status, 503);
+  assert.equal((await sync.json()).error, "cron_not_configured");
   const configured = handlers();
   assert.equal((await configured.get("sms-mfa")(request({}, { authorization: "" }))).status, 401);
   assert.equal((await configured.get("create-billing-session")(request({}, { authorization: "" }))).status, 401);

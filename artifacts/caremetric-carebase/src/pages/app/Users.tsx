@@ -62,6 +62,19 @@ const ASSIGNABLE_ROLES: Record<Role, Role[]> = {
   auditor: [],
 };
 
+function ViewOnlyRole({ role }: { role: string }) {
+  const label = ROLE_LABELS[role] ?? role;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Badge variant="outline" className="text-xs">
+        <Shield className="h-3 w-3 mr-1" />
+        {label}
+      </Badge>
+      <span className="text-[11px] font-medium text-muted-foreground">View only</span>
+    </span>
+  );
+}
+
 function randomPassword() {
   return (
     Math.random().toString(36).slice(-6) +
@@ -181,7 +194,8 @@ export default function Users() {
 
   // admin-update-user (used by handleRoleChange/handleActiveToggle below) only authorizes
   // platform_admin and org_admin callers -- facility_manager gets a 403 unconditionally, so these
-  // controls must never be rendered as editable for facility_manager.
+  // controls must never be rendered as editable for facility_manager. A non-editable row, including
+  // an organization admin on a facility manager's directory, is labeled view only.
   const canEditRow = (p: Profile) =>
     !isDemoOrganization
     && p.id !== user?.id
@@ -647,10 +661,7 @@ export default function Users() {
                               </SelectContent>
                             </Select>
                           ) : (
-                            <Badge variant="outline" className="text-xs">
-                              <Shield className="h-3 w-3 mr-1" />
-                              {ROLE_LABELS[p.role] ?? p.role}
-                            </Badge>
+                            <ViewOnlyRole role={p.role} />
                           )}
                         </td>
                         {isPlatformAdmin && (
@@ -664,7 +675,9 @@ export default function Users() {
                               checked={p.is_active}
                               onCheckedChange={v => requestActiveToggle(p, v)}
                               disabled={!editable || adminUpdating}
-                              aria-label={p.is_active ? `Deactivate ${p.first_name} ${p.last_name}` : `Activate ${p.first_name} ${p.last_name}`}
+                              aria-label={editable
+                                ? (p.is_active ? `Deactivate ${p.first_name} ${p.last_name}` : `Activate ${p.first_name} ${p.last_name}`)
+                                : `${p.first_name} ${p.last_name} status is view only`}
                             />
                             <StatusBadge status={p.is_active ? "active" : "inactive"} type="employee" />
                           </div>
@@ -768,13 +781,13 @@ export default function Users() {
                             <SelectContent>{assignableRoles.map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent>
                           </Select>
                         ) : (
-                          <Badge variant="outline" className="text-xs"><Shield className="mr-1 h-3 w-3" />{ROLE_LABELS[p.role] ?? p.role}</Badge>
+                          <ViewOnlyRole role={p.role} />
                         )}
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-xs font-medium text-muted-foreground">Status</span>
                         <div className="flex items-center gap-2">
-                          <Switch checked={p.is_active} onCheckedChange={v => requestActiveToggle(p, v)} disabled={!editable || adminUpdating} aria-label={p.is_active ? `Deactivate ${p.first_name} ${p.last_name}` : `Activate ${p.first_name} ${p.last_name}`} />
+                          <Switch checked={p.is_active} onCheckedChange={v => requestActiveToggle(p, v)} disabled={!editable || adminUpdating} aria-label={editable ? (p.is_active ? `Deactivate ${p.first_name} ${p.last_name}` : `Activate ${p.first_name} ${p.last_name}`) : `${p.first_name} ${p.last_name} status is view only`} />
                           <StatusBadge status={p.is_active ? "active" : "inactive"} type="employee" />
                         </div>
                       </div>
