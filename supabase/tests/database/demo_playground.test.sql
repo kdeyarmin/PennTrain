@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(28);
 
 select has_column('public', 'organizations', 'is_demo', 'organizations identify public demo tenants');
 select has_column('public', 'organizations', 'demo_seed_version', 'demo seed version is tracked');
@@ -63,10 +63,21 @@ select is((
   where o.slug = 'pgtap-demo-playground'
 ), 0::bigint, 'demo activity cannot enqueue external provider delivery');
 
+insert into public.employees(organization_id, facility_id, first_name, last_name, job_title, status, is_synthetic)
+select f.organization_id, f.id, 'Unqualified', 'Persona', 'Direct Care', 'active', true
+from public.facilities f
+join public.organizations o on o.id = f.organization_id
+where o.slug = 'pgtap-demo-playground' and f.name = 'Sunrise Manor';
 select lives_ok(
   $$select app_private.seed_demo_organization((select id from public.organizations where slug = 'pgtap-demo-playground'))$$,
-  'restoring the baseline is idempotent'
+  'restoring the baseline is idempotent when a login-style synthetic coworker has no clearance evidence'
 );
+select is((select count(*)::integer from public.shift_assignments a join public.organizations o on o.id = a.organization_id
+ where o.slug = 'pgtap-demo-playground'), 3, 'an unqualified synthetic coworker is not pulled onto the demo schedule');
+select is((select count(*)::integer from public.shift_assignments a
+ join public.employees e on e.id = a.employee_id
+ where e.first_name = 'Unqualified' and e.last_name = 'Persona'), 0,
+ 'login-style synthetic staff without the DEMO evidence roster stay off the seeded shifts');
 select is((select count(*)::bigint from public.work_orders w join public.organizations o on o.id = w.organization_id where o.slug = 'pgtap-demo-playground'), 1::bigint, 'idempotent restore does not duplicate work orders');
 
 select * from finish();
