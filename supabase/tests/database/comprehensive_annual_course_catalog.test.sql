@@ -2,7 +2,7 @@
 -- individually assignable, duration-aligned, and safely crosswalked.
 
 begin;
-select plan(31);
+select plan(32);
 
 select has_column(
   'public',
@@ -361,6 +361,9 @@ select results_eq(
     join public.courses c on c.id = cc.course_id
       and c.current_version_id = cc.course_version_id
     where c.status = 'published'
+      -- The standalone in-service courses are alternates for a topic, not part of the module
+      -- set (20261014180100); they are asserted on their own below.
+      and c.catalog_code not like 'PA-DHS-STANDALONE-%'
       and (
         (tt.code = 'DIRECT-ANNUAL' and c.catalog_code not in (
           'PA-DHS-ANNUAL-MENTAL-ILLNESS-ID',
@@ -383,6 +386,45 @@ select results_eq(
       ('DIRECT-ANNUAL'::text, 12.00::numeric)
   $$,
   'the unconditional PCH and ALR individual modules total the statutory minimums'
+);
+
+-- 20261014180100: a standalone in-service course credits the same annual topic as the
+-- PA-DHS-ANNUAL- course on its subject, at its one designed hour, and never automatically.
+select results_eq(
+  $$
+    select c.catalog_code, tt.code, cc.topic_code, cc.credit_hours::numeric(6,2), cc.credit_mode
+    from public.course_compliance_credits cc
+    join public.training_types tt on tt.id = cc.training_type_id
+    join public.courses c on c.id = cc.course_id
+      and c.current_version_id = cc.course_version_id
+    where c.status = 'published'
+      and c.catalog_code in (
+        'PA-DHS-STANDALONE-EMERGENCY-PREP',
+        'PA-DHS-STANDALONE-FALLS-PREVENTION',
+        'PA-DHS-STANDALONE-MED-SELF-ADMIN'
+      )
+      and cc.is_active
+      and exists (
+        select 1
+        from public.course_compliance_credits annual
+        join public.courses ac on ac.id = annual.course_id
+          and ac.current_version_id = annual.course_version_id
+        where ac.catalog_code like 'PA-DHS-ANNUAL-%'
+          and annual.training_type_id = cc.training_type_id
+          and annual.topic_code = cc.topic_code
+      )
+    order by c.catalog_code, tt.code
+  $$,
+  $$
+    values
+      ('PA-DHS-STANDALONE-EMERGENCY-PREP'::text, 'ALR-DIRECT-ANNUAL'::text, 'ALR-2800.65-J2'::text, 1.00::numeric, 'verified_only'::text),
+      ('PA-DHS-STANDALONE-EMERGENCY-PREP'::text, 'DIRECT-ANNUAL'::text, 'PCH-2600.65-G2'::text, 1.00::numeric, 'verified_only'::text),
+      ('PA-DHS-STANDALONE-FALLS-PREVENTION'::text, 'ALR-DIRECT-ANNUAL'::text, 'ALR-2800.65-J5'::text, 1.00::numeric, 'verified_only'::text),
+      ('PA-DHS-STANDALONE-FALLS-PREVENTION'::text, 'DIRECT-ANNUAL'::text, 'PCH-2600.65-G5'::text, 1.00::numeric, 'verified_only'::text),
+      ('PA-DHS-STANDALONE-MED-SELF-ADMIN'::text, 'ALR-DIRECT-ANNUAL'::text, 'ALR-2800.65-I1'::text, 1.00::numeric, 'verified_only'::text),
+      ('PA-DHS-STANDALONE-MED-SELF-ADMIN'::text, 'DIRECT-ANNUAL'::text, 'PCH-2600.65-F1'::text, 1.00::numeric, 'verified_only'::text)
+  $$,
+  'standalone in-service courses credit their annual topic at one verified-only hour'
 );
 
 select is(
