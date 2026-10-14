@@ -16,15 +16,17 @@ import {
 } from "@/hooks/useBreakGlass";
 
 const MIN_REASON = 10;
-/** Break-glass is measured in hours. A day is already a long emergency. */
-const MAX_HOURS = 24;
+/** The server stores a reason of at least 20 characters. */
+const GRANT_MIN_REASON = 20;
+/** The server refuses an expiry more than four hours after the grant. */
+const MAX_HOURS = 4;
 
 function defaultExpiry(): string {
-  return toFacilityDateTimeLocal(new Date(Date.now() + 4 * 60 * 60 * 1000));
+  return toFacilityDateTimeLocal(new Date(Date.now() + 2 * 60 * 60 * 1000));
 }
 
 /**
- * The two-person authorization RECORD for emergency access (BACKLOG.md G15.9, G15.10, I22).
+ * The authorization RECORD for emergency access (BACKLOG.md G15.9, G15.10, I22).
  *
  * It does not grant anything, and this card used to say it did. Nothing reads
  * identity_break_glass_events for authorization -- not has_effective_permission, not the role
@@ -42,11 +44,8 @@ function defaultExpiry(): string {
  * The form asks for a ticket reference because break-glass is the access you justify afterwards,
  * and "there was an incident" is not a justification anyone can audit.
  *
- * It asks who requested the access separately from who is approving it because the server insists
- * on two people: `grant_identity_break_glass` raises 'break-glass requests require a separate
- * approver' when `p_requested_by` is the caller. The first version of this form filled the
- * requester in with the signed-in admin, so every grant it submitted was rejected -- the one path
- * that has to work at 3am failed on its own precondition.
+ * The signed-in administrator may be both the requester and the approver. Both columns are still
+ * stored. A different requester must belong to the same organization as the target profile.
  */
 export function BreakGlassCard() {
   const { toast } = useToast();
@@ -88,10 +87,9 @@ export function BreakGlassCard() {
   const expiryTooFar = expiryUsable && expiry!.getTime() > Date.now() + MAX_HOURS * 3_600_000;
   // Checked here as well as on the server so the refusal arrives while the field can still be
   // corrected, rather than as a failed submission with the reason buried in an error toast.
-  const approverIsRequester = requestedBy.trim().length > 0 && requestedBy.trim() === user?.id;
   const canGrant = targetProfileId.trim().length > 0
-    && requestedBy.trim().length > 0 && !approverIsRequester
-    && reason.trim().length >= MIN_REASON
+    && requestedBy.trim().length > 0
+    && reason.trim().length >= GRANT_MIN_REASON
     && ticket.trim().length > 0
     && expiryUsable && !expiryPast && !expiryTooFar;
 
@@ -102,9 +100,9 @@ export function BreakGlassCard() {
           <ShieldAlert className="h-5 w-5" />Break-glass authorization record
         </CardTitle>
         <CardDescription>
-          Records a two-person authorization for emergency access — the requester, the approver,
-          the reason, the ticket and the expiry — at the moment the decision is made, and lets you
-          close it early when an investigation moves faster than the clock.{" "}
+          Records who requested emergency access, who approved it, the reason, the ticket, and the
+          expiry. One administrator may be both requester and approver. Close the record early when
+          an investigation moves faster than the clock.{" "}
           <span className="font-medium text-foreground">
             It does not itself change anyone's permissions.
           </span>{" "}
@@ -116,7 +114,7 @@ export function BreakGlassCard() {
         {!opening && (
           <Button variant="outline" size="sm" onClick={() => {
             draft.current += 1;
-            setOpening(true); setTargetProfileId(""); setRequestedBy(""); setReason(""); setTicket(""); setExpiresAt(defaultExpiry());
+            setOpening(true); setTargetProfileId(""); setRequestedBy(user?.id ?? ""); setReason(""); setTicket(""); setExpiresAt(defaultExpiry());
           }}>
             Record a break-glass authorization
           </Button>
@@ -131,17 +129,10 @@ export function BreakGlassCard() {
             <div className="space-y-1.5">
               <Label htmlFor="bg-requester">Requested by</Label>
               <Input id="bg-requester" value={requestedBy} onChange={(e) => { draft.current += 1; setRequestedBy(e.target.value); }} placeholder="Profile UUID of whoever asked for it" />
-              {approverIsRequester ? (
-                <p className="text-xs text-destructive">
-                  You are approving this, so you cannot also be the one who requested it. Break-glass
-                  takes two people.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Someone other than you, in the same organization as the profile above. You are
-                  recorded as the approver.
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                Defaults to you. A different requester must belong to the same organization as the
+                profile above. You are recorded as the approver either way.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bg-ticket">Ticket reference</Label>
@@ -150,8 +141,8 @@ export function BreakGlassCard() {
             <div className="space-y-1.5">
               <Label htmlFor="bg-reason">Why this access is needed now</Label>
               <Textarea id="bg-reason" rows={2} value={reason} onChange={(e) => { draft.current += 1; setReason(e.target.value); }} />
-              {reason.trim().length < MIN_REASON && (
-                <p className="text-xs text-muted-foreground">At least {MIN_REASON} characters.</p>
+              {reason.trim().length < GRANT_MIN_REASON && (
+                <p className="text-xs text-muted-foreground">At least {GRANT_MIN_REASON} characters.</p>
               )}
             </div>
             <div className="space-y-1.5">

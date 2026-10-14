@@ -447,7 +447,7 @@ function RegulatoryRuleCommand() {
     <Card>
       <CardHeader>
         <CardTitle>Guarded rule workflow</CardTitle>
-        <CardDescription>Approval separation, fixtures, and supersession are enforced in the database. Shadow evaluation and its reconciliation check remain available as optional tooling before activation.</CardDescription>
+        <CardDescription>The same administrator may approve a version they authored. Fixtures and supersession stay enforced. Shadow evaluation remains optional tooling before activation.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
@@ -482,6 +482,7 @@ function RegulatoryExpansionPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [installingTemplateKey, setInstallingTemplateKey] = useState<string | null>(null);
+  const activationNotes = "Single platform administrator approved the counsel-cleared Pennsylvania personnel template.";
   const proposals = useQuery({
     queryKey: ["regulatory-change-proposals"],
     queryFn: async () => {
@@ -497,29 +498,49 @@ function RegulatoryExpansionPanel() {
     try {
       const { data, error } = await supabase.rpc("install_regulatory_rule_pack_template", { p_template_key: templateKey });
       if (error) throw error;
-      toast({ title: `${label} installed as a draft`, description: `Version ${data} must complete fixture verification and independent review before activation.` });
+      toast({ title: `${label} installed as a draft`, description: `Version ${data} is a draft. Install & activate evaluates the shipped fixtures and activates it.` });
       await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
     } catch (error) {
       toast({ title: `${label} could not be installed`, description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    } finally { setInstallingTemplateKey(null); }
+  };
+  const installAndActivate = async (templateKey: string, label: string) => {
+    setInstallingTemplateKey(templateKey);
+    try {
+      const { data, error } = await supabase.rpc("install_and_activate_regulatory_rule_pack", {
+        p_template_key: templateKey,
+        p_review_notes: activationNotes,
+      });
+      if (error) throw error;
+      toast({ title: `${label} is active`, description: `Version ${data} was approved by this administrator. Shadow mode was not required.` });
+      await queryClient.invalidateQueries({ queryKey: ["enterprise-foundation"] });
+    } catch (error) {
+      toast({ title: `${label} could not be activated`, description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     } finally { setInstallingTemplateKey(null); }
   };
   return (
     <Card>
       <CardHeader>
         <CardTitle>Multi-state packs and official-source feed</CardTitle>
-        <CardDescription>Templates and automated source changes create drafts only. The guarded workflow above remains the only activation path.</CardDescription>
+        <CardDescription>Pennsylvania packs can be installed, approved, and activated in one MFA-verified action. Shadow mode is optional. Ohio remains a draft for mechanism demonstration.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
           <p className="mb-2 text-sm font-medium">PA rule packs — counsel-cleared SG-2</p>
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-              <div><p className="font-medium">PA Personal Care Home (PCH) personnel training</p><p className="text-xs text-muted-foreground">55 Pa. Code §2600.65. Counsel-cleared template; install as a draft, then complete fixture verification and independent review before activation.</p></div>
-              <Button variant="outline" onClick={() => void installTemplate("pa.pch.2600.65.personnel", "PA PCH personnel rule pack")} disabled={installingTemplateKey !== null}>{installingTemplateKey === "pa.pch.2600.65.personnel" ? "Installing draft..." : "Install PA PCH draft"}</Button>
+              <div><p className="font-medium">PA Personal Care Home (PCH) personnel training</p><p className="text-xs text-muted-foreground">55 Pa. Code §2600.65. Counsel-cleared template. Install & activate evaluates the shipped fixtures and turns the pack on. Current MFA is required.</p></div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => void installAndActivate("pa.pch.2600.65.personnel", "PA PCH personnel rule pack")} disabled={installingTemplateKey !== null}>{installingTemplateKey === "pa.pch.2600.65.personnel" ? "Working..." : "Install & activate"}</Button>
+                <Button variant="outline" onClick={() => void installTemplate("pa.pch.2600.65.personnel", "PA PCH personnel rule pack")} disabled={installingTemplateKey !== null}>Install draft only</Button>
+              </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-              <div><p className="font-medium">PA Assisted Living Facility (ALF) personnel training</p><p className="text-xs text-muted-foreground">55 Pa. Code §2800.65. Counsel-cleared template; install as a draft, then complete fixture verification and independent review before activation.</p></div>
-              <Button variant="outline" onClick={() => void installTemplate("pa.alf.2800.65.personnel", "PA ALF personnel rule pack")} disabled={installingTemplateKey !== null}>{installingTemplateKey === "pa.alf.2800.65.personnel" ? "Installing draft..." : "Install PA ALF draft"}</Button>
+              <div><p className="font-medium">PA Assisted Living Facility (ALF) personnel training</p><p className="text-xs text-muted-foreground">55 Pa. Code §2800.65. Counsel-cleared template. Install & activate evaluates the shipped fixtures and turns the pack on. Current MFA is required.</p></div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => void installAndActivate("pa.alf.2800.65.personnel", "PA ALF personnel rule pack")} disabled={installingTemplateKey !== null}>{installingTemplateKey === "pa.alf.2800.65.personnel" ? "Working..." : "Install & activate"}</Button>
+                <Button variant="outline" onClick={() => void installTemplate("pa.alf.2800.65.personnel", "PA ALF personnel rule pack")} disabled={installingTemplateKey !== null}>Install draft only</Button>
+              </div>
             </div>
           </div>
         </div>
@@ -1456,7 +1477,7 @@ export default function EnterpriseFoundation() {
           </TabsList>
           <TabsContent value="scope" className="space-y-4"><ControlPlanePanel title="Hierarchy and permissions" description="Effective portfolio, regional, organization, and facility scope with explicit governed permissions." data={data.scope} /><ScopeGrantCommand /><StandingGrantsCard /><RoleTemplateCard organizationId={user?.organizationId ?? null} /></TabsContent>
           <TabsContent value="workforce" className="space-y-4"><ControlPlanePanel title="Workforce lifecycle and compliance profiles" description="Effective employment state, retained documentation, profile explanations, and unresolved mappings." data={data.workforce} /><LifecycleCommand /><ComplianceProfileAssignmentCommand /></TabsContent>
-          <TabsContent value="rules" className="space-y-4"><ControlPlanePanel title="Approved regulatory rule packs" description="Sourced versions, approval separation, golden fixtures, and activation readiness." data={data.rules} />{user?.role === "platform_admin" ? <><RegulatoryExpansionPanel /><RegulatoryRuleCommand /></> : null}</TabsContent>
+          <TabsContent value="rules" className="space-y-4"><ControlPlanePanel title="Approved regulatory rule packs" description="Sourced versions, recorded approval, golden fixtures, and activation readiness." data={data.rules} />{user?.role === "platform_admin" ? <><RegulatoryExpansionPanel /><RegulatoryRuleCommand /></> : null}</TabsContent>
           <TabsContent value="identity" className="space-y-4">
             <ControlPlanePanel title="Enterprise identity" description="Verified domains, SAML connections, AAL2 policy, SCIM replay safety, and session revocation documentation." data={data.identity} />
             <IdentityDomainCommand />

@@ -220,11 +220,11 @@ begin
   end if;
 
   -- Local TEST operators. platform_admin is MFA-mandatory even for a demo org, so the
-  -- customer-role `demo123` accounts cannot open /admin. These two have no organization,
+  -- customer-role `demo123` accounts cannot open /admin. These accounts have no organization,
   -- use the reserved example.invalid domain (they cannot receive mail), and are not part
   -- of the public Demo page (PUBLIC_DEMO_ROLES excludes platform_admin). Password is
-  -- TestLocal-8de2. A second account exists so local separation-of-duties checks can use
-  -- a different AAL2 identity than the one that authored a change.
+  -- TestLocal-8de2. One platform administrator can approve and activate their own work;
+  -- the second account is only a spare local login, not a required approver.
   if not exists (select 1 from auth.users where email = 'test-platform-admin@example.invalid') then
     insert into auth.users (
       instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,

@@ -87,8 +87,8 @@ function RegisterAssetCard({ governedSourceIds }: { governedSourceIds: Set<strin
       <CardHeader>
         <CardTitle className="text-base">Bring a course under governance</CardTitle>
         <CardDescription>
-          A governed course can only change through an authored revision that a second person reviews and a
-          second person publishes. Registering does not change the course itself.
+          A governed course changes through an authored revision, a recorded review, and publication.
+          The same administrator may perform each step. Registering does not change the course itself.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap items-end gap-3">
@@ -372,7 +372,7 @@ function RevisionRow({
             disabled={pending || hasBlockingFindings(findings)}
             onClick={() => act(
               () => submit.mutateAsync({ revisionId: revision.id, findings }),
-              "Submitted for independent review",
+              "Submitted for review",
             )}
           >
             Submit for review
@@ -465,10 +465,10 @@ export function GovernedContentRevisionsPanel() {
     <div className="space-y-4">
       <Alert>
         <ShieldCheck className="h-4 w-4" />
-        <AlertTitle>{canManageCourses ? "Four steps, and never fewer than two people" : "Course review history"}</AlertTitle>
+        <AlertTitle>{canManageCourses ? "Four recorded steps" : "Course review history"}</AlertTitle>
         <AlertDescription>
           {canManageCourses
-            ? "An author snapshots a version, a second person reviews it, and a third step publishes it — the server refuses an author who tries to review or publish their own work."
+            ? "An author snapshots a version, reviews it, and publishes it. Each step records who did it, including when one administrator does all three."
             : "The super admin manages course content and publication. You can view review history here, enroll students in existing courses, and recommend new courses from the course catalog."}
         </AlertDescription>
       </Alert>

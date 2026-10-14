@@ -45,11 +45,9 @@ select pg_temp.act_as('44000000-0000-4000-8000-000000000101');
 insert into p4_ids values('revision',public.create_governed_content_revision('44000000-0000-4000-8000-000000000401','44000000-0000-4000-8000-000000000302','Material clinical update',true,'reassign','{"title":"Governed Course v1","blocks":[{"type":"text"}]}'::jsonb));
 select is((select state from public.governed_content_revisions where id=(select id from p4_ids where key='revision')),'draft','new governed revision starts in draft');
 select lives_ok($$select public.submit_governed_content_revision((select id from p4_ids where key='revision'),'[]'::jsonb)$$,'author can submit validated revision');
-select throws_ok($$select public.review_governed_content_revision((select id from p4_ids where key='revision'),'approve','Self approval attempt')$$,'42501',null,'author cannot approve own protected publication');
-
-select pg_temp.act_as('44000000-0000-4000-8000-000000000102');
-select lives_ok($$select public.review_governed_content_revision((select id from p4_ids where key='revision'),'approve','Independent clinical review complete')$$,'independent reviewer approves revision');
-select lives_ok($$select public.publish_governed_content_revision((select id from p4_ids where key='revision'),'Approved for controlled release')$$,'reviewer may publish independently from author');
+select lives_ok($$select public.review_governed_content_revision((select id from p4_ids where key='revision'),'approve','Author recorded their own review')$$,'the author may review their own revision and is recorded as the reviewer');
+select lives_ok($$select public.publish_governed_content_revision((select id from p4_ids where key='revision'),'Author recorded their own publication')$$,'the author may publish their own revision and is recorded as the publisher');
+select is((select reviewed_by from public.governed_content_revisions where id=(select id from p4_ids where key='revision')),'44000000-0000-4000-8000-000000000101'::uuid,'review evidence names the author who reviewed it');
 select is((select current_published_revision_id from public.governed_content_assets where id='44000000-0000-4000-8000-000000000401'),(select id from p4_ids where key='revision'),'learners resolve the stable published revision');
 reset role;
 select throws_ok($$update public.governed_content_revisions set snapshot='{"tampered":true}' where id=(select id from p4_ids where key='revision')$$,'55000',null,'published snapshot is immutable');
