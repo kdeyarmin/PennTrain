@@ -76,14 +76,15 @@ describe("mfaFactorLabel", () => {
 
   it("falls back to a masked number for phone factors and a generic name for TOTP", () => {
     expect(mfaFactorLabel({ ...base, factor_type: "phone", phone: "+15551234567" })).toBe("••• ••• 4567");
-    expect(mfaFactorLabel({ ...base, factor_type: "totp" })).toBe("Authenticator app");
+    expect(mfaFactorLabel({ ...base, factor_type: "totp" })).toBe("Older verification method");
   });
 });
 
 describe("describeMfaError", () => {
   it("explains a project that never enabled phone factors", () => {
     const copy = describeMfaError({ code: "mfa_phone_enroll_not_enabled", message: "MFA enroll is disabled for phone" });
-    expect(copy).toMatch(/legacy text-message method is unavailable/i);
+    expect(copy).toMatch(/older text-message method is unavailable/i);
+    expect(copy).not.toMatch(/authenticator/i);
     expect(copy).not.toMatch(/Advanced MFA Phone/);
     expect(copy).not.toMatch(/disabled for phone/);
   });

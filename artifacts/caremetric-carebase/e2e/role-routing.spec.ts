@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { totpCode } from "./helpers/totp";
+import { emulateSmsDelivery, TEST_SMS_CODE, verifyEnrolledSessionOnAccountSecurity, verifySessionBySms } from "./helpers/smsMfa";
 import { facilityToday } from "./helpers/facilityDay";
 
 type TestRole =
@@ -31,29 +31,21 @@ let incidentId: string;
 let trainingClassId: string;
 let employeeRecordId: string;
 let evidenceGuestToken: string;
-let orgAdminMfaFactorId: string;
-let orgAdminMfaSecret: string;
 
 let admin: SupabaseClient;
 let organizationId: string;
 let facilityId: string;
 const accounts = new Map<TestRole, TestAccount>();
 
+/** The org admin's mobile number is enrolled in setup; every later session verifies by text message. */
 async function verifyOrgAdminClientMfa(client: SupabaseClient) {
-  const { error } = await client.auth.mfa.challengeAndVerify({
-    factorId: orgAdminMfaFactorId,
-    code: totpCode(orgAdminMfaSecret),
-  });
-  if (error) throw error;
+  const { data, error } = await client.auth.getSession();
+  if (error || !data.session) throw error ?? new Error("Org admin client has no session to verify");
+  await verifySessionBySms(data.session.access_token);
 }
 
 async function verifyOrgAdminBrowserMfa(page: Page) {
-  await page.goto("/account/security");
-  const code = page.getByLabel("Authenticator code");
-  await expect(code).toBeVisible();
-  await code.fill(totpCode(orgAdminMfaSecret));
-  await page.getByRole("button", { name: "Verify authenticator" }).click();
-  await expect(page.getByText(/session is already verified/i)).toBeVisible();
+  await verifyEnrolledSessionOnAccountSecurity(page);
 }
 
 function requireEnvironment() {
@@ -292,14 +284,7 @@ test.describe("role-aware release journeys", () => {
         new Error("Org admin sign-in returned no session")
       );
     }
-    const { data: mfaEnrollment, error: mfaEnrollmentError } =
-      await orgAdminAuthClient.auth.mfa.enroll({
-        factorType: "totp",
-        friendlyName: `E2E administrator ${suffix}`,
-      });
-    if (mfaEnrollmentError) throw mfaEnrollmentError;
-    orgAdminMfaFactorId = mfaEnrollment.id;
-    orgAdminMfaSecret = mfaEnrollment.totp.secret;
+    // Enrolls the org admin's test mobile number and verifies this session.
     await verifyOrgAdminClientMfa(orgAdminAuthClient);
     const { data: orgAdminSession, error: orgAdminSessionError } =
       await orgAdminAuthClient.auth.getSession();
@@ -745,7 +730,7 @@ test.describe("role-aware release journeys", () => {
     expect(profile).toMatchObject({ role: "employee", organization_id: organizationId });
   });
 
-  test("policy draft survives in-place password and authenticator verification", async ({ page }) => {
+  test("policy draft survives in-place password and text-message verification", async ({ page }) => {
     const account = accounts.get("org_admin")!;
     await page.goto("/login");
     await page.getByLabel("Email").fill(account.email);
@@ -757,9 +742,9 @@ test.describe("role-aware release journeys", () => {
     await page.getByRole("button", { name: "New Policy Document" }).click();
     const draft = page.getByRole("dialog", { name: "New Policy Document" });
     await draft.getByLabel("Title", { exact: true }).fill("Unsaved policy verification regression");
-    await draft.getByLabel("Description (optional)").fill("Preserve this unsaved description through password and TOTP.");
+    await draft.getByLabel("Description (optional)").fill("Preserve this unsaved description through password and a text-message code.");
     // Expire this operation's freshness and fail the first lock connection. The retry,
-    // server lock/unlock, password and TOTP still use the real disposable backend.
+    // server lock/unlock, password and text-message check still use the real disposable backend.
     let lockAttempts = 0;
     await page.route("**/rest/v1/rpc/record_idle_session_lock", async route => {
       lockAttempts += 1;
@@ -794,17 +779,20 @@ test.describe("role-aware release journeys", () => {
     await expect(passwordDialog.getByLabel("Password", { exact: true })).toBeFocused();
     await passwordDialog.getByRole("button", { name: "Unlock session", exact: true }).click();
     const factorDialog = page.getByRole("dialog", { name: "One more step", exact: true });
-    await factorDialog.getByLabel("6-digit code").fill(totpCode(orgAdminMfaSecret));
+    await factorDialog.getByRole("button", { name: "Text me a code", exact: true }).click();
+    await factorDialog.getByLabel("6-digit code").fill(TEST_SMS_CODE);
     requireRenewal = false;
     await factorDialog.getByRole("button", { name: "Verify and continue", exact: true }).click();
     await expect(page.getByText("Verification failed", { exact: true })).toBeVisible();
     await expect(factorDialog).toBeVisible();
-    await factorDialog.getByLabel("6-digit code").fill(totpCode(orgAdminMfaSecret));
+    // A text-message code is single-use, so the retry after a lost acknowledgement asks for a new one.
+    await factorDialog.getByRole("button", { name: "Send a new code", exact: true }).click();
+    await factorDialog.getByLabel("6-digit code").fill(TEST_SMS_CODE);
     await factorDialog.getByRole("button", { name: "Verify and continue", exact: true }).click();
     await expect(factorDialog).toBeHidden({ timeout: 20_000 });
     await expect(draft).toBeVisible();
     await expect(draft.getByLabel("Title", { exact: true })).toHaveValue("Unsaved policy verification regression");
-    await expect(draft.getByLabel("Description (optional)")).toHaveValue("Preserve this unsaved description through password and TOTP.");
+    await expect(draft.getByLabel("Description (optional)")).toHaveValue("Preserve this unsaved description through password and a text-message code.");
     await expect(draft.getByRole("button", { name: "Create", exact: true })).toBeEnabled();
     expect(lockAttempts).toBe(2);
     expect(unlockAttempts).toBe(2);
@@ -849,7 +837,7 @@ test.describe("role-aware release journeys", () => {
         await page.goto(account.expectedPath);
         await expect(page.locator("h1").first()).toBeVisible();
       } else if (role === "platform_admin" || role === "facility_manager") {
-        // Privileged roles without a verified AAL2 session are held on the MFA gate
+        // Privileged roles without a session verified by text message are held on the MFA gate
         // (facility_manager is not enrolled in this suite; org_admin verifies above).
         await expect(page.getByText("Multi-factor verification required")).toBeVisible();
       } else {

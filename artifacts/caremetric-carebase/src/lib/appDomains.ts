@@ -219,7 +219,7 @@ export const APP_COMMAND_ACTIONS: AppCommandAction[] = [
 
 export const APP_PAGES: AppPageDefinition[] = [
   { path: "/app/train", label: "Train workspace", domain: "training", roles: ORG_ROLES, keywords: ["students", "certificates", "training reports", "education"] },
-  { path: "/account/security", label: "Account security", domain: "self_service", roles: ANY_ROLE, keywords: ["mfa", "aal2", "authenticator", "two factor"] },
+  { path: "/account/security", label: "Account security", domain: "self_service", roles: ANY_ROLE, keywords: ["mfa", "two factor", "text message", "sms", "verification code"] },
   { path: "/account/notifications", label: "Notification settings", domain: "self_service", roles: ANY_ROLE, keywords: ["sms", "email", "phone", "consent", "preferences", "text", "reminders"] },
   { path: "/account/announcements", label: "Announcements", domain: "support", roles: ANY_ROLE, keywords: ["broadcast", "manager message", "notice", "read receipt"] },
   { path: "/account/whats-new", label: "What's new", domain: "support", roles: ANY_ROLE, keywords: ["changelog", "release", "new feature", "updates"] },

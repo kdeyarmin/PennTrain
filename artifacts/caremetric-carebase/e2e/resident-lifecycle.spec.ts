@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { RESIDENT_JOURNEY_STEPS } from "../src/lib/residentJourney";
 import { buildIncidentStages } from "../src/lib/incidentStages";
-import { totpCode } from "./helpers/totp";
+import { verifyEnrolledSessionOnAccountSecurity, verifySessionBySms } from "./helpers/smsMfa";
 import { facilityToday } from "./helpers/facilityDay";
 
 /**
@@ -26,7 +26,6 @@ let admin: SupabaseClient;
 let organizationId: string;
 let facilityId: string;
 let adminEmail: string;
-let mfaSecret: string;
 // A signed-in, MFA-verified client for the journey admin. Some tables are readable by the user
 // but deliberately not by service_role, so asserting those through the user is both the only way
 // and the more faithful one -- it proves RLS lets the person who did the work see the result.
@@ -79,7 +78,7 @@ function watchForFailures(page: import("@playwright/test").Page) {
  * The MFA step-up applies to administrators: the org session policy holds them on an interstitial
  * until an enrolled factor is verified for THIS browser session. Employees are not held there, so
  * the floor steps sign in without it -- which is also the shape of the real thing, since a care
- * worker on a shared device is not enrolling an authenticator mid-shift.
+ * worker on a shared device is not verifying a text-message code mid-shift.
  */
 async function signIn(
   page: import("@playwright/test").Page,
@@ -97,12 +96,7 @@ async function signIn(
   await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe(landsOn);
 
   if (stepUp) {
-    await page.goto("/account/security");
-    const code = page.getByLabel("Authenticator code");
-    await expect(code).toBeVisible();
-    await code.fill(totpCode(mfaSecret));
-    await page.getByRole("button", { name: "Verify authenticator" }).click();
-    await expect(page.getByText(/session is already verified/i)).toBeVisible();
+    await verifyEnrolledSessionOnAccountSecurity(page);
     await page.goto(landsOn);
   }
 
@@ -291,32 +285,21 @@ test.describe("resident lifecycle journey", () => {
       }, { onConflict: "feature_key" });
     if (releaseError) throw releaseError;
 
-    // The org-level session policy requires administrators to verify an authenticator before any
+    // The org-level session policy requires administrators to verify a second factor before any
     // protected workspace opens. Five CI rounds of "blank shell" were this interstitial: it had no
-    // heading, so heading-based instrumentation saw nothing at all. Enroll a factor the same way
-    // the role suite does; signIn() verifies it per browser session.
+    // heading, so heading-based instrumentation saw nothing at all. Enroll the admin's mobile
+    // number the same way the role suite does; signIn() verifies it per browser session.
     const adminAuthClient = createClient(supabaseUrl, anonKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { error: signInError } = await adminAuthClient.auth.signInWithPassword({
+    const { data: adminSignIn, error: signInError } = await adminAuthClient.auth.signInWithPassword({
       email: adminEmail,
       password,
     });
-    if (signInError) throw signInError;
-    const { data: enrollment, error: enrollError } = await adminAuthClient.auth.mfa.enroll({
-      factorType: "totp",
-      friendlyName: "journey-authenticator",
-    });
-    if (enrollError || !enrollment) throw enrollError ?? new Error("MFA enrollment returned nothing");
-    mfaSecret = enrollment.totp.secret;
-    // Verify the factor NOW, api-side, exactly as the role suite does. An enrolled-but-unverified
-    // factor is a different state: /account/security offers the enrollment flow for it, not the
-    // "Authenticator code" verify input the browser step drives -- which cost a round to learn.
-    const { error: verifyError } = await adminAuthClient.auth.mfa.challengeAndVerify({
-      factorId: enrollment.id,
-      code: totpCode(mfaSecret),
-    });
-    if (verifyError) throw verifyError;
+    if (signInError || !adminSignIn.session) throw signInError ?? new Error("Admin sign-in returned no session");
+    // Enroll and verify NOW, api-side, exactly as the role suite does, so /account/security offers
+    // "Text me a code" for the number on file rather than the add-a-number flow.
+    await verifySessionBySms(adminSignIn.session.access_token);
     userClient = adminAuthClient;
 
     // A care worker, for the floor steps. The task queue scopes an employee to tasks in their own

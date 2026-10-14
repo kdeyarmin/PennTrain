@@ -303,6 +303,7 @@ jobs:
                 scripts/prune-removed-edge-functions.mjs \
                 scripts/reconcile-production-auth-urls.mjs \
                 scripts/reconcile-production-password-protection.mjs \
+                scripts/reconcile-production-mfa-methods.mjs \
                 scripts/removed-edge-functions.json \
                 .github/workflows/deploy-migrations.yml \
                 .github/actions/setup-supabase-cli/action.yml \
@@ -448,6 +449,17 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/reconcile-production-password-protection.mjs --apply
+
+      # Same trusted deploy boundary. CareBase verifies sessions by text message only, through the
+      # sms-mfa Edge Function; this switches off every native Supabase MFA method (authenticator
+      # apps, Supabase phone factors, passkeys). It refuses while anyone holds a verified native
+      # factor, so it can never lock an account out, and touches no other Auth setting.
+      - name: Reconcile production MFA methods (text message only)
+        if: env.DRY_RUN != 'true' && github.event_name == 'workflow_run'
+        timeout-minutes: 2
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/reconcile-production-mfa-methods.mjs --apply
 
       - name: Stamp deployed function content digests
         if: steps.gate.outputs.skip != 'true' && env.DRY_RUN != 'true'

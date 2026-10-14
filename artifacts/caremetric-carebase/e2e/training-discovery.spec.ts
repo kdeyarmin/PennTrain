@@ -1,21 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 import { expectNoHorizontalOverflow, hasLiveSupabaseEnv, signInAs } from "./helpers/auth";
-import { totpCode } from "./helpers/totp";
+import { completeRequiredSmsVerification, pageSession } from "./helpers/smsMfa";
 
+/** Text-message verification attests the existing session, so its stored tokens are the verified ones. */
 async function verifyNewAdministrator(page: Page) {
-  await expect(page.getByRole("heading", { name: "Multi-factor verification required" })).toBeVisible();
-  await page.getByRole("link", { name: "Open account security" }).click();
-  await page.getByRole("button", { name: "Add authenticator app", exact: true }).click();
-  const key = page.getByText("Manual setup key", { exact: true }).locator("..").locator("code");
-  await expect(key).toBeVisible();
-  await page.getByLabel("Authenticator code", { exact: true }).fill(totpCode((await key.innerText()).trim()));
-  const response = page.waitForResponse(value => value.url().includes("/auth/v1/factors/") && value.url().endsWith("/verify") && value.request().method() === "POST");
-  await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
-  const session = await (await response).json() as { access_token: string; refresh_token: string };
-  await expect(page.getByText(/This session is already verified/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue to the page you were opening" }).click();
-  return session;
+  await completeRequiredSmsVerification(page);
+  return pageSession(page);
 }
 
 test.describe("optional course discovery and refresher practice", () => {

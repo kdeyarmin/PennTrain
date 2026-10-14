@@ -29,40 +29,6 @@ function requireEnv(...names: string[]): string {
   );
 }
 
-async function totpCode(secret: string): Promise<string> {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let buffer = 0;
-  let bits = 0;
-  const bytes: number[] = [];
-  for (const character of secret.toUpperCase().replace(/=+$/u, "")) {
-    const value = alphabet.indexOf(character);
-    if (value < 0) throw new Error("Authenticator secret is not valid base32");
-    buffer = (buffer << 5) | value;
-    bits += 5;
-    if (bits >= 8) {
-      bits -= 8;
-      bytes.push((buffer >> bits) & 0xff);
-      buffer &= (1 << bits) - 1;
-    }
-  }
-  const counter = new Uint8Array(8);
-  const view = new DataView(counter.buffer);
-  view.setBigUint64(0, BigInt(Math.floor(Date.now() / 30_000)));
-  const imported = await crypto.subtle.importKey(
-    "raw",
-    new Uint8Array(bytes),
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"],
-  );
-  const digest = new Uint8Array(await crypto.subtle.sign("HMAC", imported, counter));
-  const offset = digest[digest.length - 1] & 0x0f;
-  const bin = ((digest[offset] & 0x7f) << 24) |
-    ((digest[offset + 1] & 0xff) << 16) |
-    ((digest[offset + 2] & 0xff) << 8) |
-    (digest[offset + 3] & 0xff);
-  return String(bin % 1_000_000).padStart(6, "0");
-}
 
 let failed = 0;
 function pass(name: string) {
@@ -100,23 +66,37 @@ function post(handler: (req: Request) => Promise<Response>, token: string, body:
   }));
 }
 
-async function enrollAal2(client: SupabaseClient) {
-  const { data, error } = await client.auth.mfa.enroll({
-    factorType: "totp",
-    friendlyName: `user-fn-live ${Date.now()}`,
-  });
-  if (error || !data) throw error ?? new Error("MFA enroll returned nothing");
-  const code = await totpCode(data.totp.secret);
-  const { error: verifyError } = await client.auth.mfa.challengeAndVerify({
-    factorId: data.id,
-    code,
-  });
-  if (verifyError) throw verifyError;
-  const { data: session, error: sessionError } = await client.auth.getSession();
-  if (sessionError || !session.session) {
-    throw sessionError ?? new Error("MFA verify returned no session");
+/**
+ * Verify this session by text message, CareBase's only second factor: the same service-role
+ * database calls the sms-mfa Edge Function makes, with the Twilio Verify round trip taken as
+ * approved. The first call enrolls a never-dialled test number for the account.
+ */
+async function verifyBySms(admin: SupabaseClient, client: SupabaseClient) {
+  const { data: current, error: sessionError } = await client.auth.getSession();
+  if (sessionError || !current.session) throw sessionError ?? new Error("no session to verify");
+  const claims = JSON.parse(atob(current.session.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+  const identity = { p_profile_id: claims.sub, p_session_id: claims.session_id };
+  const call = async (name: string, args: Record<string, unknown>) => {
+    const { data, error } = await admin.rpc(name, args);
+    if (error) throw Object.assign(new Error(`${name}: ${error.message}`), { hint: error.hint });
+    return data as Record<string, unknown>;
+  };
+  let prepared: Record<string, unknown>;
+  try {
+    prepared = await call("prepare_sms_mfa_challenge", { ...identity, p_phone: null, p_native_aal2: false });
+  } catch (error) {
+    if ((error as { hint?: string }).hint !== "sms_factor_not_enrolled") throw error;
+    const digits = String(parseInt(claims.sub.replace(/-/g, "").slice(0, 8), 16) % 10_000).padStart(4, "0");
+    prepared = await call("prepare_sms_mfa_challenge", { ...identity, p_phone: `+1555555${digits}`, p_native_aal2: false });
   }
-  return session.session.access_token;
+  const sid = `VE${[...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+  await call("activate_sms_mfa_challenge", { ...identity, p_challenge_id: prepared.challengeId, p_verification_sid: sid });
+  const reserved = await call("reserve_sms_mfa_check", { ...identity, p_challenge_id: prepared.challengeId });
+  const completed = await call("complete_sms_mfa_check", {
+    ...identity, p_challenge_id: prepared.challengeId, p_attempt_id: reserved.attemptId, p_approved: true,
+  });
+  if (completed.verified !== true) throw new Error("text-message check did not verify the session");
+  return current.session.access_token;
 }
 
 async function createLogin(
@@ -143,13 +123,13 @@ async function createLogin(
   return data.user.id;
 }
 
-async function signInWithMfa(email: string, supabaseUrl: string, anonKey: string) {
+async function signInWithMfa(admin: SupabaseClient, email: string, supabaseUrl: string, anonKey: string) {
   const client = createClient(supabaseUrl, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data, error } = await client.auth.signInWithPassword({ email, password: PASSWORD });
   if (error || !data.session) throw error ?? new Error("sign-in returned no session");
-  const token = await enrollAal2(client);
+  const token = await verifyBySms(admin, client);
   return { client, token };
 }
 
@@ -218,11 +198,12 @@ async function main() {
   });
   if (assignmentError) throw assignmentError;
   const { client: orgAdminClient, token: orgAdminToken } = await signInWithMfa(
+    admin,
     orgAdminEmail,
     supabaseUrl,
     anonKey,
   );
-  const { token: platformToken } = await signInWithMfa(platformEmail, supabaseUrl, anonKey);
+  const { token: platformToken } = await signInWithMfa(admin, platformEmail, supabaseUrl, anonKey);
 
   const createUser = createCreateUserHandler({ createClient, getEnv });
   const inviteUser = createInviteUserHandler({ createClient, getEnv });

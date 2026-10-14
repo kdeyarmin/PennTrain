@@ -161,7 +161,7 @@ export default function ReleaseFlags() {
         </h1>
         <p className="text-muted-foreground max-w-3xl">
           Every feature releases globally by default. Use this console only for an emergency kill switch, or to
-          hold a feature off platform-wide. Writes require platform admin + MFA step-up (AAL2).
+          hold a feature off platform-wide. Writes require a platform admin session verified with a text-message code.
         </p>
       </div>
 

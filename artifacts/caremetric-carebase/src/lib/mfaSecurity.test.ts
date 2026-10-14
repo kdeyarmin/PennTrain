@@ -78,13 +78,16 @@ describe("authoritative MFA status", () => {
     await expect(loadMfaSecurityState()).resolves.toMatchObject({ smsAvailable: false, factors: [expect.objectContaining(nativeFactor)] });
   });
 
-  it("requires the established SMS factor even if a new native authenticator exists", async () => {
+  it("never offers a native factor for verification, with or without an established SMS factor", async () => {
     const security = await loadMfaSecurityState();
     expect(security.factors).toHaveLength(2);
     expect(usableMfaFactors(security.factors, security.status)).toEqual([
       expect.objectContaining({ id: smsFactor.id, factor_type: "sms", phone: null }),
     ]);
-    expect(usableMfaFactors(security.factors, { ...status, smsRequired: false, smsFactors: [] })).toHaveLength(2);
+    // A leftover native authenticator is listed (so it can be removed) but never verifies a session.
+    expect(usableMfaFactors(security.factors, { ...status, smsRequired: false, smsFactors: [] })).toEqual([
+      expect.objectContaining({ id: smsFactor.id, factor_type: "sms" }),
+    ]);
     expect(usableMfaFactors([nativeFactor], { ...status, smsFactors: [], hasVerifiedFactor: false })).toEqual([]);
   });
 });

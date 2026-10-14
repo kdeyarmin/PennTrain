@@ -6,7 +6,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import { expectNoHorizontalOverflow, hasLiveSupabaseEnv, signInAs } from "./helpers/auth";
 import { facilityToday } from "./helpers/facilityDay";
-import { totpCode } from "./helpers/totp";
+import { completeRequiredSmsVerification } from "./helpers/smsMfa";
 
 /** Only provisions the empty tenant, initial credentials and a publishable catalog item.
  * Every student, invitation, enrollment and completion below is created through the UI. */
@@ -92,7 +92,7 @@ async function provisionEmptyTrainingFacility(service: SupabaseClient, url: stri
 test.describe("new training facility administrator", () => {
   test.skip(!hasLiveSupabaseEnv(), "local Supabase test credentials required");
 
-  test("first login, authenticator enrollment, student invitation, course enrollment and reporting stay in training", async ({ page, browser, request }, testInfo) => {
+  test("first login, text-message verification, student invitation, course enrollment and reporting stay in training", async ({ page, browser, request }, testInfo) => {
     test.setTimeout(360_000);
     const url = process.env.SUPABASE_URL!;
     // Both data setup and the app must be disposable/local. Never run this journey against a customer tenant.
@@ -105,20 +105,11 @@ test.describe("new training facility administrator", () => {
     const initialDetailRequests: string[] = [];
     page.on("request", req => { if (/\/rpc\/get_training_workspace|\/rest\/v1\/certificates/.test(req.url())) initialDetailRequests.push(req.url()); });
 
-    await test.step("a brand-new real tenant enrolls its first authenticator through the UI", async () => {
+    await test.step("a brand-new real tenant verifies its first session by text message", async () => {
       await signInAs(page, fixture.email, password, "/app/train");
-      await expect(page.getByRole("heading", { name: "Multi-factor verification required" })).toBeVisible();
-      await page.getByRole("link", { name: "Open account security" }).click();
-      await expect(page.getByText("No verification method is enrolled for this account.")).toBeVisible();
-      await page.getByRole("button", { name: "Add authenticator app", exact: true }).click();
-      // This is the manual setup key displayed to the user, not a seeded factor or an MFA bypass.
-      const setupKey = page.getByText("Manual setup key", { exact: true }).locator("..").locator("code");
-      await expect(setupKey).toBeVisible();
-      const secret = (await setupKey.innerText()).trim();
-      await page.getByLabel("Authenticator code", { exact: true }).fill(totpCode(secret));
-      await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
-      await expect(page.getByText("This session is already verified. You may return to the enterprise control plane.")).toBeVisible();
-      await page.getByRole("button", { name: "Continue to the page you were opening" }).click();
+      await completeRequiredSmsVerification(page, async () => {
+        await expect(page.getByText("No verification method is enrolled for this account.")).toBeVisible();
+      });
       await expect(page.getByRole("heading", { name: "CareMetric Train", exact: true })).toBeVisible();
       await expect(page.getByText("Get your facility started", { exact: true })).toBeVisible();
       await page.getByLabel("Training facility").selectOption(fixture.facility.id);
@@ -576,15 +567,7 @@ test.describe("new training facility administrator", () => {
     if (profileError) throw profileError;
 
     await signInAs(page, ownerEmail, password, "/admin");
-    await expect(page.getByRole("heading", { name: "Multi-factor verification required" })).toBeVisible();
-    await page.getByRole("link", { name: "Open account security" }).click();
-    await page.getByRole("button", { name: "Add authenticator app", exact: true }).click();
-    const setupKey = page.getByText("Manual setup key", { exact: true }).locator("..").locator("code");
-    await expect(setupKey).toBeVisible();
-    await page.getByLabel("Authenticator code", { exact: true }).fill(totpCode((await setupKey.innerText()).trim()));
-    await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
-    await expect(page.getByText("This session is already verified. You may return to the enterprise control plane.")).toBeVisible();
-    await page.getByRole("button", { name: "Continue to the page you were opening" }).click();
+    await completeRequiredSmsVerification(page);
 
     await page.goto("/admin/organizations");
     await page.getByRole("button", { name: "Create complimentary training facility", exact: true }).click();

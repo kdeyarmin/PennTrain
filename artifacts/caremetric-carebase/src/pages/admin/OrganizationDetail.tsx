@@ -476,7 +476,7 @@ export default function OrganizationDetail() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Recording requires a fresh AAL2 (step-up) platform admin session and is written to the audit log.
+              Recording requires a platform admin session freshly verified with a text-message code and is written to the audit log.
             </p>
           </div>
         </CardContent>

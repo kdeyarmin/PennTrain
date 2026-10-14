@@ -7,7 +7,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { totpCode } from "./helpers/totp";
+import { completeRequiredSmsVerification } from "./helpers/smsMfa";
 import {
   expectNoHorizontalOverflow,
   gotoAppRoute,
@@ -180,16 +180,8 @@ test.describe("authenticated role journeys", () => {
       // account here so this journey actually reaches its destinations instead of
       // reporting success after checking only the MFA wall.
       if (["platform_admin", "org_admin", "facility_manager"].includes(role)) {
-        await test.step("complete required authenticator enrollment", async () => {
-          await expect(page.getByRole("heading", { name: "Multi-factor verification required" })).toBeVisible();
-          await page.getByRole("link", { name: "Open account security" }).click();
-          await page.getByRole("button", { name: "Add authenticator app", exact: true }).click();
-          const setupKey = page.getByText("Manual setup key", { exact: true }).locator("..").locator("code");
-          await expect(setupKey).toBeVisible();
-          await page.getByLabel("Authenticator code", { exact: true }).fill(totpCode((await setupKey.innerText()).trim()));
-          await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
-          await expect(page.getByText(/This session is already verified/)).toBeVisible();
-          await page.getByRole("button", { name: "Continue to the page you were opening" }).click();
+        await test.step("complete required text-message verification", async () => {
+          await completeRequiredSmsVerification(page);
           await expect.poll(() => new URL(page.url()).pathname).toBe(account.home);
         });
       }

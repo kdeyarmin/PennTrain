@@ -68,7 +68,7 @@ describe("MFA workspace gate", () => {
     expect(html).not.toContain("Protected user editor");
   });
 
-  it("preserves native authenticator access for accounts without SMS", () => {
+  it("trusts the database verdict that a session is already verified", () => {
     mocks.useQuery.mockReturnValueOnce(query({ data: {
       requirement: { required: true }, verification: { ...verification, method: "totp", expiresAt: null, smsRequired: false, smsFactors: [] }, assuranceIsCurrent: true,
     } }));

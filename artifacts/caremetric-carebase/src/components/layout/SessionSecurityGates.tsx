@@ -204,21 +204,13 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
 
   const requestVerification = useCallback(() => lock("manual"), [lock]);
 
-  const selectedStepUpFactor = stepUpFactors?.find((factor) => factor.id === stepUpFactorId) ?? null;
-  const isPhoneStepUp = selectedStepUpFactor?.factorType === "phone" || selectedStepUpFactor?.factorType === "sms";
-
+  // Text message is the only verification method (usableMfaFactors), so every step-up is an SMS.
   const sendStepUpCode = async () => {
     if (unlocking || !stepUpFactorId) return;
     setUnlocking(true);
     try {
-      if (selectedStepUpFactor?.factorType === "sms") {
-        const challenge = await sendSmsMfaCode();
-        setStepUpChallengeId(challenge.challengeId);
-      } else {
-        const { data, error } = await supabase.auth.mfa.challenge({ factorId: stepUpFactorId, channel: "sms" });
-        if (error) throw error;
-        setStepUpChallengeId(data.id);
-      }
+      const challenge = await sendSmsMfaCode();
+      setStepUpChallengeId(challenge.challengeId);
       toast({ title: "Code sent", description: "Enter the 6-digit code from the text message." });
     } catch (error) {
       toast({ title: "Could not send a code", description: describeMfaError(error), variant: "destructive" });
@@ -232,26 +224,8 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
     if (unlocking || !stepUpFactorId || !/^\d{6}$/.test(stepUpCode.trim())) return;
     setUnlocking(true);
     try {
-      if (isPhoneStepUp) {
-        if (!stepUpChallengeId) throw new Error("Request a new text-message code before verifying.");
-        if (selectedStepUpFactor?.factorType === "sms") {
-          await verifySmsMfaCode(stepUpChallengeId, stepUpCode.trim());
-        } else {
-          const { error } = await supabase.auth.mfa.verify({
-            factorId: stepUpFactorId, challengeId: stepUpChallengeId, code: stepUpCode.trim(),
-          });
-          if (error) throw error;
-        }
-      } else {
-        const { error } = await supabase.auth.mfa.challengeAndVerify({
-          factorId: stepUpFactorId, code: stepUpCode.trim(),
-        });
-        if (error) throw error;
-      }
-      if (selectedStepUpFactor?.factorType !== "sms") {
-        const { error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) throw refreshError;
-      }
+      if (!stepUpChallengeId) throw new Error("Request a new text-message code before verifying.");
+      await verifySmsMfaCode(stepUpChallengeId, stepUpCode.trim());
       await finishUnlock();
     } catch (error) {
       toast({ title: "Verification failed", description: describeMfaError(error), variant: "destructive" });
@@ -321,22 +295,20 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
                     >
                       {stepUpFactors.map((factor) => (
                         <option key={factor.id} value={factor.id}>
-                          {factor.friendlyName ?? (factor.factorType === "phone" || factor.factorType === "sms" ? "Text message" : "Authenticator app")}
+                          {factor.friendlyName ?? "Text message"}
                         </option>
                       ))}
                     </select>
                   </div>
                 )}
-                {isPhoneStepUp && (
-                  <Button className="w-full" variant="outline" type="button" disabled={unlocking} onClick={() => void sendStepUpCode()}>
-                    {stepUpChallengeId ? "Send a new code" : "Text me a code"}
-                  </Button>
-                )}
+                <Button className="w-full" variant="outline" type="button" disabled={unlocking} onClick={() => void sendStepUpCode()}>
+                  {stepUpChallengeId ? "Send a new code" : "Text me a code"}
+                </Button>
                 <div className="space-y-1.5">
                   <Label htmlFor="unlock-code">6-digit code</Label>
                   <Input id="unlock-code" disabled={unlocking} autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={stepUpCode} onChange={(event) => setStepUpCode(event.target.value.replace(/\D/g, ""))} />
                 </div>
-                <Button className="w-full" type="submit" disabled={unlocking || !/^\d{6}$/.test(stepUpCode.trim()) || (isPhoneStepUp && !stepUpChallengeId)}>
+                <Button className="w-full" type="submit" disabled={unlocking || !/^\d{6}$/.test(stepUpCode.trim()) || !stepUpChallengeId}>
                   <ShieldCheck className="mr-2 h-4 w-4" />{unlocking ? "Verifying…" : "Verify and continue"}
                 </Button>
                 <Button className="w-full" variant="ghost" type="button" onClick={() => void signOut()}><LogOut className="mr-2 h-4 w-4" />Sign out instead</Button>

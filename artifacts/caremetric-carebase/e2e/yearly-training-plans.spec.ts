@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test, type Page } from "@playwright/test";
 import { hasLiveSupabaseEnv, signInAs } from "./helpers/auth";
 import { facilityToday } from "./helpers/facilityDay";
-import { totpCode } from "./helpers/totp";
+import { completeRequiredSmsVerification, verifySessionBySms } from "./helpers/smsMfa";
 
 type ManagerRole = "org_admin" | "facility_manager";
 type Course = { id: string; versionId: string; title: string };
@@ -113,15 +113,7 @@ async function fixtureFor(role: ManagerRole, url: string, password: string) {
 }
 
 async function enrollMfa(page: Page) {
-  await expect(page.getByRole("heading", { name: "Multi-factor verification required" })).toBeVisible();
-  await page.getByRole("link", { name: "Open account security" }).click();
-  await page.getByRole("button", { name: "Add authenticator app", exact: true }).click();
-  const setupKey = page.getByText("Manual setup key", { exact: true }).locator("..").locator("code");
-  await expect(setupKey).toBeVisible();
-  await page.getByLabel("Authenticator code", { exact: true }).fill(totpCode((await setupKey.innerText()).trim()));
-  await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
-  await expect(page.getByText(/This session is already verified/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue to the page you were opening" }).click();
+  await completeRequiredSmsVerification(page);
 }
 
 async function assignments(client: SupabaseClient, organizationId: string): Promise<Assignment[]> {
@@ -187,6 +179,10 @@ test.describe("yearly facility training plans", () => {
       await test.step("create a facility/year plan with the administrator's exact deadline", async () => {
         await signInAs(page, f.manager.email, password, "/app/train");
         await enrollMfa(page);
+        // Once an account has text-message verification, every one of its sessions must verify
+        // before it can read anything -- including this script-held one.
+        const { data: actorSession } = await f.actorClient.auth.getSession();
+        await verifySessionBySms(actorSession.session!.access_token);
         await expect(page.getByRole("heading", { name: "CareMetric Train", exact: true })).toBeVisible();
         await page.getByLabel("Training facility", { exact: true }).selectOption(f.facility.id);
         if (role === "facility_manager") {

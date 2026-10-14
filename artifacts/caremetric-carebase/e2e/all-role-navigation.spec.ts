@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test, type Page, type Request } from "@playwright/test";
 import { gotoAppRoute, hasLiveSupabaseEnv, requireLiveSupabaseEnv, signInAs } from "./helpers/auth";
-import { totpCode } from "./helpers/totp";
+import { completeRequiredSmsVerification } from "./helpers/smsMfa";
 import { monitorQueryFailures } from "./helpers/queryFailures";
 
 const ROLES = ["platform_admin", "org_admin", "facility_manager", "trainer", "auditor", "employee"] as const;
@@ -171,15 +171,7 @@ const HOMES: Record<Role, string> = {
 };
 
 async function enrollRequiredMfa(page: Page) {
-  await expect(page.getByRole("heading", { name: "Multi-factor verification required" })).toBeVisible();
-  await page.getByRole("link", { name: "Open account security" }).click();
-  await page.getByRole("button", { name: "Add authenticator app", exact: true }).click();
-  const setupKey = page.getByText("Manual setup key", { exact: true }).locator("..").locator("code");
-  await expect(setupKey).toBeVisible();
-  await page.getByLabel("Authenticator code", { exact: true }).fill(totpCode((await setupKey.innerText()).trim()));
-  await page.getByRole("button", { name: "Verify authenticator", exact: true }).click();
-  await expect(page.getByText(/This session is already verified/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue to the page you were opening" }).click();
+  await completeRequiredSmsVerification(page);
 }
 
 test.describe("all role navigation and sensitive route boundaries", () => {
