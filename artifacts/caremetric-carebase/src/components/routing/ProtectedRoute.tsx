@@ -1,8 +1,10 @@
-import { lazy, type ComponentType } from "react";
+import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import { Link, Redirect } from "wouter";
 import { Loader2 } from "lucide-react";
-import { MainLayout } from "@/components/layout/MainLayout";
-import { KioskLayout } from "@/components/layout/KioskLayout";
+// The authenticated shell (sidebar, search, session gates) is not part of the marketing
+// landing download. It loads when a signed-in route actually paints.
+const MainLayout = lazy(() => import("@/components/layout/MainLayout").then((module) => ({ default: module.MainLayout })));
+const KioskLayout = lazy(() => import("@/components/layout/KioskLayout").then((module) => ({ default: module.KioskLayout })));
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
@@ -70,6 +72,11 @@ function FacilityTypeUnavailable({ requiredTypes }: { requiredTypes: readonly st
       </div>
     </div>
   );
+}
+
+function AppChrome({ chrome, children }: { chrome: "default" | "kiosk"; children: ReactNode }) {
+  const layout = chrome === "kiosk" ? <KioskLayout>{children}</KioskLayout> : <MainLayout>{children}</MainLayout>;
+  return <Suspense fallback={<FullPageLoading label="Loading workspace" />}>{layout}</Suspense>;
 }
 
 export function ProtectedRoute({
@@ -172,9 +179,7 @@ export function ProtectedRoute({
       const moduleHome = moduleAccess.homePath;
       if (moduleHome && moduleHome !== currentPath) return <Redirect to={moduleHome} />;
       const unavailable = <FacilityTypeUnavailable requiredTypes={requireFacilityTypes} />;
-      return chrome === "kiosk"
-        ? <KioskLayout>{unavailable}</KioskLayout>
-        : <MainLayout>{unavailable}</MainLayout>;
+      return <AppChrome chrome={chrome}>{unavailable}</AppChrome>;
     }
   }
 
@@ -183,8 +188,6 @@ export function ProtectedRoute({
   // reviewer, while preserving the shell and same-page query/hash tab state.
   const pageIdentity = JSON.stringify([currentPath, user?.id, user?.organizationId, user?.role, viewingOrgId]);
   const content = <Component key={pageIdentity} />;
-  return chrome === "kiosk"
-    ? <KioskLayout>{content}</KioskLayout>
-    : <MainLayout>{content}</MainLayout>;
+  return <AppChrome chrome={chrome}>{content}</AppChrome>;
 }
 
