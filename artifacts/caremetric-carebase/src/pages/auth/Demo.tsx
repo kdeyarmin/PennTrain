@@ -111,7 +111,7 @@ export default function Demo() {
             <CardDescription>
               {accounts.length > 0
                 ? "Choose a role to enter a working demo with synthetic Sunrise Healthcare data."
-                : "Request access to a workspace with fictional facility data, or start your own free trial."}
+                : "Request access to a workspace with fictional facility data, or start your own free trial. Persona buttons are added when this build is given a public demo account list. Seeded local accounts use Sign in, and platform administrators are never one of the buttons."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">

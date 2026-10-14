@@ -353,7 +353,18 @@ export function IdleSessionLock({ children }: { children: React.ReactNode }) {
   );
 }
 
+export function mfaEnrollmentPrompt(role: string | undefined, smsRequired: boolean | undefined): string {
+  if (smsRequired) {
+    return "Your account uses text-message verification. Enter a code sent to your mobile number before opening protected workspaces.";
+  }
+  if (role === "platform_admin") {
+    return "Platform administration requires an authenticator. Open account security to enroll or verify one before opening protected workspaces.";
+  }
+  return "Your organization requires a second verification step. Open account security to enroll or verify an available method before opening protected workspaces.";
+}
+
 export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [verificationOverlayActive, setVerificationOverlayActive] = useState(false);
   const openedWithCurrentAssurance = useRef(false);
   const [location] = useLocation();
@@ -490,7 +501,7 @@ export function MfaPolicyGate({ children }: { children: React.ReactNode }) {
       {/* A real heading role: CardTitle renders a div, which left this full-screen gate invisible to
           assistive tech (and to any instrumentation that asks "did a page render") -- a signed-in
           admin's first screen deserves to announce itself. */}
-      <Card className="w-full max-w-lg"><CardHeader className="text-center"><ShieldCheck className="mx-auto mb-2 h-10 w-10 text-primary" /><CardTitle role="heading" aria-level={1}>Multi-factor verification required</CardTitle><CardDescription>{policy.data?.verification.smsRequired ? "Your account uses text-message verification. Enter a code sent to your mobile number before opening protected workspaces." : "Your organization requires a second verification step. Open account security to enroll or verify an available method before opening protected workspaces."}</CardDescription></CardHeader><CardContent className="flex flex-col gap-2"><Button asChild><Link href={accountSecurityHref}>Open account security</Link></Button><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></CardContent></Card>
+      <Card className="w-full max-w-lg"><CardHeader className="text-center"><ShieldCheck className="mx-auto mb-2 h-10 w-10 text-primary" /><CardTitle role="heading" aria-level={1}>Multi-factor verification required</CardTitle><CardDescription>{mfaEnrollmentPrompt(user?.role, policy.data?.verification.smsRequired)}</CardDescription></CardHeader><CardContent className="flex flex-col gap-2"><Button asChild><Link href={accountSecurityHref}>Open account security</Link></Button><Button variant="ghost" onClick={() => void signOut()}>Sign out</Button></CardContent></Card>
     </div>
   );
 }

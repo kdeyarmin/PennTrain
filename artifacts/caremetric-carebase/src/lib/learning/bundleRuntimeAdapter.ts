@@ -11,6 +11,16 @@
 
 export const BUNDLED_ADAPTER_PATH = "carebase/learning-runtime-bridge.js";
 
+// A package author's launch file, taken from the first resource href. This is the
+// scaffold a real Storyline/Captivate export already carries; it is not a course.
+const SCORM_RESOURCE_HREF = /<resource\b[^>]*\bhref="([^"]+)"/i;
+
+export function scorm12LaunchHref(manifestXml: string): string | null {
+  const href = manifestXml.match(SCORM_RESOURCE_HREF)?.[1]?.trim() ?? "";
+  if (!href || href.startsWith("/") || href.includes("\\") || href.split("/").includes("..")) return null;
+  return href;
+}
+
 export const ADAPTER_SCRIPT_TAG =
   `<script src="./${BUNDLED_ADAPTER_PATH}"></script>`;
 
@@ -49,6 +59,9 @@ export function planAdapterBundle(
 ): { files: Record<string, string>; entryPoint: string; injected: boolean } {
   const files: Record<string, string> = { ...existingFiles };
   files[BUNDLED_ADAPTER_PATH] = adapterSource;
+  const manifest = files["imsmanifest.xml"];
+  const manifestEntry = typeof manifest === "string" ? scorm12LaunchHref(manifest) : null;
+  if (manifestEntry && typeof files[manifestEntry] === "string") entryPoint = manifestEntry;
 
   let injected = false;
   const entry = files[entryPoint];

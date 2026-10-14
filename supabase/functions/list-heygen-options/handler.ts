@@ -1,6 +1,7 @@
 // @ts-nocheck -- HeyGen response shaping; CORS hardened
 import type { createClient as SupabaseCreateClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireSmsMfaFloor } from "../_shared/smsMfaFloor.ts";
+import { HEYGEN_UNAVAILABLE_STATUS, heygenUnavailableBody } from "../_shared/heygenAvailability.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 
 function json(req: Request, body: unknown, status = 200) {
@@ -63,7 +64,7 @@ export function createListHeygenOptionsHandler({
   const anonKey = getEnv("SUPABASE_ANON_KEY");
   const heygenApiKey = getEnv("HEYGEN_API_KEY");
   if (!supabaseUrl || !anonKey) return json(req, { error: "Service is not configured" }, 503);
-  if (!heygenApiKey) return json(req, { error: "HEYGEN_API_KEY is not configured" }, 500);
+  if (!heygenApiKey) return json(req, heygenUnavailableBody(), HEYGEN_UNAVAILABLE_STATUS);
 
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },

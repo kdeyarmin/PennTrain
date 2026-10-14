@@ -1,6 +1,25 @@
 import { assertEquals } from "jsr:@std/assert@1.0.14";
 import { createStripeBillingWebhookHandler } from "./handler.ts";
 
+Deno.test("stripe-billing-webhook reports a missing signing secret before it checks a signature", async () => {
+  const handler = createStripeBillingWebhookHandler({
+    createClient: () => {
+      throw new Error("should not persist");
+    },
+    getEnv: () => "   ",
+    verifySignature: async () => {
+      throw new Error("should not verify");
+    },
+  });
+  const response = await handler(new Request("https://example.test", {
+    method: "POST",
+    headers: { "stripe-signature": "t=1,v1=bad" },
+    body: "{}",
+  }));
+  assertEquals(response.status, 503);
+  assertEquals((await response.json()).error, "billing_webhook_not_configured");
+});
+
 Deno.test("stripe-billing-webhook rejects non-POST and invalid signatures", async () => {
   const handler = createStripeBillingWebhookHandler({
     createClient: () => {

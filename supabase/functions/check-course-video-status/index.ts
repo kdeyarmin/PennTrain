@@ -1,6 +1,7 @@
 // @ts-nocheck -- HeyGen job state; CORS hardened
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { pollAndResolveHeygenVideo, type HeygenJobState } from "../_shared/heygenPolling.ts";
+import { HEYGEN_UNAVAILABLE_STATUS, heygenUnavailableBody } from "../_shared/heygenAvailability.ts";
 import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts";
 import { requireFreshAal2 } from "../_shared/privilegedIdentity.ts";
 
@@ -27,7 +28,7 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
   if (!supabaseUrl || !anonKey || !serviceRoleKey) return json(req, { error: "Service is not configured" }, 503);
-  if (!heygenApiKey) return json(req, { error: "HEYGEN_API_KEY is not configured" }, 500);
+  if (!heygenApiKey) return json(req, heygenUnavailableBody(), HEYGEN_UNAVAILABLE_STATUS);
 
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },

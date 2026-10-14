@@ -1,6 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2.48.1";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
 import { summarizeRegulatorySourceChange } from "../_shared/regulatoryDiff.ts";
+import { regulatoryPollNotConfigured } from "./configuration.ts";
 
 const HEADERS = withCronCorsHeader({ "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
 
@@ -31,7 +32,10 @@ Deno.serve(async (req: Request) => {
   if (authError) return authError;
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) return new Response(JSON.stringify({ error: "Supabase service credentials are missing" }), { status: 500, headers: HEADERS });
+  if (!url || !key) {
+    const notConfigured = regulatoryPollNotConfigured({ supabaseUrl: url, serviceRoleKey: key });
+    return new Response(JSON.stringify(notConfigured!.body), { status: notConfigured!.status, headers: HEADERS });
+  }
   const admin = createClient(url, key);
 
   // Claimed BEFORE any work, so a run that dies mid-sweep leaves a claimed row for the reconciler

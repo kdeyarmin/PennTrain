@@ -58,7 +58,9 @@ export function createPushSubscriptionsHandler({
   const supabaseUrl = getEnv("SUPABASE_URL");
   const anonKey = getEnv("SUPABASE_ANON_KEY");
   const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !anonKey || !serviceKey) return json(req, { error: "Push service is not configured" }, 500);
+  if (!supabaseUrl || !anonKey || !serviceKey) {
+    return json(req, { error: "push_not_configured", message: "Web push is not configured" }, 503);
+  }
   const caller = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } });
   const { data: { user }, error: userError } = await caller.auth.getUser();
   if (userError || !user) return json(req, { error: "Invalid or expired session" }, 401);

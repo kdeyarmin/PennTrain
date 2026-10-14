@@ -7,6 +7,7 @@ import {
   pollAndResolveHeygenVideo,
 } from "../_shared/heygenPolling.ts";
 import { requireCronRequest, withCronCorsHeader } from "../_shared/cronAuth.ts";
+import { HEYGEN_UNAVAILABLE_STATUS, heygenUnavailableBody } from "../_shared/heygenAvailability.ts";
 import { selectPollableHeygenBlocks } from "./query.ts";
 
 // Internal cron-only endpoint: invoked exclusively by the poll-heygen-video-statuses pg_cron job
@@ -101,11 +102,8 @@ Deno.serve(async (req: Request) => {
 
   const heygenApiKey = Deno.env.get("HEYGEN_API_KEY");
   if (!heygenApiKey) {
-    await finishRun("failed", 0, 0, 1, {}, "HEYGEN_API_KEY is not configured");
-    return json(
-      { error: "HEYGEN_API_KEY is not configured", correlationId },
-      500,
-    );
+    await finishRun("failed", 0, 0, 1, {}, "heygen_not_configured");
+    return json({ ...heygenUnavailableBody(), correlationId }, HEYGEN_UNAVAILABLE_STATUS);
   }
 
   // Codex/Copilot review finding: pollAndResolveHeygenVideo persists whatever non-terminal status

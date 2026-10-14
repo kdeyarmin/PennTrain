@@ -5,6 +5,7 @@ import {
   injectAdapterScriptTag,
   isInjectableHtml,
   planAdapterBundle,
+  scorm12LaunchHref,
 } from "./bundleRuntimeAdapter";
 
 describe("bundleRuntimeAdapter", () => {
@@ -34,5 +35,20 @@ describe("bundleRuntimeAdapter", () => {
     expect(injected).toBe(true);
     expect(files[BUNDLED_ADAPTER_PATH]).toBe(adapter);
     expect(files["index.html"]).toContain(BUNDLED_ADAPTER_PATH);
+  });
+
+  it("launches the HTML file named by a SCORM 1.2 manifest", () => {
+    const manifest = `<?xml version="1.0"?><manifest><resources><resource href="lesson/index.html" /></resources></manifest>`;
+    expect(scorm12LaunchHref(manifest)).toBe("lesson/index.html");
+    expect(scorm12LaunchHref(`<resource href="../secret.html" />`)).toBeNull();
+    const { files, entryPoint, injected } = planAdapterBundle("adapter", {
+      "imsmanifest.xml": manifest,
+      "lesson/index.html": "<html><body>Lesson</body></html>",
+      "index.html": "<html><body>Ignored</body></html>",
+    });
+    expect(entryPoint).toBe("lesson/index.html");
+    expect(injected).toBe(true);
+    expect(files["lesson/index.html"]).toContain(BUNDLED_ADAPTER_PATH);
+    expect(files["index.html"]).not.toContain(BUNDLED_ADAPTER_PATH);
   });
 });
