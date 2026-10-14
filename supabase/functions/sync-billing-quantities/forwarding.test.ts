@@ -121,7 +121,13 @@ Deno.test("billing runtime missing cron configuration does not fall back to glob
   const { handler, state } = fixture({
     env: { ...ENV, CRON_SHARED_SECRET: undefined },
   });
-  assertEquals((await handler(request())).status, 500);
+  const result = await handler(request());
+  assertEquals(result.status, 503);
+  assertEquals(await result.json(), {
+    error: "billing_runtime_cron_not_configured",
+    dispatchOutcome: "not_started",
+    correlationId: CORRELATION_ID,
+  });
   assertEquals(state.fetched + state.delegated, 0);
 });
 
