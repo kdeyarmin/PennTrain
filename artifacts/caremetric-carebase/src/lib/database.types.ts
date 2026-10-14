@@ -5517,16 +5517,19 @@ export type Database = {
         Row: {
           created_at: string
           heygen_video_id: string
+          video_path: string
           vtt: string
         }
         Insert: {
           created_at?: string
           heygen_video_id: string
+          video_path: string
           vtt: string
         }
         Update: {
           created_at?: string
           heygen_video_id?: string
+          video_path?: string
           vtt?: string
         }
         Relationships: []

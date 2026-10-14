@@ -4,30 +4,31 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 
 /**
- * WebVTT captions for a HeyGen-rendered course video, keyed by the render's video id
- * (`body.heygen.video_id`) rather than the block: a cloned block reuses the same render and so the
- * same captions, and a re-render gets a new id, so stale captions can never play over new audio.
- * The table's RLS mirrors course_blocks -- a caller sees captions only for a render on a block they
- * can already read -- and the cue text is the block's own transcript, so this exposes nothing new.
+ * WebVTT captions for a course video, keyed by the video's object path in the course-videos bucket
+ * (`system/<block>.mp4`, or `<folder>/<block>.<render>.mp4` for renders since per-job storage).
+ * A cloned version copies `video_url` but not `body.heygen`, so the path is the identity that
+ * survives a clone; and a render is stored once under its own path and never overwritten, so a
+ * re-render gets a new path and stale captions can never play over new audio. The table's read
+ * policy is the bucket's own, so a caller sees captions exactly when they can play the file.
  *
  * The track is handed to the <video> as a blob: URL, which is same-origin and so needs no CORS or
  * crossorigin attribute on the element. `isLoading` lets the player hold the element until the
  * answer is in, so the track is present at first render and `default` is honored.
  */
-export function useCourseVideoCaptions(videoId: string | undefined): { url: string | null; isLoading: boolean } {
+export function useCourseVideoCaptions(videoPath: string | null): { url: string | null; isLoading: boolean } {
   const { user } = useAuth();
   const captions = useQuery({
-    queryKey: ["course-video-captions", videoId, user?.id, user?.organizationId, user?.role],
+    queryKey: ["course-video-captions", videoPath, user?.id, user?.organizationId, user?.role],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("course_video_captions")
         .select("vtt")
-        .eq("heygen_video_id", videoId!)
+        .eq("video_path", videoPath!)
         .maybeSingle();
       if (error) throw error;
       return data?.vtt ?? null;
     },
-    enabled: Boolean(videoId),
+    enabled: Boolean(videoPath),
     staleTime: Infinity,
     // Captions are an enhancement: a failed lookup plays the video without them rather than
     // holding the lesson behind retries.

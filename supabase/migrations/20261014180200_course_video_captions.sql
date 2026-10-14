@@ -4,12 +4,18 @@
 -- or one watching on a floor where the sound has to stay off, got the narration only by scrolling a
 -- transcript beside the player. The October 9, 2026 catalog review flagged it.
 --
--- Captions are keyed by the HeyGen render id (`course_blocks.body->'heygen'->>'video_id'`), not by
--- block: a block cloned into a new version reuses the same render and so picks up the same captions,
--- and a re-render gets a new id, so old captions can never play over new audio. The read policy
--- mirrors course_blocks -- a caller sees a render's captions only when they can read a block that
--- carries that render -- and the cue text is that block's own `script`, so nothing is exposed that
--- the transcript beside the player does not already show.
+-- Captions are keyed by the video file's path in the course-videos bucket, the same path the
+-- block's `video_url` names. That is the identity that survives a version clone:
+-- clone_course_version_core copies `video_url` but strips `body.heygen`, so a cloned block plays
+-- the original file and finds its captions by the same path. It also cannot go stale: since
+-- per-job storage (_shared/heygenPolling.ts) a render is written once to
+-- `<folder>/<block>.<render>.mp4` with upsert off, so a re-render is a new path with no captions
+-- rather than new audio under old ones. `heygen_video_id` records which render the cues were
+-- timed against.
+--
+-- The read policy is the bucket's own ("course-videos authenticated read",
+-- 20260714233041): a caller reads a file's captions exactly when they can play the file. The cue
+-- text is the block's own `script`, which the player already shows as the transcript.
 --
 -- How the rows below were made: every render was downloaded from HeyGen, run through a
 -- speech-to-text model with word timestamps, and the block's approved script was aligned to those
@@ -25,13 +31,15 @@
 -- Written only by migrations; nothing in the app inserts or edits a row.
 
 create table public.course_video_captions (
-  heygen_video_id text primary key check (heygen_video_id ~ '^[0-9a-f]{32}$'),
+  video_path text primary key
+    check (video_path ~ '^(system|[0-9a-f-]{36})/[0-9a-f-]{36}(\.[0-9a-f]{32})?\.mp4$'),
+  heygen_video_id text not null unique check (heygen_video_id ~ '^[0-9a-f]{32}$'),
   vtt text not null check (vtt like 'WEBVTT%' and length(vtt) <= 100000),
   created_at timestamptz not null default now()
 );
 
 comment on table public.course_video_captions is
-  'WebVTT captions for HeyGen-rendered course videos, keyed by render id. Cue text is the block script, timed against the render audio.';
+  'WebVTT captions for course videos, keyed by object path in the course-videos bucket. Cue text is the block script, timed against the render audio.';
 
 alter table public.course_video_captions enable row level security;
 
@@ -39,11 +47,19 @@ create policy course_video_captions_select
   on public.course_video_captions
   for select
   to authenticated
-  using (exists (
-    select 1 from public.course_blocks b
-    where b.block_type = 'video'
-      and b.body->'heygen'->>'video_id' = course_video_captions.heygen_video_id
-  ));
+  using (
+    (select public.is_platform_admin())
+    or exists (
+      select 1
+      from public.course_blocks b
+      join public.course_versions cv on cv.id = b.course_version_id
+      where b.id::text = split_part(split_part(course_video_captions.video_path, '/', 2), '.', 1)
+        and cv.status = 'published'
+        and public.current_profile_active()
+        and split_part(course_video_captions.video_path, '/', 1) = coalesce(b.organization_id::text, 'system')
+        and (b.organization_id is null or b.organization_id = public.current_org_id())
+    )
+  );
 
 insert into app_private.product_module_resources(resource_schema, resource_name, module_key)
 values ('public', 'course_video_captions', 'modules.train')
@@ -82,7 +98,7 @@ values (
   'course_video_captions',
   'not_required',
   false,
-  'Platform caption text derived from the course block script and written only by migrations, classified like course_blocks.'
+  'Caption text derived from the course block script and written only by migrations, classified like course_blocks.'
 )
 on conflict (table_name) do update set
   audit_mode = excluded.audit_mode,
@@ -90,9 +106,9 @@ on conflict (table_name) do update set
   rationale = excluded.rationale,
   updated_at = now();
 
-insert into public.course_video_captions (heygen_video_id, vtt) values
--- Annual Diabetes Patient Education for Pe... lesson 2 (block 27418dc8-3195-538c-9458-8f1d58ab041f)
-('b98a71c650826271b0a24d77de6dfd42', $vtt$WEBVTT
+insert into public.course_video_captions (video_path, heygen_video_id, vtt) values
+-- Annual Diabetes Patient Education for Pe... lesson 2
+('system/27418dc8-3195-538c-9458-8f1d58ab041f.mp4', 'b98a71c650826271b0a24d77de6dfd42', $vtt$WEBVTT
 
 1
 00:00:04.760 --> 00:00:09.580
@@ -357,8 +373,8 @@ Not because the person was reckless.
 Because the gap was inconvenient
 and the answer seemed obvious.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 4 (block e8f18bc1-c993-51b7-ac80-923db0baba18)
-('dbb1fb54d4c89aa06a8a967682040b44', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 4
+('system/e8f18bc1-c993-51b7-ac80-923db0baba18.mp4', 'dbb1fb54d4c89aa06a8a967682040b44', $vtt$WEBVTT
 
 1
 00:00:04.660 --> 00:00:07.940
@@ -607,8 +623,8 @@ you don't have a complete instruction.
 00:02:55.220 --> 00:02:56.107
 You stop.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 6 (block a7cd3b12-02fa-5d5b-a839-0e11f8a7aa9b)
-('87e2ca3eb83c873777394fd5c159c3b0', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 6
+('system/a7cd3b12-02fa-5d5b-a839-0e11f8a7aa9b.mp4', '87e2ca3eb83c873777394fd5c159c3b0', $vtt$WEBVTT
 
 1
 00:00:04.780 --> 00:00:07.700
@@ -865,8 +881,8 @@ Not at the end of shift.
 A resident who went low once is a resident
 whose plan may need to change.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 8 (block 4abb692f-5252-5eac-9f62-91c6cb70d038)
-('169ff77e06220694dee62bae9e74dfb7', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 8
+('system/4abb692f-5252-5eac-9f62-91c6cb70d038.mp4', '169ff77e06220694dee62bae9e74dfb7', $vtt$WEBVTT
 
 1
 00:00:04.720 --> 00:00:08.280
@@ -1108,8 +1124,8 @@ with high sugar who's vomiting,
 or breathing strangely, or hard to wake,
 is not a call-in-the-morning situation.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 10 (block 1eab1170-55b6-56bd-b40d-04025bf8e540)
-('bdf769bc40176c4f80534418fcdc0f0d', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 10
+('system/1eab1170-55b6-56bd-b40d-04025bf8e540.mp4', 'bdf769bc40176c4f80534418fcdc0f0d', $vtt$WEBVTT
 
 1
 00:00:05.020 --> 00:00:07.460
@@ -1361,8 +1377,8 @@ It isn't a comment on how careful you are.
 00:03:09.060 --> 00:03:10.620
 It's a statement about the drug.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 12 (block 35196e6f-b419-55b9-894a-2f915fa277fa)
-('68f7bdb18febfc44bc77836cc16334ae', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 12
+('system/35196e6f-b419-55b9-894a-2f915fa277fa.mp4', '68f7bdb18febfc44bc77836cc16334ae', $vtt$WEBVTT
 
 1
 00:00:05.000 --> 00:00:08.400
@@ -1540,8 +1556,8 @@ a label you can't fully read,
 00:02:22.880 --> 00:02:24.580
 and it does not get used.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 14 (block a64d68d2-51ab-5aca-9161-15b13f5656de)
-('fe9550019996150765b46bb53f0e7a2e', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 14
+('system/a64d68d2-51ab-5aca-9161-15b13f5656de.mp4', 'fe9550019996150765b46bb53f0e7a2e', $vtt$WEBVTT
 
 1
 00:00:04.560 --> 00:00:09.180
@@ -1794,8 +1810,8 @@ You are refusing to guess.
 Those are different things
 and only one of them is a problem.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 16 (block b724bffc-8a5a-5967-aff3-687aebe1f718)
-('d7a568b85f70c11d40f201239da3c7e3', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 16
+('system/b724bffc-8a5a-5967-aff3-687aebe1f718.mp4', 'd7a568b85f70c11d40f201239da3c7e3', $vtt$WEBVTT
 
 1
 00:00:04.680 --> 00:00:07.860
@@ -1958,8 +1974,8 @@ concentrations yourself.
 If the concentration on the vial isn't
 the concentration in the order, you stop.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 18 (block 2ab70c1d-129c-51b5-bce1-31932c3fe407)
-('3070adf02c007f67305e5e9edfe08f1e', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 18
+('system/2ab70c1d-129c-51b5-bce1-31932c3fe407.mp4', '3070adf02c007f67305e5e9edfe08f1e', $vtt$WEBVTT
 
 1
 00:00:04.840 --> 00:00:06.940
@@ -2140,8 +2156,8 @@ is exactly why you follow the instruction
 00:02:09.600 --> 00:02:11.420
 instead of a number you remember.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 20 (block c339858f-b50f-5117-b328-87a23ed1d7d9)
-('05bb208ea265011ad34ab0db8a6664e4', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 20
+('system/c339858f-b50f-5117-b328-87a23ed1d7d9.mp4', '05bb208ea265011ad34ab0db8a6664e4', $vtt$WEBVTT
 
 1
 00:00:04.880 --> 00:00:08.820
@@ -2375,8 +2391,8 @@ You give what's ordered, exactly.
 00:03:03.300 --> 00:03:04.980
 When it's unclear, you stop.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 22 (block 2d8727af-c0be-58b8-8c75-7229c36f4b04)
-('4e15fa3dc2f70adf7516abdcd26c82e9', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 22
+('system/2d8727af-c0be-58b8-8c75-7229c36f4b04.mp4', '4e15fa3dc2f70adf7516abdcd26c82e9', $vtt$WEBVTT
 
 1
 00:00:04.640 --> 00:00:07.740
@@ -2598,8 +2614,8 @@ you confessing to something.
 That's your building finding the hole
 before it takes somebody down.
 $vtt$),
--- Annual Diabetes Patient Education for Pe... lesson 25 (block 6adbbb0b-f989-56d8-821f-302fd264ff60)
-('00f1790d8b19c156292083e687e98a5e', $vtt$WEBVTT
+-- Annual Diabetes Patient Education for Pe... lesson 25
+('system/6adbbb0b-f989-56d8-821f-302fd264ff60.mp4', '00f1790d8b19c156292083e687e98a5e', $vtt$WEBVTT
 
 1
 00:00:04.780 --> 00:00:09.220
@@ -2762,8 +2778,8 @@ be easier to assume it's nothing.
 00:02:05.460 --> 00:02:06.780
 Be the person who stops.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 2 (block ab73417d-0c56-5665-998d-6a6a1dc07e65)
-('8b1a3cffcc324947a7aa0f2cf43adbd8', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 2
+('system/ab73417d-0c56-5665-998d-6a6a1dc07e65.mp4', '8b1a3cffcc324947a7aa0f2cf43adbd8', $vtt$WEBVTT
 
 1
 00:00:04.760 --> 00:00:09.020
@@ -2964,8 +2980,8 @@ three staff end up in one hallway and
 00:02:18.800 --> 00:02:20.520
 somebody's room never gets checked.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 3 (block 4cb9ff20-0e3a-5a07-a50c-28d8aff8d114)
-('d492d05fe6f646b297c885d1e509d509', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 3
+('system/4cb9ff20-0e3a-5a07-a50c-28d8aff8d114.mp4', 'd492d05fe6f646b297c885d1e509d509', $vtt$WEBVTT
 
 1
 00:00:03.720 --> 00:00:06.780
@@ -3090,8 +3106,8 @@ requires you to know what is happening,
 00:01:23.000 --> 00:01:25.480
 which is deliberate, because you will not.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 4 (block 6901d340-0649-5cfc-bfd0-41a147021e05)
-('2eea8794004740758f9a85cc455bc931', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 4
+('system/6901d340-0649-5cfc-bfd0-41a147021e05.mp4', '2eea8794004740758f9a85cc455bc931', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:01.760
@@ -3316,8 +3332,8 @@ second emergency to pull every remaining
 00:02:39.040 --> 00:02:40.480
 person off the first.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 5 (block f92b86c1-a28e-518b-a585-09fc49c1717b)
-('c83a4adaf9b64b228e2faa79efd21859', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 5
+('system/f92b86c1-a28e-518b-a585-09fc49c1717b.mp4', 'c83a4adaf9b64b228e2faa79efd21859', $vtt$WEBVTT
 
 1
 00:00:03.680 --> 00:00:06.660
@@ -3498,8 +3514,8 @@ anybody say we moved too soon.
 00:02:09.420 --> 00:02:10.740
 I have heard the other one.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 6 (block 54be8840-16e1-55c3-b42f-51675b3ae986)
-('acda75c3008c4870988002caffc33841', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 6
+('system/54be8840-16e1-55c3-b42f-51675b3ae986.mp4', 'acda75c3008c4870988002caffc33841', $vtt$WEBVTT
 
 1
 00:00:03.760 --> 00:00:06.460
@@ -3732,8 +3748,8 @@ the right people moving is your job.
 00:02:36.680 --> 00:02:38.720
 Figuring out what happened is theirs.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 7 (block 15d74b02-8f7b-51e2-bebf-2cb7c8d9b464)
-('74b4f123d1364e97b7ecdbf140b12520', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 7
+('system/15d74b02-8f7b-51e2-bebf-2cb7c8d9b464.mp4', '74b4f123d1364e97b7ecdbf140b12520', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:04.340
@@ -3911,8 +3927,8 @@ ten minutes you will ever spend in this
 00:02:10.560 --> 00:02:11.221
 work.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 8 (block f863c6f7-87de-5214-bb03-19389f8dfb9b)
-('cdef7443bae1495facbb508c548c4506', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 8
+('system/f863c6f7-87de-5214-bb03-19389f8dfb9b.mp4', 'cdef7443bae1495facbb508c548c4506', $vtt$WEBVTT
 
 1
 00:00:03.700 --> 00:00:06.620
@@ -4088,8 +4104,8 @@ toward those rooms while everybody else is
 00:02:11.100 --> 00:02:12.640
 still working out what happened.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 9 (block 13174d2d-97f9-5c7d-8510-2a9886fcaf54)
-('faa5414a81d54fa6bccc6f49da93649e', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 9
+('system/13174d2d-97f9-5c7d-8510-2a9886fcaf54.mp4', 'faa5414a81d54fa6bccc6f49da93649e', $vtt$WEBVTT
 
 1
 00:00:03.800 --> 00:00:08.360
@@ -4299,8 +4315,8 @@ in that hallway already knows.
 00:02:34.700 --> 00:02:35.740
 Tonight that's you.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 10 (block 67ef1fb4-1e1d-501a-bef8-b258fc8a683e)
-('15e820692e40459c8370295ba1d57ffb', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 10
+('system/67ef1fb4-1e1d-501a-bef8-b258fc8a683e.mp4', '15e820692e40459c8370295ba1d57ffb', $vtt$WEBVTT
 
 1
 00:00:03.700 --> 00:00:08.160
@@ -4490,8 +4506,8 @@ in a way that feels reassuring,
 00:02:13.120 --> 00:02:15.300
 which is the worst combination available.
 $vtt$),
--- Emergency Preparedness Beyond Fire: Annu... lesson 11 (block 38e434eb-fe06-518e-837c-850a947a6984)
-('95ef9d5208ca43e591ebda92b748dd55', $vtt$WEBVTT
+-- Emergency Preparedness Beyond Fire: Annu... lesson 11
+('system/38e434eb-fe06-518e-837c-850a947a6984.mp4', '95ef9d5208ca43e591ebda92b748dd55', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:02.700
@@ -4561,8 +4577,8 @@ in that hallway already knows.
 00:00:42.700 --> 00:00:44.400
 Tonight, that is you.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 2 (block a424415b-d179-56ea-879d-e52e55a43971)
-('4bca5132db184869aa9dd5d960b44672', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 2
+('system/a424415b-d179-56ea-879d-e52e55a43971.mp4', '4bca5132db184869aa9dd5d960b44672', $vtt$WEBVTT
 
 1
 00:00:04.860 --> 00:00:09.940
@@ -4763,8 +4779,8 @@ Know what your residents' plans say.
 And when what you're seeing stops matching
 what's written down, say so out loud.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 3 (block 8f6e70d8-94d2-5447-996d-56a971893fcc)
-('65e1e4bf6abd47a685aefa2fc65b7301', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 3
+('system/8f6e70d8-94d2-5447-996d-56a971893fcc.mp4', '65e1e4bf6abd47a685aefa2fc65b7301', $vtt$WEBVTT
 
 1
 00:00:03.720 --> 00:00:06.100
@@ -4890,8 +4906,8 @@ grade the moment somebody writes down the
 00:01:39.160 --> 00:01:39.840
 pattern.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 4 (block 30626aa3-cf8a-5886-8357-c714f982bee7)
-('c674ad3d3b114ef79333d943bf54ea30', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 4
+('system/30626aa3-cf8a-5886-8357-c714f982bee7.mp4', 'c674ad3d3b114ef79333d943bf54ea30', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:02.280
@@ -5001,8 +5017,8 @@ to diagnose anything.
 You are being asked to notice,
 and to say it to a person who can act.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 5 (block 0307fa8e-12fd-51db-b54c-8447a97a2aaf)
-('cf969b1ecb0648428daff588311212b6', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 5
+('system/0307fa8e-12fd-51db-b54c-8447a97a2aaf.mp4', 'cf969b1ecb0648428daff588311212b6', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:02.740
@@ -5217,8 +5233,8 @@ person actually in front of you is where
 00:02:47.920 --> 00:02:50.200
 almost every preventable fall lives.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 6 (block dc2f34ee-742c-5ef5-9709-f001ccff9e7b)
-('0296507bf79843dda1e7bc6b1825b54d', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 6
+('system/dc2f34ee-742c-5ef5-9709-f001ccff9e7b.mp4', '0296507bf79843dda1e7bc6b1825b54d', $vtt$WEBVTT
 
 1
 00:00:03.760 --> 00:00:08.280
@@ -5436,8 +5452,8 @@ for asking for a second set of hands.
 I've seen plenty of people
 hurt doing it alone.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 7 (block 1b8f0eb8-e4c2-5cb8-bbd7-b321c9a34f03)
-('442cba3efdd84dfc9a219d3632f89746', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 7
+('system/1b8f0eb8-e4c2-5cb8-bbd7-b321c9a34f03.mp4', '442cba3efdd84dfc9a219d3632f89746', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:05.320
@@ -5636,8 +5652,8 @@ quickly prevents falls,
 00:02:18.200 --> 00:02:20.100
 for a reason that is worth sitting with.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 8 (block 2497328e-39d7-53d4-937a-82c2b3f120d4)
-('6ad9f0608822488db1668ca800de0724', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 8
+('system/2497328e-39d7-53d4-937a-82c2b3f120d4.mp4', '6ad9f0608822488db1668ca800de0724', $vtt$WEBVTT
 
 1
 00:00:04.020 --> 00:00:07.000
@@ -5810,8 +5826,8 @@ those is a reason to stop and get a second
 person. None of them is a reason
 to push through and hope.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 9 (block a351e705-d358-587a-9874-2ba9231da6c2)
-('0b0f824712f3490dbe8c5e639ba53c87', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 9
+('system/a351e705-d358-587a-9874-2ba9231da6c2.mp4', '0b0f824712f3490dbe8c5e639ba53c87', $vtt$WEBVTT
 
 1
 00:00:03.700 --> 00:00:07.140
@@ -6023,8 +6039,8 @@ the moving they want to do as safe as you
 00:02:27.760 --> 00:02:30.280
 can make it, and then let them go do it.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 10 (block 2bc050fe-6ed6-5dde-bac1-16c3b44779d1)
-('67d285a032f94a1a848cc5d6ff767764', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 10
+('system/2bc050fe-6ed6-5dde-bac1-16c3b44779d1.mp4', '67d285a032f94a1a848cc5d6ff767764', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:04.000
@@ -6209,8 +6225,8 @@ by somebody from the state,
 that note is what the building's
 version of events rests on.
 $vtt$),
--- Falls and Accident Prevention: Annual Tr... lesson 11 (block ea2b0bf6-bdda-520f-ac6b-6c5594b8fef8)
-('5d07de3c8ddf471d831a0ffe6477a5dd', $vtt$WEBVTT
+-- Falls and Accident Prevention: Annual Tr... lesson 11
+('system/ea2b0bf6-bdda-520f-ac6b-6c5594b8fef8.mp4', '5d07de3c8ddf471d831a0ffe6477a5dd', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:02.740
@@ -6323,8 +6339,8 @@ look, and get help before you lift.
 00:01:09.000 --> 00:01:10.200
 That is the whole course.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 2 (block 400854b5-de03-5fff-97dc-b4108be247c2)
-('71a0a995c71149e6ac5145e5cac68b7a', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 2
+('system/400854b5-de03-5fff-97dc-b4108be247c2.mp4', '71a0a995c71149e6ac5145e5cac68b7a', $vtt$WEBVTT
 
 1
 00:00:04.800 --> 00:00:08.360
@@ -6523,8 +6539,8 @@ problem in one sentence.
 00:02:12.600 --> 00:02:14.260
 Knowing that is most of the fix.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 3 (block 69ea6002-44d7-57b9-a753-c0518a43594f)
-('a22e702f703941f2941ad355979403f3', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 3
+('system/69ea6002-44d7-57b9-a753-c0518a43594f.mp4', 'a22e702f703941f2941ad355979403f3', $vtt$WEBVTT
 
 1
 00:00:03.880 --> 00:00:07.540
@@ -6657,8 +6673,8 @@ course is just a specific way of cutting
 00:01:37.120 --> 00:01:38.180
 one of those five.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 4 (block 45c50a59-3c40-5b89-bd8f-b7bc08e4ce88)
-('4a4ff79bbb58475db22f01d6ed5a850e', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 4
+('system/45c50a59-3c40-5b89-bd8f-b7bc08e4ce88.mp4', '4a4ff79bbb58475db22f01d6ed5a850e', $vtt$WEBVTT
 
 1
 00:00:03.820 --> 00:00:09.300
@@ -6868,8 +6884,8 @@ same attention the rest of your hand gets.
 Honestly, a plain band and short
 nails will save you the trouble.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 5 (block f1d60b51-b029-5806-8736-3af1e173bbef)
-('a5ee1b7e363b424f90b640eb5ebd4114', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 5
+('system/f1d60b51-b029-5806-8736-3af1e173bbef.mp4', 'a5ee1b7e363b424f90b640eb5ebd4114', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:03.900
@@ -7051,8 +7067,8 @@ next one.
 That is the sixty seconds where protective
 equipment stops protecting anybody.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 6 (block 2ffb68ae-70e6-52a1-b9c9-0dbd5f94159d)
-('8382aabe3b60483a946f55f506ed9776', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 6
+('system/2ffb68ae-70e6-52a1-b9c9-0dbd5f94159d.mp4', '8382aabe3b60483a946f55f506ed9776', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:02.260
@@ -7221,8 +7237,8 @@ eleven o'clock at night on a short shift.
 You just do whatever you
 have already made a habit.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 7 (block b596b58d-e9c9-5b07-863d-391904370f56)
-('34223ce4359941d18e35917af855df6e', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 7
+('system/b596b58d-e9c9-5b07-863d-391904370f56.mp4', '34223ce4359941d18e35917af855df6e', $vtt$WEBVTT
 
 1
 00:00:03.720 --> 00:00:05.480
@@ -7446,8 +7462,8 @@ for a diagnosis that's nobody's business,
 and the one nobody suspected
 is the one who spreads it.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 8 (block 3fa91a6d-2928-5f2e-bfeb-e8ee421daaa7)
-('a114bd8f91e540478be1648dbe9d96b7', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 8
+('system/3fa91a6d-2928-5f2e-bfeb-e8ee421daaa7.mp4', 'a114bd8f91e540478be1648dbe9d96b7', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:01.640
@@ -7654,8 +7670,8 @@ time. That does not happen very often.
 00:02:23.300 --> 00:02:25.400
 When it does, it is worth noticing.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 9 (block 82505ce6-ef4f-5960-96ec-1cdc732169e4)
-('d311b331b4d44a91bed9ed787f8e8c19', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 9
+('system/82505ce6-ef4f-5960-96ec-1cdc732169e4.mp4', 'd311b331b4d44a91bed9ed787f8e8c19', $vtt$WEBVTT
 
 1
 00:00:03.940 --> 00:00:07.180
@@ -7842,8 +7858,8 @@ the real damage in a personal care home is
 00:02:13.720 --> 00:02:15.740
 usually not the medical kind.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 10 (block df354e2c-3ce5-594b-818d-867ae4973ca7)
-('14ff0bef4dbf4b4cbf855bdcdd0d1c08', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 10
+('system/df354e2c-3ce5-594b-818d-867ae4973ca7.mp4', '14ff0bef4dbf4b4cbf855bdcdd0d1c08', $vtt$WEBVTT
 
 1
 00:00:03.720 --> 00:00:08.180
@@ -8119,8 +8135,8 @@ far enough upstream that there is
 00:03:11.740 --> 00:03:13.080
 nothing to prevent yet.
 $vtt$),
--- Infection Prevention and Control: Annual... lesson 11 (block 77c20f4b-8488-5d7a-8660-5d65bb2f8bf3)
-('02618e7011f74ca0b3a7ffef47fcd297', $vtt$WEBVTT
+-- Infection Prevention and Control: Annual... lesson 11
+('system/77c20f4b-8488-5d7a-8660-5d65bb2f8bf3.mp4', '02618e7011f74ca0b3a7ffef47fcd297', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:04.400
@@ -8329,8 +8345,8 @@ Thanks for sitting through this.
 00:02:14.000 --> 00:02:15.340
 Go take care of your people.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 2 (block 8571e040-62e4-557e-9d90-beefa9ad6a39)
-('b47499943ecf42d691b01fa43bec261a', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 2
+('system/8571e040-62e4-557e-9d90-beefa9ad6a39.mp4', 'b47499943ecf42d691b01fa43bec261a', $vtt$WEBVTT
 
 1
 00:00:04.760 --> 00:00:09.360
@@ -8553,8 +8569,8 @@ somebody else do it a hundred times.
 Nobody has ever gotten
 written up for asking.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 3 (block 141cf8c2-884d-50f6-ad06-6c46ebbb794a)
-('36edccf983ae478aae93f8d54e290317', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 3
+('system/141cf8c2-884d-50f6-ad06-6c46ebbb794a.mp4', '36edccf983ae478aae93f8d54e290317', $vtt$WEBVTT
 
 1
 00:00:03.680 --> 00:00:06.440
@@ -8755,8 +8771,8 @@ exactly the night it should not — nine at
 night, no nurse on the floor,
 and a resident who needs something.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 4 (block 64e7b785-0089-5f79-a151-9e9f2dc98306)
-('d629506fa10f4c5dbef0e5565743e875', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 4
+('system/64e7b785-0089-5f79-a151-9e9f2dc98306.mp4', 'd629506fa10f4c5dbef0e5565743e875', $vtt$WEBVTT
 
 1
 00:00:03.720 --> 00:00:07.160
@@ -8983,8 +8999,8 @@ moved it, the record shows nothing at all,
 and you are the last
 person who touched it.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 5 (block 9d0c6c00-4348-5b03-9a22-653040a89f45)
-('f6220582eb6847bf85d42f3bdb975f57', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 5
+('system/9d0c6c00-4348-5b03-9a22-653040a89f45.mp4', 'f6220582eb6847bf85d42f3bdb975f57', $vtt$WEBVTT
 
 1
 00:00:03.720 --> 00:00:06.540
@@ -9203,8 +9219,8 @@ and somebody qualified figures out what it means.
 00:02:24.400 --> 00:02:25.440
 That's the whole ask.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 6 (block 03a784b2-1c70-561a-bdfb-e8acf99c5f38)
-('b4fa87018fb146769b321d8b40b788da', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 6
+('system/03a784b2-1c70-561a-bdfb-e8acf99c5f38.mp4', 'b4fa87018fb146769b321d8b40b788da', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:03.140
@@ -9445,8 +9461,8 @@ somebody's attention for reasons that have
 00:02:45.500 --> 00:02:46.800
 nothing to do with medication.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 7 (block 20703bd1-e7bf-5a1a-b91b-fd54c11a0b0a)
-('d9a4578184994215ac53055a58b431ed', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 7
+('system/20703bd1-e7bf-5a1a-b91b-fd54c11a0b0a.mp4', 'd9a4578184994215ac53055a58b431ed', $vtt$WEBVTT
 
 1
 00:00:03.680 --> 00:00:06.980
@@ -9674,8 +9690,8 @@ a problem for you to solve.
 It is information
 for somebody else to act on.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 8 (block b299cf6d-54af-5404-bd5b-ec8899986300)
-('ccb663e0c62e4bb18390c60857eeeefc', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 8
+('system/b299cf6d-54af-5404-bd5b-ec8899986300.mp4', 'ccb663e0c62e4bb18390c60857eeeefc', $vtt$WEBVTT
 
 1
 00:00:03.760 --> 00:00:08.280
@@ -9793,8 +9809,8 @@ often in the dark,
 00:01:31.360 --> 00:01:33.820
 often by somebody who is already unsteady.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 9 (block 924ffec2-5510-545d-b380-8aba798aea9a)
-('789265be563f4f1faf94988108b62abf', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 9
+('system/924ffec2-5510-545d-b380-8aba798aea9a.mp4', '789265be563f4f1faf94988108b62abf', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:04.000
@@ -10038,8 +10054,8 @@ goes up immediately.
 Diverting a resident's medication is stealing
 from her, and it is treated that way.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 10 (block e11606ae-addc-5483-bceb-d59d6447cc13)
-('8d18b085f8ef4fbeb39be41a1be7403a', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 10
+('system/e11606ae-addc-5483-bceb-d59d6447cc13.mp4', '8d18b085f8ef4fbeb39be41a1be7403a', $vtt$WEBVTT
 
 1
 00:00:03.660 --> 00:00:06.420
@@ -10274,8 +10290,8 @@ and he's trying to help her sleep.
 00:02:34.920 --> 00:02:36.940
 The check is the thing that protects her.
 $vtt$),
--- Medication Self-Administration Support: ... lesson 11 (block 05b446a5-bf37-5c8d-ab86-6a9b8f5eebaa)
-('578921ba31894d7e8658b397007ef28a', $vtt$WEBVTT
+-- Medication Self-Administration Support: ... lesson 11
+('system/05b446a5-bf37-5c8d-ab86-6a9b8f5eebaa.mp4', '578921ba31894d7e8658b397007ef28a', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:04.080
@@ -10526,8 +10542,8 @@ And I have seen the other thing.
 Thanks for your time.
 Go take care of your people.
 $vtt$),
--- New Employee Orientation for Personal Ca... lesson 2 (block a37ce65f-b5e0-4ddd-9181-92c32d57c20f)
-('c17b043bd7654ebb8223dde424ad4309', $vtt$WEBVTT
+-- New Employee Orientation for Personal Ca... lesson 2
+('system/a37ce65f-b5e0-4ddd-9181-92c32d57c20f.mp4', 'c17b043bd7654ebb8223dde424ad4309', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:04.720
@@ -10734,8 +10750,8 @@ and it matters more than they realize.
 00:02:30.960 --> 00:02:31.960
 Let's get started.
 $vtt$),
--- New Employee Orientation for Personal Ca... lesson 5 (block d8424426-4992-4d3a-aa53-b8017480a30f)
-('b4bc89866d5e4a7087165f31ca6faba3', $vtt$WEBVTT
+-- New Employee Orientation for Personal Ca... lesson 5
+('system/d8424426-4992-4d3a-aa53-b8017480a30f.mp4', 'b4bc89866d5e4a7087165f31ca6faba3', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:03.200
@@ -10938,8 +10954,8 @@ to your supervisor.
 That single habit is what protects the
 people you're about to start caring for.
 $vtt$),
--- New Employee Orientation for Personal Ca... lesson 8 (block 0787360c-785c-4f20-9163-e5a9fc9d1be7)
-('1753cd897d994e538455e994a464da4b', $vtt$WEBVTT
+-- New Employee Orientation for Personal Ca... lesson 8
+('system/0787360c-785c-4f20-9163-e5a9fc9d1be7.mp4', '1753cd897d994e538455e994a464da4b', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:03.780
@@ -11134,8 +11150,8 @@ and it's a habit I want you to start building in
 this very first week, not after
 something has already gone wrong.
 $vtt$),
--- Safe Management and De-escalation: Annua... lesson 2 (block ea183dfc-e3a3-5b16-806a-978585b92fa6)
-('68662b14ef2648c6825caa2477a6ee40', $vtt$WEBVTT
+-- Safe Management and De-escalation: Annua... lesson 2
+('system/ea183dfc-e3a3-5b16-806a-978585b92fa6.mp4', '68662b14ef2648c6825caa2477a6ee40', $vtt$WEBVTT
 
 1
 00:00:04.840 --> 00:00:08.540
@@ -11338,8 +11354,8 @@ A face they don't recognize this morning.
 Change one of those and the behavior changes
 with it more often than you'd believe.
 $vtt$),
--- Safe Management and De-escalation: Annua... lesson 3 (block 8175b5a9-c052-5969-9e37-863415d9c357)
-('4068c843f1174763ae3d9920be082edb', $vtt$WEBVTT
+-- Safe Management and De-escalation: Annua... lesson 3
+('system/8175b5a9-c052-5969-9e37-863415d9c357.mp4', '4068c843f1174763ae3d9920be082edb', $vtt$WEBVTT
 
 1
 00:00:03.800 --> 00:00:07.340
@@ -11495,8 +11511,8 @@ who is actually looking.
 00:01:44.760 --> 00:01:45.920
 That is the whole skill.
 $vtt$),
--- Safe Management and De-escalation: Annua... lesson 4 (block 91475ff3-5b03-5f79-ab2d-0403e97d24b7)
-('6e3320936d294508930efef422970252', $vtt$WEBVTT
+-- Safe Management and De-escalation: Annua... lesson 4
+('system/91475ff3-5b03-5f79-ab2d-0403e97d24b7.mp4', '6e3320936d294508930efef422970252', $vtt$WEBVTT
 
 1
 00:00:03.720 --> 00:00:08.500
@@ -11719,8 +11735,8 @@ thing off the pile, then wait,
 and very often you will watch
 the whole thing come down on its own.
 $vtt$),
--- Safe Management and De-escalation: Annua... lesson 5 (block b19f53fe-473d-5f5a-b8b7-d3936e331974)
-('2f2fbc4ee9364c8393e9fdb0ab05fb86', $vtt$WEBVTT
+-- Safe Management and De-escalation: Annua... lesson 5
+('system/b19f53fe-473d-5f5a-b8b7-d3936e331974.mp4', '2f2fbc4ee9364c8393e9fdb0ab05fb86', $vtt$WEBVTT
 
 1
 00:00:03.760 --> 00:00:08.760
@@ -11900,8 +11916,8 @@ Count it out in your head if you have to.
 00:02:01.680 --> 00:02:04.700
 Ask, then wait, and let it be quiet.
 $vtt$),
--- Safe Management and De-escalation: Annua... lesson 6 (block 8b123317-dd4e-5ca0-bc13-3b129255ac1c)
-('c28653494ac74a3fb0d74ad740736223', $vtt$WEBVTT
+-- Safe Management and De-escalation: Annua... lesson 6
+('system/8b123317-dd4e-5ca0-bc13-3b129255ac1c.mp4', 'c28653494ac74a3fb0d74ad740736223', $vtt$WEBVTT
 
 1
 00:00:03.840 --> 00:00:05.680
@@ -12113,8 +12129,8 @@ room long enough for everything else to
 00:02:19.560 --> 00:02:20.160
 work.
 $vtt$),
--- Safe Management and De-escalation: Annua... lesson 7 (block ee1a95c5-3017-52b6-b783-25bc346b6dc4)
-('8ed68fa774ef497c87eb72eb9313776b', $vtt$WEBVTT
+-- Safe Management and De-escalation: Annua... lesson 7
+('system/ee1a95c5-3017-52b6-b783-25bc346b6dc4.mp4', '8ed68fa774ef497c87eb72eb9313776b', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:01.800
@@ -12330,8 +12346,8 @@ And, there's nothing to be upset about.
 There is. There always is.
 You just have not found it yet.
 $vtt$),
--- Safe Management and De-escalation: Annua... lesson 8 (block 5d4f1d02-d6f1-5080-9ce2-990e93f750e8)
-('b2c506e6e39c41679722818ea0cd8e55', $vtt$WEBVTT
+-- Safe Management and De-escalation: Annua... lesson 8
+('system/5d4f1d02-d6f1-5080-9ce2-990e93f750e8.mp4', 'b2c506e6e39c41679722818ea0cd8e55', $vtt$WEBVTT
 
 1
 00:00:03.640 --> 00:00:08.240
@@ -12524,8 +12540,8 @@ resident who is very clean and terrified,
 00:02:16.700 --> 00:02:17.800
 every time.
 $vtt$),
--- Safe Management and De-escalation: Annua... lesson 10 (block 68e28140-c61b-546b-9249-56a1f8b940f9)
-('c140a83182184f8f883f03ab889ef8df', $vtt$WEBVTT
+-- Safe Management and De-escalation: Annua... lesson 10
+('system/68e28140-c61b-546b-9249-56a1f8b940f9.mp4', 'c140a83182184f8f883f03ab889ef8df', $vtt$WEBVTT
 
 1
 00:00:03.740 --> 00:00:06.140
@@ -12695,8 +12711,8 @@ not the ones who never need help.
 They are the ones who ask early,
 while it is still a small ask.
 $vtt$),
--- Safe Management and De-escalation: Annua... lesson 11 (block fcf92d61-fbad-55d0-ad73-b087c66274f1)
-('1eea27c178174d24ad4e6594e61f1e0b', $vtt$WEBVTT
+-- Safe Management and De-escalation: Annua... lesson 11
+('system/fcf92d61-fbad-55d0-ad73-b087c66274f1.mp4', '1eea27c178174d24ad4e6594e61f1e0b', $vtt$WEBVTT
 
 1
 00:00:00.000 --> 00:00:04.240

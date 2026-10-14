@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Lock } from "lucide-react";
 import { EMPTY_VIDEO_STATE, type VideoBlockState } from "@/lib/videoWatchState";
 import { useCourseMediaUrl } from "@/hooks/useCourseMedia";
-import { useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
+import { courseVideoStoragePath, useCourseVideoUrl } from "@/hooks/useCourseVideoUrl";
 import { useCourseVideoCaptions } from "@/hooks/useCourseVideoCaptions";
 
 // "Watched through" tolerates outros/rounding: 95% of duration or the ended event.
@@ -35,8 +35,6 @@ interface CourseVideoPlayerProps {
   gated: boolean;
   /** Called with fresh state on pause/ended/completion and every few seconds while playing. */
   onChange: (next: VideoBlockState) => void;
-  /** HeyGen render id (`body.heygen.video_id`); its WebVTT captions are attached when they exist. */
-  captionsVideoId?: string;
 }
 
 /**
@@ -56,9 +54,10 @@ function LegacyCourseVideoPlayer(props: CourseVideoPlayerProps) {
   const resolved = useCourseVideoUrl(props.src);
   return <CourseVideoPlayerCore {...props} resolved={resolved} />;
 }
-function CourseVideoPlayerCore({ src, media, state, gated, onChange, captionsVideoId, resolved }: CourseVideoPlayerProps & { resolved: ReturnType<typeof useCourseVideoUrl> }) {
+function CourseVideoPlayerCore({ src, media, state, gated, onChange, resolved }: CourseVideoPlayerProps & { resolved: ReturnType<typeof useCourseVideoUrl> }) {
   const sourceIdentity = media?.assetId ?? src;
-  const captions = useCourseVideoCaptions(captionsVideoId);
+  // Captions are found by the file's bucket path, which a cloned block keeps (it copies video_url).
+  const captions = useCourseVideoCaptions(media ? null : courseVideoStoragePath(src));
   // The element waits for the captions lookup so its track is there when it loads and `default`
   // turns captions on. Everything below keys on this rather than resolved.url, so the listeners
   // attach to the element that actually mounts.

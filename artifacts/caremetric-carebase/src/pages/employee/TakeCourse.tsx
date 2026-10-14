@@ -1103,7 +1103,6 @@ useEffect(() => {
                     state={videoState[currentBlock.id]}
                     gated={assignment?.status !== "completed"}
                     onChange={(next) => handleVideoStateChange(currentBlock.id, next)}
-                    captionsVideoId={(currentBlock.body as { heygen?: { video_id?: string } } | null)?.heygen?.video_id}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">No video available for this lesson.</p>
