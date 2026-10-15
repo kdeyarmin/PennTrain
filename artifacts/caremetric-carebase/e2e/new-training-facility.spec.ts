@@ -89,6 +89,12 @@ async function provisionEmptyTrainingFacility(service: SupabaseClient, url: stri
   return { organizationId: organization.id, facility, otherFacility, email, courseTitle, electiveTitle, courseId: course.id, suffix };
 }
 
+// The text-message code is emulated with page.route (helpers/smsMfa.ts). In WebKit a page the PWA
+// service worker controls sends its fetches through the worker, out of page.route's reach, so the
+// real sms-mfa function answered and account security reported texting unavailable. Nothing here
+// depends on the worker.
+test.use({ serviceWorkers: "block" });
+
 test.describe("new training facility administrator", () => {
   test.skip(!hasLiveSupabaseEnv(), "local Supabase test credentials required");
 
