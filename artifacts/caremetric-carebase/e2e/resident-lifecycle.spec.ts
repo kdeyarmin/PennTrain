@@ -93,7 +93,9 @@ async function signIn(
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe(landsOn);
+  // The administrator's number is enrolled in setup, and an enrolled account reads nothing until
+  // this session enters a code, so its sign-in goes to account security first.
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe(stepUp ? "/account/security" : landsOn);
 
   if (stepUp) {
     await verifyEnrolledSessionOnAccountSecurity(page);

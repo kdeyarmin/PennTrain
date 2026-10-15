@@ -7,6 +7,7 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthProvider } from "@/lib/auth";
 import { ViewingOrgProvider } from "@/lib/viewingOrg";
 import { ProductModuleAccessProvider, useProductModuleAccess } from "@/lib/productModuleAccess";
+import { useSessionNeedsSmsVerification } from "@/hooks/useSessionNeedsSmsVerification";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import { ProductTelemetry } from "@/components/ProductTelemetry";
@@ -301,6 +302,7 @@ function LegacyWorkOrderRedirect() {
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const moduleAccess = useProductModuleAccess();
+  const smsGate = useSessionNeedsSmsVerification(isAuthenticated && moduleAccess.isError, user?.id);
 
   return (
     <Suspense
@@ -311,8 +313,12 @@ function Router() {
     <Switch>
       <Route path="/">
         {() => {
-          if (isLoading || moduleAccess.isLoading) return <FullPageLoading />;
+          if (isLoading || moduleAccess.isLoading || smsGate.isLoading) return <FullPageLoading />;
           if (!isAuthenticated) return <Landing />;
+          // A text-message account reads nothing, entitlements included, until this session enters
+          // a code, so the module home computed from the failed read is a guess. Verify first;
+          // account security's way back is "/", which then resolves the real home.
+          if (smsGate.needsSms) return <Redirect to="/account/security" />;
           return <Redirect to={moduleAccess.homePath ?? "/login"} />;
         }}
       </Route>

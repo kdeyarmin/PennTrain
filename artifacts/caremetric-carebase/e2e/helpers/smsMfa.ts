@@ -194,9 +194,13 @@ export async function completeRequiredSmsVerification(
   onAccountSecurity?: () => Promise<void>,
 ): Promise<void> {
   await emulateSmsDelivery(page);
-  await expect(page.getByRole("heading", { name: "Multi-factor verification required" })).toBeVisible();
-  await page.getByRole("link", { name: "Open account security" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Multi-factor authentication" })).toBeVisible();
+  // An account not yet enrolled meets the policy gate; an enrolled one reads nothing until this
+  // session enters a code, so it is sent straight to account security instead.
+  const gate = page.getByRole("heading", { name: "Multi-factor verification required" });
+  const accountSecurity = page.getByRole("heading", { level: 1, name: "Multi-factor authentication" });
+  await expect(gate.or(accountSecurity).first()).toBeVisible();
+  if (await gate.isVisible()) await page.getByRole("link", { name: "Open account security" }).click();
+  await expect(accountSecurity).toBeVisible();
   // Text message is the only method on offer: no authenticator app, QR code or setup key.
   await expect(page.getByText(/authenticator|setup key/i)).toHaveCount(0);
   await onAccountSecurity?.();
@@ -215,7 +219,9 @@ export async function completeRequiredSmsVerification(
   await page.getByLabel("Text message code", { exact: true }).fill(TEST_SMS_CODE);
   await page.getByRole("button", { name: "Verify text message code", exact: true }).click();
   await expect(page.getByText(/This session is already verified/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue to the page you were opening" }).click();
+  const resume = page.getByRole("button", { name: "Continue to the page you were opening" });
+  if (await resume.isVisible()) await resume.click();
+  else await page.getByRole("button", { name: "Back to CareBase" }).click();
 }
 
 /** The access token of the session this page is signed in with (supabase-js's default storage). */

@@ -136,5 +136,8 @@ export async function invalidateMfaDependentQueries(queryClient: QueryClient): P
   await Promise.all([
     ["my_mfa_policy"], ["profile-facility"], ["organizations", "self-check"],
     ["organization_settings"], ["navigation_preferences"],
+    // A text-message account's entitlement read fails until its session is verified; refetch it
+    // before MfaSettings sends the person on, so the page they return to is not left on the error.
+    ["product-module-entitlements"], ["sms-session-gate"],
   ].map((queryKey) => queryClient.invalidateQueries({ queryKey })));
 }

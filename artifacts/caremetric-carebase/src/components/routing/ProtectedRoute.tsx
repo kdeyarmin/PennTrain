@@ -6,7 +6,8 @@ import { KioskLayout } from "@/components/layout/KioskLayout";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useProductModuleAccess } from "@/lib/productModuleAccess";
-import { loginPathWithNext } from "@/lib/loginRedirect";
+import { loginPathWithNext, sanitizePostLoginPath } from "@/lib/loginRedirect";
+import { useSessionNeedsSmsVerification } from "@/hooks/useSessionNeedsSmsVerification";
 import { usePlatformStatus } from "@/hooks/usePlatformSettings";
 import { shouldBlockForMaintenance } from "@/lib/maintenanceMode";
 import { useVisibleFacilityTypes } from "@/hooks/useVisibleFacilityTypes";
@@ -94,6 +95,12 @@ export function ProtectedRoute({
   // adds no extra request. Fails open: `data` is undefined while loading and resolves to
   // maintenanceMode:false on any error, so the gate below only ever engages on a confirmed true.
   const { data: platformStatus } = usePlatformStatus();
+  const smsGate = useSessionNeedsSmsVerification(isAuthenticated && moduleAccess.isError, user?.id);
+
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const currentPath = base && (window.location.pathname === base || window.location.pathname.startsWith(`${base}/`))
+    ? window.location.pathname.slice(base.length) || "/"
+    : window.location.pathname;
 
   if (isLoading || moduleAccess.isLoading) {
     return <FullPageLoading />;
@@ -103,7 +110,18 @@ export function ProtectedRoute({
   // productModuleAccess.tsx): a failure that still has a last-good module set serves it and never
   // reaches here, because taking the whole app down to show a retry button is worse than running
   // one refresh cycle on the modules we last confirmed.
-  if (moduleAccess.isError && isAuthenticated) {
+  //
+  // Except for a session that still owes a text-message code. That account reads nothing until the
+  // code is entered (current_session_unlocked), so its entitlement read fails for that reason alone
+  // and Retry could never succeed -- and the verification prompt lives inside MainLayout, behind
+  // this screen. Account security needs no entitlements, so it renders; every other route sends
+  // the person there with the page they were opening carried through as ?next=.
+  if (moduleAccess.isError && isAuthenticated && currentPath !== "/account/security") {
+    if (smsGate.isLoading) return <FullPageLoading />;
+    if (smsGate.needsSms) {
+      const next = sanitizePostLoginPath(`${currentPath}${window.location.search}${window.location.hash}`);
+      return <Redirect to={next === "/" ? "/account/security" : `/account/security?next=${encodeURIComponent(next)}`} />;
+    }
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
         <p className="text-lg font-medium">Could not load your plan entitlements</p>
@@ -143,10 +161,6 @@ export function ProtectedRoute({
     return <Redirect to="/login" />;
   }
 
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const currentPath = base && (window.location.pathname === base || window.location.pathname.startsWith(`${base}/`))
-    ? window.location.pathname.slice(base.length) || "/"
-    : window.location.pathname;
   if (user && !moduleAccess.canAccessPath(currentPath)) {
     return <Redirect to={moduleAccess.homePath ?? "/login"} />;
   }

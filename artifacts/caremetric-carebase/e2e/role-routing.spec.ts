@@ -37,7 +37,10 @@ let organizationId: string;
 let facilityId: string;
 const accounts = new Map<TestRole, TestAccount>();
 
-/** The org admin's mobile number is enrolled in setup; every later session verifies by text message. */
+/**
+ * The org admin's mobile number is enrolled in setup; every later session verifies by text message,
+ * and a browser sign-in lands on account security to do it before anything else loads.
+ */
 async function verifyOrgAdminClientMfa(client: SupabaseClient) {
   const { data, error } = await client.auth.getSession();
   if (error || !data.session) throw error ?? new Error("Org admin client has no session to verify");
@@ -551,7 +554,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel("Password").fill(account.password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/account/security");
     await verifyOrgAdminBrowserMfa(page);
     await page.goto(`/app/incidents/${incidentId}`);
     await page.getByRole("button", { name: "Fill Official DHS Reportable Incident Form" }).click();
@@ -595,7 +598,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel("Password").fill(account.password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/account/security");
     await verifyOrgAdminBrowserMfa(page);
     await page.goto("/app/compliance-binder");
     await page.getByRole("button", { name: "Export Binder PDF" }).click();
@@ -736,7 +739,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel("Password").fill(account.password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20_000 }).toBe("/app/today");
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20_000 }).toBe("/account/security");
     await verifyOrgAdminBrowserMfa(page);
     await page.goto("/app/policy-documents");
     await page.getByRole("button", { name: "New Policy Document" }).click();
@@ -805,7 +808,7 @@ test.describe("role-aware release journeys", () => {
     await page.getByLabel("Email").fill(account.email);
     await page.getByLabel("Password").fill(account.password);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/app/today");
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20000 }).toBe("/account/security");
     await verifyOrgAdminBrowserMfa(page);
 
     await page.getByRole("link", { name: "Onboard Employee" }).click();
@@ -829,9 +832,11 @@ test.describe("role-aware release journeys", () => {
       await page.getByLabel("Password").fill(account.password);
       await page.getByRole("button", { name: "Sign in" }).click();
 
+      // The org admin's number is enrolled in setup, and an enrolled account reads nothing until
+      // this session enters a code, so its sign-in goes to account security first.
       await expect
         .poll(() => new URL(page.url()).pathname, { timeout: 20000 })
-        .toBe(account.expectedPath);
+        .toBe(role === "org_admin" ? "/account/security" : account.expectedPath);
       if (role === "org_admin") {
         await verifyOrgAdminBrowserMfa(page);
         await page.goto(account.expectedPath);
