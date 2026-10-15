@@ -53,8 +53,8 @@ Before promotion:
 2. Rehearse the hierarchy and workforce backfills against an anonymized,
    production-like snapshot. Record row counts and every exception; do not
    invent a mapping to make the exception count reach zero.
-3. Confirm every privileged pilot user has a verified TOTP factor and reaches
-   AAL2 before a sensitive command.
+3. Confirm every privileged pilot user has enrolled a mobile number and verifies
+   the session by text message before a sensitive command.
 4. Use Stripe test mode and provider sandboxes for the end-to-end pilots. Do
    not seed production credentials in SQL or a Vite environment variable.
 5. Confirm the Phase 1 audit, system-job, outbox, and tenant-isolation controls

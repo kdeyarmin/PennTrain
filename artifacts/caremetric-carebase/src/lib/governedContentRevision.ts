@@ -120,7 +120,7 @@ export interface ValidationFinding {
  * submission if any entry carries `severity: 'error'`. It does not care what the findings say. That
  * makes the array a *statement by the client about what it checked* -- so it has to be a real check,
  * not an empty array posted to satisfy a signature. These are the conditions under which content
- * genuinely should not go to an independent reviewer.
+ * genuinely should not be submitted for review.
  */
 export function validateCourseSnapshot(snapshot: CourseSnapshot | Partial<CourseSnapshot> | null | undefined): ValidationFinding[] {
   const findings: ValidationFinding[] = [];
@@ -196,7 +196,7 @@ export function nextStep(state: string): RevisionStep {
 export function revisionStateLabel(state: string): string {
   switch (state) {
     case "draft": return "Draft";
-    case "in_review": return "Awaiting independent review";
+    case "in_review": return "Awaiting review";
     case "changes_requested": return "Changes requested";
     case "approved": return "Approved, awaiting publication";
     case "published": return "Published";
@@ -209,10 +209,8 @@ export function revisionStateLabel(state: string): string {
 /**
  * Why the viewer cannot take this revision's next step, or null when they can.
  *
- * Separation of duties is the substance of this control and the reason all three refusals exist:
- * `submit_` requires the author, `review_` and `publish_` both forbid them. Saying so up front is
- * the difference between "you are not the right person for this step" and a 42501 that reads like a
- * permissions bug.
+ * Only the author may submit. The same person may review and publish; reviewed_by and
+ * published_by still record who did each step.
  */
 export function stepBlocker(revision: RevisionLike, viewerProfileId: string | null): string | null {
   const step = nextStep(revision.state);
@@ -223,12 +221,6 @@ export function stepBlocker(revision: RevisionLike, viewerProfileId: string | nu
   const isAuthor = revision.authored_by === viewerProfileId;
   if (step === "submit" && !isAuthor) {
     return "Only the author may submit this revision for review.";
-  }
-  if (step === "review" && isAuthor) {
-    return "Authors cannot review their own revision — this needs a second person.";
-  }
-  if (step === "publish" && isAuthor) {
-    return "Authors cannot publish their own revision — this needs a second person.";
   }
   return null;
 }

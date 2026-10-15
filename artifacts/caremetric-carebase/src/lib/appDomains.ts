@@ -1,6 +1,9 @@
 import type { Role } from "@/lib/auth";
 import { canAccessProductPath, moduleHomePathForRole, type ProductModuleId } from "@/lib/productModules";
 import { pathAvailableInBuild } from "@/lib/productRoutes";
+import { helpBasePathForRole, homePathForRole } from "@/lib/roleHomePaths";
+
+export { helpBasePathForRole, homePathForRole };
 
 export type AppDomain =
   | "platform"
@@ -468,19 +471,6 @@ export function canViewPage(
   if (!role) return false;
   return pathAvailableInBuild(path) && (APP_PAGES_BY_PATH.get(path)?.roles.includes(role) ?? false)
     && (!enabledModules || canAccessProductPath(path, enabledModules));
-}
-
-export function helpBasePathForRole(role: Role | undefined): "/app" | "/me" | null {
-  if (!role || role === "platform_admin") return null;
-  return role === "employee" ? "/me" : "/app";
-}
-
-export function homePathForRole(role: Role | undefined): "/admin" | "/app" | "/app/today" | "/trainer" | "/me" | null {
-  if (!role) return null;
-  if (role === "platform_admin") return "/admin";
-  if (role === "trainer") return "/trainer";
-  if (role === "employee") return "/me";
-  return "/app/today";
 }
 
 export function canonicalHelpPathForRole(path: string, role: Role | undefined): string {

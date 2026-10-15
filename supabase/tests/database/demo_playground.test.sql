@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(30);
 
 select has_column('public', 'organizations', 'is_demo', 'organizations identify public demo tenants');
 select has_column('public', 'organizations', 'demo_seed_version', 'demo seed version is tracked');
@@ -63,10 +63,50 @@ select is((
   where o.slug = 'pgtap-demo-playground'
 ), 0::bigint, 'demo activity cannot enqueue external provider delivery');
 
+insert into public.employees(organization_id, facility_id, first_name, last_name, job_title, status, is_synthetic)
+select f.organization_id, f.id, 'Unqualified', 'Persona', 'Direct Care', 'active', true
+from public.facilities f
+join public.organizations o on o.id = f.organization_id
+where o.slug = 'pgtap-demo-playground' and f.name = 'Sunrise Manor';
+insert into auth.users(
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+) values (
+  '00000000-0000-0000-0000-000000000000', 'c4100000-0000-4000-8000-000000000041', 'authenticated',
+  'authenticated', 'linked-persona@example.invalid', 'x', now(),
+  jsonb_build_object('role', 'employee', 'organization_id', (select id::text from public.organizations where slug = 'pgtap-demo-playground')),
+  jsonb_build_object('first_name', 'Linked', 'last_name', 'Persona'),
+  now(), now(), '', '', '', '', '', '', false, false
+);
+insert into public.employees(
+  organization_id, facility_id, profile_id, first_name, last_name, email, job_title, department, hire_date, status, is_synthetic
+)
+select f.organization_id, f.id, 'c4100000-0000-4000-8000-000000000041', 'Linked', 'Persona',
+  'linked-persona@example.invalid', 'Direct Care Staff', 'Resident Care', public.pa_today() - 30, 'active', true
+from public.facilities f
+join public.organizations o on o.id = f.organization_id
+where o.slug = 'pgtap-demo-playground' and f.name = 'Sunrise Manor';
 select lives_ok(
   $$select app_private.seed_demo_organization((select id from public.organizations where slug = 'pgtap-demo-playground'))$$,
-  'restoring the baseline is idempotent'
+  'restoring the baseline qualifies a profile-linked persona and leaves an unlinked coworker off the schedule'
 );
+select is((select count(*)::integer from public.shift_assignments a join public.organizations o on o.id = a.organization_id
+ where o.slug = 'pgtap-demo-playground'), 4, 'the qualified roster gains the linked login persona and nobody else');
+select is((select count(*)::integer from public.shift_assignments a
+ join public.employees e on e.id = a.employee_id
+ where e.first_name = 'Unqualified' and e.last_name = 'Persona'), 0,
+ 'synthetic staff with no DEMO number and no login profile stay off the seeded shifts');
+select is((select count(*)::integer from public.shift_assignments a
+ join public.employees e on e.id = a.employee_id
+ where e.first_name = 'Linked' and e.last_name = 'Persona'), 1,
+ 'a synthetic employee linked to a login profile is published on the demo schedule');
+select ok((select (public.oapsa_duty_status(e.id)->>'clearancesOnFile')::boolean
+ from public.employees e
+ join public.organizations o on o.id = e.organization_id
+ where o.slug = 'pgtap-demo-playground' and e.first_name = 'Linked' and e.last_name = 'Persona'),
+ 'a linked login persona receives synthetic clearance evidence before being scheduled');
 select is((select count(*)::bigint from public.work_orders w join public.organizations o on o.id = w.organization_id where o.slug = 'pgtap-demo-playground'), 1::bigint, 'idempotent restore does not duplicate work orders');
 
 select * from finish();

@@ -184,14 +184,6 @@ values
   );
 select public.submit_regulatory_rule_version('32000000-0000-4000-8000-000000000212');
 
-select throws_ok(
-  $$ select public.approve_regulatory_rule_version(
-    '32000000-0000-4000-8000-000000000212', 'Author cannot self approve this version'
-  ) $$,
-  '42501', null,
-  'the author cannot approve their own regulatory version'
-);
-
 reset role;
 select pg_temp.act_as('32000000-0000-4000-8000-000000000102', 'aal1');
 select throws_ok(
@@ -203,18 +195,23 @@ select throws_ok(
 );
 
 reset role;
-select pg_temp.act_as('32000000-0000-4000-8000-000000000102', 'aal2');
+select pg_temp.act_as('32000000-0000-4000-8000-000000000101', 'aal2');
+select is(
+  public.identity_operation_requires_aal2('regulatory_governance'),
+  true,
+  'installing a rule pack requires the regulatory governance step-up'
+);
 select lives_ok(
   $$ select public.approve_regulatory_rule_version(
-    '32000000-0000-4000-8000-000000000212', 'Independent regulatory approval notes'
+    '32000000-0000-4000-8000-000000000212', 'The author approved this version'
   ) $$,
-  'a separate AAL2 reviewer can approve the version'
+  'the author can approve their own regulatory version'
 );
 select is(
   (select reviewed_by from public.regulatory_rule_versions
     where id = '32000000-0000-4000-8000-000000000212'),
-  '32000000-0000-4000-8000-000000000102'::uuid,
-  'approval evidence preserves the independent reviewer'
+  '32000000-0000-4000-8000-000000000101'::uuid,
+  'approval evidence records the same administrator as author and reviewer'
 );
 select public.start_regulatory_rule_shadow('32000000-0000-4000-8000-000000000212');
 select throws_ok(

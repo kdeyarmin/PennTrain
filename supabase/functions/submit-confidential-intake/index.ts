@@ -11,6 +11,7 @@ import { corsHeadersForRequest, corsPreflightResponse } from "../_shared/cors.ts
 // fake per request and wrote an attacker-chosen address onto a signed legal record.
 import { clientIp } from "../_shared/clientIp.ts";
 import { intakeFailureCode } from "../_shared/intakeFailureClass.ts";
+import { confidentialIntakeNotConfigured } from "./configuration.ts";
 
 const json = (req: Request, body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -28,7 +29,14 @@ Deno.serve(async (req) => {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const secret = Deno.env.get("TURNSTILE_SECRET_KEY");
-  if (!url || !key || !secret) return json(req, { error: "intake_not_configured" }, 500);
+  if (!url || !key || !secret) {
+    const notConfigured = confidentialIntakeNotConfigured({
+      supabaseUrl: url,
+      serviceRoleKey: key,
+      turnstileSecret: secret,
+    });
+    return json(req, notConfigured!.body, notConfigured!.status);
+  }
 
   const admin = createClient(url, key, { auth: { persistSession: false } });
   let body: Record<string, unknown>;

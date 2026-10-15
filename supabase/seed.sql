@@ -218,7 +218,53 @@ begin
     select o.id, f.id, v_user_id, 'Avery', 'Johnson', 'employee@sunrisehealthcare.com', 'Direct Care Staff', '2026-02-12', 'active', true
     from public.organizations o, public.facilities f where o.slug = 'sunrise-healthcare' and f.name = 'Sunrise Manor';
   end if;
+
+  -- Local TEST operators. platform_admin is MFA-mandatory even for a demo org, so the
+  -- customer-role `demo123` accounts cannot open /admin. These accounts have no organization,
+  -- use the reserved example.invalid domain (they cannot receive mail), and are not part
+  -- of the public Demo page (PUBLIC_DEMO_ROLES excludes platform_admin). Password is
+  -- TestLocal-8de2. One platform administrator can approve and activate their own work;
+  -- the second account is only a spare local login, not a required approver.
+  if not exists (select 1 from auth.users where email = 'test-platform-admin@example.invalid') then
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+      confirmation_token, recovery_token, email_change_token_new, email_change,
+      email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+    ) values (
+      '00000000-0000-0000-0000-000000000000', 'a1111111-1111-4111-8111-111111111111', 'authenticated', 'authenticated',
+      'test-platform-admin@example.invalid', extensions.crypt('TestLocal-8de2', extensions.gen_salt('bf')), now(),
+      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','platform_admin'),
+      jsonb_build_object('first_name','TEST','last_name','Platform Admin'),
+      now(), now(), '', '', '', '', '', '', false, false
+    ) returning id into v_user_id;
+    insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+    values (v_user_id, v_user_id::text, jsonb_build_object('sub', v_user_id::text, 'email', 'test-platform-admin@example.invalid'), 'email', now(), now(), now());
+  end if;
+
+  if not exists (select 1 from auth.users where email = 'test-platform-reviewer@example.invalid') then
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+      confirmation_token, recovery_token, email_change_token_new, email_change,
+      email_change_token_current, reauthentication_token, is_sso_user, is_anonymous
+    ) values (
+      '00000000-0000-0000-0000-000000000000', 'a2222222-2222-4222-8222-222222222222', 'authenticated', 'authenticated',
+      'test-platform-reviewer@example.invalid', extensions.crypt('TestLocal-8de2', extensions.gen_salt('bf')), now(),
+      jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'role','platform_admin'),
+      jsonb_build_object('first_name','TEST','last_name','Platform Reviewer'),
+      now(), now(), '', '', '', '', '', '', false, false
+    ) returning id into v_user_id;
+    insert into auth.identities (user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+    values (v_user_id, v_user_id::text, jsonb_build_object('sub', v_user_id::text, 'email', 'test-platform-reviewer@example.invalid'), 'email', now(), now(), now());
+  end if;
 end $$;
+
+-- No second factor is seeded for the TEST platform operators. CareBase verifies by text message
+-- only (no authenticator app; native Auth MFA is off in config.toml), so on first sign-in each
+-- operator adds a mobile number at Account security. That needs the sms-mfa function's Twilio
+-- Verify secrets in the local stack (DEPLOYMENT.md, "SMS MFA"). A seeded native factor would
+-- strand them: it cannot be verified, and it blocks SMS enrollment.
 
 -- Every person and operational record in the public demo tenant is synthetic.
 update public.employees e
@@ -244,5 +290,19 @@ begin
       'demo seed incomplete: organizations.is_demo is not set for sunrise-healthcare, so '
       'app_private.seed_demo_organization() was skipped and get_my_mfa_policy() will gate the '
       'demo admin. Something is reverting the write -- see the note above the UPDATE in this file.';
+  end if;
+  if (
+    select count(*)
+    from auth.users u
+    join public.profiles p on p.id = u.id and p.role = 'platform_admin' and p.organization_id is null
+    where u.email in (
+      'test-platform-admin@example.invalid',
+      'test-platform-reviewer@example.invalid'
+    )
+      and not exists (select 1 from auth.mfa_factors f where f.user_id = u.id and f.status = 'verified')
+  ) <> 2 then
+    raise exception
+      'demo seed incomplete: the two TEST platform admins must exist with no verified native MFA '
+      'factor, so each can enroll a mobile number for text-message verification on first sign-in.';
   end if;
 end $$;

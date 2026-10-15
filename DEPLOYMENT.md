@@ -409,9 +409,12 @@ or database MFA requirements as part of runtime rollback.
 SMS MFA uses `sms-mfa` and Twilio Verify directly. Supabase remains the primary
 sign-in provider; the app records a short-lived proof for the exact Auth session
 and checks it in the shared database assurance guard. It never writes or fabricates
-Supabase's `aal2` JWT claim. Native TOTP remains available for accounts without
-an app SMS factor. Once an account enrolls SMS, SMS proof takes precedence over
-native factors, including factors enrolled directly through the Auth API. The SMS
+Supabase's `aal2` JWT claim. Text message is the only verification method: native
+Auth MFA (TOTP, Auth phone, WebAuthn) is off in `supabase/config.toml`, and the
+production deploy switches it off with `scripts/reconcile-production-mfa-methods.mjs`,
+which refuses while any verified native factor exists. Once an account enrolls SMS,
+SMS proof takes precedence over native factors, including factors enrolled directly
+through the Auth API. The SMS
 requirement survives administrator recovery; native factors cannot become a
 backdoor while SMS is awaiting re-enrollment. Restrictive RLS, storage policies
 and the existing PostgREST request hook enforce SMS proof on direct data/API
@@ -435,8 +438,9 @@ codes, SMS enabled, Fraud Guard enabled and the permitted destination countries.
 For Railway provider mode, use Railway's server variables; for the existing Supabase mode,
 use Edge Function secrets. Never put these credentials in `VITE_*` variables. The screen discovers
 SMS availability from the selected handler. `VITE_PROVIDER_RUNTIME` selects that transport;
-there is no separate flag that can grant SMS verification. An unavailable handler leaves native
-TOTP usable for accounts that have not enrolled SMS; SMS accounts retain their verification requirement.
+there is no separate flag that can grant SMS verification. An unavailable handler leaves no
+verification method, so privileged work waits until it is back; SMS accounts retain their
+verification requirement.
 
 Twilio Verify usage charges still apply: its public pricing on 2026-09-09 lists
 $0.05 per successful verification plus channel fees. See
@@ -512,11 +516,15 @@ sandbox live.
 - **Shape:** a JSON array of `{ label, email, password, role, description? }`. `role` must be
   one of `org_admin | facility_manager | trainer | employee | auditor`
   (`artifacts/caremetric-carebase/src/lib/demoAccounts.ts` allow-lists these so a stray production credential can't leak in).
-- **Local dev:** `supabase/seed.sql` creates matching auth users for every role (all password
-  `demo123`), and `pnpm run db:reset:demo` loads it -- seeding is opt-in, so a plain `supabase
-  start` gives you the migration chain with no demo accounts. Copy the ready-made
+- **Local dev:** `supabase/seed.sql` creates matching auth users for every public-demo
+  role (password `demo123`), and `pnpm run db:reset:demo` loads it -- seeding is opt-in, so a
+  plain `supabase start` gives you the migration chain with no demo accounts. Copy the ready-made
   `VITE_DEMO_ACCOUNTS_JSON` line from `.env.example` into your `.env` and the sandbox works
-  immediately.
+  immediately. The same seed also creates two local TEST platform admins
+  (`test-platform-admin@example.invalid` and `test-platform-reviewer@example.invalid`,
+  password `TestLocal-8de2`, no second factor seeded: each adds a mobile number for
+  text-message verification on first sign-in, which needs the `sms-mfa` Twilio Verify secrets
+  locally). They are not public-demo roles and must not be copied into `VITE_DEMO_ACCOUNTS_JSON`.
 - **Hosted / prod:** never reuse the seed passwords. Provision dedicated public-demo auth users
   (synthetic credentials only) attached to the demo organization with the
   **`provision-demo-tenant`** Edge Function, then set `VITE_DEMO_ACCOUNTS_JSON` to the value it
