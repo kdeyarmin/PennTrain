@@ -4,10 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   user: { id: "reviewer-a", organizationId: "org-a", role: "org_admin" },
   viewingOrgId: null as string | null,
+  entitlementsFailed: false,
+  sms: { isLoading: false, needsSms: false },
 }));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: h.user, isLoading: false, isAuthenticated: true }) }));
 vi.mock("@/lib/viewingOrg", () => ({ useViewingOrg: () => ({ viewingOrgId: h.viewingOrgId }) }));
-vi.mock("@/lib/productModuleAccess", () => ({ useProductModuleAccess: () => ({ isLoading: false, canAccessPath: () => true }) }));
+vi.mock("@/lib/productModuleAccess", () => ({ useProductModuleAccess: () => ({ isLoading: false, isError: h.entitlementsFailed, refetch: vi.fn(), canAccessPath: () => true }) }));
+vi.mock("@/hooks/useSessionNeedsSmsVerification", () => ({ useSessionNeedsSmsVerification: (enabled: boolean) => (enabled ? h.sms : { isLoading: false, needsSms: false }) }));
 vi.mock("@/hooks/usePlatformSettings", () => ({ usePlatformStatus: () => ({ data: { maintenanceMode: false } }) }));
 vi.mock("@/hooks/useVisibleFacilityTypes", () => ({ useVisibleFacilityTypes: () => ({ facilityTypes: ["PCH"], isLoading: false }) }));
 vi.mock("@/components/layout/MainLayout", () => ({ MainLayout: () => null }));
@@ -25,6 +28,8 @@ function render(path: string, chrome: "default" | "kiosk" = "default") {
 beforeEach(() => {
   h.user = { id: "reviewer-a", organizationId: "org-a", role: "org_admin" };
   h.viewingOrgId = null;
+  h.entitlementsFailed = false;
+  h.sms = { isLoading: false, needsSms: false };
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -63,5 +68,38 @@ describe("authenticated page state identity", () => {
     const second = render("/trainer/classes/b/kiosk", "kiosk");
     expect(second.page.key).not.toBe(first.page.key);
     expect(second.layout.type).toBe(first.layout.type);
+  });
+});
+
+describe("a session that still owes a text-message code", () => {
+  function route(path: string) {
+    vi.stubGlobal("window", { location: new URL(path, "https://app.test") });
+    return ProtectedRoute({ component: Page }) as ReactElement<{ to?: string; children?: unknown }>;
+  }
+
+  it("is sent to account security with its page as next, not shown the entitlement error", () => {
+    h.entitlementsFailed = true;
+    h.sms = { isLoading: false, needsSms: true };
+    expect(route("/app/incidents/abc?tab=forms#state").props.to)
+      .toBe(`/account/security?next=${encodeURIComponent("/app/incidents/abc?tab=forms#state")}`);
+  });
+
+  it("can open account security even though its entitlement read failed", () => {
+    h.entitlementsFailed = true;
+    h.sms = { isLoading: false, needsSms: true };
+    const layout = route("/account/security");
+    expect((layout.props.children as ReactElement).type).toBe(Page);
+  });
+
+  it("still shows the entitlement error when the session is verified", () => {
+    h.entitlementsFailed = true;
+    expect(JSON.stringify(route("/app/today"))).toContain("Could not load your plan entitlements");
+  });
+
+  it("waits for the verification status instead of flashing the error", () => {
+    h.entitlementsFailed = true;
+    h.sms = { isLoading: true, needsSms: false };
+    expect(JSON.stringify(route("/app/today"))).not.toContain("Could not load your plan entitlements");
+    expect(route("/app/today").props.to).toBeUndefined();
   });
 });

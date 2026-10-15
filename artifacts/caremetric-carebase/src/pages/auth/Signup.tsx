@@ -209,7 +209,7 @@ export default function Signup() {
                 <p className="text-sm text-muted-foreground">
                   Open the link from your email to verify the address and choose a password.
                 </p>
-                {trainingOnly && <p className="text-sm text-muted-foreground">After signing in, set up your authenticator for secure administrator access. Your training workspace will guide you through adding students, assigning courses and running reports.</p>}
+                {trainingOnly && <p className="text-sm text-muted-foreground">After signing in, add your mobile number for text-message verification, which secures administrator access. Your training workspace will guide you through adding students, assigning courses and running reports.</p>}
                 <Button type="button" className="w-full h-10" onClick={() => setLocation("/login")}>
                   Back to sign in
                 </Button>

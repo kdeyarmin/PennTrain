@@ -69,7 +69,7 @@ describe("MFA workspace gate", () => {
     expect(html).not.toContain("Protected user editor");
   });
 
-  it("preserves native authenticator access for accounts without SMS", () => {
+  it("trusts the database verdict that a session is already verified", () => {
     mocks.useQuery.mockReturnValueOnce(query({ data: {
       requirement: { required: true }, verification: { ...verification, method: "totp", expiresAt: null, smsRequired: false, smsFactors: [] }, assuranceIsCurrent: true,
     } }));
@@ -103,7 +103,7 @@ describe("MFA workspace gate", () => {
     expect(html).not.toContain("Protected user editor");
   });
 
-  it("tells a platform administrator to enroll an authenticator", () => {
+  it("tells a platform administrator to verify by text message", () => {
     mocks.role = "platform_admin";
     mocks.useQuery.mockReturnValueOnce(query({ data: {
       requirement: { required: true },
@@ -111,7 +111,8 @@ describe("MFA workspace gate", () => {
       assuranceIsCurrent: false,
     } }));
     const html = render();
-    expect(html).toContain("Platform administration requires an authenticator");
+    expect(html).toContain("Platform administration requires text-message verification");
+    expect(html).not.toMatch(/authenticator/i);
     expect(html).toContain("Open account security");
     expect(html).not.toContain("Your organization requires");
     expect(html).not.toContain("Protected user editor");

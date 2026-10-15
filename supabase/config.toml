@@ -229,12 +229,14 @@ content_path = "./supabase/templates/invite.html"
 [auth.mfa]
 max_enrolled_factors = 10
 
+# Text message is CareBase's only second factor (the sms-mfa Edge Function below). Authenticator
+# apps are off here and in production (scripts/reconcile-production-mfa-methods.mjs).
 [auth.mfa.totp]
-enroll_enabled = true
-verify_enabled = true
+enroll_enabled = false
+verify_enabled = false
 
 # SMS MFA uses the sms-mfa Edge Function and Twilio Verify, without the hosted
-# Supabase Advanced MFA Phone add-on. Native TOTP remains available.
+# Supabase Advanced MFA Phone add-on, so Supabase's own phone factor stays off too.
 [auth.mfa.phone]
 enroll_enabled = false
 verify_enabled = false

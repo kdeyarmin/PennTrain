@@ -316,7 +316,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.database == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The full browser matrix already took 44.5 of 45 minutes on main (2026-10-14); text-message
+    # verification adds a few more, so a passing run was being cancelled in its last step.
+    timeout-minutes: 60
     permissions:
       contents: read
     env:

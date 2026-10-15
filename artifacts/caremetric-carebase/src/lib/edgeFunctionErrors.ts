@@ -87,7 +87,7 @@ export function privilegedSessionExpired(error: unknown): boolean {
 
 /** What to put on screen for it. Kept here so both surfaces say the same thing. */
 export const PRIVILEGED_SESSION_EXPIRED_MESSAGE =
-  "Your administrator session has been open too long for this action. Sign out and sign back in to continue -- re-verifying your authenticator will not reset it.";
+  "Your administrator session has been open too long for this action. Sign out and sign back in to continue -- re-verifying with a text-message code will not reset it.";
 
 /**
  * What a failed privileged mutation should say, whichever side refused it.

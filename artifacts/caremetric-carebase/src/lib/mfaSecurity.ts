@@ -84,7 +84,7 @@ export async function loadMfaSecurityState(): Promise<{ status: MfaStatus; facto
   const [status, factorResult, availability] = await Promise.all([
     getMfaStatus(),
     supabase.auth.mfa.listFactors(),
-    // An unconfigured SMS provider must not make the existing authenticator path unusable.
+    // An unreachable SMS service reads as unavailable; the page says so instead of failing.
     smsMfaRequest({ action: "status" }).catch(() => null),
   ]);
   if (factorResult.error) throw factorResult.error;
@@ -122,10 +122,13 @@ export async function finishIdleSessionUnlock(lockEventId: string | null): Promi
   if (error) throw error;
 }
 
-/** A native factor enrolled directly through Auth cannot replace an established SMS factor. */
-export function usableMfaFactors(factors: readonly MfaFactor[], status: MfaStatus): MfaFactor[] {
-  return factors.filter((factor) => factor.status === "verified"
-    && (!status.smsRequired || factor.factor_type === "sms"));
+/**
+ * Text message is the only verification method CareBase offers. Native Supabase factors
+ * (authenticator apps, Auth phone factors) are switched off at the Auth level, so one left over
+ * from before can never verify a session; it is listed only so it can be removed.
+ */
+export function usableMfaFactors(factors: readonly MfaFactor[], _status?: MfaStatus): MfaFactor[] {
+  return factors.filter((factor) => factor.status === "verified" && factor.factor_type === "sms");
 }
 
 /** Reads attempted before the account's SMS step must be retried after verification. */
@@ -133,5 +136,8 @@ export async function invalidateMfaDependentQueries(queryClient: QueryClient): P
   await Promise.all([
     ["my_mfa_policy"], ["profile-facility"], ["organizations", "self-check"],
     ["organization_settings"], ["navigation_preferences"],
+    // A text-message account's entitlement read fails until its session is verified; refetch it
+    // before MfaSettings sends the person on, so the page they return to is not left on the error.
+    ["product-module-entitlements"], ["sms-session-gate"],
   ].map((queryKey) => queryClient.invalidateQueries({ queryKey })));
 }

@@ -260,30 +260,11 @@ begin
   end if;
 end $$;
 
--- Verified TOTP factors for the TEST platform operators. Local GoTrue stores the secret as
--- plaintext base32 and accepts a row inserted here on mfa.challenge + mfa.verify (AAL2).
--- Authenticator secrets (RFC 6238, SHA-1, 6 digits, 30s):
---   test-platform-admin@example.invalid     TESTLOCALPLATFORMAAA234567AAAAAA
---   test-platform-reviewer@example.invalid  TESTLOCALREVIEWERAAA234567AAAAAA
-insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, secret, created_at, updated_at)
-select 'b1111111-1111-4111-8111-111111111111', u.id, 'TEST local authenticator', 'totp', 'verified',
-       'TESTLOCALPLATFORMAAA234567AAAAAA', now(), now()
-from auth.users u
-where u.email = 'test-platform-admin@example.invalid'
-  and not exists (
-    select 1 from auth.mfa_factors f
-    where f.user_id = u.id and f.factor_type = 'totp' and f.status = 'verified'
-  );
-
-insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, secret, created_at, updated_at)
-select 'b2222222-2222-4222-8222-222222222222', u.id, 'TEST local authenticator', 'totp', 'verified',
-       'TESTLOCALREVIEWERAAA234567AAAAAA', now(), now()
-from auth.users u
-where u.email = 'test-platform-reviewer@example.invalid'
-  and not exists (
-    select 1 from auth.mfa_factors f
-    where f.user_id = u.id and f.factor_type = 'totp' and f.status = 'verified'
-  );
+-- No second factor is seeded for the TEST platform operators. CareBase verifies by text message
+-- only (no authenticator app; native Auth MFA is off in config.toml), so on first sign-in each
+-- operator adds a mobile number at Account security. That needs the sms-mfa function's Twilio
+-- Verify secrets in the local stack (DEPLOYMENT.md, "SMS MFA"). A seeded native factor would
+-- strand them: it cannot be verified, and it blocks SMS enrollment.
 
 -- Every person and operational record in the public demo tenant is synthetic.
 update public.employees e
@@ -314,14 +295,14 @@ begin
     select count(*)
     from auth.users u
     join public.profiles p on p.id = u.id and p.role = 'platform_admin' and p.organization_id is null
-    join auth.mfa_factors f on f.user_id = u.id and f.factor_type = 'totp' and f.status = 'verified'
     where u.email in (
       'test-platform-admin@example.invalid',
       'test-platform-reviewer@example.invalid'
     )
+      and not exists (select 1 from auth.mfa_factors f where f.user_id = u.id and f.status = 'verified')
   ) <> 2 then
     raise exception
-      'demo seed incomplete: the two TEST platform admins need verified TOTP factors so a local '
-      'session can reach AAL2. platform_admin is MFA-mandatory and is not on the public Demo page.';
+      'demo seed incomplete: the two TEST platform admins must exist with no verified native MFA '
+      'factor, so each can enroll a mobile number for text-message verification on first sign-in.';
   end if;
 end $$;

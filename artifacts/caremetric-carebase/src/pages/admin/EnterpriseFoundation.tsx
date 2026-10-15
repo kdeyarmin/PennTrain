@@ -1035,7 +1035,7 @@ function SessionRevocationCommand() {
     <Card>
       <CardHeader>
         <CardTitle>Emergency session revocation</CardTitle>
-        <CardDescription>Revokes active sessions, deactivates the profile, and records immutable AAL2-authorized documentation.</CardDescription>
+        <CardDescription>Revokes active sessions, deactivates the profile, and records immutable documentation authorized by a verified session.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2"><GovernedRecordPicker id="phase2-session-organization" label="Organization" kind="organization" value={organizationId} onValueChange={value => { setOrganizationId(value); setProfileId(""); }} /></div>
@@ -1479,7 +1479,7 @@ export default function EnterpriseFoundation() {
           <TabsContent value="workforce" className="space-y-4"><ControlPlanePanel title="Workforce lifecycle and compliance profiles" description="Effective employment state, retained documentation, profile explanations, and unresolved mappings." data={data.workforce} /><LifecycleCommand /><ComplianceProfileAssignmentCommand /></TabsContent>
           <TabsContent value="rules" className="space-y-4"><ControlPlanePanel title="Approved regulatory rule packs" description="Sourced versions, recorded approval, golden fixtures, and activation readiness." data={data.rules} />{user?.role === "platform_admin" ? <><RegulatoryExpansionPanel /><RegulatoryRuleCommand /></> : null}</TabsContent>
           <TabsContent value="identity" className="space-y-4">
-            <ControlPlanePanel title="Enterprise identity" description="Verified domains, SAML connections, AAL2 policy, SCIM replay safety, and session revocation documentation." data={data.identity} />
+            <ControlPlanePanel title="Enterprise identity" description="Verified domains, SAML connections, verification policy, SCIM replay safety, and session revocation documentation." data={data.identity} />
             <IdentityDomainCommand />
             <IdentityDomainRevocationCommand />
             <SsoConnectionCommand />
@@ -1488,7 +1488,7 @@ export default function EnterpriseFoundation() {
             <Card>
               <CardHeader>
                 <CardTitle>Privileged session assurance</CardTitle>
-                <CardDescription>Enroll or verify an authenticator before running AAL2-protected enterprise commands.</CardDescription>
+                <CardDescription>Verify this session with a text-message code before running protected enterprise commands.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button asChild variant="outline"><Link href="/account/security">Manage my MFA</Link></Button>

@@ -149,11 +149,12 @@ running things in this environment.
   (seeding is opt-in; plain `supabase start` and `supabase db reset` leave the
   database free of demo data). The predictable `demo123` password is local-only.
   Two operator accounts, `test-platform-admin@example.invalid` and
-  `test-platform-reviewer@example.invalid`, share the local password `TestLocal-8de2`
-  and a verified TOTP factor (secrets are commented in `seed.sql`). They belong to
-  no organization, use the reserved `.invalid` domain so they cannot receive mail,
-  and stay off the public Demo page. `platform_admin` is always MFA-mandatory, so
-  those factors are what lets a local session reach AAL2.
+  `test-platform-reviewer@example.invalid`, share the local password `TestLocal-8de2`.
+  They belong to no organization, use the reserved `.invalid` domain so they cannot
+  receive mail, and stay off the public Demo page. `platform_admin` is always
+  MFA-mandatory and verification is by text message only (no authenticator app), so
+  each adds a mobile number at Account security on first sign-in; that needs the
+  `sms-mfa` function's Twilio Verify secrets in the local stack.
 - **MFA login gate defaults on for real tenants**: `MfaPolicyGate`
  (`src/components/layout/SessionSecurityGates.tsx`) reads `get_my_mfa_policy()`.
  As of migration `20260729130000_restore_privileged_mfa_default_except_demo.sql`,

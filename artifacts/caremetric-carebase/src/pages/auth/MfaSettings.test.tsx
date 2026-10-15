@@ -5,7 +5,7 @@ const h = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0,
   effects: [] as (() => void | (() => void))[], authEvent: undefined as undefined | ((event: string, session: { user: { id: string } } | null) => void),
   load: vi.fn(), unenroll: vi.fn(), refresh: vi.fn(), signOut: vi.fn(), getSession: vi.fn(), clear: vi.fn(), toast: vi.fn(),
-  enroll: vi.fn(), verify: vi.fn(), invalidate: vi.fn(),
+  enroll: vi.fn(), verify: vi.fn(), invalidate: vi.fn(), send: vi.fn(), verifySms: vi.fn(),
 }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(),
   useState: (initial: unknown) => { const i = h.cursor++; if (!(i in h.states)) h.states[i] = initial;
@@ -25,6 +25,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: { auth: {
 } } }));
 vi.mock("@/lib/mfaSecurity", async original => ({ ...await original<typeof import("@/lib/mfaSecurity")>(),
   loadMfaSecurityState: h.load, invalidateMfaDependentQueries: h.invalidate,
+  sendSmsMfaCode: h.send, verifySmsMfaCode: h.verifySms,
 }));
 import MfaSettings from "./MfaSettings";
 
@@ -37,9 +38,16 @@ async function flush() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
 let cleanups: (() => void)[];
 async function mount() { render(); cleanups = h.effects.map(effect => effect()).filter((fn): fn is () => void => typeof fn === "function"); await flush(); }
 function remove() { const button = render().find(node => String(node.props["aria-label"]).startsWith("Remove "))!; (button.props.onClick as () => void)(); }
+const smsReady = {
+  status: { verified: false, method: null, verifiedAt: null, expiresAt: null, hasVerifiedFactor: true, smsRequired: true,
+    smsFactors: [{ id: "sms-factor", maskedPhone: "••• ••• 4567", createdAt: "2026-09-26T12:00:00Z" }] },
+  factors: [{ id: "sms-factor", factor_type: "sms", status: "verified", friendly_name: "••• ••• 4567", created_at: "2026-09-26T12:00:00Z", phone: null }],
+  smsAvailable: true,
+};
+function click(label: string) { const button = render().find(node => node.props.onClick && text(node.props.children as ReactNode) === label)!; (button.props.onClick as () => void)(); }
 const ready = {
-  status: { verified: false, method: null, verifiedAt: null, expiresAt: null, hasVerifiedFactor: true, smsRequired: false, smsFactors: [] },
-  factors: [{ id: "factor", factor_type: "totp", status: "verified", friendly_name: "Authenticator", created_at: "2026-09-26T12:00:00Z" }], smsAvailable: false,
+  status: { verified: false, method: null, verifiedAt: null, expiresAt: null, hasVerifiedFactor: false, smsRequired: false, smsFactors: [] },
+  factors: [{ id: "factor", factor_type: "totp", status: "unverified", friendly_name: "Authenticator", created_at: "2026-09-26T12:00:00Z" }], smsAvailable: false,
 };
 beforeEach(() => {
   vi.clearAllMocks(); h.states = []; h.refs = []; h.authEvent = undefined; cleanups = [];
@@ -78,25 +86,50 @@ describe("account security request ownership", () => {
     expect(h.clear).not.toHaveBeenCalled();
   });
 
-  it("does not publish an enrollment secret or feedback after the account changes", async () => {
-    await mount(); const pending = deferred<unknown>(); h.enroll.mockReturnValueOnce(pending.promise);
-    const button = render().find(node => node.props.onClick && text(node.props.children as ReactNode) === "Add authenticator app")!;
-    (button.props.onClick as () => void)();
+  it("never offers an authenticator app, and a leftover one can only be removed", async () => {
+    await mount();
+    const page = render(); const labels = page.map(node => text(node.props.children as ReactNode)).join("|");
+    expect(labels).not.toMatch(/authenticator/i); expect(page.some(node => node.type === "img")).toBe(false);
+    expect(labels).toContain("Older verification method"); expect(labels).toContain("Not in use");
+    expect(page.some(node => node.props.onClick && text(node.props.children as ReactNode) === "Text me a code")).toBe(false);
+    expect(page.some(node => String(node.props["aria-label"]).startsWith("Remove "))).toBe(true);
+    expect(h.enroll).not.toHaveBeenCalled(); expect(h.verify).not.toHaveBeenCalled();
+  });
+
+  it("sends a verified leftover factor to an administrator's reset instead of an unusable Remove", async () => {
+    h.load.mockResolvedValue({ ...ready, status: { ...ready.status, hasVerifiedFactor: true }, factors: [{ ...ready.factors[0], status: "verified" }] });
+    await mount();
+    const page = render(); const labels = page.map(node => text(node.props.children as ReactNode)).join("|");
+    expect(labels).toContain("Ask a CareMetric administrator to reset your verification");
+    expect(page.some(node => String(node.props["aria-label"]).startsWith("Remove "))).toBe(false);
+  });
+
+  it("does not publish a texted enrollment or feedback after the account changes", async () => {
+    h.load.mockResolvedValue({ ...smsReady, status: { ...smsReady.status, hasVerifiedFactor: false, smsRequired: false, smsFactors: [] }, factors: [] });
+    await mount(); click("Add text message (SMS)");
+    const phone = render().find(node => node.props.id === "mfa-phone")!;
+    (phone.props.onChange as (event: unknown) => void)({ target: { value: "(555) 123-4567" } });
+    const pending = deferred<unknown>(); h.send.mockReturnValueOnce(pending.promise);
+    const form = render().find(node => node.type === "form")!;
+    (form.props.onSubmit as (event: unknown) => void)({ preventDefault: vi.fn() });
+    expect(h.send).toHaveBeenCalledWith("+15551234567");
     h.authEvent?.("SIGNED_IN", { user: { id: "replacement" } });
-    pending.resolve({ data: { id: "secret-factor", totp: { secret: "old-secret", qr_code: "old-qr" } }, error: null }); await flush();
-    expect(JSON.stringify(h.states)).not.toContain("old-secret");
-    expect(h.load).toHaveBeenCalledOnce();
+    pending.resolve({ challengeId: "old-challenge", maskedPhone: "••• ••• 4567", expiresAt: "2099-01-01T00:00:00Z" }); await flush();
+    expect(JSON.stringify(h.states)).not.toContain("old-challenge"); expect(h.toast).not.toHaveBeenCalled();
   });
 
   it("stops a completed old verification before refreshing the replacement session", async () => {
-    await mount();
+    h.load.mockResolvedValue(smsReady);
+    h.send.mockResolvedValue({ challengeId: "sms-challenge", maskedPhone: "••• ••• 4567", expiresAt: "2099-01-01T00:00:00Z" });
+    await mount(); click("Text me a code"); await flush(); h.toast.mockClear();
     const input = render().find(node => node.props.id === "mfa-code")!;
     (input.props.onChange as (event: unknown) => void)({ target: { value: "123456" } });
-    const pending = deferred<{ error: null }>(); h.verify.mockReturnValueOnce(pending.promise);
-    const form = render().find(node => node.type === "form")!;
+    const pending = deferred<void>(); h.verifySms.mockReturnValueOnce(pending.promise);
+    const form = render().find(node => node.type === "form" && nodes(node.props.children as ReactNode).some(child => child.props.id === "mfa-code"))!;
     (form.props.onSubmit as (event: unknown) => void)({ preventDefault: vi.fn() });
+    expect(h.verifySms).toHaveBeenCalledWith("sms-challenge", "123456");
     h.authEvent?.("SIGNED_IN", { user: { id: "replacement" } });
-    pending.resolve({ error: null }); await flush();
+    pending.resolve(); await flush();
     expect(h.refresh).not.toHaveBeenCalled(); expect(h.invalidate).not.toHaveBeenCalled(); expect(h.toast).not.toHaveBeenCalled();
   });
 

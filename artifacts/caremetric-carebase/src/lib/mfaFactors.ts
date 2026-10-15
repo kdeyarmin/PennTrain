@@ -1,7 +1,8 @@
 /**
- * Native authenticator factors and CareBase SMS verification methods.
- * SMS is verified by the app through Twilio and a server-side, session-bound
- * attestation. It does not change Supabase's native AAL claim.
+ * CareBase verifies sessions by text message only: the app sends the code through Twilio and
+ * records a server-side, session-bound attestation, which does not change Supabase's native AAL
+ * claim. Native Supabase factors (authenticator apps, Auth phone factors) are switched off at the
+ * Auth level; one left over from before is still parsed so it can be shown and removed.
  */
 
 export type MfaFactorType = "totp" | "phone" | "sms";
@@ -79,7 +80,7 @@ export function maskMfaPhone(phone: string | null | undefined): string {
 
 export function mfaFactorLabel(factor: MfaFactor): string {
   if (factor.friendly_name) return factor.friendly_name;
-  return factor.factor_type === "phone" || factor.factor_type === "sms" ? maskMfaPhone(factor.phone) : "Authenticator app";
+  return factor.factor_type === "phone" || factor.factor_type === "sms" ? maskMfaPhone(factor.phone) : "Older verification method";
 }
 
 /**
@@ -95,9 +96,9 @@ export function describeMfaError(error: unknown): string {
 
   switch (code) {
     case "mfa_phone_enroll_not_enabled":
-      return "This legacy text-message method is unavailable. Add a CareBase text-message method or use an authenticator app.";
+      return "This older text-message method is unavailable. Add your mobile number for CareBase text-message verification.";
     case "mfa_phone_verify_not_enabled":
-      return "This legacy text-message method is unavailable. Use your CareBase text-message method or an authenticator app.";
+      return "This older text-message method is unavailable. Use your CareBase text-message verification.";
     case "fresh_password_required":
       return "Sign out and sign in again with your password before changing your verification methods.";
     case "mfa_required":
@@ -106,7 +107,7 @@ export function describeMfaError(error: unknown): string {
     case "sms_unavailable":
     case "sms_mfa_not_configured":
     case "sms_not_configured":
-      return "Text-message verification is not configured yet. Use an authenticator app or contact your administrator.";
+      return "Text-message verification is not available right now. Try again shortly or contact your administrator.";
     case "challenge_expired":
     case "challenge_invalid":
       return "That code has expired or was already used. Request a new code.";

@@ -43,11 +43,13 @@ export function CreateTrainingFacility() {
     try { sessionStorage.setItem(receiptKey, JSON.stringify(value)); }
     catch { toast({ title: "Keep this setup page open", description: "This browser could not save the recovery receipt. The facility remains available in your organization list." }); }
   }
-  async function sendAdministratorInvitation(organizationId: string) {
+  async function sendAdministratorInvitation(organizationId: string, receipt: ProvisioningReceipt | null = saved) {
     await invite.mutateAsync({ ...administrator, role: "org_admin", organizationId, redirectTo: absoluteAppUrl("/reset-password") });
     setInvitationSent(true);
+    // Record the sent invitation before refreshing the lists. A reload while that refetch runs
+    // otherwise restores "needs attention" and offers to invite the administrator a second time.
+    if (receipt) saveReceipt({ ...receipt, created: organizationId, administrator, invitationSent: true });
     await client.invalidateQueries({ queryKey: ["organizations"] });
-    if (saved) saveReceipt({ ...saved, created: organizationId, administrator, invitationSent: true });
     toast({ title: "Facility ready; administrator invitation sent" });
   }
   return <div className="space-y-3">
@@ -75,8 +77,7 @@ export function CreateTrainingFacility() {
           try { await selectStarterKit.mutateAsync({ facilityId, kitId: starterKitId }); receipt.starterKitSelected = true; saveReceipt({ ...receipt }); }
           catch (error) { toast({ title: "Starter kit needs attention", description: trainingActionError(error), variant: "destructive" }); }
         }
-        await sendAdministratorInvitation(organizationId);
-        saveReceipt({ ...receipt, created: organizationId, invitationSent: true });
+        await sendAdministratorInvitation(organizationId, receipt);
       } catch (error) { toast({ title: "Facility setup needs attention", description: trainingActionError(error), variant: "destructive" }); }
       finally { setBusy(false); }
     }}>

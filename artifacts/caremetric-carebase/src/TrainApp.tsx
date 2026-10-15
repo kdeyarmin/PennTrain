@@ -7,6 +7,7 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ViewingOrgProvider } from "@/lib/viewingOrg";
 import { ProductModuleAccessProvider, useProductModuleAccess } from "@/lib/productModuleAccess";
+import { useSessionNeedsSmsVerification } from "@/hooks/useSessionNeedsSmsVerification";
 import { FullPageLoading, MaintenanceGatedRoute, ProtectedRoute, type UserRole } from "@/components/routing/ProtectedRoute";
 import MaintenanceBanner from "@/components/layout/MaintenanceBanner";
 import { ProductTelemetry } from "@/components/ProductTelemetry";
@@ -90,9 +91,12 @@ function TrainAdministration() {
 function TrainHome() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const access = useProductModuleAccess();
-  if (isLoading || access.isLoading) return <FullPageLoading label="Loading CareMetric Train" />;
+  const smsGate = useSessionNeedsSmsVerification(isAuthenticated && access.isError, user?.id);
+  if (isLoading || access.isLoading || smsGate.isLoading) return <FullPageLoading label="Loading CareMetric Train" />;
   if (!isAuthenticated) return <TrainLanding />;
   if (user?.role === "platform_admin") return <Redirect to="/admin" />;
+  // Same rule as CareBase's root: a session that still owes a text-message code verifies first.
+  if (smsGate.needsSms) return <Redirect to="/account/security" />;
   return <Redirect to={access.homePath || "/login"} />;
 }
 

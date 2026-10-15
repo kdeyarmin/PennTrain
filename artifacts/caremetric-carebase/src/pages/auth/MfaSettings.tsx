@@ -16,7 +16,6 @@ import {
   mfaFactorLabel,
   normalizeMfaPhone,
   type MfaFactor,
-  type MfaFactorType,
 } from "@/lib/mfaFactors";
 import {
   loadMfaSecurityState as fetchMfaSecurityState,
@@ -28,17 +27,15 @@ import {
   type MfaStatus,
 } from "@/lib/mfaSecurity";
 import { sanitizePostLoginPath } from "@/lib/loginRedirect";
-import { ArrowLeft, ArrowRight, CheckCircle2, KeyRound, Loader2, LockKeyhole, MessageSquare, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, LockKeyhole, MessageSquare, ShieldCheck, Trash2 } from "lucide-react";
 
+/** Text message is the only method CareBase enrolls; a pending one has no factor id until verified. */
 type Enrollment = {
   factorId: string;
-  factorType: MfaFactorType;
-  qrCode?: string;
-  secret?: string;
-  phone?: string;
+  phone: string;
 };
 
-/** A phone factor can only be verified against a challenge that actually sent a code. */
+/** An SMS method can only be verified against a challenge that actually sent a code. */
 type PendingChallenge = {
   factorId: string;
   challengeId: string;
@@ -144,49 +141,8 @@ export default function MfaSettings() {
     [factors, status],
   );
 
-  const activeFactor = useMemo(() => {
-    const activeId = enrollment?.factorId ?? selectedFactorId;
-    return factors.find((factor) => factor.id === activeId) ?? null;
-  }, [enrollment?.factorId, factors, selectedFactorId]);
-
-  const activeFactorType: MfaFactorType = enrollment?.factorType ?? activeFactor?.factor_type ?? "totp";
-  const isPhoneFlow = activeFactorType === "phone" || activeFactorType === "sms";
-  /** SMS codes only exist once a challenge has been issued for the factor in play. */
-  const awaitingSms = isPhoneFlow && challenge?.factorId !== (enrollment?.factorId ?? selectedFactorId);
-
-  const beginTotpEnrollment = async () => {
-    if (!scope.active || status?.smsRequired) return;
-    setBusyAction("enroll");
-    try {
-      const totpCount = factors.filter((factor) => factor.factor_type === "totp").length;
-      const { data, error } = await supabase.auth.mfa.enroll({
-        factorType: "totp",
-        friendlyName: `CareMetric Authenticator ${totpCount + 1}`,
-      });
-      if (!scope.active) return;
-      if (error) throw error;
-      setEnrollment({
-        factorId: data.id,
-        factorType: "totp",
-        qrCode: data.totp.qr_code,
-        secret: data.totp.secret,
-      });
-      setChallenge(null);
-      setSelectedFactorId(data.id);
-      setPhoneEntry(null);
-      setCode("");
-      await loadSecurityState();
-    } catch (error) {
-      if (!scope.active) return;
-      toast({
-        variant: "destructive",
-        title: "Couldn't start enrollment",
-        description: describeMfaError(error),
-      });
-    } finally {
-      if (scope.active) setBusyAction(null);
-    }
-  };
+  /** SMS codes only exist once a challenge has been issued for the method in play. */
+  const awaitingSms = challenge?.factorId !== (enrollment?.factorId ?? selectedFactorId);
 
   const beginPhoneEnrollment = async () => {
     if (!scope.active) return;
@@ -206,7 +162,7 @@ export default function MfaSettings() {
       if (!scope.active) return;
       // Pending enrollment has no reusable factor until the server verifies this session's code.
       const pendingId = `sms-enrollment:${sent.challengeId}`;
-      setEnrollment({ factorId: pendingId, factorType: "sms", phone: sent.maskedPhone });
+      setEnrollment({ factorId: pendingId, phone: sent.maskedPhone });
       setSelectedFactorId(pendingId);
       setChallenge({ factorId: pendingId, challengeId: sent.challengeId });
       setCode("");
@@ -229,18 +185,10 @@ export default function MfaSettings() {
     const wasBusy = busyAction;
     if (!wasBusy) setBusyAction("send-code");
     try {
-      const factor = factors.find((candidate) => candidate.id === factorId);
-      if (factor?.factor_type === "phone") {
-        const { data, error } = await supabase.auth.mfa.challenge({ factorId, channel: "sms" });
-        if (!scope.active) return;
-        if (error) throw error;
-        setChallenge({ factorId, challengeId: data.id });
-      } else {
-        // Existing factors never accept a destination supplied by this browser.
-        const sent = await sendSmsMfaCode(enrollment?.factorId === factorId ? normalizeMfaPhone(phoneEntry ?? "") ?? undefined : undefined);
-        if (!scope.active) return;
-        setChallenge({ factorId, challengeId: sent.challengeId });
-      }
+      // Existing methods never accept a destination supplied by this browser.
+      const sent = await sendSmsMfaCode(enrollment?.factorId === factorId ? normalizeMfaPhone(phoneEntry ?? "") ?? undefined : undefined);
+      if (!scope.active) return;
+      setChallenge({ factorId, challengeId: sent.challengeId });
       setCode("");
       toast({
         title: "Verification code sent",
@@ -264,39 +212,19 @@ export default function MfaSettings() {
     if (!factorId || !/^\d{6}$/.test(code.trim())) {
       toast({
         variant: "destructive",
-        title: isPhoneFlow ? "Enter the code we texted you" : "Enter a valid authenticator code",
-        description: isPhoneFlow
-          ? "Use the 6-digit code from the most recent text message."
-          : "Use the 6-digit code currently shown by your authenticator app.",
+        title: "Enter the code we texted you",
+        description: "Use the 6-digit code from the most recent text message.",
       });
       return;
     }
 
     setBusyAction("verify");
     try {
-      if (isPhoneFlow) {
-        if (challenge?.factorId !== factorId) {
-          throw new Error("Request a new text-message code before verifying.");
-        }
-        if (activeFactorType === "sms") {
-          await verifySmsMfaCode(challenge.challengeId, code.trim());
-        } else {
-          const { error } = await supabase.auth.mfa.verify({ factorId, challengeId: challenge.challengeId, code: code.trim() });
-          if (error) throw error;
-        }
-      } else {
-        const { error } = await supabase.auth.mfa.challengeAndVerify({
-          factorId,
-          code: code.trim(),
-        });
-        if (error) throw error;
+      if (challenge?.factorId !== factorId) {
+        throw new Error("Request a new text-message code before verifying.");
       }
+      await verifySmsMfaCode(challenge.challengeId, code.trim());
       if (!scope.active) return;
-      if (activeFactorType !== "sms") {
-        const { error: refreshError } = await supabase.auth.refreshSession();
-        if (!scope.active) return;
-        if (refreshError) throw refreshError;
-      }
       setEnrollment(null);
       setChallenge(null);
       setPhoneEntry(null);
@@ -306,7 +234,7 @@ export default function MfaSettings() {
       await loadSecurityState();
       if (!scope.active) return;
       toast({
-        title: isPhoneFlow ? "Phone verified" : "Authenticator verified",
+        title: "Phone verified",
         description: "This session now meets the multi-factor security requirement.",
       });
     } catch (error) {
@@ -321,12 +249,13 @@ export default function MfaSettings() {
     }
   };
 
+  /** Removes a leftover native Supabase factor (an old authenticator app); SMS methods are reset by an administrator. */
   const removeFactor = async (factorId: string) => {
     if (!scope.active) return;
     setBusyAction(`remove:${factorId}`);
     try {
       const factor = factors.find((candidate) => candidate.id === factorId);
-      if (factor?.factor_type === "sms" || status?.smsRequired) return;
+      if (!factor || factor.factor_type === "sms") return;
       const { error } = await supabase.auth.mfa.unenroll({ factorId });
       if (!scope.active) return;
       if (error) throw error;
@@ -363,13 +292,13 @@ export default function MfaSettings() {
   };
 
   const selectFactorForStepUp = (factor: MfaFactor) => {
-    if (status?.smsRequired && factor.factor_type !== "sms") return;
+    if (factor.factor_type !== "sms") return;
     setSelectedFactorId(factor.id);
     setEnrollment(null);
     setChallenge(null);
     setPhoneEntry(null);
     setCode("");
-    if (factor.factor_type === "phone" || factor.factor_type === "sms") void sendSmsCode(factor.id);
+    void sendSmsCode(factor.id);
   };
 
   if (loading) {
@@ -403,11 +332,7 @@ export default function MfaSettings() {
         <p className="text-sm font-medium text-primary">Account security</p>
         <h1 className="text-3xl font-bold tracking-tight">Multi-factor authentication</h1>
         <p className="mt-2 text-muted-foreground">
-          {status.smsRequired
-            ? "Protect your account with a one-time code sent to your mobile number."
-            : smsAvailable
-              ? "Protect privileged actions with a one-time code from your authenticator app or a text message."
-              : "Protect privileged actions with a time-based one-time password from your authenticator app."}
+          Protect your account with a one-time code sent to your mobile number by text message.
         </p>
       </div>
 
@@ -431,7 +356,7 @@ export default function MfaSettings() {
         ) : null}
       </Alert>
 
-      {status.smsRequired && !smsAvailable ? (
+      {!smsAvailable ? (
         <Alert><AlertTitle>Text-message service unavailable</AlertTitle><AlertDescription>CareBase could not confirm that text-message verification is available. Retry this page or contact your administrator.</AlertDescription><Button className="mt-3" variant="outline" onClick={() => void loadSecurityState().catch(() => undefined)}>Retry</Button></Alert>
       ) : null}
 
@@ -449,19 +374,19 @@ export default function MfaSettings() {
             ) : (
               factors.map((factor) => (
                 <div key={factor.id} className="flex items-center gap-3 rounded-lg border p-4">
-                  {(factor.factor_type === "phone" || factor.factor_type === "sms")
-                    ? <MessageSquare className="h-5 w-5 text-muted-foreground" />
-                    : <KeyRound className="h-5 w-5 text-muted-foreground" />}
+                  <MessageSquare className="h-5 w-5 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{mfaFactorLabel(factor)}</p>
+                    <p className="truncate font-medium">{factor.factor_type === "sms" ? mfaFactorLabel(factor) : "Older verification method"}</p>
                     <p className="text-xs text-muted-foreground">
-                      {(factor.factor_type === "phone" || factor.factor_type === "sms") ? "Text message" : "Authenticator app"}
+                      {factor.factor_type === "sms" ? "Text message"
+                        : factor.status === "verified" ? "No longer supported. Ask a CareMetric administrator to reset your verification, then add a mobile number."
+                        : "No longer supported. Remove it and use text message."}
                       {" · Added "}
                       {new Date(factor.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <Badge variant={factor.status === "verified" && (!status.smsRequired || factor.factor_type === "sms") ? "default" : "outline"}>{status.smsRequired && factor.factor_type !== "sms" ? "Not in use" : factor.status}</Badge>
-                  {factor.status === "verified" && !verifiedHere && (!status.smsRequired || factor.factor_type === "sms") ? (
+                  <Badge variant={factor.status === "verified" && factor.factor_type === "sms" ? "default" : "outline"}>{factor.factor_type !== "sms" ? "Not in use" : factor.status}</Badge>
+                  {factor.status === "verified" && !verifiedHere && factor.factor_type === "sms" ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -469,13 +394,15 @@ export default function MfaSettings() {
                       disabled={busyAction !== null}
                       onClick={() => selectFactorForStepUp(factor)}
                     >
-                      {(factor.factor_type === "phone" || factor.factor_type === "sms") ? "Text me a code" : "Verify"}
+                      Text me a code
                     </Button>
                   ) : null}
                   {/* App-managed SMS factors have no self-service removal (sms-mfa accepts only
-                      status/send/verify), so the button is not offered for them; the copy below
-                      already points SMS users to an administrator. */}
-                  {!status.smsRequired && factor.factor_type !== "sms" ? (
+                      status/send/verify), so the button is offered only for an unfinished native
+                      factor. Auth refuses to remove a verified native factor without a native AAL2
+                      session, which nothing here can produce any more, so that one is recovered by
+                      a platform administrator's reset (admin-update-user reset_mfa) instead. */}
+                  {factor.factor_type !== "sms" && factor.status !== "verified" ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -496,10 +423,6 @@ export default function MfaSettings() {
             {status.smsRequired && status.smsFactors.length === 0 ? <p className="text-sm text-muted-foreground">Your text-message method was reset. Add a mobile number to restore access.</p> : null}
             {status.smsFactors.length > 0 ? <p className="text-sm text-muted-foreground">Text-message verification is active for this account. Verify a text code to continue. Contact your administrator if you lose access to this number.</p> : null}
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled={busyAction !== null || !!enrollment || status.smsRequired} onClick={() => void beginTotpEnrollment()}>
-                {busyAction === "enroll" && phoneEntry === null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
-                Add authenticator app
-              </Button>
               {smsAvailable ? (
                 <Button
                   type="button"
@@ -562,25 +485,13 @@ export default function MfaSettings() {
             <CardTitle>{enrollment ? "Finish enrollment" : "Verify this session"}</CardTitle>
             <CardDescription>
               {enrollment
-                ? enrollment.factorType !== "totp"
-                  ? `Enter the code we texted to ${maskMfaPhone(enrollment.phone)}.`
-                  : "Scan the QR code, then enter the current code."
-                : "Enter a code from a verified method."}
+                ? `Enter the code we texted to ${maskMfaPhone(enrollment.phone)}.`
+                : "Enter the code we text to your verified number."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {enrollment?.factorType === "totp" ? (
-              <div className="space-y-3">
-                <div className="flex justify-center rounded-lg bg-white p-3">
-                  <img src={enrollment.qrCode} alt="Authenticator enrollment QR code" className="h-48 w-48" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium leading-none">Manual setup key</p>
-                  <code className="mt-1 block break-all rounded bg-muted p-2 text-xs">{enrollment.secret}</code>
-                </div>
-              </div>
-            ) : verifiedFactors.length === 0 && !enrollment ? (
-              <p className="text-sm text-muted-foreground">Add a verification method to begin.</p>
+            {verifiedFactors.length === 0 && !enrollment ? (
+              <p className="text-sm text-muted-foreground">Add your mobile number to begin.</p>
             ) : verifiedHere && !enrollment ? (
               <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">
                 This session is already verified. You may return to the enterprise control plane.
@@ -596,7 +507,7 @@ export default function MfaSettings() {
                 }}
               >
                 <div className="space-y-2">
-                  <Label htmlFor="mfa-code">{isPhoneFlow ? "Text message code" : "Authenticator code"}</Label>
+                  <Label htmlFor="mfa-code">Text message code</Label>
                   <Input
                     id="mfa-code"
                     inputMode="numeric"
@@ -608,18 +519,18 @@ export default function MfaSettings() {
                     placeholder="000000"
                     disabled={busyAction !== null}
                   />
-                  {isPhoneFlow && awaitingSms ? (
+                  {awaitingSms ? (
                     <p className="text-xs text-muted-foreground">Request a code to continue.</p>
                   ) : null}
                 </div>
-                <Button type="submit" className="w-full" disabled={busyAction !== null || !selectedFactorId || (isPhoneFlow && awaitingSms)}>
+                <Button type="submit" className="w-full" disabled={busyAction !== null || !selectedFactorId || awaitingSms}>
                   {busyAction === "verify" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isPhoneFlow ? "Verify text message code" : "Verify authenticator"}
+                  Verify text message code
                 </Button>
-                {enrollment?.factorType === "sms" ? (
+                {enrollment ? (
                   <Button type="button" variant="ghost" className="w-full" disabled={busyAction !== null} onClick={() => { setEnrollment(null); setChallenge(null); setSelectedFactorId(null); setCode(""); setPhoneEntry(""); }}>Use a different number</Button>
                 ) : null}
-                {isPhoneFlow && selectedFactorId ? (
+                {selectedFactorId ? (
                   <Button
                     type="button"
                     variant="ghost"
