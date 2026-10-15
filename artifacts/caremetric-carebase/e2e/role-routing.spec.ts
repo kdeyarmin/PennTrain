@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { emulateSmsDelivery, TEST_SMS_CODE, verifyEnrolledSessionOnAccountSecurity, verifySessionBySms } from "./helpers/smsMfa";
+import { TEST_SMS_CODE, verifyEnrolledSessionOnAccountSecurity, verifySessionBySms } from "./helpers/smsMfa";
 import { facilityToday } from "./helpers/facilityDay";
 
 type TestRole =

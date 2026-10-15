@@ -181,6 +181,12 @@ export async function emulateSmsDelivery(page: Page): Promise<void> {
   };
   await page.route("**/functions/v1/sms-mfa", handler);
   await page.route("**/api/providers/sms-mfa", handler);
+  // Turning request interception on while the app has a request in flight can leave that request
+  // created but never sent (Chromium), and anything awaiting it waits for ever -- here the
+  // profile-facility read issued just after sign-in, which account security then waits on after
+  // the code is accepted. Reload a page that is already running so every request starts under
+  // the routes.
+  if (page.url() !== "about:blank") await page.reload();
 }
 
 /**
