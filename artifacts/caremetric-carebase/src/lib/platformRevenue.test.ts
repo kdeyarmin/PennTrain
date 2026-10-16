@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   collectedByMonth,
   collectedSince,
+  effectiveSubscriptionStates,
   monthlyRecurringRevenue,
   outstandingInvoices,
+  type RevenueBillingAccount,
   type RevenueInvoice,
   type RevenuePrice,
+  type StoredRevenueSubscription,
 } from "./platformRevenue";
 
 function price(overrides: Partial<RevenuePrice> & { stripe_price_id: string }): RevenuePrice {
@@ -94,6 +97,46 @@ describe("monthly recurring revenue", () => {
       [price({ stripe_price_id: "price_overage", pricing_model: "flat_plus_overage", billing_metric: "active_resident", included_quantity: 25, unit_amount_cents: 400 })],
     );
     expect(result.cents).toBe(49900 + 5 * 400);
+  });
+});
+
+describe("effective subscription state", () => {
+  const EARLY = "2026-10-01T12:00:00Z";
+  const LATE = "2026-10-05T12:00:00Z";
+  const sub = (id: string, billing_state: string, account = "acct", at = EARLY): StoredRevenueSubscription =>
+    ({ id, billing_state, billing_account_id: account, provider_event_created_at: at });
+  const account = (billing_state: string, at: string | null, state_source = "stripe", id = "acct"): RevenueBillingAccount =>
+    ({ id, billing_state, state_source, provider_event_created_at: at });
+
+  it("uses a newer invoice payment on the account over a stale suspended or past-due snapshot", () => {
+    expect(effectiveSubscriptionStates([sub("s", "suspended")], [account("active", LATE)])).toEqual([{ id: "s", billing_state: "active" }]);
+    expect(effectiveSubscriptionStates([sub("s", "past_due")], [account("active", LATE)])).toEqual([{ id: "s", billing_state: "active" }]);
+  });
+
+  it("keeps the subscription's own state when the account evidence is older or the same event", () => {
+    expect(effectiveSubscriptionStates([sub("s", "past_due", "acct", LATE)], [account("active", EARLY)])).toEqual([{ id: "s", billing_state: "past_due" }]);
+    expect(effectiveSubscriptionStates([sub("s", "grace", "acct", LATE)], [account("active", LATE)])).toEqual([{ id: "s", billing_state: "grace" }]);
+    expect(effectiveSubscriptionStates([sub("s", "active")], [account("active", null)])).toEqual([{ id: "s", billing_state: "active" }]);
+  });
+
+  it("does not apply a manual comp or suspension as payment evidence", () => {
+    expect(effectiveSubscriptionStates([sub("s", "active")], [account("comped", LATE, "manual_comp")])).toEqual([{ id: "s", billing_state: "active" }]);
+    expect(effectiveSubscriptionStates([sub("s", "suspended")], [account("suspended", LATE, "manual_suspension")])).toEqual([{ id: "s", billing_state: "suspended" }]);
+  });
+
+  it("does not spread one account's event across several live subscriptions", () => {
+    const result = effectiveSubscriptionStates([sub("a", "suspended"), sub("b", "active")], [account("past_due", LATE)]);
+    expect(result).toEqual([{ id: "a", billing_state: "suspended" }, { id: "b", billing_state: "active" }]);
+  });
+
+  it("feeds recurring revenue, so a recovered subscription is counted and not marked behind", () => {
+    const states = effectiveSubscriptionStates([sub("s", "suspended")], [account("active", LATE)]);
+    const result = monthlyRecurringRevenue(
+      states,
+      [{ subscription_id: "s", stripe_price_id: "price_m", quantity: 1 }],
+      [price({ stripe_price_id: "price_m" })],
+    );
+    expect(result).toEqual({ cents: 49900, counted: 1, unpriced: 0, behind: 0 });
   });
 });
 

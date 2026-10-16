@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import type { PostgrestError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import {
-  RECURRING_BILLING_STATES,
   collectedByMonth,
   collectedSince,
+  effectiveSubscriptionStates,
   monthlyRecurringRevenue,
   outstandingInvoices,
   startOfMonthsAgo,
@@ -15,6 +16,10 @@ import {
 export const REVENUE_CHART_MONTHS = 6;
 const RECENT_INVOICE_LIMIT = 8;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** PostgREST caps a response (1,000 rows by default); totals page until a page comes back empty. */
+const PAGE_SIZE = 1000;
+/** Keeps `in (...)` filters to a bounded URL length. */
+const ID_BATCH_SIZE = 100;
 
 export interface PlatformRecentInvoice {
   id: string;
@@ -38,7 +43,32 @@ export interface PlatformRevenue {
   recentInvoices: PlatformRecentInvoice[];
 }
 
-const INVOICE_TOTAL_COLUMNS = "provider_status, currency, amount_paid, amount_remaining, paid_at";
+type Page<T> = PromiseLike<{ data: T[] | null; error: PostgrestError | null }>;
+
+/** Every row of an id-ordered query, advancing by the rows actually returned. */
+export async function readAllPages<T>(page: (from: number, to: number) => Page<T>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ;) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data?.length) return rows;
+    rows.push(...data);
+    from += data.length;
+  }
+}
+
+/** Every row matching a list of ids, in bounded `in (...)` batches. */
+export async function readAllByIds<T>(ids: readonly string[], page: (batch: string[], from: number, to: number) => Page<T>): Promise<T[]> {
+  const unique = [...new Set(ids)];
+  const rows: T[] = [];
+  for (let offset = 0; offset < unique.length; offset += ID_BATCH_SIZE) {
+    const batch = unique.slice(offset, offset + ID_BATCH_SIZE);
+    rows.push(...await readAllPages((from, to) => page(batch, from, to)));
+  }
+  return rows;
+}
+
+const INVOICE_TOTAL_COLUMNS = "id, provider_status, currency, amount_paid, amount_remaining, paid_at";
 
 /**
  * Revenue for the platform dashboard, read from the Stripe-synced billing tables. Platform
@@ -54,54 +84,72 @@ export function useGetPlatformRevenue() {
       const paidSince = new Date(Math.min(chartStart.getTime(), now.getTime() - 30 * DAY_MS)).toISOString();
 
       const [subscriptions, paidInvoices, openInvoices, recentInvoices] = await Promise.all([
-        supabase
+        // Live Stripe subscriptions, the same candidates `get_managed_billing_subscriptions`
+        // considers. Suspended and trial rows are read too: newer account evidence can show
+        // they are paying (see effectiveSubscriptionStates).
+        readAllPages((from, to) => supabase
           .from("billing_subscriptions")
-          .select("id, billing_state")
+          .select("id, billing_account_id, billing_state, provider_event_created_at")
           .eq("is_provider_placeholder", false)
-          .in("billing_state", [...RECURRING_BILLING_STATES]),
-        supabase.from("billing_invoices").select(INVOICE_TOTAL_COLUMNS).gte("paid_at", paidSince),
-        supabase.from("billing_invoices").select(INVOICE_TOTAL_COLUMNS).eq("provider_status", "open").gt("amount_remaining", 0),
+          .not("provider_status", "in", "(canceled,incomplete_expired)")
+          .in("billing_state", ["trial", "active", "grace", "past_due", "suspended"])
+          .order("id")
+          .range(from, to)),
+        readAllPages((from, to) => supabase
+          .from("billing_invoices")
+          .select(INVOICE_TOTAL_COLUMNS)
+          .gte("paid_at", paidSince)
+          .order("id")
+          .range(from, to)),
+        readAllPages((from, to) => supabase
+          .from("billing_invoices")
+          .select(INVOICE_TOTAL_COLUMNS)
+          .eq("provider_status", "open")
+          .gt("amount_remaining", 0)
+          .order("id")
+          .range(from, to)),
+        // Newest by Stripe's own issue time; created_at is when the webhook stored the row, so
+        // a late first delivery of an old invoice would otherwise jump the queue.
         supabase
           .from("billing_invoices")
           .select("id, organization_id, provider_status, currency, amount_due, amount_paid, amount_remaining, issued_at, created_at, hosted_invoice_url, organizations(name)")
+          .order("issued_at", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false })
-          .limit(RECENT_INVOICE_LIMIT),
+          .order("id")
+          .limit(RECENT_INVOICE_LIMIT)
+          .then(({ data, error }) => {
+            if (error) throw error;
+            return data;
+          }),
       ]);
-      if (subscriptions.error) throw subscriptions.error;
-      if (paidInvoices.error) throw paidInvoices.error;
-      if (openInvoices.error) throw openInvoices.error;
-      if (recentInvoices.error) throw recentInvoices.error;
 
-      const subscriptionIds = subscriptions.data.map((subscription) => subscription.id);
-      const items = subscriptionIds.length === 0
-        ? []
-        : await supabase
+      const [accounts, items] = await Promise.all([
+        readAllByIds(subscriptions.map((subscription) => subscription.billing_account_id), (batch, from, to) => supabase
+          .from("billing_accounts")
+          .select("id, billing_state, state_source, provider_event_created_at")
+          .in("id", batch)
+          .order("id")
+          .range(from, to)),
+        readAllByIds(subscriptions.map((subscription) => subscription.id), (batch, from, to) => supabase
           .from("billing_subscription_items")
-          .select("subscription_id, stripe_price_id, quantity")
-          .in("subscription_id", subscriptionIds)
-          .then(({ data, error }) => {
-            if (error) throw error;
-            return data;
-          });
-
-      const priceIds = [...new Set(items.map((item) => item.stripe_price_id))];
-      const prices = priceIds.length === 0
-        ? []
-        : await supabase
-          .from("package_billing_prices")
-          .select("stripe_price_id, base_amount_cents, billing_metric, currency, included_quantity, pricing_model, recurring_interval, interval_count, unit_amount_cents")
-          .in("stripe_price_id", priceIds)
-          .then(({ data, error }) => {
-            if (error) throw error;
-            return data;
-          });
+          .select("id, subscription_id, stripe_price_id, quantity")
+          .in("subscription_id", batch)
+          .order("id")
+          .range(from, to)),
+      ]);
+      const prices = await readAllByIds(items.map((item) => item.stripe_price_id), (batch, from, to) => supabase
+        .from("package_billing_prices")
+        .select("id, stripe_price_id, base_amount_cents, billing_metric, currency, included_quantity, pricing_model, recurring_interval, interval_count, unit_amount_cents")
+        .in("stripe_price_id", batch)
+        .order("id")
+        .range(from, to));
 
       return {
-        recurring: monthlyRecurringRevenue(subscriptions.data, items, prices),
-        collectedLast30DaysCents: collectedSince(paidInvoices.data, now.getTime() - 30 * DAY_MS),
-        outstanding: outstandingInvoices(openInvoices.data),
-        collectedByMonth: collectedByMonth(paidInvoices.data, now, REVENUE_CHART_MONTHS),
-        recentInvoices: recentInvoices.data.map((invoice) => ({
+        recurring: monthlyRecurringRevenue(effectiveSubscriptionStates(subscriptions, accounts), items, prices),
+        collectedLast30DaysCents: collectedSince(paidInvoices, now.getTime() - 30 * DAY_MS),
+        outstanding: outstandingInvoices(openInvoices),
+        collectedByMonth: collectedByMonth(paidInvoices, now, REVENUE_CHART_MONTHS),
+        recentInvoices: recentInvoices.map((invoice) => ({
           id: invoice.id,
           organizationId: invoice.organization_id,
           organizationName: invoice.organizations?.name ?? null,

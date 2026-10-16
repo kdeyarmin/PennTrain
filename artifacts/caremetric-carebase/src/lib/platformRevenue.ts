@@ -17,6 +17,51 @@ export interface RevenueSubscription {
   billing_state: string;
 }
 
+/** A live Stripe subscription row as stored: its state is the snapshot from its own last event. */
+export interface StoredRevenueSubscription extends RevenueSubscription {
+  billing_account_id: string;
+  provider_event_created_at: string;
+}
+
+export interface RevenueBillingAccount {
+  id: string;
+  billing_state: string;
+  state_source: string;
+  provider_event_created_at: string | null;
+}
+
+/**
+ * Each subscription's latest known billing state.
+ *
+ * `billing_subscriptions.billing_state` is the snapshot from the subscription's own last Stripe
+ * event. Invoice events (paid, payment failed) update the billing account instead, so the account
+ * can hold newer evidence: an invoice payment can restore the account while the subscription row
+ * still says suspended or past due, until Stripe sends the next subscription event. When the
+ * account's Stripe evidence is newer than the subscription's and the account has no other live
+ * subscription, the account state is this subscription's latest state. With several live
+ * subscriptions the account event cannot be attributed to one of them, so each keeps its own
+ * snapshot. A manual comp or suspension on the account is not Stripe evidence and is not applied.
+ */
+export function effectiveSubscriptionStates(
+  subscriptions: readonly StoredRevenueSubscription[],
+  accounts: readonly RevenueBillingAccount[],
+): RevenueSubscription[] {
+  const accountById = new Map(accounts.map((account) => [account.id, account]));
+  const liveByAccount = new Map<string, number>();
+  for (const subscription of subscriptions) {
+    liveByAccount.set(subscription.billing_account_id, (liveByAccount.get(subscription.billing_account_id) ?? 0) + 1);
+  }
+  return subscriptions.map((subscription) => {
+    const account = accountById.get(subscription.billing_account_id);
+    const accountIsNewer = account !== undefined
+      && account.state_source === "stripe"
+      && account.provider_event_created_at !== null
+      && liveByAccount.get(subscription.billing_account_id) === 1
+      && Date.parse(account.provider_event_created_at) > Date.parse(subscription.provider_event_created_at);
+    return { id: subscription.id, billing_state: accountIsNewer ? account.billing_state : subscription.billing_state };
+  });
+}
+
 export interface RevenueSubscriptionItem {
   subscription_id: string;
   stripe_price_id: string;
