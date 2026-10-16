@@ -270,7 +270,7 @@ test.describe("new training facility administrator", () => {
         await expect(learnerPage.locator("p.whitespace-pre-wrap").filter({ hasText: "Instructor-led orientation fixture for a new facility." })).toBeVisible();
         const complete = learnerPage.getByRole("button", { name: "Mark Training Complete", exact: true });
         await expect(complete).toBeDisabled();
-        await expect(learnerPage.getByText(/Continue reviewing the lesson. Completion is available in/)).toBeVisible();
+        await expect(learnerPage.getByText(/This course stays open for its required learning time\. You can mark it complete in/)).toBeVisible();
         // Honor the actual server pacing floor; do not backdate progress or bypass completion.
         await expect(complete).toBeEnabled({ timeout: 70_000 });
         await learnerPage.getByRole("button", { name: "Mark Training Complete", exact: true }).click();
