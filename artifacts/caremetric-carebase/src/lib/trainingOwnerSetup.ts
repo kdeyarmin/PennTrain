@@ -1,4 +1,4 @@
-import { facilityToday } from "@/lib/dateUtils";
+import { addFacilityCalendarDays, facilityToday } from "@/lib/dateUtils";
 
 /**
  * What a brand-new training customer has to do, in the order they can actually do it.
@@ -110,10 +110,13 @@ export function buildTrainingOwnerSteps(
 
 /** A deadline the administrator can change. It is a suggestion, not a regulatory date. */
 export function suggestedTrainingDueDate(today = facilityToday()): string {
-  const [year, month, day] = today.split("-").map(Number);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(today);
+  if (!match) return today;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
   if (!year || !month || !day) return today;
-  const next = new Date(Date.UTC(year, month - 1, day + 30));
-  return next.toISOString().slice(0, 10);
+  return addFacilityCalendarDays(today, 30);
 }
 
 export function employeeIdsMatchingJobTitle<T extends { id: string; job_title?: string | null }>(
