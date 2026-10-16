@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthBackground } from "@/components/auth/AuthBackground";
+import { SignupPlanSummary, SignupSteps } from "@/components/auth/SignupProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useSignupOrganization } from "@/hooks/useSignup";
 import { Loader2, ArrowRight, CheckCircle2 } from "lucide-react";
@@ -48,7 +49,8 @@ declare global {
 }
 
 export default function Signup() {
-  const trainingOnly = new URLSearchParams(useSearch()).get("product") === "train" || import.meta.env.VITE_CAREMETRIC_MODULES === "train";
+  const trainBuild = import.meta.env.VITE_CAREMETRIC_MODULES === "train";
+  const trainingOnly = new URLSearchParams(useSearch()).get("product") === "train" || trainBuild;
   usePageMeta(trainingOnly
     ? { title: "Create your training organization | CareMetric CareBase", description: "Set up your facility training workspace, invite staff, assign courses and track completion.", path: "/signup", noindex: true }
     : { ...MARKETING_ROUTE_META["/signup"], path: "/signup" });
@@ -178,7 +180,7 @@ export default function Signup() {
     <main className="min-h-screen w-full flex items-center justify-center relative overflow-hidden py-12">
       <AuthBackground />
 
-      <div className="w-full max-w-[460px] space-y-8 relative z-10 px-4">
+      <div className="w-full max-w-[460px] lg:max-w-[820px] space-y-8 relative z-10 px-4">
         <div className="flex flex-col items-center text-center space-y-3">
           <Link href="/" aria-label="CareMetric home">
             <LogoMark className="h-20 w-20" />
@@ -191,6 +193,9 @@ export default function Signup() {
           </div>
         </div>
 
+        <SignupSteps current={submittedEmail ? 2 : 1} />
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
         <Card className="border-border/50 shadow-xl shadow-black/[0.04] ring-1 ring-primary/10 backdrop-blur-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">{submittedEmail ? "Check your email" : trainingOnly ? "Create your training organization" : "Create your organization"}</CardTitle>
@@ -341,6 +346,8 @@ export default function Signup() {
             )}
           </CardContent>
         </Card>
+        <SignupPlanSummary product={trainingOnly ? "train" : "carebase"} allowSwitch={!trainBuild && !submittedEmail} />
+        </div>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
           55 Pa. Code Chapters 2600 & 2800 Compliance Platform
