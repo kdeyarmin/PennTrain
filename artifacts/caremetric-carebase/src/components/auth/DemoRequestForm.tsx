@@ -148,8 +148,8 @@ export function DemoRequestForm() {
   return (
     <form onSubmit={handleSubmit} className="grid gap-3 rounded-lg border bg-muted/30 p-4" noValidate>
       <p className="text-sm text-muted-foreground">
-        Public demo accounts are not configured for this deployment. Tell us where to reach you and
-        the CareMetric team will set up a safe workspace for you.
+        Tell us where to reach you and the CareMetric team will set up a demo workspace with
+        fictional data for you.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
