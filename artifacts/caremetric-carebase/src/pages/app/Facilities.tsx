@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Building2, ChevronRight, MapPin, Phone, Plus, Pencil, Search } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +57,7 @@ export default function Facilities() {
   const { mutate: updateFacility, isPending: updating } = useUpdateFacility();
 
   const canManage = ["platform_admin", "org_admin"].includes(user?.role ?? "");
+  const trainingHandoff = new URLSearchParams(useSearch()).get("source") === "train";
 
   const [urlState, setUrlState] = useUrlState(FACILITIES_URL_DEFAULTS);
   const [search, setSearch] = useState(urlState.search);
@@ -176,8 +177,8 @@ export default function Facilities() {
     <div className="space-y-6">
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1>Facilities</h1>
-          <p>View and manage your personal care, assisted living, nursing, home health, hospice, and group home facilities.</p>
+          <h1>{trainingHandoff ? "Your location" : "Facilities"}</h1>
+          <p>{trainingHandoff ? "Add the facility on your license. Staff, courses, and certificates belong to this location, and the spreadsheet import matches its name." : "View and manage your personal care, assisted living, nursing, home health, hospice, and group home facilities."}</p>
         </div>
         {canManage && (
           <Button onClick={openCreate} className="shadow-sm">
@@ -280,7 +281,7 @@ export default function Facilities() {
                   until a facility exists, so the empty state carries the action itself. */}
               {canManage && facilities?.length === 0 && (
                 <Button className="mt-4" onClick={openCreate}>
-                  <Plus className="mr-2 h-4 w-4" /> Add your first facility
+                  <Plus className="mr-2 h-4 w-4" /> {trainingHandoff ? "Add your first location" : "Add your first facility"}
                 </Button>
               )}
             </div>

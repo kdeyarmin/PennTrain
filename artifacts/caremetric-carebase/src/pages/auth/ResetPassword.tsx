@@ -10,6 +10,7 @@ import { supabase, clearSupabaseRuntimeCache } from "@/lib/supabase";
 import { Loader2, ShieldCheck, ArrowLeft, KeyRound, CheckCircle2 } from "lucide-react";
 import { MARKETING_ROUTE_META } from "@/components/marketing/marketingMeta";
 import { usePageMeta } from "@/lib/usePageMeta";
+import { InviteLinkResend } from "@/components/auth/InviteLinkResend";
 
 type LinkState = "checking" | "valid" | "invalid";
 
@@ -208,11 +209,15 @@ export default function ResetPassword() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : linkState === "invalid" ? (
-              <div className="text-center py-4 space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Request a new link and try again.
+              <div className="py-4 space-y-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  If you have not chosen a password yet, enter the email address from the invitation.
                 </p>
-                <Button asChild className="w-full"><Link href="/forgot-password">Request a new link</Link></Button>
+                <InviteLinkResend />
+                <div className="space-y-2 text-center">
+                  <p className="text-xs text-muted-foreground">Already chose a password?</p>
+                  <Button asChild variant="outline" className="w-full"><Link href="/forgot-password">Request a new link</Link></Button>
+                </div>
               </div>
             ) : done ? (
               <div className="text-center py-4 space-y-4">

@@ -478,10 +478,15 @@ opening the Supabase dashboard. Keep the `audit_logs` row for the reset.
 
 - Leaked-password protection is still **off** — it is the only auth finding the
   advisor reports, so it is the one toggle that definitely remains.
-- `otp_expiry` is **already at or under one hour**: the advisor's
-  `auth_otp_long_expiry` lint fires above that and does not appear. Nothing to
-  set. Do not lengthen it to make invitation links live longer — the product now
-  states the link's short life and offers Resend, which is the correct answer.
+- `otp_expiry` is **7 days (604800 seconds)**. Kevin set that on 2026-10-16 so a
+  new customer can open an invitation later in the week. `supabase/config.toml`
+  applies it to local and CI only. On the hosted project CM CareBase (ref
+  `xsqobvvreaovwibxwyvv`), set **Authentication → Email → Email OTP Expiration**
+  (`mailer_otp_exp`) to `604800`. A migration cannot change it. The advisor lint
+  `auth_otp_long_expiry` fires above 3600 seconds; that warning is accepted.
+  Invite, recovery, and magic links share this one clock. If hosted mail uses
+  the dashboard invite template instead of the Send Email hook, paste
+  `supabase/templates/invite.html` there so the email says 7 days.
 - Still unrecorded and not advisor-visible: plain email signup off, Site URL and
   redirect URLs, the Send Email hook secret, and the Turnstile hostname (the live
   widget returned `110200`).

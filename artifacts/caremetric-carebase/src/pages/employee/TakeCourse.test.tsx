@@ -49,6 +49,7 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/hooks/useEmployees", () => ({ useGetEmployeeByProfileId: () => h.employeeQuery }));
 vi.mock("@/hooks/useCourses", () => ({
   useGetCourse: () => ({ data: { title: "Course", estimated_duration_minutes: 5 } }),
+  useGetCourseVersion: () => ({ data: { content_standard: "legacy" }, isError: false }),
   useListCourseBlocks: () => ({ data: h.blocks }),
 }));
 vi.mock("@/hooks/useCourseAssignments", () => ({
@@ -202,7 +203,7 @@ describe("completion timing feedback", () => {
     h.progress = { ...h.progress, started_at: new Date().toISOString() };
     const waiting = prepareFinalResponse();
     expect(completeButton(waiting).props.disabled).toBe(true);
-    expect(text(waiting)).toContain("Continue reviewing the lesson. Completion is available in");
+    expect(text(waiting)).toContain("This course stays open for its required learning time. You can mark it complete in");
     await (completeButton(waiting).props.onClick as () => Promise<void>)();
     expect(h.complete).not.toHaveBeenCalled();
     const tick = vi.mocked(window.setTimeout).mock.calls.find(([, delay]) => delay === 1000)![0] as () => void;

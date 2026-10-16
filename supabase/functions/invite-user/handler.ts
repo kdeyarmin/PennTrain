@@ -325,13 +325,15 @@ export function createInviteUserHandler({
               && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(branding.contact_email)) invitationContactEmail = branding.contact_email;
             const logoPath = branding.logo_path;
             // Never sign an arbitrary path supplied by the invitation request or
-            // a corrupted cross-tenant branding reference. Expiry matches the invite.
-            // URL clients normalize encoded dot segments and backslashes before
-            // dispatch. Check the canonical object key, not just a raw prefix.
+            // a corrupted cross-tenant branding reference. Expiry matches the
+            // invite link (otp_expiry, 7 days) so the logo still loads when the
+            // email is opened later. URL clients normalize encoded dot segments
+            // and backslashes before dispatch. Check the canonical object key,
+            // not just a raw prefix.
             if (typeof logoPath === "string" && logoPath.length <= 1024
               && logoPath.startsWith(`${effectiveOrgId}/`) && !/[\\%?#\u0000-\u0020\u007f]/.test(logoPath)
               && logoPath.split("/").every(segment => segment !== "" && segment !== "." && segment !== "..")) {
-              const { data: logo, error: logoError } = await adminClient.storage.from("org-branding").createSignedUrl(logoPath, 3600);
+              const { data: logo, error: logoError } = await adminClient.storage.from("org-branding").createSignedUrl(logoPath, 7 * 24 * 60 * 60);
               if (!logoError && typeof logo?.signedUrl === "string") invitationLogoUrl = logo.signedUrl;
             }
           }

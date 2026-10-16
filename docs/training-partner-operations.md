@@ -20,7 +20,7 @@ Within a facility learning plan, use **Role and department assignment rules** to
 
 ### Welcome and optional learning
 
-In **Facility Settings**, save a learner welcome message and training contact. The learner homepage and new staff invitations use the facility name, existing organization logo and saved training contact. Invitation logos use a private link lasting one hour, matching the activation link; a missing logo does not prevent activation. The dashboard's **Facility setup guide** links to staff, plans, assignments and reports and updates from the facility's saved records.
+In **Facility Settings**, save a learner welcome message and training contact. The learner homepage and new staff invitations use the facility name, existing organization logo and saved training contact. Invitation logos use a private link lasting 7 days, matching the activation link; a missing logo does not prevent activation. The dashboard's **Facility setup guide** links to staff, plans, assignments and reports and updates from the facility's saved records.
 
 Learners can save courses for later and select interests in the Course Library. Owner-curated collections make additional courses easier to find. Suggestions and saved courses remain optional until an administrator explicitly assigns them. Language and continuing-education labels depend on recorded course evidence; they are not inferred from course titles.
 
@@ -65,6 +65,7 @@ Automated local-mailbox tests do not establish production delivery or usability 
 
 - Check the deployed Train origin and actual invitation/recovery redirects; consume an invitation from the real email provider.
 - Deploy the updated Send Email hook when that delivery path is enabled. If hosted SMTP uses Supabase's built-in invitation template instead, apply `supabase/templates/invite.html` to that hosted template during rollout; the checked-in local configuration does not update hosted email settings automatically.
+- Set hosted **Authentication → Email → Email OTP Expiration** (`mailer_otp_exp`) to `604800` seconds (7 days) on project CM CareBase (`xsqobvvreaovwibxwyvv`). `supabase/config.toml` does not change the hosted Auth service, and the security advisor will report `auth_otp_long_expiry`. That warning is accepted.
 - Have an administrator set up MFA, facility details, a mixed staff import and a learning plan without coaching through internal data concepts.
 - Exercise expired/resend links, an existing-account invitation, missing-email/classroom handling and recovery on another device.
 - Have learners identify deadlines, finish an assigned course, start an elective and retrieve a certificate on desktop and a physical phone.

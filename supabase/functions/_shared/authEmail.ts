@@ -161,7 +161,7 @@ export function buildAuthEmailMessages(
           workspace ? `${workspace} has invited you to its CareMetric workspace.` : "You've been invited to create a CareMetric CareBase account.",
           "Accept invitation",
           verifyUrl,
-          `${steps} ${contact ? `${contact} ` : ""}This invitation link expires after one hour and can be used once. If it expires, ask your administrator to resend the invitation. If you were not expecting this invitation, you can ignore it.`,
+          `${steps} ${contact ? `${contact} ` : ""}This invitation link expires after 7 days and can be used once. If it expires, ask your administrator to resend the invitation, or use Send me a new link on the page the expired link opens. If you were not expecting this invitation, you can ignore it.`,
         );
       // Metadata is presentation only and user-editable. Only render our own
       // signed branding image URLs; never embed arbitrary tracking URLs or HTML.

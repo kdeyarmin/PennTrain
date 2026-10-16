@@ -29,6 +29,15 @@ describe("errorText", () => {
     );
   });
 
+  it("unwraps a nested message object and keeps the database hint", () => {
+    expect(errorText({
+      message: { message: "Comprehensive training requires the full designed engagement time of 30 minute(s)." },
+      hint: "Continue the assigned instruction and application work, then try again.",
+    })).toBe(
+      "Comprehensive training requires the full designed engagement time of 30 minute(s). Continue the assigned instruction and application work, then try again.",
+    );
+  });
+
   it("does not render a bare object as [object Object]", () => {
     const text = errorText({});
     expect(text).not.toContain("[object Object]");

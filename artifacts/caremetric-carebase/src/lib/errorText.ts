@@ -21,13 +21,31 @@
  * Note this is about presentation, not diagnosis: the fallback is deliberately a sentence a user
  * can act on rather than a stringified object, because a toast is not a log.
  */
+function messageText(value: unknown): string {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "object" && value !== null) {
+    const nested = (value as { message?: unknown }).message;
+    if (typeof nested === "string" && nested.trim()) return nested.trim();
+  }
+  return "";
+}
+
 export function errorText(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error instanceof Error && error.message.trim()) {
+    const hintValue = (error as unknown as { hint?: unknown }).hint;
+    const hint = typeof hintValue === "string" ? hintValue.trim() : "";
+    return hint && !error.message.includes(hint) ? `${error.message.trim()} ${hint}` : error.message;
+  }
 
   // PostgREST-shaped plain objects, and anything else that rejected with a text `message`.
+  // A nested message object used to reach the toast as "[object Object]".
   if (typeof error === "object" && error !== null) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message.trim()) return message;
+    const record = error as { message?: unknown; hint?: unknown };
+    const message = messageText(record.message);
+    if (message) {
+      const hint = typeof record.hint === "string" ? record.hint.trim() : "";
+      return hint && !message.includes(hint) ? `${message} ${hint}` : message;
+    }
   }
 
   if (typeof error === "string" && error.trim()) return error;
