@@ -331,7 +331,7 @@ const PLANS: Plan[] = [
       "Self-serve setup, CSV roster import",
     ],
     cta: `Start ${MARKETING_TRIAL_DAYS}-day free trial`,
-    href: "/signup",
+    href: "/signup?product=train",
   },
   {
     name: "CareMetric CareBase",
