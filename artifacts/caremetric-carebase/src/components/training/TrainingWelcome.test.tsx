@@ -11,7 +11,7 @@ vi.mock("@/lib/supabase", () => ({ supabase: {} }));
 vi.mock("@/hooks/useEmployees", () => ({ useGetEmployeeByProfileId: () => ({ data: { id: "learner" } }) }));
 vi.mock("@/hooks/useTrainingExperience", () => ({ useTrainingWelcome: (...args: unknown[]) => { h.welcome(...args); return { data: h.data, isError: h.error, refetch: h.refetch }; }, useSaveTrainingExperience: () => ({ mutateAsync: h.save, isPending: h.pending }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
-import { TrainingWelcome, TrainingWelcomeSettings, TrainingAdminWalkthrough } from "./TrainingWelcome";
+import { TrainingWelcome, TrainingWelcomeSettings, TrainingAdminWalkthrough, TrainingOwnerChecklist } from "./TrainingWelcome";
 type Node = ReactElement<Record<string, unknown>>;
 function nodes(node: ReactNode): Node[] {
   if (Array.isArray(node)) return node.flatMap(nodes);
@@ -58,13 +58,27 @@ describe("facility learning welcome", () => {
     expect(nodes(tree).some(node => node.props.href === "mailto:trainer@example.test")).toBe(true);
     expect(nodes(tree).some(node => node.props.href === "/me/certificates")).toBe(true);
   });
-  it("routes setup guide steps to working facility tabs and offers the first-student link", () => {
+  it("routes setup guide steps to staff, invites, assignments, and reports", () => {
     const onTab = vi.fn();
-    const tree = TrainingAdminWalkthrough({ facilityId: "facility-a", onTab, addStudentHref: "/app/employees?facilityId=facility-a" });
-    const open = nodes(tree).filter(node => text(node) === "Open" && typeof node.props.onClick === "function");
-    for (const node of open) (node.props.onClick as () => void)();
-    expect(onTab.mock.calls.map(call => call[0])).toEqual(["settings", "students", "yearly-plans", "yearly-plans", "enrollments"]);
+    const guide = TrainingAdminWalkthrough({
+      facilityId: "facility-a",
+      onTab,
+      addStudentHref: "/app/employees?facilityId=facility-a",
+      assignmentsHref: "/app/course-assignments?facilityId=facility-a",
+    });
+    const checklist = nodes(guide).find(node => node.type === TrainingOwnerChecklist);
+    expect(checklist).toBeDefined();
+    const tree = (checklist!.type as (props: Record<string, unknown>) => ReactNode)(checklist!.props);
+    expect(text(tree)).toContain("Set up training");
+    expect(text(tree)).toContain("Next: add your staff.");
+    for (const label of ["Send invites", "Use a learning plan", "Open reports"]) {
+      const button = nodes(tree).find(node => text(node).trim() === label && typeof node.props.onClick === "function");
+      expect(button).toBeDefined();
+      (button!.props.onClick as () => void)();
+    }
+    expect(onTab.mock.calls.map(call => call[0])).toEqual(["students", "yearly-plans", "enrollments"]);
     expect(nodes(tree).some(node => node.props.href === "/app/employees?facilityId=facility-a")).toBe(true);
+    expect(nodes(tree).some(node => node.props.href === "/app/course-assignments?facilityId=facility-a")).toBe(true);
   });
   it("does not expose an editable welcome when the read failed", () => {
     h.error = true;

@@ -44,6 +44,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { openDocumentUrl } from "@/lib/openDocumentUrl";
 import { courseDetailPath } from "@/lib/courseRoutes";
+import { employeeIdsMatchingJobTitle, suggestedTrainingDueDate } from "@/lib/trainingOwnerSetup";
 
 const PAGE_SIZE = 15;
 const ASSIGNMENTS_URL_DEFAULTS = { facilityId: "all", courseId: "", returnCourseId: "" };
@@ -172,6 +173,7 @@ export default function CourseAssignments() {
   // and the grant is recorded against exactly one of them (BACKLOG J93) -- an assignment-wide grant
   // raised the cap on every quiz in the version, including ones the learner had passed first time.
   const [grantQuizId, setGrantQuizId] = useState("");
+  const [assignJobTitle, setAssignJobTitle] = useState("");
   const grantQuizzes = useListQuizzesForCourseVersion(
     unblock?.mode === "grant" ? unblock.assignment.course_version_id ?? undefined : undefined,
   );
@@ -309,7 +311,8 @@ export default function CourseAssignments() {
       return;
     }
     setCourseHandoffError(null);
-    setAssignForm({ ...EMPTY_ASSIGN_FORM, courseId: requestedCourse.id });
+    setAssignForm({ ...EMPTY_ASSIGN_FORM, courseId: requestedCourse.id, dueDate: suggestedTrainingDueDate() });
+    setAssignJobTitle("");
     setSelectedEmployeeIds(new Set());
     setAssignEmployeeSearch("");
     setAssignFacilityFilter(assignableFacilities.some(facility => facility.id === facilityId) ? facilityId : "all");
@@ -421,6 +424,8 @@ export default function CourseAssignments() {
       return `${e.last_name} ${e.first_name} ${e.job_title ?? ""}`.toLowerCase().includes(needle);
     });
   }, [activeEmployees, assignFacilityFilter, assignEmployeeSearch]);
+  const jobTitlePool = activeEmployees.filter(employee => assignFacilityFilter === "all" || employee.facility_id === assignFacilityFilter);
+  const jobTitles = [...new Set(jobTitlePool.map(employee => employee.job_title?.trim()).filter((title): title is string => !!title))].sort((a, b) => a.localeCompare(b));
   const allFilteredSelected = filteredAssignEmployees.length > 0 && filteredAssignEmployees.every(e => selectedEmployeeIds.has(e.id));
   const someFilteredSelected = filteredAssignEmployees.some(e => selectedEmployeeIds.has(e.id));
 
@@ -450,9 +455,10 @@ export default function CourseAssignments() {
   const openAssign = () => {
     if (!canManage || facilityActionsBlocked) return;
     setCourseHandoffError(null);
-    setAssignForm(EMPTY_ASSIGN_FORM);
+    setAssignForm({ ...EMPTY_ASSIGN_FORM, dueDate: suggestedTrainingDueDate() });
     setSelectedEmployeeIds(new Set());
     setAssignEmployeeSearch("");
+    setAssignJobTitle("");
     setAssignFacilityFilter(assignableFacilities.some(facility => facility.id === facilityId) ? facilityId : "all");
     setShowAssignForm(true);
   };
@@ -1001,7 +1007,7 @@ export default function CourseAssignments() {
             <div className="space-y-1.5">
               <Label htmlFor={`${__fieldIds}-due-date`} className="text-[13px]">Completion required by *</Label>
               <Input id={`${__fieldIds}-due-date`} type="date" required value={assignForm.dueDate} onChange={e => field("dueDate", e.target.value)} className="h-9" disabled={assigning} />
-              <p className="text-xs text-muted-foreground">Enter the facility's deadline. No completion date is calculated automatically.</p>
+              <p className="text-xs text-muted-foreground">Suggested deadline is 30 days from today. Change it to match your policy. This is not a regulatory due date.</p>
             </div>
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1024,6 +1030,33 @@ export default function CourseAssignments() {
                   disabled={assigning}
                 />
               </div>
+              {jobTitles.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label htmlFor={`${__fieldIds}-assign-job-title`} className="text-[13px]">Job title</Label>
+                  <Select value={assignJobTitle} onValueChange={setAssignJobTitle} disabled={assigning}>
+                    <SelectTrigger id={`${__fieldIds}-assign-job-title`} aria-label="Job title to assign" className="h-8 w-48 text-xs"><SelectValue placeholder="Choose a job title" /></SelectTrigger>
+                    <SelectContent>
+                      {jobTitles.map(title => <SelectItem key={title} value={title}>{title}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={assigning || !assignJobTitle}
+                    onClick={() => {
+                      const ids = employeeIdsMatchingJobTitle(jobTitlePool, assignJobTitle);
+                      setSelectedEmployeeIds(prev => {
+                        const next = new Set(prev);
+                        for (const id of ids) next.add(id);
+                        return next;
+                      });
+                    }}
+                  >
+                    Select this job title
+                  </Button>
+                </div>
+              )}
               <div className="border rounded-md overflow-hidden">
                 <label className="flex items-center gap-2 px-2.5 py-1.5 text-xs border-b bg-muted/40 cursor-pointer">
                   <Checkbox

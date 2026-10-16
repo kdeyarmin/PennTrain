@@ -46,18 +46,15 @@ describe("invitation lifecycle helpers", () => {
 
 /**
  * BACKLOG.md I7's recorded residual, and H11's product half. The invitations page printed
- * `expires_at` as, simply, "expires" -- a date seven days out -- while the emailed link is a GoTrue
- * invite token that dies at the project's `otp_expiry`, verified at or under an hour on this
- * deployment (the security advisor's `auth_otp_long_expiry` lint fires above that and does not fire
- * here). A manager read "expires Sep 12", said "you have a week", and the invitee found the link
- * dead the next morning with six days still on the record.
+ * `expires_at` as, simply, "expires". The emailed link is a GoTrue invite token that dies at
+ * `otp_expiry` -- 7 days from each send -- while this date is 7 days from when the invitation was
+ * created. A resend refreshes the link without moving the record.
  */
 describe("invitation expiry copy", () => {
   it("distinguishes the link's life from the record's, and names the remedy", () => {
     const caption = invitationExpiryCaption();
-    // The link's short life has to be stated, or the date on the row is the only number a reader
-    // sees and they will use it.
-    expect(caption).toMatch(/link expires within about an hour/i);
+    // The link's life has to be stated, or the date on the row is the only number a reader sees.
+    expect(caption).toMatch(/link expires 7 days after each send/i);
     // And the date must be explained rather than merely qualified, or it looks like a mistake.
     expect(caption).toMatch(/resend or revoke/i);
     // Resend is the whole point: a lapsed link is a one-click problem, not a re-invite.

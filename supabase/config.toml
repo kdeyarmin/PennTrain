@@ -209,12 +209,16 @@ minimum_password_length = 8
 # via auth.enable_signup above, which is GOTRUE_DISABLE_SIGNUP and blocks POST /auth/v1/signup
 # while leaving the password grant working. Leaving the key out here resolves to the CLI's default
 # of true -- which is what this project ran on before an [auth.email] table existed at all.
-# Set deliberately rather than inherited (PILOT_READINESS_PLAN I7). One hour is what this
-# deployment already runs -- src/lib/invitationLifecycle.ts records that the security advisor's
-# auth_otp_long_expiry lint fires above 3600s and does not fire here -- and it is the lifetime the
-# invitation page's copy now names. The ledger's seven days is how long a row stays resendable, not
-# how long the emailed link lives; the two are different clocks on purpose.
-otp_expiry = 3600
+# Set deliberately rather than inherited (PILOT_READINESS_PLAN I7). Kevin decided on
+# 2026-10-16 that an invitation or set-password link lasts 7 days (604800 seconds), not one hour.
+# GoTrue has one OTP clock, so recovery and magic links use the same lifetime. This value configures
+# `supabase start` (local and CI) only. The hosted project does not read it: Authentication → Email
+# → Email OTP Expiration (`mailer_otp_exp`) must be set to 604800 in the dashboard for CM CareBase
+# (ref xsqobvvreaovwibxwyvv). The security advisor's auth_otp_long_expiry lint fires above 3600s;
+# that warning is accepted. The invitation ledger's seven days is still a different clock: it is how
+# long the record stays open to resend or revoke, measured from when the invitation was created,
+# not from the latest email.
+otp_expiry = 604800
 
 # Rehearse the same welcome copy locally when the send-email hook is disabled.
 # Hosted hook delivery uses _shared/authEmail.ts; SMTP-only hosted projects can
@@ -254,6 +258,13 @@ secrets = "env(SEND_EMAIL_HOOK_SECRET_BASE64)"
 # yet at signup time. The function enforces Turnstile, hashed rate limits, platform signup gates,
 # and invite-email verification before the org_admin can set a password.
 [functions.signup-organization]
+verify_jwt = false
+
+# Public, unauthenticated "send me a new link" for someone whose invite expired. There is no
+# session yet. The function reserves a hashed IP/email rate limit before it looks anyone up, and
+# every outcome (unknown, confirmed, revoked, limited, or sent) returns the same acknowledgement.
+# It resends only for an unconfirmed profile that is still active. It never creates an account.
+[functions.resend-invite-link]
 verify_jwt = false
 
 # Public, unauthenticated demo-request intake by design -- prospects have no session. The

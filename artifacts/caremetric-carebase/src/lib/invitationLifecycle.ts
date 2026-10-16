@@ -38,20 +38,15 @@ export function canRevokeInvitation(status: string): boolean {
 /**
  * `expires_at` is the RECORD's window, not the emailed link's (BACKLOG.md I7, H11).
  *
- * `user_invitation_lifecycle.expires_at` defaults to seven days, and the invitations page printed
- * it as, simply, "expires". But the link in the email is a GoTrue invite token, and it dies at the
- * project's `otp_expiry` -- verified at or under one hour on this deployment, because the security
- * advisor's `auth_otp_long_expiry` lint fires above that and does not fire here. So a manager read
- * "expires Sep 12", told the invitee they had a week, and the invitee opened the link the next
- * morning to be told it was invalid, with the invitation still showing six days left.
- *
- * Nothing is broken about the seven days -- that is how long the record stays resendable and
- * revocable, which is a genuinely useful thing to show. It just is not what the reader thought it
- * was. Naming both, and naming Resend as the remedy, is the whole fix; lengthening `otp_expiry`
- * would trade a copy problem for a security one the advisor would immediately flag.
+ * `user_invitation_lifecycle.expires_at` defaults to seven days from when the invitation was
+ * created. The link in the email is a GoTrue invite token and dies at `otp_expiry`, which is also
+ * seven days, measured from each send (Kevin, 2026-10-16). A resend starts a new link clock
+ * without moving this date, so the two still need different names. The security advisor's
+ * `auth_otp_long_expiry` lint fires above one hour; that warning is the accepted cost of a link
+ * a new customer can open later in the week.
  */
 export function invitationExpiryCaption(): string {
-  return "The emailed sign-in link expires within about an hour of each send. This date is how long "
+  return "The emailed sign-in link expires 7 days after each send. This date is how long "
     + "the invitation itself stays open to resend or revoke -- use Resend if the invitee's link has "
     + "lapsed.";
 }

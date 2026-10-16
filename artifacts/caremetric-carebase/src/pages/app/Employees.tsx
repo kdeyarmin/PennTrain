@@ -12,6 +12,8 @@ import { facilityScopedErrorText } from "@/lib/rlsErrors";
 import { useInviteUser } from "@/hooks/useProfiles";
 import { useUrlState } from "@/hooks/useUrlState";
 import { trainingFacilityFromSearch, trainingWorkspaceHref } from "@/lib/trainingOnboarding";
+import { employeeImportTemplate, previewEmployeeCsv, type EmployeeCsvPreview } from "@/lib/employeeCsvImport";
+import { downloadCsvText } from "@/lib/browserDownload";
 import { EmployeeFormFields, EMPTY_EMPLOYEE_FORM, employeeToFormData, type EmpFormData } from "@/components/employees/EmployeeFormFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +26,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { QueryError } from "@/components/QueryState";
-import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, ArrowLeftRight, Upload } from "lucide-react";
+import { Users, Search, ChevronLeft, ChevronRight, UserPlus, Pencil, ArrowLeftRight, Upload, Download } from "lucide-react";
 import { Link, useLocation, useSearch } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useViewingOrg } from "@/lib/viewingOrg";
@@ -40,6 +42,7 @@ interface BulkImportRowResult {
   success: boolean;
   error?: string;
   employee_id?: string;
+  action?: "create" | "update" | "skip";
 }
 
 interface BulkImportResponse {
@@ -53,6 +56,7 @@ interface BulkImportResponse {
   totalRows?: number;
   offset?: number;
   nextOffset?: number | null;
+  job_id?: string;
 }
 
 interface BulkImportProgress {
@@ -99,7 +103,13 @@ export default function Employees() {
   const [bulkResult, setBulkResult] = useState<BulkImportResponse | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkProgress, setBulkProgress] = useState<BulkImportProgress | null>(null);
+  const [bulkCsvText, setBulkCsvText] = useState<string | null>(null);
+  const [bulkClientPreview, setBulkClientPreview] = useState<EmployeeCsvPreview | null>(null);
+  const [bulkServerPreview, setBulkServerPreview] = useState<BulkImportResponse | null>(null);
+  const [bulkJobId, setBulkJobId] = useState<string | null>(null);
+  const [duplicateStrategy, setDuplicateStrategy] = useState<"skip" | "update">("skip");
   const bulkCancelRef = useRef(false);
+  const bulkReadGeneration = useRef(0);
 
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
@@ -343,38 +353,107 @@ export default function Employees() {
 
   const openBulkImport = () => {
     if (facilityActionsBlocked) return;
+    bulkReadGeneration.current += 1;
     setBulkFile(null);
     setBulkResult(null);
     setBulkError(null);
+    setBulkCsvText(null);
+    setBulkClientPreview(null);
+    setBulkServerPreview(null);
+    setBulkJobId(null);
     setShowBulkImport(true);
+  };
+
+  const readBulkFile = async (file: File | null) => {
+    const generation = ++bulkReadGeneration.current;
+    setBulkFile(file);
+    setBulkResult(null);
+    setBulkError(null);
+    setBulkServerPreview(null);
+    setBulkJobId(null);
+    setBulkCsvText(null);
+    setBulkClientPreview(null);
+    if (!file) return;
+    const text = await file.text();
+    if (generation !== bulkReadGeneration.current) return;
+    setBulkCsvText(text);
+    setBulkClientPreview(previewEmployeeCsv(text, assignableFacilities.map((facility) => facility.name)));
+  };
+
+  const changeDuplicateStrategy = async (next: "skip" | "update") => {
+    if (next === duplicateStrategy || bulkImporting) return;
+    const jobId = bulkJobId;
+    if (jobId) {
+      const { error } = await supabase.rpc("cancel_data_import_job", {
+        p_job_id: jobId,
+        p_reason: "Dry run replaced before anyone was added",
+      });
+      if (error) {
+        toast({
+          title: "Could not change how duplicates are handled",
+          description: `${error.message} The previous check is still open.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    setDuplicateStrategy(next);
+    setBulkServerPreview(null);
+    setBulkJobId(null);
   };
 
   // Imports run in chunks of BULK_IMPORT_CHUNK_SIZE rows: the same CSV is sent each call
   // with an offset, so no single request has to survive a thousand row inserts, the
   // progress bar advances as each slice lands, and Cancel takes effect between chunks
   // (rows already imported stay imported -- each row is independent).
-  const handleBulkImport = async () => {
+  const clientPreviewBlocksImport = !!bulkClientPreview && (bulkClientPreview.headerErrors.length > 0 || bulkClientPreview.invalidCount > 0);
+  const bulkReadyToAdd = bulkServerPreview?.results.filter(row => row.success && row.action !== "skip").length ?? 0;
+
+  const handleBulkImport = async (mode: "validate" | "apply") => {
     if (facilityActionsBlocked) return;
-    if (!bulkFile) {
+    if (!bulkFile || !bulkCsvText) {
       toast({ title: "Choose a CSV file first", variant: "destructive" });
+      return;
+    }
+    if (clientPreviewBlocksImport) {
+      toast({ title: "Fix the spreadsheet first", description: "Nothing is added until every row checks out.", variant: "destructive" });
+      return;
+    }
+    if (mode === "apply" && !bulkJobId) {
+      toast({ title: "Check the file before adding anyone", variant: "destructive" });
       return;
     }
     setBulkImporting(true);
     setBulkResult(null);
     setBulkError(null);
     setBulkProgress(null);
+    if (mode === "validate") setBulkServerPreview(null);
     bulkCancelRef.current = false;
     const aggregate: BulkImportResponse = { success: true, total: 0, succeeded: 0, failed: 0, results: [] };
     let anySucceeded = false;
+    let jobId = mode === "apply" ? bulkJobId : null;
     try {
-      const csv = await bulkFile.text();
+      const csv = bulkCsvText;
       let offset = 0;
       let totalRows: number | null = null;
       for (;;) {
-        const body: { csv: string; organization_id?: string; offset: number; limit: number } = {
+        const body: {
+          csv: string;
+          organization_id?: string;
+          offset: number;
+          limit: number;
+          mode: "validate" | "apply";
+          duplicate_strategy: "skip" | "update";
+          file_name: string;
+          job_id?: string;
+        } = {
           csv,
           offset,
           limit: BULK_IMPORT_CHUNK_SIZE,
+          mode,
+          duplicate_strategy: duplicateStrategy,
+          file_name: bulkFile.name,
+          ...(jobId ? { job_id: jobId } : {}),
         };
         // organization_id is only read by the function when the caller is platform_admin --
         // every other role's own profile.organization_id is used server-side automatically.
@@ -400,6 +479,7 @@ export default function Employees() {
           setBulkError("The import function returned no data.");
           return;
         }
+        if (data.job_id) jobId = data.job_id;
         aggregate.total += data.total;
         aggregate.succeeded += data.succeeded;
         aggregate.failed += data.failed;
@@ -415,15 +495,24 @@ export default function Employees() {
         if (data.nextOffset === null || data.nextOffset === undefined) break;
         offset = data.nextOffset;
         if (bulkCancelRef.current) {
-          setBulkError(`Import cancelled after ${aggregate.total} of ${totalRows ?? "?"} rows. Rows already imported were kept.`);
+          setBulkError(mode === "validate"
+            ? `Check stopped after ${aggregate.total} of ${totalRows ?? "?"} rows. Nobody was added.`
+            : `Import cancelled after ${aggregate.total} of ${totalRows ?? "?"} rows. Rows already imported were kept.`);
           break;
         }
       }
-      setBulkResult({ ...aggregate });
+      if (bulkCancelRef.current) return;
+      if (mode === "validate") {
+        setBulkJobId(jobId);
+        setBulkServerPreview({ ...aggregate });
+      } else {
+        setBulkResult({ ...aggregate });
+        setBulkServerPreview(null);
+      }
     } catch (err) {
       setBulkError(err instanceof Error ? err.message : String(err));
     } finally {
-      if (anySucceeded) {
+      if (anySucceeded && mode === "apply") {
         queryClient.invalidateQueries({ queryKey: ["employees"] });
       }
       setBulkImporting(false);
@@ -442,16 +531,16 @@ export default function Employees() {
       </div>}
       <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1>Employees</h1>
-          <p>Manage staff and track their compliance status.</p>
+          <h1>{trainingHandoff ? "Staff" : "Employees"}</h1>
+          <p>{trainingHandoff ? "Add the people who need training, then invite them to create their own password." : "Manage staff and track their compliance status."}</p>
         </div>
         {canManage && (
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={openBulkImport} disabled={facilityActionsBlocked} className="shadow-sm">
-              <Upload className="mr-2 h-4 w-4" /> Bulk Import
+              <Upload className="mr-2 h-4 w-4" /> {trainingHandoff ? "Import spreadsheet" : "Bulk Import"}
             </Button>
             <Button onClick={() => openCreate(trainingHandoff)} disabled={facilityActionsBlocked} className="shadow-sm">
-              <UserPlus className="mr-2 h-4 w-4" /> Add Employee
+              <UserPlus className="mr-2 h-4 w-4" /> {trainingHandoff ? "Add one person" : "Add Employee"}
             </Button>
           </div>
         )}
@@ -502,10 +591,25 @@ export default function Employees() {
             {[...Array(5)].map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
           </div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
+          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
             <Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No employees found</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
+            {totalCount === 0 && !debouncedSearch && status === "all" && !employeesError ? (
+              <>
+                <p className="text-sm font-medium text-muted-foreground">{trainingHandoff ? "No staff yet" : "No employees yet"}</p>
+                <p className="text-xs text-muted-foreground/80 mt-1 max-w-sm">Add one person, or download the spreadsheet template and import your roster. You can invite them to sign in after they are on the list.</p>
+                {canManage && !facilityActionsBlocked && (
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <Button onClick={() => openCreate(true)}><UserPlus className="mr-2 h-4 w-4" /> Add one person</Button>
+                    <Button variant="outline" onClick={openBulkImport}><Upload className="mr-2 h-4 w-4" /> Import a spreadsheet</Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-muted-foreground">No employees found</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -702,37 +806,88 @@ export default function Employees() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showBulkImport} onOpenChange={o => { if (!o) setShowBulkImport(false); }}>
+      <Dialog open={showBulkImport} onOpenChange={o => {
+        if (!o && !bulkImporting) {
+          bulkReadGeneration.current += 1;
+          setShowBulkImport(false);
+        }
+      }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Bulk Import Employees</DialogTitle>
+            <DialogTitle>{trainingHandoff ? "Import staff from a spreadsheet" : "Bulk Import Employees"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {trainingHandoff && <p className="text-sm">{trainingFacility ? `Use “${trainingFacility.name}” in each student's facility_name column for this facility. ` : ""}Import adds roster records. Return to the training workspace's Students tab to send portal invitations, then use Assign courses to enroll them.</p>}
             <p className="text-[13px] text-muted-foreground leading-relaxed">
-              Upload a CSV file with a header row. Required columns:{" "}
-              <span className="font-medium text-foreground">first_name, last_name, job_title, facility_name</span>.
-              Facility names are matched case-insensitively against your organization's facilities (e.g. "Sunrise Manor").
-              A raw <span className="font-medium text-foreground">facility_id</span> column is also still accepted in place of
-              facility_name, for already-integrated callers. Optional columns: email, phone, employee_number, department,
-              hire_date, status, administers_medications, trainer_status. Up to 1,000 rows per file.
+              {trainingHandoff && trainingFacility ? `Use “${trainingFacility.name}” in the facility_name column. ` : ""}
+              Download the template, fill in one person per row, then check the file. Nobody is added until you confirm.
+              Required columns: first name, last name, job title, and facility name. Email is what the sign-in invite uses.
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => downloadCsvText(
+                "staff-import-template.csv",
+                employeeImportTemplate(trainingFacility?.name ?? assignableFacilities[0]?.name ?? "Your Facility"),
+              )}
+            >
+              <Download className="mr-2 h-4 w-4" /> Download template
+            </Button>
             <div className="space-y-1.5">
-              <Label htmlFor={`${__fieldIds}-csv-file`} className="text-[13px]">CSV File</Label>
+              <Label htmlFor={`${__fieldIds}-csv-file`} className="text-[13px]">Spreadsheet</Label>
               <input id={`${__fieldIds}-csv-file`}
                 type="file"
-                accept=".csv"
-                onChange={e => { setBulkFile(e.target.files?.[0] ?? null); setBulkResult(null); setBulkError(null); }}
+                accept=".csv,text/csv"
+                onChange={e => { void readBulkFile(e.target.files?.[0] ?? null); }}
                 className="block w-full text-[13px] text-muted-foreground file:mr-3 file:h-8 file:px-3 file:rounded-md file:border-0 file:bg-primary/10 file:text-primary file:text-[13px] file:font-medium file:cursor-pointer cursor-pointer"
               />
             </div>
+            <label className="block text-[13px]">
+              If someone is already on the roster
+              <select
+                className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm"
+                value={duplicateStrategy}
+                onChange={e => { void changeDuplicateStrategy(e.target.value === "update" ? "update" : "skip"); }}
+              >
+                <option value="skip">Skip them</option>
+                <option value="update">Update their name, title, and contact details</option>
+              </select>
+            </label>
+            {bulkClientPreview && (
+              <div className="space-y-2" aria-label="Spreadsheet preview">
+                {bulkClientPreview.headerErrors.map(error => <p key={error} role="alert" className="text-[13px] text-destructive">{error}</p>)}
+                {bulkClientPreview.rows.length > 0 && (
+                  <>
+                    <p className="text-[13px] font-medium">
+                      {bulkClientPreview.validCount} ready, {bulkClientPreview.invalidCount} need a fix
+                    </p>
+                    <ScrollArea className="h-40 rounded-md border">
+                      <div className="p-3 space-y-2">
+                        {bulkClientPreview.rows.map(row => (
+                          <p key={row.row} className="text-[12px] text-muted-foreground">
+                            <span className="font-medium text-foreground">Row {row.row}:</span>{" "}
+                            {row.errors.length > 0 ? row.errors.join(" ") : `${row.firstName} ${row.lastName} · ${row.jobTitle} · ${row.facilityName}`}
+                          </p>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </>
+                )}
+              </div>
+            )}
+            {bulkServerPreview && (
+              <div className="rounded-md border p-3 text-[13px]" role="status">
+                Checked {bulkServerPreview.total} rows. {bulkReadyToAdd} can be saved
+                {bulkServerPreview.results.some(row => row.action === "skip") ? `, ${bulkServerPreview.results.filter(row => row.action === "skip").length} already on the roster` : ""}.
+                {bulkServerPreview.failed > 0 && <span className="mt-2 block text-destructive">{bulkServerPreview.results.filter(row => !row.success).slice(0, 5).map(row => `Row ${row.row}: ${row.error}`).join(" ")}</span>}
+              </div>
+            )}
 
             {bulkImporting && bulkProgress && (
               <div className="space-y-1.5">
                 <Progress value={bulkProgress.total > 0 ? (bulkProgress.processed / bulkProgress.total) * 100 : 0} />
                 <p className="text-[12px] text-muted-foreground">
-                  Imported {bulkProgress.processed} of {bulkProgress.total} rows
-                  {" "}({bulkProgress.succeeded} succeeded{bulkProgress.failed > 0 ? `, ${bulkProgress.failed} failed` : ""})...
+                  Checked {bulkProgress.processed} of {bulkProgress.total} rows
+                  {" "}({bulkProgress.succeeded} ready{bulkProgress.failed > 0 ? `, ${bulkProgress.failed} need a fix` : ""})...
                 </p>
               </div>
             )}
@@ -784,9 +939,15 @@ export default function Employees() {
             >
               {bulkImporting ? "Stop Import" : bulkResult ? "Close" : "Cancel"}
             </Button>
-            <Button onClick={handleBulkImport} disabled={bulkImporting || !bulkFile} className="shadow-sm">
-              {bulkImporting ? "Importing..." : "Import"}
-            </Button>
+            {bulkServerPreview && bulkServerPreview.failed === 0 && bulkReadyToAdd > 0 ? (
+              <Button onClick={() => void handleBulkImport("apply")} disabled={bulkImporting || clientPreviewBlocksImport} className="shadow-sm">
+                {bulkImporting ? "Adding..." : `Add ${bulkReadyToAdd} ${bulkReadyToAdd === 1 ? "person" : "people"}`}
+              </Button>
+            ) : (
+              <Button onClick={() => void handleBulkImport("validate")} disabled={bulkImporting || !bulkFile || !bulkCsvText || clientPreviewBlocksImport} className="shadow-sm">
+                {bulkImporting ? "Checking..." : "Check this file"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

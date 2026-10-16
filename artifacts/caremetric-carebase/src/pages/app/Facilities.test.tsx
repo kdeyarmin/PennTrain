@@ -24,6 +24,10 @@ vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { role: "org_admin", orga
 vi.mock("@/lib/viewingOrg", () => ({ useViewingOrg: () => ({ viewingOrgId: null }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock("@/hooks/useUrlState", () => ({ useUrlState: () => [{ search: "" }, vi.fn()] }));
+vi.mock("wouter", async () => {
+  const actual = await vi.importActual<typeof import("wouter")>("wouter");
+  return { ...actual, useSearch: () => "" };
+});
 import Facilities from "./Facilities";
 
 type Node = ReactElement<Record<string, unknown>>;

@@ -17,6 +17,7 @@ import { MARKETING_TRIAL_DAYS } from "@/components/marketing/marketingPricing";
 import { usePageMeta } from "@/lib/usePageMeta";
 import { absoluteAppUrl } from "@/lib/appUrl";
 import { isPaRegulatoryFacilityType, type PaRegulatoryFacilityType } from "@/lib/facilityTypes";
+import { InviteLinkResend } from "@/components/auth/InviteLinkResend";
 
 interface SignupForm {
   organizationName: string;
@@ -212,9 +213,10 @@ export default function Signup() {
                   <CheckCircle2 className="h-8 w-8 text-green-600" />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Open the link from your email to verify the address and choose a password.
+                  Open the link from your email to verify the address and choose a password. The link expires after 7 days.
                 </p>
                 {trainingOnly && <p className="text-sm text-muted-foreground">After signing in, add your mobile number for text-message verification, which secures administrator access. Your training workspace will guide you through adding students, assigning courses and running reports.</p>}
+                <InviteLinkResend email={submittedEmail} />
                 <Button type="button" className="w-full h-10" onClick={() => setLocation("/login")}>
                   Back to sign in
                 </Button>
