@@ -109,6 +109,7 @@ export default function Employees() {
   const [bulkJobId, setBulkJobId] = useState<string | null>(null);
   const [duplicateStrategy, setDuplicateStrategy] = useState<"skip" | "update">("skip");
   const bulkCancelRef = useRef(false);
+  const bulkReadGeneration = useRef(0);
 
   const { user } = useAuth();
   const { viewingOrgId } = useViewingOrg();
@@ -352,6 +353,7 @@ export default function Employees() {
 
   const openBulkImport = () => {
     if (facilityActionsBlocked) return;
+    bulkReadGeneration.current += 1;
     setBulkFile(null);
     setBulkResult(null);
     setBulkError(null);
@@ -363,19 +365,41 @@ export default function Employees() {
   };
 
   const readBulkFile = async (file: File | null) => {
+    const generation = ++bulkReadGeneration.current;
     setBulkFile(file);
     setBulkResult(null);
     setBulkError(null);
     setBulkServerPreview(null);
     setBulkJobId(null);
-    if (!file) {
-      setBulkCsvText(null);
-      setBulkClientPreview(null);
-      return;
-    }
+    setBulkCsvText(null);
+    setBulkClientPreview(null);
+    if (!file) return;
     const text = await file.text();
+    if (generation !== bulkReadGeneration.current) return;
     setBulkCsvText(text);
     setBulkClientPreview(previewEmployeeCsv(text, assignableFacilities.map((facility) => facility.name)));
+  };
+
+  const changeDuplicateStrategy = async (next: "skip" | "update") => {
+    if (next === duplicateStrategy || bulkImporting) return;
+    const jobId = bulkJobId;
+    if (jobId) {
+      const { error } = await supabase.rpc("cancel_data_import_job", {
+        p_job_id: jobId,
+        p_reason: "Dry run replaced before anyone was added",
+      });
+      if (error) {
+        toast({
+          title: "Could not change how duplicates are handled",
+          description: `${error.message} The previous check is still open.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    setDuplicateStrategy(next);
+    setBulkServerPreview(null);
+    setBulkJobId(null);
   };
 
   // Imports run in chunks of BULK_IMPORT_CHUNK_SIZE rows: the same CSV is sent each call
@@ -782,7 +806,12 @@ export default function Employees() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showBulkImport} onOpenChange={o => { if (!o && !bulkImporting) setShowBulkImport(false); }}>
+      <Dialog open={showBulkImport} onOpenChange={o => {
+        if (!o && !bulkImporting) {
+          bulkReadGeneration.current += 1;
+          setShowBulkImport(false);
+        }
+      }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{trainingHandoff ? "Import staff from a spreadsheet" : "Bulk Import Employees"}</DialogTitle>
@@ -817,11 +846,7 @@ export default function Employees() {
               <select
                 className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm"
                 value={duplicateStrategy}
-                onChange={e => {
-                  setDuplicateStrategy(e.target.value === "update" ? "update" : "skip");
-                  setBulkServerPreview(null);
-                  setBulkJobId(null);
-                }}
+                onChange={e => { void changeDuplicateStrategy(e.target.value === "update" ? "update" : "skip"); }}
               >
                 <option value="skip">Skip them</option>
                 <option value="update">Update their name, title, and contact details</option>
@@ -837,13 +862,12 @@ export default function Employees() {
                     </p>
                     <ScrollArea className="h-40 rounded-md border">
                       <div className="p-3 space-y-2">
-                        {bulkClientPreview.rows.slice(0, 8).map(row => (
+                        {bulkClientPreview.rows.map(row => (
                           <p key={row.row} className="text-[12px] text-muted-foreground">
                             <span className="font-medium text-foreground">Row {row.row}:</span>{" "}
                             {row.errors.length > 0 ? row.errors.join(" ") : `${row.firstName} ${row.lastName} · ${row.jobTitle} · ${row.facilityName}`}
                           </p>
                         ))}
-                        {bulkClientPreview.rows.length > 8 && <p className="text-[12px] text-muted-foreground">And {bulkClientPreview.rows.length - 8} more rows.</p>}
                       </div>
                     </ScrollArea>
                   </>
@@ -920,7 +944,7 @@ export default function Employees() {
                 {bulkImporting ? "Adding..." : `Add ${bulkReadyToAdd} ${bulkReadyToAdd === 1 ? "person" : "people"}`}
               </Button>
             ) : (
-              <Button onClick={() => void handleBulkImport("validate")} disabled={bulkImporting || !bulkFile || clientPreviewBlocksImport} className="shadow-sm">
+              <Button onClick={() => void handleBulkImport("validate")} disabled={bulkImporting || !bulkFile || !bulkCsvText || clientPreviewBlocksImport} className="shadow-sm">
                 {bulkImporting ? "Checking..." : "Check this file"}
               </Button>
             )}

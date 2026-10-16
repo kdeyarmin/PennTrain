@@ -131,6 +131,28 @@ export function createResendInviteLinkHandler({
         status: (inviteError as { status?: number }).status ?? null,
         code: (inviteError as { code?: string }).code ?? null,
       });
+      return ack(req, getEnv);
+    }
+
+    // Signup owners have no ledger row. An employee invitation does, and Invitation history
+    // reads that row. A failed receipt still returns the same acknowledgement.
+    const { data: invitation, error: invitationError } = await adminClient
+      .from("user_invitation_lifecycle")
+      .select("id")
+      .eq("invited_user_id", userId)
+      .in("status", ["sent", "expired", "delivery_failed"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (invitationError) {
+      console.error("resend-invite-link: lifecycle lookup failed");
+    } else if (invitation && typeof invitation.id === "string") {
+      const { error: receiptError } = await adminClient.rpc("record_user_invitation_resent", {
+        p_invitation_id: invitation.id,
+      });
+      if (receiptError) {
+        console.error("resend-invite-link: lifecycle receipt failed");
+      }
     }
     return ack(req, getEnv);
   };

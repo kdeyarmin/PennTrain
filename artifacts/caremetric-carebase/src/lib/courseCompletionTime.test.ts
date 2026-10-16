@@ -23,6 +23,8 @@ describe("course completion pacing", () => {
     expect(courseCompletionWaitSeconds(started, 30, now + 180_000, { contentStandard: "comprehensive", designedMinutes: 30 })).toBe(1620);
     expect(courseCompletionWaitSeconds(started, 30, now + 1_800_000, { contentStandard: "comprehensive", designedMinutes: 30 })).toBe(0);
     expect(courseCompletionWaitSeconds(started, 30, now, { contentStandard: "legacy", designedMinutes: 30 })).toBe(180);
+    expect(courseCompletionWaitSeconds(started, 240, now, { contentStandard: "comprehensive", designedMinutes: 60 })).toBe(3600);
+    expect(courseCompletionWaitSeconds(started, 480, now, { contentStandard: "comprehensive", designedMinutes: 30 })).toBe(2880);
   });
 });
 

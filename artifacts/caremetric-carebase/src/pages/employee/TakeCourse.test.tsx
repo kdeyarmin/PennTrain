@@ -203,7 +203,7 @@ describe("completion timing feedback", () => {
     h.progress = { ...h.progress, started_at: new Date().toISOString() };
     const waiting = prepareFinalResponse();
     expect(completeButton(waiting).props.disabled).toBe(true);
-    expect(text(waiting)).toContain("This course stays open for its designed learning time. You can mark it complete in");
+    expect(text(waiting)).toContain("This course stays open for its required learning time. You can mark it complete in");
     await (completeButton(waiting).props.onClick as () => Promise<void>)();
     expect(h.complete).not.toHaveBeenCalled();
     const tick = vi.mocked(window.setTimeout).mock.calls.find(([, delay]) => delay === 1000)![0] as () => void;

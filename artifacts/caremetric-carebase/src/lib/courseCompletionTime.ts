@@ -17,8 +17,9 @@ export function designedEngagementMinutes(blocks: readonly { body?: unknown }[] 
 /**
  * Seconds until Mark complete can succeed.
  * Ordinary courses use the 10 percent floor in complete_course_assignment (at least one minute).
- * Comprehensive courses also have to stay open for the full designed block time; the button
- * used to follow only the shorter floor, then the save failed.
+ * A comprehensive course also has to stay open for the version's designed block time. When a
+ * credited-duration rationale lets designed time be shorter than the catalog, the catalog floor
+ * can be the longer of the two, and the button has to wait for that one as well.
  */
 export function courseCompletionWaitSeconds(
   startedAt: string | null | undefined,
@@ -30,8 +31,10 @@ export function courseCompletionWaitSeconds(
   if (!Number.isFinite(started)) return null;
   const comprehensive = options?.contentStandard === "comprehensive";
   const designed = options?.designedMinutes ?? 0;
+  const catalogFloor = Math.max(60, Math.round((durationMinutes ?? 0) * 6));
+  const designedFloor = Math.max(60, Math.round(designed * 60));
   const minimumSeconds = comprehensive && designed > 0
-    ? Math.max(60, Math.round(designed * 60))
-    : Math.max(60, Math.round((durationMinutes ?? 0) * 6));
+    ? Math.max(catalogFloor, designedFloor)
+    : catalogFloor;
   return Math.max(0, Math.ceil((started + minimumSeconds * 1000 - now) / 1000));
 }

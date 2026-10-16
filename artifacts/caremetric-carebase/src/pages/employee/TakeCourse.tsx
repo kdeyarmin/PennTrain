@@ -181,7 +181,12 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
     refetch: refetchAssignment,
   } = useGetCourseAssignment(assignmentId);
   const { data: course } = useGetCourse(assignment?.course_id);
-  const { data: courseVersion, isError: courseVersionError } = useGetCourseVersion(assignment?.course_version_id);
+  const {
+    data: courseVersion,
+    isError: courseVersionError,
+    error: courseVersionErrorDetail,
+    refetch: refetchCourseVersion,
+  } = useGetCourseVersion(assignment?.course_version_id);
   const courseTitle = documentDisplayName({ title: course?.title, fallback: "Training item" });
   const {
     data: blocks,
@@ -214,7 +219,7 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   }, []);
   const completionEvidenceLocked = assignment?.status === "completed";
   const [completionClock, setCompletionClock] = useState(Date.now);
-  const versionKnown = !assignment?.course_version_id || !!courseVersion || courseVersionError;
+  const versionKnown = !assignment?.course_version_id || (!!courseVersion && !courseVersionError);
   const completionWaitSeconds = course && versionKnown && progress?.assignment_id === assignmentId && progressFetchedAfterMount && !progressError
     ? courseCompletionWaitSeconds(progress?.started_at, course.estimated_duration_minutes, completionClock, {
         contentStandard: courseVersion?.content_standard,
@@ -1352,11 +1357,13 @@ useEffect(() => {
               </div>
             )}
           </div>
-          {isLastBlock && !alreadyCompleted && completionWaitSeconds !== 0 && (
+          {isLastBlock && !alreadyCompleted && assignment?.course_version_id && courseVersionError ? (
+            <QueryError what="this course version" error={courseVersionErrorDetail} onRetry={() => void refetchCourseVersion()} />
+          ) : isLastBlock && !alreadyCompleted && completionWaitSeconds !== 0 && (
             <p id="completion-time-help" className="text-sm text-right">
               {completionWaitSeconds === null
                 ? "Saving your course start. Completion will be available after the minimum learning time."
-                : `This course stays open for its designed learning time. You can mark it complete in ${Math.floor(completionWaitSeconds / 60)}:${String(completionWaitSeconds % 60).padStart(2, "0")}.`}
+                : `This course stays open for its required learning time. You can mark it complete in ${Math.floor(completionWaitSeconds / 60)}:${String(completionWaitSeconds % 60).padStart(2, "0")}.`}
             </p>
           )}
           {!canAdvance && (

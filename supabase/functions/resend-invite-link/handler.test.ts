@@ -23,10 +23,28 @@ function setup(options: {
   userId?: string | null;
   lookupError?: string | null;
   inviteError?: { message: string; status?: number; code?: string } | null;
+  lifecycleId?: string | null;
+  receiptError?: string | null;
 } = {}) {
   const calls: { name: string; args: Record<string, unknown> }[] = [];
   const invitations: { email: string; options: unknown }[] = [];
   const admin = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          in: () => ({
+            order: () => ({
+              limit: () => ({
+                maybeSingle: () => Promise.resolve({
+                  data: options.lifecycleId ? { id: options.lifecycleId } : null,
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    }),
     rpc: (name: string, args: Record<string, unknown>) => {
       calls.push({ name, args });
       if (name === "reserve_invite_resend" && options.limitError) {
@@ -35,6 +53,9 @@ function setup(options: {
       if (name === "pending_invite_user_id") {
         if (options.lookupError) return Promise.resolve({ data: null, error: { message: options.lookupError } });
         return Promise.resolve({ data: options.userId ?? null, error: null });
+      }
+      if (name === "record_user_invitation_resent" && options.receiptError) {
+        return Promise.resolve({ data: null, error: { message: options.receiptError } });
       }
       return Promise.resolve({ data: null, error: null });
     },
@@ -71,7 +92,7 @@ Deno.test("a confirmed or revoked address is acknowledged and not invited", asyn
 });
 
 Deno.test("a pending invitation is resent to the allow-listed reset page", async () => {
-  const h = setup({ userId: PENDING_ID });
+  const h = setup({ userId: PENDING_ID, lifecycleId: "44444444-4444-4444-8444-444444444444" });
   const response = await h.handler(request({
     email: "Pending@Example.Test",
     redirect_to: "https://cmcarebase.com/reset-password",
@@ -84,6 +105,28 @@ Deno.test("a pending invitation is resent to the allow-listed reset page", async
     email: "pending@example.test",
     options: { redirectTo: "https://cmcarebase.com/reset-password" },
   }]);
+  assertEquals(h.calls.at(-1), {
+    name: "record_user_invitation_resent",
+    args: { p_invitation_id: "44444444-4444-4444-8444-444444444444" },
+  });
+});
+
+Deno.test("a signup owner with no ledger row is still acknowledged", async () => {
+  const h = setup({ userId: PENDING_ID });
+  const response = await h.handler(request({ email: "owner@example.test" }));
+  assertEquals(await response.json(), ACK);
+  assertEquals(h.calls.map((call) => call.name).includes("record_user_invitation_resent"), false);
+});
+
+Deno.test("a lifecycle receipt failure still returns the same acknowledgement", async () => {
+  const h = setup({
+    userId: PENDING_ID,
+    lifecycleId: "44444444-4444-4444-8444-444444444444",
+    receiptError: "Closed invitations cannot be resent",
+  });
+  const response = await h.handler(request({ email: "pending@example.test" }));
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), ACK);
 });
 
 Deno.test("a disallowed redirect falls back and still sends only for a pending invite", async () => {
