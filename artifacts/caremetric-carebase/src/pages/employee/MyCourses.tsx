@@ -235,7 +235,7 @@ export default function MyCourses() {
             <div className="space-y-3 py-8 text-center">
               <p className="text-muted-foreground text-sm">
                 {statusFilter === "all"
-                  ? "No courses in this view. Explore the Course Library for optional learning, or ask your facility administrator about required assignments."
+                  ? "Nothing is assigned in this list yet. When your administrator assigns a course, it shows up here. You can browse the Course Library while you wait."
                   : "No training matches this status filter."}
               </p>
               {statusFilter !== "all" && (

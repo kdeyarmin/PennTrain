@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { courseCompletionWaitSeconds } from "@/lib/courseCompletionTime";
+import { courseCompletionWaitSeconds, designedEngagementMinutes } from "@/lib/courseCompletionTime";
+import { errorText } from "@/lib/errorText";
 import { facilityDaysUntil, formatDateForDisplay, formatDueDistance } from "@/lib/dateUtils";
 import { sanitizeVideoState, type VideoBlockState } from "@/lib/videoWatchState";
 import { CourseMediaDocumentLink } from "@/components/learning/CourseMediaDocumentLink";
@@ -20,7 +21,7 @@ import {
   invalidateCompletedCourseEvidence,
   verifyCourseAssignmentCompleted,
 } from "@/hooks/useCourseAssignments";
-import { useGetCourse, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
+import { useGetCourse, useGetCourseVersion, useListCourseBlocks, type CourseBlock } from "@/hooks/useCourses";
 import { useGetQuizByBlockId, useListQuizAttempts } from "@/hooks/useQuizzes";
 import { useGetDocument, useDocumentSignedUrl } from "@/hooks/useDocuments";
 import { useGetCourseFeedbackForAssignment, useCreateCourseFeedback } from "@/hooks/useCourseFeedback";
@@ -180,6 +181,7 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
     refetch: refetchAssignment,
   } = useGetCourseAssignment(assignmentId);
   const { data: course } = useGetCourse(assignment?.course_id);
+  const { data: courseVersion, isError: courseVersionError } = useGetCourseVersion(assignment?.course_version_id);
   const courseTitle = documentDisplayName({ title: course?.title, fallback: "Training item" });
   const {
     data: blocks,
@@ -212,8 +214,12 @@ export function AssignmentCourse({ assignmentId }: { assignmentId: string }) {
   }, []);
   const completionEvidenceLocked = assignment?.status === "completed";
   const [completionClock, setCompletionClock] = useState(Date.now);
-  const completionWaitSeconds = course && progress?.assignment_id === assignmentId && progressFetchedAfterMount && !progressError
-    ? courseCompletionWaitSeconds(progress?.started_at, course.estimated_duration_minutes, completionClock)
+  const versionKnown = !assignment?.course_version_id || !!courseVersion || courseVersionError;
+  const completionWaitSeconds = course && versionKnown && progress?.assignment_id === assignmentId && progressFetchedAfterMount && !progressError
+    ? courseCompletionWaitSeconds(progress?.started_at, course.estimated_duration_minutes, completionClock, {
+        contentStandard: courseVersion?.content_standard,
+        designedMinutes: designedEngagementMinutes(blocks),
+      })
     : null;
   useEffect(() => {
     if (completionEvidenceLocked || completionWaitSeconds === 0) return;
@@ -435,7 +441,7 @@ useEffect(() => {
       startAssignment.mutate(assignment.id, {
         onError: (error) => toast({
           title: "Could not start this assignment",
-          description: error instanceof Error ? error.message : String(error),
+          description: errorText(error),
           variant: "destructive",
         }),
       });
@@ -499,7 +505,7 @@ useEffect(() => {
     } catch (error) {
       if (mountedRef.current) toast({
         title: "Could not save progress",
-        description: error instanceof Error ? error.message : String(error),
+        description: errorText(error),
         variant: "destructive",
       });
     } finally {
@@ -711,7 +717,7 @@ useEffect(() => {
       }
       toast({
         title: "Failed to complete training",
-        description: error instanceof Error ? error.message : String(error),
+        description: errorText(error),
         variant: "destructive",
       });
     } finally {
@@ -1350,7 +1356,7 @@ useEffect(() => {
             <p id="completion-time-help" className="text-sm text-right">
               {completionWaitSeconds === null
                 ? "Saving your course start. Completion will be available after the minimum learning time."
-                : `Continue reviewing the lesson. Completion is available in ${Math.floor(completionWaitSeconds / 60)}:${String(completionWaitSeconds % 60).padStart(2, "0")}.`}
+                : `This course stays open for its designed learning time. You can mark it complete in ${Math.floor(completionWaitSeconds / 60)}:${String(completionWaitSeconds % 60).padStart(2, "0")}.`}
             </p>
           )}
           {!canAdvance && (

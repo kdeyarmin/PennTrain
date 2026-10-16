@@ -5,9 +5,15 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useGetEmployeeByProfileId } from "@/hooks/useEmployees";
 import { useTrainingWelcome, useSaveTrainingExperience } from "@/hooks/useTrainingExperience";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import {
+  buildTrainingOwnerSteps,
+  trainingOwnerSetupFinished,
+  type TrainingOwnerCounts,
+  type TrainingOwnerLinks,
+} from "@/lib/trainingOwnerSetup";
 
 export function TrainingWelcome() {
   const { user } = useAuth();
@@ -50,22 +56,58 @@ export function TrainingWelcomeSettings({ facilityId }: { facilityId: string }) 
   </CardContent></Card>;
 }
 
-export function TrainingAdminWalkthrough({ facilityId, onTab, addStudentHref }: { facilityId: string; onTab: (tab: string) => void; addStudentHref: string }) {
+export function TrainingOwnerChecklist({
+  counts,
+  links,
+  onTab,
+  showPlanShortcut = false,
+}: {
+  counts: TrainingOwnerCounts;
+  links: TrainingOwnerLinks;
+  onTab: (tab: string) => void;
+  showPlanShortcut?: boolean;
+}) {
+  const finished = trainingOwnerSetupFinished(counts);
+  const [userOpen, setUserOpen] = useState<boolean | null>(null);
+  const open = userOpen ?? !finished;
+  const steps = buildTrainingOwnerSteps(counts, links);
+  const next = steps.find((step) => !step.done && !step.blocked);
+  return <Card className="border-primary/30 bg-primary/5"><CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+    <div>
+      <CardTitle>{finished ? "Your training account is ready" : "Set up training"}</CardTitle>
+      <CardDescription>{finished
+        ? "Add people, assign courses, and open reports whenever you need them."
+        : next ? `Next: ${next.title.toLowerCase()}.` : "Finish the steps below. Each one unlocks the next."}</CardDescription>
+    </div>
+    <Button variant="ghost" size="sm" onClick={() => setUserOpen(!open)} aria-expanded={open}>{open ? "Collapse guide" : "Show guide"}</Button>
+  </CardHeader>
+  {open && <CardContent className="space-y-3">
+    <ol className="space-y-2">
+      {steps.map((step, index) => <li key={step.key} className="flex flex-wrap items-start justify-between gap-3 rounded border bg-background/80 p-3">
+        <div className="min-w-0 flex-1">
+          <p className={`font-medium ${step.done ? "text-muted-foreground line-through" : ""}`}>{index + 1}. {step.title}{step.done ? " · Done" : ""}</p>
+          <p className="text-sm text-muted-foreground">{step.blocked ? step.blockedReason : step.detail}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {step.blocked || !step.href
+            ? <Button size="sm" variant={step === next ? "default" : "outline"} disabled={step.blocked} onClick={() => { if (step.tab) onTab(step.tab); }}>{step.cta}</Button>
+            : <Button asChild size="sm" variant={step === next ? "default" : "outline"}><Link href={step.href}>{step.cta}</Link></Button>}
+          {showPlanShortcut && step.key === "assign" && !step.blocked && <Button size="sm" variant="outline" onClick={() => onTab("yearly-plans")}>Use a learning plan</Button>}
+        </div>
+      </li>)}
+    </ol>
+  </CardContent>}
+  </Card>;
+}
+
+export function TrainingAdminWalkthrough({ facilityId, onTab, addStudentHref, assignmentsHref }: { facilityId: string; onTab: (tab: string) => void; addStudentHref: string; assignmentsHref: string }) {
   const query = useTrainingWelcome(facilityId, !!facilityId);
-  const [open, setOpen] = useState(true);
   const setup = query.data?.setup;
   if (!setup) return null;
-  const steps = [
-    { title: "1. Welcome your staff", detail: "Confirm facility details, add a welcome message and name the training contact.", done: !!query.data?.welcome.contact_name, tab: "settings" },
-    { title: "2. Add staff and invite them", detail: `${setup.staff} active staff · ${setup.portal_ready} linked portal accounts. Invitation history shows who still needs to accept.`, done: setup.staff > 0 && setup.portal_ready === setup.staff, tab: "students" },
-    { title: "3. Prepare learning plans", detail: "Start from a kit or build your plan. Enter the year and each completion deadline yourself.", done: setup.plans > 0, tab: "yearly-plans" },
-    { title: "4. Assign required learning", detail: `${setup.assigned} course assignments. Preview role and department matches before applying a rule.`, done: setup.assigned > 0, tab: "yearly-plans" },
-    { title: "5. Review progress and certificates", detail: "Filter Reports by staff member or department, schedule updates, and print completion records.", done: false, tab: "enrollments" },
-  ];
-  return <Card><CardHeader className="flex-row items-center justify-between"><CardTitle>Facility setup guide</CardTitle><Button variant="ghost" size="sm" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Collapse guide" : "Show guide"}</Button></CardHeader>
-    {open && <CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Follow these steps in order. The guide updates as you build your training program.</p>
-      {steps.map(step => <div key={step.title} className="flex items-start justify-between gap-4 rounded border p-3"><div><p className="font-medium">{step.title}{step.done ? " · Ready" : ""}</p><p className="text-sm text-muted-foreground">{step.detail}</p></div><Button variant="outline" size="sm" onClick={() => onTab(step.tab)}>Open</Button></div>)}
-      {!setup.staff && <Button asChild><Link href={addStudentHref}>Add your first student</Link></Button>}
-    </CardContent>}
-  </Card>;
+  return <TrainingOwnerChecklist
+    counts={{ facilities: 1, staff: setup.staff, portalReady: setup.portal_ready, plans: setup.plans, assigned: setup.assigned }}
+    links={{ facilityHref: `/app/facilities/${facilityId}?source=train`, addStaffHref: addStudentHref, assignmentsHref }}
+    onTab={onTab}
+    showPlanShortcut
+  />;
 }
