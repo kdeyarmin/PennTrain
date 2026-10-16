@@ -346,7 +346,9 @@ export default function Signup() {
             )}
           </CardContent>
         </Card>
-        <SignupPlanSummary product={trainingOnly ? "train" : "carebase"} allowSwitch={!trainBuild && !submittedEmail} />
+        {/* No switching once a request is in flight: the request already names its product, so a
+            switch now would leave the confirmation showing a plan that was not the one created. */}
+        <SignupPlanSummary product={trainingOnly ? "train" : "carebase"} allowSwitch={!trainBuild && !submittedEmail && !isPending} />
         </div>
 
         <p className="text-center text-[11px] text-muted-foreground/60">
