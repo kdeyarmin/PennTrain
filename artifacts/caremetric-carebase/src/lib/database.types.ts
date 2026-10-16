@@ -42666,6 +42666,7 @@ export type Database = {
       pa_now: { Args: never; Returns: string }
       pa_today: { Args: never; Returns: string }
       pa_week_start: { Args: { p_at: string }; Returns: string }
+      pending_invite_user_id: { Args: { p_email: string }; Returns: string }
       pin_survey_day_binder: {
         Args: { p_binder_job_id: string; p_session_id: string }
         Returns: {
@@ -44343,6 +44344,15 @@ export type Database = {
       reserve_confidential_intake_attempt: {
         Args: { p_facility_id: string; p_ip_hash: string; p_limit?: number }
         Returns: number
+      }
+      reserve_invite_resend: {
+        Args: {
+          p_email_hash: string
+          p_ip_hash: string
+          p_max_email_per_day: number
+          p_max_ip_per_hour: number
+        }
+        Returns: undefined
       }
       reserve_signup_attempt: {
         Args: {

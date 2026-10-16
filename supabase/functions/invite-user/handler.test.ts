@@ -209,7 +209,7 @@ Deno.test("learner invitation signs only the authorized organization logo and us
     invitation_logo_url: "https://untrusted.test/logo.png", invitation_contact_email: "spoof@example.test" }));
   assertEquals(response.status, 200);
   assertEquals(observations.brandingArgs, { p_organization_id: ORG_ID, p_facility_id: facilityId });
-  assertEquals(observations.signedLogos, [["org-branding", `${ORG_ID}/logo.png`, 3600]]);
+  assertEquals(observations.signedLogos, [["org-branding", `${ORG_ID}/logo.png`, 7 * 24 * 60 * 60]]);
   assertEquals(observations.inviteOptions.data, { first_name: "Rae", last_name: "Nolan", invitation_audience: "learner",
     invitation_logo_url: `${ENV.SUPABASE_URL}/storage/v1/object/sign/org-branding/${ORG_ID}/logo.png?token=display-token`,
     invitation_contact_name: "Education Team", invitation_contact_email: "training@example.test" });

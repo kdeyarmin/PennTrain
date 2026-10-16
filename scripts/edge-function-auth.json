@@ -112,6 +112,12 @@
     ],
     "rationale": "Deliberately public: browser error telemetry has to be reportable when the session is exactly what is broken. Bounded by method and body-size checks and PHI-scrubbed before storage; both behaviours are covered by its runtime tests."
   },
+  "resend-invite-link": {
+    "gates": [
+      "hashed-rate-limit"
+    ],
+    "rationale": "Public expired-invite and signup-success resend. The caller has no session, so the gate is a hashed IP and email rate limit reserved before any lookup. Every outcome returns the same acknowledgement. The function resends only an unconfirmed, still-active invitation and never creates an account."
+  },
   "request-demo": {
     "gates": [
       "turnstile"

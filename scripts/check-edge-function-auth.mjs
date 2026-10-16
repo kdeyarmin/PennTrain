@@ -64,6 +64,9 @@ export const GATE_MARKERS = {
   // Deliberately reachable with no credential. Requires a rationale like every other entry, and is
   // the one gate with no marker to prove -- which is exactly why it must be written down.
   "public": [],
+  // A public form with no session. The marker is the rate-limit reservation the handler must call
+  // before it looks anyone up. A comment that merely names the function does not count.
+  "hashed-rate-limit": ["reserve_invite_resend"],
 };
 
 /** Read `[functions.NAME] ... verify_jwt = BOOL` pairs out of config.toml. */

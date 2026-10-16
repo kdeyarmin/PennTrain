@@ -59,6 +59,7 @@ Deno.test("learner invitations explain activation, assignments and saved certifi
   assertStringIncludes(message.html, "Cedar &lt;House&gt; &amp; &quot;Care&quot;");
   assertStringIncludes(message.text, "Open My Learning");
   assertStringIncludes(message.text, "My Certificates");
+  assertStringIncludes(message.text, "expires after 7 days");
   assertStringIncludes(message.text, "ask your administrator to resend");
   assertEquals(message.html.includes("<House>"), false);
 });

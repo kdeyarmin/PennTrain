@@ -174,6 +174,19 @@ describe("password recovery account binding", () => {
     await Promise.resolve();
     expect(h.signOut).toHaveBeenCalledWith({ scope: "local" });
   });
+  it("offers a fresh invitation on an expired link and keeps password recovery", async () => {
+    vi.resetModules();
+    vi.stubGlobal("window", {
+      location: { hash: "#error=access_denied&error_code=otp_expired" },
+      localStorage: { getItem: () => "[]" },
+    });
+    ResetPassword = (await import("./ResetPassword")).default;
+    await mount();
+    const view = render();
+    expect(view.some((node) => typeof node.type === "function" && node.type.name === "InviteLinkResend")).toBe(true);
+    expect(view.find((node) => node.props.href === "/forgot-password")).toBeDefined();
+    expect(form()).toBeUndefined();
+  });
   it("keeps a failed password update retryable", async () => {
     await mount();
     fill("password", "new-password"); fill("confirmPassword", "new-password");
