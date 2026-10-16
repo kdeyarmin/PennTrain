@@ -37,10 +37,12 @@ import { Link } from "wouter";
 import { QueryError } from "@/components/QueryState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUrlState } from "@/hooks/useUrlState";
+import { PlatformRevenuePanel } from "@/components/admin/PlatformRevenuePanel";
 
 const DASHBOARD_SECTIONS = [
   { value: "overview", label: "Overview" },
   { value: "organizations", label: "Organizations" },
+  { value: "revenue", label: "Revenue" },
   { value: "compliance", label: "Compliance" },
   { value: "training", label: "Training" },
   { value: "system", label: "System health" },
@@ -561,6 +563,9 @@ export default function AdminDashboard() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+        <TabsContent value="revenue">
+          <PlatformRevenuePanel />
         </TabsContent>
         <TabsContent value="compliance">
       <Card>
